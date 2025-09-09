@@ -75,6 +75,10 @@ export const DirecteurChat: React.FC = () => {
   });
   
   const [isLoadingMore, setIsLoadingMore] = useState(false);
+  
+  // États pour les onglets compacts
+  const [tabsCollapsed, setTabsCollapsed] = useState(true);
+  const [activeTab, setActiveTab] = useState<'history' | 'filters' | 'forms' | 'employees' | null>(null);
 
   const handleSendMessage = async (message?: string) => {
     const messageToSend = message || inputMessage.trim();
@@ -284,6 +288,10 @@ export const DirecteurChat: React.FC = () => {
 
           {/* Info tabs */}
           <InfoTabs
+            collapsed={tabsCollapsed}
+            onCollapsedChange={setTabsCollapsed}
+            activeTab={activeTab}
+            onTabChange={setActiveTab}
             filters={filters}
             onFiltersChange={setFilters}
             conversations={conversations}

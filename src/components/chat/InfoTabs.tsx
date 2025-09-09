@@ -1,31 +1,36 @@
-import React, { useState } from 'react';
-import { History, Filter, FileText, Users, Calendar, ChevronDown, ChevronUp } from 'lucide-react';
+import React, { useEffect } from 'react';
+import { History, Filter, FileText, Users, X, ChevronDown, ChevronUp } from 'lucide-react';
 import { Button } from '../Button';
 import { Select } from '../Select';
 
+type TabId = "history" | "filters" | "forms" | "employees";
+
 interface InfoTabsProps {
-  // Filters
+  collapsed: boolean;                 // true = fermé (drawer caché)
+  onCollapsedChange: (v: boolean) => void;
+  activeTab: TabId | null;            // onglet sélectionné ou null
+  onTabChange: (t: TabId | null) => void;
+
+  // données déjà utilisées aujourd'hui par InfoTabs:
   filters: {
     period: string;
     formId: string;
     userId: string;
   };
   onFiltersChange: (filters: any) => void;
-  
-  // Data
   conversations: any[];
   forms: any[];
   employees: any[];
   formEntries: any[];
-  
-  // Actions
   onLoadConversation?: (id: string) => void;
   onCreateConversation?: () => void;
 }
 
-type TabType = 'history' | 'filters' | 'forms' | 'team';
-
 export const InfoTabs: React.FC<InfoTabsProps> = ({
+  collapsed,
+  onCollapsedChange,
+  activeTab,
+  onTabChange,
   filters,
   onFiltersChange,
   conversations,
@@ -35,29 +40,40 @@ export const InfoTabs: React.FC<InfoTabsProps> = ({
   onLoadConversation,
   onCreateConversation
 }) => {
-  const [activeTab, setActiveTab] = useState<TabType | null>(null);
+  // Fermeture avec Escape
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !collapsed) {
+        onCollapsedChange(true);
+        onTabChange(null);
+      }
+    };
+
+    document.addEventListener('keydown', handleEscape);
+    return () => document.removeEventListener('keydown', handleEscape);
+  }, [collapsed, onCollapsedChange, onTabChange]);
 
   const tabs = [
     {
-      id: 'history' as TabType,
+      id: 'history' as TabId,
       label: 'Historique',
       icon: History,
       count: conversations.length
     },
     {
-      id: 'filters' as TabType,
+      id: 'filters' as TabId,
       label: 'Filtres',
       icon: Filter,
       count: null
     },
     {
-      id: 'forms' as TabType,
+      id: 'forms' as TabId,
       label: 'Formulaires',
       icon: FileText,
       count: forms.length
     },
     {
-      id: 'team' as TabType,
+      id: 'employees' as TabId,
       label: 'Équipe',
       icon: Users,
       count: employees.length
@@ -67,17 +83,30 @@ export const InfoTabs: React.FC<InfoTabsProps> = ({
   const quickPeriods = [
     { value: 'today', label: 'Aujourd\'hui' },
     { value: 'yesterday', label: 'Hier' },
-    { value: 'week', label: 'Cette semaine' },
-    { value: 'month', label: 'Ce mois' },
-    { value: '30days', label: '30 derniers jours' }
+    { value: 'this_week', label: 'Cette semaine' },
+    { value: 'this_month', label: 'Ce mois' },
+    { value: 'last_30d', label: '30 derniers jours' }
   ];
 
-  const toggleTab = (tabId: TabType) => {
-    setActiveTab(activeTab === tabId ? null : tabId);
+  const handleTabClick = (tabId: TabId) => {
+    if (activeTab === tabId && !collapsed) {
+      // Fermer si déjà ouvert
+      onCollapsedChange(true);
+      onTabChange(null);
+    } else {
+      // Ouvrir avec ce tab
+      onCollapsedChange(false);
+      onTabChange(tabId);
+    }
+  };
+
+  const handleClose = () => {
+    onCollapsedChange(true);
+    onTabChange(null);
   };
 
   const renderTabContent = () => {
-    if (!activeTab) return null;
+    if (!activeTab || collapsed) return null;
 
     switch (activeTab) {
       case 'history':
@@ -197,7 +226,7 @@ export const InfoTabs: React.FC<InfoTabsProps> = ({
           </div>
         );
 
-      case 'team':
+      case 'employees':
         return (
           <div className="space-y-3">
             <h4 className="font-medium text-gray-900">Aperçu des données</h4>
@@ -252,50 +281,79 @@ export const InfoTabs: React.FC<InfoTabsProps> = ({
   };
 
   return (
-    <div className="bg-white border-t border-gray-100">
-      {/* Tab buttons */}
-      <div className="max-w-screen-md mx-auto px-4 py-3">
-        <div className="flex items-center justify-center space-x-2">
-          {tabs.map((tab) => {
-            const Icon = tab.icon;
-            const isActive = activeTab === tab.id;
-            
-            return (
-              <button
-                key={tab.id}
-                onClick={() => toggleTab(tab.id)}
-                className={`flex items-center space-x-2 px-3 py-2 rounded-full text-sm font-medium transition-all duration-200 ${
-                  isActive
-                    ? 'bg-blue-100 text-blue-700 border border-blue-200'
-                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                }`}
-              >
-                <Icon className="h-4 w-4" />
-                <span>{tab.label}</span>
-                {tab.count !== null && (
-                  <span className={`text-xs px-1.5 py-0.5 rounded-full ${
-                    isActive ? 'bg-blue-200 text-blue-800' : 'bg-gray-200 text-gray-700'
-                  }`}>
-                    {tab.count}
-                  </span>
-                )}
-                {isActive ? (
-                  <ChevronUp className="h-3 w-3" />
-                ) : (
-                  <ChevronDown className="h-3 w-3" />
-                )}
-              </button>
-            );
-          })}
-        </div>
+    <>
+      {/* Panneau/drawer */}
+      {!collapsed && activeTab && (
+        <div className="fixed bottom-20 left-0 right-0 z-30">
+          <div className="max-w-screen-md mx-auto px-4">
+            <div className="bg-white rounded-2xl border border-gray-200 shadow-lg p-3 sm:p-4 max-h-[60vh] sm:max-h-[420px] overflow-auto">
+              {/* Header avec titre et bouton fermeture */}
+              <div className="flex items-center justify-between mb-3 pb-2 border-b border-gray-100">
+                <div className="flex items-center space-x-2">
+                  {(() => {
+                    const tab = tabs.find(t => t.id === activeTab);
+                    const Icon = tab?.icon || History;
+                    return (
+                      <>
+                        <Icon className="h-4 w-4 text-blue-600" />
+                        <span className="font-medium text-gray-900">{tab?.label}</span>
+                      </>
+                    );
+                  })()}
+                </div>
+                <button
+                  onClick={handleClose}
+                  className="p-1 rounded-full hover:bg-gray-100 transition-colors"
+                >
+                  <X className="h-4 w-4 text-gray-500" />
+                </button>
+              </div>
 
-        {/* Tab content */}
-        {activeTab && (
-          <div className="mt-4 p-4 bg-gray-50 rounded-xl border border-gray-100 max-h-60 overflow-y-auto">
-            {renderTabContent()}
+              {/* Contenu */}
+              {renderTabContent()}
+            </div>
           </div>
-        )}
+        </div>
+      )}
+
+      {/* Onglets compacts en bas */}
+      <div className="fixed bottom-16 left-0 right-0 z-20">
+        <div className="max-w-screen-md mx-auto px-4 py-3">
+          <div className="flex items-center justify-center space-x-2">
+            {tabs.map((tab) => {
+              const Icon = tab.icon;
+              const isActive = activeTab === tab.id && !collapsed;
+              
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => handleTabClick(tab.id)}
+                  className={`flex items-center space-x-2 px-3 py-1 rounded-full text-sm font-medium transition-all duration-200 shadow-sm ${
+                    isActive
+                      ? 'bg-blue-100 text-blue-700 border border-blue-200'
+                      : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'
+                  }`}
+                >
+                  <Icon className="h-4 w-4" />
+                  <span className="hidden sm:inline">{tab.label}</span>
+                  {tab.count !== null && (
+                    <span className={`text-xs px-1.5 py-0.5 rounded-full ${
+                      isActive ? 'bg-blue-200 text-blue-800' : 'bg-gray-200 text-gray-700'
+                    }`}>
+                      {tab.count}
+                    </span>
+                  )}
+                  {isActive && !collapsed ? (
+                    <ChevronDown className="h-3 w-3" />
+                  ) : (
+                    <ChevronUp className="h-3 w-3" />
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
       </div>
-    </div>
+    </>
   );
 };
