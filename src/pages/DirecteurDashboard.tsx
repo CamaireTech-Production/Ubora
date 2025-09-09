@@ -17,7 +17,6 @@ export const DirecteurDashboard: React.FC = () => {
     employees,
     createForm, 
     updateForm,
-    updateForm,
     deleteForm,
     getEntriesForForm, 
     isLoading: appLoading
