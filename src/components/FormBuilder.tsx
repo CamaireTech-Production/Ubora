@@ -1,14 +1,15 @@
 import React, { useState } from 'react';
-import { FormField } from '../types';
+import { FormField, Form } from '../types';
 import { Button } from './Button';
 import { Input } from './Input';
 import { Select } from './Select';
 import { Textarea } from './Textarea';
 import { Card } from './Card';
-import { Plus, Trash2, ArrowLeft } from 'lucide-react';
+import { Plus, Trash2, ArrowLeft, AlertCircle } from 'lucide-react';
 
 interface FormBuilderProps {
   onSave: (form: {
+    id?: string;
     title: string;
     description: string;
     fields: FormField[];
@@ -16,17 +17,24 @@ interface FormBuilderProps {
   }) => void;
   onCancel: () => void;
   employees: Array<{ id: string; name: string; email: string }>;
+  initialForm?: Pick<Form, 'id' | 'title' | 'description' | 'fields' | 'assignedTo'>;
 }
 
 export const FormBuilder: React.FC<FormBuilderProps> = ({
   onSave,
   onCancel,
-  employees
+  employees,
+  initialForm
 }) => {
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [assignedTo, setAssignedTo] = useState<string[]>([]);
-  const [fields, setFields] = useState<FormField[]>([]);
+  // Initialiser les états avec les valeurs du formulaire existant ou vides
+  const [title, setTitle] = useState(initialForm?.title || '');
+  const [description, setDescription] = useState(initialForm?.description || '');
+  const [assignedTo, setAssignedTo] = useState<string[]>(initialForm?.assignedTo || []);
+  const [fields, setFields] = useState<FormField[]>(initialForm?.fields || []);
+  const [errors, setErrors] = useState<string[]>([]);
+
+  // Déterminer le mode (création ou édition)
+  const isEditMode = !!initialForm;
 
   const addField = () => {
     const newField: FormField = {
@@ -84,29 +92,59 @@ export const FormBuilder: React.FC<FormBuilderProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title || assignedTo.length === 0 || fields.length === 0) {
-      alert('Veuillez remplir tous les champs obligatoires');
-      return;
+    
+    // Validation avec messages d'erreur détaillés
+    const validationErrors: string[] = [];
+    
+    if (!title.trim()) {
+      validationErrors.push('Le titre du formulaire est obligatoire');
+    }
+    
+    if (assignedTo.length === 0) {
+      validationErrors.push('Veuillez sélectionner au moins un employé');
+    }
+    
+    if (fields.length === 0) {
+      validationErrors.push('Veuillez ajouter au moins un champ au formulaire');
     }
 
     // Valider que tous les champs ont un label
     const invalidFields = fields.filter(field => !field.label.trim());
     if (invalidFields.length > 0) {
-      alert('Tous les champs doivent avoir un libellé');
+      validationErrors.push(`${invalidFields.length} champ(s) n'ont pas de libellé`);
+    }
+
+    // Valider que les champs select ont au moins une option
+    const selectFieldsWithoutOptions = fields.filter(field => 
+      field.type === 'select' && (!field.options || field.options.length === 0 || field.options.every(opt => !opt.trim()))
+    );
+    if (selectFieldsWithoutOptions.length > 0) {
+      validationErrors.push(`${selectFieldsWithoutOptions.length} liste(s) déroulante(s) n'ont pas d'options`);
+    }
+
+    if (validationErrors.length > 0) {
+      setErrors(validationErrors);
       return;
     }
 
-    onSave({
+    // Réinitialiser les erreurs si validation OK
+    setErrors([]);
+
+    // Préparer les données à sauvegarder
+    const formData = {
+      ...(isEditMode && initialForm?.id ? { id: initialForm.id } : {}),
       title,
       description,
       fields,
       assignedTo,
-    });
+    };
+
+    onSave(formData);
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center space-x-4 mb-6">
+    <div className="space-y-4 sm:space-y-6">
+      <div className="flex items-center space-x-2 sm:space-x-4 mb-4 sm:mb-6">
         <Button
           variant="secondary"
           size="sm"
@@ -116,11 +154,35 @@ export const FormBuilder: React.FC<FormBuilderProps> = ({
           <ArrowLeft className="h-4 w-4" />
           <span>Retour</span>
         </Button>
-        <h2 className="text-2xl font-bold text-gray-900">Créer un nouveau formulaire</h2>
+        <h2 className="text-lg sm:text-2xl font-bold text-gray-900">
+          {isEditMode ? 'Modifier le formulaire' : 'Créer un nouveau formulaire'}
+        </h2>
       </div>
 
+      {/* Affichage des erreurs de validation */}
+      {errors.length > 0 && (
+        <Card className="border-red-200 bg-red-50">
+          <div className="flex items-start space-x-3">
+            <AlertCircle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <h3 className="text-sm font-medium text-red-800 mb-2">
+                Veuillez corriger les erreurs suivantes :
+              </h3>
+              <ul className="text-sm text-red-700 space-y-1">
+                {errors.map((error, index) => (
+                  <li key={index} className="flex items-start space-x-1">
+                    <span>•</span>
+                    <span>{error}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </Card>
+      )}
+
       <Card>
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6">
           <Input
             label="Titre du formulaire *"
             value={title}
@@ -140,21 +202,21 @@ export const FormBuilder: React.FC<FormBuilderProps> = ({
             <label className="block text-sm font-medium text-gray-700 mb-3">
               Assigner aux employés *
             </label>
-            <div className="space-y-2 max-h-40 overflow-y-auto border border-gray-200 rounded-lg p-3">
+            <div className="space-y-2 max-h-32 sm:max-h-40 overflow-y-auto border border-gray-200 rounded-lg p-3">
               {employees.length === 0 ? (
                 <p className="text-gray-500 text-sm">Aucun employé disponible</p>
               ) : (
                 employees.map(employee => (
-                  <label key={employee.id} className="flex items-center space-x-3 cursor-pointer hover:bg-gray-50 p-2 rounded">
+                  <label key={employee.id} className="flex items-start space-x-3 cursor-pointer hover:bg-gray-50 p-2 rounded">
                     <input
                       type="checkbox"
                       checked={assignedTo.includes(employee.id)}
                       onChange={() => toggleEmployeeAssignment(employee.id)}
-                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 mt-0.5"
                     />
                     <div className="flex-1">
-                      <span className="text-sm font-medium text-gray-900">{employee.name}</span>
-                      <span className="text-xs text-gray-500 ml-2">({employee.email})</span>
+                      <span className="text-sm font-medium text-gray-900 break-words">{employee.name}</span>
+                      <span className="text-xs text-gray-500 block sm:inline sm:ml-2 break-all">({employee.email})</span>
                     </div>
                   </label>
                 ))
@@ -163,11 +225,16 @@ export const FormBuilder: React.FC<FormBuilderProps> = ({
             {assignedTo.length === 0 && (
               <p className="text-sm text-red-600 mt-1">Veuillez sélectionner au moins un employé</p>
             )}
+            {isEditMode && (
+              <p className="text-xs text-blue-600 mt-1">
+                💡 Vous pouvez modifier les employés assignés même après la création du formulaire
+              </p>
+            )}
           </div>
 
           <div>
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-medium text-gray-900">Champs du formulaire</h3>
+              <h3 className="text-base sm:text-lg font-medium text-gray-900">Champs du formulaire</h3>
               <Button
                 type="button"
                 variant="secondary"
@@ -176,12 +243,13 @@ export const FormBuilder: React.FC<FormBuilderProps> = ({
                 className="flex items-center space-x-2"
               >
                 <Plus className="h-4 w-4" />
-                <span>Ajouter un champ</span>
+                <span className="hidden sm:inline">Ajouter un champ</span>
+                <span className="sm:hidden">Ajouter</span>
               </Button>
             </div>
 
             {fields.length === 0 ? (
-              <p className="text-gray-500 text-center py-8 bg-gray-50 rounded-lg">
+              <p className="text-gray-500 text-center py-6 sm:py-8 bg-gray-50 rounded-lg text-sm sm:text-base">
                 Aucun champ ajouté. Cliquez sur "Ajouter un champ" pour commencer.
               </p>
             ) : (
@@ -202,7 +270,7 @@ export const FormBuilder: React.FC<FormBuilderProps> = ({
                         </Button>
                       </div>
                       
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <Input
                           label="Libellé du champ *"
                           value={field.label}
@@ -238,7 +306,7 @@ export const FormBuilder: React.FC<FormBuilderProps> = ({
                         <div>
                           <div className="flex items-center justify-between mb-2">
                             <label className="block text-sm font-medium text-gray-700">
-                              Options de la liste
+                              Options de la liste *
                             </label>
                             <Button
                               type="button"
@@ -269,6 +337,11 @@ export const FormBuilder: React.FC<FormBuilderProps> = ({
                               </div>
                             ))}
                           </div>
+                          {(!field.options || field.options.length === 0 || field.options.every(opt => !opt.trim())) && (
+                            <p className="text-sm text-red-600 mt-1">
+                              Veuillez ajouter au moins une option pour cette liste déroulante
+                            </p>
+                          )}
                         </div>
                       )}
                       
@@ -288,11 +361,11 @@ export const FormBuilder: React.FC<FormBuilderProps> = ({
             )}
           </div>
 
-          <div className="flex space-x-4 pt-6 border-t border-gray-200">
-            <Button type="submit" className="flex-1">
-              Créer le formulaire
+          <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 pt-4 sm:pt-6 border-t border-gray-200">
+            <Button type="submit" className="w-full sm:flex-1">
+              {isEditMode ? 'Mettre à jour le formulaire' : 'Créer le formulaire'}
             </Button>
-            <Button type="button" variant="secondary" onClick={onCancel}>
+            <Button type="button" variant="secondary" onClick={onCancel} className="w-full sm:w-auto">
               Annuler
             </Button>
           </div>

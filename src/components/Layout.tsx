@@ -2,7 +2,7 @@ import React from 'react';
 import { useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from './Button';
-import { LogOut, Building2, BarChart3, MessageSquare } from 'lucide-react';
+import { LogOut, Building2, BarChart3, MessageSquare, Menu, X } from 'lucide-react';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -12,27 +12,36 @@ interface LayoutProps {
 export const Layout: React.FC<LayoutProps> = ({ children, title }) => {
   const { user, logout } = useAuth();
   const location = useLocation();
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
   
   const isDirecteur = user?.role === 'directeur';
   const isDashboard = location.pathname === '/directeur/dashboard';
   const isChat = location.pathname === '/directeur/chat';
 
+  const toggleMobileMenu = () => {
+    setIsMobileMenuOpen(!isMobileMenuOpen);
+  };
+
+  const closeMobileMenu = () => {
+    setIsMobileMenuOpen(false);
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white shadow-sm border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center space-x-3">
+          <div className="flex justify-between items-center h-14 sm:h-16">
+            <div className="flex items-center space-x-2 sm:space-x-3">
               <Building2 className="h-8 w-8 text-blue-600" />
               <div>
-                <h1 className="text-xl font-bold text-gray-900">{title}</h1>
-                <p className="text-sm text-gray-500 capitalize">{user?.role}</p>
+                <h1 className="text-lg sm:text-xl font-bold text-gray-900 truncate max-w-[200px] sm:max-w-none">{title}</h1>
+                <p className="text-xs sm:text-sm text-gray-500 capitalize">{user?.role}</p>
               </div>
             </div>
             
-            {/* Navigation pour directeur */}
+            {/* Navigation desktop pour directeur */}
             {isDirecteur && (
-              <div className="flex items-center space-x-2">
+              <div className="hidden md:flex items-center space-x-2">
                 <Button
                   variant={isChat ? "primary" : "secondary"}
                   size="sm"
@@ -55,26 +64,78 @@ export const Layout: React.FC<LayoutProps> = ({ children, title }) => {
               </div>
             )}
             
-            <div className="flex items-center space-x-4">
-              <div className="text-right">
-                <p className="text-sm font-medium text-gray-900">{user?.name}</p>
-                <p className="text-xs text-gray-500">{user?.email}</p>
+            <div className="flex items-center space-x-2 sm:space-x-4">
+              {/* Profil utilisateur - masqué sur très petit écran */}
+              <div className="hidden sm:block text-right">
+                <p className="text-sm font-medium text-gray-900 truncate max-w-[120px] lg:max-w-none">{user?.name}</p>
+                <p className="text-xs text-gray-500 truncate max-w-[120px] lg:max-w-none">{user?.email}</p>
               </div>
+              
+              {/* Bouton menu mobile pour directeur */}
+              {isDirecteur && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={toggleMobileMenu}
+                  className="md:hidden flex items-center space-x-1"
+                >
+                  {isMobileMenuOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
+                </Button>
+              )}
+              
+              {/* Bouton déconnexion */}
               <Button
                 variant="secondary"
                 size="sm"
                 onClick={logout}
-                className="flex items-center space-x-2"
+                className="flex items-center space-x-1 sm:space-x-2"
               >
                 <LogOut className="h-4 w-4" />
-                <span>Déconnexion</span>
+                <span className="hidden sm:inline">Déconnexion</span>
               </Button>
             </div>
           </div>
+          
+          {/* Menu mobile pour directeur */}
+          {isDirecteur && isMobileMenuOpen && (
+            <div className="md:hidden border-t border-gray-200 py-3 space-y-2">
+              <Button
+                variant={isChat ? "primary" : "secondary"}
+                size="sm"
+                onClick={() => {
+                  window.location.href = '/directeur/chat';
+                  closeMobileMenu();
+                }}
+                className="w-full flex items-center justify-center space-x-2"
+              >
+                <MessageSquare className="h-4 w-4" />
+                <span>Chat IA</span>
+              </Button>
+              
+              <Button
+                variant={isDashboard ? "primary" : "secondary"}
+                size="sm"
+                onClick={() => {
+                  window.location.href = '/directeur/dashboard';
+                  closeMobileMenu();
+                }}
+                className="w-full flex items-center justify-center space-x-2"
+              >
+                <BarChart3 className="h-4 w-4" />
+                <span>Dashboard</span>
+              </Button>
+              
+              {/* Profil utilisateur mobile */}
+              <div className="sm:hidden pt-2 border-t border-gray-200 text-center">
+                <p className="text-sm font-medium text-gray-900">{user?.name}</p>
+                <p className="text-xs text-gray-500">{user?.email}</p>
+              </div>
+            </div>
+          )}
         </div>
       </header>
       
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8">
         {children}
       </main>
     </div>
