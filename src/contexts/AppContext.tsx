@@ -4,13 +4,12 @@ import {
   addDoc, 
   query, 
   where, 
-  getDocs, 
   orderBy,
   onSnapshot,
   deleteDoc,
+  updateDoc,
   doc,
-  serverTimestamp,
-  Timestamp
+  serverTimestamp
 } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 import { Form, FormEntry, User } from '../types';
@@ -21,6 +20,7 @@ interface AppContextType {
   formEntries: FormEntry[];
   employees: User[];
   createForm: (form: Omit<Form, 'id' | 'createdAt'>) => Promise<void>;
+  updateForm: (formId: string, form: Partial<Omit<Form, 'id' | 'createdAt' | 'createdBy' | 'agencyId'>>) => Promise<void>;
   submitFormEntry: (entry: Omit<FormEntry, 'id' | 'submittedAt' | 'userId' | 'agencyId'>) => Promise<void>;
   deleteForm: (formId: string) => Promise<void>;
   getFormsForEmployee: (employeeId: string) => Form[];
@@ -82,7 +82,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         createdAt: doc.data().createdAt?.toDate() || new Date()
       })) as Form[];
       setForms(formsData);
-      console.log('Formulaires chargés:', formsData.length);
+      console.log('Formulaires chargés:', {
+        count: formsData.length,
+        userRole: user.role,
+        userAgencyId: user.agencyId,
+        forms: formsData.map(f => ({ 
+          id: f.id, 
+          title: f.title, 
+          assignedTo: f.assignedTo,
+          agencyId: f.agencyId 
+        }))
+      });
     }, (err) => {
       console.error('Erreur lors du chargement des formulaires:', err);
       setError('Erreur lors du chargement des formulaires');
@@ -165,6 +175,34 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  const updateForm = async (formId: string, formData: Partial<Omit<Form, 'id' | 'createdAt' | 'createdBy' | 'agencyId'>>) => {
+    if (!user || user.role !== 'directeur' || !user.agencyId) {
+      throw new Error('Seuls les directeurs peuvent modifier des formulaires');
+    }
+
+    try {
+      setError(null);
+      
+      // Préparer les données à mettre à jour
+      const updateData: Record<string, any> = {
+        updatedAt: serverTimestamp()
+      };
+
+      // Ajouter seulement les champs fournis
+      if (formData.title !== undefined) updateData.title = formData.title.trim();
+      if (formData.description !== undefined) updateData.description = formData.description.trim();
+      if (formData.assignedTo !== undefined) updateData.assignedTo = formData.assignedTo;
+      if (formData.fields !== undefined) updateData.fields = formData.fields;
+
+      console.log('Mise à jour du formulaire:', { formId, updateData });
+      await updateDoc(doc(db, 'forms', formId), updateData);
+    } catch (err) {
+      console.error('Erreur lors de la mise à jour du formulaire:', err);
+      setError('Erreur lors de la mise à jour du formulaire');
+      throw err;
+    }
+  };
+
   const submitFormEntry = async (entryData: Omit<FormEntry, 'id' | 'submittedAt' | 'userId' | 'agencyId'>) => {
     // Guard: Vérifier que l'utilisateur est connecté et a un profil complet
     if (!firebaseUser || !user || !user.agencyId) {
@@ -240,6 +278,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       formEntries,
       employees,
       createForm,
+      updateForm,
       submitFormEntry,
       deleteForm,
       getFormsForEmployee,

@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useApp } from '../contexts/AppContext';
+import { useConversation } from '../contexts/ConversationContext';
 import { Layout } from '../components/Layout';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
@@ -17,7 +18,11 @@ import {
   FileText,
   Users,
   Loader2,
-  Wifi
+  Wifi,
+  MessageSquare,
+  Plus,
+  History,
+  ChevronUp
 } from 'lucide-react';
 
 interface Message {
@@ -130,11 +135,22 @@ const formatMessageContent = (content: string): React.ReactNode => {
 export const DirecteurChat: React.FC = () => {
   const { user, firebaseUser, isLoading } = useAuth();
   const { forms, formEntries, employees, isLoading: appLoading } = useApp();
+  const { 
+    currentConversation, 
+    conversations, 
+    messages, 
+    isLoading: conversationLoading,
+    hasMoreMessages,
+    createNewConversation,
+    loadConversation,
+    loadMoreMessages,
+    addMessage
+  } = useConversation();
   
-  const [messages, setMessages] = useState<Message[]>([]);
   const [inputMessage, setInputMessage] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
+  const [showConversationHistory, setShowConversationHistory] = useState(false);
   const [filters, setFilters] = useState<ChatFilters>({
     period: 'week',
     formId: '',
@@ -143,6 +159,7 @@ export const DirecteurChat: React.FC = () => {
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
 
   // Auto-scroll vers le bas
   const scrollToBottom = () => {
@@ -154,6 +171,23 @@ export const DirecteurChat: React.FC = () => {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  // Handle scroll to load more messages
+  const handleScroll = async () => {
+    if (!chatContainerRef.current || isLoadingMore || !hasMoreMessages) return;
+
+    const { scrollTop } = chatContainerRef.current;
+    if (scrollTop < 100) { // Near top
+      setIsLoadingMore(true);
+      try {
+        await loadMoreMessages();
+      } catch (error) {
+        console.error('Error loading more messages:', error);
+      } finally {
+        setIsLoadingMore(false);
+      }
+    }
+  };
 
   // Exemples de questions
   const exampleQuestions = [
@@ -180,6 +214,18 @@ export const DirecteurChat: React.FC = () => {
 
     const startTime = Date.now();
 
+    // Create conversation if none exists
+    let conversationId = currentConversation?.id;
+    if (!conversationId) {
+      try {
+        conversationId = await createNewConversation();
+      } catch (error) {
+        console.error('Error creating conversation:', error);
+        alert('Erreur lors de la création de la conversation');
+        return;
+      }
+    }
+
     // Ajouter le message utilisateur
     const userMessage: Message = {
       id: `user_${Date.now()}`,
@@ -188,7 +234,15 @@ export const DirecteurChat: React.FC = () => {
       timestamp: new Date()
     };
 
-    setMessages(prev => [...prev, userMessage]);
+    // Add message to conversation (only if we have a conversation)
+    if (currentConversation) {
+      try {
+        await addMessage(userMessage);
+      } catch (error) {
+        console.error('Error adding user message:', error);
+      }
+    }
+
     setInputMessage('');
     setIsTyping(true);
 
@@ -215,13 +269,20 @@ export const DirecteurChat: React.FC = () => {
           period: filters.period,
           formId: filters.formId || undefined,
           userId: filters.userId || undefined
-        }
+        },
+        conversationId: conversationId
       };
 
-      // Timeout de 30 secondes (augmenté pour laisser plus de temps)
+      // Timeout de 60 secondes pour laisser plus de temps au traitement IA
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 30000);
+      const timeoutId = setTimeout(() => {
+        console.log('Request timeout after 60 seconds');
+        controller.abort();
+      }, 60000);
 
+      console.log('Calling AI endpoint:', AI_ENDPOINT);
+      console.log('Request data:', requestData);
+      
       const response = await fetch(AI_ENDPOINT, {
         method: 'POST',
         headers,
@@ -259,7 +320,14 @@ export const DirecteurChat: React.FC = () => {
         meta: data.meta
       };
 
-      setMessages(prev => [...prev, assistantMessage]);
+      // Add assistant message to conversation (only if we have a conversation)
+      if (currentConversation) {
+        try {
+          await addMessage(assistantMessage);
+        } catch (error) {
+          console.error('Error adding assistant message:', error);
+        }
+      }
 
     } catch (error) {
       console.error('Erreur lors de l\'envoi du message:', error);
@@ -270,16 +338,16 @@ export const DirecteurChat: React.FC = () => {
       
       if (error instanceof Error) {
         if (error.name === 'AbortError') {
-          errorContent = `⏱️ **Timeout**\n\nLe serveur IA met trop de temps à répondre (>15s). Veuillez réessayer.`;
+          errorContent = `⏱️ **Timeout**\n\nLe serveur IA met trop de temps à répondre (>60s). Cela peut être dû à:\n• Un grand volume de données à analyser\n• Une charge élevée du serveur\n• Un problème de connexion\n\nVeuillez réessayer ou contactez l'administrateur.`;
         } else if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
-          errorContent = `🌐 **Erreur de connexion**\n\nImpossible de joindre le serveur IA. Vérifiez votre connexion internet et la configuration de l'endpoint.`;
+          errorContent = `🌐 **Erreur de connexion**\n\nImpossible de joindre le serveur IA. Vérifiez:\n• Votre connexion internet\n• La configuration de l'endpoint IA\n• Que le serveur est en ligne\n\nEndpoint configuré: ${AI_ENDPOINT}`;
         } else if (error.message.includes('Chat IA n\'est pas configuré')) {
           errorContent = `⚙️ **Configuration manquante**\n\n${error.message}`;
         } else {
-          errorContent = `❌ **Erreur API**\n\n${error.message}`;
+          errorContent = `❌ **Erreur API**\n\n${error.message}\n\nEndpoint: ${AI_ENDPOINT}`;
         }
       } else {
-        errorContent = `❌ **Erreur inconnue**\n\nUne erreur inattendue s'est produite. Veuillez réessayer.`;
+        errorContent = `❌ **Erreur inconnue**\n\nUne erreur inattendue s'est produite. Veuillez réessayer.\n\nEndpoint: ${AI_ENDPOINT}`;
       }
       
       const errorMessage: Message = {
@@ -303,9 +371,6 @@ export const DirecteurChat: React.FC = () => {
     }
   };
 
-  const clearChat = () => {
-    setMessages([]);
-  };
 
   return (
     <LoadingGuard 
@@ -384,6 +449,58 @@ export const DirecteurChat: React.FC = () => {
           {/* Zone de chat */}
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
             
+            {/* Conversation History Sidebar */}
+            <div className="lg:col-span-1">
+              <Card className="h-[600px] flex flex-col">
+                <div className="flex items-center justify-between p-4 border-b border-gray-200">
+                  <div className="flex items-center space-x-2">
+                    <History className="h-5 w-5 text-gray-600" />
+                    <h3 className="font-semibold text-gray-900">Conversations</h3>
+                  </div>
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={createNewConversation}
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </div>
+                
+                <div className="flex-1 overflow-y-auto p-2">
+                  {conversations.length === 0 ? (
+                    <div className="text-center py-8">
+                      <MessageSquare className="h-12 w-12 text-gray-300 mx-auto mb-2" />
+                      <p className="text-sm text-gray-500">Aucune conversation</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {conversations.map(conversation => (
+                        <div
+                          key={conversation.id}
+                          className={`p-3 rounded-lg cursor-pointer transition-colors ${
+                            currentConversation?.id === conversation.id
+                              ? 'bg-blue-100 border border-blue-300'
+                              : 'hover:bg-gray-100 border border-transparent'
+                          }`}
+                          onClick={() => loadConversation(conversation.id)}
+                        >
+                          <div className="font-medium text-sm text-gray-900 truncate">
+                            {conversation.title}
+                          </div>
+                          <div className="text-xs text-gray-500 mt-1">
+                            {conversation.lastMessageAt.toLocaleDateString('fr-FR')}
+                          </div>
+                          <div className="text-xs text-gray-400">
+                            {conversation.messageCount} messages
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </Card>
+            </div>
+            
             {/* Chat principal */}
             <div className="lg:col-span-3">
               <Card className="h-[600px] flex flex-col">
@@ -392,17 +509,37 @@ export const DirecteurChat: React.FC = () => {
                 <div className="flex items-center justify-between p-4 border-b border-gray-200">
                   <div className="flex items-center space-x-3">
                     <Bot className="h-6 w-6 text-blue-600" />
-                    <h3 className="font-semibold text-gray-900">Assistant IA</h3>
+                    <div>
+                      <h3 className="font-semibold text-gray-900">Assistant IA</h3>
+                      {currentConversation && (
+                        <p className="text-sm text-gray-500 truncate max-w-xs">
+                          {currentConversation.title}
+                        </p>
+                      )}
+                    </div>
                   </div>
-                  {messages.length > 0 && (
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      onClick={clearChat}
-                    >
-                      Effacer
-                    </Button>
-                  )}
+                  <div className="flex items-center space-x-2">
+                    {hasMoreMessages && (
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={loadMoreMessages}
+                        disabled={isLoadingMore}
+                      >
+                        <ChevronUp className="h-4 w-4" />
+                        {isLoadingMore ? 'Chargement...' : 'Plus ancien'}
+                      </Button>
+                    )}
+                    {messages.length > 0 && (
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={createNewConversation}
+                      >
+                        Nouvelle conversation
+                      </Button>
+                    )}
+                  </div>
                 </div>
 
                 {/* Messages */}
@@ -410,6 +547,7 @@ export const DirecteurChat: React.FC = () => {
                   ref={chatContainerRef}
                   className="flex-1 overflow-y-auto p-4 space-y-4 min-h-0"
                   style={{ maxHeight: 'calc(600px - 140px)' }}
+                  onScroll={handleScroll}
                 >
                   {messages.length === 0 ? (
                     <div className="text-center py-12">

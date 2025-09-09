@@ -44,6 +44,15 @@ export const EmployeDashboard: React.FC = () => {
         const myEntries = getEntriesForEmployee(user?.id || '');
         const selectedForm = assignedForms.find(form => form.id === selectedFormId);
 
+        // Debug logging
+        console.log('Employee Dashboard Debug:', {
+          userId: user?.id,
+          userRole: user?.role,
+          userAgencyId: user?.agencyId,
+          assignedFormsCount: assignedForms.length,
+          assignedForms: assignedForms.map(f => ({ id: f.id, title: f.title, assignedTo: f.assignedTo }))
+        });
+
         const getFormEntryCount = (formId: string) => {
           return myEntries.filter(entry => entry.formId === formId).length;
         };

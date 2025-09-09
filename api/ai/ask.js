@@ -1,4 +1,5 @@
 const { adminAuth, adminDb } = require('../lib/firebaseAdmin.js');
+const admin = require('firebase-admin');
 const OpenAI = require('openai');
 
 // Configuration OpenAI
@@ -167,6 +168,41 @@ async function loadAndAggregateData(
     timeline[date] = (timeline[date] || 0) + 1;
   });
 
+  // Préparer les données détaillées des soumissions pour l'IA (limité à 50 pour éviter les timeouts)
+  const limitedEntries = entries.slice(0, 50);
+  const detailedSubmissions = limitedEntries.map(entry => {
+    const user = usersById.get(entry.userId);
+    const form = formsById.get(entry.formId);
+    
+    // Créer un mapping des réponses avec les labels des champs
+    const answersWithLabels = {};
+    if (form && form.fields) {
+      Object.entries(entry.answers || {}).forEach(([fieldId, value]) => {
+        const field = form.fields.find(f => f.id === fieldId);
+        const fieldLabel = field ? field.label : fieldId;
+        answersWithLabels[fieldLabel] = value;
+      });
+    } else {
+      // Fallback si pas de formulaire trouvé
+      Object.entries(entry.answers || {}).forEach(([fieldId, value]) => {
+        answersWithLabels[fieldId] = value;
+      });
+    }
+    
+    return {
+      id: entry.id,
+      formTitle: form ? form.title : `Formulaire ${entry.formId}`,
+      employeeName: user ? user.name : `Utilisateur ${entry.userId}`,
+      employeeEmail: user ? user.email : 'Email non disponible',
+      submittedAt: entry.submittedAt.toISOString(),
+      submittedDate: entry.submittedAt.toLocaleDateString('fr-FR'),
+      submittedTime: entry.submittedAt.toLocaleTimeString('fr-FR'),
+      answers: answersWithLabels,
+      isToday: entry.submittedAt.toDateString() === new Date().toDateString(),
+      isThisWeek: entry.submittedAt >= start && entry.submittedAt <= end
+    };
+  });
+
   return {
     period: { start, end, label },
     totals: {
@@ -186,7 +222,11 @@ async function loadAndAggregateData(
       .slice(0, 5), // Top 5
     timeline: Object.entries(timeline)
       .sort()
-      .map(([date, count]) => ({ date, count }))
+      .map(([date, count]) => ({ date, count })),
+    // Nouvelles données détaillées pour l'IA
+    submissions: detailedSubmissions,
+    todaySubmissions: detailedSubmissions.filter(s => s.isToday),
+    thisWeekSubmissions: detailedSubmissions.filter(s => s.isThisWeek)
   };
 }
 
@@ -344,44 +384,115 @@ module.exports = async function handler(req, res) {
       });
     }
 
+    // Debug: Log ALL data being sent to AI
+    console.log('=== COMPLETE DATA BEING SENT TO AI ===');
+    console.log('Total submissions:', data.submissions.length);
+    console.log('Today submissions:', data.todaySubmissions.length);
+    console.log('Period:', data.period);
+    console.log('Totals:', data.totals);
+    console.log('User stats:', data.userStats);
+    console.log('Form stats:', data.formStats);
+    console.log('Timeline:', data.timeline);
+    
+    console.log('\n=== ALL SUBMISSIONS DETAILS ===');
+    data.submissions.forEach((submission, index) => {
+      console.log(`\nSUBMISSION ${index + 1}:`);
+      console.log('- ID:', submission.id);
+      console.log('- Employee:', submission.employeeName, '(', submission.employeeEmail, ')');
+      console.log('- Form:', submission.formTitle);
+      console.log('- Date:', submission.submittedDate, 'at', submission.submittedTime);
+      console.log('- Is Today:', submission.isToday);
+      console.log('- Answers:', JSON.stringify(submission.answers, null, 2));
+    });
+    
+    console.log('\n=== TODAY SUBMISSIONS DETAILS ===');
+    data.todaySubmissions.forEach((submission, index) => {
+      console.log(`\nTODAY SUBMISSION ${index + 1}:`);
+      console.log('- ID:', submission.id);
+      console.log('- Employee:', submission.employeeName, '(', submission.employeeEmail, ')');
+      console.log('- Form:', submission.formTitle);
+      console.log('- Time:', submission.submittedTime);
+      console.log('- Answers:', JSON.stringify(submission.answers, null, 2));
+    });
+    
+    console.log('\n=== FORMS DATA ===');
+    const formsSnapshot = await adminDb.collection('forms').where('agencyId', '==', userData.agencyId).get();
+    formsSnapshot.docs.forEach((doc, index) => {
+      const formData = doc.data();
+      console.log(`\nFORM ${index + 1}:`);
+      console.log('- ID:', doc.id);
+      console.log('- Title:', formData.title);
+      console.log('- Fields:', JSON.stringify(formData.fields, null, 2));
+      console.log('- Assigned To:', formData.assignedTo);
+    });
+    
+    console.log('=== END DATA LOGGING ===\n');
+
     // 5. Construction du prompt pour OpenAI
-    const systemPrompt = `Tu es un assistant IA spécialisé dans l'analyse de données de formulaires d'entreprise. Tu peux répondre à différents types de questions.
+    const systemPrompt = `Tu es un assistant IA spécialisé dans l'analyse de données de formulaires d'entreprise.
 
 RÈGLES STRICTES :
 - Réponds UNIQUEMENT en français
-- Ne JAMAIS inventer de chiffres ou de données
+- Utilise les données EXACTES fournies ci-dessous
+- Ne JAMAIS inventer de données
 - Si tu n'as pas de données pour répondre, dis-le clairement
-- Utilise un langage professionnel mais accessible
-- Structure tes réponses de manière claire
-
-TYPES DE QUESTIONS QUE TU PEUX TRAITER :
-1. **Analyses de données** : Résumés, tendances, comparaisons
-2. **Questions spécifiques** : Performance d'un employé, utilisation d'un formulaire
-3. **Conseils** : Recommandations basées sur les données
-4. **Questions générales** : Explications sur le système, fonctionnement
 
 CONTEXTE :
 - Agence : ${userData.agencyId}
 - Période analysée : ${data.period.label}
 - Directeur : ${userData.name || 'Directeur'}
+- Date actuelle : ${new Date().toLocaleDateString('fr-FR')}
 
-DONNÉES DISPONIBLES :
+STATISTIQUES :
 - Total des entrées : ${data.totals.entries}
 - Employés actifs : ${data.totals.uniqueUsers}/${data.totals.totalUsers}
 - Formulaires utilisés : ${data.totals.uniqueForms}/${data.totals.totalForms}
 
-TOP EMPLOYÉS :
-${data.userStats.map(u => `- ${u.name} : ${u.count} réponses`).join('\n')}
+DONNÉES DÉTAILLÉES DES SOUMISSIONS :
+${data.submissions.length > 0 ? data.submissions.map((s, index) => {
+  const answersText = Object.entries(s.answers).map(([fieldLabel, value]) => {
+    const displayValue = value !== null && value !== undefined ? 
+      (typeof value === 'boolean' ? (value ? 'Oui' : 'Non') : String(value)) : 
+      'Non renseigné';
+    return `    • ${fieldLabel}: ${displayValue}`;
+  }).join('\n');
+  
+  return `SOUMISSION ${index + 1}:
+- Employé: ${s.employeeName} (${s.employeeEmail})
+- Formulaire: "${s.formTitle}"
+- Date: ${s.submittedDate} à ${s.submittedTime}${s.isToday ? ' (AUJOURD\'HUI)' : ''}
+- Réponses:
+${answersText}`;
+}).join('\n\n') : 'AUCUNE SOUMISSION TROUVÉE'}
 
-TOP FORMULAIRES :
-${data.formStats.map(f => `- ${f.title} : ${f.count} réponses`).join('\n')}
-
-TIMELINE :
-${data.timeline.map(t => `- ${t.date} : ${t.count} réponses`).join('\n')}`;
+SOUMISSIONS D'AUJOURD'HUI (${new Date().toLocaleDateString('fr-FR')}) :
+${data.todaySubmissions.length > 0 ? data.todaySubmissions.map((s, index) => {
+  const answersText = Object.entries(s.answers).map(([fieldLabel, value]) => {
+    const displayValue = value !== null && value !== undefined ? 
+      (typeof value === 'boolean' ? (value ? 'Oui' : 'Non') : String(value)) : 
+      'Non renseigné';
+    return `    • ${fieldLabel}: ${displayValue}`;
+  }).join('\n');
+  
+  return `SOUMISSION AUJOURD'HUI ${index + 1}:
+- Employé: ${s.employeeName} (${s.employeeEmail})
+- Formulaire: "${s.formTitle}"
+- Heure: ${s.submittedTime}
+- Réponses:
+${answersText}`;
+}).join('\n\n') : 'AUCUNE SOUMISSION AUJOURD\'HUI'}`;
 
     const userPrompt = `Question de l'utilisateur : "${question}"
 
 Réponds à cette question en utilisant les données disponibles. Si la question ne peut pas être répondue avec ces données, explique pourquoi et suggère des alternatives.`;
+
+    // Debug: Log the complete prompt being sent to AI
+    console.log('\n=== COMPLETE PROMPT BEING SENT TO AI ===');
+    console.log('SYSTEM PROMPT:');
+    console.log(systemPrompt);
+    console.log('\nUSER PROMPT:');
+    console.log(userPrompt);
+    console.log('=== END PROMPT LOGGING ===\n');
 
     // 6. Appel OpenAI
     console.log('Step 6: Generating AI response...');
@@ -402,6 +513,23 @@ ${data.userStats.map(u => `• ${u.name}: ${u.count} réponses`).join('\n') || '
 
 Top formulaires:
 ${data.formStats.map(f => `• ${f.title}: ${f.count} réponses`).join('\n') || '• Aucun'}
+
+📅 SOUMISSIONS DÉTAILLÉES D'AUJOURD'HUI (${new Date().toLocaleDateString('fr-FR')}):
+${data.todaySubmissions.length > 0 ? data.todaySubmissions.map((s, index) => {
+  const answersText = Object.entries(s.answers).map(([fieldLabel, value]) => {
+    const displayValue = value !== null && value !== undefined ? 
+      (typeof value === 'boolean' ? (value ? 'Oui' : 'Non') : String(value)) : 
+      'Non renseigné';
+    return `    • ${fieldLabel}: ${displayValue}`;
+  }).join('\n');
+  
+  return `SOUMISSION ${index + 1}:
+• Employé: ${s.employeeName} (${s.employeeEmail})
+• Formulaire: "${s.formTitle}"
+• Heure: ${s.submittedTime}
+• Réponses:
+${answersText}`;
+}).join('\n\n') : 'AUCUNE SOUMISSION AUJOURD\'HUI'}
 
 💡 Conseils: Affinez par employé ou formulaire pour plus de précision.`;
     } else {
@@ -436,14 +564,101 @@ ${data.userStats.map(u => `• ${u.name}: ${u.count} réponses`).join('\n') || '
 Top formulaires:
 ${data.formStats.map(f => `• ${f.title}: ${f.count} réponses`).join('\n') || '• Aucun'}
 
+📅 SOUMISSIONS DÉTAILLÉES D'AUJOURD'HUI (${new Date().toLocaleDateString('fr-FR')}):
+${data.todaySubmissions.length > 0 ? data.todaySubmissions.map((s, index) => {
+  const answersText = Object.entries(s.answers).map(([fieldLabel, value]) => {
+    const displayValue = value !== null && value !== undefined ? 
+      (typeof value === 'boolean' ? (value ? 'Oui' : 'Non') : String(value)) : 
+      'Non renseigné';
+    return `    • ${fieldLabel}: ${displayValue}`;
+  }).join('\n');
+  
+  return `SOUMISSION ${index + 1}:
+• Employé: ${s.employeeName} (${s.employeeEmail})
+• Formulaire: "${s.formTitle}"
+• Heure: ${s.submittedTime}
+• Réponses:
+${answersText}`;
+}).join('\n\n') : 'AUCUNE SOUMISSION AUJOURD\'HUI'}
+
 ⚠️ Note: Réponse générée sans IA (OpenAI non disponible)`;
       }
     }
 
-    // 7. Réponse
-    console.log('Step 7: Sending response...');
+    // 7. Store conversation in Firestore
+    console.log('Step 7: Storing conversation...');
+    try {
+      // Get or create conversation
+      let conversationId = req.body.conversationId;
+      
+      if (!conversationId) {
+        // Create new conversation
+        const conversationData = {
+          directorId: uid,
+          agencyId: userData.agencyId,
+          title: question.length > 50 ? question.substring(0, 50) + '...' : question,
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          lastMessageAt: admin.firestore.FieldValue.serverTimestamp(),
+          messageCount: 2 // user message + assistant response
+        };
+        
+        const conversationRef = await adminDb.collection('conversations').add(conversationData);
+        conversationId = conversationRef.id;
+        console.log('New conversation created:', conversationId);
+      }
+
+      // Store user message
+      const userMessage = {
+        type: 'user',
+        content: question,
+        timestamp: admin.firestore.FieldValue.serverTimestamp(),
+        filters: req.body.filters || {}
+      };
+
+      // Store assistant response
+      const assistantMessage = {
+        type: 'assistant',
+        content: answer,
+        timestamp: admin.firestore.FieldValue.serverTimestamp(),
+        responseTime: Date.now() - startTime,
+        meta: {
+          period: data.period.label,
+          usedEntries: data.totals.entries,
+          breakdown: {
+            users: data.totals.uniqueUsers,
+            forms: data.totals.uniqueForms,
+            dateRange: {
+              start: data.period.start.toISOString(),
+              end: data.period.end.toISOString()
+            }
+          },
+          tokensUsed
+        }
+      };
+
+      // Add messages to conversation subcollection
+      await adminDb.collection('conversations').doc(conversationId).collection('messages').add(userMessage);
+      await adminDb.collection('conversations').doc(conversationId).collection('messages').add(assistantMessage);
+
+      // Update conversation metadata
+      await adminDb.collection('conversations').doc(conversationId).update({
+        lastMessageAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        messageCount: admin.firestore.FieldValue.increment(2)
+      });
+
+      console.log('Conversation stored successfully');
+    } catch (storeError) {
+      console.error('Error storing conversation:', storeError);
+      // Don't fail the request if conversation storage fails
+    }
+
+    // 8. Réponse
+    console.log('Step 8: Sending response...');
     const response = {
       answer,
+      conversationId: req.body.conversationId || conversationId,
       meta: {
         period: data.period.label,
         usedEntries: data.totals.entries,

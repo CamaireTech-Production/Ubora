@@ -4,9 +4,9 @@ import { useApp } from '../contexts/AppContext';
 import { Layout } from '../components/Layout';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
-import { FormBuilder } from '../components/FormBuilder';
+import { FormEditor } from '../components/FormEditor';
 import { LoadingGuard } from '../components/LoadingGuard';
-import { Plus, FileText, Users, Download, Eye, Trash2, MessageSquare } from 'lucide-react';
+import { Plus, FileText, Users, Download, Eye, Trash2, MessageSquare, Edit } from 'lucide-react';
 import { useReactToPrint } from 'react-to-print';
 
 export const DirecteurDashboard: React.FC = () => {
@@ -16,12 +16,14 @@ export const DirecteurDashboard: React.FC = () => {
     formEntries,
     employees,
     createForm, 
+    updateForm,
     deleteForm,
     getEntriesForForm, 
     isLoading: appLoading
   } = useApp();
   
   const [showFormBuilder, setShowFormBuilder] = useState(false);
+  const [editingForm, setEditingForm] = useState<Form | null>(null);
   const [selectedFormId, setSelectedFormId] = useState<string | null>(null);
   const printRef = useRef<HTMLDivElement>(null);
 
@@ -46,6 +48,32 @@ export const DirecteurDashboard: React.FC = () => {
       console.error('Erreur lors de la création du formulaire:', error);
       alert('Erreur lors de la création du formulaire. Veuillez réessayer.');
     }
+  };
+
+  const handleUpdateForm = async (formData: {
+    title: string;
+    description: string;
+    fields: any[];
+    assignedTo: string[];
+  }) => {
+    if (!editingForm) return;
+
+    try {
+      await updateForm(editingForm.id, formData);
+      setEditingForm(null);
+    } catch (error) {
+      console.error('Erreur lors de la mise à jour du formulaire:', error);
+      alert('Erreur lors de la mise à jour du formulaire. Veuillez réessayer.');
+    }
+  };
+
+  const handleEditForm = (form: Form) => {
+    setEditingForm(form);
+  };
+
+  const handleCancelEdit = () => {
+    setEditingForm(null);
+    setShowFormBuilder(false);
   };
 
   const handleDeleteForm = async (formId: string) => {
@@ -94,11 +122,12 @@ export const DirecteurDashboard: React.FC = () => {
             <p className="text-gray-600">Seuls les directeurs peuvent accéder à cette page.</p>
           </Card>
         </div>
-      ) : showFormBuilder ? (
-        <Layout title="Créer un formulaire">
-          <FormBuilder
-            onSave={handleCreateForm}
-            onCancel={() => setShowFormBuilder(false)}
+      ) : showFormBuilder || editingForm ? (
+        <Layout title={editingForm ? "Modifier le formulaire" : "Créer un formulaire"}>
+          <FormEditor
+            form={editingForm || undefined}
+            onSave={editingForm ? handleUpdateForm : handleCreateForm}
+            onCancel={handleCancelEdit}
             employees={employees}
           />
         </Layout>
@@ -204,6 +233,16 @@ export const DirecteurDashboard: React.FC = () => {
                           </div>
                           
                           <div className="flex items-center space-x-2">
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              onClick={() => handleEditForm(form)}
+                              className="flex items-center space-x-2"
+                            >
+                              <Edit className="h-4 w-4" />
+                              <span>Modifier</span>
+                            </Button>
+                            
                             <Button
                               variant="secondary"
                               size="sm"

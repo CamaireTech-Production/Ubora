@@ -38,6 +38,35 @@ export interface FormEntry {
   submittedAt: Date; // serverTimestamp
 }
 
+// Types pour les conversations IA
+export interface ChatMessage {
+  id: string;
+  type: 'user' | 'assistant';
+  content: string;
+  timestamp: Date;
+  responseTime?: number;
+  meta?: {
+    period?: string;
+    usedEntries?: number;
+    forms?: number;
+    users?: number;
+    tokensUsed?: number;
+    model?: string;
+  };
+}
+
+export interface Conversation {
+  id: string;
+  directorId: string;
+  agencyId: string;
+  title: string;
+  messages: ChatMessage[];
+  createdAt: Date;
+  updatedAt: Date;
+  lastMessageAt: Date;
+  messageCount: number;
+}
+
 // Types pour l'état de l'application
 export interface AppState {
   users: User[];

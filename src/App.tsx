@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { AuthProvider } from './contexts/AuthContext';
 import { useAuth } from './contexts/AuthContext';
 import { AppProvider } from './contexts/AppContext';
+import { ConversationProvider } from './contexts/ConversationContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { LoginPage } from './pages/LoginPage';
 import { DirecteurDashboard } from './pages/DirecteurDashboard';
@@ -14,7 +15,8 @@ function App() {
   return (
     <AuthProvider>
       <AppProvider>
-        <Router>
+        <ConversationProvider>
+          <Router>
           <Routes>
             {/* Page de connexion */}
             <Route path="/login" element={<LoginPage />} />
@@ -58,7 +60,8 @@ function App() {
             {/* Page 404 */}
             <Route path="*" element={<Navigate to="/login" replace />} />
           </Routes>
-        </Router>
+          </Router>
+        </ConversationProvider>
       </AppProvider>
     </AuthProvider>
   );
