@@ -3,6 +3,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useApp } from '../contexts/AppContext';
 import { useConversation } from '../contexts/ConversationContext';
 import { LoadingGuard } from '../components/LoadingGuard';
+import { WelcomeScreen } from '../components/WelcomeScreen';
 import { ChatTopBar } from '../components/chat/ChatTopBar';
 import { MessageList } from '../components/chat/MessageList';
 import { ChatComposer } from '../components/chat/ChatComposer';
@@ -80,6 +81,8 @@ export const DirecteurChat: React.FC = () => {
   const [tabsCollapsed, setTabsCollapsed] = useState(true);
   const [activeTab, setActiveTab] = useState<'history' | 'filters' | 'forms' | 'employees' | null>(null);
 
+  // État pour l'écran de bienvenue
+  const [showWelcome, setShowWelcome] = useState(true);
   const handleSendMessage = async (message?: string) => {
     const messageToSend = message || inputMessage.trim();
     if (!messageToSend || isTyping) return;
@@ -248,6 +251,29 @@ export const DirecteurChat: React.FC = () => {
       setIsLoadingMore(false);
     }
   };
+
+  // Gérer la fermeture de l'écran de bienvenue
+  const handleWelcomeContinue = () => {
+    setShowWelcome(false);
+  };
+
+  // Afficher l'écran de bienvenue si nécessaire
+  if (showWelcome) {
+    return (
+      <LoadingGuard 
+        isLoading={isLoading || appLoading} 
+        user={user} 
+        firebaseUser={firebaseUser}
+        message="Chargement du Chat IA..."
+      >
+        <WelcomeScreen
+          userName={user?.name}
+          onContinue={handleWelcomeContinue}
+          rememberKey="directeur_chat_welcome"
+        />
+      </LoadingGuard>
+    );
+  }
 
   return (
     <LoadingGuard 
