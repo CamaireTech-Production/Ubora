@@ -53,6 +53,9 @@ app.listen(PORT, () => {
   console.log(`   - POST /api/ai/ask`);
   console.log(`   - GET  /api/ai/health`);
   console.log(`🌐 Frontend served from /dist`);
+  console.log(`🔧 Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`📊 Firebase Project: ${process.env.FIREBASE_PROJECT_ID || 'Not configured'}`);
+  console.log(`🤖 OpenAI: ${process.env.OPENAI_API_KEY ? 'Configured' : 'Not configured'}`);
 });
 
 // Graceful shutdown
