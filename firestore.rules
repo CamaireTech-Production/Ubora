@@ -1,0 +1,206 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // =============================================================================
+    // FONCTIONS UTILITAIRES
+    // =============================================================================
+    
+    // Fonction pour vérifier si l'utilisateur est authentifié
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // Fonction pour récupérer les données de l'utilisateur actuel
+    function getCurrentUser() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+    
+    // Fonction pour vérifier si l'utilisateur actuel est un directeur
+    function isDirecteur() {
+      return isAuthenticated() && getCurrentUser().data.role == 'directeur';
+    }
+    
+    // Fonction pour vérifier si l'utilisateur actuel est un employé
+    function isEmploye() {
+      return isAuthenticated() && getCurrentUser().data.role == 'employe';
+    }
+    
+    // Fonction pour vérifier si l'utilisateur appartient à la même agence
+    function isSameAgency(agencyId) {
+      return isAuthenticated() && getCurrentUser().data.agencyId == agencyId;
+    }
+    
+    // Fonction pour vérifier si l'utilisateur est propriétaire du document
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    // Fonction pour vérifier si un employé est assigné à un formulaire
+    function isAssignedToForm(assignedUsers) {
+      return isAuthenticated() && request.auth.uid in assignedUsers;
+    }
+
+    // =============================================================================
+    // COLLECTION USERS
+    // Règles : 
+    // - Un employé peut lire uniquement sa propre fiche
+    // - Un directeur peut lire tous les utilisateurs de son agence
+    // - Tout utilisateur authentifié peut créer/modifier sa propre fiche
+    // =============================================================================
+    
+    match /users/{userId} {
+      // LECTURE des utilisateurs
+      // - Un utilisateur peut toujours lire ses propres données
+      // - Un directeur peut lire tous les utilisateurs de son agence
+      allow read: if isAuthenticated() && (
+        request.auth.uid == userId ||
+        (isDirecteur() && resource.data.agencyId is string && isSameAgency(resource.data.agencyId))
+      );
+      
+      // CRÉATION d'un utilisateur
+      // - Tout utilisateur authentifié peut créer sa propre fiche
+      // - L'ID du document doit correspondre à l'UID Firebase Auth
+      // - Tous les champs requis doivent être présents
+      allow create: if isAuthenticated() && 
+                   request.auth.uid == userId &&
+                   request.resource.data.keys().hasAll(['name', 'email', 'role', 'agencyId']) &&
+                   request.resource.data.role in ['directeur', 'employe'] &&
+                   request.resource.data.name is string &&
+                   request.resource.data.email is string &&
+                   request.resource.data.agencyId is string;
+      
+      // MODIFICATION d'un utilisateur
+      // - Un utilisateur peut modifier ses propres données
+      // - Un directeur peut modifier les données des employés de son agence
+      // - Les champs critiques ne peuvent pas être modifiés
+      allow update: if isAuthenticated() && (
+        request.auth.uid == userId ||
+        (isDirecteur() && isSameAgency(resource.data.agencyId))
+      ) &&
+      // Empêcher la modification des champs critiques
+      request.resource.data.agencyId == resource.data.agencyId &&
+      request.resource.data.role == resource.data.role;
+      
+      // SUPPRESSION d'un utilisateur
+      // - Seuls les directeurs peuvent supprimer des utilisateurs de leur agence
+      // - Un utilisateur ne peut pas supprimer sa propre fiche
+      allow delete: if isDirecteur() && 
+                   isSameAgency(resource.data.agencyId) &&
+                   request.auth.uid != userId;
+    }
+
+    // =============================================================================
+    // COLLECTION FORMS
+    // Règles :
+    // - Seul un directeur peut créer/modifier/supprimer des formulaires
+    // - Les employés peuvent lire uniquement les formulaires qui leur sont assignés
+    // - Tous les formulaires sont isolés par agence
+    // =============================================================================
+    
+    match /forms/{formId} {
+      // LECTURE des formulaires
+      // - Directeur : peut lire tous les formulaires de son agence
+      // - Employé : peut lire seulement les formulaires où son UID est dans assignedTo
+      allow read: if isAuthenticated() && (
+        (isDirecteur() && isSameAgency(resource.data.agencyId)) ||
+        (isEmploye() && isSameAgency(resource.data.agencyId) && 
+         isAssignedToForm(resource.data.assignedTo))
+      );
+      
+      // CRÉATION des formulaires
+      // - Seuls les directeurs peuvent créer des formulaires
+      // - Le formulaire doit être créé pour l'agence du directeur
+      // - Tous les champs requis doivent être présents
+      // - assignedTo doit être un array
+      allow create: if isDirecteur() && 
+                   isSameAgency(request.resource.data.agencyId) &&
+                   request.resource.data.createdBy == request.auth.uid &&
+                   request.resource.data.keys().hasAll(['title', 'description', 'createdBy', 'assignedTo', 'fields', 'agencyId']) &&
+                   request.resource.data.assignedTo is list &&
+                   request.resource.data.fields is list &&
+                   request.resource.data.title is string &&
+                   request.resource.data.description is string;
+      
+      // MODIFICATION des formulaires
+      // - Seuls les directeurs peuvent modifier les formulaires de leur agence
+      // - Le créateur du formulaire doit rester le même
+      // - L'agence ne peut pas être changée
+      allow update: if isDirecteur() && 
+                   isSameAgency(resource.data.agencyId) &&
+                   isSameAgency(request.resource.data.agencyId) &&
+                   resource.data.createdBy == request.resource.data.createdBy &&
+                   request.resource.data.assignedTo is list &&
+                   request.resource.data.fields is list;
+      
+      // SUPPRESSION des formulaires
+      // - Seuls les directeurs peuvent supprimer les formulaires de leur agence
+      allow delete: if isDirecteur() && 
+                   isSameAgency(resource.data.agencyId);
+    }
+
+    // =============================================================================
+    // COLLECTION FORMENTRIES
+    // Règles :
+    // - Un employé peut créer une entrée seulement s'il est assigné au formulaire
+    // - Un directeur peut lire toutes les entrées de son agence
+    // - Un employé peut lire uniquement ses propres entrées
+    // - Possibilité de soumettre plusieurs fois le même formulaire
+    // =============================================================================
+    
+    match /formEntries/{entryId} {
+      // LECTURE des entrées de formulaire
+      // - Directeur : peut lire toutes les entrées de son agence
+      // - Employé : peut lire seulement ses propres entrées
+      allow read: if isAuthenticated() && (
+        (isDirecteur() && isSameAgency(resource.data.agencyId)) ||
+        (isEmploye() && isOwner(resource.data.userId) && isSameAgency(resource.data.agencyId))
+      );
+      
+      // CRÉATION des entrées de formulaire
+      // - L'employé doit être assigné au formulaire (vérification via le formulaire référencé)
+      // - L'utilisateur doit être de la même agence
+      // - Tous les champs requis doivent être présents
+      // - L'userId doit correspondre à l'utilisateur authentifié
+      // - L'agencyId doit correspondre à celui de l'utilisateur
+      allow create: if isAuthenticated() && 
+                   request.resource.data.userId == request.auth.uid &&
+                   isSameAgency(request.resource.data.agencyId) &&
+                   request.resource.data.keys().hasAll(['formId', 'userId', 'agencyId', 'answers']) &&
+                   request.resource.data.answers is map &&
+                   request.resource.data.formId is string &&
+                   request.resource.data.userId is string &&
+                   request.resource.data.agencyId is string &&
+                   // Vérifier que l'utilisateur est assigné au formulaire
+                   isAssignedToForm(get(/databases/$(database)/documents/forms/$(request.resource.data.formId)).data.assignedTo);
+      
+      // MODIFICATION des entrées de formulaire
+      // - Directeur : peut modifier toutes les entrées de son agence
+      // - Employé : peut modifier seulement ses propres entrées
+      // - Les champs formId, userId et agencyId ne peuvent pas être modifiés
+      allow update: if isAuthenticated() && (
+        (isDirecteur() && isSameAgency(resource.data.agencyId)) ||
+        (isEmploye() && isOwner(resource.data.userId) && isSameAgency(resource.data.agencyId))
+      ) && 
+      // Empêcher la modification des champs critiques
+      request.resource.data.formId == resource.data.formId &&
+      request.resource.data.userId == resource.data.userId &&
+      request.resource.data.agencyId == resource.data.agencyId &&
+      request.resource.data.answers is map;
+      
+      // SUPPRESSION des entrées de formulaire
+      // - Seuls les directeurs peuvent supprimer les entrées de leur agence
+      allow delete: if isDirecteur() && isSameAgency(resource.data.agencyId);
+    }
+
+    // =============================================================================
+    // RÈGLE DE SÉCURITÉ GLOBALE
+    // Bloquer tout accès non authentifié par défaut
+    // =============================================================================
+    
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
