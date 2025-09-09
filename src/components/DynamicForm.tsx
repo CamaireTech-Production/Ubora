@@ -151,21 +151,21 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
   return (
     <div className="max-w-2xl mx-auto">
       <Card>
-        <div className="mb-6">
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">{form.title}</h2>
+        <div className="mb-4 sm:mb-6">
+          <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2 break-words">{form.title}</h2>
           {form.description && (
-            <p className="text-gray-600">{form.description}</p>
+            <p className="text-sm sm:text-base text-gray-600 break-words">{form.description}</p>
           )}
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6">
           {form.fields.map(field => renderField(field))}
 
-          <div className="flex space-x-4 pt-6 border-t border-gray-200">
-            <Button type="submit" className="flex-1">
+          <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 pt-4 sm:pt-6 border-t border-gray-200">
+            <Button type="submit" className="w-full sm:flex-1">
               Soumettre le formulaire
             </Button>
-            <Button type="button" variant="secondary" onClick={onCancel}>
+            <Button type="button" variant="secondary" onClick={onCancel} className="w-full sm:w-auto">
               Annuler
             </Button>
           </div>

@@ -382,11 +382,11 @@ export const DirecteurChat: React.FC = () => {
           </Card>
 
           {/* Zone de chat */}
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 xl:grid-cols-4 gap-4 lg:gap-6">
             
             {/* Chat principal */}
-            <div className="lg:col-span-3">
-              <Card className="h-[600px] flex flex-col">
+            <div className="xl:col-span-3 order-2 xl:order-1">
+              <Card className="h-[500px] sm:h-[600px] flex flex-col">
                 
                 {/* Header du chat */}
                 <div className="flex items-center justify-between p-4 border-b border-gray-200">
@@ -408,19 +408,19 @@ export const DirecteurChat: React.FC = () => {
                 {/* Messages */}
                 <div 
                   ref={chatContainerRef}
-                  className="flex-1 overflow-y-auto p-4 space-y-4 min-h-0"
-                  style={{ maxHeight: 'calc(600px - 140px)' }}
+                  className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3 sm:space-y-4 min-h-0"
+                  style={{ maxHeight: 'calc(500px - 140px)' }}
                 >
                   {messages.length === 0 ? (
-                    <div className="text-center py-12">
-                      <Bot className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-                      <h4 className="text-lg font-medium text-gray-900 mb-2">
+                    <div className="text-center py-8 sm:py-12">
+                      <Bot className="h-12 w-12 sm:h-16 sm:w-16 text-gray-300 mx-auto mb-4" />
+                      <h4 className="text-base sm:text-lg font-medium text-gray-900 mb-2">
                         Bienvenue dans le Chat IA
                       </h4>
-                      <p className="text-gray-500 mb-6">
+                      <p className="text-sm sm:text-base text-gray-500 mb-4 sm:mb-6 px-4">
                         Posez des questions sur vos données de formulaires pour obtenir des analyses détaillées.
                       </p>
-                      <div className="text-sm text-gray-400">
+                      <div className="text-xs sm:text-sm text-gray-400 px-4">
                         {AI_ENDPOINT ? (
                           <p>🌐 Mode RÉEL activé : {AI_ENDPOINT}</p>
                         ) : (
@@ -442,26 +442,26 @@ export const DirecteurChat: React.FC = () => {
                           </div>
                         )}
                         
-                        <div className={`max-w-3xl ${
+                        <div className={`max-w-[85%] sm:max-w-3xl ${
                           message.type === 'user' 
                             ? 'bg-blue-600 text-white rounded-l-lg rounded-tr-lg' 
                             : 'bg-gray-100 text-gray-900 rounded-r-lg rounded-tl-lg'
-                        } px-4 py-3`}>
+                        } px-3 sm:px-4 py-2 sm:py-3`}>
                           <div className="whitespace-pre-wrap">
                             {message.type === 'assistant' ? (
-                              <div className="prose prose-sm max-w-none">
+                              <div className="prose prose-xs sm:prose-sm max-w-none">
                                 {formatMessageContent(message.content)}
                               </div>
                             ) : (
-                              message.content
+                              <div className="text-sm sm:text-base break-words">{message.content}</div>
                             )}
                           </div>
                           
                           
                           {/* Meta informations */}
                           {message.meta && (
-                            <div className="mt-3 pt-3 border-t border-gray-200 text-xs">
-                              <div className="flex items-center space-x-4 text-gray-600">
+                            <div className="mt-2 sm:mt-3 pt-2 sm:pt-3 border-t border-gray-200 text-xs">
+                              <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-gray-600">
                                 {message.meta.period && (
                                   <span className="flex items-center space-x-1">
                                     <Calendar className="h-3 w-3" />
@@ -484,7 +484,7 @@ export const DirecteurChat: React.FC = () => {
                             </div>
                           )}
                           
-                          <div className="text-xs opacity-70 mt-2 flex items-center justify-between">
+                          <div className="text-xs opacity-70 mt-1 sm:mt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-1">
                             <span>{message.timestamp.toLocaleTimeString()}</span>
                             {message.responseTime && (
                               <span className="flex items-center space-x-1">
@@ -508,10 +508,10 @@ export const DirecteurChat: React.FC = () => {
                   {isTyping && (
                     <div className="flex items-start space-x-3">
                       <Bot className="h-8 w-8 text-blue-600 bg-blue-100 rounded-full p-1.5" />
-                      <div className="bg-gray-100 rounded-r-lg rounded-tl-lg px-4 py-3">
+                      <div className="bg-gray-100 rounded-r-lg rounded-tl-lg px-3 sm:px-4 py-2 sm:py-3">
                         <div className="flex items-center space-x-2">
                           <Loader2 className="h-4 w-4 animate-spin" />
-                          <span className="text-gray-600">
+                          <span className="text-gray-600 text-sm sm:text-base">
 L'IA analyse vos données...
                           </span>
                         </div>
@@ -537,8 +537,8 @@ L'IA analyse vos données...
                 </div>
 
                 {/* Zone de saisie */}
-                <div className="border-t border-gray-200 p-4">
-                  <div className="flex space-x-3">
+                <div className="border-t border-gray-200 p-3 sm:p-4">
+                  <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
                     <div className="flex-1">
                       <Input
                         value={inputMessage}
@@ -551,7 +551,7 @@ L'IA analyse vos données...
                     <Button
                       onClick={() => handleSendMessage()}
                       disabled={!inputMessage.trim() || isTyping}
-                      className="flex items-center space-x-2"
+                      className="flex items-center justify-center space-x-2 w-full sm:w-auto"
                     >
                       <Send className="h-4 w-4" />
                       <span>Envoyer</span>
@@ -562,17 +562,17 @@ L'IA analyse vos données...
             </div>
 
             {/* Panneau latéral */}
-            <div className="space-y-6">
+            <div className="space-y-4 lg:space-y-6 order-1 xl:order-2">
               
               {/* Exemples de questions */}
               <Card title="Exemples de questions">
-                <div className="space-y-2">
+                <div className="space-y-2 max-h-60 xl:max-h-none overflow-y-auto xl:overflow-visible">
                   {exampleQuestions.map((question, index) => (
                     <button
                       key={index}
                       onClick={() => handleSendMessage(question)}
                       disabled={isTyping}
-                      className="w-full text-left p-3 text-sm bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50"
+                      className="w-full text-left p-2 sm:p-3 text-xs sm:text-sm bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50 break-words"
                     >
                       "{question}"
                     </button>
@@ -597,7 +597,7 @@ L'IA analyse vos données...
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-gray-600">Agence</span>
-                    <span className="font-semibold text-blue-600">{user?.agencyId}</span>
+                    <span className="font-semibold text-blue-600 break-all">{user?.agencyId}</span>
                   </div>
                   <div className="pt-2 border-t border-gray-200">
                     <div className="flex items-center justify-between">
@@ -612,7 +612,7 @@ L'IA analyse vos données...
 
               {/* Conseils d'utilisation */}
               <Card title="💡 Conseils">
-                <div className="text-sm text-gray-600 space-y-2">
+                <div className="text-xs sm:text-sm text-gray-600 space-y-2">
                   <p>• Posez des questions spécifiques : "Quel employé...?"</p>
                   <p>• Demandez des analyses : "Résumé de cette semaine"</p>
                   <p>• Sollicitez des conseils : "Comment améliorer...?"</p>

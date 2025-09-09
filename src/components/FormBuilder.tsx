@@ -105,8 +105,8 @@ export const FormBuilder: React.FC<FormBuilderProps> = ({
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center space-x-4 mb-6">
+    <div className="space-y-4 sm:space-y-6">
+      <div className="flex items-center space-x-2 sm:space-x-4 mb-4 sm:mb-6">
         <Button
           variant="secondary"
           size="sm"
@@ -116,11 +116,11 @@ export const FormBuilder: React.FC<FormBuilderProps> = ({
           <ArrowLeft className="h-4 w-4" />
           <span>Retour</span>
         </Button>
-        <h2 className="text-2xl font-bold text-gray-900">Créer un nouveau formulaire</h2>
+        <h2 className="text-lg sm:text-2xl font-bold text-gray-900">Créer un nouveau formulaire</h2>
       </div>
 
       <Card>
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6">
           <Input
             label="Titre du formulaire *"
             value={title}
@@ -140,21 +140,21 @@ export const FormBuilder: React.FC<FormBuilderProps> = ({
             <label className="block text-sm font-medium text-gray-700 mb-3">
               Assigner aux employés *
             </label>
-            <div className="space-y-2 max-h-40 overflow-y-auto border border-gray-200 rounded-lg p-3">
+            <div className="space-y-2 max-h-32 sm:max-h-40 overflow-y-auto border border-gray-200 rounded-lg p-3">
               {employees.length === 0 ? (
                 <p className="text-gray-500 text-sm">Aucun employé disponible</p>
               ) : (
                 employees.map(employee => (
-                  <label key={employee.id} className="flex items-center space-x-3 cursor-pointer hover:bg-gray-50 p-2 rounded">
+                  <label key={employee.id} className="flex items-start space-x-3 cursor-pointer hover:bg-gray-50 p-2 rounded">
                     <input
                       type="checkbox"
                       checked={assignedTo.includes(employee.id)}
                       onChange={() => toggleEmployeeAssignment(employee.id)}
-                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 mt-0.5"
                     />
                     <div className="flex-1">
-                      <span className="text-sm font-medium text-gray-900">{employee.name}</span>
-                      <span className="text-xs text-gray-500 ml-2">({employee.email})</span>
+                      <span className="text-sm font-medium text-gray-900 break-words">{employee.name}</span>
+                      <span className="text-xs text-gray-500 block sm:inline sm:ml-2 break-all">({employee.email})</span>
                     </div>
                   </label>
                 ))
@@ -167,7 +167,7 @@ export const FormBuilder: React.FC<FormBuilderProps> = ({
 
           <div>
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-medium text-gray-900">Champs du formulaire</h3>
+              <h3 className="text-base sm:text-lg font-medium text-gray-900">Champs du formulaire</h3>
               <Button
                 type="button"
                 variant="secondary"
@@ -176,12 +176,13 @@ export const FormBuilder: React.FC<FormBuilderProps> = ({
                 className="flex items-center space-x-2"
               >
                 <Plus className="h-4 w-4" />
-                <span>Ajouter un champ</span>
+                <span className="hidden sm:inline">Ajouter un champ</span>
+                <span className="sm:hidden">Ajouter</span>
               </Button>
             </div>
 
             {fields.length === 0 ? (
-              <p className="text-gray-500 text-center py-8 bg-gray-50 rounded-lg">
+              <p className="text-gray-500 text-center py-6 sm:py-8 bg-gray-50 rounded-lg text-sm sm:text-base">
                 Aucun champ ajouté. Cliquez sur "Ajouter un champ" pour commencer.
               </p>
             ) : (
@@ -202,7 +203,7 @@ export const FormBuilder: React.FC<FormBuilderProps> = ({
                         </Button>
                       </div>
                       
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <Input
                           label="Libellé du champ *"
                           value={field.label}
@@ -288,11 +289,11 @@ export const FormBuilder: React.FC<FormBuilderProps> = ({
             )}
           </div>
 
-          <div className="flex space-x-4 pt-6 border-t border-gray-200">
-            <Button type="submit" className="flex-1">
+          <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 pt-4 sm:pt-6 border-t border-gray-200">
+            <Button type="submit" className="w-full sm:flex-1">
               Créer le formulaire
             </Button>
-            <Button type="button" variant="secondary" onClick={onCancel}>
+            <Button type="button" variant="secondary" onClick={onCancel} className="w-full sm:w-auto">
               Annuler
             </Button>
           </div>

@@ -58,18 +58,18 @@ export const LoginPage: React.FC = () => {
   const displayError = error || localError;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4 sm:p-6 lg:p-8">
+      <div className="w-full max-w-sm sm:max-w-md">
         <div className="text-center mb-8">
-          <Building2 className="h-12 w-12 text-blue-600 mx-auto mb-4" />
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Multi-Agences</h1>
-          <p className="text-gray-600">
+          <Building2 className="h-10 w-10 sm:h-12 sm:w-12 text-blue-600 mx-auto mb-4" />
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">Multi-Agences</h1>
+          <p className="text-sm sm:text-base text-gray-600">
             {isRegisterMode ? 'Créer un compte' : 'Connectez-vous à votre espace'}
           </p>
         </div>
 
         <Card>
-          <form onSubmit={handleSubmit} className="space-y-6">
+          <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6">
             {isRegisterMode && (
               <>
                 <Input
@@ -88,7 +88,7 @@ export const LoginPage: React.FC = () => {
                   <select
                     value={role}
                     onChange={(e) => setRole(e.target.value as 'directeur' | 'employe')}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-base"
                   >
                     <option value="employe">Employé</option>
                     <option value="directeur">Directeur</option>
@@ -133,9 +133,9 @@ export const LoginPage: React.FC = () => {
             </div>
 
             {displayError && (
-              <div className="flex items-center space-x-2 text-red-600 text-sm bg-red-50 p-3 rounded-lg">
+              <div className="flex items-start space-x-2 text-red-600 text-sm bg-red-50 p-3 rounded-lg">
                 <AlertCircle className="h-4 w-4 flex-shrink-0" />
-                <span>{displayError}</span>
+                <span className="break-words">{displayError}</span>
               </div>
             )}
 
@@ -171,14 +171,14 @@ export const LoginPage: React.FC = () => {
             </div>
           )}
 
-          <div className="mt-6 text-center">
+          <div className="mt-4 sm:mt-6 text-center">
             <button
               type="button"
               onClick={() => {
                 setIsRegisterMode(!isRegisterMode);
                 setLocalError('');
               }}
-              className="text-blue-600 hover:text-blue-500 text-sm"
+              className="text-blue-600 hover:text-blue-500 text-sm break-words"
             >
               {isRegisterMode 
                 ? 'Déjà un compte ? Se connecter' 
