@@ -7,6 +7,7 @@ import { Button } from '../components/Button';
 import { FormBuilder } from '../components/FormBuilder';
 import { LoadingGuard } from '../components/LoadingGuard';
 import { Plus, FileText, Users, Download, Eye, Trash2, MessageSquare } from 'lucide-react';
+import { Edit } from 'lucide-react';
 import { useReactToPrint } from 'react-to-print';
 
 export const DirecteurDashboard: React.FC = () => {
@@ -16,12 +17,14 @@ export const DirecteurDashboard: React.FC = () => {
     formEntries,
     employees,
     createForm, 
+    updateForm,
     deleteForm,
     getEntriesForForm, 
     isLoading: appLoading
   } = useApp();
   
   const [showFormBuilder, setShowFormBuilder] = useState(false);
+  const [formToEdit, setFormToEdit] = useState<Form | null>(null);
   const [selectedFormId, setSelectedFormId] = useState<string | null>(null);
   const printRef = useRef<HTMLDivElement>(null);
 
@@ -42,9 +45,42 @@ export const DirecteurDashboard: React.FC = () => {
         agencyId: user.agencyId,
       });
       setShowFormBuilder(false);
+      setFormToEdit(null);
     } catch (error) {
       console.error('Erreur lors de la création du formulaire:', error);
       alert('Erreur lors de la création du formulaire. Veuillez réessayer.');
+    }
+  };
+
+  const handleEditForm = (form: Form) => {
+    setFormToEdit(form);
+    setShowFormBuilder(true);
+  };
+
+  const handleUpdateForm = async (formData: {
+    id?: string;
+    title: string;
+    description: string;
+    fields: any[];
+    assignedTo: string[];
+  }) => {
+    try {
+      if (!formToEdit?.id) {
+        throw new Error('ID du formulaire manquant');
+      }
+
+      await updateForm(formToEdit.id, {
+        title: formData.title,
+        description: formData.description,
+        fields: formData.fields,
+        assignedTo: formData.assignedTo,
+      });
+      
+      setShowFormBuilder(false);
+      setFormToEdit(null);
+    } catch (error) {
+      console.error('Erreur lors de la mise à jour du formulaire:', error);
+      alert('Erreur lors de la mise à jour du formulaire. Veuillez réessayer.');
     }
   };
 
@@ -95,10 +131,20 @@ export const DirecteurDashboard: React.FC = () => {
           </Card>
         </div>
       ) : showFormBuilder ? (
-        <Layout title="Créer un formulaire">
+        <Layout title={formToEdit ? "Modifier le formulaire" : "Créer un formulaire"}>
           <FormBuilder
-            onSave={handleCreateForm}
-            onCancel={() => setShowFormBuilder(false)}
+            initialForm={formToEdit ? {
+              id: formToEdit.id,
+              title: formToEdit.title,
+              description: formToEdit.description,
+              fields: formToEdit.fields,
+              assignedTo: formToEdit.assignedTo
+            } : undefined}
+            onSave={formToEdit ? handleUpdateForm : handleCreateForm}
+            onCancel={() => {
+              setShowFormBuilder(false);
+              setFormToEdit(null);
+            }}
             employees={employees}
           />
         </Layout>
@@ -216,6 +262,17 @@ export const DirecteurDashboard: React.FC = () => {
                               <Eye className="h-4 w-4" />
                               <span className="hidden sm:inline">{selectedFormId === form.id ? 'Masquer' : 'Voir les réponses'}</span>
                               <span className="sm:hidden">{selectedFormId === form.id ? 'Masquer' : 'Réponses'}</span>
+                            </Button>
+                            
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              onClick={() => handleEditForm(form)}
+                              className="flex items-center justify-center space-x-2 w-full sm:w-auto"
+                            >
+                              <Edit className="h-4 w-4" />
+                              <span className="hidden sm:inline">Modifier</span>
+                              <span className="sm:hidden">Éditer</span>
                             </Button>
                             
                             <Button

@@ -9,6 +9,7 @@ import {
   onSnapshot,
   deleteDoc,
   doc,
+  updateDoc,
   serverTimestamp,
   Timestamp
 } from 'firebase/firestore';
@@ -23,6 +24,7 @@ interface AppContextType {
   createForm: (form: Omit<Form, 'id' | 'createdAt'>) => Promise<void>;
   submitFormEntry: (entry: Omit<FormEntry, 'id' | 'submittedAt' | 'userId' | 'agencyId'>) => Promise<void>;
   deleteForm: (formId: string) => Promise<void>;
+  updateForm: (formId: string, formData: Omit<Form, 'id' | 'createdAt' | 'createdBy' | 'agencyId'>) => Promise<void>;
   getFormsForEmployee: (employeeId: string) => Form[];
   getEntriesForForm: (formId: string) => FormEntry[];
   getEntriesForEmployee: (employeeId: string) => FormEntry[];
@@ -201,6 +203,41 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  const updateForm = async (formId: string, formData: Omit<Form, 'id' | 'createdAt' | 'createdBy' | 'agencyId'>) => {
+    if (!user || user.role !== 'directeur' || !user.agencyId) {
+      throw new Error('Seuls les directeurs peuvent modifier des formulaires');
+    }
+
+    try {
+      setError(null);
+      
+      // Préparer les données de mise à jour
+      const updateData = {
+        title: formData.title.trim(),
+        description: formData.description.trim(),
+        fields: formData.fields || [],
+        assignedTo: formData.assignedTo || [],
+        updatedAt: serverTimestamp()
+      };
+
+      console.log('Mise à jour du formulaire:', formId, updateData);
+      await updateDoc(doc(db, 'forms', formId), updateData);
+      console.log('✅ Formulaire mis à jour avec succès');
+    } catch (err) {
+      console.error('Erreur lors de la mise à jour du formulaire:', err);
+      if (err instanceof Error) {
+        if (err.message.includes('Missing or insufficient permissions')) {
+          setError('Permissions insuffisantes pour modifier ce formulaire.');
+        } else {
+          setError(`Erreur lors de la mise à jour: ${err.message}`);
+        }
+      } else {
+        setError('Erreur lors de la mise à jour du formulaire');
+      }
+      throw err;
+    }
+  };
+
   const deleteForm = async (formId: string) => {
     if (!user || user.role !== 'directeur') {
       throw new Error('Seuls les directeurs peuvent supprimer des formulaires');
@@ -242,6 +279,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       createForm,
       submitFormEntry,
       deleteForm,
+      updateForm,
       getFormsForEmployee,
       getEntriesForForm,
       getEntriesForEmployee,
