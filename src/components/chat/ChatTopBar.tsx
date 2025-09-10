@@ -1,34 +1,35 @@
 import React from 'react';
-import { ArrowLeft, Wifi, WifiOff, Loader2 } from 'lucide-react';
+import { SlidersHorizontal, Wifi, WifiOff, Loader2 } from 'lucide-react';
 import { Button } from '../Button';
 
 interface ChatTopBarProps {
   title?: string;
   isConnected?: boolean;
   isLoading?: boolean;
-  onBack?: () => void;
+  onOpenPanel?: () => void;
 }
 
 export const ChatTopBar: React.FC<ChatTopBarProps> = ({
   title = "Assistant IA",
   isConnected = true,
   isLoading = false,
-  onBack
+  onOpenPanel
 }) => {
   return (
-    <div className="bg-white/95 backdrop-blur-sm sticky top-0 z-20 border-b border-gray-100">
-      <div className="max-w-screen-md mx-auto px-4 py-3">
+    <div className="sticky top-0 z-30 bg-white/90 backdrop-blur shadow-sm px-3 py-2">
+      <div className="max-w-screen-md mx-auto">
         <div className="flex items-center justify-between">
-          {/* Left: Back button */}
+          {/* Left: Panel button */}
           <div className="flex items-center">
-            {onBack && (
+            {onOpenPanel && (
               <Button
                 variant="secondary"
                 size="sm"
-                onClick={onBack}
-                className="mr-3 p-2 rounded-full bg-gray-100 hover:bg-gray-200 border-0"
+                onClick={onOpenPanel}
+                className="p-2 rounded-xl border bg-white hover:bg-gray-50 focus:ring-2 focus:ring-blue-300"
+                aria-label="Ouvrir le panneau d'actions"
               >
-                <ArrowLeft className="h-5 w-5" />
+                <SlidersHorizontal className="h-5 w-5 text-gray-700" />
               </Button>
             )}
           </div>

@@ -7,7 +7,7 @@ import { WelcomeScreen } from '../components/WelcomeScreen';
 import { ChatTopBar } from '../components/chat/ChatTopBar';
 import { MessageList } from '../components/chat/MessageList';
 import { ChatComposer } from '../components/chat/ChatComposer';
-import { InfoTabs } from '../components/chat/InfoTabs';
+import { FloatingSidePanel } from '../components/chat/FloatingSidePanel';
 
 interface Message {
   id: string;
@@ -77,9 +77,9 @@ export const DirecteurChat: React.FC = () => {
   
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   
-  // États pour les onglets compacts
-  const [tabsCollapsed, setTabsCollapsed] = useState(true);
-  const [activeTab, setActiveTab] = useState<'history' | 'filters' | 'forms' | 'employees' | null>(null);
+  // États pour le panneau latéral
+  const [panelOpen, setPanelOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<'history' | 'filters' | 'forms' | 'employees' | 'entries' | null>(null);
 
   // État pour l'écran de bienvenue
   const [showWelcome, setShowWelcome] = useState(true);
@@ -291,7 +291,7 @@ export const DirecteurChat: React.FC = () => {
             title="Assistant IA"
             isConnected={!!AI_ENDPOINT}
             isLoading={isTyping}
-            onBack={() => window.location.href = '/directeur/dashboard'}
+            onOpenPanel={() => setPanelOpen(true)}
           />
 
           {/* Messages list */}
@@ -312,10 +312,10 @@ export const DirecteurChat: React.FC = () => {
             placeholder="Posez une question sur vos données..."
           />
 
-          {/* Info tabs */}
-          <InfoTabs
-            collapsed={tabsCollapsed}
-            onCollapsedChange={setTabsCollapsed}
+          {/* Floating side panel */}
+          <FloatingSidePanel
+            open={panelOpen}
+            onOpenChange={setPanelOpen}
             activeTab={activeTab}
             onTabChange={setActiveTab}
             filters={filters}
@@ -326,6 +326,7 @@ export const DirecteurChat: React.FC = () => {
             formEntries={formEntries}
             onLoadConversation={loadConversation}
             onCreateConversation={createNewConversation}
+            onGoDashboard={() => (window.location.href = '/directeur/dashboard')}
           />
         </div>
       </div>
