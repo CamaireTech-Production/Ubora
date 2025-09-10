@@ -50,7 +50,6 @@ export function useRestoreDirectorLastPath() {
     if (user?.role === "directeur") {
       const saved = sessionStorage.getItem(STORAGE_KEY);
       const currentFullPath = location.pathname + location.search + location.hash;
-      const currentFullPath = location.pathname + location.search + location.hash;
 
       // Restaurer seulement si on est sur "/" ou si on refresh une page directeur
       const shouldRestore = (
