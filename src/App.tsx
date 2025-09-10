@@ -1,11 +1,9 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { useLocation } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import { useAuth } from './contexts/AuthContext';
 import { AppProvider } from './contexts/AppContext';
 import { ConversationProvider } from './contexts/ConversationContext';
-import { useSaveDirectorLastPath, useRestoreDirectorLastPath } from './hooks/useDirectorRoutePersistence';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { LoginPage } from './pages/LoginPage';
 import { DirecteurDashboard } from './pages/DirecteurDashboard';
@@ -13,27 +11,12 @@ import { DirecteurChat } from './pages/DirecteurChat';
 import { EmployeDashboard } from './pages/EmployeDashboard';
 import { UnauthorizedPage } from './pages/UnauthorizedPage';
 
-// Composant pour gérer la persistance des routes
-const RoutePersistenceManager: React.FC = () => {
-  const { user, isLoading } = useAuth();
-  const location = useLocation();
-  
-  // Toujours sauvegarder la route courante
-  useSaveDirectorLastPath();
-  
-  // Restaurer seulement si nécessaire
-  useRestoreDirectorLastPath();
-  
-  return null;
-};
-
 function App() {
   return (
     <AuthProvider>
       <AppProvider>
         <ConversationProvider>
           <Router>
-          <RoutePersistenceManager />
           <Routes>
             {/* Page de connexion */}
             <Route path="/login" element={<LoginPage />} />
