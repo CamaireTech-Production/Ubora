@@ -5,6 +5,7 @@ import { Input } from './Input';
 import { Select } from './Select';
 import { Textarea } from './Textarea';
 import { Card } from './Card';
+import { FileTypeSelector } from './FileTypeSelector';
 import { Plus, Trash2, ArrowLeft, AlertCircle } from 'lucide-react';
 
 interface FormBuilderProps {
@@ -291,6 +292,7 @@ export const FormBuilder: React.FC<FormBuilderProps> = ({
                             { value: 'textarea', label: 'Texte long' },
                             { value: 'select', label: 'Liste déroulante' },
                             { value: 'checkbox', label: 'Case à cocher' },
+                            { value: 'file', label: 'Fichier' },
                           ]}
                         />
                       </div>
@@ -343,6 +345,14 @@ export const FormBuilder: React.FC<FormBuilderProps> = ({
                             </p>
                           )}
                         </div>
+                      )}
+
+                      {field.type === 'file' && (
+                        <FileTypeSelector
+                          label="Types de fichiers acceptés"
+                          selectedTypes={field.acceptedTypes || []}
+                          onChange={(types) => updateField(field.id, { acceptedTypes: types })}
+                        />
                       )}
                       
                       <label className="flex items-center space-x-2">

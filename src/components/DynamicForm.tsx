@@ -1,10 +1,14 @@
 import React, { useState } from 'react';
-import { Form, FormField } from '../types';
+import { Form, FormField, FileAttachment } from '../types';
 import { Button } from './Button';
 import { Input } from './Input';
 import { Textarea } from './Textarea';
 import { Select } from './Select';
 import { Card } from './Card';
+import { FileInput } from './FileInput';
+import { FileUploadService, UploadProgress } from '../services/fileUploadService';
+import { useAuth } from '../contexts/AuthContext';
+import { Upload, CheckCircle, AlertCircle, X } from 'lucide-react';
 
 interface DynamicFormProps {
   form: Form;
@@ -17,8 +21,11 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
   onSubmit,
   onCancel
 }) => {
+  const { user } = useAuth();
   const [answers, setAnswers] = useState<Record<string, any>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [fileAttachments, setFileAttachments] = useState<FileAttachment[]>([]);
+  const [uploadProgress, setUploadProgress] = useState<Record<string, UploadProgress>>({});
 
   const handleFieldChange = (fieldId: string, value: any) => {
     setAnswers(prev => ({
@@ -33,6 +40,81 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
         [fieldId]: ''
       }));
     }
+  };
+
+  const handleFileUpload = async (fieldId: string, file: File | null) => {
+    if (!file || !user) return;
+
+    try {
+      // Update progress
+      setUploadProgress(prev => ({
+        ...prev,
+        [fieldId]: {
+          fieldId,
+          fileName: file.name,
+          progress: 0,
+          status: 'uploading'
+        }
+      }));
+
+      // Upload file
+      const attachment = await FileUploadService.uploadFile(
+        file,
+        fieldId,
+        form.id,
+        user.id,
+        user.agencyId,
+        (progress) => {
+          setUploadProgress(prev => ({
+            ...prev,
+            [fieldId]: progress
+          }));
+        }
+      );
+
+      // Add to attachments
+      setFileAttachments(prev => {
+        // Remove existing attachment for this field
+        const filtered = prev.filter(att => att.fieldId !== fieldId);
+        return [...filtered, attachment];
+      });
+
+      // Update answers with file info
+      setAnswers(prev => ({
+        ...prev,
+        [fieldId]: {
+          fileName: file.name,
+          fileSize: file.size,
+          fileType: file.type,
+          uploaded: true
+        }
+      }));
+
+    } catch (error) {
+      console.error('File upload error:', error);
+      setErrors(prev => ({
+        ...prev,
+        [fieldId]: error instanceof Error ? error.message : 'Upload failed'
+      }));
+    }
+  };
+
+  const handleFileRemove = (fieldId: string) => {
+    // Remove from attachments
+    setFileAttachments(prev => prev.filter(att => att.fieldId !== fieldId));
+    
+    // Clear answer
+    setAnswers(prev => ({
+      ...prev,
+      [fieldId]: null
+    }));
+
+    // Clear progress
+    setUploadProgress(prev => {
+      const newProgress = { ...prev };
+      delete newProgress[fieldId];
+      return newProgress;
+    });
   };
 
   const validateForm = (): boolean => {
@@ -52,7 +134,12 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
     e.preventDefault();
     
     if (validateForm()) {
-      onSubmit(answers);
+      // Include file attachments in submission
+      const submissionData = {
+        ...answers,
+        fileAttachments: fileAttachments
+      };
+      onSubmit(submissionData);
     }
   };
 
@@ -132,6 +219,70 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
             </label>
             {errors[field.id] && (
               <span className="text-sm text-red-600">{errors[field.id]}</span>
+            )}
+          </div>
+        );
+      
+      case 'file':
+        const fileAnswer = answers[field.id];
+        const progress = uploadProgress[field.id];
+        
+        return (
+          <div key={field.id} className="space-y-2">
+            <FileInput
+              label={field.label + (field.required ? ' *' : '')}
+              value={fileAnswer?.uploaded ? new File([], fileAnswer.fileName) : null}
+              onChange={(file) => handleFileUpload(field.id, file)}
+              placeholder={field.placeholder}
+              error={errors[field.id]}
+              required={field.required}
+              acceptedTypes={field.acceptedTypes}
+            />
+            
+            {/* Upload Progress */}
+            {progress && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                <div className="flex items-center space-x-2">
+                  {progress.status === 'uploading' && (
+                    <Upload className="h-4 w-4 text-blue-600 animate-pulse" />
+                  )}
+                  {progress.status === 'completed' && (
+                    <CheckCircle className="h-4 w-4 text-green-600" />
+                  )}
+                  {progress.status === 'error' && (
+                    <AlertCircle className="h-4 w-4 text-red-600" />
+                  )}
+                  <span className="text-sm text-gray-700">{progress.fileName}</span>
+                  {progress.status === 'uploading' && (
+                    <span className="text-xs text-blue-600">{progress.progress}%</span>
+                  )}
+                </div>
+                {progress.status === 'error' && progress.error && (
+                  <p className="text-xs text-red-600 mt-1">{progress.error}</p>
+                )}
+              </div>
+            )}
+            
+            {/* File Preview */}
+            {fileAnswer?.uploaded && (
+              <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <CheckCircle className="h-4 w-4 text-green-600" />
+                    <span className="text-sm text-gray-700">{fileAnswer.fileName}</span>
+                    <span className="text-xs text-gray-500">
+                      ({FileUploadService.formatFileSize(fileAnswer.fileSize)})
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleFileRemove(field.id)}
+                    className="text-red-600 hover:text-red-800"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
             )}
           </div>
         );

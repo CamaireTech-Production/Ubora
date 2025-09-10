@@ -2,6 +2,7 @@
 import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore, connectFirestoreEmulator } from "firebase/firestore";
+import { getStorage } from "firebase/storage";
 
 // Configuration Firebase avec vos vraies clés
 const firebaseConfig = {
@@ -46,3 +47,4 @@ try {
 // Initialisation des services
 export const auth = getAuth(app);
 export const db = getFirestore(app);
+export const storage = getStorage(app);

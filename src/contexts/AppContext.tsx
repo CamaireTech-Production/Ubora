@@ -220,6 +220,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         userId: firebaseUser.uid, // Forcer auth.uid
         agencyId: user.agencyId, // Hérité du user
         answers: entryData.answers || {},
+        fileAttachments: entryData.fileAttachments || [],
         submittedAt: serverTimestamp() // Forcer serverTimestamp
       };
 

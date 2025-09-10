@@ -15,10 +15,11 @@ export interface User {
 export interface FormField {
   id: string;
   label: string;
-  type: 'text' | 'number' | 'email' | 'textarea' | 'select' | 'checkbox' | 'date';
+  type: 'text' | 'number' | 'email' | 'textarea' | 'select' | 'checkbox' | 'date' | 'file';
   required: boolean;
   placeholder?: string;
   options?: string[]; // Pour les champs select
+  acceptedTypes?: string[]; // Pour les champs file (ex: [".pdf", ".doc", ".docx"])
 }
 
 export interface Form {
@@ -32,12 +33,23 @@ export interface Form {
   agencyId: string;
 }
 
+export interface FileAttachment {
+  fieldId: string;
+  fileName: string;
+  fileSize: number;
+  fileType: string;
+  downloadUrl: string;
+  storagePath: string;
+  uploadedAt: Date;
+}
+
 export interface FormEntry {
   id: string;
   formId: string; // référence vers un formulaire
   userId: string; // employé qui a soumis (auth.uid)
   agencyId: string; // hérité du user
   answers: Record<string, any>; // map { fieldId: valeur }
+  fileAttachments?: FileAttachment[]; // fichiers uploadés
   submittedAt: Date; // serverTimestamp
 }
 
