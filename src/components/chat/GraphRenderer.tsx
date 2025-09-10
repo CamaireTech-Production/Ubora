@@ -93,7 +93,12 @@ const GraphModal: React.FC<GraphModalProps> = ({ data, isOpen, onClose }) => {
               <div className="text-center">
                 <div className="text-2xl font-bold text-blue-600">{data.data.length}</div>
                 <div className="text-sm text-gray-600">
-                  {data.data.length > 0 && data.data[0].employee ? 'Employés' : 'Points de données'}
+                  {data.data.length > 0 && data.data[0].employee 
+                    ? 'Employés' 
+                    : data.data.length > 0 && data.data[0].date
+                    ? 'Jours'
+                    : 'Points de données'
+                  }
                 </div>
               </div>
               <div className="text-center">
@@ -108,7 +113,12 @@ const GraphModal: React.FC<GraphModalProps> = ({ data, isOpen, onClose }) => {
                   }
                 </div>
                 <div className="text-sm text-gray-600">
-                  {data.data.length > 0 && data.data[0].submissions ? 'Soumissions totales' : 'Colonnes'}
+                  {data.data.length > 0 && data.data[0].submissions 
+                    ? 'Soumissions totales' 
+                    : data.data.length > 0 && data.data[0].date
+                    ? 'Soumissions totales'
+                    : 'Colonnes'
+                  }
                 </div>
               </div>
               <div className="text-center">
@@ -149,6 +159,35 @@ const CustomTooltip = ({ active, payload, label }: any) => {
   return null;
 };
 
+// Custom tooltip for timeline data
+const TimelineTooltip = ({ active, payload, label }: any) => {
+  if (active && payload && payload.length) {
+    const data = payload[0].payload;
+    return (
+      <div className="bg-white p-3 border border-gray-200 rounded-lg shadow-lg">
+        <p className="font-semibold text-gray-900">{label}</p>
+        <p className="text-blue-600 font-medium">
+          Soumissions: {payload[0].value}
+        </p>
+        {data.employees && Array.isArray(data.employees) && (
+          <div className="mt-2">
+            <p className="text-sm text-gray-600 mb-1">Employés actifs:</p>
+            <div className="text-xs text-gray-500">
+              {data.employees.slice(0, 3).map((emp: string, index: number) => (
+                <div key={index}>• {emp}</div>
+              ))}
+              {data.employees.length > 3 && (
+                <div>• +{data.employees.length - 3} autres</div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+  return null;
+};
+
 const renderChart = (data: GraphData, isPreview: boolean) => {
   const commonProps = {
     data: data.data,
@@ -163,15 +202,25 @@ const renderChart = (data: GraphData, isPreview: boolean) => {
 
   // Check if this is employee data
   const isEmployeeData = data.data.length > 0 && data.data[0].employee;
+  // Check if this is timeline data
+  const isTimelineData = data.data.length > 0 && data.data[0].date;
 
   switch (data.type) {
     case 'line':
       return (
         <LineChart {...chartProps}>
           {!isPreview && <CartesianGrid strokeDasharray="3 3" />}
-          {!isPreview && <XAxis dataKey={data.xAxisKey} />}
+          {!isPreview && (
+            <XAxis 
+              dataKey={data.xAxisKey} 
+              angle={isTimelineData ? -45 : 0}
+              textAnchor={isTimelineData ? 'end' : 'middle'}
+              height={isTimelineData ? 80 : 30}
+              interval={isTimelineData ? 'preserveStartEnd' : 0}
+            />
+          )}
           {!isPreview && <YAxis />}
-          {!isPreview && <Tooltip />}
+          {!isPreview && <Tooltip content={isTimelineData ? <TimelineTooltip /> : undefined} />}
           {!isPreview && data.options?.showLegend && <Legend />}
           <Line 
             type="monotone" 
@@ -179,6 +228,7 @@ const renderChart = (data: GraphData, isPreview: boolean) => {
             stroke={data.colors?.[0] || COLORS[0]} 
             strokeWidth={isPreview ? 2 : 3}
             dot={!isPreview}
+            activeDot={{ r: isPreview ? 3 : 6 }}
           />
         </LineChart>
       );
@@ -232,9 +282,17 @@ const renderChart = (data: GraphData, isPreview: boolean) => {
       return (
         <AreaChart {...chartProps}>
           {!isPreview && <CartesianGrid strokeDasharray="3 3" />}
-          {!isPreview && <XAxis dataKey={data.xAxisKey} />}
+          {!isPreview && (
+            <XAxis 
+              dataKey={data.xAxisKey} 
+              angle={isTimelineData ? -45 : 0}
+              textAnchor={isTimelineData ? 'end' : 'middle'}
+              height={isTimelineData ? 80 : 30}
+              interval={isTimelineData ? 'preserveStartEnd' : 0}
+            />
+          )}
           {!isPreview && <YAxis />}
-          {!isPreview && <Tooltip />}
+          {!isPreview && <Tooltip content={isTimelineData ? <TimelineTooltip /> : undefined} />}
           {!isPreview && data.options?.showLegend && <Legend />}
           <Area 
             type="monotone" 
@@ -313,6 +371,8 @@ export const GraphRenderer: React.FC<GraphRendererProps> = ({ data, isPreview = 
             <span>
               {data.data.length > 0 && data.data[0].employee 
                 ? `${data.data.length} employé${data.data.length > 1 ? 's' : ''}`
+                : data.data.length > 0 && data.data[0].date
+                ? `${data.data.length} jour${data.data.length > 1 ? 's' : ''}`
                 : `${data.data.length} points`
               }
             </span>
