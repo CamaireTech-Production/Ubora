@@ -197,7 +197,7 @@ export const DirecteurChat: React.FC = () => {
       const responseTime = Date.now() - startTime;
 
       // Parse the AI response to detect graph/PDF data
-      const parsedResponse = ResponseParser.parseAIResponse(data.answer);
+      const parsedResponse = ResponseParser.parseAIResponse(data.answer, messageToSend);
 
       // Create assistant message with parsed content
       const assistantMessage = ResponseParser.createMessageFromParsedResponse(
@@ -276,6 +276,19 @@ export const DirecteurChat: React.FC = () => {
     handleSendMessage(suggestion);
   };
 
+  const handleFileUpload = (files: File[]) => {
+    // Handle file uploads
+    files.forEach((file) => {
+      console.log('File uploaded:', file.name, file.type, file.size);
+      
+      // Create a message with file information
+      const fileMessage = `📎 Fichier joint: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`;
+      
+      // Add the file message to the input
+      setInputMessage(prev => prev ? `${prev}\n${fileMessage}` : fileMessage);
+    });
+  };
+
 
   // Gérer la fermeture de l'écran de bienvenue
   const handleWelcomeContinue = () => {
@@ -337,6 +350,7 @@ export const DirecteurChat: React.FC = () => {
             onChange={setInputMessage}
             onSend={() => handleSendMessage()}
             onSuggestionClick={handleSuggestionClick}
+            onFileUpload={handleFileUpload}
             disabled={isTyping}
             placeholder="Posez une question sur vos données..."
             showSuggestions={true}

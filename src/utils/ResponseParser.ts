@@ -8,9 +8,9 @@ export interface ParsedResponse {
 }
 
 export class ResponseParser {
-  static parseAIResponse(response: string): ParsedResponse {
-    // Check if this is a PDF report request (contains report keywords)
-    if (this.isPDFReportRequest(response)) {
+  static parseAIResponse(response: string, userMessage?: string): ParsedResponse {
+    // Check if this is a PDF report request based on user's message
+    if (userMessage && this.isPDFReportRequest(userMessage)) {
       return {
         contentType: 'text-pdf',
         content: response
@@ -89,15 +89,14 @@ export class ResponseParser {
     };
   }
   
-  private static isPDFReportRequest(response: string): boolean {
+  private static isPDFReportRequest(userMessage: string): boolean {
     const pdfKeywords = [
-      'rapport', 'report', 'pdf', 'synthèse', 'résumé', 'complet', 
-      'détaillé', 'analyse', 'document', 'génère un rapport'
+      'génère un rapport', 'crée un rapport', 'rapport pdf', 'rapport complet',
+      'synthèse pdf', 'document pdf', 'rapport détaillé', 'génère pdf',
+      'crée pdf', 'rapport final', 'rapport d\'analyse'
     ];
-    const lowerResponse = response.toLowerCase();
-    return pdfKeywords.some(keyword => lowerResponse.includes(keyword)) && 
-           !response.includes('```json') && 
-           response.length > 200; // Long enough to be a report
+    const lowerMessage = userMessage.toLowerCase();
+    return pdfKeywords.some(keyword => lowerMessage.includes(keyword));
   }
 
   private static isGraphData(data: any): boolean {

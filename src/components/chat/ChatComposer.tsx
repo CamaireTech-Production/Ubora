@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Mic } from 'lucide-react';
+import { Send, Mic, Paperclip } from 'lucide-react';
 import { Button } from '../Button';
 import { MessageSuggestions } from './MessageSuggestions';
 
@@ -8,6 +8,7 @@ interface ChatComposerProps {
   onChange: (value: string) => void;
   onSend: () => void;
   onSuggestionClick?: (suggestion: string) => void;
+  onFileUpload?: (files: File[]) => void;
   onKeyPress?: (e: React.KeyboardEvent) => void;
   disabled?: boolean;
   placeholder?: string;
@@ -20,6 +21,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
   onChange,
   onSend,
   onSuggestionClick,
+  onFileUpload,
   onKeyPress,
   disabled = false,
   placeholder = "Écrivez votre message…",
@@ -27,6 +29,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
   showSuggestions = true
 }) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [rows, setRows] = useState(1);
 
   // Auto-resize textarea
@@ -60,6 +63,23 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
 
   const canSend = !disabled && value.trim().length > 0;
   const isNearLimit = value.length > maxLength * 0.8;
+
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files || []);
+    if (files.length > 0 && onFileUpload) {
+      onFileUpload(files);
+    }
+    // Reset the input value so the same file can be selected again
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const handleFileButtonClick = () => {
+    if (fileInputRef.current) {
+      fileInputRef.current.click();
+    }
+  };
 
   return (
     <div className="fixed bottom-0 left-0 right-0 z-10 bg-gradient-to-t from-white via-white to-transparent pt-4">
@@ -106,12 +126,35 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
 
             {/* Action buttons */}
             <div className="flex items-center space-x-2">
+              {/* File upload button */}
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={disabled}
+                onClick={handleFileButtonClick}
+                className="p-2 rounded-xl bg-gray-100 hover:bg-gray-200 border-0"
+                title="Joindre un fichier"
+              >
+                <Paperclip className="h-4 w-4 text-gray-600" />
+              </Button>
+
+              {/* Hidden file input */}
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                accept="*/*"
+                onChange={handleFileUpload}
+                className="hidden"
+              />
+
               {/* Voice input button (placeholder) */}
               <Button
                 variant="secondary"
                 size="sm"
                 disabled={disabled}
                 className="p-2 rounded-xl bg-gray-100 hover:bg-gray-200 border-0"
+                title="Enregistrement vocal"
               >
                 <Mic className="h-4 w-4 text-gray-600" />
               </Button>
@@ -125,6 +168,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
                     ? 'bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-md'
                     : 'bg-gray-200 text-gray-400 cursor-not-allowed'
                 }`}
+                title="Envoyer le message"
               >
                 <Send className="h-4 w-4" />
               </Button>

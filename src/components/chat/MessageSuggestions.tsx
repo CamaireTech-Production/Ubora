@@ -37,7 +37,7 @@ const suggestions = [
     title: 'Rapport de synthèse',
     description: 'Générer un rapport complet',
     icon: FileText,
-    prompt: 'Génère un rapport complet avec analyse des données de formulaires pour la période sélectionnée. Inclus les métriques clés, tendances et recommandations basées sur les formulaires créés par le directeur et remplis par les employés. Crée un document détaillé avec sections, statistiques et insights.',
+    prompt: 'Génère un rapport PDF complet avec analyse des données de formulaires pour la période sélectionnée. Inclus les métriques clés, tendances et recommandations basées sur les formulaires créés par le directeur et remplis par les employés. Crée un document détaillé avec sections, statistiques et insights.',
     type: 'pdf'
   }
 ];
