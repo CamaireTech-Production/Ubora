@@ -155,6 +155,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return false;
       }
       
+      // Marquer pour afficher l'écran de bienvenue juste après la connexion
+      try { sessionStorage.setItem('show_welcome_after_login', 'true'); } catch {}
+
       return true;
     } catch (err: any) {
       console.error('Erreur de connexion:', err);
@@ -192,6 +195,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         await setDoc(userDocRef, userData);
       }
       
+      // Marquer pour afficher l'écran de bienvenue juste après la connexion
+      try { sessionStorage.setItem('show_welcome_after_login', 'true'); } catch {}
+
       return true;
     } catch (err: any) {
       console.error('Erreur de connexion Google:', err);
@@ -229,6 +235,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       await setDoc(doc(db, 'users', userCredential.user.uid), userData);
       
+      // Marquer pour afficher l'écran de bienvenue juste après l'inscription
+      try { sessionStorage.setItem('show_welcome_after_login', 'true'); } catch {}
+
       return true;
     } catch (err: any) {
       console.error('Erreur d\'inscription:', err);
@@ -242,6 +251,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const logout = async (): Promise<void> => {
     try {
       await signOut(auth);
+      try { sessionStorage.removeItem('show_welcome_after_login'); } catch {}
     } catch (err) {
       console.error('Erreur de déconnexion:', err);
     }

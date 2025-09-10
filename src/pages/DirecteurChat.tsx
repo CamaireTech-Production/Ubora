@@ -80,8 +80,15 @@ export const DirecteurChat: React.FC = () => {
   const [panelOpen, setPanelOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'history' | 'filters' | 'forms' | 'employees' | 'entries' | null>(null);
 
-  // État pour l'écran de bienvenue
-  const [showWelcome, setShowWelcome] = useState(true);
+  // État pour l'écran de bienvenue (uniquement juste après login)
+  const [showWelcome, setShowWelcome] = useState(() => {
+    try {
+      const shouldShow = sessionStorage.getItem('show_welcome_after_login') === 'true';
+      return shouldShow;
+    } catch {
+      return false;
+    }
+  });
   const handleSendMessage = async (message?: string) => {
     const messageToSend = message || inputMessage.trim();
     if (!messageToSend || isTyping) return;
@@ -132,10 +139,10 @@ export const DirecteurChat: React.FC = () => {
         throw new Error('Impossible de récupérer le token d\'authentification. Veuillez vous reconnecter.');
       }
       
-      const headers: Record<string, string> = {
+      const makeHeaders = (t: string): Record<string, string> => ({
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      };
+        'Authorization': `Bearer ${t}`
+      });
 
       const requestData = {
         question: messageToSend,
@@ -157,12 +164,29 @@ export const DirecteurChat: React.FC = () => {
       console.log('Calling AI endpoint:', AI_ENDPOINT);
       console.log('Request data:', requestData);
       
-      const response = await fetch(AI_ENDPOINT, {
+      let response = await fetch(AI_ENDPOINT, {
         method: 'POST',
-        headers,
+        headers: makeHeaders(token),
         body: JSON.stringify(requestData),
         signal: controller.signal
       });
+
+      // If token has expired or is invalid, refresh once and retry
+      if (response.status === 401) {
+        try {
+          const freshToken = await firebaseUser?.getIdToken(true);
+          if (freshToken) {
+            response = await fetch(AI_ENDPOINT, {
+              method: 'POST',
+              headers: makeHeaders(freshToken),
+              body: JSON.stringify(requestData),
+              signal: controller.signal
+            });
+          }
+        } catch (refreshErr) {
+          console.error('Failed to refresh token:', refreshErr);
+        }
+      }
 
       clearTimeout(timeoutId);
 
@@ -261,6 +285,7 @@ export const DirecteurChat: React.FC = () => {
   // Gérer la fermeture de l'écran de bienvenue
   const handleWelcomeContinue = () => {
     setShowWelcome(false);
+    try { sessionStorage.removeItem('show_welcome_after_login'); } catch {}
   };
 
   // Afficher uniquement l'écran de bienvenue sans afficher le chat en arrière-plan
