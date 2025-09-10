@@ -1,5 +1,6 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import { useAuth } from './contexts/AuthContext';
 import { AppProvider } from './contexts/AppContext';
@@ -14,8 +15,15 @@ import { UnauthorizedPage } from './pages/UnauthorizedPage';
 
 // Composant pour gérer la persistance des routes
 const RoutePersistenceManager: React.FC = () => {
+  const { user, isLoading } = useAuth();
+  const location = useLocation();
+  
+  // Toujours sauvegarder la route courante
   useSaveDirectorLastPath();
+  
+  // Restaurer seulement si nécessaire
   useRestoreDirectorLastPath();
+  
   return null;
 };
 

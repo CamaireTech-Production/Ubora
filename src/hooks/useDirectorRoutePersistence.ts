@@ -43,16 +43,22 @@ export function useRestoreDirectorLastPath() {
 
   useEffect(() => {
     // Attendre que l'auth soit prête
-    if (isLoading || typeof firebaseUser === "undefined") return;
+    if (isLoading) return;
     if (restoredRef.current) return;
 
-    // Restaurer seulement pour Directeur
+    // Restaurer seulement pour Directeur et seulement depuis la route racine
     if (user?.role === "directeur") {
       const saved = sessionStorage.getItem(STORAGE_KEY);
       const currentFullPath = location.pathname + location.search + location.hash;
+      const currentFullPath = location.pathname + location.search + location.hash;
 
-      // Si on a un chemin sauvegardé, qu'il est autorisé, et qu'on n'y est pas déjà
-      if (saved && isAllowedDirectorPath(saved) && saved !== currentFullPath) {
+      // Restaurer seulement si on est sur "/" ou si on refresh une page directeur
+      const shouldRestore = (
+        location.pathname === "/" || 
+        (isAllowedDirectorPath(location.pathname) && saved && saved !== currentFullPath)
+      );
+      
+      if (saved && isAllowedDirectorPath(saved) && shouldRestore) {
         restoredRef.current = true; // éviter boucles
         navigate(saved, { replace: true });
         return;
