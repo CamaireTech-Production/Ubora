@@ -1,4 +1,5 @@
 import React, { useState, useRef } from 'react';
+import { Form } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { useApp } from '../contexts/AppContext';
 import { Layout } from '../components/Layout';
@@ -44,7 +45,7 @@ export const DirecteurDashboard: React.FC = () => {
         agencyId: user.agencyId,
       });
       setShowFormBuilder(false);
-      setFormToEdit(null);
+      setEditingForm(null);
     } catch (error) {
       console.error('Erreur lors de la création du formulaire:', error);
       alert('Erreur lors de la création du formulaire. Veuillez réessayer.');
@@ -89,9 +90,9 @@ export const DirecteurDashboard: React.FC = () => {
   };
 
   const handlePrint = useReactToPrint({
-    content: () => printRef.current,
+    contentRef: printRef,
     documentTitle: `Rapport_${user?.name || 'Directeur'}_${new Date().toLocaleDateString()}`,
-    onError: (error) => {
+    onPrintError: (_location: string, error: Error) => {
       console.error('Erreur lors de l\'impression:', error);
       alert('Erreur lors de la génération du PDF. Veuillez réessayer.');
     }

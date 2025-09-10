@@ -35,7 +35,14 @@ export const LoadingGuard: React.FC<LoadingGuardProps> = ({
 
   // Afficher le contenu seulement si tout est chargé
   if (!firebaseUser || !user) {
-    return null;
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-gray-700 mb-2">Session non disponible</p>
+          <p className="text-sm text-gray-500">Veuillez vous reconnecter.</p>
+        </div>
+      </div>
+    );
   }
 
   return <>{children}</>;

@@ -233,7 +233,14 @@ export const DirecteurChat: React.FC = () => {
         responseTime
       };
 
-      setMessages(prev => [...prev, errorMessage]);
+      // Try to persist the error message if a conversation exists
+      if (currentConversation) {
+        try {
+          await addMessage(errorMessage);
+        } catch (persistError) {
+          console.error('Error persisting error message:', persistError);
+        }
+      }
     } finally {
       setIsTyping(false);
     }
@@ -256,24 +263,6 @@ export const DirecteurChat: React.FC = () => {
   const handleWelcomeContinue = () => {
     setShowWelcome(false);
   };
-
-  // Afficher l'écran de bienvenue si nécessaire
-  if (showWelcome) {
-    return (
-      <LoadingGuard 
-        isLoading={isLoading || appLoading} 
-        user={user} 
-        firebaseUser={firebaseUser}
-        message="Chargement du Chat IA..."
-      >
-        <WelcomeScreen
-          userName={user?.name}
-          onContinue={handleWelcomeContinue}
-          rememberKey="directeur_chat_welcome"
-        />
-      </LoadingGuard>
-    );
-  }
 
   return (
     <LoadingGuard 
@@ -328,6 +317,15 @@ export const DirecteurChat: React.FC = () => {
             onCreateConversation={createNewConversation}
             onGoDashboard={() => (window.location.href = '/directeur/dashboard')}
           />
+          {/* Welcome overlay */}
+          {showWelcome && (
+            <WelcomeScreen
+              userName={user?.name}
+              onContinue={handleWelcomeContinue}
+              rememberKey="directeur_chat_welcome"
+              show
+            />
+          )}
         </div>
       </div>
     </LoadingGuard>
