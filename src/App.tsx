@@ -10,6 +10,7 @@ import { DirecteurDashboard } from './pages/DirecteurDashboard';
 import { DirecteurChat } from './pages/DirecteurChat';
 import { EmployeDashboard } from './pages/EmployeDashboard';
 import { UnauthorizedPage } from './pages/UnauthorizedPage';
+import { PendingApprovalPage } from './pages/PendingApprovalPage';
 
 function App() {
   return (
@@ -23,6 +24,9 @@ function App() {
             
             {/* Page non autorisée */}
             <Route path="/unauthorized" element={<UnauthorizedPage />} />
+            
+            {/* Page d'attente d'approbation */}
+            <Route path="/pending-approval" element={<PendingApprovalPage />} />
             
             {/* Dashboard directeur */}
             <Route 
@@ -83,13 +87,16 @@ const RoleBasedRedirect: React.FC = () => {
     return <Navigate to="/login" replace />;
   }
 
-  // Directeur → Chat IA en priorité
+  // Directeur → Dashboard en priorité
   if (user.role === 'directeur') {
-    return <Navigate to="/directeur/chat" replace />;
+    return <Navigate to="/directeur/dashboard" replace />;
   }
 
-  // Employé → Dashboard
+  // Employé → Vérifier l'approbation
   if (user.role === 'employe') {
+    if (user.isApproved === false) {
+      return <Navigate to="/pending-approval" replace />;
+    }
     return <Navigate to="/employe/dashboard" replace />;
   }
 
