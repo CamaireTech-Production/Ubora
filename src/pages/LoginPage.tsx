@@ -12,7 +12,7 @@ export const LoginPage: React.FC = () => {
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [role, setRole] = useState<'directeur' | 'employe'>('employe');
-  const [agencyId, setAgencyId] = useState('agency1');
+  const [agencyId, setAgencyId] = useState('');
   const [isRegisterMode, setIsRegisterMode] = useState(false);
   const [localError, setLocalError] = useState('');
 
@@ -100,7 +100,7 @@ export const LoginPage: React.FC = () => {
                   type="text"
                   value={agencyId}
                   onChange={(e) => setAgencyId(e.target.value)}
-                  placeholder="agency1"
+                  placeholder="Entrez votre ID d'agence"
                   required
                 />
               </>

@@ -86,6 +86,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           
           if (userDoc.exists()) {
             const userData = userDoc.data() as Omit<User, 'id'>;
+            
+            // Vérifier l'approbation pour les employés
+            if (userData.role === 'employe' && userData.isApproved === false) {
+              console.log('Employee not approved yet');
+              // Ne pas déconnecter, laisser l'utilisateur voir la page d'attente
+              setUser({
+                id: firebaseUser.uid,
+                ...userData
+              });
+              setFirebaseUser(firebaseUser);
+              return;
+            }
+            
             setUser({
               id: firebaseUser.uid,
               ...userData
@@ -170,7 +183,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           name: result.user.displayName || '',
           email: result.user.email || '',
           role: 'employe', // Rôle par défaut
-          agencyId: 'agency1', // Agence par défaut
+          agencyId: '', // L'utilisateur devra saisir son ID d'agence
+          isApproved: false, // Les employés Google Auth doivent être approuvés
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp()
         };
@@ -208,6 +222,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         email: email.trim().toLowerCase(),
         role,
         agencyId: agencyId.trim(),
+        isApproved: role === 'directeur' ? true : false, // Les directeurs sont automatiquement approuvés
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       };

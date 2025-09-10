@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { Form } from '../types';
+import { Form, FormField } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { useApp } from '../contexts/AppContext';
 import { Layout } from '../components/Layout';
@@ -7,7 +7,8 @@ import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { FormEditor } from '../components/FormEditor';
 import { LoadingGuard } from '../components/LoadingGuard';
-import { Plus, FileText, Users, Download, Eye, Trash2, MessageSquare, Edit } from 'lucide-react';
+import { Plus, FileText, Users, Download, Eye, Trash2, MessageSquare, Edit, UserCheck } from 'lucide-react';
+import { PendingApprovals } from '../components/PendingApprovals';
 import { useReactToPrint } from 'react-to-print';
 
 export const DirecteurDashboard: React.FC = () => {
@@ -19,7 +20,9 @@ export const DirecteurDashboard: React.FC = () => {
     createForm, 
     updateForm,
     deleteForm,
-    getEntriesForForm, 
+    getEntriesForForm,
+    getPendingEmployees,
+    refreshData,
     isLoading: appLoading
   } = useApp();
   
@@ -31,7 +34,7 @@ export const DirecteurDashboard: React.FC = () => {
   const handleCreateForm = async (formData: {
     title: string;
     description: string;
-    fields: any[];
+    fields: FormField[];
     assignedTo: string[];
   }) => {
     try {
@@ -55,7 +58,7 @@ export const DirecteurDashboard: React.FC = () => {
   const handleUpdateForm = async (formData: {
     title: string;
     description: string;
-    fields: any[];
+    fields: FormField[];
     assignedTo: string[];
   }) => {
     if (!editingForm) return;
@@ -137,7 +140,7 @@ export const DirecteurDashboard: React.FC = () => {
         <Layout title="Dashboard Directeur">
           <div className="space-y-6 lg:space-y-8">
             {/* Statistiques */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
               <Card className="bg-gradient-to-r from-blue-500 to-blue-600 text-white">
                 <div className="flex items-center space-x-3">
                   <FileText className="h-8 w-8 opacity-80" />
@@ -152,13 +155,23 @@ export const DirecteurDashboard: React.FC = () => {
                 <div className="flex items-center space-x-3">
                   <Users className="h-8 w-8 opacity-80" />
                   <div>
-                    <p className="text-green-100">Employés</p>
-                    <p className="text-xl sm:text-2xl font-bold">{employees.length}</p>
+                    <p className="text-green-100">Employés approuvés</p>
+                    <p className="text-xl sm:text-2xl font-bold">{employees.filter(emp => emp.isApproved !== false).length}</p>
+                  </div>
+                </div>
+              </Card>
+
+              <Card className="bg-gradient-to-r from-yellow-500 to-yellow-600 text-white">
+                <div className="flex items-center space-x-3">
+                  <UserCheck className="h-8 w-8 opacity-80" />
+                  <div>
+                    <p className="text-yellow-100">En attente</p>
+                    <p className="text-xl sm:text-2xl font-bold">{getPendingEmployees().length}</p>
                   </div>
                 </div>
               </Card>
               
-              <Card className="bg-gradient-to-r from-purple-500 to-purple-600 text-white sm:col-span-2 lg:col-span-1">
+              <Card className="bg-gradient-to-r from-purple-500 to-purple-600 text-white">
                 <div className="flex items-center space-x-3">
                   <Download className="h-8 w-8 opacity-80" />
                   <div>
@@ -168,6 +181,13 @@ export const DirecteurDashboard: React.FC = () => {
                 </div>
               </Card>
             </div>
+
+            {/* Section des approbations en attente */}
+            <PendingApprovals
+              pendingEmployees={getPendingEmployees()}
+              currentDirectorId={user?.id || ''}
+              onApprovalChange={refreshData}
+            />
 
             {/* Actions principales */}
             <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
@@ -257,17 +277,6 @@ export const DirecteurDashboard: React.FC = () => {
                               <Eye className="h-4 w-4" />
                               <span className="hidden sm:inline">{selectedFormId === form.id ? 'Masquer' : 'Voir les réponses'}</span>
                               <span className="sm:hidden">{selectedFormId === form.id ? 'Masquer' : 'Réponses'}</span>
-                            </Button>
-                            
-                            <Button
-                              variant="secondary"
-                              size="sm"
-                              onClick={() => handleEditForm(form)}
-                              className="flex items-center justify-center space-x-2 w-full sm:w-auto"
-                            >
-                              <Edit className="h-4 w-4" />
-                              <span className="hidden sm:inline">Modifier</span>
-                              <span className="sm:hidden">Éditer</span>
                             </Button>
                             
                             <Button

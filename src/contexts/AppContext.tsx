@@ -27,6 +27,8 @@ interface AppContextType {
   getEntriesForForm: (formId: string) => FormEntry[];
   getEntriesForEmployee: (employeeId: string) => FormEntry[];
   getEmployeesForAgency: (agencyId: string) => User[];
+  getPendingEmployees: () => User[];
+  refreshData: () => void;
   isLoading: boolean;
   error: string | null;
 }
@@ -273,6 +275,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return employees.filter(emp => emp.agencyId === agencyId);
   };
 
+  const getPendingEmployees = (): User[] => {
+    return employees.filter(emp => emp.role === 'employe' && emp.isApproved === false);
+  };
+
+  const refreshData = () => {
+    // Force reload by triggering the useEffect
+    setIsLoading(true);
+  };
+
   return (
     <AppContext.Provider value={{
       forms,
@@ -286,6 +297,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       getEntriesForForm,
       getEntriesForEmployee,
       getEmployeesForAgency,
+      getPendingEmployees,
+      refreshData,
       isLoading,
       error
     }}>

@@ -5,6 +5,9 @@ export interface User {
   email: string;
   role: 'directeur' | 'employe';
   agencyId: string;
+  isApproved?: boolean; // Status d'approbation pour les employés
+  approvedBy?: string; // ID du directeur qui a approuvé
+  approvedAt?: any; // Timestamp d'approbation
   createdAt?: any; // Timestamp Firestore
   updatedAt?: any; // Timestamp Firestore
 }
