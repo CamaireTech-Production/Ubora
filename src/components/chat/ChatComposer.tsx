@@ -1,25 +1,30 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Send, Mic } from 'lucide-react';
 import { Button } from '../Button';
+import { MessageSuggestions } from './MessageSuggestions';
 
 interface ChatComposerProps {
   value: string;
   onChange: (value: string) => void;
   onSend: () => void;
+  onSuggestionClick?: (suggestion: string) => void;
   onKeyPress?: (e: React.KeyboardEvent) => void;
   disabled?: boolean;
   placeholder?: string;
   maxLength?: number;
+  showSuggestions?: boolean;
 }
 
 export const ChatComposer: React.FC<ChatComposerProps> = ({
   value,
   onChange,
   onSend,
+  onSuggestionClick,
   onKeyPress,
   disabled = false,
   placeholder = "Écrivez votre message…",
-  maxLength = 2000
+  maxLength = 2000,
+  showSuggestions = true
 }) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [rows, setRows] = useState(1);
@@ -59,6 +64,14 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
   return (
     <div className="fixed bottom-0 left-0 right-0 z-10 bg-gradient-to-t from-white via-white to-transparent pt-4">
       <div className="max-w-screen-md mx-auto px-4 pb-4" style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
+        
+        {/* Message Suggestions - only show when input is empty */}
+        {showSuggestions && !value.trim() && onSuggestionClick && (
+          <MessageSuggestions 
+            onSuggestionClick={onSuggestionClick}
+            disabled={disabled}
+          />
+        )}
         {/* Character counter (when near limit) */}
         {isNearLimit && (
           <div className="text-center mb-2">

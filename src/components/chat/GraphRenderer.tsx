@@ -1,0 +1,284 @@
+import React, { useState } from 'react';
+import { 
+  LineChart, 
+  Line, 
+  BarChart, 
+  Bar, 
+  PieChart, 
+  Pie, 
+  Cell, 
+  AreaChart, 
+  Area,
+  ScatterChart,
+  Scatter,
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip, 
+  Legend, 
+  ResponsiveContainer 
+} from 'recharts';
+import { Maximize2, Download } from 'lucide-react';
+import { Button } from '../Button';
+import { GraphData } from '../../types';
+
+interface GraphRendererProps {
+  data: GraphData;
+  isPreview?: boolean;
+  onExpand?: () => void;
+}
+
+interface GraphModalProps {
+  data: GraphData;
+  isOpen: boolean;
+  onClose: () => void;
+}
+
+const COLORS = ['#3B82F6', '#EF4444', '#10B981', '#F59E0B', '#8B5CF6', '#EC4899', '#06B6D4', '#84CC16'];
+
+const GraphModal: React.FC<GraphModalProps> = ({ data, isOpen, onClose }) => {
+  if (!isOpen) return null;
+
+  const handleDownload = () => {
+    // TODO: Implement chart download functionality
+    console.log('Download chart:', data.title);
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl shadow-2xl max-w-6xl w-full max-h-[90vh] overflow-hidden">
+        {/* Modal Header */}
+        <div className="flex items-center justify-between p-6 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-indigo-50">
+          <div>
+            <h2 className="text-2xl font-bold text-gray-900">{data.title}</h2>
+            <p className="text-sm text-gray-600 mt-1">
+              {data.data.length} points de données • Type: {data.type}
+            </p>
+          </div>
+          <div className="flex items-center space-x-3">
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={handleDownload}
+              className="flex items-center space-x-2 bg-white hover:bg-gray-50"
+            >
+              <Download className="h-4 w-4" />
+              <span>Télécharger</span>
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={onClose}
+              className="p-2 bg-white hover:bg-gray-50"
+            >
+              ✕
+            </Button>
+          </div>
+        </div>
+
+        {/* Modal Content */}
+        <div className="p-6 overflow-auto max-h-[calc(90vh-120px)] bg-gray-50">
+          <div className="bg-white rounded-lg p-4 shadow-sm">
+            <div className="w-full h-[600px]">
+              <ResponsiveContainer width="100%" height="100%">
+                {renderChart(data, false)}
+              </ResponsiveContainer>
+            </div>
+          </div>
+          
+          {/* Data Summary */}
+          <div className="mt-4 bg-white rounded-lg p-4 shadow-sm">
+            <h3 className="text-lg font-semibold text-gray-900 mb-3">Résumé des données</h3>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="text-center">
+                <div className="text-2xl font-bold text-blue-600">{data.data.length}</div>
+                <div className="text-sm text-gray-600">Points de données</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-green-600">{data.type}</div>
+                <div className="text-sm text-gray-600">Type de graphique</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-purple-600">
+                  {data.data.length > 0 ? Object.keys(data.data[0]).length : 0}
+                </div>
+                <div className="text-sm text-gray-600">Colonnes</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-orange-600">
+                  {data.options?.showLegend ? 'Oui' : 'Non'}
+                </div>
+                <div className="text-sm text-gray-600">Légende</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const renderChart = (data: GraphData, isPreview: boolean) => {
+  const commonProps = {
+    data: data.data,
+    margin: isPreview ? { top: 5, right: 5, left: 5, bottom: 5 } : { top: 20, right: 30, left: 20, bottom: 5 },
+  };
+
+  const chartProps = {
+    ...commonProps,
+    width: isPreview ? 200 : undefined,
+    height: isPreview ? 120 : undefined,
+  };
+
+  switch (data.type) {
+    case 'line':
+      return (
+        <LineChart {...chartProps}>
+          {!isPreview && <CartesianGrid strokeDasharray="3 3" />}
+          {!isPreview && <XAxis dataKey={data.xAxisKey} />}
+          {!isPreview && <YAxis />}
+          {!isPreview && <Tooltip />}
+          {!isPreview && data.options?.showLegend && <Legend />}
+          <Line 
+            type="monotone" 
+            dataKey={data.yAxisKey || data.dataKey} 
+            stroke={data.colors?.[0] || COLORS[0]} 
+            strokeWidth={isPreview ? 2 : 3}
+            dot={!isPreview}
+          />
+        </LineChart>
+      );
+
+    case 'bar':
+      return (
+        <BarChart {...chartProps}>
+          {!isPreview && <CartesianGrid strokeDasharray="3 3" />}
+          {!isPreview && <XAxis dataKey={data.xAxisKey} />}
+          {!isPreview && <YAxis />}
+          {!isPreview && <Tooltip />}
+          {!isPreview && data.options?.showLegend && <Legend />}
+          <Bar 
+            dataKey={data.yAxisKey || data.dataKey} 
+            fill={data.colors?.[0] || COLORS[0]}
+            radius={isPreview ? [2, 2, 0, 0] : [4, 4, 0, 0]}
+          />
+        </BarChart>
+      );
+
+    case 'pie':
+      return (
+        <PieChart {...chartProps}>
+          {!isPreview && <Tooltip />}
+          {!isPreview && data.options?.showLegend && <Legend />}
+          <Pie
+            data={data.data}
+            cx="50%"
+            cy="50%"
+            innerRadius={isPreview ? 20 : 40}
+            outerRadius={isPreview ? 50 : 80}
+            paddingAngle={2}
+            dataKey={data.dataKey || 'value'}
+          >
+            {data.data.map((entry, index) => (
+              <Cell key={`cell-${index}`} fill={data.colors?.[index] || COLORS[index % COLORS.length]} />
+            ))}
+          </Pie>
+        </PieChart>
+      );
+
+    case 'area':
+      return (
+        <AreaChart {...chartProps}>
+          {!isPreview && <CartesianGrid strokeDasharray="3 3" />}
+          {!isPreview && <XAxis dataKey={data.xAxisKey} />}
+          {!isPreview && <YAxis />}
+          {!isPreview && <Tooltip />}
+          {!isPreview && data.options?.showLegend && <Legend />}
+          <Area 
+            type="monotone" 
+            dataKey={data.yAxisKey || data.dataKey} 
+            stroke={data.colors?.[0] || COLORS[0]} 
+            fill={data.colors?.[0] || COLORS[0]}
+            fillOpacity={0.3}
+            strokeWidth={isPreview ? 2 : 3}
+          />
+        </AreaChart>
+      );
+
+    case 'scatter':
+      return (
+        <ScatterChart {...chartProps}>
+          {!isPreview && <CartesianGrid strokeDasharray="3 3" />}
+          {!isPreview && <XAxis dataKey={data.xAxisKey} />}
+          {!isPreview && <YAxis />}
+          {!isPreview && <Tooltip />}
+          {!isPreview && data.options?.showLegend && <Legend />}
+          <Scatter 
+            dataKey={data.yAxisKey || data.dataKey} 
+            fill={data.colors?.[0] || COLORS[0]}
+          />
+        </ScatterChart>
+      );
+
+    default:
+      return <div className="flex items-center justify-center h-full text-gray-500">Type de graphique non supporté</div>;
+  }
+};
+
+export const GraphRenderer: React.FC<GraphRendererProps> = ({ data, isPreview = true, onExpand }) => {
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
+  const handleExpand = () => {
+    if (onExpand) {
+      onExpand();
+    } else {
+      setIsModalOpen(true);
+    }
+  };
+
+  return (
+    <>
+      <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow duration-200">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center space-x-2">
+            <div className={`w-2 h-2 rounded-full ${
+              data.type === 'bar' ? 'bg-blue-500' :
+              data.type === 'line' ? 'bg-green-500' :
+              data.type === 'pie' ? 'bg-purple-500' :
+              data.type === 'area' ? 'bg-orange-500' : 'bg-gray-500'
+            }`}></div>
+            <h3 className="text-sm font-semibold text-gray-900 truncate">{data.title}</h3>
+          </div>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={handleExpand}
+            className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors duration-200"
+          >
+            <Maximize2 className="h-3 w-3" />
+          </Button>
+        </div>
+        
+        <div className="w-full h-32 bg-gray-50 rounded-lg p-2">
+          <ResponsiveContainer width="100%" height="100%">
+            {renderChart(data, isPreview)}
+          </ResponsiveContainer>
+        </div>
+        
+        <div className="mt-3 flex items-center justify-between text-xs text-gray-500">
+          <span className="flex items-center space-x-1">
+            <div className="w-1.5 h-1.5 bg-blue-400 rounded-full"></div>
+            <span>{data.data.length} points</span>
+          </span>
+          <span className="capitalize">{data.type}</span>
+        </div>
+      </div>
+
+      <GraphModal
+        data={data}
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+      />
+    </>
+  );
+};

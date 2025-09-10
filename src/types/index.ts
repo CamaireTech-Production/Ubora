@@ -48,6 +48,9 @@ export interface ChatMessage {
   content: string;
   timestamp: Date;
   responseTime?: number;
+  contentType?: 'text' | 'graph' | 'pdf' | 'text-pdf' | 'mixed';
+  graphData?: GraphData;
+  pdfData?: PDFData;
   meta?: {
     period?: string;
     usedEntries?: number;
@@ -56,6 +59,47 @@ export interface ChatMessage {
     tokensUsed?: number;
     model?: string;
   };
+}
+
+// Types pour les graphiques
+export interface GraphData {
+  type: 'line' | 'bar' | 'pie' | 'area' | 'scatter';
+  title: string;
+  data: any[];
+  xAxisKey?: string;
+  yAxisKey?: string;
+  dataKey?: string;
+  colors?: string[];
+  width?: number;
+  height?: number;
+  options?: {
+    showLegend?: boolean;
+    showGrid?: boolean;
+    showTooltip?: boolean;
+    responsive?: boolean;
+  };
+}
+
+// Types pour les rapports PDF
+export interface PDFData {
+  title: string;
+  subtitle?: string;
+  sections: PDFSection[];
+  charts?: GraphData[];
+  generatedAt: Date;
+  metadata?: {
+    period?: string;
+    totalEntries?: number;
+    totalUsers?: number;
+    totalForms?: number;
+  };
+}
+
+export interface PDFSection {
+  title: string;
+  content: string;
+  type: 'text' | 'list' | 'table';
+  data?: any[];
 }
 
 export interface Conversation {

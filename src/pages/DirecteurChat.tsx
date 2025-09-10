@@ -8,22 +8,10 @@ import { ChatTopBar } from '../components/chat/ChatTopBar';
 import { MessageList } from '../components/chat/MessageList';
 import { ChatComposer } from '../components/chat/ChatComposer';
 import { FloatingSidePanel } from '../components/chat/FloatingSidePanel';
+import { ResponseParser } from '../utils/ResponseParser';
+import { ChatMessage } from '../types';
 
-interface Message {
-  id: string;
-  type: 'user' | 'assistant';
-  content: string;
-  timestamp: Date;
-  responseTime?: number;
-  meta?: {
-    period?: string;
-    usedEntries?: number;
-    forms?: number;
-    users?: number;
-    tokensUsed?: number;
-    model?: string;
-  };
-}
+// Remove the old Message interface since we're using ChatMessage from types
 
 interface ChatFilters {
   period: string;
@@ -108,7 +96,7 @@ export const DirecteurChat: React.FC = () => {
     }
 
     // Ajouter le message utilisateur
-    const userMessage: Message = {
+    const userMessage: ChatMessage = {
       id: `user_${Date.now()}`,
       type: 'user',
       content: messageToSend,
@@ -208,15 +196,16 @@ export const DirecteurChat: React.FC = () => {
 
       const responseTime = Date.now() - startTime;
 
-      // Ajouter la réponse de l'assistant
-      const assistantMessage: Message = {
-        id: `assistant_${Date.now()}`,
-        type: 'assistant',
-        content: data.answer,
-        timestamp: new Date(),
+      // Parse the AI response to detect graph/PDF data
+      const parsedResponse = ResponseParser.parseAIResponse(data.answer);
+
+      // Create assistant message with parsed content
+      const assistantMessage = ResponseParser.createMessageFromParsedResponse(
+        parsedResponse,
+        `assistant_${Date.now()}`,
         responseTime,
-        meta: data.meta
-      };
+        data.meta
+      );
 
       // Add assistant message to conversation (only if we have a conversation)
       if (currentConversation) {
@@ -248,7 +237,7 @@ export const DirecteurChat: React.FC = () => {
         errorContent = `❌ **Erreur inconnue**\n\nUne erreur inattendue s'est produite. Veuillez réessayer.\n\nEndpoint: ${AI_ENDPOINT}`;
       }
       
-      const errorMessage: Message = {
+      const errorMessage: ChatMessage = {
         id: `error_${Date.now()}`,
         type: 'assistant',
         content: errorContent,
@@ -281,6 +270,12 @@ export const DirecteurChat: React.FC = () => {
       setIsLoadingMore(false);
     }
   };
+
+  const handleSuggestionClick = (suggestion: string) => {
+    // Send the suggestion directly without setting it in the input
+    handleSendMessage(suggestion);
+  };
+
 
   // Gérer la fermeture de l'écran de bienvenue
   const handleWelcomeContinue = () => {
@@ -335,13 +330,16 @@ export const DirecteurChat: React.FC = () => {
             onLoadMore={handleLoadMore}
           />
 
+
           {/* Composer */}
           <ChatComposer
             value={inputMessage}
             onChange={setInputMessage}
             onSend={() => handleSendMessage()}
+            onSuggestionClick={handleSuggestionClick}
             disabled={isTyping}
             placeholder="Posez une question sur vos données..."
+            showSuggestions={true}
           />
 
           {/* Floating side panel */}

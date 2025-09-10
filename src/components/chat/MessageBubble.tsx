@@ -1,24 +1,11 @@
 import React from 'react';
 import { Bot, User, Clock } from 'lucide-react';
-
-interface Message {
-  id: string;
-  type: 'user' | 'assistant';
-  content: string;
-  timestamp: Date;
-  responseTime?: number;
-  meta?: {
-    period?: string;
-    usedEntries?: number;
-    forms?: number;
-    users?: number;
-    tokensUsed?: number;
-    model?: string;
-  };
-}
+import { GraphRenderer } from './GraphRenderer';
+import { PDFPreview, TextPDFPreview } from './PDFPreview';
+import { ChatMessage } from '../../types';
 
 interface MessageBubbleProps {
-  message: Message;
+  message: ChatMessage;
 }
 
 // Function to format AI message content (remove markdown and clean up)
@@ -109,7 +96,36 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
               <div className="text-sm leading-relaxed">{message.content}</div>
             ) : (
               <div className="prose prose-sm max-w-none">
-                {formatMessageContent(message.content)}
+                {/* Render content based on type */}
+                {message.contentType === 'graph' && message.graphData ? (
+                  <GraphRenderer data={message.graphData} />
+                ) : message.contentType === 'pdf' && message.pdfData ? (
+                  <PDFPreview data={message.pdfData} />
+                ) : message.contentType === 'text-pdf' ? (
+                  <TextPDFPreview content={message.content} title="Rapport IA" />
+                ) : message.contentType === 'mixed' ? (
+                  <div className="space-y-4">
+                    {/* Render text content */}
+                    {message.content && (
+                      <div className="prose prose-sm max-w-none">
+                        {formatMessageContent(message.content)}
+                      </div>
+                    )}
+                    {/* Render graph if present */}
+                    {message.graphData && (
+                      <GraphRenderer data={message.graphData} />
+                    )}
+                    {/* Render PDF if present */}
+                    {message.pdfData && (
+                      <PDFPreview data={message.pdfData} />
+                    )}
+                  </div>
+                ) : (
+                  /* Default text rendering */
+                  <div className="prose prose-sm max-w-none">
+                    {formatMessageContent(message.content)}
+                  </div>
+                )}
               </div>
             )}
           </div>
