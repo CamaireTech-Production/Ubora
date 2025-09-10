@@ -92,17 +92,24 @@ const GraphModal: React.FC<GraphModalProps> = ({ data, isOpen, onClose }) => {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div className="text-center">
                 <div className="text-2xl font-bold text-blue-600">{data.data.length}</div>
-                <div className="text-sm text-gray-600">Points de données</div>
+                <div className="text-sm text-gray-600">
+                  {data.data.length > 0 && data.data[0].employee ? 'Employés' : 'Points de données'}
+                </div>
               </div>
               <div className="text-center">
-                <div className="text-2xl font-bold text-green-600">{data.type}</div>
+                <div className="text-2xl font-bold text-green-600 capitalize">{data.type}</div>
                 <div className="text-sm text-gray-600">Type de graphique</div>
               </div>
               <div className="text-center">
                 <div className="text-2xl font-bold text-purple-600">
-                  {data.data.length > 0 ? Object.keys(data.data[0]).length : 0}
+                  {data.data.length > 0 && data.data[0].submissions 
+                    ? data.data.reduce((sum, item) => sum + (item.submissions || 0), 0)
+                    : data.data.length > 0 ? Object.keys(data.data[0]).length : 0
+                  }
                 </div>
-                <div className="text-sm text-gray-600">Colonnes</div>
+                <div className="text-sm text-gray-600">
+                  {data.data.length > 0 && data.data[0].submissions ? 'Soumissions totales' : 'Colonnes'}
+                </div>
               </div>
               <div className="text-center">
                 <div className="text-2xl font-bold text-orange-600">
@@ -118,6 +125,30 @@ const GraphModal: React.FC<GraphModalProps> = ({ data, isOpen, onClose }) => {
   );
 };
 
+// Custom tooltip for employee data
+const CustomTooltip = ({ active, payload, label }: any) => {
+  if (active && payload && payload.length) {
+    const data = payload[0].payload;
+    return (
+      <div className="bg-white p-3 border border-gray-200 rounded-lg shadow-lg">
+        <p className="font-semibold text-gray-900">{label}</p>
+        {data.email && (
+          <p className="text-sm text-gray-600 mb-1">{data.email}</p>
+        )}
+        <p className="text-blue-600 font-medium">
+          {payload[0].dataKey}: {payload[0].value}
+        </p>
+        {data.submissions && (
+          <p className="text-sm text-gray-500">
+            {data.submissions} soumission{data.submissions > 1 ? 's' : ''}
+          </p>
+        )}
+      </div>
+    );
+  }
+  return null;
+};
+
 const renderChart = (data: GraphData, isPreview: boolean) => {
   const commonProps = {
     data: data.data,
@@ -129,6 +160,9 @@ const renderChart = (data: GraphData, isPreview: boolean) => {
     width: isPreview ? 200 : undefined,
     height: isPreview ? 120 : undefined,
   };
+
+  // Check if this is employee data
+  const isEmployeeData = data.data.length > 0 && data.data[0].employee;
 
   switch (data.type) {
     case 'line':
@@ -153,9 +187,17 @@ const renderChart = (data: GraphData, isPreview: boolean) => {
       return (
         <BarChart {...chartProps}>
           {!isPreview && <CartesianGrid strokeDasharray="3 3" />}
-          {!isPreview && <XAxis dataKey={data.xAxisKey} />}
+          {!isPreview && (
+            <XAxis 
+              dataKey={data.xAxisKey} 
+              angle={isEmployeeData ? -45 : 0}
+              textAnchor={isEmployeeData ? 'end' : 'middle'}
+              height={isEmployeeData ? 80 : 30}
+              interval={0}
+            />
+          )}
           {!isPreview && <YAxis />}
-          {!isPreview && <Tooltip />}
+          {!isPreview && <Tooltip content={isEmployeeData ? <CustomTooltip /> : undefined} />}
           {!isPreview && data.options?.showLegend && <Legend />}
           <Bar 
             dataKey={data.yAxisKey || data.dataKey} 
@@ -268,7 +310,12 @@ export const GraphRenderer: React.FC<GraphRendererProps> = ({ data, isPreview = 
         <div className="mt-3 flex items-center justify-between text-xs text-gray-500">
           <span className="flex items-center space-x-1">
             <div className="w-1.5 h-1.5 bg-blue-400 rounded-full"></div>
-            <span>{data.data.length} points</span>
+            <span>
+              {data.data.length > 0 && data.data[0].employee 
+                ? `${data.data.length} employé${data.data.length > 1 ? 's' : ''}`
+                : `${data.data.length} points`
+              }
+            </span>
           </span>
           <span className="capitalize">{data.type}</span>
         </div>

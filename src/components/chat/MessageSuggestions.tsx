@@ -9,27 +9,11 @@ interface MessageSuggestionsProps {
 
 const suggestions = [
   {
-    id: 'graph-submissions',
-    title: 'Soumissions par jour',
-    description: 'Analyser les soumissions quotidiennes',
+    id: 'employee-submissions',
+    title: 'Soumissions par employé',
+    description: 'Voir les données par employé',
     icon: BarChart3,
-    prompt: 'Analyse les soumissions de formulaires par jour pour la période sélectionnée. Utilise les données des formulaires créés par le directeur et remplis par les employés. Génère un graphique en barres montrant le nombre de soumissions par jour. Retourne les données dans le format JSON suivant: {"type": "bar", "title": "Soumissions par jour", "data": [{"day": "Lun", "count": 5, "users": 3}], "xAxisKey": "day", "yAxisKey": "count", "colors": ["#3B82F6", "#10B981"]}.',
-    type: 'graph'
-  },
-  {
-    id: 'graph-trends',
-    title: 'Tendances des données',
-    description: 'Visualiser l\'évolution temporelle',
-    icon: TrendingUp,
-    prompt: 'Analyse l\'évolution des soumissions de formulaires sur la période sélectionnée. Utilise les données des formulaires et employés disponibles. Génère un graphique linéaire montrant les tendances. Retourne les données dans le format JSON suivant: {"type": "line", "title": "Évolution des soumissions", "data": [{"period": "Sem 1", "submissions": 10, "users": 5}], "xAxisKey": "period", "yAxisKey": "submissions", "colors": ["#EF4444", "#8B5CF6"]}.',
-    type: 'graph'
-  },
-  {
-    id: 'graph-distribution',
-    title: 'Répartition par formulaire',
-    description: 'Voir la distribution des formulaires',
-    icon: PieChart,
-    prompt: 'Crée un graphique en secteurs montrant la répartition des soumissions par type de formulaire. Utilise les données des formulaires créés par le directeur. Retourne les données dans le format JSON suivant: {"type": "pie", "title": "Répartition des formulaires", "data": [{"name": "Formulaire A", "value": 25, "count": 25}], "dataKey": "value", "colors": ["#3B82F6", "#10B981", "#F59E0B", "#EF4444"]}.',
+    prompt: 'Analyse les soumissions de formulaires par employé pour la période sélectionnée. Utilise les données réelles des formulaires soumis par chaque employé. Génère un graphique en barres montrant le nombre de soumissions par employé avec leurs noms. Retourne les données dans le format JSON suivant: {"type": "bar", "title": "Soumissions par employé", "data": [{"employee": "Ambassira Ryan", "submissions": 3, "email": "ambassiraambassira@gmail.com"}], "xAxisKey": "employee", "yAxisKey": "submissions", "colors": ["#3B82F6", "#10B981", "#F59E0B", "#EF4444", "#8B5CF6"]}.',
     type: 'graph'
   },
   {
