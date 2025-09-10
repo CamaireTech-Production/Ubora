@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useApp } from '../contexts/AppContext';
 import { useConversation } from '../contexts/ConversationContext';
@@ -59,7 +59,6 @@ export const DirecteurChat: React.FC = () => {
     currentConversation, 
     conversations, 
     messages, 
-    isLoading: conversationLoading,
     hasMoreMessages,
     createNewConversation,
     loadConversation,
@@ -264,6 +263,25 @@ export const DirecteurChat: React.FC = () => {
     setShowWelcome(false);
   };
 
+  // Afficher uniquement l'écran de bienvenue sans afficher le chat en arrière-plan
+  if (showWelcome) {
+    return (
+      <LoadingGuard 
+        isLoading={isLoading || appLoading} 
+        user={user} 
+        firebaseUser={firebaseUser}
+        message="Chargement du Chat IA..."
+      >
+        <WelcomeScreen
+          userName={user?.name}
+          onContinue={handleWelcomeContinue}
+          rememberKey="directeur_chat_welcome"
+          show
+        />
+      </LoadingGuard>
+    );
+  }
+
   return (
     <LoadingGuard 
       isLoading={isLoading || appLoading} 
@@ -317,15 +335,6 @@ export const DirecteurChat: React.FC = () => {
             onCreateConversation={createNewConversation}
             onGoDashboard={() => (window.location.href = '/directeur/dashboard')}
           />
-          {/* Welcome overlay */}
-          {showWelcome && (
-            <WelcomeScreen
-              userName={user?.name}
-              onContinue={handleWelcomeContinue}
-              rememberKey="directeur_chat_welcome"
-              show
-            />
-          )}
         </div>
       </div>
     </LoadingGuard>

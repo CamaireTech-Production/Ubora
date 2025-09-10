@@ -63,7 +63,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
 
   return (
     <div 
-      className={`fixed inset-0 z-50 bg-gradient-to-b from-white via-blue-50/30 to-white flex items-center justify-center transition-all duration-300 ${
+      className={`fixed inset-0 z-50 bg-white flex items-center justify-center transition-all duration-300 ${
         isVisible ? 'opacity-100 scale-100' : 'opacity-0 scale-95'
       }`}
       role="dialog"
