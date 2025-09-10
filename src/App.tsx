@@ -11,6 +11,9 @@ import { DirecteurChat } from './pages/DirecteurChat';
 import { EmployeDashboard } from './pages/EmployeDashboard';
 import { UnauthorizedPage } from './pages/UnauthorizedPage';
 import { PendingApprovalPage } from './pages/PendingApprovalPage';
+import { PWAInstallPrompt } from './components/PWAInstallPrompt';
+import { PWAUpdateNotification } from './components/PWAUpdateNotification';
+import { PWAStatusIndicator } from './components/PWAStatusIndicator';
 
 function App() {
   return (
@@ -65,6 +68,11 @@ function App() {
             <Route path="*" element={<Navigate to="/login" replace />} />
           </Routes>
           </Router>
+          
+          {/* PWA Components */}
+          <PWAStatusIndicator />
+          <PWAInstallPrompt />
+          <PWAUpdateNotification />
         </ConversationProvider>
       </AppProvider>
     </AuthProvider>
