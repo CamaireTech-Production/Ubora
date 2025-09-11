@@ -56,6 +56,8 @@ export const DirecteurChat: React.FC = () => {
   
   const [inputMessage, setInputMessage] = useState('');
   const [isTyping, setIsTyping] = useState(false);
+  const [selectedFormats, setSelectedFormats] = useState<string[]>([]);
+  const [selectedFormIds, setSelectedFormIds] = useState<string[]>([]);
   const [filters, setFilters] = useState<ChatFilters>({
     period: 'today',
     formId: '',
@@ -271,9 +273,12 @@ export const DirecteurChat: React.FC = () => {
     }
   };
 
-  const handleSuggestionClick = (suggestion: string) => {
-    // Send the suggestion directly without setting it in the input
-    handleSendMessage(suggestion);
+  const handleFormatChange = (formats: string[]) => {
+    setSelectedFormats(formats);
+  };
+
+  const handleFormSelectionChange = (formIds: string[]) => {
+    setSelectedFormIds(formIds);
   };
 
   const handleFileUpload = (files: File[]) => {
@@ -349,11 +354,16 @@ export const DirecteurChat: React.FC = () => {
             value={inputMessage}
             onChange={setInputMessage}
             onSend={() => handleSendMessage()}
-            onSuggestionClick={handleSuggestionClick}
+            selectedFormats={selectedFormats}
+            onFormatChange={handleFormatChange}
+            forms={forms}
+            selectedFormIds={selectedFormIds}
+            onFormSelectionChange={handleFormSelectionChange}
             onFileUpload={handleFileUpload}
             disabled={isTyping}
             placeholder="Posez une question sur vos données..."
-            showSuggestions={true}
+            showFormatSelector={true}
+            showFormFilter={true}
           />
 
           {/* Floating side panel */}

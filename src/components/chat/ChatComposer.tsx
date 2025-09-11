@@ -1,32 +1,49 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Send, Mic, Paperclip } from 'lucide-react';
 import { Button } from '../Button';
-import { MessageSuggestions } from './MessageSuggestions';
+import { FormatSelector } from './FormatSelector';
+import { FormFilter } from './FormFilter';
+
+interface Form {
+  id: string;
+  title: string;
+  description?: string;
+}
 
 interface ChatComposerProps {
   value: string;
   onChange: (value: string) => void;
   onSend: () => void;
-  onSuggestionClick?: (suggestion: string) => void;
+  selectedFormats: string[];
+  onFormatChange: (formats: string[]) => void;
+  forms: Form[];
+  selectedFormIds: string[];
+  onFormSelectionChange: (formIds: string[]) => void;
   onFileUpload?: (files: File[]) => void;
   onKeyPress?: (e: React.KeyboardEvent) => void;
   disabled?: boolean;
   placeholder?: string;
   maxLength?: number;
-  showSuggestions?: boolean;
+  showFormatSelector?: boolean;
+  showFormFilter?: boolean;
 }
 
 export const ChatComposer: React.FC<ChatComposerProps> = ({
   value,
   onChange,
   onSend,
-  onSuggestionClick,
+  selectedFormats,
+  onFormatChange,
+  forms,
+  selectedFormIds,
+  onFormSelectionChange,
   onFileUpload,
   onKeyPress,
   disabled = false,
   placeholder = "Écrivez votre message…",
   maxLength = 2000,
-  showSuggestions = true
+  showFormatSelector = true,
+  showFormFilter = true
 }) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -85,13 +102,27 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
     <div className="fixed bottom-0 left-0 right-0 z-10 bg-gradient-to-t from-white via-white to-transparent pt-4">
       <div className="max-w-screen-md mx-auto px-4 pb-4" style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
         
-        {/* Message Suggestions - only show when input is empty */}
-        {showSuggestions && !value.trim() && onSuggestionClick && (
-          <MessageSuggestions 
-            onSuggestionClick={onSuggestionClick}
-            disabled={disabled}
-          />
-        )}
+        {/* Format Selector and Form Filter */}
+        <div className="space-y-2">
+          {/* Format Selector - always show when enabled */}
+          {showFormatSelector && (
+            <FormatSelector 
+              selectedFormats={selectedFormats}
+              onFormatChange={onFormatChange}
+              disabled={disabled}
+            />
+          )}
+
+          {/* Form Filter - always show when enabled */}
+          {showFormFilter && (
+            <FormFilter 
+              forms={forms}
+              selectedFormIds={selectedFormIds}
+              onFormSelectionChange={onFormSelectionChange}
+              disabled={disabled}
+            />
+          )}
+        </div>
         {/* Character counter (when near limit) */}
         {isNearLimit && (
           <div className="text-center mb-2">
