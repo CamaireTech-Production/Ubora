@@ -378,7 +378,7 @@ module.exports = async function handler(req, res) {
     }
 
     // 3. Validation du corps de la requête
-    const { question, filters, selectedFormats, responseFormat } = req.body;
+    const { question, filters, selectedFormats, responseFormat, selectedResponseFormats } = req.body;
     if (!question || typeof question !== 'string' || question.trim().length === 0) {
       return res.status(400).json({ 
         error: 'Question manquante ou invalide',
@@ -479,6 +479,7 @@ CONTEXTE :
 - Directeur : ${userData.name || 'Directeur'}
 - Date actuelle : ${new Date().toLocaleDateString('fr-FR')}
 - Format de réponse demandé : ${responseFormat || 'texte libre'}
+- Formats de réponse sélectionnés : ${selectedResponseFormats && selectedResponseFormats.length > 0 ? selectedResponseFormats.join(', ') : (responseFormat || 'texte libre')}
 - Formulaires sélectionnés : ${selectedFormats && selectedFormats.length > 0 ? selectedFormats.join(', ') : 'tous les formulaires'}
 
 FORMAT DE RÉPONSE :
@@ -536,6 +537,35 @@ ${responseFormat === 'pdf' ? `
 - Structure le contenu en sections
 - Inclus des métriques et analyses
 - Le contenu sera converti en PDF automatiquement.` : ''}
+${responseFormat === 'multi-format' ? `
+- FORMAT MULTI-FORMAT : Tu dois retourner une combinaison des formats sélectionnés :
+${selectedResponseFormats && selectedResponseFormats.includes('stats') ? `
+1. GRAPHIQUE JSON (si 'stats' sélectionné) :
+\`\`\`json
+{
+  "type": "bar|line|pie|area|scatter",
+  "title": "Titre descriptif du graphique",
+  "data": [...],
+  "xAxisKey": "label",
+  "yAxisKey": "value",
+  "dataKey": "value",
+  "colors": ["#3B82F6", "#10B981", "#F59E0B", "#EF4444", "#8B5CF6"],
+  "options": {"showLegend": true}
+}
+\`\`\`` : ''}
+${selectedResponseFormats && selectedResponseFormats.includes('table') ? `
+2. TABLEAU MARKDOWN (si 'table' sélectionné) :
+\`\`\`markdown
+| Colonne 1 | Colonne 2 | Colonne 3 |
+|-----------|-----------|-----------|
+| Valeur 1  | Valeur 2  | Valeur 3  |
+\`\`\`` : ''}
+${selectedResponseFormats && selectedResponseFormats.includes('pdf') ? `
+3. CONTENU PDF MARKDOWN (si 'pdf' sélectionné) :
+## Section PDF
+Contenu structuré pour PDF...` : ''}
+- Inclus une explication textuelle pour chaque format
+- Organise les formats de manière logique et cohérente` : ''}
 
 STATISTIQUES :
 - Total des entrées : ${data.totals.entries}

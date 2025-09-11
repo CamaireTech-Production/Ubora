@@ -96,16 +96,20 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
             {isUser ? (
               <div>
                 {/* Display format and form information for user messages */}
-                {(message.meta?.selectedFormat || message.meta?.selectedFormTitles?.length) && (
+                {(message.meta?.selectedFormat || message.meta?.selectedFormats?.length || message.meta?.selectedFormTitles?.length) && (
                   <div className="mb-3 p-2 bg-blue-50 rounded-lg border border-blue-200">
                     <div className="flex flex-wrap items-center gap-2 text-xs">
-                      {message.meta?.selectedFormat && (
+                      {(message.meta?.selectedFormat || message.meta?.selectedFormats?.length) && (
                         <div className="flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-800 rounded-full">
                           <span className="font-medium">
-                            {message.meta.selectedFormat === 'stats' ? '📊 Statistiques' :
-                             message.meta.selectedFormat === 'pdf' ? '📄 PDF' :
-                             message.meta.selectedFormat === 'table' ? '📋 Tableau' :
-                             message.meta.selectedFormat}
+                            {message.meta.selectedFormats?.length > 1 ? (
+                              `📊📋📄 Multi-format (${message.meta.selectedFormats.length})`
+                            ) : (
+                              message.meta.selectedFormat === 'stats' ? '📊 Statistiques' :
+                              message.meta.selectedFormat === 'pdf' ? '📄 PDF' :
+                              message.meta.selectedFormat === 'table' ? '📋 Tableau' :
+                              message.meta.selectedFormat
+                            )}
                           </span>
                         </div>
                       )}
@@ -129,16 +133,20 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
             ) : (
               <div className="prose prose-sm max-w-none">
                 {/* Display format and form information */}
-                {(message.meta?.selectedFormat || message.meta?.selectedFormTitles?.length) && (
+                {(message.meta?.selectedFormat || message.meta?.selectedFormats?.length || message.meta?.selectedFormTitles?.length) && (
                   <div className="mb-4 p-3 bg-gray-50 rounded-lg border border-gray-200">
                     <div className="flex flex-wrap items-center gap-2 text-xs">
-                      {message.meta?.selectedFormat && (
+                      {(message.meta?.selectedFormat || message.meta?.selectedFormats?.length) && (
                         <div className="flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-800 rounded-full">
                           <span className="font-medium">
-                            {message.meta.selectedFormat === 'stats' ? '📊 Statistiques' :
-                             message.meta.selectedFormat === 'pdf' ? '📄 PDF' :
-                             message.meta.selectedFormat === 'table' ? '📋 Tableau' :
-                             message.meta.selectedFormat}
+                            {message.meta.selectedFormats?.length > 1 ? (
+                              `📊📋📄 Multi-format (${message.meta.selectedFormats.length})`
+                            ) : (
+                              message.meta.selectedFormat === 'stats' ? '📊 Statistiques' :
+                              message.meta.selectedFormat === 'pdf' ? '📄 PDF' :
+                              message.meta.selectedFormat === 'table' ? '📋 Tableau' :
+                              message.meta.selectedFormat
+                            )}
                           </span>
                         </div>
                       )}
@@ -176,7 +184,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
                     {/* Render table */}
                     <TableRenderer markdownTable={message.tableData} />
                   </div>
-                ) : message.contentType === 'mixed' ? (
+                ) : message.contentType === 'mixed' || message.contentType === 'multi-format' ? (
                   <div className="space-y-4">
                     {/* Render text content */}
                     {message.content && (

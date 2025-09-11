@@ -59,7 +59,7 @@ export const TableRenderer: React.FC<TableRendererProps> = ({ markdownTable }) =
   };
 
   return (
-    <div className="mt-4">
+    <div className="mt-4 max-h-96 overflow-auto border border-gray-200 rounded-lg">
       {parseMarkdownTable(markdownTable)}
     </div>
   );

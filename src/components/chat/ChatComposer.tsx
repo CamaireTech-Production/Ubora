@@ -27,7 +27,9 @@ interface ChatComposerProps {
   onChange: (value: string) => void;
   onSend: () => void;
   selectedFormat: string | null;
+  selectedFormats?: string[]; // For multi-format selection
   onFormatChange: (format: string | null) => void;
+  onFormatsChange?: (formats: string[]) => void; // For multi-format selection
   forms: Form[];
   employees: Employee[];
   filters: ChatFilters;
@@ -41,6 +43,7 @@ interface ChatComposerProps {
   maxLength?: number;
   showFormatSelector?: boolean;
   showComprehensiveFilter?: boolean;
+  allowMultipleFormats?: boolean; // Enable multi-format selection
 }
 
 export const ChatComposer: React.FC<ChatComposerProps> = ({
@@ -48,7 +51,9 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
   onChange,
   onSend,
   selectedFormat,
+  selectedFormats = [],
   onFormatChange,
+  onFormatsChange,
   forms,
   employees,
   filters,
@@ -61,7 +66,8 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
   placeholder = "Écrivez votre message…",
   maxLength = 2000,
   showFormatSelector = true,
-  showComprehensiveFilter = true
+  showComprehensiveFilter = true,
+  allowMultipleFormats = false
 }) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -126,8 +132,11 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
           {showFormatSelector && (
             <FormatSelector 
               selectedFormat={selectedFormat}
+              selectedFormats={selectedFormats}
               onFormatChange={onFormatChange}
+              onFormatsChange={onFormatsChange}
               disabled={disabled}
+              allowMultiple={allowMultipleFormats}
             />
           )}
 

@@ -1,15 +1,25 @@
 import { ChatMessage, GraphData, PDFData } from '../types';
 
 export interface ParsedResponse {
-  contentType: 'text' | 'graph' | 'pdf' | 'text-pdf' | 'table' | 'mixed';
+  contentType: 'text' | 'graph' | 'pdf' | 'text-pdf' | 'table' | 'mixed' | 'multi-format';
   content: string;
   graphData?: GraphData;
   pdfData?: PDFData;
   tableData?: string; // Markdown table content
+  multiFormatData?: {
+    graphData?: GraphData;
+    tableData?: string;
+    pdfContent?: string;
+  };
 }
 
 export class ResponseParser {
-  static parseAIResponse(response: string, _userMessage?: string, selectedFormat?: string | null): ParsedResponse {
+  static parseAIResponse(response: string, _userMessage?: string, selectedFormat?: string | null, selectedFormats?: string[]): ParsedResponse {
+    // Handle multi-format responses
+    if (selectedFormats && selectedFormats.length > 1) {
+      return this.parseMultiFormatResponse(response, selectedFormats);
+    }
+
     // Handle format-specific responses based on selected format
     if (selectedFormat) {
       return this.parseFormatSpecificResponse(response, selectedFormat);
@@ -22,6 +32,42 @@ export class ResponseParser {
     };
   }
   
+  private static parseMultiFormatResponse(response: string, selectedFormats: string[]): ParsedResponse {
+    const multiFormatData: any = {};
+    let hasAnyFormat = false;
+
+    // Parse each selected format
+    if (selectedFormats.includes('stats')) {
+      const statsResponse = this.parseStatsResponse(response);
+      if (statsResponse.graphData) {
+        multiFormatData.graphData = statsResponse.graphData;
+        hasAnyFormat = true;
+      }
+    }
+
+    if (selectedFormats.includes('table')) {
+      const tableResponse = this.parseTableResponse(response);
+      if (tableResponse.tableData) {
+        multiFormatData.tableData = tableResponse.tableData;
+        hasAnyFormat = true;
+      }
+    }
+
+    if (selectedFormats.includes('pdf')) {
+      const pdfResponse = this.parsePDFResponse(response);
+      if (pdfResponse.content) {
+        multiFormatData.pdfContent = pdfResponse.content;
+        hasAnyFormat = true;
+      }
+    }
+
+    return {
+      contentType: hasAnyFormat ? 'multi-format' : 'text',
+      content: this.extractTextFromMultiFormatResponse(response),
+      multiFormatData: hasAnyFormat ? multiFormatData : undefined
+    };
+  }
+
   private static parseFormatSpecificResponse(response: string, selectedFormat: string): ParsedResponse {
     switch (selectedFormat) {
       case 'stats':
@@ -99,7 +145,7 @@ export class ResponseParser {
       const tableContent = tableMatch[1] || tableMatch[0];
       return {
         contentType: 'table',
-        content: this.extractTextFromResponse(response),
+        content: this.extractTextFromTableResponse(response),
         tableData: tableContent
       };
     }
@@ -132,6 +178,26 @@ export class ResponseParser {
       .replace(/\{[\s\S]*\}/g, '')
       .trim();
   }
+
+  private static extractTextFromTableResponse(response: string): string {
+    // Remove markdown table code blocks and raw table syntax
+    return response
+      .replace(/```markdown\s*[\s\S]*?\s*```/g, '')
+      .replace(/(\|.*\|[\s\S]*?\|.*\|)/g, '')
+      .replace(/```\s*[\s\S]*?\s*```/g, '')
+      .trim();
+  }
+
+  private static extractTextFromMultiFormatResponse(response: string): string {
+    // Remove all code blocks and format-specific content
+    return response
+      .replace(/```json\s*[\s\S]*?\s*```/g, '')
+      .replace(/```markdown\s*[\s\S]*?\s*```/g, '')
+      .replace(/(\|.*\|[\s\S]*?\|.*\|)/g, '')
+      .replace(/```\s*[\s\S]*?\s*```/g, '')
+      .replace(/\{[\s\S]*\}/g, '')
+      .trim();
+  }
   
   static createMessageFromParsedResponse(
     parsedResponse: ParsedResponse,
@@ -159,6 +225,19 @@ export class ResponseParser {
     
     if (parsedResponse.tableData) {
       baseMessage.tableData = parsedResponse.tableData;
+    }
+    
+    if (parsedResponse.multiFormatData) {
+      if (parsedResponse.multiFormatData.graphData) {
+        baseMessage.graphData = parsedResponse.multiFormatData.graphData;
+      }
+      if (parsedResponse.multiFormatData.tableData) {
+        baseMessage.tableData = parsedResponse.multiFormatData.tableData;
+      }
+      if (parsedResponse.multiFormatData.pdfContent) {
+        baseMessage.content = parsedResponse.multiFormatData.pdfContent;
+        baseMessage.contentType = 'text-pdf';
+      }
     }
     
     return baseMessage;
