@@ -2,6 +2,7 @@ import React from 'react';
 import { Bot, User, Clock } from 'lucide-react';
 import { GraphRenderer } from './GraphRenderer';
 import { PDFPreview, TextPDFPreview } from './PDFPreview';
+import { TableRenderer } from './TableRenderer';
 import { ChatMessage } from '../../types';
 
 interface MessageBubbleProps {
@@ -96,6 +97,36 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
               <div className="text-sm leading-relaxed">{message.content}</div>
             ) : (
               <div className="prose prose-sm max-w-none">
+                {/* Display format and form information */}
+                {(message.meta?.selectedFormat || message.meta?.selectedFormTitles?.length) && (
+                  <div className="mb-4 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                    <div className="flex flex-wrap items-center gap-2 text-xs">
+                      {message.meta?.selectedFormat && (
+                        <div className="flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-800 rounded-full">
+                          <span className="font-medium">
+                            {message.meta.selectedFormat === 'stats' ? '📊 Statistiques' :
+                             message.meta.selectedFormat === 'pdf' ? '📄 PDF' :
+                             message.meta.selectedFormat === 'table' ? '📋 Tableau' :
+                             message.meta.selectedFormat}
+                          </span>
+                        </div>
+                      )}
+                      {message.meta?.selectedFormTitles?.length && (
+                        <div className="flex items-center gap-1">
+                          <span className="text-gray-600">Formulaires:</span>
+                          <div className="flex flex-wrap gap-1">
+                            {message.meta.selectedFormTitles.map((title, index) => (
+                              <span key={index} className="px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs">
+                                {title}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
                 {/* Render content based on type */}
                 {message.contentType === 'graph' && message.graphData ? (
                   <GraphRenderer data={message.graphData} />
@@ -103,6 +134,17 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
                   <PDFPreview data={message.pdfData} />
                 ) : message.contentType === 'text-pdf' ? (
                   <TextPDFPreview content={message.content} title="Rapport IA" />
+                ) : message.contentType === 'table' && message.tableData ? (
+                  <div className="space-y-4">
+                    {/* Render text content */}
+                    {message.content && (
+                      <div className="prose prose-sm max-w-none">
+                        {formatMessageContent(message.content)}
+                      </div>
+                    )}
+                    {/* Render table */}
+                    <TableRenderer markdownTable={message.tableData} />
+                  </div>
                 ) : message.contentType === 'mixed' ? (
                   <div className="space-y-4">
                     {/* Render text content */}
@@ -118,6 +160,10 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
                     {/* Render PDF if present */}
                     {message.pdfData && (
                       <PDFPreview data={message.pdfData} />
+                    )}
+                    {/* Render table if present */}
+                    {message.tableData && (
+                      <TableRenderer markdownTable={message.tableData} />
                     )}
                   </div>
                 ) : (

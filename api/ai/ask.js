@@ -16,12 +16,11 @@ function getPeriodDates(period) {
   let end = now;
   let label;
 
-  if (!period || period === 'this_week') {
-    // Cette semaine (lundi à aujourd'hui)
-    const dayOfWeek = now.getDay();
-    const daysFromMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-    start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - daysFromMonday);
-    label = 'cette semaine';
+  if (!period || period === 'all') {
+    // Par défaut : toutes les données (pas de filtre de date)
+    start = new Date(0); // 1970-01-01
+    end = now;
+    label = 'toutes les données';
   } else if (period === 'today') {
     start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     label = "aujourd'hui";
@@ -29,12 +28,40 @@ function getPeriodDates(period) {
     start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
     end = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     label = 'hier';
+  } else if (period === 'this_week') {
+    // Cette semaine (lundi à aujourd'hui)
+    const dayOfWeek = now.getDay();
+    const daysFromMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+    start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - daysFromMonday);
+    label = 'cette semaine';
+  } else if (period === 'last_week') {
+    // Semaine dernière (lundi à dimanche)
+    const dayOfWeek = now.getDay();
+    const daysFromMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+    const lastMonday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - daysFromMonday - 7);
+    const lastSunday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - daysFromMonday - 1, 23, 59, 59);
+    start = lastMonday;
+    end = lastSunday;
+    label = 'semaine dernière';
   } else if (period === 'this_month') {
     start = new Date(now.getFullYear(), now.getMonth(), 1);
     label = 'ce mois';
+  } else if (period === 'last_month') {
+    // Mois dernier
+    const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
+    start = lastMonth;
+    end = lastMonthEnd;
+    label = 'mois dernier';
+  } else if (period === 'last_7d') {
+    start = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    label = 'les 7 derniers jours';
   } else if (period === 'last_30d') {
     start = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
     label = 'les 30 derniers jours';
+  } else if (period === 'last_90d') {
+    start = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+    label = 'les 90 derniers jours';
   } else if (period.includes(' - ')) {
     // Format personnalisé "dd/mm/yyyy - dd/mm/yyyy"
     const [startStr, endStr] = period.split(' - ');
@@ -44,11 +71,10 @@ function getPeriodDates(period) {
     end = new Date(endYear, endMonth - 1, endDay, 23, 59, 59);
     label = `du ${startStr} au ${endStr}`;
   } else {
-    // Par défaut : cette semaine
-    const dayOfWeek = now.getDay();
-    const daysFromMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-    start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - daysFromMonday);
-    label = 'cette semaine';
+    // Par défaut : toutes les données
+    start = new Date(0);
+    end = now;
+    label = 'toutes les données';
   }
 
   return { start, end, label };
@@ -59,7 +85,8 @@ async function loadAndAggregateData(
   agencyId,
   period,
   formId,
-  userId, 
+  userId,
+  selectedFormats
 ) {
   const { start, end, label } = getPeriodDates(period);
 
@@ -84,8 +111,9 @@ async function loadAndAggregateData(
   entries = entries.filter(e => {
     const inDateRange = e.submittedAt >= start && e.submittedAt <= end;
     const matchForm = !formId || e.formId === formId;
+    const matchSelectedForms = !selectedFormats || selectedFormats.length === 0 || selectedFormats.includes(e.formId);
     const matchUser = !userId || e.userId === userId;
-    return inDateRange && matchForm && matchUser;
+    return inDateRange && matchForm && matchSelectedForms && matchUser;
   });
 
   // Trier par date desc et limiter à 100 après filtrage
@@ -350,13 +378,20 @@ module.exports = async function handler(req, res) {
     }
 
     // 3. Validation du corps de la requête
-    const { question, filters } = req.body;
+    const { question, filters, selectedFormats, responseFormat } = req.body;
     if (!question || typeof question !== 'string' || question.trim().length === 0) {
       return res.status(400).json({ 
         error: 'Question manquante ou invalide',
         code: 'INVALID_QUESTION'
       });
     }
+
+    console.log('Request body parameters:', {
+      question: question.substring(0, 100) + '...',
+      filters,
+      selectedFormats,
+      responseFormat
+    });
 
     // 4. Chargement et agrégation des données
     console.log('Step 4: Loading and aggregating data...');
@@ -368,7 +403,8 @@ module.exports = async function handler(req, res) {
         userData.agencyId,
         filters?.period,
         filters?.formId,
-        filters?.userId
+        filters?.userId,
+        selectedFormats
       );
       console.log('Data loaded successfully:', {
         entries: data.totals.entries,
@@ -442,6 +478,42 @@ CONTEXTE :
 - Période analysée : ${data.period.label}
 - Directeur : ${userData.name || 'Directeur'}
 - Date actuelle : ${new Date().toLocaleDateString('fr-FR')}
+- Format de réponse demandé : ${responseFormat || 'texte libre'}
+- Formulaires sélectionnés : ${selectedFormats && selectedFormats.length > 0 ? selectedFormats.join(', ') : 'tous les formulaires'}
+
+FORMAT DE RÉPONSE :
+${responseFormat === 'stats' ? `
+- FORMAT STATISTIQUES : Tu dois retourner un graphique JSON avec la structure suivante :
+\`\`\`json
+{
+  "type": "bar|line|pie|area|scatter",
+  "title": "Titre du graphique",
+  "data": [
+    {"label": "valeur1", "value": 10},
+    {"label": "valeur2", "value": 20}
+  ],
+  "xAxisKey": "label",
+  "yAxisKey": "value",
+  "colors": ["#3B82F6", "#10B981", "#F59E0B"]
+}
+\`\`\`
+- Inclus aussi une explication textuelle du graphique.` : ''}
+${responseFormat === 'table' ? `
+- FORMAT TABLEAU : Tu dois retourner un tableau markdown avec la structure suivante :
+\`\`\`markdown
+| Colonne 1 | Colonne 2 | Colonne 3 |
+|-----------|-----------|-----------|
+| Valeur 1  | Valeur 2  | Valeur 3  |
+| Valeur 4  | Valeur 5  | Valeur 6  |
+\`\`\`
+- Inclus aussi une explication textuelle du tableau.` : ''}
+${responseFormat === 'pdf' ? `
+- FORMAT PDF : Tu dois retourner du contenu markdown structuré pour un rapport PDF :
+- Utilise des titres (# ## ###)
+- Inclus des listes à puces
+- Structure le contenu en sections
+- Inclus des métriques et analyses
+- Le contenu sera converti en PDF automatiquement.` : ''}
 
 STATISTIQUES :
 - Total des entrées : ${data.totals.entries}

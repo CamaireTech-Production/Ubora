@@ -2,12 +2,24 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Send, Mic, Paperclip } from 'lucide-react';
 import { Button } from '../Button';
 import { FormatSelector } from './FormatSelector';
-import { FormFilter } from './FormFilter';
+import { ComprehensiveFilter } from './ComprehensiveFilter';
 
 interface Form {
   id: string;
   title: string;
   description?: string;
+}
+
+interface Employee {
+  id: string;
+  name: string;
+  email?: string;
+}
+
+interface ChatFilters {
+  period: string;
+  formId: string;
+  userId: string;
 }
 
 interface ChatComposerProps {
@@ -17,6 +29,9 @@ interface ChatComposerProps {
   selectedFormat: string | null;
   onFormatChange: (format: string | null) => void;
   forms: Form[];
+  employees: Employee[];
+  filters: ChatFilters;
+  onFiltersChange: (filters: ChatFilters) => void;
   selectedFormIds: string[];
   onFormSelectionChange: (formIds: string[]) => void;
   onFileUpload?: (files: File[]) => void;
@@ -25,7 +40,7 @@ interface ChatComposerProps {
   placeholder?: string;
   maxLength?: number;
   showFormatSelector?: boolean;
-  showFormFilter?: boolean;
+  showComprehensiveFilter?: boolean;
 }
 
 export const ChatComposer: React.FC<ChatComposerProps> = ({
@@ -35,6 +50,9 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
   selectedFormat,
   onFormatChange,
   forms,
+  employees,
+  filters,
+  onFiltersChange,
   selectedFormIds,
   onFormSelectionChange,
   onFileUpload,
@@ -43,7 +61,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
   placeholder = "Écrivez votre message…",
   maxLength = 2000,
   showFormatSelector = true,
-  showFormFilter = true
+  showComprehensiveFilter = true
 }) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -102,7 +120,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
     <div className="fixed bottom-0 left-0 right-0 z-10 bg-gradient-to-t from-white via-white to-transparent pt-4">
       <div className="max-w-screen-md mx-auto px-4 pb-4" style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
         
-        {/* Format Selector and Form Filter */}
+        {/* Format Selector and Comprehensive Filter */}
         <div className="space-y-2">
           {/* Format Selector - always show when enabled */}
           {showFormatSelector && (
@@ -113,10 +131,13 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
             />
           )}
 
-          {/* Form Filter - always show when enabled */}
-          {showFormFilter && (
-            <FormFilter 
+          {/* Comprehensive Filter - always show when enabled */}
+          {showComprehensiveFilter && (
+            <ComprehensiveFilter 
+              filters={filters}
+              onFiltersChange={onFiltersChange}
               forms={forms}
+              employees={employees}
               selectedFormIds={selectedFormIds}
               onFormSelectionChange={onFormSelectionChange}
               disabled={disabled}

@@ -60,9 +60,10 @@ export interface ChatMessage {
   content: string;
   timestamp: Date;
   responseTime?: number;
-  contentType?: 'text' | 'graph' | 'pdf' | 'text-pdf' | 'mixed';
+  contentType?: 'text' | 'graph' | 'pdf' | 'text-pdf' | 'table' | 'mixed';
   graphData?: GraphData;
   pdfData?: PDFData;
+  tableData?: string; // Markdown table content
   meta?: {
     period?: string;
     usedEntries?: number;
@@ -70,6 +71,9 @@ export interface ChatMessage {
     users?: number;
     tokensUsed?: number;
     model?: string;
+    selectedFormat?: string | null;
+    selectedFormIds?: string[];
+    selectedFormTitles?: string[];
   };
 }
 

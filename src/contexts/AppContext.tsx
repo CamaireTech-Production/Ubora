@@ -114,7 +114,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         submittedAt: doc.data().submittedAt?.toDate() || new Date()
       })) as FormEntry[];
       setFormEntries(entriesData);
-      console.log('Entrées chargées:', entriesData.length);
+      console.log('📊 Form Entries Loaded:', {
+        count: entriesData.length,
+        agencyId: user.agencyId,
+        entries: entriesData.map(entry => ({
+          id: entry.id,
+          formId: entry.formId,
+          userId: entry.userId,
+          submittedAt: entry.submittedAt,
+          answersCount: Object.keys(entry.answers || {}).length
+        }))
+      });
     }, (err) => {
       console.error('Erreur lors du chargement des entrées:', err);
       setError('Erreur lors du chargement des entrées');

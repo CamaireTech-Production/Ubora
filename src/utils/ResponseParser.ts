@@ -1,103 +1,98 @@
 import { ChatMessage, GraphData, PDFData } from '../types';
 
 export interface ParsedResponse {
-  contentType: 'text' | 'graph' | 'pdf' | 'text-pdf' | 'mixed';
+  contentType: 'text' | 'graph' | 'pdf' | 'text-pdf' | 'table' | 'mixed';
   content: string;
   graphData?: GraphData;
   pdfData?: PDFData;
+  tableData?: string; // Markdown table content
 }
 
 export class ResponseParser {
-  static parseAIResponse(response: string, userMessage?: string): ParsedResponse {
-    // Check if this is a PDF report request based on user's message
-    if (userMessage && this.isPDFReportRequest(userMessage)) {
-      return {
-        contentType: 'text-pdf',
-        content: response
-      };
+  static parseAIResponse(response: string, _userMessage?: string, selectedFormat?: string | null): ParsedResponse {
+    // Handle format-specific responses based on selected format
+    if (selectedFormat) {
+      return this.parseFormatSpecificResponse(response, selectedFormat);
     }
 
-    // Try to detect JSON data in the response
-    const jsonMatch = response.match(/```json\s*([\s\S]*?)\s*```/);
-    
-    if (jsonMatch) {
-      try {
-        const jsonData = JSON.parse(jsonMatch[1]);
-        
-        // Check if it's graph data
-        if (this.isGraphData(jsonData)) {
-          return {
-            contentType: 'graph',
-            content: this.extractTextFromResponse(response),
-            graphData: jsonData as GraphData
-          };
-        }
-        
-        // Check if it's PDF data
-        if (this.isPDFData(jsonData)) {
-          return {
-            contentType: 'pdf',
-            content: this.extractTextFromResponse(response),
-            pdfData: jsonData as PDFData
-          };
-        }
-        
-        // Check if it's mixed content
-        if (this.isMixedData(jsonData)) {
-          return {
-            contentType: 'mixed',
-            content: this.extractTextFromResponse(response),
-            graphData: jsonData.graphData,
-            pdfData: jsonData.pdfData
-          };
-        }
-      } catch (error) {
-        console.error('Error parsing JSON from AI response:', error);
-      }
-    }
-    
-    // Check for inline JSON (without code blocks)
-    const inlineJsonMatch = response.match(/\{[\s\S]*\}/);
-    if (inlineJsonMatch) {
-      try {
-        const jsonData = JSON.parse(inlineJsonMatch[0]);
-        
-        if (this.isGraphData(jsonData)) {
-          return {
-            contentType: 'graph',
-            content: this.extractTextFromResponse(response),
-            graphData: jsonData as GraphData
-          };
-        }
-        
-        if (this.isPDFData(jsonData)) {
-          return {
-            contentType: 'pdf',
-            content: this.extractTextFromResponse(response),
-            pdfData: jsonData as PDFData
-          };
-        }
-      } catch (error) {
-        // Not valid JSON, continue with text parsing
-      }
-    }
-    
-    // Default to text content
+    // If no format is selected, return as simple text
     return {
       contentType: 'text',
       content: response
     };
   }
   
-  private static isPDFReportRequest(userMessage: string): boolean {
-    const pdfKeywords = [
-      'génère un rapport', 'crée un rapport', 'rapport pdf', 'rapport complet',
-      'synthèse pdf', 'document pdf', 'rapport détaillé', 'génère pdf',
-      'crée pdf', 'rapport final', 'rapport d\'analyse'
-    ];
-    const lowerMessage = userMessage.toLowerCase();
-    return pdfKeywords.some(keyword => lowerMessage.includes(keyword));
+  private static parseFormatSpecificResponse(response: string, selectedFormat: string): ParsedResponse {
+    switch (selectedFormat) {
+      case 'stats':
+        return this.parseStatsResponse(response);
+      case 'pdf':
+        return this.parsePDFResponse(response);
+      case 'table':
+        return this.parseTableResponse(response);
+      default:
+        return {
+          contentType: 'text',
+          content: response
+        };
+    }
   }
+
+  private static parseStatsResponse(response: string): ParsedResponse {
+    // Try to extract JSON graph data
+    const jsonMatch = response.match(/```json\s*([\s\S]*?)\s*```/);
+    
+    if (jsonMatch) {
+      try {
+        const jsonData = JSON.parse(jsonMatch[1]);
+        if (this.isGraphData(jsonData)) {
+          return {
+            contentType: 'graph',
+            content: this.extractTextFromResponse(response),
+            graphData: jsonData as GraphData
+          };
+        }
+      } catch (error) {
+        console.error('Error parsing stats JSON:', error);
+      }
+    }
+    
+    // If no valid JSON, return as text with stats content type
+    return {
+      contentType: 'text',
+      content: response
+    };
+  }
+
+  private static parsePDFResponse(response: string): ParsedResponse {
+    // For PDF format, the response should be markdown content
+    return {
+      contentType: 'text-pdf',
+      content: response
+    };
+  }
+
+  private static parseTableResponse(response: string): ParsedResponse {
+    // Extract markdown table from response
+    const tableMatch = response.match(/```markdown\s*([\s\S]*?)\s*```/) || 
+                      response.match(/(\|.*\|[\s\S]*?\|.*\|)/);
+    
+    if (tableMatch) {
+      const tableContent = tableMatch[1] || tableMatch[0];
+      return {
+        contentType: 'table',
+        content: this.extractTextFromResponse(response),
+        tableData: tableContent
+      };
+    }
+    
+    // If no table found, return as text
+    return {
+      contentType: 'text',
+      content: response
+    };
+  }
+
 
   private static isGraphData(data: any): boolean {
     return (
@@ -110,25 +105,7 @@ export class ResponseParser {
     );
   }
   
-  private static isPDFData(data: any): boolean {
-    return (
-      data &&
-      typeof data === 'object' &&
-      data.title &&
-      Array.isArray(data.sections) &&
-      data.sections.length > 0 &&
-      data.generatedAt
-    );
-  }
   
-  private static isMixedData(data: any): boolean {
-    return (
-      data &&
-      typeof data === 'object' &&
-      (data.graphData || data.pdfData) &&
-      (this.isGraphData(data.graphData) || this.isPDFData(data.pdfData))
-    );
-  }
   
   private static extractTextFromResponse(response: string): string {
     // Remove JSON code blocks and return the remaining text
@@ -160,6 +137,10 @@ export class ResponseParser {
     
     if (parsedResponse.pdfData) {
       baseMessage.pdfData = parsedResponse.pdfData;
+    }
+    
+    if (parsedResponse.tableData) {
+      baseMessage.tableData = parsedResponse.tableData;
     }
     
     return baseMessage;
