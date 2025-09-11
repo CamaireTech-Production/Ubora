@@ -30,24 +30,22 @@ const formatOptions: FormatOption[] = [
 ];
 
 interface FormatSelectorProps {
-  selectedFormats: string[];
-  onFormatChange: (formats: string[]) => void;
+  selectedFormat: string | null;
+  onFormatChange: (format: string | null) => void;
   disabled?: boolean;
 }
 
 export const FormatSelector: React.FC<FormatSelectorProps> = ({
-  selectedFormats,
+  selectedFormat,
   onFormatChange,
   disabled = false
 }) => {
-  const handleFormatToggle = (formatId: string) => {
+  const handleFormatSelect = (formatId: string) => {
     if (disabled) return;
     
-    const newFormats = selectedFormats.includes(formatId)
-      ? selectedFormats.filter(id => id !== formatId)
-      : [...selectedFormats, formatId];
-    
-    onFormatChange(newFormats);
+    // If clicking the same format, deselect it
+    const newFormat = selectedFormat === formatId ? null : formatId;
+    onFormatChange(newFormat);
   };
 
   return (
@@ -55,18 +53,18 @@ export const FormatSelector: React.FC<FormatSelectorProps> = ({
       <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-2 border border-blue-100">
         <div className="flex items-center justify-between mb-2">
           <h3 className="text-xs font-semibold text-gray-900">Format de réponse</h3>
-          <span className="text-xs text-gray-500">Sélectionnez un ou plusieurs formats</span>
+          <span className="text-xs text-gray-500">Sélectionnez un format</span>
         </div>
         
         <div className="flex gap-2">
           {formatOptions.map((option) => {
             const IconComponent = option.icon;
-            const isSelected = selectedFormats.includes(option.id);
+            const isSelected = selectedFormat === option.id;
             
             return (
               <button
                 key={option.id}
-                onClick={() => handleFormatToggle(option.id)}
+                onClick={() => handleFormatSelect(option.id)}
                 disabled={disabled}
                 className={`
                   relative flex items-center gap-2 px-3 py-2 rounded-lg border-2 transition-all duration-200 flex-1
@@ -77,18 +75,16 @@ export const FormatSelector: React.FC<FormatSelectorProps> = ({
                   ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
                 `}
               >
-                {/* Checkbox indicator */}
+                {/* Radio button indicator */}
                 <div className={`
-                  w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0
+                  w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0
                   ${isSelected 
                     ? 'border-blue-500 bg-blue-500' 
                     : 'border-gray-300 bg-white'
                   }
                 `}>
                   {isSelected && (
-                    <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                    </svg>
+                    <div className="w-2 h-2 bg-white rounded-full"></div>
                   )}
                 </div>
 

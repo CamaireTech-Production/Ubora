@@ -56,7 +56,7 @@ export const DirecteurChat: React.FC = () => {
   
   const [inputMessage, setInputMessage] = useState('');
   const [isTyping, setIsTyping] = useState(false);
-  const [selectedFormats, setSelectedFormats] = useState<string[]>([]);
+  const [selectedFormat, setSelectedFormat] = useState<string | null>(null);
   const [selectedFormIds, setSelectedFormIds] = useState<string[]>([]);
   const [filters, setFilters] = useState<ChatFilters>({
     period: 'today',
@@ -273,8 +273,8 @@ export const DirecteurChat: React.FC = () => {
     }
   };
 
-  const handleFormatChange = (formats: string[]) => {
-    setSelectedFormats(formats);
+  const handleFormatChange = (format: string | null) => {
+    setSelectedFormat(format);
   };
 
   const handleFormSelectionChange = (formIds: string[]) => {
@@ -354,7 +354,7 @@ export const DirecteurChat: React.FC = () => {
             value={inputMessage}
             onChange={setInputMessage}
             onSend={() => handleSendMessage()}
-            selectedFormats={selectedFormats}
+            selectedFormat={selectedFormat}
             onFormatChange={handleFormatChange}
             forms={forms}
             selectedFormIds={selectedFormIds}

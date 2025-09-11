@@ -14,8 +14,8 @@ interface ChatComposerProps {
   value: string;
   onChange: (value: string) => void;
   onSend: () => void;
-  selectedFormats: string[];
-  onFormatChange: (formats: string[]) => void;
+  selectedFormat: string | null;
+  onFormatChange: (format: string | null) => void;
   forms: Form[];
   selectedFormIds: string[];
   onFormSelectionChange: (formIds: string[]) => void;
@@ -32,7 +32,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
   value,
   onChange,
   onSend,
-  selectedFormats,
+  selectedFormat,
   onFormatChange,
   forms,
   selectedFormIds,
@@ -107,7 +107,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
           {/* Format Selector - always show when enabled */}
           {showFormatSelector && (
             <FormatSelector 
-              selectedFormats={selectedFormats}
+              selectedFormat={selectedFormat}
               onFormatChange={onFormatChange}
               disabled={disabled}
             />
