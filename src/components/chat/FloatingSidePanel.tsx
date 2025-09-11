@@ -1,9 +1,8 @@
 import React, { useEffect } from 'react';
-import { X, Home, History, Filter, FileText, Users, Clipboard } from 'lucide-react';
+import { X, Home, History, FileText, Users, Clipboard } from 'lucide-react';
 import { Button } from '../Button';
-import { Select } from '../Select';
 
-type TabId = "history" | "filters" | "forms" | "employees" | "entries";
+type TabId = "history" | "forms" | "employees" | "entries";
 
 interface ChatFilters {
   period: string;
@@ -78,13 +77,6 @@ export const FloatingSidePanel: React.FC<FloatingSidePanelProps> = ({
       count: conversations.length
     },
     {
-      id: 'filters' as TabId,
-      label: 'Filtres',
-      icon: Filter,
-      onClick: () => handleTabClick('filters'),
-      count: null
-    },
-    {
       id: 'forms' as TabId,
       label: 'Formulaires',
       icon: FileText,
@@ -122,13 +114,6 @@ export const FloatingSidePanel: React.FC<FloatingSidePanelProps> = ({
     onTabChange(null);
   };
 
-  const quickPeriods = [
-    { value: 'today', label: 'Aujourd\'hui' },
-    { value: 'yesterday', label: 'Hier' },
-    { value: 'this_week', label: 'Cette semaine' },
-    { value: 'this_month', label: 'Ce mois' },
-    { value: 'last_30d', label: '30 derniers jours' }
-  ];
 
   const renderTabContent = () => {
     if (!activeTab) return null;
@@ -175,56 +160,6 @@ export const FloatingSidePanel: React.FC<FloatingSidePanelProps> = ({
           </div>
         );
 
-      case 'filters':
-        return (
-          <div className="space-y-4">
-            <h4 className="font-medium text-gray-900">Paramètres d'analyse</h4>
-            
-            {/* Quick period buttons */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Période
-              </label>
-              <div className="flex flex-wrap gap-1">
-                {quickPeriods.map(period => (
-                  <button
-                    key={period.value}
-                    onClick={() => onFiltersChange({ ...filters, period: period.value })}
-                    className={`px-3 py-1 rounded-full text-xs transition-colors ${
-                      filters.period === period.value
-                        ? 'bg-blue-100 text-blue-700 border border-blue-200'
-                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                    }`}
-                  >
-                    {period.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Form filter */}
-            <Select
-              label="Formulaire spécifique"
-              value={filters.formId}
-              onChange={(e) => onFiltersChange({ ...filters, formId: e.target.value })}
-              options={[
-                { value: '', label: 'Tous les formulaires' },
-                ...forms.map(form => ({ value: form.id, label: form.title }))
-              ]}
-            />
-
-            {/* Employee filter */}
-            <Select
-              label="Employé spécifique"
-              value={filters.userId}
-              onChange={(e) => onFiltersChange({ ...filters, userId: e.target.value })}
-              options={[
-                { value: '', label: 'Tous les employés' },
-                ...employees.map(emp => ({ value: emp.id, label: emp.name }))
-              ]}
-            />
-          </div>
-        );
 
       case 'forms':
         return (

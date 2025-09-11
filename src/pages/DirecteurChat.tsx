@@ -56,8 +56,11 @@ export const DirecteurChat: React.FC = () => {
   
   const [inputMessage, setInputMessage] = useState('');
   const [isTyping, setIsTyping] = useState(false);
+  const [selectedFormat, setSelectedFormat] = useState<string | null>(null);
+  const [selectedFormats, setSelectedFormats] = useState<string[]>([]);
+  const [selectedFormIds, setSelectedFormIds] = useState<string[]>([]);
   const [filters, setFilters] = useState<ChatFilters>({
-    period: 'today',
+    period: 'all',
     formId: '',
     userId: ''
   });
@@ -66,7 +69,7 @@ export const DirecteurChat: React.FC = () => {
   
   // États pour le panneau latéral
   const [panelOpen, setPanelOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<'history' | 'filters' | 'forms' | 'employees' | 'entries' | null>(null);
+  const [activeTab, setActiveTab] = useState<'history' | 'forms' | 'employees' | 'entries' | null>(null);
 
   // État pour l'écran de bienvenue (uniquement juste après login)
   const [showWelcome, setShowWelcome] = useState(() => {
@@ -82,6 +85,13 @@ export const DirecteurChat: React.FC = () => {
     if (!messageToSend || isTyping) return;
 
     const startTime = Date.now();
+
+    // Use all forms if none are selected
+    const formsToAnalyze = selectedFormIds.length > 0 ? selectedFormIds : forms.map(form => form.id);
+
+    // Determine the actual format(s) to use
+    const actualFormats = selectedFormats.length > 0 ? selectedFormats : (selectedFormat ? [selectedFormat] : []);
+    const isMultiFormat = actualFormats.length > 1;
 
     // Create conversation if none exists
     let conversationId = currentConversation?.id;
@@ -100,7 +110,13 @@ export const DirecteurChat: React.FC = () => {
       id: `user_${Date.now()}`,
       type: 'user',
       content: messageToSend,
-      timestamp: new Date()
+      timestamp: new Date(),
+        meta: {
+          selectedFormat: isMultiFormat ? null : actualFormats[0],
+          selectedFormats: actualFormats,
+          selectedFormIds: formsToAnalyze,
+          selectedFormTitles: forms.filter(form => formsToAnalyze.includes(form.id)).map(form => form.title)
+        }
     };
 
     // Add message to conversation (only if we have a conversation)
@@ -132,6 +148,31 @@ export const DirecteurChat: React.FC = () => {
         'Authorization': `Bearer ${t}`
       });
 
+      // Get form submissions for debugging
+      const relevantSubmissions = formEntries.filter(entry => 
+        formsToAnalyze.includes(entry.formId)
+      );
+      
+      console.log('🔍 DEBUG - Form Analysis Data:');
+      console.log('📋 Total forms available:', forms.length);
+      console.log('📋 Forms to analyze:', formsToAnalyze);
+      console.log('📋 Selected form IDs:', selectedFormIds);
+      console.log('📋 All form IDs:', forms.map(f => f.id));
+      console.log('📊 Total form entries:', formEntries.length);
+      console.log('📊 Relevant submissions:', relevantSubmissions.length);
+      console.log('📊 Submissions by form:', formsToAnalyze.map(formId => {
+        const formSubmissions = formEntries.filter(entry => entry.formId === formId);
+        const formTitle = forms.find(f => f.id === formId)?.title || 'Unknown';
+        return { formId, formTitle, count: formSubmissions.length };
+      }));
+      console.log('📊 Sample submissions:', relevantSubmissions.slice(0, 3));
+
+      console.log('🔍 DEBUG - Format Selection:');
+      console.log('📋 selectedFormat:', selectedFormat);
+      console.log('📋 selectedFormats:', selectedFormats);
+      console.log('📋 actualFormats:', actualFormats);
+      console.log('📋 isMultiFormat:', isMultiFormat);
+      
       const requestData = {
         question: messageToSend,
         filters: {
@@ -139,6 +180,9 @@ export const DirecteurChat: React.FC = () => {
           formId: filters.formId || undefined,
           userId: filters.userId || undefined
         },
+        selectedFormats: formsToAnalyze,
+        responseFormat: isMultiFormat ? 'multi-format' : (actualFormats[0] || null),
+        selectedResponseFormats: actualFormats,
         conversationId: conversationId
       };
 
@@ -149,8 +193,11 @@ export const DirecteurChat: React.FC = () => {
         controller.abort();
       }, 60000);
 
-      console.log('Calling AI endpoint:', AI_ENDPOINT);
-      console.log('Request data:', requestData);
+      console.log('🤖 AI Request Details:');
+      console.log('🔗 Endpoint:', AI_ENDPOINT);
+      console.log('📤 Request data:', JSON.stringify(requestData, null, 2));
+      console.log('👤 User:', user?.name, user?.email);
+      console.log('🏢 Agency ID:', user?.agencyId);
       
       let response = await fetch(AI_ENDPOINT, {
         method: 'POST',
@@ -194,17 +241,28 @@ export const DirecteurChat: React.FC = () => {
 
       const data = await response.json();
 
+      console.log('🤖 AI Response Details:');
+      console.log('📥 Response status:', response.status);
+      console.log('📥 Response data:', JSON.stringify(data, null, 2));
+      console.log('⏱️ Response time:', Date.now() - startTime, 'ms');
+
       const responseTime = Date.now() - startTime;
 
       // Parse the AI response to detect graph/PDF data
-      const parsedResponse = ResponseParser.parseAIResponse(data.answer, messageToSend);
+      const parsedResponse = ResponseParser.parseAIResponse(data.answer, messageToSend, isMultiFormat ? null : actualFormats[0], actualFormats);
 
       // Create assistant message with parsed content
       const assistantMessage = ResponseParser.createMessageFromParsedResponse(
         parsedResponse,
         `assistant_${Date.now()}`,
         responseTime,
-        data.meta
+        {
+          ...data.meta,
+          selectedFormat: isMultiFormat ? null : actualFormats[0],
+          selectedFormats: actualFormats,
+          selectedFormIds: formsToAnalyze,
+          selectedFormTitles: forms.filter(form => formsToAnalyze.includes(form.id)).map(form => form.title)
+        }
       );
 
       // Add assistant message to conversation (only if we have a conversation)
@@ -271,9 +329,26 @@ export const DirecteurChat: React.FC = () => {
     }
   };
 
-  const handleSuggestionClick = (suggestion: string) => {
-    // Send the suggestion directly without setting it in the input
-    handleSendMessage(suggestion);
+  const handleFormatChange = (format: string | null) => {
+    console.log('🔄 Single format changed:', format);
+    setSelectedFormat(format);
+    // Clear multi-format when using single format
+    if (format) {
+      setSelectedFormats([]);
+    }
+  };
+
+  const handleFormatsChange = (formats: string[]) => {
+    console.log('🔄 Multi-format changed:', formats);
+    setSelectedFormats(formats);
+    // Clear single format when using multi-format
+    if (formats.length > 0) {
+      setSelectedFormat(null);
+    }
+  };
+
+  const handleFormSelectionChange = (formIds: string[]) => {
+    setSelectedFormIds(formIds);
   };
 
   const handleFileUpload = (files: File[]) => {
@@ -349,11 +424,22 @@ export const DirecteurChat: React.FC = () => {
             value={inputMessage}
             onChange={setInputMessage}
             onSend={() => handleSendMessage()}
-            onSuggestionClick={handleSuggestionClick}
+            selectedFormat={selectedFormat}
+            selectedFormats={selectedFormats}
+            onFormatChange={handleFormatChange}
+            onFormatsChange={handleFormatsChange}
+            forms={forms}
+            employees={employees}
+            filters={filters}
+            onFiltersChange={setFilters}
+            selectedFormIds={selectedFormIds}
+            onFormSelectionChange={handleFormSelectionChange}
             onFileUpload={handleFileUpload}
             disabled={isTyping}
             placeholder="Posez une question sur vos données..."
-            showSuggestions={true}
+            showFormatSelector={true}
+            showComprehensiveFilter={true}
+            allowMultipleFormats={true}
           />
 
           {/* Floating side panel */}

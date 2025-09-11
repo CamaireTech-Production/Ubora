@@ -166,6 +166,9 @@ export class PDFGenerator {
         case 'list':
           this.addListContent(element.items || []);
           break;
+        case 'table':
+          this.addTableContent(element.tableData || []);
+          break;
         case 'separator':
           this.addSeparator();
           break;
@@ -177,8 +180,8 @@ export class PDFGenerator {
     });
   }
 
-  private parseMarkdownContent(content: string): Array<{type: string, text: string, items?: string[]}> {
-    const elements: Array<{type: string, text: string, items?: string[]}> = [];
+  private parseMarkdownContent(content: string): Array<{type: string, text: string, items?: string[], tableData?: any[]}> {
+    const elements: Array<{type: string, text: string, items?: string[], tableData?: any[]}> = [];
     const lines = content.split('\n');
     
     for (let i = 0; i < lines.length; i++) {
@@ -189,6 +192,16 @@ export class PDFGenerator {
         // Empty line - add some spacing
         elements.push({ type: 'text', text: '' });
         continue;
+      }
+      
+      // Check for markdown table
+      if (trimmedLine.includes('|') && trimmedLine.length > 0) {
+        const { tableData, endIndex } = this.parseMarkdownTable(lines, i);
+        if (tableData) {
+          elements.push({ type: 'table', text: '', tableData });
+          i = endIndex; // Skip the processed table lines
+          continue;
+        }
       }
       
       // Check for headers
@@ -226,6 +239,45 @@ export class PDFGenerator {
     }
     
     return elements;
+  }
+
+  private parseMarkdownTable(lines: string[], startIndex: number): { tableData: any[] | null, endIndex: number } {
+    const tableLines = [];
+    let currentIndex = startIndex;
+    
+    // Collect all table lines
+    while (currentIndex < lines.length) {
+      const line = lines[currentIndex].trim();
+      if (line.includes('|') && line.length > 0) {
+        tableLines.push(line);
+        currentIndex++;
+      } else {
+        break;
+      }
+    }
+    
+    if (tableLines.length < 2) {
+      return { tableData: null, endIndex: startIndex };
+    }
+    
+    // Parse header
+    const headerLine = tableLines[0];
+    const headers = headerLine.split('|').map(h => h.trim()).filter(h => h);
+    
+    // Skip separator line (second line)
+    const dataLines = tableLines.slice(2);
+    
+    // Parse data rows
+    const tableData = dataLines.map(line => {
+      const cells = line.split('|').map(c => c.trim()).filter(c => c);
+      const row: any = {};
+      headers.forEach((header, index) => {
+        row[header] = this.cleanMarkdown(cells[index] || '');
+      });
+      return row;
+    });
+    
+    return { tableData, endIndex: currentIndex - 1 };
   }
 
   private cleanMarkdown(text: string): string {
