@@ -46,10 +46,12 @@ export class ResponseParser {
       try {
         const jsonData = JSON.parse(jsonMatch[1]);
         if (this.isGraphData(jsonData)) {
+          // Ensure the graph data has proper structure
+          const enhancedGraphData = this.enhanceGraphData(jsonData);
           return {
             contentType: 'graph',
             content: this.extractTextFromResponse(response),
-            graphData: jsonData as GraphData
+            graphData: enhancedGraphData
           };
         }
       } catch (error) {
@@ -61,6 +63,22 @@ export class ResponseParser {
     return {
       contentType: 'text',
       content: response
+    };
+  }
+
+  private static enhanceGraphData(data: any): GraphData {
+    // Ensure all required fields are present with defaults
+    return {
+      type: data.type || 'bar',
+      title: data.title || 'Graphique des données',
+      data: data.data || [],
+      xAxisKey: data.xAxisKey || 'label',
+      yAxisKey: data.yAxisKey || 'value',
+      dataKey: data.dataKey || 'value',
+      colors: data.colors || ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6'],
+      options: {
+        showLegend: data.options?.showLegend !== false
+      }
     };
   }
 

@@ -68,7 +68,7 @@ export const DirecteurChat: React.FC = () => {
   
   // États pour le panneau latéral
   const [panelOpen, setPanelOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<'history' | 'filters' | 'forms' | 'employees' | 'entries' | null>(null);
+  const [activeTab, setActiveTab] = useState<'history' | 'forms' | 'employees' | 'entries' | null>(null);
 
   // État pour l'écran de bienvenue (uniquement juste après login)
   const [showWelcome, setShowWelcome] = useState(() => {
@@ -84,6 +84,9 @@ export const DirecteurChat: React.FC = () => {
     if (!messageToSend || isTyping) return;
 
     const startTime = Date.now();
+
+    // Use all forms if none are selected
+    const formsToAnalyze = selectedFormIds.length > 0 ? selectedFormIds : forms.map(form => form.id);
 
     // Create conversation if none exists
     let conversationId = currentConversation?.id;
@@ -102,7 +105,12 @@ export const DirecteurChat: React.FC = () => {
       id: `user_${Date.now()}`,
       type: 'user',
       content: messageToSend,
-      timestamp: new Date()
+      timestamp: new Date(),
+      meta: {
+        selectedFormat,
+        selectedFormIds: formsToAnalyze,
+        selectedFormTitles: forms.filter(form => formsToAnalyze.includes(form.id)).map(form => form.title)
+      }
     };
 
     // Add message to conversation (only if we have a conversation)
@@ -134,9 +142,6 @@ export const DirecteurChat: React.FC = () => {
         'Authorization': `Bearer ${t}`
       });
 
-      // Use all forms if none are selected
-      const formsToAnalyze = selectedFormIds.length > 0 ? selectedFormIds : forms.map(form => form.id);
-      
       // Get form submissions for debugging
       const relevantSubmissions = formEntries.filter(entry => 
         formsToAnalyze.includes(entry.formId)

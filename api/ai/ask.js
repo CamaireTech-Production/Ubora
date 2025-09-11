@@ -483,21 +483,43 @@ CONTEXTE :
 
 FORMAT DE RÉPONSE :
 ${responseFormat === 'stats' ? `
-- FORMAT STATISTIQUES : Tu dois retourner un graphique JSON avec la structure suivante :
+- FORMAT STATISTIQUES : Tu dois OBLIGATOIREMENT retourner un graphique JSON avec la structure suivante :
+
+ANALYSE DES DONNÉES ET RECOMMANDATION DE GRAPHIQUE :
+1. Analyse les données fournies
+2. Recommande le type de graphique le plus approprié :
+   - "bar" : Pour comparer des valeurs (ex: soumissions par employé, par formulaire)
+   - "pie" : Pour montrer des proportions (ex: répartition des formulaires, satisfaction)
+   - "line" : Pour montrer des tendances dans le temps (ex: évolution des soumissions)
+   - "area" : Pour montrer des volumes cumulés dans le temps
+   - "scatter" : Pour montrer des corrélations entre deux variables
+
+3. Génère le JSON avec cette structure EXACTE :
 \`\`\`json
 {
   "type": "bar|line|pie|area|scatter",
-  "title": "Titre du graphique",
+  "title": "Titre descriptif du graphique",
   "data": [
-    {"label": "valeur1", "value": 10},
-    {"label": "valeur2", "value": 20}
+    {"label": "Nom employé", "value": 5, "employee": "Nom employé", "email": "email@example.com"},
+    {"label": "Autre employé", "value": 3, "employee": "Autre employé", "email": "autre@example.com"}
   ],
   "xAxisKey": "label",
-  "yAxisKey": "value",
-  "colors": ["#3B82F6", "#10B981", "#F59E0B"]
+  "yAxisKey": "value", 
+  "dataKey": "value",
+  "colors": ["#3B82F6", "#10B981", "#F59E0B", "#EF4444", "#8B5CF6"],
+  "options": {
+    "showLegend": true
+  }
 }
 \`\`\`
-- Inclus aussi une explication textuelle du graphique.` : ''}
+
+RÈGLES IMPORTANTES :
+- Utilise les données EXACTES des soumissions fournies
+- Pour les données d'employés, utilise "employee" et "email" dans chaque objet data
+- Pour les données temporelles, utilise "date" comme clé
+- Le titre doit être descriptif et en français
+- Inclus TOUJOURS une explication textuelle après le JSON
+- Si pas de données, retourne un graphique vide avec message explicatif` : ''}
 ${responseFormat === 'table' ? `
 - FORMAT TABLEAU : Tu dois retourner un tableau markdown avec la structure suivante :
 \`\`\`markdown
@@ -519,6 +541,12 @@ STATISTIQUES :
 - Total des entrées : ${data.totals.entries}
 - Employés actifs : ${data.totals.uniqueUsers}/${data.totals.totalUsers}
 - Formulaires utilisés : ${data.totals.uniqueForms}/${data.totals.totalForms}
+
+ANALYSE DES DONNÉES DISPONIBLES :
+- Répartition par employé : ${data.userStats.map(u => `${u.name}: ${u.count}`).join(', ') || 'Aucune donnée'}
+- Répartition par formulaire : ${data.formStats.map(f => `${f.title}: ${f.count}`).join(', ') || 'Aucune donnée'}
+- Timeline des soumissions : ${data.timeline.length} jours avec des données
+- Période analysée : ${data.period.label}
 
 DONNÉES DÉTAILLÉES DES SOUMISSIONS :
 ${data.submissions.length > 0 ? data.submissions.map((s, index) => {
