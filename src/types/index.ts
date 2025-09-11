@@ -31,6 +31,11 @@ export interface Form {
   fields: FormField[];
   createdAt: Date;
   agencyId: string;
+  timeRestrictions?: {
+    startTime?: string; // Format: "HH:MM" (24h format)
+    endTime?: string; // Format: "HH:MM" (24h format)
+    allowedDays?: number[]; // Array of day numbers (0=Sunday, 1=Monday, etc.)
+  };
 }
 
 export interface FileAttachment {

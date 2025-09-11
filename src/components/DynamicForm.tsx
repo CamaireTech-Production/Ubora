@@ -8,7 +8,7 @@ import { Card } from './Card';
 import { FileInput } from './FileInput';
 import { FileUploadService, UploadProgress } from '../services/fileUploadService';
 import { useAuth } from '../contexts/AuthContext';
-import { Upload, CheckCircle, AlertCircle, X } from 'lucide-react';
+import { Upload, CheckCircle, AlertCircle, X, Clock, AlertTriangle } from 'lucide-react';
 
 interface DynamicFormProps {
   form: Form;
@@ -26,6 +26,66 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [fileAttachments, setFileAttachments] = useState<FileAttachment[]>([]);
   const [uploadProgress, setUploadProgress] = useState<Record<string, UploadProgress>>({});
+
+  const formatTimeRestrictions = (restrictions?: {
+    startTime?: string;
+    endTime?: string;
+    allowedDays?: number[];
+  }): string => {
+    if (!restrictions || (!restrictions.startTime && !restrictions.endTime)) {
+      return '';
+    }
+
+    const dayNames = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
+    
+    let timeStr = '';
+    if (restrictions.startTime && restrictions.endTime) {
+      timeStr = `entre ${restrictions.startTime} et ${restrictions.endTime}`;
+    } else if (restrictions.startTime) {
+      timeStr = `à partir de ${restrictions.startTime}`;
+    } else if (restrictions.endTime) {
+      timeStr = `jusqu'à ${restrictions.endTime}`;
+    }
+
+    let dayStr = '';
+    if (restrictions.allowedDays && restrictions.allowedDays.length > 0) {
+      const selectedDays = restrictions.allowedDays
+        .sort((a, b) => a - b)
+        .map(day => dayNames[day])
+        .join(', ');
+      dayStr = ` les ${selectedDays}`;
+    }
+
+    return `${timeStr}${dayStr}`;
+  };
+
+  const isWithinTimeRestrictions = (): boolean => {
+    if (!form.timeRestrictions || (!form.timeRestrictions.startTime && !form.timeRestrictions.endTime)) {
+      return true; // No restrictions
+    }
+
+    const now = new Date();
+    const currentDay = now.getDay();
+    const currentTime = now.toTimeString().slice(0, 5); // HH:MM format
+
+    // Check day restrictions
+    if (form.timeRestrictions.allowedDays && form.timeRestrictions.allowedDays.length > 0) {
+      if (!form.timeRestrictions.allowedDays.includes(currentDay)) {
+        return false;
+      }
+    }
+
+    // Check time restrictions
+    if (form.timeRestrictions.startTime && form.timeRestrictions.endTime) {
+      return currentTime >= form.timeRestrictions.startTime && currentTime <= form.timeRestrictions.endTime;
+    } else if (form.timeRestrictions.startTime) {
+      return currentTime >= form.timeRestrictions.startTime;
+    } else if (form.timeRestrictions.endTime) {
+      return currentTime <= form.timeRestrictions.endTime;
+    }
+
+    return true;
+  };
 
   const handleFieldChange = (fieldId: string, value: any) => {
     setAnswers(prev => ({
@@ -132,6 +192,12 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Check time restrictions first
+    if (!isWithinTimeRestrictions()) {
+      alert('Ce formulaire ne peut pas être soumis en dehors des heures autorisées.');
+      return;
+    }
     
     if (validateForm()) {
       // Include file attachments in submission
@@ -307,14 +373,52 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
           {form.description && (
             <p className="text-sm sm:text-base text-gray-600 break-words">{form.description}</p>
           )}
+          
+          {/* Time Restrictions Notice */}
+          {form.timeRestrictions && formatTimeRestrictions(form.timeRestrictions) && (
+            <div className={`mt-4 p-3 rounded-lg border ${
+              isWithinTimeRestrictions() 
+                ? 'bg-blue-50 border-blue-200' 
+                : 'bg-yellow-50 border-yellow-200'
+            }`}>
+              <div className="flex items-start space-x-2">
+                {isWithinTimeRestrictions() ? (
+                  <Clock className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" />
+                ) : (
+                  <AlertTriangle className="h-5 w-5 text-yellow-600 mt-0.5 flex-shrink-0" />
+                )}
+                <div className="flex-1">
+                  <p className={`text-sm font-medium ${
+                    isWithinTimeRestrictions() ? 'text-blue-800' : 'text-yellow-800'
+                  }`}>
+                    {isWithinTimeRestrictions() ? '⏰ Période autorisée' : '⚠️ Période restreinte'}
+                  </p>
+                  <p className={`text-sm mt-1 ${
+                    isWithinTimeRestrictions() ? 'text-blue-700' : 'text-yellow-700'
+                  }`}>
+                    Ce formulaire peut être rempli {formatTimeRestrictions(form.timeRestrictions)}.
+                    {!isWithinTimeRestrictions() && (
+                      <span className="block mt-1 font-medium">
+                        Vous êtes actuellement en dehors de cette période.
+                      </span>
+                    )}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6">
           {form.fields.map(field => renderField(field))}
 
           <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 pt-4 sm:pt-6 border-t border-gray-200">
-            <Button type="submit" className="w-full sm:flex-1">
-              Soumettre le formulaire
+            <Button 
+              type="submit" 
+              className="w-full sm:flex-1"
+              disabled={!isWithinTimeRestrictions()}
+            >
+              {!isWithinTimeRestrictions() ? 'Soumission non autorisée' : 'Soumettre le formulaire'}
             </Button>
             <Button type="button" variant="secondary" onClick={onCancel} className="w-full sm:w-auto">
               Annuler

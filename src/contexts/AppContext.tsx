@@ -175,6 +175,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         assignedTo: formData.assignedTo || [],
         fields: formData.fields || [],
         agencyId: user.agencyId,
+        timeRestrictions: formData.timeRestrictions,
         createdAt: serverTimestamp()
       };
 
@@ -205,6 +206,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (formData.description !== undefined) updateData.description = formData.description.trim();
       if (formData.assignedTo !== undefined) updateData.assignedTo = formData.assignedTo;
       if (formData.fields !== undefined) updateData.fields = formData.fields;
+      if (formData.timeRestrictions !== undefined) updateData.timeRestrictions = formData.timeRestrictions;
 
       console.log('Mise à jour du formulaire:', { formId, updateData });
       await updateDoc(doc(db, 'forms', formId), updateData);
