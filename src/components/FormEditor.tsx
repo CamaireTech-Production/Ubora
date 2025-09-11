@@ -6,7 +6,7 @@ import { Select } from './Select';
 import { Textarea } from './Textarea';
 import { Card } from './Card';
 import { FileTypeSelector } from './FileTypeSelector';
-import { Plus, Trash2, ArrowLeft } from 'lucide-react';
+import { Plus, Trash2, ArrowLeft, CheckSquare, Square, Loader2 } from 'lucide-react';
 
 interface FormEditorProps {
   form?: Form; // If provided, we're editing an existing form
@@ -15,6 +15,11 @@ interface FormEditorProps {
     description: string;
     fields: FormField[];
     assignedTo: string[];
+    timeRestrictions?: {
+      startTime?: string;
+      endTime?: string;
+      allowedDays?: number[];
+    };
   }) => void;
   onCancel: () => void;
   employees: Array<{ id: string; name: string; email: string }>;
@@ -30,6 +35,19 @@ export const FormEditor: React.FC<FormEditorProps> = ({
   const [description, setDescription] = useState(form?.description || '');
   const [assignedTo, setAssignedTo] = useState<string[]>(form?.assignedTo || []);
   const [fields, setFields] = useState<FormField[]>(form?.fields || []);
+  const [timeRestrictions, setTimeRestrictions] = useState<{
+    startTime?: string;
+    endTime?: string;
+    allowedDays?: number[];
+  }>(form?.timeRestrictions || {});
+  const [useTimeRange, setUseTimeRange] = useState(!!form?.timeRestrictions?.endTime);
+  const [employeeSearchTerm, setEmployeeSearchTerm] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [toast, setToast] = useState<{
+    show: boolean;
+    type: 'success' | 'error';
+    message: string;
+  }>({ show: false, type: 'success', message: '' });
 
   // Update state when form prop changes
   useEffect(() => {
@@ -38,6 +56,8 @@ export const FormEditor: React.FC<FormEditorProps> = ({
       setDescription(form.description);
       setAssignedTo(form.assignedTo || []);
       setFields(form.fields || []);
+      setTimeRestrictions(form.timeRestrictions || {});
+      setUseTimeRange(!!form.timeRestrictions?.endTime);
     }
   }, [form]);
 
@@ -95,26 +115,92 @@ export const FormEditor: React.FC<FormEditorProps> = ({
     );
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const toggleDaySelection = (day: number) => {
+    setTimeRestrictions(prev => {
+      const currentDays = prev.allowedDays || [];
+      const newDays = currentDays.includes(day)
+        ? currentDays.filter(d => d !== day)
+        : [...currentDays, day];
+      return { ...prev, allowedDays: newDays };
+    });
+  };
+
+  const updateTimeRestriction = (field: 'startTime' | 'endTime', value: string) => {
+    setTimeRestrictions(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleTimeRangeToggle = (checked: boolean) => {
+    setUseTimeRange(checked);
+    if (!checked) {
+      // Clear end time when disabling range
+      setTimeRestrictions(prev => ({ ...prev, endTime: undefined }));
+    }
+  };
+
+  const handleSelectAllEmployees = () => {
+    const filteredEmployees = getFilteredEmployees();
+    const allEmployeeIds = filteredEmployees.map(emp => emp.id);
+    setAssignedTo(allEmployeeIds);
+  };
+
+  const handleDeselectAllEmployees = () => {
+    setAssignedTo([]);
+  };
+
+  const getFilteredEmployees = () => {
+    if (!employeeSearchTerm.trim()) {
+      return employees;
+    }
+    
+    const searchLower = employeeSearchTerm.toLowerCase();
+    return employees.filter(employee => 
+      employee.name.toLowerCase().includes(searchLower) ||
+      employee.email.toLowerCase().includes(searchLower)
+    );
+  };
+
+  const showToast = (type: 'success' | 'error', message: string) => {
+    setToast({ show: true, type, message });
+    setTimeout(() => {
+      setToast(prev => ({ ...prev, show: false }));
+    }, 4000);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
     if (!title || assignedTo.length === 0 || fields.length === 0) {
-      alert('Veuillez remplir tous les champs obligatoires');
+      showToast('error', 'Veuillez remplir tous les champs obligatoires');
       return;
     }
 
     // Valider que tous les champs ont un label
     const invalidFields = fields.filter(field => !field.label.trim());
     if (invalidFields.length > 0) {
-      alert('Tous les champs doivent avoir un libellé');
+      showToast('error', 'Tous les champs doivent avoir un libellé');
       return;
     }
 
-    onSave({
-      title,
-      description,
-      fields,
-      assignedTo,
-    });
+    setIsSubmitting(true);
+    
+    try {
+      await onSave({
+        title,
+        description,
+        fields,
+        assignedTo,
+        timeRestrictions: Object.keys(timeRestrictions).length > 0 ? timeRestrictions : undefined,
+      });
+      
+      const successMessage = isEditing ? 'Formulaire mis à jour avec succès' : 'Formulaire créé avec succès';
+      showToast('success', successMessage);
+    } catch (error) {
+      console.error('Error saving form:', error);
+      const errorMessage = isEditing ? 'Erreur lors de la mise à jour du formulaire' : 'Erreur lors de la création du formulaire';
+      showToast('error', errorMessage);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const isEditing = !!form;
@@ -157,11 +243,60 @@ export const FormEditor: React.FC<FormEditorProps> = ({
             <label className="block text-sm font-medium text-gray-700 mb-3">
               Assigner aux employés *
             </label>
+            
+            {/* Search and Select All Controls */}
+            <div className="space-y-3 mb-3">
+              <div className="flex flex-col sm:flex-row gap-2">
+                <div className="flex-1">
+                  <input
+                    type="text"
+                    placeholder="Rechercher un employé..."
+                    value={employeeSearchTerm}
+                    onChange={(e) => setEmployeeSearchTerm(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={handleSelectAllEmployees}
+                    className="flex items-center space-x-1"
+                    title="Tout sélectionner"
+                  >
+                    <CheckSquare className="h-4 w-4" />
+                    <span className="hidden sm:inline">Tout sélectionner</span>
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={handleDeselectAllEmployees}
+                    className="flex items-center space-x-1"
+                    title="Tout désélectionner"
+                  >
+                    <Square className="h-4 w-4" />
+                    <span className="hidden sm:inline">Tout désélectionner</span>
+                  </Button>
+                </div>
+              </div>
+            </div>
+
+            {/* Employee List */}
             <div className="space-y-2 max-h-40 overflow-y-auto border border-gray-200 rounded-lg p-3">
-              {employees.length === 0 ? (
-                <p className="text-gray-500 text-sm">Aucun employé disponible</p>
-              ) : (
-                employees.map(employee => (
+              {(() => {
+                const filteredEmployees = getFilteredEmployees();
+                
+                if (employees.length === 0) {
+                  return <p className="text-gray-500 text-sm">Aucun employé disponible</p>;
+                }
+                
+                if (filteredEmployees.length === 0) {
+                  return <p className="text-gray-500 text-sm">Aucun employé trouvé pour "{employeeSearchTerm}"</p>;
+                }
+                
+                return filteredEmployees.map(employee => (
                   <label key={employee.id} className="flex items-center space-x-3 cursor-pointer hover:bg-gray-50 p-2 rounded">
                     <input
                       type="checkbox"
@@ -174,12 +309,108 @@ export const FormEditor: React.FC<FormEditorProps> = ({
                       <span className="text-xs text-gray-500 ml-2">({employee.email})</span>
                     </div>
                   </label>
-                ))
+                ));
+              })()}
+            </div>
+            
+            {/* Selection Summary */}
+            <div className="mt-2 flex items-center justify-between text-sm">
+              <span className="text-gray-600">
+                {assignedTo.length} employé(s) sélectionné(s)
+              </span>
+              {employeeSearchTerm && (
+                <span className="text-blue-600">
+                  {getFilteredEmployees().length} résultat(s) pour "{employeeSearchTerm}"
+                </span>
               )}
             </div>
+            
             {assignedTo.length === 0 && (
               <p className="text-sm text-red-600 mt-1">Veuillez sélectionner au moins un employé</p>
             )}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-3">
+              Restrictions horaires (optionnel)
+            </label>
+            <div className="space-y-4 p-4 border border-gray-200 rounded-lg bg-gray-50">
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-600 mb-1">
+                    {useTimeRange ? 'Heure de début' : 'Heure'}
+                  </label>
+                  <input
+                    type="time"
+                    value={timeRestrictions.startTime || ''}
+                    onChange={(e) => updateTimeRestriction('startTime', e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+                
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    id="useTimeRange"
+                    checked={useTimeRange}
+                    onChange={(e) => handleTimeRangeToggle(e.target.checked)}
+                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <label htmlFor="useTimeRange" className="text-sm text-gray-700">
+                    Définir une plage horaire
+                  </label>
+                </div>
+                
+                {useTimeRange && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-600 mb-1">
+                      Heure de fin
+                    </label>
+                    <input
+                      type="time"
+                      value={timeRestrictions.endTime || ''}
+                      onChange={(e) => updateTimeRestriction('endTime', e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+                )}
+              </div>
+              
+              {(timeRestrictions.startTime || timeRestrictions.endTime) && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-600 mb-2">
+                    Jours autorisés
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    {[
+                      { value: 1, label: 'Lun' },
+                      { value: 2, label: 'Mar' },
+                      { value: 3, label: 'Mer' },
+                      { value: 4, label: 'Jeu' },
+                      { value: 5, label: 'Ven' },
+                      { value: 6, label: 'Sam' },
+                      { value: 0, label: 'Dim' }
+                    ].map(day => (
+                      <button
+                        key={day.value}
+                        type="button"
+                        onClick={() => toggleDaySelection(day.value)}
+                        className={`px-3 py-1 text-sm rounded-full border transition-colors ${
+                          timeRestrictions.allowedDays?.includes(day.value)
+                            ? 'bg-blue-600 text-white border-blue-600'
+                            : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                        }`}
+                      >
+                        {day.label}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-xs text-gray-500 mt-2">
+                    Laissez vide pour permettre tous les jours
+                  </p>
+                </div>
+              )}
+            </div>
           </div>
 
           <div>
@@ -315,15 +546,55 @@ export const FormEditor: React.FC<FormEditorProps> = ({
           </div>
 
           <div className="flex space-x-4 pt-6 border-t border-gray-200">
-            <Button type="submit" className="flex-1">
-              {isEditing ? 'Mettre à jour le formulaire' : 'Créer le formulaire'}
+            <Button 
+              type="submit" 
+              className="flex-1 flex items-center justify-center space-x-2"
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span>{isEditing ? 'Mise à jour...' : 'Création...'}</span>
+                </>
+              ) : (
+                <span>{isEditing ? 'Mettre à jour le formulaire' : 'Créer le formulaire'}</span>
+              )}
             </Button>
-            <Button type="button" variant="secondary" onClick={onCancel}>
+            <Button 
+              type="button" 
+              variant="secondary" 
+              onClick={onCancel}
+              disabled={isSubmitting}
+            >
               Annuler
             </Button>
           </div>
         </form>
       </Card>
+
+      {/* Toast Notification */}
+      {toast.show && (
+        <div className="fixed top-4 right-4 z-50 animate-in slide-in-from-right duration-300">
+          <div className={`flex items-center space-x-3 px-4 py-3 rounded-lg shadow-lg border ${
+            toast.type === 'success' 
+              ? 'bg-green-50 border-green-200 text-green-800' 
+              : 'bg-red-50 border-red-200 text-red-800'
+          }`}>
+            <div className={`w-2 h-2 rounded-full ${
+              toast.type === 'success' ? 'bg-green-500' : 'bg-red-500'
+            }`}></div>
+            <span className="text-sm font-medium">{toast.message}</span>
+            <button
+              onClick={() => setToast(prev => ({ ...prev, show: false }))}
+              className={`ml-2 text-lg leading-none hover:opacity-70 ${
+                toast.type === 'success' ? 'text-green-600' : 'text-red-600'
+              }`}
+            >
+              ×
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -31,6 +31,11 @@ export interface Form {
   fields: FormField[];
   createdAt: Date;
   agencyId: string;
+  timeRestrictions?: {
+    startTime?: string; // Format: "HH:MM" (24h format)
+    endTime?: string; // Format: "HH:MM" (24h format)
+    allowedDays?: number[]; // Array of day numbers (0=Sunday, 1=Monday, etc.)
+  };
 }
 
 export interface FileAttachment {
@@ -51,6 +56,18 @@ export interface FormEntry {
   answers: Record<string, any>; // map { fieldId: valeur }
   fileAttachments?: FileAttachment[]; // fichiers uploadés
   submittedAt: Date; // serverTimestamp
+}
+
+export interface DraftResponse {
+  id: string;
+  formId: string;
+  userId: string;
+  agencyId: string;
+  answers: Record<string, any>;
+  fileAttachments?: FileAttachment[];
+  createdAt: Date;
+  updatedAt: Date;
+  isDraft: true;
 }
 
 // Types pour les conversations IA

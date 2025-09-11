@@ -36,6 +36,11 @@ export const DirecteurDashboard: React.FC = () => {
     description: string;
     fields: FormField[];
     assignedTo: string[];
+    timeRestrictions?: {
+      startTime?: string;
+      endTime?: string;
+      allowedDays?: number[];
+    };
   }) => {
     try {
       if (!user?.id || !user?.agencyId) {
@@ -60,6 +65,11 @@ export const DirecteurDashboard: React.FC = () => {
     description: string;
     fields: FormField[];
     assignedTo: string[];
+    timeRestrictions?: {
+      startTime?: string;
+      endTime?: string;
+      allowedDays?: number[];
+    };
   }) => {
     if (!editingForm) return;
 
@@ -111,6 +121,38 @@ export const DirecteurDashboard: React.FC = () => {
     
     const names = assignedTo.map(id => getEmployeeName(id)).filter(name => name !== 'Employé inconnu');
     return names.length > 0 ? names.join(', ') : 'Employés non trouvés';
+  };
+
+  const formatTimeRestrictions = (restrictions?: {
+    startTime?: string;
+    endTime?: string;
+    allowedDays?: number[];
+  }): string => {
+    if (!restrictions || (!restrictions.startTime && !restrictions.endTime)) {
+      return '';
+    }
+
+    const dayNames = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
+    
+    let timeStr = '';
+    if (restrictions.startTime && restrictions.endTime) {
+      timeStr = `${restrictions.startTime} - ${restrictions.endTime}`;
+    } else if (restrictions.startTime) {
+      timeStr = `À partir de ${restrictions.startTime}`;
+    } else if (restrictions.endTime) {
+      timeStr = `Jusqu'à ${restrictions.endTime}`;
+    }
+
+    let dayStr = '';
+    if (restrictions.allowedDays && restrictions.allowedDays.length > 0) {
+      const selectedDays = restrictions.allowedDays
+        .sort((a, b) => a - b)
+        .map(day => dayNames[day])
+        .join(', ');
+      dayStr = ` (${selectedDays})`;
+    }
+
+    return `${timeStr}${dayStr}`;
   };
 
   const renderFileAttachment = (attachment: { fieldId: string; fileName: string; fileSize: number; fileType: string; downloadUrl: string }) => {
@@ -281,9 +323,16 @@ export const DirecteurDashboard: React.FC = () => {
                         className="border border-gray-200 rounded-lg p-3 sm:p-4 hover:shadow-md transition-shadow"
                       >
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                          <div className="flex-1">
-                            <h3 className="font-semibold text-gray-900 text-base sm:text-lg">{form.title}</h3>
-                            <p className="text-sm text-gray-600 mt-1 line-clamp-2">{form.description}</p>
+                           <div className="flex-1">
+                             <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-3">
+                               <h3 className="font-semibold text-gray-900 text-base sm:text-lg">{form.title}</h3>
+                               {form.timeRestrictions && formatTimeRestrictions(form.timeRestrictions) && (
+                                 <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 mt-1 sm:mt-0">
+                                   🕒 {formatTimeRestrictions(form.timeRestrictions)}
+                                 </span>
+                               )}
+                             </div>
+                             <p className="text-sm text-gray-600 mt-1 line-clamp-2">{form.description}</p>
                             <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-4 mt-2 text-xs sm:text-sm text-gray-500 space-y-1 sm:space-y-0">
                               <span className="break-words">Assigné à: {getAssignedEmployeeNames(form.assignedTo)}</span>
                               <span>•</span>

@@ -6,18 +6,224 @@ import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { DynamicForm } from '../components/DynamicForm';
 import { LoadingGuard } from '../components/LoadingGuard';
-import { FileText, CheckCircle, Clock, ArrowLeft, Eye } from 'lucide-react';
+import { FileText, CheckCircle, Clock, ArrowLeft, Eye, AlertTriangle, Plus, Edit, Trash2, Send, FileEdit } from 'lucide-react';
 
 export const EmployeDashboard: React.FC = () => {
   const { user, firebaseUser, isLoading } = useAuth();
   const { 
+    forms,
+    formEntries,
     getFormsForEmployee, 
     submitFormEntry, 
+    submitMultipleFormEntries,
     getEntriesForEmployee,
+    getDraftsForForm,
+    saveDraft,
+    deleteDraft,
+    deleteDraftsForForm,
+    createDraft,
     isLoading: appLoading
   } = useApp();
   const [selectedFormId, setSelectedFormId] = useState<string | null>(null);
   const [viewingEntries, setViewingEntries] = useState<string | null>(null);
+  const [editingDraftId, setEditingDraftId] = useState<string | null>(null);
+  const [isSubmittingDrafts, setIsSubmittingDrafts] = useState(false);
+  const [isSavingDraft, setIsSavingDraft] = useState(false);
+  const [toast, setToast] = useState<{
+    show: boolean;
+    type: 'success' | 'error';
+    message: string;
+  }>({ show: false, type: 'success', message: '' });
+  const [deleteModal, setDeleteModal] = useState<{
+    show: boolean;
+    draftId: string | null;
+    draftTitle: string;
+  }>({ show: false, draftId: null, draftTitle: '' });
+
+  const formatTimeRestrictions = (restrictions?: {
+    startTime?: string;
+    endTime?: string;
+    allowedDays?: number[];
+  }): string => {
+    if (!restrictions || (!restrictions.startTime && !restrictions.endTime)) {
+      return '';
+    }
+
+    const dayNames = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
+    
+    let timeStr = '';
+    if (restrictions.startTime && restrictions.endTime) {
+      timeStr = `${restrictions.startTime} - ${restrictions.endTime}`;
+    } else if (restrictions.startTime) {
+      timeStr = `À partir de ${restrictions.startTime}`;
+    } else if (restrictions.endTime) {
+      timeStr = `Jusqu'à ${restrictions.endTime}`;
+    }
+
+    let dayStr = '';
+    if (restrictions.allowedDays && restrictions.allowedDays.length > 0) {
+      const selectedDays = restrictions.allowedDays
+        .sort((a, b) => a - b)
+        .map(day => dayNames[day])
+        .join(', ');
+      dayStr = ` (${selectedDays})`;
+    }
+
+    return `${timeStr}${dayStr}`;
+  };
+
+  const isWithinTimeRestrictions = (restrictions?: {
+    startTime?: string;
+    endTime?: string;
+    allowedDays?: number[];
+  }): boolean => {
+    if (!restrictions || (!restrictions.startTime && !restrictions.endTime)) {
+      return true; // No restrictions
+    }
+
+    const now = new Date();
+    const currentDay = now.getDay();
+    const currentTime = now.toTimeString().slice(0, 5); // HH:MM format
+
+    // Check day restrictions
+    if (restrictions.allowedDays && restrictions.allowedDays.length > 0) {
+      if (!restrictions.allowedDays.includes(currentDay)) {
+        return false;
+      }
+    }
+
+    // Check time restrictions
+    if (restrictions.startTime && restrictions.endTime) {
+      return currentTime >= restrictions.startTime && currentTime <= restrictions.endTime;
+    } else if (restrictions.startTime) {
+      return currentTime >= restrictions.startTime;
+    } else if (restrictions.endTime) {
+      return currentTime <= restrictions.endTime;
+    }
+
+    return true;
+  };
+
+  const showToast = (type: 'success' | 'error', message: string) => {
+    setToast({ show: true, type, message });
+    setTimeout(() => {
+      setToast(prev => ({ ...prev, show: false }));
+    }, 4000);
+  };
+
+  const formatDate = (date: Date | string) => {
+    try {
+      const dateObj = date instanceof Date ? date : new Date(date);
+      return dateObj.toLocaleDateString();
+    } catch (error) {
+      return 'Date invalide';
+    }
+  };
+
+  const formatTime = (date: Date | string) => {
+    try {
+      const dateObj = date instanceof Date ? date : new Date(date);
+      return dateObj.toLocaleTimeString();
+    } catch (error) {
+      return 'Heure invalide';
+    }
+  };
+
+  const handleAddNewDraft = (formId: string) => {
+    if (!user?.id || !user?.agencyId) return;
+    
+    const newDraft = createDraft(formId, user.id, user.agencyId);
+    saveDraft(newDraft);
+    setEditingDraftId(newDraft.id);
+    setSelectedFormId(formId);
+  };
+
+  const handleEditDraft = (draftId: string, formId: string) => {
+    setEditingDraftId(draftId);
+    setSelectedFormId(formId);
+  };
+
+  const handleDeleteDraft = (draftId: string, draftTitle: string) => {
+    setDeleteModal({
+      show: true,
+      draftId,
+      draftTitle
+    });
+  };
+
+  const confirmDeleteDraft = () => {
+    if (deleteModal.draftId) {
+      deleteDraft(deleteModal.draftId);
+      showToast('success', 'Brouillon supprimé');
+      setDeleteModal({ show: false, draftId: null, draftTitle: '' });
+    }
+  };
+
+  const cancelDeleteDraft = () => {
+    setDeleteModal({ show: false, draftId: null, draftTitle: '' });
+  };
+
+  const handleSaveDraft = async (draftId: string, answers: Record<string, any>, fileAttachments: any[] = []) => {
+    if (!user?.id || !user?.agencyId || !selectedFormId) return;
+    
+    setIsSavingDraft(true);
+    
+    try {
+      const drafts = getDraftsForForm(user.id, selectedFormId);
+      const draft = drafts.find(d => d.id === draftId);
+      
+      if (draft) {
+        const updatedDraft = {
+          ...draft,
+          answers,
+          fileAttachments,
+          updatedAt: new Date()
+        };
+        saveDraft(updatedDraft);
+        showToast('success', 'Brouillon sauvegardé');
+        
+        // Keep the form open for continued editing
+        // Don't close the section - user can continue editing or manually close
+      }
+    } catch (error) {
+      console.error('Error saving draft:', error);
+      showToast('error', 'Erreur lors de la sauvegarde du brouillon');
+    } finally {
+      setIsSavingDraft(false);
+    }
+  };
+
+  const handleSubmitAllDrafts = async (formId: string) => {
+    if (!user?.id || !user?.agencyId) return;
+    
+    const drafts = getDraftsForForm(user.id, formId);
+    if (drafts.length === 0) {
+      showToast('error', 'Aucun brouillon à soumettre');
+      return;
+    }
+
+
+    setIsSubmittingDrafts(true);
+    
+    try {
+      const entries = drafts.map(draft => ({
+        formId: draft.formId,
+        answers: draft.answers,
+        fileAttachments: draft.fileAttachments || []
+      }));
+
+      await submitMultipleFormEntries(entries);
+      deleteDraftsForForm(user.id, formId);
+      showToast('success', `${drafts.length} réponse(s) soumise(s) avec succès`);
+      setSelectedFormId(null);
+      setEditingDraftId(null);
+    } catch (error) {
+      console.error('Error submitting drafts:', error);
+      showToast('error', 'Erreur lors de la soumission des réponses');
+    } finally {
+      setIsSubmittingDrafts(false);
+    }
+  };
 
   const handleFormSubmit = async (formId: string, answers: Record<string, any>) => {
     try {
@@ -44,38 +250,154 @@ export const EmployeDashboard: React.FC = () => {
         const myEntries = getEntriesForEmployee(user?.id || '');
         const selectedForm = assignedForms.find(form => form.id === selectedFormId);
 
-        // Debug logging
-        console.log('Employee Dashboard Debug:', {
-          userId: user?.id,
-          userRole: user?.role,
-          userAgencyId: user?.agencyId,
-          assignedFormsCount: assignedForms.length,
-          assignedForms: assignedForms.map(f => ({ id: f.id, title: f.title, assignedTo: f.assignedTo }))
-        });
 
         const getFormEntryCount = (formId: string) => {
           return myEntries.filter(entry => entry.formId === formId).length;
         };
 
+        const getDraftCount = (formId: string) => {
+          return getDraftsForForm(user?.id || '', formId).length;
+        };
+
+        const getTotalSubmissions = () => {
+          return myEntries.length;
+        };
+
         if (selectedForm) {
+          const drafts = getDraftsForForm(user?.id || '', selectedForm.id);
+          const currentDraft = editingDraftId ? drafts.find(d => d.id === editingDraftId) : null;
+          
           return (
             <Layout title="Remplir le formulaire">
               <div className="mb-6">
                 <Button
                   variant="secondary"
                   size="sm"
-                  onClick={() => setSelectedFormId(null)}
+                  onClick={() => {
+                    setSelectedFormId(null);
+                    setEditingDraftId(null);
+                  }}
                   className="flex items-center space-x-2"
                 >
                   <ArrowLeft className="h-4 w-4" />
                   <span>Retour au dashboard</span>
                 </Button>
               </div>
-              <DynamicForm
-                form={selectedForm}
-                onSubmit={(answers) => handleFormSubmit(selectedForm.id, answers)}
-                onCancel={() => setSelectedFormId(null)}
-              />
+
+              {/* Draft Management Section */}
+              <div className="mb-6">
+                <Card>
+                  <div className="p-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                      <div>
+                        <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                          Gestion des réponses
+                        </h3>
+                        <p className="text-sm text-gray-600">
+                          {drafts.length} brouillon(s) en cours
+                        </p>
+                      </div>
+                      
+                      <div className="flex flex-col sm:flex-row gap-2">
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => handleAddNewDraft(selectedForm.id)}
+                          className="flex items-center space-x-2"
+                        >
+                          <Plus className="h-4 w-4" />
+                          <span>Nouvelle réponse</span>
+                        </Button>
+                        
+                        {drafts.length > 0 && (
+                          <Button
+                            onClick={() => handleSubmitAllDrafts(selectedForm.id)}
+                            disabled={isSubmittingDrafts}
+                            className="flex items-center space-x-2"
+                          >
+                            <Send className="h-4 w-4" />
+                            <span>
+                              {isSubmittingDrafts ? 'Soumission...' : `Soumettre tout (${drafts.length})`}
+                            </span>
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Draft List */}
+                    {drafts.length > 0 && (
+                      <div className="mt-4 space-y-2">
+                        <h4 className="text-sm font-medium text-gray-700">Brouillons en cours :</h4>
+                        <div className="space-y-2">
+                          {drafts.map((draft, index) => (
+                            <div
+                              key={draft.id}
+                              className={`flex items-center justify-between p-3 rounded-lg border ${
+                                editingDraftId === draft.id
+                                  ? 'border-blue-500 bg-blue-50'
+                                  : 'border-gray-200 bg-gray-50'
+                              }`}
+                            >
+                              <div className="flex items-center space-x-3">
+                                <FileEdit className="h-4 w-4 text-gray-500" />
+                                <div>
+                                  <p className="text-sm font-medium text-gray-900">
+                                    Réponse #{index + 1}
+                                  </p>
+                                  <p className="text-xs text-gray-500">
+                                    Créé le {formatDate(draft.createdAt)} à {formatTime(draft.createdAt)}
+                                  </p>
+                                </div>
+                              </div>
+                              
+                              <div className="flex items-center space-x-2">
+                                <Button
+                                  variant="secondary"
+                                  size="sm"
+                                  onClick={() => handleEditDraft(draft.id, selectedForm.id)}
+                                  className="flex items-center space-x-1"
+                                >
+                                  <Edit className="h-3 w-3" />
+                                  <span>Modifier</span>
+                                </Button>
+                                <Button
+                                  variant="danger"
+                                  size="sm"
+                                  onClick={() => handleDeleteDraft(draft.id, `Réponse #${index + 1}`)}
+                                  className="flex items-center space-x-1"
+                                >
+                                  <Trash2 className="h-3 w-3" />
+                                </Button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </Card>
+              </div>
+
+              {/* Form Display */}
+              {currentDraft ? (
+                <DynamicForm
+                  form={selectedForm}
+                  onSubmit={(answers, fileAttachments) => handleSaveDraft(currentDraft.id, answers, fileAttachments)}
+                  onCancel={() => setEditingDraftId(null)}
+                  initialAnswers={currentDraft.answers}
+                  initialFileAttachments={currentDraft.fileAttachments}
+                  isDraft={true}
+                  isLoading={isSavingDraft}
+                />
+              ) : (
+                <div className="text-center py-8">
+                  <FileEdit className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                  <p className="text-gray-500 mb-4">Sélectionnez un brouillon à modifier ou créez une nouvelle réponse</p>
+                  <Button onClick={() => handleAddNewDraft(selectedForm.id)}>
+                    Créer une nouvelle réponse
+                  </Button>
+                </div>
+              )}
             </Layout>
           );
         }
@@ -100,7 +422,7 @@ export const EmployeDashboard: React.FC = () => {
                     <CheckCircle className="h-8 w-8 opacity-80" />
                     <div>
                       <p className="text-green-100">Réponses soumises</p>
-                      <p className="text-xl sm:text-2xl font-bold">{myEntries.length}</p>
+                      <p className="text-xl sm:text-2xl font-bold">{getTotalSubmissions()}</p>
                     </div>
                   </div>
                 </Card>
@@ -135,6 +457,7 @@ export const EmployeDashboard: React.FC = () => {
                   <div className="space-y-4">
                     {assignedForms.map(form => {
                       const entryCount = getFormEntryCount(form.id);
+                      const draftCount = getDraftCount(form.id);
                       
                       return (
                         <div
@@ -143,13 +466,29 @@ export const EmployeDashboard: React.FC = () => {
                         >
                           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                             <div className="flex-1">
-                              <div className="flex items-center space-x-2 mb-2">
+                              <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-3 mb-2">
                                 <h3 className="font-semibold text-gray-900 text-base sm:text-lg break-words">{form.title}</h3>
-                                {entryCount > 0 && (
-                                  <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                                    {entryCount} réponse(s)
-                                  </span>
-                                )}
+                                <div className="flex flex-wrap gap-2 mt-1 sm:mt-0">
+                                  {entryCount > 0 && (
+                                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                      {entryCount} réponse(s)
+                                    </span>
+                                  )}
+                                  {draftCount > 0 && (
+                                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
+                                      📝 {draftCount} brouillon(s)
+                                    </span>
+                                  )}
+                                  {form.timeRestrictions && formatTimeRestrictions(form.timeRestrictions) && (
+                                    <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                                      isWithinTimeRestrictions(form.timeRestrictions)
+                                        ? 'bg-blue-100 text-blue-800'
+                                        : 'bg-yellow-100 text-yellow-800'
+                                    }`}>
+                                      {isWithinTimeRestrictions(form.timeRestrictions) ? '🕒' : '⚠️'} {formatTimeRestrictions(form.timeRestrictions)}
+                                    </span>
+                                  )}
+                                </div>
                               </div>
                               <p className="text-sm text-gray-600 mb-2 line-clamp-2">{form.description}</p>
                               <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-4 text-xs text-gray-500 space-y-1 sm:space-y-0">
@@ -232,6 +571,79 @@ export const EmployeDashboard: React.FC = () => {
           </Layout>
         );
       })()}
+
+      {/* Delete Confirmation Modal */}
+      {deleteModal.show && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
+            <div className="p-6">
+              <div className="flex items-center space-x-3 mb-4">
+                <div className="flex-shrink-0 w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
+                  <Trash2 className="h-5 w-5 text-red-600" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-medium text-gray-900">
+                    Supprimer le brouillon
+                  </h3>
+                  <p className="text-sm text-gray-500">
+                    Cette action est irréversible
+                  </p>
+                </div>
+              </div>
+              
+              <div className="mb-6">
+                <p className="text-sm text-gray-700">
+                  Êtes-vous sûr de vouloir supprimer le brouillon <strong>"{deleteModal.draftTitle}"</strong> ?
+                </p>
+                <p className="text-xs text-gray-500 mt-2">
+                  Toutes les données saisies dans ce brouillon seront perdues.
+                </p>
+              </div>
+              
+              <div className="flex space-x-3">
+                <Button
+                  variant="secondary"
+                  onClick={cancelDeleteDraft}
+                  className="flex-1"
+                >
+                  Annuler
+                </Button>
+                <Button
+                  variant="danger"
+                  onClick={confirmDeleteDraft}
+                  className="flex-1"
+                >
+                  Supprimer
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Toast Notification */}
+      {toast.show && (
+        <div className="fixed top-4 right-4 z-50 animate-in slide-in-from-right duration-300">
+          <div className={`flex items-center space-x-3 px-4 py-3 rounded-lg shadow-lg border ${
+            toast.type === 'success' 
+              ? 'bg-green-50 border-green-200 text-green-800' 
+              : 'bg-red-50 border-red-200 text-red-800'
+          }`}>
+            <div className={`w-2 h-2 rounded-full ${
+              toast.type === 'success' ? 'bg-green-500' : 'bg-red-500'
+            }`}></div>
+            <span className="text-sm font-medium">{toast.message}</span>
+            <button
+              onClick={() => setToast(prev => ({ ...prev, show: false }))}
+              className={`ml-2 text-lg leading-none hover:opacity-70 ${
+                toast.type === 'success' ? 'text-green-600' : 'text-red-600'
+              }`}
+            >
+              ×
+            </button>
+          </div>
+        </div>
+      )}
     </LoadingGuard>
   );
 };
