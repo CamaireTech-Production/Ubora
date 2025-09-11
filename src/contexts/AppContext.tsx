@@ -110,30 +110,58 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
 
     // Écouter les entrées de formulaires de l'agence
-    const entriesQuery = query(
-      collection(db, 'formEntries'),
-      where('agencyId', '==', user.agencyId),
-      orderBy('submittedAt', 'desc')
-    );
+    if (!user.agencyId) {
+      console.error('❌ User has no agencyId, cannot load form entries');
+      setError('Utilisateur sans agence assignée');
+      return;
+    }
+
+    // Try with orderBy first, fallback to simple query if it fails
+    let entriesQuery;
+    try {
+      if (user.role === 'directeur') {
+        // Directors can see all entries in their agency
+        entriesQuery = query(
+          collection(db, 'formEntries'),
+          where('agencyId', '==', user.agencyId),
+          orderBy('submittedAt', 'desc')
+        );
+      } else {
+        // Employees can only see their own entries
+        entriesQuery = query(
+          collection(db, 'formEntries'),
+          where('agencyId', '==', user.agencyId),
+          where('userId', '==', user.id),
+          orderBy('submittedAt', 'desc')
+        );
+      }
+    } catch (orderByError) {
+      console.warn('⚠️ OrderBy failed, using simple query:', orderByError);
+      if (user.role === 'directeur') {
+        entriesQuery = query(
+          collection(db, 'formEntries'),
+          where('agencyId', '==', user.agencyId)
+        );
+      } else {
+        entriesQuery = query(
+          collection(db, 'formEntries'),
+          where('agencyId', '==', user.agencyId),
+          where('userId', '==', user.id)
+        );
+      }
+    }
 
     const unsubscribeEntries = onSnapshot(entriesQuery, (snapshot) => {
-      const entriesData = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-        submittedAt: doc.data().submittedAt?.toDate() || new Date()
-      })) as FormEntry[];
+      const entriesData = snapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          ...data,
+          submittedAt: data.submittedAt?.toDate() || new Date()
+        };
+      }) as FormEntry[];
+      
       setFormEntries(entriesData);
-      console.log('📊 Form Entries Loaded:', {
-        count: entriesData.length,
-        agencyId: user.agencyId,
-        entries: entriesData.map(entry => ({
-          id: entry.id,
-          formId: entry.formId,
-          userId: entry.userId,
-          submittedAt: entry.submittedAt,
-          answersCount: Object.keys(entry.answers || {}).length
-        }))
-      });
     }, (err) => {
       console.error('Erreur lors du chargement des entrées:', err);
       setError('Erreur lors du chargement des entrées');
@@ -311,21 +339,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       throw new Error('Seuls les employés peuvent soumettre des formulaires');
     }
 
+
     try {
       setError(null);
       
       const batch = writeBatch(db);
       
-      entries.forEach(entry => {
+      entries.forEach((entry) => {
         const docRef = doc(collection(db, 'formEntries'));
-        batch.set(docRef, {
+        const docData = {
           formId: entry.formId,
           userId: user.id,
           agencyId: user.agencyId,
           answers: entry.answers,
           fileAttachments: entry.fileAttachments || [],
           submittedAt: serverTimestamp()
-        });
+        };
+        
+        batch.set(docRef, docData);
       });
 
       await batch.commit();

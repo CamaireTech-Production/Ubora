@@ -8,7 +8,7 @@ import { Card } from './Card';
 import { FileInput } from './FileInput';
 import { FileUploadService, UploadProgress } from '../services/fileUploadService';
 import { useAuth } from '../contexts/AuthContext';
-import { Upload, CheckCircle, AlertCircle, X, Clock, AlertTriangle } from 'lucide-react';
+import { Upload, CheckCircle, AlertCircle, X, Clock, AlertTriangle, Loader2 } from 'lucide-react';
 
 interface DynamicFormProps {
   form: Form;
@@ -17,6 +17,7 @@ interface DynamicFormProps {
   initialAnswers?: Record<string, any>;
   initialFileAttachments?: any[];
   isDraft?: boolean;
+  isLoading?: boolean;
 }
 
 export const DynamicForm: React.FC<DynamicFormProps> = ({
@@ -25,7 +26,8 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
   onCancel,
   initialAnswers = {},
   initialFileAttachments = [],
-  isDraft = false
+  isDraft = false,
+  isLoading = false
 }) => {
   const { user } = useAuth();
   const [answers, setAnswers] = useState<Record<string, any>>(initialAnswers);
@@ -422,9 +424,14 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
             <Button 
               type="submit" 
               className="w-full sm:flex-1"
-              disabled={!isWithinTimeRestrictions()}
+              disabled={!isWithinTimeRestrictions() || isLoading}
             >
-              {!isWithinTimeRestrictions() 
+              {isLoading ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  {isDraft ? 'Sauvegarde...' : 'Soumission...'}
+                </>
+              ) : !isWithinTimeRestrictions() 
                 ? 'Soumission non autorisée' 
                 : isDraft 
                   ? 'Sauvegarder le brouillon' 

@@ -11,6 +11,8 @@ import { FileText, CheckCircle, Clock, ArrowLeft, Eye, AlertTriangle, Plus, Edit
 export const EmployeDashboard: React.FC = () => {
   const { user, firebaseUser, isLoading } = useAuth();
   const { 
+    forms,
+    formEntries,
     getFormsForEmployee, 
     submitFormEntry, 
     submitMultipleFormEntries,
@@ -26,11 +28,17 @@ export const EmployeDashboard: React.FC = () => {
   const [viewingEntries, setViewingEntries] = useState<string | null>(null);
   const [editingDraftId, setEditingDraftId] = useState<string | null>(null);
   const [isSubmittingDrafts, setIsSubmittingDrafts] = useState(false);
+  const [isSavingDraft, setIsSavingDraft] = useState(false);
   const [toast, setToast] = useState<{
     show: boolean;
     type: 'success' | 'error';
     message: string;
   }>({ show: false, type: 'success', message: '' });
+  const [deleteModal, setDeleteModal] = useState<{
+    show: boolean;
+    draftId: string | null;
+    draftTitle: string;
+  }>({ show: false, draftId: null, draftTitle: '' });
 
   const formatTimeRestrictions = (restrictions?: {
     startTime?: string;
@@ -135,28 +143,53 @@ export const EmployeDashboard: React.FC = () => {
     setSelectedFormId(formId);
   };
 
-  const handleDeleteDraft = (draftId: string) => {
-    if (window.confirm('Êtes-vous sûr de vouloir supprimer ce brouillon ?')) {
-      deleteDraft(draftId);
+  const handleDeleteDraft = (draftId: string, draftTitle: string) => {
+    setDeleteModal({
+      show: true,
+      draftId,
+      draftTitle
+    });
+  };
+
+  const confirmDeleteDraft = () => {
+    if (deleteModal.draftId) {
+      deleteDraft(deleteModal.draftId);
       showToast('success', 'Brouillon supprimé');
+      setDeleteModal({ show: false, draftId: null, draftTitle: '' });
     }
   };
 
-  const handleSaveDraft = (draftId: string, answers: Record<string, any>, fileAttachments: any[] = []) => {
+  const cancelDeleteDraft = () => {
+    setDeleteModal({ show: false, draftId: null, draftTitle: '' });
+  };
+
+  const handleSaveDraft = async (draftId: string, answers: Record<string, any>, fileAttachments: any[] = []) => {
     if (!user?.id || !user?.agencyId || !selectedFormId) return;
     
-    const drafts = getDraftsForForm(user.id, selectedFormId);
-    const draft = drafts.find(d => d.id === draftId);
+    setIsSavingDraft(true);
     
-    if (draft) {
-      const updatedDraft = {
-        ...draft,
-        answers,
-        fileAttachments,
-        updatedAt: new Date()
-      };
-      saveDraft(updatedDraft);
-      showToast('success', 'Brouillon sauvegardé');
+    try {
+      const drafts = getDraftsForForm(user.id, selectedFormId);
+      const draft = drafts.find(d => d.id === draftId);
+      
+      if (draft) {
+        const updatedDraft = {
+          ...draft,
+          answers,
+          fileAttachments,
+          updatedAt: new Date()
+        };
+        saveDraft(updatedDraft);
+        showToast('success', 'Brouillon sauvegardé');
+        
+        // Keep the form open for continued editing
+        // Don't close the section - user can continue editing or manually close
+      }
+    } catch (error) {
+      console.error('Error saving draft:', error);
+      showToast('error', 'Erreur lors de la sauvegarde du brouillon');
+    } finally {
+      setIsSavingDraft(false);
     }
   };
 
@@ -168,6 +201,7 @@ export const EmployeDashboard: React.FC = () => {
       showToast('error', 'Aucun brouillon à soumettre');
       return;
     }
+
 
     setIsSubmittingDrafts(true);
     
@@ -216,14 +250,6 @@ export const EmployeDashboard: React.FC = () => {
         const myEntries = getEntriesForEmployee(user?.id || '');
         const selectedForm = assignedForms.find(form => form.id === selectedFormId);
 
-        // Debug logging
-        console.log('Employee Dashboard Debug:', {
-          userId: user?.id,
-          userRole: user?.role,
-          userAgencyId: user?.agencyId,
-          assignedFormsCount: assignedForms.length,
-          assignedForms: assignedForms.map(f => ({ id: f.id, title: f.title, assignedTo: f.assignedTo }))
-        });
 
         const getFormEntryCount = (formId: string) => {
           return myEntries.filter(entry => entry.formId === formId).length;
@@ -231,6 +257,10 @@ export const EmployeDashboard: React.FC = () => {
 
         const getDraftCount = (formId: string) => {
           return getDraftsForForm(user?.id || '', formId).length;
+        };
+
+        const getTotalSubmissions = () => {
+          return myEntries.length;
         };
 
         if (selectedForm) {
@@ -333,7 +363,7 @@ export const EmployeDashboard: React.FC = () => {
                                 <Button
                                   variant="danger"
                                   size="sm"
-                                  onClick={() => handleDeleteDraft(draft.id)}
+                                  onClick={() => handleDeleteDraft(draft.id, `Réponse #${index + 1}`)}
                                   className="flex items-center space-x-1"
                                 >
                                   <Trash2 className="h-3 w-3" />
@@ -357,6 +387,7 @@ export const EmployeDashboard: React.FC = () => {
                   initialAnswers={currentDraft.answers}
                   initialFileAttachments={currentDraft.fileAttachments}
                   isDraft={true}
+                  isLoading={isSavingDraft}
                 />
               ) : (
                 <div className="text-center py-8">
@@ -391,7 +422,7 @@ export const EmployeDashboard: React.FC = () => {
                     <CheckCircle className="h-8 w-8 opacity-80" />
                     <div>
                       <p className="text-green-100">Réponses soumises</p>
-                      <p className="text-xl sm:text-2xl font-bold">{myEntries.length}</p>
+                      <p className="text-xl sm:text-2xl font-bold">{getTotalSubmissions()}</p>
                     </div>
                   </div>
                 </Card>
@@ -540,6 +571,55 @@ export const EmployeDashboard: React.FC = () => {
           </Layout>
         );
       })()}
+
+      {/* Delete Confirmation Modal */}
+      {deleteModal.show && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
+            <div className="p-6">
+              <div className="flex items-center space-x-3 mb-4">
+                <div className="flex-shrink-0 w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
+                  <Trash2 className="h-5 w-5 text-red-600" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-medium text-gray-900">
+                    Supprimer le brouillon
+                  </h3>
+                  <p className="text-sm text-gray-500">
+                    Cette action est irréversible
+                  </p>
+                </div>
+              </div>
+              
+              <div className="mb-6">
+                <p className="text-sm text-gray-700">
+                  Êtes-vous sûr de vouloir supprimer le brouillon <strong>"{deleteModal.draftTitle}"</strong> ?
+                </p>
+                <p className="text-xs text-gray-500 mt-2">
+                  Toutes les données saisies dans ce brouillon seront perdues.
+                </p>
+              </div>
+              
+              <div className="flex space-x-3">
+                <Button
+                  variant="secondary"
+                  onClick={cancelDeleteDraft}
+                  className="flex-1"
+                >
+                  Annuler
+                </Button>
+                <Button
+                  variant="danger"
+                  onClick={confirmDeleteDraft}
+                  className="flex-1"
+                >
+                  Supprimer
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Toast Notification */}
       {toast.show && (
