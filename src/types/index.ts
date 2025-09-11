@@ -58,6 +58,18 @@ export interface FormEntry {
   submittedAt: Date; // serverTimestamp
 }
 
+export interface DraftResponse {
+  id: string;
+  formId: string;
+  userId: string;
+  agencyId: string;
+  answers: Record<string, any>;
+  fileAttachments?: FileAttachment[];
+  createdAt: Date;
+  updatedAt: Date;
+  isDraft: true;
+}
+
 // Types pour les conversations IA
 export interface ChatMessage {
   id: string;

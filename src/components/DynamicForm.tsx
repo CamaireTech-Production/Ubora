@@ -12,19 +12,25 @@ import { Upload, CheckCircle, AlertCircle, X, Clock, AlertTriangle } from 'lucid
 
 interface DynamicFormProps {
   form: Form;
-  onSubmit: (answers: Record<string, any>) => void;
+  onSubmit: (answers: Record<string, any>, fileAttachments?: any[]) => void;
   onCancel: () => void;
+  initialAnswers?: Record<string, any>;
+  initialFileAttachments?: any[];
+  isDraft?: boolean;
 }
 
 export const DynamicForm: React.FC<DynamicFormProps> = ({
   form,
   onSubmit,
-  onCancel
+  onCancel,
+  initialAnswers = {},
+  initialFileAttachments = [],
+  isDraft = false
 }) => {
   const { user } = useAuth();
-  const [answers, setAnswers] = useState<Record<string, any>>({});
+  const [answers, setAnswers] = useState<Record<string, any>>(initialAnswers);
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [fileAttachments, setFileAttachments] = useState<FileAttachment[]>([]);
+  const [fileAttachments, setFileAttachments] = useState<FileAttachment[]>(initialFileAttachments);
   const [uploadProgress, setUploadProgress] = useState<Record<string, UploadProgress>>({});
 
   const formatTimeRestrictions = (restrictions?: {
@@ -418,7 +424,12 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
               className="w-full sm:flex-1"
               disabled={!isWithinTimeRestrictions()}
             >
-              {!isWithinTimeRestrictions() ? 'Soumission non autorisée' : 'Soumettre le formulaire'}
+              {!isWithinTimeRestrictions() 
+                ? 'Soumission non autorisée' 
+                : isDraft 
+                  ? 'Sauvegarder le brouillon' 
+                  : 'Soumettre le formulaire'
+              }
             </Button>
             <Button type="button" variant="secondary" onClick={onCancel} className="w-full sm:w-auto">
               Annuler

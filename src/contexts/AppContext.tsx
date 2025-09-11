@@ -9,10 +9,12 @@ import {
   deleteDoc,
   updateDoc,
   doc,
-  serverTimestamp
+  serverTimestamp,
+  writeBatch
 } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
-import { Form, FormEntry, User } from '../types';
+import { Form, FormEntry, User, DraftResponse } from '../types';
+import { DraftService } from '../services/draftService';
 import { useAuth } from './AuthContext';
 
 interface AppContextType {
@@ -22,6 +24,7 @@ interface AppContextType {
   createForm: (form: Omit<Form, 'id' | 'createdAt'>) => Promise<void>;
   updateForm: (formId: string, form: Partial<Omit<Form, 'id' | 'createdAt' | 'createdBy' | 'agencyId'>>) => Promise<void>;
   submitFormEntry: (entry: Omit<FormEntry, 'id' | 'submittedAt' | 'userId' | 'agencyId'>) => Promise<void>;
+  submitMultipleFormEntries: (entries: Omit<FormEntry, 'id' | 'submittedAt' | 'userId' | 'agencyId'>[]) => Promise<void>;
   deleteForm: (formId: string) => Promise<void>;
   getFormsForEmployee: (employeeId: string) => Form[];
   getEntriesForForm: (formId: string) => FormEntry[];
@@ -29,6 +32,12 @@ interface AppContextType {
   getEmployeesForAgency: (agencyId: string) => User[];
   getPendingEmployees: () => User[];
   refreshData: () => void;
+  // Draft management
+  getDraftsForForm: (userId: string, formId: string) => DraftResponse[];
+  saveDraft: (draft: DraftResponse) => void;
+  deleteDraft: (draftId: string) => void;
+  deleteDraftsForForm: (userId: string, formId: string) => void;
+  createDraft: (formId: string, userId: string, agencyId: string, answers?: Record<string, any>, fileAttachments?: any[]) => DraftResponse;
   isLoading: boolean;
   error: string | null;
 }
@@ -297,6 +306,63 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setIsLoading(true);
   };
 
+  const submitMultipleFormEntries = async (entries: Omit<FormEntry, 'id' | 'submittedAt' | 'userId' | 'agencyId'>[]) => {
+    if (!user || user.role !== 'employe' || !user.agencyId) {
+      throw new Error('Seuls les employés peuvent soumettre des formulaires');
+    }
+
+    try {
+      setError(null);
+      
+      const batch = writeBatch(db);
+      
+      entries.forEach(entry => {
+        const docRef = doc(collection(db, 'formEntries'));
+        batch.set(docRef, {
+          formId: entry.formId,
+          userId: user.id,
+          agencyId: user.agencyId,
+          answers: entry.answers,
+          fileAttachments: entry.fileAttachments || [],
+          submittedAt: serverTimestamp()
+        });
+      });
+
+      await batch.commit();
+    } catch (err) {
+      console.error('Erreur lors de la soumission multiple:', err);
+      setError('Erreur lors de la soumission des formulaires');
+      throw err;
+    }
+  };
+
+  // Draft management functions
+  const getDraftsForForm = (userId: string, formId: string): DraftResponse[] => {
+    return DraftService.getDraftsForForm(userId, formId);
+  };
+
+  const saveDraft = (draft: DraftResponse): void => {
+    DraftService.saveDraft(draft);
+  };
+
+  const deleteDraft = (draftId: string): void => {
+    DraftService.deleteDraft(draftId);
+  };
+
+  const deleteDraftsForForm = (userId: string, formId: string): void => {
+    DraftService.deleteDraftsForForm(userId, formId);
+  };
+
+  const createDraft = (
+    formId: string, 
+    userId: string, 
+    agencyId: string, 
+    answers: Record<string, any> = {}, 
+    fileAttachments: any[] = []
+  ): DraftResponse => {
+    return DraftService.createDraft(formId, userId, agencyId, answers, fileAttachments);
+  };
+
   return (
     <AppContext.Provider value={{
       forms,
@@ -305,6 +371,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       createForm,
       updateForm,
       submitFormEntry,
+      submitMultipleFormEntries,
       deleteForm,
       getFormsForEmployee,
       getEntriesForForm,
@@ -312,6 +379,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       getEmployeesForAgency,
       getPendingEmployees,
       refreshData,
+      // Draft management
+      getDraftsForForm,
+      saveDraft,
+      deleteDraft,
+      deleteDraftsForForm,
+      createDraft,
       isLoading,
       error
     }}>
