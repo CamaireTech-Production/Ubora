@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useApp } from '../contexts/AppContext';
 import { Layout } from '../components/Layout';
@@ -39,6 +39,7 @@ export const EmployeDashboard: React.FC = () => {
     draftId: string | null;
     draftTitle: string;
   }>({ show: false, draftId: null, draftTitle: '' });
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   const formatTimeRestrictions = (restrictions?: {
     startTime?: string;
@@ -238,6 +239,18 @@ export const EmployeDashboard: React.FC = () => {
     }
   };
 
+  const scrollLeft = () => {
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollBy({ left: -320, behavior: 'smooth' });
+    }
+  };
+
+  const scrollRight = () => {
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollBy({ left: 320, behavior: 'smooth' });
+    }
+  };
+
   return (
     <LoadingGuard 
       isLoading={isLoading || appLoading} 
@@ -406,7 +419,7 @@ export const EmployeDashboard: React.FC = () => {
           <Layout title="Dashboard Employé">
             <div className="space-y-6 lg:space-y-8">
               {/* Statistiques rapides */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+              <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
                 <Card className="bg-gradient-to-r from-blue-500 to-blue-600 text-white">
                   <div className="flex items-center space-x-3">
                     <FileText className="h-8 w-8 opacity-80" />
@@ -427,7 +440,7 @@ export const EmployeDashboard: React.FC = () => {
                   </div>
                 </Card>
 
-                <Card className="bg-gradient-to-r from-purple-500 to-purple-600 text-white sm:col-span-2 lg:col-span-1">
+                <Card className="bg-gradient-to-r from-purple-500 to-purple-600 text-white col-span-2 lg:col-span-1">
                   <div className="flex items-center space-x-3">
                     <Clock className="h-8 w-8 opacity-80" />
                     <div>
@@ -454,7 +467,8 @@ export const EmployeDashboard: React.FC = () => {
                     </p>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6">
+                  <div className="relative">
+                    <div ref={scrollContainerRef} className="flex gap-4 sm:gap-6 overflow-x-auto pb-4 scrollbar-hide horizontal-scroll-forms">
                     {assignedForms.map(form => {
                       const entryCount = getFormEntryCount(form.id);
                       const draftCount = getDraftCount(form.id);
@@ -462,7 +476,7 @@ export const EmployeDashboard: React.FC = () => {
                       return (
                         <div
                           key={form.id}
-                          className="bg-white border border-gray-200 rounded-lg p-4 sm:p-5 hover:shadow-lg transition-all duration-200 hover:border-green-300 mobile-form-card"
+                          className="bg-white border border-gray-200 rounded-lg p-4 sm:p-5 hover:shadow-lg transition-all duration-200 hover:border-green-300 mobile-form-card flex-shrink-0 w-80 sm:w-96"
                         >
                           {/* Header avec titre et badges */}
                           <div className="mb-3">
@@ -589,6 +603,23 @@ export const EmployeDashboard: React.FC = () => {
                         </div>
                       );
                     })}
+                    </div>
+                    
+                    {/* Indicateurs de scroll */}
+                    {assignedForms.length > 1 && (
+                      <>
+                        <div className="scroll-indicator scroll-indicator-left hidden md:flex" onClick={scrollLeft}>
+                          <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                          </svg>
+                        </div>
+                        <div className="scroll-indicator scroll-indicator-right hidden md:flex" onClick={scrollRight}>
+                          <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                          </svg>
+                        </div>
+                      </>
+                    )}
                   </div>
                 )}
               </Card>
