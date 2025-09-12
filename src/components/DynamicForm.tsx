@@ -429,13 +429,13 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
               {isLoading ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                  {isDraft ? 'Sauvegarde...' : 'Soumission...'}
+                  {isDraft ? 'Sauvegarde...' : 'Ajout en cours...'}
                 </>
               ) : !isWithinTimeRestrictions() 
                 ? 'Soumission non autorisée' 
                 : isDraft 
                   ? 'Sauvegarder le brouillon' 
-                  : 'Soumettre le formulaire'
+                  : 'Ajouter la réponse'
               }
             </Button>
             <Button type="button" variant="secondary" onClick={onCancel} className="w-full sm:w-auto">

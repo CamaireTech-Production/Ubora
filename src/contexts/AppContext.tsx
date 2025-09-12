@@ -24,6 +24,7 @@ interface AppContextType {
   createForm: (form: Omit<Form, 'id' | 'createdAt'>) => Promise<void>;
   updateForm: (formId: string, form: Partial<Omit<Form, 'id' | 'createdAt' | 'createdBy' | 'agencyId'>>) => Promise<void>;
   submitFormEntry: (entry: Omit<FormEntry, 'id' | 'submittedAt' | 'userId' | 'agencyId'>) => Promise<void>;
+  updateFormEntry: (entryId: string, entry: Partial<Omit<FormEntry, 'id' | 'submittedAt' | 'userId' | 'agencyId'>>) => Promise<void>;
   submitMultipleFormEntries: (entries: Omit<FormEntry, 'id' | 'submittedAt' | 'userId' | 'agencyId'>[]) => Promise<void>;
   deleteForm: (formId: string) => Promise<void>;
   getFormsForEmployee: (employeeId: string) => Form[];
@@ -291,6 +292,43 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  const updateFormEntry = async (entryId: string, entryData: Partial<Omit<FormEntry, 'id' | 'submittedAt' | 'userId' | 'agencyId'>>) => {
+    // Guard: Vérifier que l'utilisateur est connecté et a un profil complet
+    if (!firebaseUser || !user || !user.agencyId) {
+      throw new Error('Utilisateur non connecté ou profil incomplet');
+    }
+
+    try {
+      setError(null);
+      
+      // Préparer les données à mettre à jour
+      const updateData: Record<string, any> = {
+        updatedAt: serverTimestamp()
+      };
+
+      // Ajouter seulement les champs fournis
+      if (entryData.formId !== undefined) updateData.formId = entryData.formId;
+      if (entryData.answers !== undefined) updateData.answers = entryData.answers;
+      if (entryData.fileAttachments !== undefined) updateData.fileAttachments = entryData.fileAttachments;
+
+      console.log('Mise à jour de la réponse:', { entryId, updateData });
+      await updateDoc(doc(db, 'formEntries', entryId), updateData);
+      console.log('✅ Réponse mise à jour avec succès');
+    } catch (err) {
+      console.error('Erreur lors de la mise à jour de la réponse:', err);
+      if (err instanceof Error) {
+        if (err.message.includes('Missing or insufficient permissions')) {
+          setError('Permissions insuffisantes pour modifier cette réponse.');
+        } else {
+          setError(`Erreur lors de la mise à jour: ${err.message}`);
+        }
+      } else {
+        setError('Erreur lors de la mise à jour de la réponse');
+      }
+      throw err;
+    }
+  };
+
 
   const deleteForm = async (formId: string) => {
     if (!user || user.role !== 'directeur') {
@@ -402,6 +440,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       createForm,
       updateForm,
       submitFormEntry,
+      updateFormEntry,
       submitMultipleFormEntries,
       deleteForm,
       getFormsForEmployee,
