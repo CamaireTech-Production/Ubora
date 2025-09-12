@@ -128,11 +128,14 @@ export const ComprehensiveFilter: React.FC<ComprehensiveFilterProps> = ({
       }
     };
 
-    document.addEventListener('mousedown', handleClickOutside);
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, []);
+  }, [isOpen]);
 
   const handleTabClick = (tab: 'period' | 'forms' | 'employees') => {
     if (activeTab === tab) {
@@ -199,7 +202,7 @@ export const ComprehensiveFilter: React.FC<ComprehensiveFilterProps> = ({
   const hasActiveFilters = filters.period !== 'all' || selectedFormIds.length > 0 || filters.userId;
 
   return (
-    <div className="px-4 pb-2 relative" ref={dropdownRef}>
+    <div className="relative" ref={dropdownRef}>
       {/* Selected forms chips - only show if forms are selected */}
       {selectedForms.length > 0 && (
         <div className="flex flex-wrap gap-1 mb-2">
@@ -250,48 +253,48 @@ export const ComprehensiveFilter: React.FC<ComprehensiveFilterProps> = ({
         )}
       </button>
 
-      {/* Filter tabs */}
+      {/* Filter tabs - floating above input */}
       {isOpen && (
-        <div className="absolute bottom-full left-4 right-4 mb-2 bg-white border border-gray-200 rounded-lg shadow-lg z-50 overflow-hidden">
-          {/* Tab buttons */}
-          <div className="flex border-b border-gray-200">
-            <button
-              onClick={() => handleTabClick('period')}
-              className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 text-sm transition-colors ${
-                activeTab === 'period' 
-                  ? 'bg-purple-50 text-purple-700 border-b-2 border-purple-500' 
-                  : 'text-gray-600 hover:bg-gray-50'
-              }`}
-            >
-              <Calendar className="h-4 w-4" />
-              Période
-            </button>
-            <button
-              onClick={() => handleTabClick('forms')}
-              className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 text-sm transition-colors ${
-                activeTab === 'forms' 
-                  ? 'bg-green-50 text-green-700 border-b-2 border-green-500' 
-                  : 'text-gray-600 hover:bg-gray-50'
-              }`}
-            >
-              <FileText className="h-4 w-4" />
-              Formulaires
-            </button>
-            <button
-              onClick={() => handleTabClick('employees')}
-              className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 text-sm transition-colors ${
-                activeTab === 'employees' 
-                  ? 'bg-blue-50 text-blue-700 border-b-2 border-blue-500' 
-                  : 'text-gray-600 hover:bg-gray-50'
-              }`}
-            >
-              <Users className="h-4 w-4" />
-              Employés
-            </button>
-          </div>
+        <div className="absolute bottom-full left-0 right-0 mb-3 bg-white border border-gray-200 rounded-lg shadow-lg z-50 overflow-hidden -mx-4 sm:mx-0">
+            {/* Tab buttons */}
+            <div className="flex border-b border-gray-200 overflow-x-auto">
+              <button
+                onClick={() => handleTabClick('period')}
+                className={`flex-shrink-0 flex items-center justify-center gap-2 px-4 py-3 text-sm transition-colors min-w-0 ${
+                  activeTab === 'period' 
+                    ? 'bg-purple-50 text-purple-700 border-b-2 border-purple-500' 
+                    : 'text-gray-600 hover:bg-gray-50'
+                }`}
+              >
+                <Calendar className="h-4 w-4 flex-shrink-0" />
+                <span className="whitespace-nowrap">Période</span>
+              </button>
+              <button
+                onClick={() => handleTabClick('forms')}
+                className={`flex-shrink-0 flex items-center justify-center gap-2 px-4 py-3 text-sm transition-colors min-w-0 ${
+                  activeTab === 'forms' 
+                    ? 'bg-green-50 text-green-700 border-b-2 border-green-500' 
+                    : 'text-gray-600 hover:bg-gray-50'
+                }`}
+              >
+                <FileText className="h-4 w-4 flex-shrink-0" />
+                <span className="whitespace-nowrap">Formulaires</span>
+              </button>
+              <button
+                onClick={() => handleTabClick('employees')}
+                className={`flex-shrink-0 flex items-center justify-center gap-2 px-4 py-3 text-sm transition-colors min-w-0 ${
+                  activeTab === 'employees' 
+                    ? 'bg-blue-50 text-blue-700 border-b-2 border-blue-500' 
+                    : 'text-gray-600 hover:bg-gray-50'
+                }`}
+              >
+                <Users className="h-4 w-4 flex-shrink-0" />
+                <span className="whitespace-nowrap">Employés</span>
+              </button>
+            </div>
 
-          {/* Tab content */}
-          <div className="max-h-64 overflow-y-auto">
+            {/* Tab content */}
+            <div className="max-h-64 overflow-y-auto">
             {/* Period Tab */}
             {activeTab === 'period' && (
               <div className="p-3">
@@ -504,7 +507,7 @@ export const ComprehensiveFilter: React.FC<ComprehensiveFilterProps> = ({
                 </div>
               </div>
             )}
-          </div>
+            </div>
         </div>
       )}
     </div>

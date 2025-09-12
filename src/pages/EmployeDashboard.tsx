@@ -454,7 +454,7 @@ export const EmployeDashboard: React.FC = () => {
                     </p>
                   </div>
                 ) : (
-                  <div className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6">
                     {assignedForms.map(form => {
                       const entryCount = getFormEntryCount(form.id);
                       const draftCount = getDraftCount(form.id);
@@ -462,99 +462,124 @@ export const EmployeDashboard: React.FC = () => {
                       return (
                         <div
                           key={form.id}
-                          className="border border-gray-200 rounded-lg p-3 sm:p-4 hover:shadow-md transition-shadow"
+                          className="bg-white border border-gray-200 rounded-lg p-4 sm:p-5 hover:shadow-lg transition-all duration-200 hover:border-green-300 mobile-form-card"
                         >
-                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                            <div className="flex-1">
-                              <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-3 mb-2">
-                                <h3 className="font-semibold text-gray-900 text-base sm:text-lg break-words">{form.title}</h3>
-                                <div className="flex flex-wrap gap-2 mt-1 sm:mt-0">
-                                  {entryCount > 0 && (
-                                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                                      {entryCount} réponse(s)
-                                    </span>
-                                  )}
-                                  {draftCount > 0 && (
-                                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
-                                      📝 {draftCount} brouillon(s)
-                                    </span>
-                                  )}
-                                  {form.timeRestrictions && formatTimeRestrictions(form.timeRestrictions) && (
-                                    <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                                      isWithinTimeRestrictions(form.timeRestrictions)
-                                        ? 'bg-blue-100 text-blue-800'
-                                        : 'bg-yellow-100 text-yellow-800'
-                                    }`}>
-                                      {isWithinTimeRestrictions(form.timeRestrictions) ? '🕒' : '⚠️'} {formatTimeRestrictions(form.timeRestrictions)}
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                              <p className="text-sm text-gray-600 mb-2 line-clamp-2">{form.description}</p>
-                              <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-4 text-xs text-gray-500 space-y-1 sm:space-y-0">
-                                <span>Créé le {form.createdAt.toLocaleDateString()}</span>
-                                <span>•</span>
-                                <span>{form.fields.length} champ(s)</span>
-                                <span>•</span>
-                                <span>Soumissions multiples autorisées</span>
+                          {/* Header avec titre et badges */}
+                          <div className="mb-3">
+                            <div className="flex flex-col space-y-2">
+                              <h3 className="font-semibold text-gray-900 text-base sm:text-lg line-clamp-2 leading-tight">
+                                {form.title}
+                              </h3>
+                              <div className="flex flex-wrap gap-2">
+                                {entryCount > 0 && (
+                                  <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                    {entryCount} réponse(s)
+                                  </span>
+                                )}
+                                {draftCount > 0 && (
+                                  <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
+                                    📝 {draftCount} brouillon(s)
+                                  </span>
+                                )}
+                                {form.timeRestrictions && formatTimeRestrictions(form.timeRestrictions) && (
+                                  <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                                    isWithinTimeRestrictions(form.timeRestrictions)
+                                      ? 'bg-blue-100 text-blue-800'
+                                      : 'bg-yellow-100 text-yellow-800'
+                                  }`}>
+                                    {isWithinTimeRestrictions(form.timeRestrictions) ? '🕒' : '⚠️'} {formatTimeRestrictions(form.timeRestrictions)}
+                                  </span>
+                                )}
                               </div>
                             </div>
+                          </div>
+
+                          {/* Description */}
+                          <p className="text-sm text-gray-600 mb-4 line-clamp-3 leading-relaxed">
+                            {form.description}
+                          </p>
+
+                          {/* Statistiques */}
+                          <div className="grid grid-cols-2 gap-3 mb-4">
+                            <div className="bg-gray-50 rounded-lg p-2 text-center">
+                              <div className="text-lg font-bold text-gray-900">{form.fields.length}</div>
+                              <div className="text-xs text-gray-600">Champ(s)</div>
+                            </div>
+                            <div className="bg-gray-50 rounded-lg p-2 text-center">
+                              <div className="text-lg font-bold text-gray-900">{entryCount + draftCount}</div>
+                              <div className="text-xs text-gray-600">Total</div>
+                            </div>
+                          </div>
+
+                          {/* Date de création */}
+                          <div className="text-xs text-gray-500 mb-4">
+                            Créé le {form.createdAt.toLocaleDateString()}
+                          </div>
+
+                          {/* Actions */}
+                          <div className="flex flex-col space-y-2 form-card-actions">
+                            <Button
+                              size="sm"
+                              onClick={() => setSelectedFormId(form.id)}
+                              className="w-full flex items-center justify-center space-x-1 text-xs"
+                            >
+                              <span>Remplir le formulaire</span>
+                            </Button>
                             
-                            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-                              {entryCount > 0 && (
-                                <Button
-                                  variant="secondary"
-                                  size="sm"
-                                  onClick={() => setViewingEntries(
-                                    viewingEntries === form.id ? null : form.id
-                                  )}
-                                  className="flex items-center justify-center space-x-1 w-full sm:w-auto"
-                                >
-                                  <Eye className="h-4 w-4" />
-                                  <span className="hidden sm:inline">{viewingEntries === form.id ? 'Masquer' : 'Voir mes réponses'}</span>
-                                  <span className="sm:hidden">{viewingEntries === form.id ? 'Masquer' : 'Réponses'}</span>
-                                </Button>
-                              )}
-                              
+                            {entryCount > 0 && (
                               <Button
+                                variant="secondary"
                                 size="sm"
-                                onClick={() => setSelectedFormId(form.id)}
-                                className="w-full sm:w-auto"
+                                onClick={() => setViewingEntries(
+                                  viewingEntries === form.id ? null : form.id
+                                )}
+                                className="w-full flex items-center justify-center space-x-1 text-xs"
                               >
-                                Remplir
+                                <Eye className="h-3 w-3" />
+                                <span>{viewingEntries === form.id ? 'Masquer mes réponses' : 'Voir mes réponses'}</span>
                               </Button>
-                            </div>
+                            )}
                           </div>
 
                           {/* Affichage des réponses de l'employé */}
                           {viewingEntries === form.id && entryCount > 0 && (
-                            <div className="mt-3 sm:mt-4 pt-3 sm:pt-4 border-t border-gray-200">
-                              <h4 className="font-medium text-gray-900 mb-3">Mes réponses précédentes</h4>
-                              <div className="space-y-3 max-h-60 overflow-y-auto">
+                            <div className="mt-4 pt-4 border-t border-gray-200">
+                              <h4 className="font-medium text-gray-900 mb-3 text-sm">Mes réponses précédentes</h4>
+                              <div className="space-y-3 max-h-80 overflow-y-auto">
                                 {myEntries
                                   .filter(entry => entry.formId === form.id)
                                   .map(entry => (
-                                    <div key={entry.id} className="bg-blue-50 p-3 rounded-lg">
-                                      <div className="text-xs text-gray-500 mb-2">
-                                        Soumis le {new Date(entry.submittedAt).toLocaleDateString()} à {new Date(entry.submittedAt).toLocaleTimeString()}
+                                    <div key={entry.id} className="bg-green-50 p-3 rounded-lg border border-green-100">
+                                      <div className="flex items-center justify-between mb-2">
+                                        <span className="text-xs text-green-600 font-medium">
+                                          Réponse #{myEntries.filter(e => e.formId === form.id).indexOf(entry) + 1}
+                                        </span>
+                                        <span className="text-xs text-green-600">
+                                          {new Date(entry.submittedAt).toLocaleDateString()}
+                                        </span>
                                       </div>
-                                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                        {Object.entries(entry.answers || {}).map(([fieldId, value]) => {
+                                      <div className="space-y-2">
+                                        {Object.entries(entry.answers || {}).slice(0, 3).map(([fieldId, value]) => {
                                           const field = form.fields.find(f => f.id === fieldId);
                                           const fieldLabel = field?.label || fieldId;
                                           
                                           return (
-                                            <div key={fieldId} className="text-sm break-words">
-                                              <span className="font-medium text-gray-700 block sm:inline">{fieldLabel}:</span>
-                                              <span className="sm:ml-2 text-gray-900 block sm:inline">
+                                            <div key={fieldId} className="text-xs">
+                                              <span className="font-medium text-green-800">{fieldLabel}:</span>
+                                              <span className="ml-1 text-green-900">
                                                 {value !== null && value !== undefined ? 
-                                                  (typeof value === 'boolean' ? (value ? 'Oui' : 'Non') : String(value)) : 
+                                                  (typeof value === 'boolean' ? (value ? 'Oui' : 'Non') : String(value).substring(0, 50) + (String(value).length > 50 ? '...' : '')) : 
                                                   '-'
                                                 }
                                               </span>
                                             </div>
                                           );
                                         })}
+                                        {Object.keys(entry.answers || {}).length > 3 && (
+                                          <div className="text-xs text-green-600 italic">
+                                            +{Object.keys(entry.answers || {}).length - 3} autres champs...
+                                          </div>
+                                        )}
                                       </div>
                                     </div>
                                   ))}

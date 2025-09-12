@@ -71,7 +71,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
   const isUser = message.type === 'user';
   
   return (
-    <div className={`flex items-start space-x-3 mb-4 ${isUser ? 'flex-row-reverse space-x-reverse' : ''}`}>
+    <div className={`flex items-start space-x-3 mb-8 ${isUser ? 'flex-row-reverse space-x-reverse' : ''}`}>
       {/* Avatar */}
       <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${
         isUser 
@@ -86,23 +86,24 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
       </div>
 
       {/* Message bubble */}
-      <div className={`max-w-[85%] ${isUser ? 'items-end' : 'items-start'} flex flex-col`}>
-        <div className={`px-4 py-3 rounded-2xl shadow-sm ${
+      <div className={`w-full max-w-[95%] sm:max-w-[85%] min-w-0 mobile-chat-bubble ${isUser ? 'items-end' : 'items-start'} flex flex-col`}>
+        <div className={`px-4 py-3 rounded-2xl shadow-sm min-w-0 w-full overflow-x-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent mobile-chat-content ${
           isUser 
             ? 'bg-gradient-to-br from-blue-600 to-blue-700 text-white rounded-br-md' 
             : 'bg-white border border-gray-200 text-gray-900 rounded-bl-md'
-        }`}>
-          <div className="break-words">
+        }`} style={{ scrollbarWidth: 'thin' }}>
+          <div className="break-words min-w-0 w-full">
             {isUser ? (
               <div>
                 {/* Display format and form information for user messages */}
                 {(message.meta?.selectedFormat || message.meta?.selectedFormats?.length || message.meta?.selectedFormTitles?.length) && (
-                  <div className="mb-3 p-2 bg-blue-50 rounded-lg border border-blue-200">
-                    <div className="flex flex-wrap items-center gap-2 text-xs">
+                  <div className="mb-3 p-2 bg-blue-50 rounded-lg border border-blue-200 min-w-0">
+                    {/* Row 1: Selected formats with count */}
+                    <div className="flex items-center gap-2 text-xs mb-2 min-w-0">
                       {(message.meta?.selectedFormat || message.meta?.selectedFormats?.length) && (
-                        <div className="flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-800 rounded-full">
+                        <div className="flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-800 rounded-full flex-shrink-0">
                           <span className="font-medium">
-                            {message.meta.selectedFormats?.length > 1 ? (
+                            {message.meta.selectedFormats && message.meta.selectedFormats.length > 1 ? (
                               `📊📋📄 Multi-format (${message.meta.selectedFormats.length})`
                             ) : (
                               message.meta.selectedFormat === 'stats' ? '📊 Statistiques' :
@@ -113,33 +114,38 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
                           </span>
                         </div>
                       )}
-                      {message.meta?.selectedFormTitles?.length && (
-                        <div className="flex items-center gap-1">
-                          <span className="text-blue-600">Formulaires:</span>
-                          <div className="flex flex-wrap gap-1">
-                            {message.meta.selectedFormTitles.map((title, index) => (
-                              <span key={index} className="px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs">
-                                {title}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                      )}
                     </div>
+                    
+                    {/* Row 2: Horizontally scrollable forms with count */}
+                    {message.meta?.selectedFormTitles?.length && (
+                      <div className="flex items-center gap-2 text-xs min-w-0">
+                        <span className="text-blue-600 font-medium whitespace-nowrap flex-shrink-0">
+                          Formulaires ({message.meta.selectedFormTitles.length}):
+                        </span>
+                        <div className="flex gap-1 overflow-x-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent min-w-0 flex-1" style={{ scrollbarWidth: 'thin' }}>
+                          {message.meta.selectedFormTitles.map((title, index) => (
+                            <span key={index} className="px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs whitespace-nowrap flex-shrink-0">
+                              {title}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
-                <div className="text-sm leading-relaxed">{message.content}</div>
+                <div className="text-sm leading-relaxed break-words overflow-wrap-anywhere">{message.content}</div>
               </div>
             ) : (
               <div className="prose prose-sm max-w-none">
                 {/* Display format and form information */}
                 {(message.meta?.selectedFormat || message.meta?.selectedFormats?.length || message.meta?.selectedFormTitles?.length) && (
-                  <div className="mb-4 p-3 bg-gray-50 rounded-lg border border-gray-200">
-                    <div className="flex flex-wrap items-center gap-2 text-xs">
+                  <div className="mb-4 p-3 bg-gray-50 rounded-lg border border-gray-200 min-w-0">
+                    {/* Row 1: Selected formats with count */}
+                    <div className="flex items-center gap-2 text-xs mb-2 min-w-0">
                       {(message.meta?.selectedFormat || message.meta?.selectedFormats?.length) && (
-                        <div className="flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-800 rounded-full">
+                        <div className="flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-800 rounded-full flex-shrink-0">
                           <span className="font-medium">
-                            {message.meta.selectedFormats?.length > 1 ? (
+                            {message.meta.selectedFormats && message.meta.selectedFormats.length > 1 ? (
                               `📊📋📄 Multi-format (${message.meta.selectedFormats.length})`
                             ) : (
                               message.meta.selectedFormat === 'stats' ? '📊 Statistiques' :
@@ -150,19 +156,23 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
                           </span>
                         </div>
                       )}
-                      {message.meta?.selectedFormTitles?.length && (
-                        <div className="flex items-center gap-1">
-                          <span className="text-gray-600">Formulaires:</span>
-                          <div className="flex flex-wrap gap-1">
-                            {message.meta.selectedFormTitles.map((title, index) => (
-                              <span key={index} className="px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs">
-                                {title}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                      )}
                     </div>
+                    
+                    {/* Row 2: Horizontally scrollable forms with count */}
+                    {message.meta?.selectedFormTitles?.length && (
+                      <div className="flex items-center gap-2 text-xs min-w-0">
+                        <span className="text-gray-600 font-medium whitespace-nowrap flex-shrink-0">
+                          Formulaires ({message.meta.selectedFormTitles.length}):
+                        </span>
+                        <div className="flex gap-1 overflow-x-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent min-w-0 flex-1" style={{ scrollbarWidth: 'thin' }}>
+                          {message.meta.selectedFormTitles.map((title, index) => (
+                            <span key={index} className="px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs whitespace-nowrap flex-shrink-0">
+                              {title}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -207,7 +217,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
                   </div>
                 ) : (
                   /* Default text rendering */
-                  <div className="prose prose-sm max-w-none">
+                  <div className="prose prose-sm max-w-none break-words overflow-wrap-anywhere">
                     {formatMessageContent(message.content)}
                   </div>
                 )}

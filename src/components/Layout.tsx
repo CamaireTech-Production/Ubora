@@ -13,6 +13,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, title }) => {
   const { user, logout } = useAuth();
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
+  const menuRef = React.useRef<HTMLDivElement>(null);
   
   const isDirecteur = user?.role === 'directeur';
   const isDashboard = location.pathname === '/directeur/dashboard';
@@ -26,9 +27,26 @@ export const Layout: React.FC<LayoutProps> = ({ children, title }) => {
     setIsMobileMenuOpen(false);
   };
 
+  // Close menu when clicking outside
+  React.useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setIsMobileMenuOpen(false);
+      }
+    };
+
+    if (isMobileMenuOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isMobileMenuOpen]);
+
   return (
     <div className="min-h-screen bg-gray-50">
-      <header className="bg-white shadow-sm border-b border-gray-200">
+      <header className="bg-white shadow-sm border-b border-gray-200 relative">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-14 sm:h-16">
             <div className="flex items-center space-x-2 sm:space-x-3">
@@ -96,9 +114,9 @@ export const Layout: React.FC<LayoutProps> = ({ children, title }) => {
             </div>
           </div>
           
-          {/* Menu mobile pour directeur */}
+          {/* Menu mobile pour directeur - Floating dropdown */}
           {isDirecteur && isMobileMenuOpen && (
-            <div className="md:hidden border-t border-gray-200 py-3 space-y-2">
+            <div ref={menuRef} className="md:hidden absolute top-full right-4 mt-2 w-64 bg-white rounded-lg shadow-lg border border-gray-200 py-2 z-50">
               <Button
                 variant={isChat ? "primary" : "secondary"}
                 size="sm"
@@ -106,7 +124,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, title }) => {
                   window.location.href = '/directeur/chat';
                   closeMobileMenu();
                 }}
-                className="w-full flex items-center justify-center space-x-2"
+                className="w-full flex items-center justify-start space-x-2 mx-2 mb-1"
               >
                 <MessageSquare className="h-4 w-4" />
                 <span>Chat IA</span>
@@ -119,14 +137,14 @@ export const Layout: React.FC<LayoutProps> = ({ children, title }) => {
                   window.location.href = '/directeur/dashboard';
                   closeMobileMenu();
                 }}
-                className="w-full flex items-center justify-center space-x-2"
+                className="w-full flex items-center justify-start space-x-2 mx-2 mb-1"
               >
                 <BarChart3 className="h-4 w-4" />
                 <span>Dashboard</span>
               </Button>
               
               {/* Profil utilisateur mobile */}
-              <div className="sm:hidden pt-2 border-t border-gray-200 text-center">
+              <div className="sm:hidden pt-2 border-t border-gray-200 mx-2 text-center">
                 <p className="text-sm font-medium text-gray-900">{user?.name}</p>
                 <p className="text-xs text-gray-500">{user?.email}</p>
               </div>

@@ -126,33 +126,39 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
     <div className="fixed bottom-0 left-0 right-0 z-10 bg-gradient-to-t from-white via-white to-transparent pt-4">
       <div className="max-w-screen-md mx-auto px-4 pb-4" style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
         
-        {/* Format Selector and Comprehensive Filter */}
-        <div className="space-y-2">
-          {/* Format Selector - always show when enabled */}
-          {showFormatSelector && (
-            <FormatSelector 
-              selectedFormat={selectedFormat}
-              selectedFormats={selectedFormats}
-              onFormatChange={onFormatChange}
-              onFormatsChange={onFormatsChange}
-              disabled={disabled}
-              allowMultiple={allowMultipleFormats}
-            />
-          )}
+        {/* Common background container for filters and input */}
+        <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-visible">
+          {/* Format Selector and Comprehensive Filter - Same Row */}
+          <div className="flex gap-1 p-3 pb-2 relative">
+            {/* Format Selector - always show when enabled */}
+            {showFormatSelector && (
+              <div className="flex-1">
+                <FormatSelector 
+                  selectedFormat={selectedFormat}
+                  selectedFormats={selectedFormats}
+                  onFormatChange={onFormatChange}
+                  onFormatsChange={onFormatsChange}
+                  disabled={disabled}
+                  allowMultiple={allowMultipleFormats}
+                />
+              </div>
+            )}
 
-          {/* Comprehensive Filter - always show when enabled */}
-          {showComprehensiveFilter && (
-            <ComprehensiveFilter 
-              filters={filters}
-              onFiltersChange={onFiltersChange}
-              forms={forms}
-              employees={employees}
-              selectedFormIds={selectedFormIds}
-              onFormSelectionChange={onFormSelectionChange}
-              disabled={disabled}
-            />
-          )}
-        </div>
+            {/* Comprehensive Filter - always show when enabled */}
+            {showComprehensiveFilter && (
+              <div className="flex-1">
+                <ComprehensiveFilter 
+                  filters={filters}
+                  onFiltersChange={onFiltersChange}
+                  forms={forms}
+                  employees={employees}
+                  selectedFormIds={selectedFormIds}
+                  onFormSelectionChange={onFormSelectionChange}
+                  disabled={disabled}
+                />
+              </div>
+            )}
+          </div>
         {/* Character counter (when near limit) */}
         {isNearLimit && (
           <div className="text-center mb-2">
@@ -162,8 +168,8 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
           </div>
         )}
 
-        {/* Composer card */}
-        <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-3">
+          {/* Composer input section */}
+          <div className="p-3 pt-0">
           <div className="flex items-end space-x-3">
             {/* Textarea */}
             <div className="flex-1">
@@ -234,6 +240,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
                 <Send className="h-4 w-4" />
               </Button>
             </div>
+          </div>
           </div>
         </div>
       </div>

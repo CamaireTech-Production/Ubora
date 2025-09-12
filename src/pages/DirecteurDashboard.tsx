@@ -7,9 +7,8 @@ import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { FormEditor } from '../components/FormEditor';
 import { LoadingGuard } from '../components/LoadingGuard';
-import { Plus, FileText, Users, Download, Eye, Trash2, MessageSquare, Edit, UserCheck, Paperclip, ExternalLink } from 'lucide-react';
+import { Plus, FileText, Users, Eye, Trash2, Edit, UserCheck, Paperclip, ExternalLink, BarChart3 } from 'lucide-react';
 import { PendingApprovals } from '../components/PendingApprovals';
-import { useReactToPrint } from 'react-to-print';
 
 export const DirecteurDashboard: React.FC = () => {
   const { user, firebaseUser, isLoading } = useAuth();
@@ -29,7 +28,7 @@ export const DirecteurDashboard: React.FC = () => {
   const [showFormBuilder, setShowFormBuilder] = useState(false);
   const [editingForm, setEditingForm] = useState<Form | null>(null);
   const [selectedFormId, setSelectedFormId] = useState<string | null>(null);
-  const printRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   const handleCreateForm = async (formData: {
     title: string;
@@ -102,14 +101,18 @@ export const DirecteurDashboard: React.FC = () => {
     }
   };
 
-  const handlePrint = useReactToPrint({
-    contentRef: printRef,
-    documentTitle: `Rapport_${user?.name || 'Directeur'}_${new Date().toLocaleDateString()}`,
-    onPrintError: (_location: string, error: Error) => {
-      console.error('Erreur lors de l\'impression:', error);
-      alert('Erreur lors de la génération du PDF. Veuillez réessayer.');
+
+  const scrollLeft = () => {
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollBy({ left: -320, behavior: 'smooth' });
     }
-  });
+  };
+
+  const scrollRight = () => {
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollBy({ left: 320, behavior: 'smooth' });
+    }
+  };
 
   const getEmployeeName = (employeeId: string): string => {
     const employee = employees.find(emp => emp?.id === employeeId);
@@ -222,7 +225,7 @@ export const DirecteurDashboard: React.FC = () => {
         <Layout title="Dashboard Directeur">
           <div className="space-y-6 lg:space-y-8">
             {/* Statistiques */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
               <Card className="bg-gradient-to-r from-blue-500 to-blue-600 text-white">
                 <div className="flex items-center space-x-3">
                   <FileText className="h-8 w-8 opacity-80" />
@@ -255,7 +258,7 @@ export const DirecteurDashboard: React.FC = () => {
               
               <Card className="bg-gradient-to-r from-purple-500 to-purple-600 text-white">
                 <div className="flex items-center space-x-3">
-                  <Download className="h-8 w-8 opacity-80" />
+                  <BarChart3 className="h-8 w-8 opacity-80" />
                   <div>
                     <p className="text-purple-100">Réponses totales</p>
                     <p className="text-xl sm:text-2xl font-bold">{formEntries.length}</p>
@@ -272,33 +275,13 @@ export const DirecteurDashboard: React.FC = () => {
             />
 
             {/* Actions principales */}
-            <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
               <Button
                 onClick={() => setShowFormBuilder(true)}
-                className="flex items-center justify-center space-x-2 w-full sm:w-auto"
+                className="flex items-center justify-center space-x-2 w-full"
               >
                 <Plus className="h-5 w-5" />
                 <span>Créer un nouveau formulaire</span>
-              </Button>
-              
-              <Button
-                variant="secondary"
-                onClick={() => window.location.href = '/directeur/chat'}
-                className="flex items-center justify-center space-x-2 w-full sm:w-auto"
-              >
-                <MessageSquare className="h-5 w-5" />
-                <span>Retour au Chat IA</span>
-              </Button>
-              
-              <Button
-                variant="secondary"
-                onClick={handlePrint}
-                className="flex items-center justify-center space-x-2 w-full sm:w-auto"
-                disabled={forms.length === 0}
-              >
-                <Download className="h-5 w-5" />
-                <span className="hidden sm:inline">Exporter le rapport PDF</span>
-                <span className="sm:hidden">Export PDF</span>
               </Button>
             </div>
 
@@ -313,45 +296,66 @@ export const DirecteurDashboard: React.FC = () => {
                   </Button>
                 </div>
               ) : (
-                <div className="space-y-4">
+                <div className="relative">
+                  <div ref={scrollContainerRef} className="flex gap-4 sm:gap-6 overflow-x-auto pb-4 scrollbar-hide horizontal-scroll-forms">
                   {forms.map(form => {
                     const formEntriesForForm = getEntriesForForm(form.id);
                     
                     return (
                       <div
                         key={form.id}
-                        className="border border-gray-200 rounded-lg p-3 sm:p-4 hover:shadow-md transition-shadow"
+                        className="bg-white border border-gray-200 rounded-lg p-4 sm:p-5 hover:shadow-lg transition-all duration-200 hover:border-blue-300 mobile-form-card flex-shrink-0 w-80 sm:w-96"
                       >
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                           <div className="flex-1">
-                             <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-3">
-                               <h3 className="font-semibold text-gray-900 text-base sm:text-lg">{form.title}</h3>
-                               {form.timeRestrictions && formatTimeRestrictions(form.timeRestrictions) && (
-                                 <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 mt-1 sm:mt-0">
-                                   🕒 {formatTimeRestrictions(form.timeRestrictions)}
-                                 </span>
-                               )}
-                             </div>
-                             <p className="text-sm text-gray-600 mt-1 line-clamp-2">{form.description}</p>
-                            <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-4 mt-2 text-xs sm:text-sm text-gray-500 space-y-1 sm:space-y-0">
-                              <span className="break-words">Assigné à: {getAssignedEmployeeNames(form.assignedTo)}</span>
-                              <span>•</span>
-                              <span>{formEntriesForForm.length} réponse(s)</span>
-                              <span>•</span>
-                              <span>{form.fields.length} champ(s)</span>
-                              <span>•</span>
-                              <span>Créé le {form.createdAt.toLocaleDateString()}</span>
-                            </div>
+                        {/* Header avec titre et badge */}
+                        <div className="mb-3">
+                          <div className="flex flex-col space-y-2">
+                            <h3 className="font-semibold text-gray-900 text-base sm:text-lg line-clamp-2 leading-tight">
+                              {form.title}
+                            </h3>
+                            {form.timeRestrictions && formatTimeRestrictions(form.timeRestrictions) && (
+                              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 w-fit">
+                                🕒 {formatTimeRestrictions(form.timeRestrictions)}
+                              </span>
+                            )}
                           </div>
-                          
-                          <div className="flex items-center space-x-2">
+                        </div>
+
+                        {/* Description */}
+                        <p className="text-sm text-gray-600 mb-4 line-clamp-3 leading-relaxed">
+                          {form.description}
+                        </p>
+
+                        {/* Statistiques */}
+                        <div className="grid grid-cols-3 gap-2 mb-4">
+                          <div className="bg-gray-50 rounded-lg p-2 text-center">
+                            <div className="text-lg font-bold text-gray-900">{formEntriesForForm.length}</div>
+                            <div className="text-xs text-gray-600">Réponse(s)</div>
+                          </div>
+                          <div className="bg-gray-50 rounded-lg p-2 text-center">
+                            <div className="text-lg font-bold text-gray-900">{form.fields.length}</div>
+                            <div className="text-xs text-gray-600">Champ(s)</div>
+                          </div>
+                          <div className="bg-gray-50 rounded-lg p-2 text-center">
+                            <div className="text-lg font-bold text-gray-900">{form.assignedTo.length}</div>
+                            <div className="text-xs text-gray-600">Employé(s)</div>
+                          </div>
+                        </div>
+
+                        {/* Date de création */}
+                        <div className="text-xs text-gray-500 mb-4">
+                          Créé le {form.createdAt.toLocaleDateString()}
+                        </div>
+
+                        {/* Actions */}
+                        <div className="flex flex-col space-y-2 form-card-actions">
+                          <div className="flex space-x-2">
                             <Button
                               variant="secondary"
                               size="sm"
                               onClick={() => handleEditForm(form)}
-                              className="flex items-center space-x-2"
+                              className="flex-1 flex items-center justify-center space-x-1 text-xs"
                             >
-                              <Edit className="h-4 w-4" />
+                              <Edit className="h-3 w-3" />
                               <span>Modifier</span>
                             </Button>
                             
@@ -361,70 +365,73 @@ export const DirecteurDashboard: React.FC = () => {
                               onClick={() => setSelectedFormId(
                                 selectedFormId === form.id ? null : form.id
                               )}
-                              className="flex items-center justify-center space-x-2 w-full sm:w-auto"
+                              className="flex-1 flex items-center justify-center space-x-1 text-xs"
                             >
-                              <Eye className="h-4 w-4" />
-                              <span className="hidden sm:inline">{selectedFormId === form.id ? 'Masquer' : 'Voir les réponses'}</span>
-                              <span className="sm:hidden">{selectedFormId === form.id ? 'Masquer' : 'Réponses'}</span>
-                            </Button>
-                            
-                            <Button
-                              variant="danger"
-                              size="sm"
-                              onClick={() => handleDeleteForm(form.id)}
-                              className="flex items-center justify-center space-x-1 w-full sm:w-auto"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                              <span className="sm:hidden">Supprimer</span>
+                              <Eye className="h-3 w-3" />
+                              <span>{selectedFormId === form.id ? 'Masquer' : 'Voir'}</span>
                             </Button>
                           </div>
+                          
+                          <Button
+                            variant="danger"
+                            size="sm"
+                            onClick={() => handleDeleteForm(form.id)}
+                            className="w-full flex items-center justify-center space-x-1 text-xs"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                            <span>Supprimer</span>
+                          </Button>
                         </div>
                         
                         {/* Affichage des réponses */}
                         {selectedFormId === form.id && (
-                          <div className="mt-3 sm:mt-4 pt-3 sm:pt-4 border-t border-gray-200">
+                          <div className="mt-4 pt-4 border-t border-gray-200">
                             {formEntriesForForm.length === 0 ? (
-                              <p className="text-gray-500 italic">Aucune réponse pour ce formulaire</p>
+                              <p className="text-gray-500 italic text-center py-2">Aucune réponse pour ce formulaire</p>
                             ) : (
-                              <div className="space-y-3 sm:space-y-4">
+                              <div className="space-y-3 max-h-80 overflow-y-auto">
                                 {formEntriesForForm.map(entry => (
-                                  <div key={entry.id} className="bg-gray-50 p-3 sm:p-4 rounded-lg">
-                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-3 gap-1">
-                                      <span className="text-sm font-medium text-gray-900 break-words">
-                                        Réponse de {getEmployeeName(entry.userId)}
-                                      </span>
-                                      <span className="text-xs text-gray-500">
-                                        {new Date(entry.submittedAt).toLocaleDateString()} à {new Date(entry.submittedAt).toLocaleTimeString()}
-                                      </span>
+                                  <div key={entry.id} className="bg-blue-50 p-3 rounded-lg border border-blue-100">
+                                    <div className="flex flex-col space-y-2 mb-3">
+                                      <div className="flex items-center justify-between">
+                                        <span className="text-sm font-medium text-blue-900">
+                                          {getEmployeeName(entry.userId)}
+                                        </span>
+                                        <span className="text-xs text-blue-600">
+                                          {new Date(entry.submittedAt).toLocaleDateString()}
+                                        </span>
+                                      </div>
                                     </div>
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
-                                      {Object.entries(entry.answers || {}).map(([fieldId, value]) => {
+                                    <div className="space-y-2">
+                                      {Object.entries(entry.answers || {}).slice(0, 3).map(([fieldId, value]) => {
                                         const field = form.fields.find(f => f.id === fieldId);
                                         const fieldLabel = field?.label || fieldId;
                                         
                                         return (
-                                          <div key={fieldId} className="text-sm break-words">
-                                            <span className="font-medium text-gray-700 block sm:inline">{fieldLabel}:</span>
-                                            <span className="sm:ml-2 text-gray-900 block sm:inline">
+                                          <div key={fieldId} className="text-xs">
+                                            <span className="font-medium text-blue-800">{fieldLabel}:</span>
+                                            <span className="ml-1 text-blue-900">
                                               {value !== null && value !== undefined ? 
-                                                (typeof value === 'boolean' ? (value ? 'Oui' : 'Non') : String(value)) : 
+                                                (typeof value === 'boolean' ? (value ? 'Oui' : 'Non') : String(value).substring(0, 50) + (String(value).length > 50 ? '...' : '')) : 
                                                 '-'
                                               }
                                             </span>
                                           </div>
                                         );
                                       })}
+                                      {Object.keys(entry.answers || {}).length > 3 && (
+                                        <div className="text-xs text-blue-600 italic">
+                                          +{Object.keys(entry.answers || {}).length - 3} autres champs...
+                                        </div>
+                                      )}
                                     </div>
                                     
                                     {/* File Attachments */}
                                     {entry.fileAttachments && entry.fileAttachments.length > 0 && (
-                                      <div className="mt-4 pt-3 border-t border-gray-200">
-                                        <div className="flex items-center space-x-2 mb-3">
-                                          <Paperclip className="h-4 w-4 text-gray-500" />
-                                          <span className="text-sm font-medium text-gray-700">Fichiers joints</span>
-                                        </div>
-                                        <div className="space-y-2">
-                                          {entry.fileAttachments.map(attachment => renderFileAttachment(attachment))}
+                                      <div className="mt-2 pt-2 border-t border-blue-200">
+                                        <div className="flex items-center space-x-1">
+                                          <Paperclip className="h-3 w-3 text-blue-600" />
+                                          <span className="text-xs text-blue-700">{entry.fileAttachments.length} fichier(s)</span>
                                         </div>
                                       </div>
                                     )}
@@ -437,98 +444,27 @@ export const DirecteurDashboard: React.FC = () => {
                       </div>
                     );
                   })}
+                  </div>
+                  
+                  {/* Indicateurs de scroll */}
+                  {forms.length > 1 && (
+                    <>
+                      <div className="scroll-indicator scroll-indicator-left hidden sm:flex" onClick={scrollLeft}>
+                        <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                        </svg>
+                      </div>
+                      <div className="scroll-indicator scroll-indicator-right hidden sm:flex" onClick={scrollRight}>
+                        <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                        </svg>
+                      </div>
+                    </>
+                  )}
                 </div>
               )}
             </Card>
 
-            {/* Rapport pour l'impression (masqué) */}
-            <div style={{ display: 'none' }}>
-              <div ref={printRef} className="p-8 bg-white">
-                <div className="text-center mb-8">
-                  <h1 className="text-3xl font-bold text-gray-900 mb-2">Rapport d'Activité</h1>
-                  <p className="text-gray-600">Agence: {user?.agencyId}</p>
-                  <p className="text-gray-600">
-                    Généré le {new Date().toLocaleDateString()} par {user?.name}
-                  </p>
-                </div>
-
-                <div className="mb-8">
-                  <h2 className="text-xl font-bold text-gray-900 mb-4">Résumé</h2>
-                  <div className="grid grid-cols-3 gap-4 mb-6">
-                    <div className="text-center">
-                      <p className="text-2xl font-bold text-blue-600">{forms.length}</p>
-                      <p className="text-gray-600">Formulaires créés</p>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-2xl font-bold text-green-600">{employees.length}</p>
-                      <p className="text-gray-600">Employés</p>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-2xl font-bold text-purple-600">{formEntries.length}</p>
-                      <p className="text-gray-600">Réponses totales</p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Détail des formulaires pour l'impression */}
-                {forms.map(form => {
-                  const formEntriesForForm = getEntriesForForm(form.id);
-                  
-                  return (
-                    <div key={form.id} className="mb-8 break-inside-avoid">
-                      <h3 className="text-lg font-bold text-gray-900 mb-2">{form.title}</h3>
-                      <p className="text-gray-600 mb-2">{form.description}</p>
-                      <p className="text-sm text-gray-500 mb-4">
-                        Assigné à: {getAssignedEmployeeNames(form.assignedTo)}
-                      </p>
-                      
-                      {formEntriesForForm.length > 0 ? (
-                        <div className="overflow-x-auto">
-                          <table className="min-w-full border border-gray-300">
-                            <thead className="bg-gray-50">
-                              <tr>
-                                <th className="border border-gray-300 px-4 py-2 text-left">Employé</th>
-                                <th className="border border-gray-300 px-4 py-2 text-left">Date</th>
-                                {form.fields.map(field => (
-                                  <th key={field.id} className="border border-gray-300 px-4 py-2 text-left">
-                                    {field.label}
-                                  </th>
-                                ))}
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {formEntriesForForm.map(entry => (
-                                <tr key={entry.id}>
-                                  <td className="border border-gray-300 px-4 py-2">
-                                    {getEmployeeName(entry.userId)}
-                                  </td>
-                                  <td className="border border-gray-300 px-4 py-2">
-                                    {new Date(entry.submittedAt).toLocaleDateString()}
-                                  </td>
-                                  {form.fields.map(field => (
-                                    <td key={field.id} className="border border-gray-300 px-4 py-2">
-                                      {entry.answers?.[field.id] !== undefined ? 
-                                        (typeof entry.answers[field.id] === 'boolean' ? 
-                                          (entry.answers[field.id] ? 'Oui' : 'Non') : 
-                                          String(entry.answers[field.id])
-                                        ) : 
-                                        '-'
-                                      }
-                                    </td>
-                                  ))}
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      ) : (
-                        <p className="text-gray-500 italic">Aucune réponse pour ce formulaire</p>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
           </div>
         </Layout>
       )}

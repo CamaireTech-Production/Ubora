@@ -11,6 +11,118 @@
   display: none;  /* Safari and Chrome */
 }
 
+/* Thin scrollbar for message bubble forms */
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: #d1d5db transparent;
+}
+.scrollbar-thin::-webkit-scrollbar {
+  height: 3px;
+}
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background-color: #d1d5db;
+  border-radius: 1.5px;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background-color: #9ca3af;
+}
+
+/* Mobile-specific scrollbar adjustments */
+@media (max-width: 640px) {
+  .scrollbar-thin::-webkit-scrollbar {
+    height: 2px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    border-radius: 1px;
+  }
+  
+  /* Mobile chat bubble constraints */
+  .mobile-chat-bubble {
+    max-width: 90vw !important;
+    width: 90vw !important;
+  }
+  
+  /* Ensure content doesn't break mobile layout */
+  .mobile-chat-content {
+    min-width: 0;
+    overflow-x: auto;
+    word-wrap: break-word;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+    hyphens: auto;
+  }
+  
+  /* Handle very long words and URLs */
+  .mobile-chat-content * {
+    word-break: break-word;
+    overflow-wrap: anywhere;
+    hyphens: auto;
+  }
+  
+  /* Mobile form cards optimization */
+  .mobile-form-card {
+    min-height: 200px;
+    max-height: 400px;
+  }
+  
+  /* Mobile form card content */
+  .mobile-form-card .form-card-content {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  
+  /* Mobile form card actions */
+  .mobile-form-card .form-card-actions {
+    position: sticky;
+    bottom: 0;
+    background: white;
+    border-top: 1px solid #e5e7eb;
+    margin: 0 -1rem -1rem -1rem;
+    padding: 0.75rem 1rem;
+  }
+  
+  /* Horizontal scroll forms */
+  .horizontal-scroll-forms {
+    scroll-behavior: smooth;
+    scroll-snap-type: x mandatory;
+  }
+  
+  .horizontal-scroll-forms > * {
+    scroll-snap-align: start;
+  }
+  
+  /* Scroll indicators */
+  .scroll-indicator {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    background: rgba(0, 0, 0, 0.1);
+    border-radius: 50%;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  
+  .scroll-indicator:hover {
+    background: rgba(0, 0, 0, 0.2);
+  }
+  
+  .scroll-indicator-left {
+    left: 8px;
+  }
+  
+  .scroll-indicator-right {
+    right: 8px;
+  }
+}
+
 /* Animations personnalisées pour WelcomeScreen */
 @keyframes spin-slow {
   from {
