@@ -107,7 +107,6 @@ export const FloatingSidePanel: React.FC<FloatingSidePanelProps> = ({
       icon: UserPlus,
       onClick: () => {
         setShowInviteModal(true);
-        onOpenChange(false);
       },
       count: null
     }
@@ -387,9 +386,9 @@ export const FloatingSidePanel: React.FC<FloatingSidePanelProps> = ({
         </div>
       </div>
 
-      {/* Modal d'invitation */}
+      {/* Modal d'invitation - Outside sidebar with higher z-index */}
       {showInviteModal && (
-        <div className="fixed inset-0 z-60 bg-black bg-opacity-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[100] bg-black bg-opacity-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
             <div className="text-center">
               <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-blue-100 mb-4">
