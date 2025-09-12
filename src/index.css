@@ -99,27 +99,48 @@
     position: absolute;
     top: 50%;
     transform: translateY(-50%);
-    background: rgba(0, 0, 0, 0.1);
+    background: rgba(255, 255, 255, 0.9);
+    border: 1px solid rgba(0, 0, 0, 0.1);
     border-radius: 50%;
-    width: 32px;
-    height: 32px;
+    width: 40px;
+    height: 40px;
     display: flex;
     align-items: center;
     justify-content: center;
     cursor: pointer;
     transition: all 0.2s ease;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    z-index: 10;
   }
   
   .scroll-indicator:hover {
-    background: rgba(0, 0, 0, 0.2);
+    background: rgba(255, 255, 255, 1);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    transform: translateY(-50%) scale(1.05);
   }
   
   .scroll-indicator-left {
-    left: 8px;
+    left: 12px;
   }
   
   .scroll-indicator-right {
-    right: 8px;
+    right: 12px;
+  }
+  
+  /* Tablet specific adjustments */
+  @media (min-width: 768px) and (max-width: 1024px) {
+    .scroll-indicator {
+      width: 44px;
+      height: 44px;
+    }
+    
+    .scroll-indicator-left {
+      left: 16px;
+    }
+    
+    .scroll-indicator-right {
+      right: 16px;
+    }
   }
 }
 
