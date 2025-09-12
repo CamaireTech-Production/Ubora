@@ -41,7 +41,7 @@ if (!AI_ENDPOINT) {
 }
 
 export const DirecteurChat: React.FC = () => {
-  const { user, firebaseUser, isLoading } = useAuth();
+  const { user, firebaseUser, isLoading, logout } = useAuth();
   const { forms, formEntries, employees, isLoading: appLoading } = useApp();
   const { 
     currentConversation, 
@@ -407,6 +407,7 @@ export const DirecteurChat: React.FC = () => {
             isConnected={!!AI_ENDPOINT}
             isLoading={isTyping}
             onOpenPanel={() => setPanelOpen(true)}
+            onLogout={logout}
           />
 
           {/* Messages list */}
