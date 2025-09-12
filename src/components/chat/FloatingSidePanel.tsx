@@ -35,8 +35,8 @@ export const FloatingSidePanel: React.FC<FloatingSidePanelProps> = ({
   onOpenChange,
   activeTab,
   onTabChange,
-  filters,
-  onFiltersChange,
+  filters: _filters,
+  onFiltersChange: _onFiltersChange,
   conversations,
   forms,
   employees,
@@ -349,10 +349,14 @@ export const FloatingSidePanel: React.FC<FloatingSidePanelProps> = ({
           <div className="space-y-1">
             {actions.map((action) => {
               const Icon = action.icon;
-              const isActive = activeTab === action.id && action.id !== 'dashboard';
+              const isActive = activeTab === action.id && (action.id === 'history' || action.id === 'forms' || action.id === 'employees' || action.id === 'entries');
+              const isInviteAction = action.id === 'invite';
               
               return (
                 <div key={action.id} className="space-y-1">
+                  {/* Add spacing before invite action */}
+                  {isInviteAction && <div className="border-t border-gray-200 my-3"></div>}
+                  
                   <button
                     onClick={action.onClick}
                     className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors focus:ring-2 focus:ring-blue-300 ${

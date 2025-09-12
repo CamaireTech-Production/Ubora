@@ -7,9 +7,10 @@ import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { FormEditor } from '../components/FormEditor';
 import { LoadingGuard } from '../components/LoadingGuard';
-import { Plus, FileText, Users, Eye, Trash2, Edit, UserCheck, Paperclip, ExternalLink, BarChart3, Calendar, ChevronDown } from 'lucide-react';
+import { Plus, FileText, Users, Eye, Trash2, Edit, UserCheck, Paperclip, BarChart3, Calendar, ChevronDown } from 'lucide-react';
 import { PendingApprovals } from '../components/PendingApprovals';
 import { VideoSection } from '../components/VideoSection';
+import { directorVideos } from '../data/videoData';
 
 export const DirecteurDashboard: React.FC = () => {
   const { user, firebaseUser, isLoading } = useAuth();
@@ -41,50 +42,6 @@ export const DirecteurDashboard: React.FC = () => {
     end: ''
   });
   const [showCustomDatePicker, setShowCustomDatePicker] = useState(false);
-
-  // Sample video data for directors - in a real app, this would come from your backend
-  const directorVideos = [
-    {
-      id: '1',
-      title: 'Gestion d\'équipe et leadership',
-      description: 'Découvrez les techniques de leadership modernes pour motiver et diriger efficacement votre équipe.',
-      youtubeId: 'dQw4w9WgXcQ', // Replace with actual YouTube video ID
-      duration: '15:30',
-      category: 'Leadership'
-    },
-    {
-      id: '2',
-      title: 'Création de formulaires avancés',
-      description: 'Apprenez à créer des formulaires complexes avec des conditions et des validations avancées.',
-      youtubeId: 'dQw4w9WgXcQ', // Replace with actual YouTube video ID
-      duration: '12:45',
-      category: 'Formation'
-    },
-    {
-      id: '3',
-      title: 'Analyse des données et rapports',
-      description: 'Maîtrisez l\'analyse des données collectées et la génération de rapports efficaces.',
-      youtubeId: 'dQw4w9WgXcQ', // Replace with actual YouTube video ID
-      duration: '18:20',
-      category: 'Analytics'
-    },
-    {
-      id: '4',
-      title: 'Gestion des performances d\'équipe',
-      description: 'Techniques pour évaluer et améliorer les performances de votre équipe.',
-      youtubeId: 'dQw4w9WgXcQ', // Replace with actual YouTube video ID
-      duration: '14:15',
-      category: 'Management'
-    },
-    {
-      id: '5',
-      title: 'Communication managériale',
-      description: 'Améliorez vos compétences en communication pour une meilleure gestion d\'équipe.',
-      youtubeId: 'dQw4w9WgXcQ', // Replace with actual YouTube video ID
-      duration: '11:30',
-      category: 'Communication'
-    }
-  ];
 
   const handleCreateForm = async (formData: {
     title: string;
@@ -264,12 +221,6 @@ export const DirecteurDashboard: React.FC = () => {
     return employee?.name || 'Employé inconnu';
   };
 
-  const getAssignedEmployeeNames = (assignedTo: string[]): string => {
-    if (!assignedTo || assignedTo.length === 0) return 'Aucun employé assigné';
-    
-    const names = assignedTo.map(id => getEmployeeName(id)).filter(name => name !== 'Employé inconnu');
-    return names.length > 0 ? names.join(', ') : 'Employés non trouvés';
-  };
 
   const formatTimeRestrictions = (restrictions?: {
     startTime?: string;
@@ -303,45 +254,6 @@ export const DirecteurDashboard: React.FC = () => {
     return `${timeStr}${dayStr}`;
   };
 
-  const renderFileAttachment = (attachment: { fieldId: string; fileName: string; fileSize: number; fileType: string; downloadUrl: string }) => {
-    const getFileIcon = (fileType: string) => {
-      if (fileType.includes('pdf')) return '📄';
-      if (fileType.includes('word') || fileType.includes('document')) return '📝';
-      if (fileType.includes('excel') || fileType.includes('spreadsheet')) return '📊';
-      if (fileType.includes('powerpoint') || fileType.includes('presentation')) return '📽️';
-      if (fileType.includes('image')) return '🖼️';
-      if (fileType.includes('zip') || fileType.includes('rar')) return '📦';
-      if (fileType.includes('text')) return '📄';
-      return '📎';
-    };
-
-    const formatFileSize = (bytes: number) => {
-      if (bytes === 0) return '0 Bytes';
-      const k = 1024;
-      const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-      const i = Math.floor(Math.log(bytes) / Math.log(k));
-      return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-    };
-
-    return (
-      <div key={attachment.fieldId} className="flex items-center space-x-2 p-2 bg-blue-50 border border-blue-200 rounded-lg">
-        <span className="text-lg">{getFileIcon(attachment.fileType)}</span>
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium text-gray-900 truncate">{attachment.fileName}</p>
-          <p className="text-xs text-gray-500">{formatFileSize(attachment.fileSize)}</p>
-        </div>
-        <a
-          href={attachment.downloadUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-blue-600 hover:text-blue-800 p-1"
-          title="Télécharger le fichier"
-        >
-          <ExternalLink className="h-4 w-4" />
-        </a>
-      </div>
-    );
-  };
 
   return (
     <LoadingGuard 

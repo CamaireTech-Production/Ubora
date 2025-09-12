@@ -1,17 +1,7 @@
 import React, { useState } from 'react';
 import { Card } from './Card';
-import { Button } from './Button';
 import { Play, X, ChevronLeft, ChevronRight } from 'lucide-react';
-
-interface Video {
-  id: string;
-  title: string;
-  description: string;
-  thumbnail: string;
-  youtubeId: string;
-  duration?: string;
-  category?: string;
-}
+import { Video } from '../data/videoData';
 
 interface VideoSectionProps {
   title?: string;
@@ -25,7 +15,6 @@ export const VideoSection: React.FC<VideoSectionProps> = ({
   className = "" 
 }) => {
   const [selectedVideo, setSelectedVideo] = useState<Video | null>(null);
-  const [scrollPosition, setScrollPosition] = useState(0);
 
   const openVideo = (video: Video) => {
     setSelectedVideo(video);
