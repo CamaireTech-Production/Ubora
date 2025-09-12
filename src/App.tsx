@@ -13,7 +13,6 @@ import { UnauthorizedPage } from './pages/UnauthorizedPage';
 import { PendingApprovalPage } from './pages/PendingApprovalPage';
 import { PWAInstallPrompt } from './components/PWAInstallPrompt';
 import { PWAUpdateNotification } from './components/PWAUpdateNotification';
-import { PWAStatusIndicator } from './components/PWAStatusIndicator';
 
 function App() {
   return (
@@ -70,7 +69,6 @@ function App() {
           </Router>
           
           {/* PWA Components */}
-          <PWAStatusIndicator />
           <PWAInstallPrompt />
           <PWAUpdateNotification />
         </ConversationProvider>
