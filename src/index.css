@@ -142,6 +142,36 @@
       right: 16px;
     }
   }
+  
+  /* Video section specific styles */
+  .video-scroll-container {
+    scroll-behavior: smooth;
+    scroll-snap-type: x mandatory;
+  }
+  
+  .video-scroll-container > * {
+    scroll-snap-align: start;
+  }
+  
+  /* Video card responsive adjustments */
+  .video-card {
+    min-width: 280px;
+    max-width: 320px;
+  }
+  
+  @media (max-width: 640px) {
+    .video-card {
+      min-width: 260px;
+      max-width: 280px;
+    }
+  }
+  
+  @media (min-width: 768px) and (max-width: 1024px) {
+    .video-card {
+      min-width: 300px;
+      max-width: 340px;
+    }
+  }
 }
 
 /* Animations personnalisées pour WelcomeScreen */

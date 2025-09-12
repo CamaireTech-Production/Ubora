@@ -12,7 +12,7 @@ import { EmployeDashboard } from './pages/EmployeDashboard';
 import { UnauthorizedPage } from './pages/UnauthorizedPage';
 import { PendingApprovalPage } from './pages/PendingApprovalPage';
 import { PWAInstallPrompt } from './components/PWAInstallPrompt';
-import { PWAUpdateNotification } from './components/PWAUpdateNotification';
+// import { PWAUpdateNotification } from './components/PWAUpdateNotification';
 
 function App() {
   return (
@@ -70,7 +70,7 @@ function App() {
           
           {/* PWA Components */}
           <PWAInstallPrompt />
-          <PWAUpdateNotification />
+          {/* <PWAUpdateNotification /> */}
         </ConversationProvider>
       </AppProvider>
     </AuthProvider>

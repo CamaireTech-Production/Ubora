@@ -7,6 +7,7 @@ import { Button } from '../components/Button';
 import { DynamicForm } from '../components/DynamicForm';
 import { LoadingGuard } from '../components/LoadingGuard';
 import { FileText, CheckCircle, ArrowLeft, Eye, AlertTriangle, Edit, Trash2, Send, FileEdit, Filter, Calendar, SortAsc, SortDesc } from 'lucide-react';
+import { VideoSection } from '../components/VideoSection';
 
 interface ResponsesInterfaceProps {
   myEntries: any[];
@@ -294,6 +295,42 @@ export const EmployeDashboard: React.FC = () => {
   }>({ show: false, draftId: null, draftTitle: '' });
   const [showResponsesInterface, setShowResponsesInterface] = useState(false);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  // Sample video data - in a real app, this would come from your backend
+  const employeeVideos = [
+    {
+      id: '1',
+      title: 'Comment remplir les formulaires efficacement',
+      description: 'Apprenez les meilleures pratiques pour remplir vos formulaires de manière efficace et éviter les erreurs courantes.',
+      youtubeId: 'dQw4w9WgXcQ', // Replace with actual YouTube video ID
+      duration: '5:30',
+      category: 'Formation'
+    },
+    {
+      id: '2',
+      title: 'Gestion du temps et des priorités',
+      description: 'Découvrez des techniques pour mieux organiser votre temps et gérer vos priorités au travail.',
+      youtubeId: 'dQw4w9WgXcQ', // Replace with actual YouTube video ID
+      duration: '8:15',
+      category: 'Productivité'
+    },
+    {
+      id: '3',
+      title: 'Communication professionnelle',
+      description: 'Améliorez vos compétences en communication pour une meilleure collaboration avec vos collègues.',
+      youtubeId: 'dQw4w9WgXcQ', // Replace with actual YouTube video ID
+      duration: '12:45',
+      category: 'Communication'
+    },
+    {
+      id: '4',
+      title: 'Sécurité au travail',
+      description: 'Rappel des règles de sécurité essentielles à respecter dans votre environnement de travail.',
+      youtubeId: 'dQw4w9WgXcQ', // Replace with actual YouTube video ID
+      duration: '6:20',
+      category: 'Sécurité'
+    }
+  ];
 
   const formatTimeRestrictions = (restrictions?: {
     startTime?: string;
@@ -1048,6 +1085,13 @@ export const EmployeDashboard: React.FC = () => {
                   </div>
                 )}
               </Card>
+
+              {/* Video Section */}
+              <VideoSection 
+                title="Vidéos de formation"
+                videos={employeeVideos}
+                className="mt-6"
+              />
             </div>
           </Layout>
         );

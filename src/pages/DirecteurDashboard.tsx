@@ -9,6 +9,7 @@ import { FormEditor } from '../components/FormEditor';
 import { LoadingGuard } from '../components/LoadingGuard';
 import { Plus, FileText, Users, Eye, Trash2, Edit, UserCheck, Paperclip, ExternalLink, BarChart3, Calendar, ChevronDown } from 'lucide-react';
 import { PendingApprovals } from '../components/PendingApprovals';
+import { VideoSection } from '../components/VideoSection';
 
 export const DirecteurDashboard: React.FC = () => {
   const { user, firebaseUser, isLoading } = useAuth();
@@ -40,6 +41,50 @@ export const DirecteurDashboard: React.FC = () => {
     end: ''
   });
   const [showCustomDatePicker, setShowCustomDatePicker] = useState(false);
+
+  // Sample video data for directors - in a real app, this would come from your backend
+  const directorVideos = [
+    {
+      id: '1',
+      title: 'Gestion d\'équipe et leadership',
+      description: 'Découvrez les techniques de leadership modernes pour motiver et diriger efficacement votre équipe.',
+      youtubeId: 'dQw4w9WgXcQ', // Replace with actual YouTube video ID
+      duration: '15:30',
+      category: 'Leadership'
+    },
+    {
+      id: '2',
+      title: 'Création de formulaires avancés',
+      description: 'Apprenez à créer des formulaires complexes avec des conditions et des validations avancées.',
+      youtubeId: 'dQw4w9WgXcQ', // Replace with actual YouTube video ID
+      duration: '12:45',
+      category: 'Formation'
+    },
+    {
+      id: '3',
+      title: 'Analyse des données et rapports',
+      description: 'Maîtrisez l\'analyse des données collectées et la génération de rapports efficaces.',
+      youtubeId: 'dQw4w9WgXcQ', // Replace with actual YouTube video ID
+      duration: '18:20',
+      category: 'Analytics'
+    },
+    {
+      id: '4',
+      title: 'Gestion des performances d\'équipe',
+      description: 'Techniques pour évaluer et améliorer les performances de votre équipe.',
+      youtubeId: 'dQw4w9WgXcQ', // Replace with actual YouTube video ID
+      duration: '14:15',
+      category: 'Management'
+    },
+    {
+      id: '5',
+      title: 'Communication managériale',
+      description: 'Améliorez vos compétences en communication pour une meilleure gestion d\'équipe.',
+      youtubeId: 'dQw4w9WgXcQ', // Replace with actual YouTube video ID
+      duration: '11:30',
+      category: 'Communication'
+    }
+  ];
 
   const handleCreateForm = async (formData: {
     title: string;
@@ -692,6 +737,13 @@ export const DirecteurDashboard: React.FC = () => {
                 );
               })()}
             </Card>
+
+            {/* Video Section */}
+            <VideoSection 
+              title="Vidéos de formation pour directeurs"
+              videos={directorVideos}
+              className="mt-6"
+            />
 
           </div>
         </Layout>

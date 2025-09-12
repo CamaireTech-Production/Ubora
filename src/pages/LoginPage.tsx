@@ -1,13 +1,14 @@
-import React, { useState } from 'react';
-import { Navigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Navigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from '../components/Button';
 import { Input } from '../components/Input';
 import { Card } from '../components/Card';
-import { Building2, Lock, Mail, AlertCircle } from 'lucide-react';
+import { Building2, Lock, Mail, AlertCircle, UserPlus } from 'lucide-react';
 
 export const LoginPage: React.FC = () => {
   const { user, login, loginWithGoogle, register, isLoading, error } = useAuth();
+  const [searchParams] = useSearchParams();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
@@ -15,6 +16,27 @@ export const LoginPage: React.FC = () => {
   const [agencyId, setAgencyId] = useState('');
   const [isRegisterMode, setIsRegisterMode] = useState(false);
   const [localError, setLocalError] = useState('');
+  const [isInviteLink, setIsInviteLink] = useState(false);
+
+  // Gérer les paramètres d'invitation depuis l'URL
+  useEffect(() => {
+    const invite = searchParams.get('invite');
+    const inviteAgencyId = searchParams.get('agencyId');
+    const inviteRole = searchParams.get('role');
+    
+    if (invite === 'true') {
+      setIsInviteLink(true);
+      setIsRegisterMode(true);
+      
+      if (inviteAgencyId) {
+        setAgencyId(inviteAgencyId);
+      }
+      
+      if (inviteRole === 'employe') {
+        setRole('employe');
+      }
+    }
+  }, [searchParams]);
 
   // Rediriger si déjà connecté
   if (user) {
@@ -61,11 +83,25 @@ export const LoginPage: React.FC = () => {
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4 sm:p-6 lg:p-8">
       <div className="w-full max-w-sm sm:max-w-md">
         <div className="text-center mb-8">
-          <Building2 className="h-10 w-10 sm:h-12 sm:w-12 text-blue-600 mx-auto mb-4" />
+          {isInviteLink ? (
+            <UserPlus className="h-10 w-10 sm:h-12 sm:w-12 text-green-600 mx-auto mb-4" />
+          ) : (
+            <Building2 className="h-10 w-10 sm:h-12 sm:w-12 text-blue-600 mx-auto mb-4" />
+          )}
           <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">Multi-Agences</h1>
           <p className="text-sm sm:text-base text-gray-600">
-            {isRegisterMode ? 'Créer un compte' : 'Connectez-vous à votre espace'}
+            {isInviteLink 
+              ? 'Vous avez été invité à rejoindre l\'équipe' 
+              : isRegisterMode 
+                ? 'Créer un compte' 
+                : 'Connectez-vous à votre espace'
+            }
           </p>
+          {isInviteLink && (
+            <p className="text-xs text-green-600 mt-2 font-medium">
+              Rôle employé pré-sélectionné
+            </p>
+          )}
         </div>
 
         <Card>
@@ -88,21 +124,46 @@ export const LoginPage: React.FC = () => {
                   <select
                     value={role}
                     onChange={(e) => setRole(e.target.value as 'directeur' | 'employe')}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-base"
+                    disabled={isInviteLink}
+                    className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-base ${
+                      isInviteLink 
+                        ? 'border-green-300 bg-green-50 text-green-700 cursor-not-allowed' 
+                        : 'border-gray-300'
+                    }`}
                   >
                     <option value="employe">Employé</option>
                     <option value="directeur">Directeur</option>
                   </select>
+                  {isInviteLink && (
+                    <p className="text-xs text-green-600 mt-1">
+                      Rôle défini par l'invitation
+                    </p>
+                  )}
                 </div>
 
-                <Input
-                  label="ID Agence"
-                  type="text"
-                  value={agencyId}
-                  onChange={(e) => setAgencyId(e.target.value)}
-                  placeholder="Entrez votre ID d'agence"
-                  required
-                />
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    ID Agence
+                  </label>
+                  <input
+                    type="text"
+                    value={agencyId}
+                    onChange={(e) => setAgencyId(e.target.value)}
+                    placeholder="Entrez votre ID d'agence"
+                    disabled={isInviteLink}
+                    required
+                    className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-base ${
+                      isInviteLink 
+                        ? 'border-green-300 bg-green-50 text-green-700 cursor-not-allowed' 
+                        : 'border-gray-300'
+                    }`}
+                  />
+                  {isInviteLink && (
+                    <p className="text-xs text-green-600 mt-1">
+                      Agence définie par l'invitation
+                    </p>
+                  )}
+                </div>
               </>
             )}
 
