@@ -281,84 +281,83 @@ export const DirecteurDashboard: React.FC = () => {
       ) : (
         <Layout title="Dashboard Directeur">
           <div className="space-y-6 lg:space-y-8">
-            {/* Filtre temporel */}
-            <Card>
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                <div className="flex items-center space-x-2">
-                  <Calendar className="h-5 w-5 text-gray-500" />
-                  <span className="font-medium text-gray-700">Période d'analyse:</span>
-                </div>
-                
-                <div className="flex flex-col sm:flex-row gap-3">
-                  {/* Dropdown des périodes prédéfinies */}
-                  <div className="relative">
-                    <select
-                      value={timeFilter}
-                      onChange={(e) => {
-                        setTimeFilter(e.target.value);
-                        if (e.target.value !== 'custom') {
-                          setShowCustomDatePicker(false);
-                        }
-                      }}
-                      className="appearance-none bg-white border border-gray-300 rounded-lg px-4 py-2 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    >
-                      <option value="all">Toutes les périodes</option>
-                      <option value="today">Aujourd'hui</option>
-                      <option value="yesterday">Hier</option>
-                      <option value="last7days">7 derniers jours</option>
-                      <option value="last30days">30 derniers jours</option>
-                      <option value="thisweek">Cette semaine</option>
-                      <option value="lastweek">Semaine dernière</option>
-                      <option value="thismonth">Ce mois</option>
-                      <option value="lastmonth">Mois dernier</option>
-                      <option value="thisquarter">Ce trimestre</option>
-                      <option value="lastquarter">Trimestre dernier</option>
-                      <option value="thisyear">Cette année</option>
-                      <option value="lastyear">Année dernière</option>
-                      <option value="custom">Période personnalisée</option>
-                    </select>
-                    <ChevronDown className="absolute right-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
-                  </div>
-                  
-                  {/* Bouton pour ouvrir le sélecteur de dates personnalisées */}
-                  {timeFilter === 'custom' && (
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      onClick={() => setShowCustomDatePicker(!showCustomDatePicker)}
-                      className="flex items-center space-x-2"
-                    >
-                      <Calendar className="h-4 w-4" />
-                      <span>Choisir les dates</span>
-                    </Button>
-                  )}
-                </div>
+            {/* Filtre temporel compact */}
+            <div className="flex items-center justify-between bg-white border border-gray-200 rounded-lg px-4 py-3 shadow-sm">
+              <div className="flex items-center space-x-2">
+                <Calendar className="h-4 w-4 text-gray-500" />
+                <span className="text-sm font-medium text-gray-700">Période:</span>
               </div>
               
-              {/* Sélecteur de dates personnalisées */}
-              {showCustomDatePicker && timeFilter === 'custom' && (
-                <div className="mt-4 p-4 bg-gray-50 rounded-lg border">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="flex items-center space-x-3">
+                {/* Dropdown des périodes prédéfinies */}
+                <div className="relative">
+                  <select
+                    value={timeFilter}
+                    onChange={(e) => {
+                      setTimeFilter(e.target.value);
+                      if (e.target.value !== 'custom') {
+                        setShowCustomDatePicker(false);
+                      }
+                    }}
+                    className="appearance-none bg-white border border-gray-300 rounded-md px-3 py-1.5 pr-7 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 min-w-[140px]"
+                  >
+                    <option value="all">Toutes les périodes</option>
+                    <option value="today">Aujourd'hui</option>
+                    <option value="yesterday">Hier</option>
+                    <option value="last7days">7 derniers jours</option>
+                    <option value="last30days">30 derniers jours</option>
+                    <option value="thisweek">Cette semaine</option>
+                    <option value="lastweek">Semaine dernière</option>
+                    <option value="thismonth">Ce mois</option>
+                    <option value="lastmonth">Mois dernier</option>
+                    <option value="thisquarter">Ce trimestre</option>
+                    <option value="lastquarter">Trimestre dernier</option>
+                    <option value="thisyear">Cette année</option>
+                    <option value="lastyear">Année dernière</option>
+                    <option value="custom">Période personnalisée</option>
+                  </select>
+                  <ChevronDown className="absolute right-2 top-1/2 transform -translate-y-1/2 h-3 w-3 text-gray-400 pointer-events-none" />
+                </div>
+                
+                {/* Bouton pour ouvrir le sélecteur de dates personnalisées */}
+                {timeFilter === 'custom' && (
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => setShowCustomDatePicker(!showCustomDatePicker)}
+                    className="flex items-center space-x-1 px-2 py-1 text-xs"
+                  >
+                    <Calendar className="h-3 w-3" />
+                    <span>Dates</span>
+                  </Button>
+                )}
+              </div>
+            </div>
+              
+            {/* Sélecteur de dates personnalisées */}
+            {showCustomDatePicker && timeFilter === 'custom' && (
+              <div className="mt-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                      <label className="block text-xs font-medium text-gray-600 mb-1">
                         Date de début
                       </label>
                       <input
                         type="date"
                         value={customDateRange.start}
                         onChange={(e) => setCustomDateRange(prev => ({ ...prev, start: e.target.value }))}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        className="w-full px-2 py-1.5 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                      <label className="block text-xs font-medium text-gray-600 mb-1">
                         Date de fin
                       </label>
                       <input
                         type="date"
                         value={customDateRange.end}
                         onChange={(e) => setCustomDateRange(prev => ({ ...prev, end: e.target.value }))}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        className="w-full px-2 py-1.5 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                       />
                     </div>
                   </div>
@@ -380,7 +379,6 @@ export const DirecteurDashboard: React.FC = () => {
                   </div>
                 </div>
               )}
-            </Card>
 
             {/* Statistiques */}
             {(() => {
