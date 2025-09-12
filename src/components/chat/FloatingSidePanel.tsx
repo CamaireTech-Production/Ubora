@@ -305,36 +305,37 @@ export const FloatingSidePanel: React.FC<FloatingSidePanelProps> = ({
               const isActive = activeTab === action.id && action.id !== 'dashboard';
               
               return (
-                <button
-                  key={action.id}
-                  onClick={action.onClick}
-                  className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors focus:ring-2 focus:ring-blue-300 ${
-                    isActive
-                      ? 'bg-blue-100 text-blue-700'
-                      : 'text-gray-700 hover:bg-gray-50'
-                  }`}
-                  aria-label={action.label}
-                >
-                  <Icon className="h-5 w-5" />
-                  <span className="font-medium">{action.label}</span>
-                  {action.count !== null && (
-                    <span className={`ml-auto text-xs px-2 py-0.5 rounded-full ${
-                      isActive ? 'bg-blue-200 text-blue-800' : 'bg-gray-200 text-gray-700'
-                    }`}>
-                      {action.count}
-                    </span>
+                <div key={action.id} className="space-y-1">
+                  <button
+                    onClick={action.onClick}
+                    className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors focus:ring-2 focus:ring-blue-300 ${
+                      isActive
+                        ? 'bg-blue-100 text-blue-700'
+                        : 'text-gray-700 hover:bg-gray-50'
+                    }`}
+                    aria-label={action.label}
+                  >
+                    <Icon className="h-5 w-5" />
+                    <span className="font-medium">{action.label}</span>
+                    {action.count !== null && (
+                      <span className={`ml-auto text-xs px-2 py-0.5 rounded-full ${
+                        isActive ? 'bg-blue-200 text-blue-800' : 'bg-gray-200 text-gray-700'
+                      }`}>
+                        {action.count}
+                      </span>
+                    )}
+                  </button>
+                  
+                  {/* Contenu de l'onglet actif directement sous l'item */}
+                  {isActive && (
+                    <div className="ml-3 mr-1 rounded-xl border border-gray-200 p-3 max-h-[55vh] overflow-auto">
+                      {renderTabContent()}
+                    </div>
                   )}
-                </button>
+                </div>
               );
             })}
           </div>
-
-          {/* Contenu de l'onglet actif */}
-          {activeTab && (
-            <div className="mt-3 rounded-xl border border-gray-200 p-3 max-h-[55vh] overflow-auto">
-              {renderTabContent()}
-            </div>
-          )}
         </div>
       </div>
     </>
