@@ -176,12 +176,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setError('Erreur lors du chargement des entrées');
     });
 
-    // Écouter les employés de l'agence (requête avec index composite)
+    // Écouter les employés de l'agence (sans orderBy pour éviter les problèmes d'index)
     const employeesQuery = query(
       collection(db, 'users'),
       where('agencyId', '==', user.agencyId),
-      where('role', '==', 'employe'),
-      orderBy('name', 'asc')
+      where('role', '==', 'employe')
     );
 
     const unsubscribeEmployees = onSnapshot(employeesQuery, (snapshot) => {
@@ -189,6 +188,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         id: doc.id,
         ...doc.data()
       })) as User[];
+      
+      // Sort employees by name in JavaScript
+      employeesData.sort((a, b) => a.name.localeCompare(b.name));
+      
       setEmployees(employeesData);
       console.log('Employés chargés:', employeesData.length);
     }, (err) => {

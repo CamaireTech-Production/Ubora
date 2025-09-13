@@ -6,9 +6,10 @@ import { Textarea } from './Textarea';
 import { Select } from './Select';
 import { Card } from './Card';
 import { FileInput } from './FileInput';
-import { FileUploadService, UploadProgress } from '../services/fileUploadService';
+import { FileUploadService, UploadProgress, PDFExtractionResult } from '../services/fileUploadService';
 import { useAuth } from '../contexts/AuthContext';
 import { Upload, CheckCircle, AlertCircle, X, Clock, AlertTriangle, Loader2 } from 'lucide-react';
+import { PDFDebugModal } from './PDFDebugModal';
 
 interface DynamicFormProps {
   form: Form;
@@ -34,6 +35,15 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [fileAttachments, setFileAttachments] = useState<FileAttachment[]>(initialFileAttachments);
   const [uploadProgress, setUploadProgress] = useState<Record<string, UploadProgress>>({});
+  
+  // Debug modal state
+  const [debugModal, setDebugModal] = useState<{
+    isOpen: boolean;
+    data: PDFExtractionResult | null;
+  }>({
+    isOpen: false,
+    data: null
+  });
 
   const formatTimeRestrictions = (restrictions?: {
     startTime?: string;
@@ -125,18 +135,22 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
         }
       }));
 
-      // Upload file
-      const attachment = await FileUploadService.uploadFile(
+      // Process file locally (extract text, no Firebase upload yet)
+      const attachment = await FileUploadService.processFileLocally(
         file,
         fieldId,
-        form.id,
-        user.id,
-        user.agencyId,
         (progress) => {
           setUploadProgress(prev => ({
             ...prev,
             [fieldId]: progress
           }));
+        },
+        (pdfResult) => {
+          // Show debug modal for PDF extraction
+          setDebugModal({
+            isOpen: true,
+            data: pdfResult
+          });
         }
       );
 
@@ -444,6 +458,20 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
           </div>
         </form>
       </Card>
+      
+      {/* PDF Debug Modal */}
+      {debugModal.data && (
+        <PDFDebugModal
+          isOpen={debugModal.isOpen}
+          onClose={() => setDebugModal({ isOpen: false, data: null })}
+          fileName={debugModal.data.fileName}
+          extractedText={debugModal.data.extractedText}
+          extractionStatus={debugModal.data.extractionStatus}
+          error={debugModal.data.error}
+          pages={debugModal.data.pages}
+          fileSize={debugModal.data.fileSize}
+        />
+      )}
     </div>
   );
 };
