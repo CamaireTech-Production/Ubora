@@ -13,7 +13,7 @@ import {
   writeBatch
 } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
-import { Form, FormEntry, User, DraftResponse } from '../types';
+import { Form, FormEntry, User, DraftResponse, Dashboard } from '../types';
 import { DraftService } from '../services/draftService';
 import { useAuth } from './AuthContext';
 
@@ -21,6 +21,7 @@ interface AppContextType {
   forms: Form[];
   formEntries: FormEntry[];
   employees: User[];
+  dashboards: Dashboard[];
   createForm: (form: Omit<Form, 'id' | 'createdAt'>) => Promise<void>;
   updateForm: (formId: string, form: Partial<Omit<Form, 'id' | 'createdAt' | 'createdBy' | 'agencyId'>>) => Promise<void>;
   submitFormEntry: (entry: Omit<FormEntry, 'id' | 'submittedAt' | 'userId' | 'agencyId'>) => Promise<void>;
@@ -33,6 +34,11 @@ interface AppContextType {
   getEmployeesForAgency: (agencyId: string) => User[];
   getPendingEmployees: () => User[];
   refreshData: () => void;
+  // Dashboard management
+  createDashboard: (dashboard: Omit<Dashboard, 'id' | 'createdAt'>) => Promise<void>;
+  updateDashboard: (dashboardId: string, dashboard: Partial<Omit<Dashboard, 'id' | 'createdAt' | 'createdBy' | 'agencyId'>>) => Promise<void>;
+  deleteDashboard: (dashboardId: string) => Promise<void>;
+  getDashboardsForDirector: (directorId: string) => Dashboard[];
   // Draft management
   getDraftsForForm: (userId: string, formId: string) => DraftResponse[];
   saveDraft: (draft: DraftResponse) => void;
@@ -50,6 +56,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [forms, setForms] = useState<Form[]>([]);
   const [formEntries, setFormEntries] = useState<FormEntry[]>([]);
   const [employees, setEmployees] = useState<User[]>([]);
+  const [dashboards, setDashboards] = useState<Dashboard[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -60,6 +67,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setForms([]);
       setFormEntries([]);
       setEmployees([]);
+      setDashboards([]);
       return;
     }
 
@@ -182,18 +190,46 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         ...doc.data()
       })) as User[];
       setEmployees(employeesData);
-      setIsLoading(false);
       console.log('Employés chargés:', employeesData.length);
     }, (err) => {
       console.error('Erreur lors du chargement des employés:', err);
       setError('Erreur lors du chargement des employés');
-      setIsLoading(false);
     });
+
+    // Écouter les tableaux de bord de l'agence (seulement pour les directeurs)
+    let unsubscribeDashboards: (() => void) | undefined;
+    if (user.role === 'directeur') {
+      const dashboardsQuery = query(
+        collection(db, 'dashboards'),
+        where('agencyId', '==', user.agencyId),
+        orderBy('createdAt', 'desc')
+      );
+
+      unsubscribeDashboards = onSnapshot(dashboardsQuery, (snapshot) => {
+        const dashboardsData = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data(),
+          createdAt: doc.data().createdAt?.toDate() || new Date()
+        })) as Dashboard[];
+        setDashboards(dashboardsData);
+        setIsLoading(false);
+        console.log('Tableaux de bord chargés:', dashboardsData.length);
+      }, (err) => {
+        console.error('Erreur lors du chargement des tableaux de bord:', err);
+        setError('Erreur lors du chargement des tableaux de bord');
+        setIsLoading(false);
+      });
+    } else {
+      setIsLoading(false);
+    }
 
     return () => {
       unsubscribeForms();
       unsubscribeEntries();
       unsubscribeEmployees();
+      if (unsubscribeDashboards) {
+        unsubscribeDashboards();
+      }
     };
   }, [user, firebaseUser]);
 
@@ -329,7 +365,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-
   const deleteForm = async (formId: string) => {
     if (!user || user.role !== 'directeur') {
       throw new Error('Seuls les directeurs peuvent supprimer des formulaires');
@@ -377,7 +412,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       throw new Error('Seuls les employés peuvent soumettre des formulaires');
     }
 
-
     try {
       setError(null);
       
@@ -403,6 +437,82 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setError('Erreur lors de la soumission des formulaires');
       throw err;
     }
+  };
+
+  // Dashboard management functions
+  const createDashboard = async (dashboardData: Omit<Dashboard, 'id' | 'createdAt'>) => {
+    if (!user || user.role !== 'directeur' || !user.agencyId) {
+      throw new Error('Seuls les directeurs peuvent créer des tableaux de bord');
+    }
+
+    try {
+      setError(null);
+      
+      const docData = {
+        name: dashboardData.name.trim(),
+        description: dashboardData.description?.trim() || '',
+        metrics: dashboardData.metrics.map(metric => ({
+          ...metric,
+          createdAt: serverTimestamp()
+        })),
+        createdBy: user.id,
+        agencyId: user.agencyId,
+        isDefault: dashboardData.isDefault || false,
+        createdAt: serverTimestamp()
+      };
+
+      console.log('Création du tableau de bord:', docData);
+      await addDoc(collection(db, 'dashboards'), docData);
+    } catch (err) {
+      console.error('Erreur lors de la création du tableau de bord:', err);
+      setError('Erreur lors de la création du tableau de bord');
+      throw err;
+    }
+  };
+
+  const updateDashboard = async (dashboardId: string, dashboardData: Partial<Omit<Dashboard, 'id' | 'createdAt' | 'createdBy' | 'agencyId'>>) => {
+    if (!user || user.role !== 'directeur' || !user.agencyId) {
+      throw new Error('Seuls les directeurs peuvent modifier des tableaux de bord');
+    }
+
+    try {
+      setError(null);
+      
+      const updateData: Record<string, any> = {
+        updatedAt: serverTimestamp()
+      };
+
+      if (dashboardData.name !== undefined) updateData.name = dashboardData.name.trim();
+      if (dashboardData.description !== undefined) updateData.description = dashboardData.description?.trim() || '';
+      if (dashboardData.metrics !== undefined) updateData.metrics = dashboardData.metrics;
+      if (dashboardData.isDefault !== undefined) updateData.isDefault = dashboardData.isDefault;
+
+      console.log('Mise à jour du tableau de bord:', { dashboardId, updateData });
+      await updateDoc(doc(db, 'dashboards', dashboardId), updateData);
+    } catch (err) {
+      console.error('Erreur lors de la mise à jour du tableau de bord:', err);
+      setError('Erreur lors de la mise à jour du tableau de bord');
+      throw err;
+    }
+  };
+
+  const deleteDashboard = async (dashboardId: string) => {
+    if (!user || user.role !== 'directeur') {
+      throw new Error('Seuls les directeurs peuvent supprimer des tableaux de bord');
+    }
+
+    try {
+      setError(null);
+      await deleteDoc(doc(db, 'dashboards', dashboardId));
+    } catch (err) {
+      console.error('Erreur lors de la suppression du tableau de bord:', err);
+      setError('Erreur lors de la suppression du tableau de bord');
+      throw err;
+    }
+  };
+
+  const getDashboardsForDirector = (directorId: string): Dashboard[] => {
+    return dashboards.filter(dashboard => dashboard.createdBy === directorId);
   };
 
   // Draft management functions
@@ -437,6 +547,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       forms,
       formEntries,
       employees,
+      dashboards,
       createForm,
       updateForm,
       submitFormEntry,
@@ -449,6 +560,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       getEmployeesForAgency,
       getPendingEmployees,
       refreshData,
+      // Dashboard management
+      createDashboard,
+      updateDashboard,
+      deleteDashboard,
+      getDashboardsForDirector,
       // Draft management
       getDraftsForForm,
       saveDraft,

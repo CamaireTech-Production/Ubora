@@ -11,6 +11,7 @@ import { Plus, FileText, Users, Eye, Trash2, Edit, UserCheck, Paperclip, BarChar
 import { PendingApprovals } from '../components/PendingApprovals';
 import { VideoSection } from '../components/VideoSection';
 import { directorVideos } from '../data/videoData';
+import { DashboardCreationModal } from '../components/DashboardCreationModal';
 
 export const DirecteurDashboard: React.FC = () => {
   const { user, firebaseUser, isLoading } = useAuth();
@@ -24,12 +25,14 @@ export const DirecteurDashboard: React.FC = () => {
     getEntriesForForm,
     getPendingEmployees,
     refreshData,
+    createDashboard,
     isLoading: appLoading
   } = useApp();
   
   const [showFormBuilder, setShowFormBuilder] = useState(false);
   const [editingForm, setEditingForm] = useState<Form | null>(null);
   const [selectedFormId, setSelectedFormId] = useState<string | null>(null);
+  const [showDashboardModal, setShowDashboardModal] = useState(false);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   
   // États pour le filtrage temporel
@@ -101,6 +104,16 @@ export const DirecteurDashboard: React.FC = () => {
   const handleCancelEdit = () => {
     setEditingForm(null);
     setShowFormBuilder(false);
+  };
+
+  const handleCreateDashboard = async (dashboardData: any) => {
+    try {
+      await createDashboard(dashboardData);
+      setShowDashboardModal(false);
+    } catch (error) {
+      console.error('Erreur lors de la création du tableau de bord:', error);
+      alert('Erreur lors de la création du tableau de bord. Veuillez réessayer.');
+    }
   };
 
   const handleDeleteForm = async (formId: string) => {
@@ -446,10 +459,7 @@ export const DirecteurDashboard: React.FC = () => {
               </Button>
               
               <Button
-                onClick={() => {
-                  // TODO: Implement dashboard creation functionality
-                  alert('Fonctionnalité de création de tableau de bord à implémenter');
-                }}
+                onClick={() => setShowDashboardModal(true)}
                 variant="secondary"
                 className="flex items-center justify-center space-x-2 w-full"
               >
@@ -658,6 +668,16 @@ export const DirecteurDashboard: React.FC = () => {
           </div>
         </Layout>
       )}
+
+      {/* Dashboard Creation Modal */}
+      <DashboardCreationModal
+        isOpen={showDashboardModal}
+        onClose={() => setShowDashboardModal(false)}
+        onSave={handleCreateDashboard}
+        forms={forms}
+        currentUserId={user?.id || ''}
+        agencyId={user?.agencyId || ''}
+      />
     </LoadingGuard>
   );
 };

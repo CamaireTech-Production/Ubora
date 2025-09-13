@@ -165,6 +165,36 @@ service cloud.firestore {
     }
 
     // =============================================================================
+    // COLLECTION DASHBOARDS
+    // Règles pour les tableaux de bord personnalisés :
+    // - Seuls les directeurs peuvent créer/lire/modifier/supprimer leurs tableaux de bord
+    // - Les tableaux de bord sont isolés par agence
+    // =============================================================================
+    
+    match /dashboards/{dashboardId} {
+      // LECTURE des tableaux de bord
+      allow read: if isDirecteur() && 
+                  isSameAgency(resource.data.agencyId) &&
+                  resource.data.createdBy == request.auth.uid;
+      
+      // CRÉATION des tableaux de bord
+      allow create: if isDirecteur() && 
+                   isSameAgency(request.resource.data.agencyId) &&
+                   request.resource.data.createdBy == request.auth.uid &&
+                   request.resource.data.keys().hasAll(['name', 'metrics', 'createdBy', 'agencyId']);
+      
+      // MODIFICATION des tableaux de bord
+      allow update: if isDirecteur() && 
+                   isSameAgency(resource.data.agencyId) &&
+                   resource.data.createdBy == request.auth.uid;
+      
+      // SUPPRESSION des tableaux de bord
+      allow delete: if isDirecteur() && 
+                   isSameAgency(resource.data.agencyId) &&
+                   resource.data.createdBy == request.auth.uid;
+    }
+
+    // =============================================================================
     // RÈGLE DE SÉCURITÉ GLOBALE
     // Bloquer tout accès non authentifié par défaut
     // =============================================================================

@@ -148,9 +148,36 @@ export interface Conversation {
   messageCount: number;
 }
 
+// Types pour les tableaux de bord et métriques
+export interface DashboardMetric {
+  id: string;
+  name: string;
+  description?: string;
+  formId: string;
+  fieldId: string;
+  fieldType: 'text' | 'number' | 'email' | 'textarea' | 'select' | 'checkbox' | 'date' | 'file';
+  calculationType: 'count' | 'sum' | 'average' | 'min' | 'max' | 'unique';
+  createdAt: Date;
+  createdBy: string; // directeur ID
+  agencyId: string;
+}
+
+export interface Dashboard {
+  id: string;
+  name: string;
+  description?: string;
+  metrics: DashboardMetric[];
+  createdAt: Date;
+  createdBy: string; // directeur ID
+  agencyId: string;
+  isDefault?: boolean; // Pour le dashboard par défaut
+}
+
 // Types pour l'état de l'application
 export interface AppState {
   users: User[];
   forms: Form[];
   formEntries: FormEntry[];
+  dashboards: Dashboard[];
 }
+

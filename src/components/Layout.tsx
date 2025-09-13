@@ -18,6 +18,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, title }) => {
   const isDirecteur = user?.role === 'directeur';
   const isDashboard = location.pathname === '/directeur/dashboard';
   const isChat = location.pathname === '/directeur/chat';
+  const isDashboardManagement = location.pathname === '/directeur/dashboards';
 
   const toggleMobileMenu = () => {
     setIsMobileMenuOpen(!isMobileMenuOpen);
@@ -78,6 +79,16 @@ export const Layout: React.FC<LayoutProps> = ({ children, title }) => {
                 >
                   <BarChart3 className="h-4 w-4" />
                   <span>Dashboard</span>
+                </Button>
+                
+                <Button
+                  variant={isDashboardManagement ? "primary" : "secondary"}
+                  size="sm"
+                  onClick={() => window.location.href = '/directeur/dashboards'}
+                  className="flex items-center space-x-2"
+                >
+                  <BarChart3 className="h-4 w-4" />
+                  <span>Mes Tableaux</span>
                 </Button>
               </div>
             )}
@@ -141,6 +152,19 @@ export const Layout: React.FC<LayoutProps> = ({ children, title }) => {
               >
                 <BarChart3 className="h-4 w-4" />
                 <span>Dashboard</span>
+              </Button>
+              
+              <Button
+                variant={isDashboardManagement ? "primary" : "secondary"}
+                size="sm"
+                onClick={() => {
+                  window.location.href = '/directeur/dashboards';
+                  closeMobileMenu();
+                }}
+                className="w-full flex items-center justify-start space-x-2 mx-2 mb-1"
+              >
+                <BarChart3 className="h-4 w-4" />
+                <span>Mes Tableaux</span>
               </Button>
               
               {/* Profil utilisateur mobile */}
