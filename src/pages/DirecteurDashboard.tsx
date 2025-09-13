@@ -8,10 +8,14 @@ import { Button } from '../components/Button';
 import { FormEditor } from '../components/FormEditor';
 import { LoadingGuard } from '../components/LoadingGuard';
 import { Plus, FileText, Users, Eye, Trash2, Edit, UserCheck, Paperclip, BarChart3, Calendar, ChevronDown } from 'lucide-react';
-import { PendingApprovals } from '../components/PendingApprovals';
+// import { PendingApprovals } from '../components/PendingApprovals';
 import { VideoSection } from '../components/VideoSection';
 import { directorVideos } from '../data/videoData';
 import { DashboardCreationModal } from '../components/DashboardCreationModal';
+import { DashboardDisplay } from '../components/DashboardDisplay';
+import { DashboardDetailModal } from '../components/DashboardDetailModal';
+import { useToast } from '../hooks/useToast';
+import { Toast } from '../components/Toast';
 
 export const DirecteurDashboard: React.FC = () => {
   const { user, firebaseUser, isLoading } = useAuth();
@@ -19,20 +23,24 @@ export const DirecteurDashboard: React.FC = () => {
     forms,
     formEntries,
     employees,
+    dashboards,
     createForm, 
     updateForm,
     deleteForm,
     getEntriesForForm,
     getPendingEmployees,
-    refreshData,
     createDashboard,
+    deleteDashboard,
     isLoading: appLoading
   } = useApp();
+  const { toast, showSuccess, showError } = useToast();
   
   const [showFormBuilder, setShowFormBuilder] = useState(false);
   const [editingForm, setEditingForm] = useState<Form | null>(null);
   const [selectedFormId, setSelectedFormId] = useState<string | null>(null);
   const [showDashboardModal, setShowDashboardModal] = useState(false);
+  const [showDetailModal, setShowDetailModal] = useState(false);
+  const [selectedDashboard, setSelectedDashboard] = useState<any>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   
   // États pour le filtrage temporel
@@ -69,9 +77,10 @@ export const DirecteurDashboard: React.FC = () => {
       });
       setShowFormBuilder(false);
       setEditingForm(null);
+      showSuccess('Formulaire créé avec succès !');
     } catch (error) {
       console.error('Erreur lors de la création du formulaire:', error);
-      alert('Erreur lors de la création du formulaire. Veuillez réessayer.');
+      showError('Erreur lors de la création du formulaire. Veuillez réessayer.');
     }
   };
 
@@ -91,9 +100,10 @@ export const DirecteurDashboard: React.FC = () => {
     try {
       await updateForm(editingForm.id, formData);
       setEditingForm(null);
+      showSuccess('Formulaire mis à jour avec succès !');
     } catch (error) {
       console.error('Erreur lors de la mise à jour du formulaire:', error);
-      alert('Erreur lors de la mise à jour du formulaire. Veuillez réessayer.');
+      showError('Erreur lors de la mise à jour du formulaire. Veuillez réessayer.');
     }
   };
 
@@ -110,9 +120,10 @@ export const DirecteurDashboard: React.FC = () => {
     try {
       await createDashboard(dashboardData);
       setShowDashboardModal(false);
+      showSuccess('Tableau de bord créé avec succès !');
     } catch (error) {
       console.error('Erreur lors de la création du tableau de bord:', error);
-      alert('Erreur lors de la création du tableau de bord. Veuillez réessayer.');
+      showError('Erreur lors de la création du tableau de bord. Veuillez réessayer.');
     }
   };
 
@@ -120,11 +131,34 @@ export const DirecteurDashboard: React.FC = () => {
     if (window.confirm('Êtes-vous sûr de vouloir supprimer ce formulaire ?')) {
       try {
         await deleteForm(formId);
+        showSuccess('Formulaire supprimé avec succès !');
       } catch (error) {
         console.error('Erreur lors de la suppression:', error);
-        alert('Erreur lors de la suppression du formulaire.');
+        showError('Erreur lors de la suppression du formulaire.');
       }
     }
+  };
+
+  const handleDeleteDashboard = async (dashboardId: string) => {
+    if (window.confirm('Êtes-vous sûr de vouloir supprimer ce tableau de bord ?')) {
+      try {
+        await deleteDashboard(dashboardId);
+        showSuccess('Tableau de bord supprimé avec succès !');
+      } catch (error) {
+        console.error('Erreur lors de la suppression du tableau de bord:', error);
+        showError('Erreur lors de la suppression du tableau de bord.');
+      }
+    }
+  };
+
+  const handleViewDashboard = (dashboard: any) => {
+    setSelectedDashboard(dashboard);
+    setShowDetailModal(true);
+  };
+
+  const handleCloseDetailModal = () => {
+    setShowDetailModal(false);
+    setSelectedDashboard(null);
   };
 
 
@@ -442,11 +476,11 @@ export const DirecteurDashboard: React.FC = () => {
             })()}
 
             {/* Section des approbations en attente */}
-            <PendingApprovals
+            {/* <PendingApprovals
               pendingEmployees={getPendingEmployees()}
               currentDirectorId={user?.id || ''}
               onApprovalChange={refreshData}
-            />
+            /> */}
 
             {/* Actions principales */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
@@ -658,6 +692,51 @@ export const DirecteurDashboard: React.FC = () => {
               })()}
             </Card>
 
+            {/* Liste des tableaux de bord */}
+            <Card title="Tableaux de bord créés">
+              {(() => {
+                const filteredDashboards = dashboards.filter(dashboard => 
+                  isDateInRange(dashboard.createdAt, getDateRange(timeFilter).start, getDateRange(timeFilter).end)
+                );
+                
+                return filteredDashboards.length === 0 ? (
+                  <div className="text-center py-6 sm:py-8">
+                    <BarChart3 className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                    <p className="text-gray-500 mb-4">
+                      {timeFilter === 'all' 
+                        ? 'Aucun tableau de bord créé pour le moment'
+                        : 'Aucun tableau de bord créé dans cette période'
+                      }
+                    </p>
+                    {timeFilter === 'all' && (
+                      <Button onClick={() => setShowDashboardModal(true)}>
+                        Créer votre premier tableau de bord
+                      </Button>
+                    )}
+                  </div>
+                ) : (
+                  <div className="relative">
+                    {/* Always horizontal scrollable like forms and videos */}
+                    <div className="flex gap-4 sm:gap-6 overflow-x-auto pb-4 scrollbar-hide horizontal-scroll-dashboards">
+                      {filteredDashboards.map(dashboard => (
+                        <div key={dashboard.id} className="flex-shrink-0 w-70 sm:w-75">
+                          <DashboardDisplay
+                            dashboard={dashboard}
+                            formEntries={formEntries}
+                            forms={forms}
+                            onView={handleViewDashboard}
+                            onDelete={handleDeleteDashboard}
+                            showActions={true}
+                            minimal={true}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
+            </Card>
+
             {/* Video Section */}
             <VideoSection 
               title="Vidéos de formation pour directeurs"
@@ -677,6 +756,35 @@ export const DirecteurDashboard: React.FC = () => {
         forms={forms}
         currentUserId={user?.id || ''}
         agencyId={user?.agencyId || ''}
+      />
+
+      {/* Dashboard Detail Modal */}
+      <DashboardDetailModal
+        isOpen={showDetailModal}
+        onClose={handleCloseDetailModal}
+        dashboard={selectedDashboard}
+        formEntries={formEntries}
+        forms={forms}
+        onEditDashboard={(dashboard) => {
+          // For now, just show an alert. In a real implementation, you'd open an edit modal
+          alert(`Édition du tableau de bord "${dashboard.name}" - Fonctionnalité à implémenter`);
+        }}
+        onDeleteDashboard={handleDeleteDashboard}
+        onEditMetric={(dashboard, metricIndex) => {
+          // For now, just show an alert. In a real implementation, you'd open a metric editing modal
+          alert(`Édition de la métrique "${dashboard.metrics[metricIndex].name}" - Fonctionnalité à implémenter`);
+        }}
+        onDeleteMetric={(dashboard, metricIndex) => {
+          // For now, just show an alert. In a real implementation, you'd delete the metric
+          alert(`Suppression de la métrique "${dashboard.metrics[metricIndex].name}" - Fonctionnalité à implémenter`);
+        }}
+      />
+
+      {/* Toast Notification */}
+      <Toast
+        show={toast.show}
+        message={toast.message}
+        type={toast.type}
       />
     </LoadingGuard>
   );

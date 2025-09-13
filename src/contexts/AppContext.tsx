@@ -453,7 +453,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         description: dashboardData.description?.trim() || '',
         metrics: dashboardData.metrics.map(metric => ({
           ...metric,
-          createdAt: serverTimestamp()
+          createdAt: new Date()
         })),
         createdBy: user.id,
         agencyId: user.agencyId,

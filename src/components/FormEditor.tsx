@@ -7,6 +7,8 @@ import { Textarea } from './Textarea';
 import { Card } from './Card';
 import { FileTypeSelector } from './FileTypeSelector';
 import { FieldCSVImport } from './FieldCSVImport';
+import { Toast } from './Toast';
+import { useToast } from '../hooks/useToast';
 import { Plus, Trash2, ArrowLeft, CheckSquare, Square, Loader2 } from 'lucide-react';
 
 interface FormEditorProps {
@@ -44,11 +46,7 @@ export const FormEditor: React.FC<FormEditorProps> = ({
   const [useTimeRange, setUseTimeRange] = useState(!!form?.timeRestrictions?.endTime);
   const [employeeSearchTerm, setEmployeeSearchTerm] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [toast, setToast] = useState<{
-    show: boolean;
-    type: 'success' | 'error';
-    message: string;
-  }>({ show: false, type: 'success', message: '' });
+  const { toast, showSuccess, showError } = useToast();
 
   // Update state when form prop changes
   useEffect(() => {
@@ -160,30 +158,24 @@ export const FormEditor: React.FC<FormEditorProps> = ({
     );
   };
 
-  const showToast = (type: 'success' | 'error', message: string) => {
-    setToast({ show: true, type, message });
-    setTimeout(() => {
-      setToast(prev => ({ ...prev, show: false }));
-    }, 4000);
-  };
 
   const handleFieldOptionsUpdate = (fieldId: string, newOptions: string[]) => {
     updateField(fieldId, { options: newOptions });
-    showToast('success', 'Options importées avec succès');
+    showSuccess('Options importées avec succès');
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!title || assignedTo.length === 0 || fields.length === 0) {
-      showToast('error', 'Veuillez remplir tous les champs obligatoires');
+      showError('Veuillez remplir tous les champs obligatoires');
       return;
     }
 
     // Valider que tous les champs ont un label
     const invalidFields = fields.filter(field => !field.label.trim());
     if (invalidFields.length > 0) {
-      showToast('error', 'Tous les champs doivent avoir un libellé');
+      showError('Tous les champs doivent avoir un libellé');
       return;
     }
 
@@ -199,11 +191,11 @@ export const FormEditor: React.FC<FormEditorProps> = ({
       });
       
       const successMessage = isEditing ? 'Formulaire mis à jour avec succès' : 'Formulaire créé avec succès';
-      showToast('success', successMessage);
+      showSuccess(successMessage);
     } catch (error) {
       console.error('Error saving form:', error);
       const errorMessage = isEditing ? 'Erreur lors de la mise à jour du formulaire' : 'Erreur lors de la création du formulaire';
-      showToast('error', errorMessage);
+      showError(errorMessage);
     } finally {
       setIsSubmitting(false);
     }
@@ -587,28 +579,11 @@ export const FormEditor: React.FC<FormEditorProps> = ({
       </Card>
 
       {/* Toast Notification */}
-      {toast.show && (
-        <div className="fixed top-4 right-4 z-50 animate-in slide-in-from-right duration-300">
-          <div className={`flex items-center space-x-3 px-4 py-3 rounded-lg shadow-lg border ${
-            toast.type === 'success' 
-              ? 'bg-green-50 border-green-200 text-green-800' 
-              : 'bg-red-50 border-red-200 text-red-800'
-          }`}>
-            <div className={`w-2 h-2 rounded-full ${
-              toast.type === 'success' ? 'bg-green-500' : 'bg-red-500'
-            }`}></div>
-            <span className="text-sm font-medium">{toast.message}</span>
-            <button
-              onClick={() => setToast(prev => ({ ...prev, show: false }))}
-              className={`ml-2 text-lg leading-none hover:opacity-70 ${
-                toast.type === 'success' ? 'text-green-600' : 'text-red-600'
-              }`}
-            >
-              ×
-            </button>
-          </div>
-        </div>
-      )}
+      <Toast
+        show={toast.show}
+        message={toast.message}
+        type={toast.type}
+      />
     </div>
   );
 };

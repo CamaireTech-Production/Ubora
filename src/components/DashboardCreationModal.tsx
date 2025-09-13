@@ -29,6 +29,7 @@ export const DashboardCreationModal: React.FC<DashboardCreationModalProps> = ({
   const [selectedFormId, setSelectedFormId] = useState<string>('');
   const [metrics, setMetrics] = useState<Omit<DashboardMetric, 'id' | 'createdAt' | 'createdBy' | 'agencyId'>[]>([]);
   const [errors, setErrors] = useState<string[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
 
   // Reset form when modal opens/closes
   useEffect(() => {
@@ -38,6 +39,7 @@ export const DashboardCreationModal: React.FC<DashboardCreationModalProps> = ({
       setSelectedFormId('');
       setMetrics([]);
       setErrors([]);
+      setIsLoading(false);
     }
   }, [isOpen]);
 
@@ -113,7 +115,7 @@ export const DashboardCreationModal: React.FC<DashboardCreationModalProps> = ({
     setMetrics(metrics.filter((_, i) => i !== index));
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     const newErrors: string[] = [];
 
     if (!dashboardName.trim()) {
@@ -138,21 +140,30 @@ export const DashboardCreationModal: React.FC<DashboardCreationModalProps> = ({
       return;
     }
 
-    const dashboard: Omit<Dashboard, 'id' | 'createdAt'> = {
-      name: dashboardName.trim(),
-      description: dashboardDescription.trim(),
-      metrics: metrics.map(metric => ({
-        ...metric,
-        id: `metric_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        createdAt: new Date(),
+    setIsLoading(true);
+
+    try {
+      const dashboard: Omit<Dashboard, 'id' | 'createdAt'> = {
+        name: dashboardName.trim(),
+        description: dashboardDescription.trim(),
+        metrics: metrics.map(metric => ({
+          ...metric,
+          id: `metric_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          createdAt: new Date(),
+          createdBy: currentUserId,
+          agencyId: agencyId
+        })),
         createdBy: currentUserId,
         agencyId: agencyId
-      })),
-      createdBy: currentUserId,
-      agencyId: agencyId
-    };
+      };
 
-    onSave(dashboard);
+      await onSave(dashboard);
+    } catch (error) {
+      console.error('Erreur lors de la création du tableau de bord:', error);
+      setErrors(['Erreur lors de la création du tableau de bord. Veuillez réessayer.']);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   if (!isOpen) return null;
@@ -358,9 +369,17 @@ export const DashboardCreationModal: React.FC<DashboardCreationModalProps> = ({
           </Button>
           <Button
             onClick={handleSave}
-            disabled={!dashboardName.trim() || metrics.length === 0}
+            disabled={!dashboardName.trim() || metrics.length === 0 || isLoading}
+            className={isLoading ? 'opacity-75 cursor-not-allowed' : ''}
           >
-            Créer le tableau de bord
+            {isLoading ? (
+              <>
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                Création...
+              </>
+            ) : (
+              'Créer le tableau de bord'
+            )}
           </Button>
         </div>
       </div>

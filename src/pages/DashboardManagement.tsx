@@ -7,13 +7,15 @@ import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { DashboardDisplay } from '../components/DashboardDisplay';
 import { DashboardCreationModal } from '../components/DashboardCreationModal';
+import { DashboardDetailModal } from '../components/DashboardDetailModal';
 import { LoadingGuard } from '../components/LoadingGuard';
+import { Toast } from '../components/Toast';
+import { useToast } from '../hooks/useToast';
 import { Plus, BarChart3, Grid, List } from 'lucide-react';
 
 export const DashboardManagement: React.FC = () => {
   const { user, firebaseUser, isLoading } = useAuth();
   const { 
-    dashboards,
     forms,
     formEntries,
     createDashboard,
@@ -22,10 +24,13 @@ export const DashboardManagement: React.FC = () => {
     getDashboardsForDirector,
     isLoading: appLoading
   } = useApp();
+  const { toast, showSuccess, showError } = useToast();
   
   const [showDashboardModal, setShowDashboardModal] = useState(false);
   const [editingDashboard, setEditingDashboard] = useState<Dashboard | null>(null);
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
+  const [showDetailModal, setShowDetailModal] = useState(false);
+  const [selectedDashboard, setSelectedDashboard] = useState<Dashboard | null>(null);
 
   const directorDashboards = user?.id ? getDashboardsForDirector(user.id) : [];
 
@@ -33,9 +38,11 @@ export const DashboardManagement: React.FC = () => {
     try {
       await createDashboard(dashboardData);
       setShowDashboardModal(false);
+      showSuccess('Tableau de bord créé avec succès !');
     } catch (error) {
       console.error('Erreur lors de la création du tableau de bord:', error);
-      alert('Erreur lors de la création du tableau de bord. Veuillez réessayer.');
+      showError('Erreur lors de la création du tableau de bord. Veuillez réessayer.');
+      throw error; // Re-throw to let the modal handle the error display
     }
   };
 
@@ -51,24 +58,54 @@ export const DashboardManagement: React.FC = () => {
       await updateDashboard(editingDashboard.id, dashboardData);
       setShowDashboardModal(false);
       setEditingDashboard(null);
+      showSuccess('Tableau de bord mis à jour avec succès !');
     } catch (error) {
       console.error('Erreur lors de la mise à jour du tableau de bord:', error);
-      alert('Erreur lors de la mise à jour du tableau de bord. Veuillez réessayer.');
+      showError('Erreur lors de la mise à jour du tableau de bord. Veuillez réessayer.');
     }
   };
 
   const handleDeleteDashboard = async (dashboardId: string) => {
     try {
       await deleteDashboard(dashboardId);
+      showSuccess('Tableau de bord supprimé avec succès !');
     } catch (error) {
       console.error('Erreur lors de la suppression du tableau de bord:', error);
-      alert('Erreur lors de la suppression du tableau de bord. Veuillez réessayer.');
+      showError('Erreur lors de la suppression du tableau de bord. Veuillez réessayer.');
     }
   };
 
   const handleCloseModal = () => {
     setShowDashboardModal(false);
     setEditingDashboard(null);
+  };
+
+  const handleViewDashboard = (dashboard: Dashboard) => {
+    setSelectedDashboard(dashboard);
+    setShowDetailModal(true);
+  };
+
+  const handleCloseDetailModal = () => {
+    setShowDetailModal(false);
+    setSelectedDashboard(null);
+  };
+
+  const handleEditMetric = (dashboard: Dashboard, metricIndex: number) => {
+    // For now, we'll just show an alert. In a real implementation, 
+    // you'd open a metric editing modal
+    alert(`Édition de la métrique "${dashboard.metrics[metricIndex].name}" - Fonctionnalité à implémenter`);
+  };
+
+  const handleDeleteMetric = async (dashboard: Dashboard, metricIndex: number) => {
+    try {
+      const updatedMetrics = dashboard.metrics.filter((_, index) => index !== metricIndex);
+      await updateDashboard(dashboard.id, {
+        metrics: updatedMetrics
+      });
+    } catch (error) {
+      console.error('Erreur lors de la suppression de la métrique:', error);
+      alert('Erreur lors de la suppression de la métrique. Veuillez réessayer.');
+    }
   };
 
   return (
@@ -183,19 +220,40 @@ export const DashboardManagement: React.FC = () => {
               <div className={
                 viewMode === 'grid' 
                   ? 'grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6'
-                  : 'space-y-6'
+                  : 'relative'
               }>
-                {directorDashboards.map(dashboard => (
-                  <DashboardDisplay
-                    key={dashboard.id}
-                    dashboard={dashboard}
-                    formEntries={formEntries}
-                    forms={forms}
-                    onEdit={handleEditDashboard}
-                    onDelete={handleDeleteDashboard}
-                    showActions={true}
-                  />
-                ))}
+                {viewMode === 'list' ? (
+                  <div className="flex gap-4 sm:gap-6 overflow-x-auto pb-4 scrollbar-hide horizontal-scroll-dashboards">
+                    {directorDashboards.map(dashboard => (
+                      <div key={dashboard.id} className="flex-shrink-0 w-64 sm:w-72">
+                        <DashboardDisplay
+                          dashboard={dashboard}
+                          formEntries={formEntries}
+                          forms={forms}
+                          onEdit={handleEditDashboard}
+                          onDelete={handleDeleteDashboard}
+                          onView={handleViewDashboard}
+                          showActions={true}
+                          minimal={true}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  directorDashboards.map(dashboard => (
+                    <DashboardDisplay
+                      key={dashboard.id}
+                      dashboard={dashboard}
+                      formEntries={formEntries}
+                      forms={forms}
+                      onEdit={handleEditDashboard}
+                      onDelete={handleDeleteDashboard}
+                      onView={handleViewDashboard}
+                      showActions={true}
+                      minimal={false}
+                    />
+                  ))
+                )}
               </div>
             )}
           </div>
@@ -208,6 +266,26 @@ export const DashboardManagement: React.FC = () => {
             forms={forms}
             currentUserId={user?.id || ''}
             agencyId={user?.agencyId || ''}
+          />
+
+          {/* Dashboard Detail Modal */}
+          <DashboardDetailModal
+            isOpen={showDetailModal}
+            onClose={handleCloseDetailModal}
+            dashboard={selectedDashboard}
+            formEntries={formEntries}
+            forms={forms}
+            onEditDashboard={handleEditDashboard}
+            onDeleteDashboard={handleDeleteDashboard}
+            onEditMetric={handleEditMetric}
+            onDeleteMetric={handleDeleteMetric}
+          />
+
+          {/* Toast Notification */}
+          <Toast
+            show={toast.show}
+            message={toast.message}
+            type={toast.type}
           />
         </Layout>
       )}

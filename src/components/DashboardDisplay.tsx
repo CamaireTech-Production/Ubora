@@ -11,7 +11,9 @@ interface DashboardDisplayProps {
   forms: Form[];
   onEdit?: (dashboard: Dashboard) => void;
   onDelete?: (dashboardId: string) => void;
+  onView?: (dashboard: Dashboard) => void;
   showActions?: boolean;
+  minimal?: boolean;
 }
 
 export const DashboardDisplay: React.FC<DashboardDisplayProps> = ({
@@ -20,7 +22,9 @@ export const DashboardDisplay: React.FC<DashboardDisplayProps> = ({
   forms,
   onEdit,
   onDelete,
-  showActions = true
+  onView,
+  showActions = true,
+  minimal = false
 }) => {
   const getFieldIcon = (fieldType: string) => {
     switch (fieldType) {
@@ -77,6 +81,63 @@ export const DashboardDisplay: React.FC<DashboardDisplayProps> = ({
     }
   };
 
+  // Minimal view for list display
+  if (minimal) {
+    return (
+      <div 
+        className="cursor-pointer hover:shadow-md transition-shadow"
+        onClick={() => onView?.(dashboard)}
+      >
+        <Card>
+          <div className="flex items-center justify-between">
+            <div className="flex-1">
+              <h3 className="text-lg font-semibold text-gray-900 mb-1">
+                {dashboard.name}
+              </h3>
+              <div className="flex items-center space-x-2 text-sm text-gray-500">
+                <span>Créé le {dashboard.createdAt.toLocaleDateString()}</span>
+                <span>•</span>
+                <span>{dashboard.metrics.length} métrique{dashboard.metrics.length > 1 ? 's' : ''}</span>
+              </div>
+            </div>
+            
+            {showActions && (
+              <div className="flex items-center space-x-2">
+                {onEdit && (
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onEdit(dashboard);
+                    }}
+                    className="p-2"
+                  >
+                    <Edit className="h-4 w-4" />
+                  </Button>
+                )}
+                {onDelete && (
+                  <Button
+                    variant="danger"
+                    size="sm"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDelete();
+                    }}
+                    className="p-2"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                )}
+              </div>
+            )}
+          </div>
+        </Card>
+      </div>
+    );
+  }
+
+  // Full view for detailed display
   return (
     <Card className="h-full">
       <div className="flex items-start justify-between mb-4">
@@ -98,6 +159,16 @@ export const DashboardDisplay: React.FC<DashboardDisplayProps> = ({
         
         {showActions && (
           <div className="flex items-center space-x-2">
+            {onView && (
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => onView(dashboard)}
+                className="p-2"
+              >
+                <Eye className="h-4 w-4" />
+              </Button>
+            )}
             {onEdit && (
               <Button
                 variant="secondary"
@@ -128,38 +199,38 @@ export const DashboardDisplay: React.FC<DashboardDisplayProps> = ({
           <p className="text-gray-500">Aucune métrique configurée</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-4">
           {dashboard.metrics.map((metric, index) => {
             const result = MetricCalculator.calculateMetric(metric, formEntries);
             
             return (
               <div
                 key={metric.id || index}
-                className="bg-gray-50 rounded-lg p-4 border border-gray-200 hover:border-gray-300 transition-colors"
+                className="bg-gray-50 rounded-lg p-2 sm:p-4 border border-gray-200 hover:border-gray-300 transition-colors"
               >
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex items-center space-x-2">
+                <div className="flex items-start justify-between mb-2 sm:mb-3">
+                  <div className="flex items-center space-x-1 sm:space-x-2">
                     {getFieldIcon(metric.fieldType)}
                     {getCalculationIcon(metric.calculationType)}
                   </div>
-                  <span className="text-xs text-gray-500 bg-white px-2 py-1 rounded">
+                  <span className="text-xs text-gray-500 bg-white px-1 sm:px-2 py-0.5 sm:py-1 rounded text-xs">
                     {getCalculationLabel(metric.calculationType)}
                   </span>
                 </div>
 
-                <div className="mb-2">
-                  <h4 className="font-medium text-gray-900 text-sm mb-1">
+                <div className="mb-1 sm:mb-2">
+                  <h4 className="font-medium text-gray-900 text-xs sm:text-sm mb-0.5 sm:mb-1">
                     {metric.name}
                   </h4>
                   {metric.description && (
-                    <p className="text-xs text-gray-600 mb-2">
+                    <p className="text-xs text-gray-600 mb-1 sm:mb-2 hidden sm:block">
                       {metric.description}
                     </p>
                   )}
                 </div>
 
-                <div className="mb-3">
-                  <div className="text-2xl font-bold text-blue-600 mb-1">
+                <div className="mb-2 sm:mb-3">
+                  <div className="text-lg sm:text-2xl font-bold text-blue-600 mb-0.5 sm:mb-1">
                     {result.displayValue}
                   </div>
                   <p className="text-xs text-gray-500">
@@ -167,14 +238,14 @@ export const DashboardDisplay: React.FC<DashboardDisplayProps> = ({
                   </p>
                 </div>
 
-                <div className="text-xs text-gray-500 border-t border-gray-200 pt-2">
-                  <div className="flex items-center space-x-1 mb-1">
-                    <Eye className="h-3 w-3" />
-                    <span>{getFormTitle(metric.formId)}</span>
+                <div className="text-xs text-gray-500 border-t border-gray-200 pt-1 sm:pt-2">
+                  <div className="flex items-center space-x-1 mb-0.5 sm:mb-1">
+                    <Eye className="h-2 w-2 sm:h-3 sm:w-3" />
+                    <span className="truncate">{getFormTitle(metric.formId)}</span>
                   </div>
                   <div className="flex items-center space-x-1">
                     {getFieldIcon(metric.fieldType)}
-                    <span>{getFieldLabel(metric.formId, metric.fieldId)}</span>
+                    <span className="truncate">{getFieldLabel(metric.formId, metric.fieldId)}</span>
                   </div>
                 </div>
               </div>

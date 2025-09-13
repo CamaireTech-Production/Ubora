@@ -174,8 +174,7 @@ service cloud.firestore {
     match /dashboards/{dashboardId} {
       // LECTURE des tableaux de bord
       allow read: if isDirecteur() && 
-                  isSameAgency(resource.data.agencyId) &&
-                  resource.data.createdBy == request.auth.uid;
+                  isSameAgency(resource.data.agencyId);
       
       // CRÉATION des tableaux de bord
       allow create: if isDirecteur() && 

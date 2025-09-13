@@ -6,6 +6,8 @@ import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { DynamicForm } from '../components/DynamicForm';
 import { LoadingGuard } from '../components/LoadingGuard';
+import { Toast } from '../components/Toast';
+import { useToast } from '../hooks/useToast';
 import { FileText, CheckCircle, ArrowLeft, Eye, AlertTriangle, Edit, Trash2, Send, FileEdit, Filter, Calendar, SortAsc, SortDesc } from 'lucide-react';
 import { VideoSection } from '../components/VideoSection';
 import { employeeVideos } from '../data/videoData';
@@ -284,11 +286,7 @@ export const EmployeDashboard: React.FC = () => {
   const [editingDraftId, setEditingDraftId] = useState<string | null>(null);
   const [isSubmittingDrafts, setIsSubmittingDrafts] = useState(false);
   const [isSavingDraft, setIsSavingDraft] = useState(false);
-  const [toast, setToast] = useState<{
-    show: boolean;
-    type: 'success' | 'error';
-    message: string;
-  }>({ show: false, type: 'success', message: '' });
+  const { toast, showSuccess, showError } = useToast();
   const [deleteModal, setDeleteModal] = useState<{
     show: boolean;
     draftId: string | null;
@@ -361,12 +359,6 @@ export const EmployeDashboard: React.FC = () => {
     return true;
   };
 
-  const showToast = (type: 'success' | 'error', message: string) => {
-    setToast({ show: true, type, message });
-    setTimeout(() => {
-      setToast(prev => ({ ...prev, show: false }));
-    }, 4000);
-  };
 
   const formatDate = (date: Date | string) => {
     try {
@@ -395,13 +387,13 @@ export const EmployeDashboard: React.FC = () => {
     try {
       const newDraft = createDraft(formId, user.id, user.agencyId, answers, fileAttachments);
       saveDraft(newDraft);
-      showToast('success', 'Réponse ajoutée aux brouillons');
+      showSuccess('Réponse ajoutée aux brouillons');
       
       // Clear the form by resetting the editing state
       setEditingDraftId(null);
     } catch (error) {
       console.error('Error adding response:', error);
-      showToast('error', 'Erreur lors de l\'ajout de la réponse');
+      showError('Erreur lors de l\'ajout de la réponse');
     } finally {
       setIsSavingDraft(false);
     }
@@ -423,7 +415,7 @@ export const EmployeDashboard: React.FC = () => {
   const confirmDeleteDraft = () => {
     if (deleteModal.draftId) {
       deleteDraft(deleteModal.draftId);
-      showToast('success', 'Brouillon supprimé');
+      showSuccess('Brouillon supprimé');
       setDeleteModal({ show: false, draftId: null, draftTitle: '' });
     }
   };
@@ -449,14 +441,14 @@ export const EmployeDashboard: React.FC = () => {
           updatedAt: new Date()
         };
         saveDraft(updatedDraft);
-        showToast('success', 'Brouillon sauvegardé');
+        showSuccess('Brouillon sauvegardé');
         
         // Keep the form open for continued editing
         // Don't close the section - user can continue editing or manually close
       }
     } catch (error) {
       console.error('Error saving draft:', error);
-      showToast('error', 'Erreur lors de la sauvegarde du brouillon');
+      showError('Erreur lors de la sauvegarde du brouillon');
     } finally {
       setIsSavingDraft(false);
     }
@@ -467,7 +459,7 @@ export const EmployeDashboard: React.FC = () => {
     
     const drafts = getDraftsForForm(user.id, formId);
     if (drafts.length === 0) {
-      showToast('error', 'Aucun brouillon à soumettre');
+      showError('Aucun brouillon à soumettre');
       return;
     }
 
@@ -482,14 +474,14 @@ export const EmployeDashboard: React.FC = () => {
 
       await submitMultipleFormEntries(entries);
       deleteDraftsForForm(user.id, formId);
-      showToast('success', `${drafts.length} réponse(s) soumise(s) avec succès`);
+      showSuccess(`${drafts.length} réponse(s) soumise(s) avec succès`);
       
       // Only navigate back to dashboard after successful submission
       setSelectedFormId(null);
       setEditingDraftId(null);
     } catch (error) {
       console.error('Error submitting drafts:', error);
-      showToast('error', 'Erreur lors de la soumission des réponses');
+      showError('Erreur lors de la soumission des réponses');
     } finally {
       setIsSubmittingDrafts(false);
     }
@@ -604,11 +596,11 @@ export const EmployeDashboard: React.FC = () => {
         fileAttachments: updatedFileAttachments
       });
       
-      showToast('success', 'Réponse mise à jour avec succès');
+      showSuccess('Réponse mise à jour avec succès');
       
     } catch (error) {
       console.error('Error updating response:', error);
-      showToast('error', 'Erreur lors de la mise à jour de la réponse');
+      showError('Erreur lors de la mise à jour de la réponse');
     }
   };
 
@@ -1143,28 +1135,11 @@ export const EmployeDashboard: React.FC = () => {
       )}
 
       {/* Toast Notification */}
-      {toast.show && (
-        <div className="fixed top-4 right-4 z-50 animate-in slide-in-from-right duration-300">
-          <div className={`flex items-center space-x-3 px-4 py-3 rounded-lg shadow-lg border ${
-            toast.type === 'success' 
-              ? 'bg-green-50 border-green-200 text-green-800' 
-              : 'bg-red-50 border-red-200 text-red-800'
-          }`}>
-            <div className={`w-2 h-2 rounded-full ${
-              toast.type === 'success' ? 'bg-green-500' : 'bg-red-500'
-            }`}></div>
-            <span className="text-sm font-medium">{toast.message}</span>
-            <button
-              onClick={() => setToast(prev => ({ ...prev, show: false }))}
-              className={`ml-2 text-lg leading-none hover:opacity-70 ${
-                toast.type === 'success' ? 'text-green-600' : 'text-red-600'
-              }`}
-            >
-              ×
-            </button>
-          </div>
-        </div>
-      )}
+      <Toast
+        show={toast.show}
+        message={toast.message}
+        type={toast.type}
+      />
     </LoadingGuard>
   );
 };

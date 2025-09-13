@@ -213,3 +213,26 @@
 .animate-bounce-subtle {
   animation: bounce-subtle 3s ease-in-out infinite;
 }
+
+/* Dashboard scroll specific styles */
+.horizontal-scroll-dashboards {
+  scroll-behavior: smooth;
+}
+
+.horizontal-scroll-dashboards::-webkit-scrollbar {
+  height: 4px;
+}
+
+.horizontal-scroll-dashboards::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 2px;
+}
+
+.horizontal-scroll-dashboards::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 2px;
+}
+
+.horizontal-scroll-dashboards::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
