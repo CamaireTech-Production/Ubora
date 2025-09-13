@@ -14,8 +14,6 @@ import { directorVideos } from '../data/videoData';
 import { DashboardCreationModal } from '../components/DashboardCreationModal';
 import { DashboardDisplay } from '../components/DashboardDisplay';
 import { DashboardDetailModal } from '../components/DashboardDetailModal';
-import { DashboardSelector } from '../components/DashboardSelector';
-import { DashboardMetricsDisplay } from '../components/DashboardMetricsDisplay';
 import { useToast } from '../hooks/useToast';
 import { Toast } from '../components/Toast';
 
@@ -26,7 +24,6 @@ export const DirecteurDashboard: React.FC = () => {
     formEntries,
     employees,
     dashboards,
-    selectedDashboardId,
     createForm, 
     updateForm,
     deleteForm,
@@ -34,8 +31,6 @@ export const DirecteurDashboard: React.FC = () => {
     getPendingEmployees,
     createDashboard,
     deleteDashboard,
-    setSelectedDashboard,
-    getSelectedDashboard,
     isLoading: appLoading
   } = useApp();
   const { toast, showSuccess, showError } = useToast();
@@ -45,7 +40,7 @@ export const DirecteurDashboard: React.FC = () => {
   const [selectedFormId, setSelectedFormId] = useState<string | null>(null);
   const [showDashboardModal, setShowDashboardModal] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
-  const [selectedDashboardForModal, setSelectedDashboardForModal] = useState<any>(null);
+  const [selectedDashboard, setSelectedDashboard] = useState<any>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   
   // États pour le filtrage temporel
@@ -157,13 +152,13 @@ export const DirecteurDashboard: React.FC = () => {
   };
 
   const handleViewDashboard = (dashboard: any) => {
-    setSelectedDashboardForModal(dashboard);
+    setSelectedDashboard(dashboard);
     setShowDetailModal(true);
   };
 
   const handleCloseDetailModal = () => {
     setShowDetailModal(false);
-    setSelectedDashboardForModal(null);
+    setSelectedDashboard(null);
   };
 
 
@@ -331,7 +326,7 @@ export const DirecteurDashboard: React.FC = () => {
           />
         </Layout>
       ) : (
-        <Layout title="UBORA">
+        <Layout title="Dashboard Directeur">
           <div className="space-y-6 lg:space-y-8">
             {/* Filtre temporel compact */}
             <div className="flex items-center justify-between bg-white border border-gray-200 rounded-lg px-4 py-3 shadow-sm">
@@ -432,72 +427,51 @@ export const DirecteurDashboard: React.FC = () => {
                 </div>
               )}
 
-            {/* Dashboard Selector */}
-            <DashboardSelector
-              dashboards={dashboards}
-              selectedDashboardId={selectedDashboardId}
-              onDashboardSelect={setSelectedDashboard}
-            />
-
-            {/* Dashboard Metrics Display */}
+            {/* Statistiques */}
             {(() => {
-              const selectedDashboard = getSelectedDashboard();
               const filteredData = getFilteredData();
-              
-              // If no custom dashboard is selected, show default statistics
-              if (!selectedDashboardId) {
-                return (
-                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
-                    <Card className="bg-gradient-to-r from-blue-500 to-blue-600 text-white">
-                      <div className="flex items-center space-x-3">
-                        <FileText className="h-8 w-8 opacity-80" />
-                        <div>
-                          <p className="text-blue-100">Formulaires créés</p>
-                          <p className="text-xl sm:text-2xl font-bold">{filteredData.forms.length}</p>
-                        </div>
-                      </div>
-                    </Card>
-                    
-                    <Card className="bg-gradient-to-r from-green-500 to-green-600 text-white">
-                      <div className="flex items-center space-x-3">
-                        <Users className="h-8 w-8 opacity-80" />
-                        <div>
-                          <p className="text-green-100">Employés approuvés</p>
-                          <p className="text-xl sm:text-2xl font-bold">{filteredData.employees.filter(emp => emp.isApproved !== false).length}</p>
-                        </div>
-                      </div>
-                    </Card>
-
-                    <Card className="bg-gradient-to-r from-yellow-500 to-yellow-600 text-white">
-                      <div className="flex items-center space-x-3">
-                        <UserCheck className="h-8 w-8 opacity-80" />
-                        <div>
-                          <p className="text-yellow-100">En attente</p>
-                          <p className="text-xl sm:text-2xl font-bold">{getPendingEmployees().length}</p>
-                        </div>
-                      </div>
-                    </Card>
-                    
-                    <Card className="bg-gradient-to-r from-purple-500 to-purple-600 text-white">
-                      <div className="flex items-center space-x-3">
-                        <BarChart3 className="h-8 w-8 opacity-80" />
-                        <div>
-                          <p className="text-purple-100">Réponses totales</p>
-                          <p className="text-xl sm:text-2xl font-bold">{filteredData.formEntries.length}</p>
-                        </div>
-                      </div>
-                    </Card>
-                  </div>
-                );
-              }
-              
-              // Show custom dashboard metrics
               return (
-                <DashboardMetricsDisplay
-                  dashboard={selectedDashboard}
-                  formEntries={filteredData.formEntries}
-                  forms={filteredData.forms}
-                />
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+                  <Card className="bg-gradient-to-r from-blue-500 to-blue-600 text-white">
+                    <div className="flex items-center space-x-3">
+                      <FileText className="h-8 w-8 opacity-80" />
+                      <div>
+                        <p className="text-blue-100">Formulaires créés</p>
+                        <p className="text-xl sm:text-2xl font-bold">{filteredData.forms.length}</p>
+                      </div>
+                    </div>
+                  </Card>
+                  
+                  <Card className="bg-gradient-to-r from-green-500 to-green-600 text-white">
+                    <div className="flex items-center space-x-3">
+                      <Users className="h-8 w-8 opacity-80" />
+                      <div>
+                        <p className="text-green-100">Employés approuvés</p>
+                        <p className="text-xl sm:text-2xl font-bold">{filteredData.employees.filter(emp => emp.isApproved !== false).length}</p>
+                      </div>
+                    </div>
+                  </Card>
+
+                  <Card className="bg-gradient-to-r from-yellow-500 to-yellow-600 text-white">
+                    <div className="flex items-center space-x-3">
+                      <UserCheck className="h-8 w-8 opacity-80" />
+                      <div>
+                        <p className="text-yellow-100">En attente</p>
+                        <p className="text-xl sm:text-2xl font-bold">{getPendingEmployees().length}</p>
+                      </div>
+                    </div>
+                  </Card>
+                  
+                  <Card className="bg-gradient-to-r from-purple-500 to-purple-600 text-white">
+                    <div className="flex items-center space-x-3">
+                      <BarChart3 className="h-8 w-8 opacity-80" />
+                      <div>
+                        <p className="text-purple-100">Réponses totales</p>
+                        <p className="text-xl sm:text-2xl font-bold">{filteredData.formEntries.length}</p>
+                      </div>
+                    </div>
+                  </Card>
+                </div>
               );
             })()}
 
@@ -788,7 +762,7 @@ export const DirecteurDashboard: React.FC = () => {
       <DashboardDetailModal
         isOpen={showDetailModal}
         onClose={handleCloseDetailModal}
-        dashboard={selectedDashboardForModal}
+        dashboard={selectedDashboard}
         formEntries={formEntries}
         forms={forms}
         onEditDashboard={(dashboard) => {
