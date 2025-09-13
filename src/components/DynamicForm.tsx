@@ -7,7 +7,10 @@ import { Select } from './Select';
 import { Card } from './Card';
 import { FileInput } from './FileInput';
 import { FileUploadService, UploadProgress } from '../services/fileUploadService';
+import { LocalStorageService, LocalFormResponse } from '../services/localStorageService';
 import { useAuth } from '../contexts/AuthContext';
+import { db, auth } from '../firebaseConfig';
+import { doc, getDoc } from 'firebase/firestore';
 import { Upload, CheckCircle, AlertCircle, X, Clock, AlertTriangle, Loader2 } from 'lucide-react';
 
 interface DynamicFormProps {
@@ -34,6 +37,7 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [fileAttachments, setFileAttachments] = useState<FileAttachment[]>(initialFileAttachments);
   const [uploadProgress, setUploadProgress] = useState<Record<string, UploadProgress>>({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
   
 
   const formatTimeRestrictions = (restrictions?: {
@@ -212,7 +216,7 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     // Check time restrictions first
@@ -222,12 +226,77 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
     }
     
     if (validateForm()) {
-      // Include file attachments in submission
-      const submissionData = {
-        ...answers,
-        fileAttachments: fileAttachments
-      };
-      onSubmit(submissionData);
+      setIsSubmitting(true);
+      try {
+        // Get current user info
+        const currentUser = auth.currentUser;
+        if (!currentUser) {
+          throw new Error('User not authenticated');
+        }
+
+        // Get user data to get agencyId
+        const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
+        if (!userDoc.exists()) {
+          throw new Error('User data not found');
+        }
+        const userData = userDoc.data();
+
+        // Create local form response
+        const localResponse: LocalFormResponse = {
+          id: LocalStorageService.generateResponseId(),
+          formId: form.id,
+          answers: answers,
+          fileAttachments: fileAttachments,
+          submittedAt: new Date(),
+          userId: currentUser.uid,
+          agencyId: userData.agencyId,
+          status: 'ready_to_submit'
+        };
+
+        // Store in localStorage
+        LocalStorageService.storeFormResponse(localResponse);
+
+        // Log detailed information
+        console.log('🎉 Form Response Successfully Stored in localStorage!');
+        console.log('📋 Response Details:', {
+          responseId: localResponse.id,
+          formId: localResponse.formId,
+          formTitle: form.title,
+          totalAnswers: Object.keys(answers).length,
+          fileAttachments: fileAttachments.length,
+          userId: currentUser.uid,
+          agencyId: userData.agencyId,
+          status: localResponse.status
+        });
+
+        // Log file attachment details
+        if (fileAttachments.length > 0) {
+          console.log('📎 File Attachments Details:');
+          fileAttachments.forEach((attachment, index) => {
+            console.log(`  ${index + 1}. ${attachment.fileName}`, {
+              fieldId: attachment.fieldId,
+              fileSize: attachment.fileSize,
+              fileType: attachment.fileType,
+              hasExtractedText: !!attachment.extractedText,
+              textLength: attachment.extractedText?.length || 0,
+              extractionStatus: attachment.textExtractionStatus
+            });
+          });
+        }
+
+        // Log localStorage stats
+        const stats = LocalStorageService.getStorageStats();
+        console.log('💾 localStorage Statistics:', stats);
+
+        // Submit only the form answers (fileAttachments are handled separately)
+        onSubmit(answers, fileAttachments);
+
+      } catch (error) {
+        console.error('❌ Error storing form response:', error);
+        alert('Erreur lors de la sauvegarde de la réponse. Veuillez réessayer.');
+      } finally {
+        setIsSubmitting(false);
+      }
     }
   };
 
@@ -449,9 +518,14 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
             <Button 
               type="submit" 
               className="w-full sm:flex-1"
-              disabled={!isWithinTimeRestrictions() || isLoading}
+              disabled={!isWithinTimeRestrictions() || isLoading || isSubmitting}
             >
-              {isLoading ? (
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  Enregistrement...
+                </>
+              ) : isLoading ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin mr-2" />
                   {isDraft ? 'Sauvegarde...' : 'Ajout en cours...'}

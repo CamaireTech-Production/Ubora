@@ -351,9 +351,38 @@ export const ResponseDetailPage: React.FC = () => {
 
                           {/* Response details */}
                           <div className="space-y-4">
-                            {Object.entries(response.answers || {}).map(([fieldId, value]) => {
+                            {Object.entries(response.answers || {}).filter(([fieldId]) => fieldId !== 'fileAttachments').map(([fieldId, value]) => {
                               const field = form.fields.find(f => f.id === fieldId);
                               const fieldLabel = field?.label || fieldId;
+                              
+                              // Handle file fields specially
+                              if (field?.type === 'file' && value && typeof value === 'object' && 'uploaded' in value && value.uploaded) {
+                                const fileAttachment = response.fileAttachments?.find((att: FileAttachment) => att.fieldId === fieldId);
+                                return (
+                                  <div key={fieldId} className="border-b border-gray-100 pb-3 last:border-b-0">
+                                    <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
+                                      <div className="font-medium text-gray-700 text-sm">
+                                        {fieldLabel}
+                                      </div>
+                                      <div className="text-gray-900 text-sm flex items-center space-x-2">
+                                        <span className="text-lg">{getFileIcon((value as any).fileType)}</span>
+                                        <span>{(value as any).fileName}</span>
+                                        <span className="text-xs text-gray-500">({formatFileSize((value as any).fileSize)})</span>
+                                        {fileAttachment?.textExtractionStatus && (
+                                          <span className={`text-xs px-2 py-1 rounded ${
+                                            fileAttachment.textExtractionStatus === 'completed' ? 'bg-green-100 text-green-800' :
+                                            fileAttachment.textExtractionStatus === 'failed' ? 'bg-red-100 text-red-800' :
+                                            'bg-yellow-100 text-yellow-800'
+                                          }`}>
+                                            IA: {fileAttachment.textExtractionStatus === 'completed' ? 'Prête' : 
+                                                 fileAttachment.textExtractionStatus === 'failed' ? 'Échouée' : 'En cours'}
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              }
                               
                               return (
                                 <div key={fieldId} className="border-b border-gray-100 pb-3 last:border-b-0">
@@ -373,72 +402,6 @@ export const ResponseDetailPage: React.FC = () => {
                             })}
                           </div>
 
-                          {/* File attachments */}
-                          {response.fileAttachments && response.fileAttachments.length > 0 && (
-                            <div className="mt-6 pt-4 border-t border-gray-200">
-                              <div className="flex items-center space-x-1 mb-4">
-                                <FileText className="h-4 w-4 text-gray-500" />
-                                <span className="text-sm font-medium text-gray-700">
-                                  {response.fileAttachments.length} fichier(s) joint(s)
-                                </span>
-                              </div>
-                              
-                              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                                {response.fileAttachments.map((attachment: FileAttachment, attachmentIndex: number) => (
-                                  <div key={attachmentIndex} className="border rounded-lg p-4 bg-gray-50">
-                                    <div className="flex items-start justify-between mb-3">
-                                      <div className="flex items-center space-x-2">
-                                        <span className="text-lg">{getFileIcon(attachment.fileType)}</span>
-                                        <div className="flex-1 min-w-0">
-                                          <p className="font-medium text-sm text-gray-900 truncate">
-                                            {attachment.fileName}
-                                          </p>
-                                          <p className="text-xs text-gray-500">
-                                            {formatFileSize(attachment.fileSize)}
-                                          </p>
-                                        </div>
-                                      </div>
-                                    </div>
-                                    
-                                    <div className="flex items-center justify-between">
-                                      <button
-                                        onClick={() => handleViewPDF(attachment)}
-                                        className="flex items-center space-x-1 px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 text-xs"
-                                      >
-                                        <Eye className="h-3 w-3" />
-                                        <span>Voir</span>
-                                      </button>
-                                      
-                                      {attachment.downloadUrl && (
-                                        <a
-                                          href={attachment.downloadUrl}
-                                          download={attachment.fileName}
-                                          className="flex items-center space-x-1 px-3 py-1 bg-gray-500 text-white rounded hover:bg-gray-600 text-xs"
-                                        >
-                                          <Download className="h-3 w-3" />
-                                          <span>Télécharger</span>
-                                        </a>
-                                      )}
-                                    </div>
-                                    
-                                    {/* Show extraction status for AI processing */}
-                                    {attachment.textExtractionStatus && (
-                                      <div className="mt-2">
-                                        <span className={`text-xs px-2 py-1 rounded ${
-                                          attachment.textExtractionStatus === 'completed' ? 'bg-green-100 text-green-800' :
-                                          attachment.textExtractionStatus === 'failed' ? 'bg-red-100 text-red-800' :
-                                          'bg-yellow-100 text-yellow-800'
-                                        }`}>
-                                          IA: {attachment.textExtractionStatus === 'completed' ? 'Prête' : 
-                                               attachment.textExtractionStatus === 'failed' ? 'Échouée' : 'En cours'}
-                                        </span>
-                                      </div>
-                                    )}
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          )}
                         </>
                       )}
                     </div>

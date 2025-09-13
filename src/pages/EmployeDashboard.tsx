@@ -22,6 +22,26 @@ interface ResponsesInterfaceProps {
   onUpdateResponse?: (responseId: string, updatedAnswers: Record<string, any>, updatedFileAttachments: any[]) => Promise<void>;
 }
 
+// Helper functions for file handling
+const getFileIcon = (fileType: string): string => {
+  if (fileType.includes('pdf')) return '📄';
+  if (fileType.includes('word') || fileType.includes('document')) return '📝';
+  if (fileType.includes('excel') || fileType.includes('spreadsheet')) return '📊';
+  if (fileType.includes('powerpoint') || fileType.includes('presentation')) return '📽️';
+  if (fileType.includes('image')) return '🖼️';
+  if (fileType.includes('zip') || fileType.includes('rar')) return '📦';
+  if (fileType.includes('text')) return '📄';
+  return '📎';
+};
+
+const formatFileSize = (bytes: number): string => {
+  if (bytes === 0) return '0 Bytes';
+  const k = 1024;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+};
+
 const ResponsesInterface: React.FC<ResponsesInterfaceProps> = ({ 
   myEntries, 
   assignedForms, 
@@ -34,31 +54,7 @@ const ResponsesInterface: React.FC<ResponsesInterfaceProps> = ({
   const [editingResponse, setEditingResponse] = useState<string | null>(null);
   const [isSubmittingEdit, setIsSubmittingEdit] = useState(false);
 
-  // Helper functions for file handling
-  const getFileIcon = (fileType: string): string => {
-    if (fileType.includes('pdf')) return '📄';
-    if (fileType.includes('word') || fileType.includes('document')) return '📝';
-    if (fileType.includes('excel') || fileType.includes('spreadsheet')) return '📊';
-    if (fileType.includes('powerpoint') || fileType.includes('presentation')) return '📽️';
-    if (fileType.includes('image')) return '🖼️';
-    if (fileType.includes('zip') || fileType.includes('rar')) return '📦';
-    if (fileType.includes('text')) return '📄';
-    return '📎';
-  };
 
-  const formatFileSize = (bytes: number): string => {
-    if (bytes === 0) return '0 Bytes';
-    const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-  };
-
-  const handleViewPDF = (fileAttachment: FileAttachment) => {
-    if (fileAttachment.downloadUrl) {
-      window.open(fileAttachment.downloadUrl, '_blank');
-    }
-  };
 
   const getFilteredAndSortedEntries = () => {
     let filtered = [...myEntries];
@@ -252,9 +248,34 @@ const ResponsesInterface: React.FC<ResponsesInterfaceProps> = ({
 
                     {/* Response preview */}
                     <div className="space-y-2">
-                      {Object.entries(entry.answers || {}).slice(0, 3).map(([fieldId, value]) => {
+                      {Object.entries(entry.answers || {}).filter(([fieldId]) => fieldId !== 'fileAttachments').slice(0, 3).map(([fieldId, value]) => {
                         const field = form?.fields.find((f: any) => f.id === fieldId);
                         const fieldLabel = field?.label || fieldId;
+                        
+                        // Handle file fields specially
+                        if (field?.type === 'file' && value && typeof value === 'object' && 'uploaded' in value && value.uploaded) {
+                          const fileAttachment = entry.fileAttachments?.find((att: FileAttachment) => att.fieldId === fieldId);
+                          return (
+                            <div key={fieldId} className="text-sm">
+                              <span className="font-medium text-gray-700">{fieldLabel}:</span>
+                              <div className="ml-2 text-gray-600 flex items-center space-x-2">
+                                <span className="text-lg">{getFileIcon((value as any).fileType)}</span>
+                                <span>{(value as any).fileName}</span>
+                                <span className="text-xs text-gray-500">({formatFileSize((value as any).fileSize)})</span>
+                                {fileAttachment?.textExtractionStatus && (
+                                  <span className={`text-xs px-2 py-1 rounded ${
+                                    fileAttachment.textExtractionStatus === 'completed' ? 'bg-green-100 text-green-800' :
+                                    fileAttachment.textExtractionStatus === 'failed' ? 'bg-red-100 text-red-800' :
+                                    'bg-yellow-100 text-yellow-800'
+                                  }`}>
+                                    IA: {fileAttachment.textExtractionStatus === 'completed' ? 'Prête' : 
+                                         fileAttachment.textExtractionStatus === 'failed' ? 'Échouée' : 'En cours'}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        }
                         
                         return (
                           <div key={fieldId} className="text-sm">
@@ -268,61 +289,13 @@ const ResponsesInterface: React.FC<ResponsesInterfaceProps> = ({
                           </div>
                         );
                       })}
-                      {Object.keys(entry.answers || {}).length > 3 && (
+                      {Object.keys(entry.answers || {}).filter(fieldId => fieldId !== 'fileAttachments').length > 3 && (
                         <div className="text-sm text-gray-500 italic">
-                          +{Object.keys(entry.answers || {}).length - 3} autres champs...
+                          +{Object.keys(entry.answers || {}).filter(fieldId => fieldId !== 'fileAttachments').length - 3} autres champs...
                         </div>
                       )}
                     </div>
 
-                    {/* File attachments */}
-                    {entry.fileAttachments && entry.fileAttachments.length > 0 && (
-                      <div className="mt-3 pt-3 border-t border-gray-200">
-                        <div className="flex items-center space-x-1 mb-3">
-                          <FileText className="h-4 w-4 text-gray-500" />
-                          <span className="text-sm text-gray-600">{entry.fileAttachments.length} fichier(s) joint(s)</span>
-                        </div>
-                        
-                        {/* File attachments list with PDF preview */}
-                        <div className="space-y-2">
-                          {entry.fileAttachments.map((attachment: FileAttachment, index: number) => (
-                            <div key={index} className="border rounded-lg p-3 bg-gray-50">
-                              <div className="flex items-center justify-between">
-                                <div className="flex items-center space-x-2">
-                                  <span className="text-lg">{getFileIcon(attachment.fileType)}</span>
-                                  <div>
-                                    <p className="font-medium text-sm">{attachment.fileName}</p>
-                                    <p className="text-xs text-gray-500">
-                                      {formatFileSize(attachment.fileSize)}
-                                    </p>
-                                  </div>
-                                </div>
-                                <button
-                                  onClick={() => handleViewPDF(attachment)}
-                                  className="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 text-xs"
-                                >
-                                  Voir
-                                </button>
-                              </div>
-                              
-                              {/* Show extraction status for AI processing */}
-                              {attachment.textExtractionStatus && (
-                                <div className="mt-2">
-                                  <span className={`text-xs px-2 py-1 rounded ${
-                                    attachment.textExtractionStatus === 'completed' ? 'bg-green-100 text-green-800' :
-                                    attachment.textExtractionStatus === 'failed' ? 'bg-red-100 text-red-800' :
-                                    'bg-yellow-100 text-yellow-800'
-                                  }`}>
-                                    IA: {attachment.textExtractionStatus === 'completed' ? 'Prête' : 
-                                         attachment.textExtractionStatus === 'failed' ? 'Échouée' : 'En cours'}
-                                  </span>
-                                </div>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
                   </>
                 )}
               </div>
@@ -855,9 +828,34 @@ export const EmployeDashboard: React.FC = () => {
                             
                             {/* Draft Preview */}
                             <div className="space-y-2">
-                              {Object.entries(draft.answers || {}).slice(0, 3).map(([fieldId, value]) => {
+                              {Object.entries(draft.answers || {}).filter(([fieldId]) => fieldId !== 'fileAttachments').slice(0, 3).map(([fieldId, value]) => {
                                 const field = selectedForm.fields.find(f => f.id === fieldId);
                                 const fieldLabel = field?.label || fieldId;
+                                
+                                // Handle file fields specially
+                                if (field?.type === 'file' && value && typeof value === 'object' && 'uploaded' in value && value.uploaded) {
+                                  const fileAttachment = draft.fileAttachments?.find((att: FileAttachment) => att.fieldId === fieldId);
+                                  return (
+                                    <div key={fieldId} className="text-xs">
+                                      <span className="font-medium text-gray-800">{fieldLabel}:</span>
+                                      <div className="ml-1 text-gray-600 flex items-center space-x-1">
+                                        <span className="text-sm">{getFileIcon((value as any).fileType)}</span>
+                                        <span>{(value as any).fileName}</span>
+                                        <span className="text-xs text-gray-500">({formatFileSize((value as any).fileSize)})</span>
+                                        {fileAttachment?.textExtractionStatus && (
+                                          <span className={`text-xs px-1 py-0.5 rounded ${
+                                            fileAttachment.textExtractionStatus === 'completed' ? 'bg-green-100 text-green-800' :
+                                            fileAttachment.textExtractionStatus === 'failed' ? 'bg-red-100 text-red-800' :
+                                            'bg-yellow-100 text-yellow-800'
+                                          }`}>
+                                            IA: {fileAttachment.textExtractionStatus === 'completed' ? 'Prête' : 
+                                                 fileAttachment.textExtractionStatus === 'failed' ? 'Échouée' : 'En cours'}
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
+                                  );
+                                }
                                 
                                 return (
                                   <div key={fieldId} className="text-xs">
@@ -868,12 +866,12 @@ export const EmployeDashboard: React.FC = () => {
                                         '-'
                                       }
                                     </span>
-                        </div>
+                                  </div>
                                 );
                               })}
-                              {Object.keys(draft.answers || {}).length > 3 && (
+                              {Object.keys(draft.answers || {}).filter(fieldId => fieldId !== 'fileAttachments').length > 3 && (
                                 <div className="text-xs text-gray-500 italic">
-                                  +{Object.keys(draft.answers || {}).length - 3} autres champs...
+                                  +{Object.keys(draft.answers || {}).filter(fieldId => fieldId !== 'fileAttachments').length - 3} autres champs...
                       </div>
                     )}
                             </div>
