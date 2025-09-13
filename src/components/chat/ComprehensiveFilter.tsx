@@ -255,7 +255,7 @@ export const ComprehensiveFilter: React.FC<ComprehensiveFilterProps> = ({
 
       {/* Filter tabs - floating above input */}
       {isOpen && (
-        <div className="absolute bottom-full left-0 right-0 mb-3 bg-white border border-gray-200 rounded-lg shadow-lg z-50 overflow-hidden -mx-4 sm:mx-0">
+        <div className="fixed left-4 right-4 bottom-36 bg-white border border-gray-200 rounded-lg shadow-lg z-50 overflow-hidden sm:absolute sm:bottom-full sm:left-0 sm:right-0 sm:mb-3 sm:mx-0">
             {/* Tab buttons */}
             <div className="flex border-b border-gray-200 overflow-x-auto">
               <button
