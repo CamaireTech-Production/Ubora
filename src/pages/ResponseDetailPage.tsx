@@ -13,6 +13,7 @@ import { Toast } from '../components/Toast';
 import { getFileDownloadURL } from '../utils/firebaseStorageUtils';
 import { PDFViewerModal } from '../components/PDFViewerModal';
 import { downloadFile } from '../utils/downloadUtils';
+import { forceDownloadFromFirebase } from '../utils/firebaseDownloadUtils';
 
 export const ResponseDetailPage: React.FC = () => {
   const { formId } = useParams<{ formId: string }>();
@@ -143,6 +144,35 @@ export const ResponseDetailPage: React.FC = () => {
   const handleDownloadPDF = async (fileAttachment: FileAttachment) => {
     try {
       console.log('🔍 Attempting to download file:', fileAttachment);
+      
+      // Try Firebase-specific download first
+      if (fileAttachment.storagePath) {
+        console.log('🔄 Using Firebase-specific download method...');
+        await forceDownloadFromFirebase(
+          fileAttachment.storagePath,
+          fileAttachment.fileName,
+          () => {
+            showSuccess('Téléchargement démarré');
+          },
+          (error) => {
+            console.warn('Firebase download failed, trying fallback:', error);
+            // Fallback to regular download
+            handleDownloadFallback(fileAttachment);
+          }
+        );
+        return;
+      }
+      
+      // Fallback to regular download
+      await handleDownloadFallback(fileAttachment);
+    } catch (error) {
+      console.error('Error downloading file:', error);
+      showError('Erreur lors du téléchargement du fichier');
+    }
+  };
+
+  const handleDownloadFallback = async (fileAttachment: FileAttachment) => {
+    try {
       const downloadUrl = await getFileDownloadURL(fileAttachment);
       console.log('🔍 Generated download URL:', downloadUrl);
       
@@ -157,7 +187,7 @@ export const ResponseDetailPage: React.FC = () => {
         }
       });
     } catch (error) {
-      console.error('Error downloading file:', error);
+      console.error('Fallback download failed:', error);
       showError('Erreur lors du téléchargement du fichier');
     }
   };

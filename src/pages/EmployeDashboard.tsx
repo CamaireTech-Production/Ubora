@@ -13,6 +13,7 @@ import { FileText, CheckCircle, ArrowLeft, Eye, AlertTriangle, Edit, Trash2, Sen
 import { getFileDownloadURL } from '../utils/firebaseStorageUtils';
 import { PDFViewerModal } from '../components/PDFViewerModal';
 import { downloadFile } from '../utils/downloadUtils';
+import { forceDownloadFromFirebase } from '../utils/firebaseDownloadUtils';
 import { VideoSection } from '../components/VideoSection';
 import { employeeVideos } from '../data/videoData';
 
@@ -454,6 +455,36 @@ export const EmployeDashboard: React.FC = () => {
 
   const handleDownloadPDF = async (fileAttachment: any) => {
     try {
+      console.log('🔍 Attempting to download file:', fileAttachment);
+      
+      // Try Firebase-specific download first
+      if (fileAttachment.storagePath) {
+        console.log('🔄 Using Firebase-specific download method...');
+        await forceDownloadFromFirebase(
+          fileAttachment.storagePath,
+          fileAttachment.fileName,
+          () => {
+            showSuccess('Téléchargement démarré');
+          },
+          (error) => {
+            console.warn('Firebase download failed, trying fallback:', error);
+            // Fallback to regular download
+            handleDownloadFallback(fileAttachment);
+          }
+        );
+        return;
+      }
+      
+      // Fallback to regular download
+      await handleDownloadFallback(fileAttachment);
+    } catch (error) {
+      console.error('Error downloading file:', error);
+      showError('Erreur lors du téléchargement du fichier');
+    }
+  };
+
+  const handleDownloadFallback = async (fileAttachment: any) => {
+    try {
       const downloadUrl = await getFileDownloadURL(fileAttachment);
       
       await downloadFile({
@@ -467,7 +498,7 @@ export const EmployeDashboard: React.FC = () => {
         }
       });
     } catch (error) {
-      console.error('Error downloading file:', error);
+      console.error('Fallback download failed:', error);
       showError('Erreur lors du téléchargement du fichier');
     }
   };

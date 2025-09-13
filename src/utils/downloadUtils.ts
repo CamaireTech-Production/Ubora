@@ -18,12 +18,68 @@ export const downloadFile = async (options: DownloadOptions): Promise<void> => {
   try {
     console.log('🔍 Attempting to download file:', { fileName, url });
 
-    // Method 1: Try direct download with download attribute
+    // Method 1: Force download using fetch + blob (most reliable for Firebase Storage)
     try {
+      console.log('🔄 Trying fetch + blob method...');
+      
+      const response = await fetch(url, {
+        method: 'GET',
+        mode: 'cors',
+        credentials: 'omit',
+        headers: {
+          'Accept': 'application/octet-stream, */*'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const blob = await response.blob();
+      console.log('📦 Blob created:', { size: blob.size, type: blob.type });
+      
+      // Create object URL from blob
+      const blobUrl = window.URL.createObjectURL(blob);
+      
+      // Create download link
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = fileName;
+      link.style.display = 'none';
+      
+      // Force download by setting target
+      link.setAttribute('download', fileName);
+      link.setAttribute('target', '_blank');
+      
+      // Add to DOM and trigger
+      document.body.appendChild(link);
+      link.click();
+      
+      // Clean up
+      setTimeout(() => {
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(blobUrl);
+      }, 1000);
+
+      console.log('✅ Fetch + blob download completed');
+      onSuccess?.();
+      return;
+    } catch (fetchError) {
+      console.warn('Fetch + blob method failed:', fetchError);
+    }
+
+    // Method 2: Try direct download with forced download attribute
+    try {
+      console.log('🔄 Trying direct download method...');
+      
       const link = document.createElement('a');
       link.href = url;
       link.download = fileName;
       link.style.display = 'none';
+      
+      // Force download behavior
+      link.setAttribute('download', fileName);
+      link.setAttribute('target', '_blank');
       
       // Add to DOM
       document.body.appendChild(link);
@@ -34,53 +90,51 @@ export const downloadFile = async (options: DownloadOptions): Promise<void> => {
       // Clean up
       setTimeout(() => {
         document.body.removeChild(link);
-      }, 100);
+      }, 1000);
       
       console.log('✅ Direct download initiated');
       onSuccess?.();
       return;
     } catch (directError) {
-      console.warn('Direct download failed, trying fetch method:', directError);
+      console.warn('Direct download failed:', directError);
     }
 
-    // Method 2: Try fetch with blob (for same-origin or CORS-enabled URLs)
+    // Method 3: Create a form with POST method (for problematic URLs)
     try {
-      const response = await fetch(url, {
-        method: 'GET',
-        mode: 'cors',
-        credentials: 'omit'
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-
-      const blob = await response.blob();
-      const blobUrl = window.URL.createObjectURL(blob);
-
-      const link = document.createElement('a');
-      link.href = blobUrl;
-      link.download = fileName;
-      link.style.display = 'none';
+      console.log('🔄 Trying form POST method...');
       
-      document.body.appendChild(link);
-      link.click();
+      const form = document.createElement('form');
+      form.method = 'GET';
+      form.action = url;
+      form.target = '_blank';
+      form.style.display = 'none';
+      
+      // Add download parameter to force download
+      const input = document.createElement('input');
+      input.type = 'hidden';
+      input.name = 'download';
+      input.value = fileName;
+      form.appendChild(input);
+      
+      document.body.appendChild(form);
+      form.submit();
       
       // Clean up
       setTimeout(() => {
-        document.body.removeChild(link);
-        window.URL.revokeObjectURL(blobUrl);
-      }, 100);
-
-      console.log('✅ Fetch download completed');
+        document.body.removeChild(form);
+      }, 1000);
+      
+      console.log('✅ Form POST download initiated');
       onSuccess?.();
       return;
-    } catch (fetchError) {
-      console.warn('Fetch download failed, trying new tab method:', fetchError);
+    } catch (formError) {
+      console.warn('Form POST method failed:', formError);
     }
 
-    // Method 3: Open in new tab as fallback
+    // Method 4: Open in new tab as final fallback
     try {
+      console.log('🔄 Trying new tab fallback...');
+      
       const newWindow = window.open(url, '_blank', 'noopener,noreferrer');
       if (newWindow) {
         console.log('✅ Opened in new tab');
@@ -128,3 +182,4 @@ export const generateFirebaseDownloadUrl = (storagePath: string): string => {
   // This function can be used to validate or modify URLs if needed
   return storagePath;
 };
+
