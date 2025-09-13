@@ -22,6 +22,7 @@ interface AppContextType {
   formEntries: FormEntry[];
   employees: User[];
   dashboards: Dashboard[];
+  selectedDashboardId: string | null;
   createForm: (form: Omit<Form, 'id' | 'createdAt'>) => Promise<void>;
   updateForm: (formId: string, form: Partial<Omit<Form, 'id' | 'createdAt' | 'createdBy' | 'agencyId'>>) => Promise<void>;
   submitFormEntry: (entry: Omit<FormEntry, 'id' | 'submittedAt' | 'userId' | 'agencyId'>) => Promise<void>;
@@ -39,6 +40,8 @@ interface AppContextType {
   updateDashboard: (dashboardId: string, dashboard: Partial<Omit<Dashboard, 'id' | 'createdAt' | 'createdBy' | 'agencyId'>>) => Promise<void>;
   deleteDashboard: (dashboardId: string) => Promise<void>;
   getDashboardsForDirector: (directorId: string) => Dashboard[];
+  setSelectedDashboard: (dashboardId: string | null) => void;
+  getSelectedDashboard: () => Dashboard | null;
   // Draft management
   getDraftsForForm: (userId: string, formId: string) => DraftResponse[];
   saveDraft: (draft: DraftResponse) => void;
@@ -57,8 +60,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [formEntries, setFormEntries] = useState<FormEntry[]>([]);
   const [employees, setEmployees] = useState<User[]>([]);
   const [dashboards, setDashboards] = useState<Dashboard[]>([]);
+  const [selectedDashboardId, setSelectedDashboardId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Load selected dashboard from localStorage on mount
+  useEffect(() => {
+    const savedDashboardId = localStorage.getItem('selectedDashboardId');
+    if (savedDashboardId) {
+      setSelectedDashboardId(savedDashboardId);
+    }
+  }, []);
 
   // Charger les données depuis Firestore quand l'utilisateur est connecté
   useEffect(() => {
@@ -515,6 +527,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return dashboards.filter(dashboard => dashboard.createdBy === directorId);
   };
 
+  const setSelectedDashboard = (dashboardId: string | null) => {
+    setSelectedDashboardId(dashboardId);
+    // Store in localStorage for persistence
+    if (dashboardId) {
+      localStorage.setItem('selectedDashboardId', dashboardId);
+    } else {
+      localStorage.removeItem('selectedDashboardId');
+    }
+  };
+
+  const getSelectedDashboard = (): Dashboard | null => {
+    if (!selectedDashboardId) {
+      // Return default dashboard if no specific dashboard is selected
+      return dashboards.find(d => d.isDefault) || null;
+    }
+    return dashboards.find(d => d.id === selectedDashboardId) || null;
+  };
+
   // Draft management functions
   const getDraftsForForm = (userId: string, formId: string): DraftResponse[] => {
     return DraftService.getDraftsForForm(userId, formId);
@@ -548,6 +578,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       formEntries,
       employees,
       dashboards,
+      selectedDashboardId,
       createForm,
       updateForm,
       submitFormEntry,
@@ -565,6 +596,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       updateDashboard,
       deleteDashboard,
       getDashboardsForDirector,
+      setSelectedDashboard,
+      getSelectedDashboard,
       // Draft management
       getDraftsForForm,
       saveDraft,

@@ -465,7 +465,7 @@ module.exports = async function handler(req, res) {
     console.log('=== END DATA LOGGING ===\n');
 
     // 5. Construction du prompt pour OpenAI
-    const systemPrompt = `Tu es un assistant IA spécialisé dans l'analyse de données de formulaires d'entreprise.
+    const systemPrompt = `Tu es ARCHA, un assistant IA spécialisé dans l'analyse de données de formulaires d'entreprise.
 
 RÈGLES STRICTES :
 - Réponds UNIQUEMENT en français

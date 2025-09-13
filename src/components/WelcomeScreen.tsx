@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Sparkles, ArrowRight, UserPlus, Copy, Check } from 'lucide-react';
+import { ArrowRight, UserPlus, Copy, Check } from 'lucide-react';
 import { Button } from './Button';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -186,26 +186,42 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
             {/* Centre avec icône */}
             <div className="absolute inset-0 flex items-center justify-center">
               <div className="bg-white rounded-full p-4 shadow-lg animate-bounce-subtle">
-                <Sparkles className="h-8 w-8 text-blue-600" />
+                <img 
+                  src="/favicon-base.jpg" 
+                  alt="Ubora Logo" 
+                  className="w-12 h-12 rounded-full object-cover"
+                />
               </div>
             </div>
           </div>
         </div>
 
+        {/* Logo et nom de l'app */}
+        <div className="flex flex-col items-center mb-6">
+          {/* <img 
+            src="/logo-base.jpg" 
+            alt="Ubora Logo" 
+            className="w-20 h-20 rounded-full shadow-lg mb-4 object-cover"
+          /> */}
+          <h1 className="text-6xl sm:text-5xl font-bold text-gray-900 mb-2">
+            Ubora
+          </h1>
+        </div>
+
         {/* Contenu textuel */}
         <div className="space-y-4 mb-8">
-          <h1 
+          <h2 
             id="welcome-title"
             className="text-2xl sm:text-4xl font-bold text-gray-900"
           >
             {getGreeting()}, {userName} !
-          </h1>
+          </h2>
           
           <p 
             id="welcome-description"
             className="text-base sm:text-lg text-gray-600 leading-relaxed"
           >
-            Prêt à analyser vos données et optimiser vos performances ?
+            Prêt à analyser vos données et optimiser vos performances avec ARCHA ?
           </p>
         </div>
 

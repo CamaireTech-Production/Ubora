@@ -11,7 +11,6 @@ interface ChatTopBarProps {
 }
 
 export const ChatTopBar: React.FC<ChatTopBarProps> = ({
-  title = "Assistant IA",
   isConnected = true,
   isLoading = false,
   onOpenPanel,
@@ -38,12 +37,13 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
 
           {/* Center: Title */}
           <div className="flex-1 text-center">
-            <h1 className="text-lg font-semibold text-gray-900">{title}</h1>
+            {/* <h1 className="text-sm font-medium text-gray-600">Ubora</h1> */}
+            <h2 className="text-lg font-semibold text-gray-900">UBORA</h2>
             <div className="flex items-center justify-center space-x-1 mt-0.5">
               {isLoading ? (
                 <>
                   <Loader2 className="h-3 w-3 animate-spin text-blue-600" />
-                  <span className="text-xs text-blue-600">Analyse en cours...</span>
+                  <span className="text-xs text-blue-600">ARCHA analyse...</span>
                 </>
               ) : (
                 <>
@@ -53,7 +53,7 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
                     <WifiOff className="h-3 w-3 text-red-500" />
                   )}
                   <span className="text-xs text-gray-500">
-                    {isConnected ? 'Connecté' : 'Hors ligne'}
+                    {isConnected ? 'ARCHA' : 'Hors ligne'}
                   </span>
                 </>
               )}

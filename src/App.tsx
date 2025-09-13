@@ -41,7 +41,7 @@ function App() {
               } 
             />
             
-            {/* Chat IA directeur */}
+            {/* ARCHA - Chat directeur */}
             <Route 
               path="/directeur/chat" 
               element={

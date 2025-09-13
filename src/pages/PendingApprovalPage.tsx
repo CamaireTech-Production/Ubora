@@ -1,6 +1,7 @@
 import React from 'react';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
+import { Footer } from '../components/Footer';
 import { Clock, Mail, Building2, LogOut } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -16,18 +17,19 @@ export const PendingApprovalPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
-        <Card className="text-center">
-          <div className="mb-6">
-            <Clock className="h-16 w-16 text-yellow-500 mx-auto mb-4" />
-            <h1 className="text-2xl font-bold text-gray-900 mb-2">
-              Compte en attente d'approbation
-            </h1>
-            <p className="text-gray-600 mb-6">
-              Votre compte a été créé avec succès, mais il doit être approuvé par votre directeur avant de pouvoir accéder à l'application.
-            </p>
-          </div>
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex flex-col">
+      <div className="flex-1 flex items-center justify-center p-4">
+        <div className="w-full max-w-md">
+          <Card className="text-center">
+            <div className="mb-6">
+              <Clock className="h-16 w-16 text-yellow-500 mx-auto mb-4" />
+              <h1 className="text-2xl font-bold text-gray-900 mb-2">
+                Compte en attente d'approbation
+              </h1>
+              <p className="text-gray-600 mb-6">
+                Votre compte a été créé avec succès, mais il doit être approuvé par votre directeur avant de pouvoir accéder à Ubora.
+              </p>
+            </div>
 
           {user && (
             <div className="bg-gray-50 rounded-lg p-4 mb-6 text-left">
@@ -73,8 +75,11 @@ export const PendingApprovalPage: React.FC = () => {
               <span>Se déconnecter</span>
             </Button>
           </div>
-        </Card>
+          </Card>
+        </div>
       </div>
+      
+      <Footer />
     </div>
   );
 };

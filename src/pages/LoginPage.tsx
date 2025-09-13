@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { Button } from '../components/Button';
 import { Input } from '../components/Input';
 import { Card } from '../components/Card';
+import { Footer } from '../components/Footer';
 import { Building2, Lock, Mail, AlertCircle, UserPlus } from 'lucide-react';
 
 export const LoginPage: React.FC = () => {
@@ -80,21 +81,24 @@ export const LoginPage: React.FC = () => {
   const displayError = error || localError;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4 sm:p-6 lg:p-8">
-      <div className="w-full max-w-sm sm:max-w-md">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex flex-col">
+      <div className="flex-1 flex items-center justify-center p-4 sm:p-6 lg:p-8">
+        <div className="w-full max-w-sm sm:max-w-md">
         <div className="text-center mb-8">
-          {isInviteLink ? (
-            <UserPlus className="h-10 w-10 sm:h-12 sm:w-12 text-green-600 mx-auto mb-4" />
-          ) : (
-            <Building2 className="h-10 w-10 sm:h-12 sm:w-12 text-blue-600 mx-auto mb-4" />
-          )}
-          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">Multi-Agences</h1>
+          <div className="flex flex-col items-center mb-4">
+            <img 
+              src="/favicon-base.jpg" 
+              alt="Ubora Logo" 
+              className="w-12 h-12 rounded-full shadow-lg mb-3 object-cover"
+            />
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">Ubora</h1>
+          </div>
           <p className="text-sm sm:text-base text-gray-600">
             {isInviteLink 
               ? 'Vous avez été invité à rejoindre l\'équipe' 
               : isRegisterMode 
-                ? 'Créer un compte' 
-                : 'Connectez-vous à votre espace'
+                ? 'Créer un compte Ubora' 
+                : 'Connectez-vous à votre espace Ubora'
             }
           </p>
           {isInviteLink && (
@@ -248,7 +252,10 @@ export const LoginPage: React.FC = () => {
             </button>
           </div>
         </Card>
+        </div>
       </div>
+      
+      <Footer />
     </div>
   );
 };

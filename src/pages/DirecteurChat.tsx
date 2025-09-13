@@ -8,6 +8,7 @@ import { ChatTopBar } from '../components/chat/ChatTopBar';
 import { MessageList } from '../components/chat/MessageList';
 import { ChatComposer } from '../components/chat/ChatComposer';
 import { FloatingSidePanel } from '../components/chat/FloatingSidePanel';
+import { Footer } from '../components/Footer';
 import { ResponseParser } from '../utils/ResponseParser';
 import { ChatMessage } from '../types';
 
@@ -35,7 +36,7 @@ const getAIEndpoint = () => {
 const AI_ENDPOINT = getAIEndpoint();
 
 if (!AI_ENDPOINT) {
-  console.error("❌ Aucun endpoint IA configuré. Le Chat IA ne fonctionnera pas.");
+  console.error("❌ Aucun endpoint IA configuré. ARCHA ne fonctionnera pas.");
 } else {
   console.log("✅ AI_ENDPOINT configuré:", AI_ENDPOINT);
 }
@@ -134,7 +135,7 @@ export const DirecteurChat: React.FC = () => {
     try {
       // Vérifier que l'endpoint est configuré
       if (!AI_ENDPOINT) {
-        throw new Error('Le Chat IA n\'est pas configuré. Veuillez définir VITE_AI_ENDPOINT dans votre fichier .env.local et redémarrer le serveur.');
+        throw new Error('ARCHA n\'est pas configuré. Veuillez définir VITE_AI_ENDPOINT dans votre fichier .env.local et redémarrer le serveur.');
       }
 
       // Récupérer le token Firebase
@@ -286,7 +287,7 @@ export const DirecteurChat: React.FC = () => {
           errorContent = `⏱️ **Timeout**\n\nLe serveur IA met trop de temps à répondre (>60s). Cela peut être dû à:\n• Un grand volume de données à analyser\n• Une charge élevée du serveur\n• Un problème de connexion\n\nVeuillez réessayer ou contactez l'administrateur.`;
         } else if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
           errorContent = `🌐 **Erreur de connexion**\n\nImpossible de joindre le serveur IA. Vérifiez:\n• Votre connexion internet\n• La configuration de l'endpoint IA\n• Que le serveur est en ligne\n\nEndpoint configuré: ${AI_ENDPOINT}`;
-        } else if (error.message.includes('Chat IA n\'est pas configuré')) {
+        } else if (error.message.includes('ARCHA n\'est pas configuré')) {
           errorContent = `⚙️ **Configuration manquante**\n\n${error.message}`;
         } else {
           errorContent = `❌ **Erreur API**\n\n${error.message}\n\nEndpoint: ${AI_ENDPOINT}`;
@@ -366,7 +367,7 @@ export const DirecteurChat: React.FC = () => {
         isLoading={isLoading || appLoading} 
         user={user} 
         firebaseUser={firebaseUser}
-        message="Chargement du Chat IA..."
+        message="Chargement d'Ubora..."
       >
         <WelcomeScreen
           userName={user?.name}
@@ -391,7 +392,7 @@ export const DirecteurChat: React.FC = () => {
           
           {/* Top bar */}
           <ChatTopBar
-            title="Assistant IA"
+            title="ARCHA"
             isConnected={!!AI_ENDPOINT}
             isLoading={isTyping}
             onOpenPanel={() => setPanelOpen(true)}
@@ -448,6 +449,8 @@ export const DirecteurChat: React.FC = () => {
           />
         </div>
       </div>
+      
+      <Footer />
     </LoadingGuard>
   );
 };

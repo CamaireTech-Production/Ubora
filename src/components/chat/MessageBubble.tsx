@@ -81,7 +81,11 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
         {isUser ? (
           <User className="h-4 w-4" />
         ) : (
-          <Bot className="h-4 w-4" />
+          <img 
+            src="/fav-icons/favicon-32x32.png" 
+            alt="ARCHA" 
+            className="w-6 h-6 rounded-full object-cover"
+          />
         )}
       </div>
 

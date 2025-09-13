@@ -2,7 +2,8 @@ import React from 'react';
 import { useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from './Button';
-import { LogOut, Building2, BarChart3, MessageSquare, Menu, X } from 'lucide-react';
+import { Footer } from './Footer';
+import { LogOut, BarChart3, MessageSquare, Menu, X } from 'lucide-react';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -18,7 +19,6 @@ export const Layout: React.FC<LayoutProps> = ({ children, title }) => {
   const isDirecteur = user?.role === 'directeur';
   const isDashboard = location.pathname === '/directeur/dashboard';
   const isChat = location.pathname === '/directeur/chat';
-  const isDashboardManagement = location.pathname === '/directeur/dashboards';
 
   const toggleMobileMenu = () => {
     setIsMobileMenuOpen(!isMobileMenuOpen);
@@ -51,7 +51,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, title }) => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-14 sm:h-16">
             <div className="flex items-center space-x-2 sm:space-x-3">
-              <Building2 className="h-8 w-8 text-blue-600" />
+              <img src="/fav-icons/favicon-96x96.png" alt="Ubora Logo" className="h-8 w-8 text-blue-600" />
               <div>
                 <h1 className="text-lg sm:text-xl font-bold text-gray-900 truncate max-w-[200px] sm:max-w-none">{title}</h1>
                 <p className="text-xs sm:text-sm text-gray-500 capitalize">{user?.role}</p>
@@ -68,7 +68,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, title }) => {
                   className="flex items-center space-x-2"
                 >
                   <MessageSquare className="h-4 w-4" />
-                  <span>Chat IA</span>
+                  <span>ARCHA</span>
                 </Button>
                 
                 <Button
@@ -157,6 +157,8 @@ export const Layout: React.FC<LayoutProps> = ({ children, title }) => {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8">
         {children}
       </main>
+      
+      <Footer />
     </div>
   );
 };
