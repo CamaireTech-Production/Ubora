@@ -9,8 +9,10 @@ import { DynamicForm } from '../components/DynamicForm';
 import { LoadingGuard } from '../components/LoadingGuard';
 import { Toast } from '../components/Toast';
 import { useToast } from '../hooks/useToast';
-import { FileText, CheckCircle, ArrowLeft, Eye, AlertTriangle, Edit, Trash2, Send, FileEdit, Filter, Calendar, SortAsc, SortDesc } from 'lucide-react';
-import { FileAttachment } from '../types';
+import { FileText, CheckCircle, ArrowLeft, Eye, AlertTriangle, Edit, Trash2, Send, FileEdit, Filter, Calendar, SortAsc, SortDesc, Download } from 'lucide-react';
+import { getFileDownloadURL } from '../utils/firebaseStorageUtils';
+import { PDFViewerModal } from '../components/PDFViewerModal';
+import { downloadFile } from '../utils/downloadUtils';
 import { VideoSection } from '../components/VideoSection';
 import { employeeVideos } from '../data/videoData';
 
@@ -20,6 +22,8 @@ interface ResponsesInterfaceProps {
   onClose: () => void;
   canEditResponse: (submittedAt: Date | string) => boolean;
   onUpdateResponse?: (responseId: string, updatedAnswers: Record<string, any>, updatedFileAttachments: any[]) => Promise<void>;
+  onViewPDF: (fileAttachment: any) => void;
+  onDownloadPDF: (fileAttachment: any) => void;
 }
 
 // Helper functions for file handling
@@ -34,19 +38,22 @@ const getFileIcon = (fileType: string): string => {
   return '📎';
 };
 
-const formatFileSize = (bytes: number): string => {
-  if (bytes === 0) return '0 Bytes';
-  const k = 1024;
-  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-};
+  const formatFileSize = (bytes: number): string => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  };
+
 
 const ResponsesInterface: React.FC<ResponsesInterfaceProps> = ({ 
   myEntries, 
   assignedForms, 
   canEditResponse,
-  onUpdateResponse
+  onUpdateResponse,
+  onViewPDF,
+  onDownloadPDF
 }) => {
   const [selectedFormFilter, setSelectedFormFilter] = useState<string>('all');
   const [dateFilter, setDateFilter] = useState<string>('all');
@@ -254,23 +261,33 @@ const ResponsesInterface: React.FC<ResponsesInterfaceProps> = ({
                         
                         // Handle file fields specially
                         if (field?.type === 'file' && value && typeof value === 'object' && 'uploaded' in value && value.uploaded) {
-                          const fileAttachment = entry.fileAttachments?.find((att: FileAttachment) => att.fieldId === fieldId);
+                          const fileAttachment = entry.fileAttachments?.find((att: any) => att.fieldId === fieldId);
                           return (
                             <div key={fieldId} className="text-sm">
                               <span className="font-medium text-gray-700">{fieldLabel}:</span>
-                              <div className="ml-2 text-gray-600 flex items-center space-x-2">
-                                <span className="text-lg">{getFileIcon((value as any).fileType)}</span>
-                                <span>{(value as any).fileName}</span>
-                                <span className="text-xs text-gray-500">({formatFileSize((value as any).fileSize)})</span>
-                                {fileAttachment?.textExtractionStatus && (
-                                  <span className={`text-xs px-2 py-1 rounded ${
-                                    fileAttachment.textExtractionStatus === 'completed' ? 'bg-green-100 text-green-800' :
-                                    fileAttachment.textExtractionStatus === 'failed' ? 'bg-red-100 text-red-800' :
-                                    'bg-yellow-100 text-yellow-800'
-                                  }`}>
-                                    IA: {fileAttachment.textExtractionStatus === 'completed' ? 'Prête' : 
-                                         fileAttachment.textExtractionStatus === 'failed' ? 'Échouée' : 'En cours'}
-                                  </span>
+                              <div className="ml-2 text-gray-600 flex flex-col sm:flex-row sm:items-center gap-2">
+                                <div className="flex items-center space-x-2">
+                                  <span className="text-lg">{getFileIcon((value as any).fileType)}</span>
+                                  <span>{(value as any).fileName}</span>
+                                  <span className="text-xs text-gray-500">({formatFileSize((value as any).fileSize)})</span>
+                                </div>
+                                {(fileAttachment?.downloadUrl || fileAttachment?.storagePath) && (
+                                  <div className="flex items-center space-x-2">
+                                    <button
+                                      onClick={() => onViewPDF(fileAttachment)}
+                                      className="flex items-center space-x-1 px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 text-xs"
+                                    >
+                                      <Eye className="h-3 w-3" />
+                                      <span>Voir</span>
+                                    </button>
+                                    <button
+                                      onClick={() => onDownloadPDF(fileAttachment)}
+                                      className="flex items-center space-x-1 px-2 py-1 bg-gray-500 text-white rounded hover:bg-gray-600 text-xs"
+                                    >
+                                      <Download className="h-3 w-3" />
+                                      <span>Télécharger</span>
+                                    </button>
+                                  </div>
                                 )}
                               </div>
                             </div>
@@ -327,6 +344,16 @@ export const EmployeDashboard: React.FC = () => {
   const [isSubmittingDrafts, setIsSubmittingDrafts] = useState(false);
   const [isSavingDraft, setIsSavingDraft] = useState(false);
   const { toast, showSuccess, showError } = useToast();
+
+  const [pdfViewerModal, setPdfViewerModal] = useState<{
+    isOpen: boolean;
+    fileUrl: string;
+    fileName: string;
+  }>({
+    isOpen: false,
+    fileUrl: '',
+    fileName: ''
+  });
   const [deleteModal, setDeleteModal] = useState<{
     show: boolean;
     draftId: string | null;
@@ -407,6 +434,50 @@ export const EmployeDashboard: React.FC = () => {
     } catch (error) {
       return 'Date invalide';
     }
+  };
+
+  const handleViewPDF = async (fileAttachment: any) => {
+    try {
+      const downloadUrl = await getFileDownloadURL(fileAttachment);
+      
+      // Open in PDF viewer modal
+      setPdfViewerModal({
+        isOpen: true,
+        fileUrl: downloadUrl,
+        fileName: fileAttachment.fileName
+      });
+    } catch (error) {
+      console.error('Error viewing file:', error);
+      showError('Erreur lors de l\'ouverture du fichier');
+    }
+  };
+
+  const handleDownloadPDF = async (fileAttachment: any) => {
+    try {
+      const downloadUrl = await getFileDownloadURL(fileAttachment);
+      
+      await downloadFile({
+        fileName: fileAttachment.fileName,
+        url: downloadUrl,
+        onSuccess: () => {
+          showSuccess('Téléchargement démarré');
+        },
+        onError: (error) => {
+          showError(`Erreur lors du téléchargement: ${error}`);
+        }
+      });
+    } catch (error) {
+      console.error('Error downloading file:', error);
+      showError('Erreur lors du téléchargement du fichier');
+    }
+  };
+
+  const handleClosePdfModal = () => {
+    setPdfViewerModal({
+      isOpen: false,
+      fileUrl: '',
+      fileName: ''
+    });
   };
 
   const formatTime = (date: Date | string) => {
@@ -834,7 +905,6 @@ export const EmployeDashboard: React.FC = () => {
                                 
                                 // Handle file fields specially
                                 if (field?.type === 'file' && value && typeof value === 'object' && 'uploaded' in value && value.uploaded) {
-                                  const fileAttachment = draft.fileAttachments?.find((att: FileAttachment) => att.fieldId === fieldId);
                                   return (
                                     <div key={fieldId} className="text-xs">
                                       <span className="font-medium text-gray-800">{fieldLabel}:</span>
@@ -842,16 +912,6 @@ export const EmployeDashboard: React.FC = () => {
                                         <span className="text-sm">{getFileIcon((value as any).fileType)}</span>
                                         <span>{(value as any).fileName}</span>
                                         <span className="text-xs text-gray-500">({formatFileSize((value as any).fileSize)})</span>
-                                        {fileAttachment?.textExtractionStatus && (
-                                          <span className={`text-xs px-1 py-0.5 rounded ${
-                                            fileAttachment.textExtractionStatus === 'completed' ? 'bg-green-100 text-green-800' :
-                                            fileAttachment.textExtractionStatus === 'failed' ? 'bg-red-100 text-red-800' :
-                                            'bg-yellow-100 text-yellow-800'
-                                          }`}>
-                                            IA: {fileAttachment.textExtractionStatus === 'completed' ? 'Prête' : 
-                                                 fileAttachment.textExtractionStatus === 'failed' ? 'Échouée' : 'En cours'}
-                                          </span>
-                                        )}
                                       </div>
                                     </div>
                                   );
@@ -1101,6 +1161,8 @@ export const EmployeDashboard: React.FC = () => {
                  onClose={() => setShowResponsesInterface(false)}
                  canEditResponse={canEditResponse}
                  onUpdateResponse={handleUpdateResponse}
+                 onViewPDF={handleViewPDF}
+                 onDownloadPDF={handleDownloadPDF}
                />
              </div>
            </div>
@@ -1161,6 +1223,27 @@ export const EmployeDashboard: React.FC = () => {
         show={toast.show}
         message={toast.message}
         type={toast.type}
+      />
+
+      {/* PDF Viewer Modal */}
+      <PDFViewerModal
+        isOpen={pdfViewerModal.isOpen}
+        onClose={handleClosePdfModal}
+        fileUrl={pdfViewerModal.fileUrl}
+        fileName={pdfViewerModal.fileName}
+        onDownload={() => {
+          // Download from modal
+          downloadFile({
+            fileName: pdfViewerModal.fileName,
+            url: pdfViewerModal.fileUrl,
+            onSuccess: () => {
+              showSuccess('Téléchargement démarré');
+            },
+            onError: (error) => {
+              showError(`Erreur lors du téléchargement: ${error}`);
+            }
+          });
+        }}
       />
     </LoadingGuard>
   );

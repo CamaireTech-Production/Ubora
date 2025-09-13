@@ -47,11 +47,14 @@ export class FileUploadService {
   ];
 
   /**
-   * Process file locally with PDF text extraction (no Firebase upload yet)
+   * Upload file to Firebase Storage with PDF text extraction
    */
-  static async processFileLocally(
+  static async uploadFile(
     file: File,
     fieldId: string,
+    formId: string,
+    userId: string,
+    agencyId: string,
     onProgress?: (progress: UploadProgress) => void,
     onPDFExtraction?: (result: PDFExtractionResult) => void
   ): Promise<FileAttachment> {
@@ -59,7 +62,16 @@ export class FileUploadService {
       // Validate file
       this.validateFile(file);
 
-      // Update progress - processing
+      // Generate unique file path
+      const timestamp = Date.now();
+      const fileExtension = file.name.split('.').pop() || '';
+      const fileName = `${fieldId}_${timestamp}.${fileExtension}`;
+      const storagePath = `form-uploads/${agencyId}/${formId}/${userId}/${fileName}`;
+
+      // Create storage reference
+      const storageRef = ref(storage, storagePath);
+
+      // Update progress - uploading
       onProgress?.({
         fieldId,
         fileName: file.name,
@@ -67,17 +79,32 @@ export class FileUploadService {
         status: 'uploading'
       });
 
-      // Create local file attachment (no Firebase upload yet)
+      // Upload file to Firebase Storage
+      const uploadResult: UploadResult = await uploadBytes(storageRef, file);
+
+      // Get download URL
+      const downloadUrl = await getDownloadURL(uploadResult.ref);
+
+      console.log('🔍 File uploaded successfully:', {
+        fileName: file.name,
+        storagePath,
+        downloadUrl,
+        fileSize: file.size
+      });
+
+      // Create file attachment
       const fileAttachment: FileAttachment = {
         fieldId,
         fileName: file.name,
         fileSize: file.size,
         fileType: file.type,
-        downloadUrl: '', // Will be set when uploaded to Firebase
-        storagePath: '', // Will be set when uploaded to Firebase
+        downloadUrl,
+        storagePath,
         uploadedAt: new Date(),
         textExtractionStatus: 'pending'
       };
+
+      console.log('🔍 Created file attachment:', fileAttachment);
 
       // Extract text if it's a PDF
       if (PDFTextExtractionService.isPDF(file)) {

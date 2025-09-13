@@ -7,8 +7,8 @@ import { Select } from './Select';
 import { Card } from './Card';
 import { FileInput } from './FileInput';
 import { FileUploadService, UploadProgress } from '../services/fileUploadService';
-import { LocalStorageService, LocalFormResponse } from '../services/localStorageService';
 import { useAuth } from '../contexts/AuthContext';
+import { useApp } from '../contexts/AppContext';
 import { db, auth } from '../firebaseConfig';
 import { doc, getDoc } from 'firebase/firestore';
 import { Upload, CheckCircle, AlertCircle, X, Clock, AlertTriangle, Loader2 } from 'lucide-react';
@@ -33,6 +33,7 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
   isLoading = false
 }) => {
   const { user } = useAuth();
+  const { submitFormEntry } = useApp();
   const [answers, setAnswers] = useState<Record<string, any>>(initialAnswers);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [fileAttachments, setFileAttachments] = useState<FileAttachment[]>(initialFileAttachments);
@@ -131,25 +132,28 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
       }));
 
       // Process file locally (extract text, no Firebase upload yet)
-      const attachment = await FileUploadService.processFileLocally(
-        file,
-        fieldId,
-        (progress) => {
-          setUploadProgress(prev => ({
-            ...prev,
-            [fieldId]: progress
-          }));
-        },
-        (pdfResult) => {
-          // Log PDF extraction results to console
-          console.log('🎉 PDF Text Extraction Completed:', {
-            fileName: pdfResult.fileName,
-            textLength: pdfResult.extractedText.length,
-            pages: pdfResult.pages,
-            status: pdfResult.extractionStatus
-          });
-        }
-      );
+        const attachment = await FileUploadService.uploadFile(
+          file,
+          fieldId,
+          form.id,
+          user?.id || '',
+          user?.agencyId || '',
+          (progress) => {
+            setUploadProgress(prev => ({
+              ...prev,
+              [fieldId]: progress
+            }));
+          },
+          (pdfResult) => {
+            // Log PDF extraction results to console
+            console.log('🎉 PDF Text Extraction Completed:', {
+              fileName: pdfResult.fileName,
+              textLength: pdfResult.extractedText.length,
+              pages: pdfResult.pages,
+              status: pdfResult.extractionStatus
+            });
+          }
+        );
 
       // Add to attachments
       setFileAttachments(prev => {
@@ -158,15 +162,28 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
         return [...filtered, attachment];
       });
 
-      // Update answers with file info
+      // Update answers with file info including downloadUrl and storagePath
+      const fileAnswerData = {
+        fileName: file.name,
+        fileSize: file.size,
+        fileType: file.type,
+        uploaded: true,
+        downloadUrl: attachment.downloadUrl,
+        storagePath: attachment.storagePath,
+        uploadedAt: attachment.uploadedAt,
+        extractedText: attachment.extractedText,
+        textExtractionStatus: attachment.textExtractionStatus
+      };
+
+      console.log('🔍 Storing file answer data:', {
+        fieldId,
+        fileAnswerData,
+        attachment
+      });
+
       setAnswers(prev => ({
         ...prev,
-        [fieldId]: {
-          fileName: file.name,
-          fileSize: file.size,
-          fileType: file.type,
-          uploaded: true
-        }
+        [fieldId]: fileAnswerData
       }));
 
       // Clear progress when completed
@@ -241,32 +258,25 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
         }
         const userData = userDoc.data();
 
-        // Create local form response
-        const localResponse: LocalFormResponse = {
-          id: LocalStorageService.generateResponseId(),
+        // Submit to Firebase via AppContext
+        const formEntryData = {
           formId: form.id,
           answers: answers,
-          fileAttachments: fileAttachments,
-          submittedAt: new Date(),
-          userId: currentUser.uid,
-          agencyId: userData.agencyId,
-          status: 'ready_to_submit'
+          fileAttachments: fileAttachments
         };
 
-        // Store in localStorage
-        LocalStorageService.storeFormResponse(localResponse);
+        // Submit to Firebase via AppContext
+        await submitFormEntry(formEntryData);
 
-        // Log detailed information
-        console.log('🎉 Form Response Successfully Stored in localStorage!');
+        // Log successful submission
+        console.log('🎉 Form Response Successfully Submitted to Firebase!');
         console.log('📋 Response Details:', {
-          responseId: localResponse.id,
-          formId: localResponse.formId,
+          formId: form.id,
           formTitle: form.title,
           totalAnswers: Object.keys(answers).length,
           fileAttachments: fileAttachments.length,
           userId: currentUser.uid,
-          agencyId: userData.agencyId,
-          status: localResponse.status
+          agencyId: userData.agencyId
         });
 
         // Log file attachment details
@@ -277,16 +287,14 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
               fieldId: attachment.fieldId,
               fileSize: attachment.fileSize,
               fileType: attachment.fileType,
+              downloadUrl: attachment.downloadUrl,
+              storagePath: attachment.storagePath,
               hasExtractedText: !!attachment.extractedText,
               textLength: attachment.extractedText?.length || 0,
               extractionStatus: attachment.textExtractionStatus
             });
           });
         }
-
-        // Log localStorage stats
-        const stats = LocalStorageService.getStorageStats();
-        console.log('💾 localStorage Statistics:', stats);
 
         // Submit only the form answers (fileAttachments are handled separately)
         onSubmit(answers, fileAttachments);

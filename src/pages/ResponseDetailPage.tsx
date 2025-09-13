@@ -10,6 +10,9 @@ import { ArrowLeft, FileText, User, Calendar, Filter, Download, Eye, Edit, Trash
 import { FileAttachment } from '../types';
 import { useToast } from '../hooks/useToast';
 import { Toast } from '../components/Toast';
+import { getFileDownloadURL } from '../utils/firebaseStorageUtils';
+import { PDFViewerModal } from '../components/PDFViewerModal';
+import { downloadFile } from '../utils/downloadUtils';
 
 export const ResponseDetailPage: React.FC = () => {
   const { formId } = useParams<{ formId: string }>();
@@ -32,6 +35,15 @@ export const ResponseDetailPage: React.FC = () => {
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [editingResponse, setEditingResponse] = useState<string | null>(null);
   const [isSubmittingEdit, setIsSubmittingEdit] = useState(false);
+  const [pdfViewerModal, setPdfViewerModal] = useState<{
+    isOpen: boolean;
+    fileUrl: string;
+    fileName: string;
+  }>({
+    isOpen: false,
+    fileUrl: '',
+    fileName: ''
+  });
 
   // Get the form and responses
   const form = forms.find(f => f.id === formId);
@@ -44,6 +56,20 @@ export const ResponseDetailPage: React.FC = () => {
       ? getEntriesForEmployee(user?.id || '').filter(entry => entry.formId === formId)
       : getEntriesForForm(formId)
   ) : [];
+
+  // Debug: Log all response data
+  React.useEffect(() => {
+    if (allResponses.length > 0) {
+      console.log('🔍 All responses data:', allResponses);
+      allResponses.forEach((response, index) => {
+        console.log(`Response ${index + 1}:`, {
+          id: response.id,
+          fileAttachments: response.fileAttachments,
+          answers: response.answers
+        });
+      });
+    }
+  }, [allResponses]);
 
   // Helper functions for file handling
   const getFileIcon = (fileType: string): string => {
@@ -65,10 +91,83 @@ export const ResponseDetailPage: React.FC = () => {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
-  const handleViewPDF = (fileAttachment: FileAttachment) => {
-    if (fileAttachment.downloadUrl) {
-      window.open(fileAttachment.downloadUrl, '_blank');
+  // Helper function to find file attachment for a field
+  const findFileAttachment = (response: any, fieldId: string) => {
+    // Try to find in fileAttachments array
+    if (response.fileAttachments && Array.isArray(response.fileAttachments)) {
+      const attachment = response.fileAttachments.find((att: any) => att.fieldId === fieldId);
+      if (attachment) {
+        console.log('🔍 Found file attachment in fileAttachments array:', attachment);
+        return attachment;
+      }
     }
+
+    // Try to find in answers object (sometimes file data is stored there)
+    const answerValue = response.answers?.[fieldId];
+    if (answerValue && typeof answerValue === 'object' && answerValue.uploaded) {
+      console.log('🔍 Found file data in answers:', answerValue);
+      // Create a file attachment object from the answer data
+      return {
+        fieldId,
+        fileName: answerValue.fileName,
+        fileSize: answerValue.fileSize,
+        fileType: answerValue.fileType,
+        downloadUrl: answerValue.downloadUrl,
+        storagePath: answerValue.storagePath,
+        uploadedAt: answerValue.uploadedAt || new Date()
+      };
+    }
+
+    console.log('🔍 No file attachment found for fieldId:', fieldId);
+    return null;
+  };
+
+  const handleViewPDF = async (fileAttachment: FileAttachment) => {
+    try {
+      console.log('🔍 Attempting to view file:', fileAttachment);
+      const downloadUrl = await getFileDownloadURL(fileAttachment);
+      console.log('🔍 Generated download URL:', downloadUrl);
+      
+      // Open in PDF viewer modal
+      setPdfViewerModal({
+        isOpen: true,
+        fileUrl: downloadUrl,
+        fileName: fileAttachment.fileName
+      });
+    } catch (error) {
+      console.error('Error viewing file:', error);
+      showError('Erreur lors de l\'ouverture du fichier');
+    }
+  };
+
+  const handleDownloadPDF = async (fileAttachment: FileAttachment) => {
+    try {
+      console.log('🔍 Attempting to download file:', fileAttachment);
+      const downloadUrl = await getFileDownloadURL(fileAttachment);
+      console.log('🔍 Generated download URL:', downloadUrl);
+      
+      await downloadFile({
+        fileName: fileAttachment.fileName,
+        url: downloadUrl,
+        onSuccess: () => {
+          showSuccess('Téléchargement démarré');
+        },
+        onError: (error) => {
+          showError(`Erreur lors du téléchargement: ${error}`);
+        }
+      });
+    } catch (error) {
+      console.error('Error downloading file:', error);
+      showError('Erreur lors du téléchargement du fichier');
+    }
+  };
+
+  const handleClosePdfModal = () => {
+    setPdfViewerModal({
+      isOpen: false,
+      fileUrl: '',
+      fileName: ''
+    });
   };
 
   const getEmployeeName = (employeeId: string): string => {
@@ -357,27 +456,46 @@ export const ResponseDetailPage: React.FC = () => {
                               
                               // Handle file fields specially
                               if (field?.type === 'file' && value && typeof value === 'object' && 'uploaded' in value && value.uploaded) {
-                                const fileAttachment = response.fileAttachments?.find((att: FileAttachment) => att.fieldId === fieldId);
+                                const fileAttachment = findFileAttachment(response, fieldId);
+                                console.log('🔍 File field debug:', {
+                                  fieldId,
+                                  fieldLabel,
+                                  isDirector,
+                                  fileAttachment,
+                                  hasDownloadUrl: fileAttachment?.downloadUrl,
+                                  hasStoragePath: fileAttachment?.storagePath,
+                                  value
+                                });
                                 return (
                                   <div key={fieldId} className="border-b border-gray-100 pb-3 last:border-b-0">
                                     <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
                                       <div className="font-medium text-gray-700 text-sm">
                                         {fieldLabel}
                                       </div>
-                                      <div className="text-gray-900 text-sm flex items-center space-x-2">
-                                        <span className="text-lg">{getFileIcon((value as any).fileType)}</span>
-                                        <span>{(value as any).fileName}</span>
-                                        <span className="text-xs text-gray-500">({formatFileSize((value as any).fileSize)})</span>
-                                        {fileAttachment?.textExtractionStatus && (
-                                          <span className={`text-xs px-2 py-1 rounded ${
-                                            fileAttachment.textExtractionStatus === 'completed' ? 'bg-green-100 text-green-800' :
-                                            fileAttachment.textExtractionStatus === 'failed' ? 'bg-red-100 text-red-800' :
-                                            'bg-yellow-100 text-yellow-800'
-                                          }`}>
-                                            IA: {fileAttachment.textExtractionStatus === 'completed' ? 'Prête' : 
-                                                 fileAttachment.textExtractionStatus === 'failed' ? 'Échouée' : 'En cours'}
-                                          </span>
-                                        )}
+                                      <div className="text-gray-900 text-sm flex flex-col sm:flex-row sm:items-center gap-2">
+                                        <div className="flex items-center space-x-2">
+                                          <span className="text-lg">{getFileIcon((value as any).fileType)}</span>
+                                          <span>{(value as any).fileName}</span>
+                                          <span className="text-xs text-gray-500">({formatFileSize((value as any).fileSize)})</span>
+                                        </div>
+                                         <div className="flex items-center space-x-2">
+                                           <button
+                                             onClick={() => handleViewPDF(fileAttachment)}
+                                             className="flex items-center space-x-1 px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 text-xs"
+                                             disabled={!fileAttachment}
+                                           >
+                                             <Eye className="h-3 w-3" />
+                                             <span>Voir</span>
+                                           </button>
+                                           <button
+                                             onClick={() => handleDownloadPDF(fileAttachment)}
+                                             className="flex items-center space-x-1 px-2 py-1 bg-gray-500 text-white rounded hover:bg-gray-600 text-xs"
+                                             disabled={!fileAttachment}
+                                           >
+                                             <Download className="h-3 w-3" />
+                                             <span>Télécharger</span>
+                                           </button>
+                                         </div>
                                       </div>
                                     </div>
                                   </div>
@@ -417,6 +535,27 @@ export const ResponseDetailPage: React.FC = () => {
           show={toast.show}
           message={toast.message}
           type={toast.type}
+        />
+
+        {/* PDF Viewer Modal */}
+        <PDFViewerModal
+          isOpen={pdfViewerModal.isOpen}
+          onClose={handleClosePdfModal}
+          fileUrl={pdfViewerModal.fileUrl}
+          fileName={pdfViewerModal.fileName}
+          onDownload={() => {
+            // Download from modal
+            downloadFile({
+              fileName: pdfViewerModal.fileName,
+              url: pdfViewerModal.fileUrl,
+              onSuccess: () => {
+                showSuccess('Téléchargement démarré');
+              },
+              onError: (error) => {
+                showError(`Erreur lors du téléchargement: ${error}`);
+              }
+            });
+          }}
         />
       </Layout>
     </LoadingGuard>
