@@ -351,18 +351,6 @@ export const DirecteurChat: React.FC = () => {
     setSelectedFormIds(formIds);
   };
 
-  const handleFileUpload = (files: File[]) => {
-    // Handle file uploads
-    files.forEach((file) => {
-      console.log('File uploaded:', file.name, file.type, file.size);
-      
-      // Create a message with file information
-      const fileMessage = `📎 Fichier joint: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`;
-      
-      // Add the file message to the input
-      setInputMessage(prev => prev ? `${prev}\n${fileMessage}` : fileMessage);
-    });
-  };
 
 
   // Gérer la fermeture de l'écran de bienvenue
@@ -435,7 +423,6 @@ export const DirecteurChat: React.FC = () => {
             onFiltersChange={setFilters}
             selectedFormIds={selectedFormIds}
             onFormSelectionChange={handleFormSelectionChange}
-            onFileUpload={handleFileUpload}
             disabled={isTyping}
             placeholder="Posez une question sur vos données..."
             showFormatSelector={true}

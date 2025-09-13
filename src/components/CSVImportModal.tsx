@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { FormField } from '../types';
-import { CSVImportInstructions } from './CSVImportInstructions';
 import { CSVFileUpload } from './CSVFileUpload';
 import { CSVFieldMapper } from './CSVFieldMapper';
 import { CSVImportProgress } from './CSVImportProgress';
@@ -33,7 +32,7 @@ interface CSVImportModalProps {
   onImportComplete: (results: ImportResult[]) => void;
 }
 
-type ImportStep = 'instructions' | 'upload' | 'mapping' | 'progress' | 'summary';
+type ImportStep = 'upload' | 'mapping' | 'progress' | 'summary';
 
 export const CSVImportModal: React.FC<CSVImportModalProps> = ({
   isOpen,
@@ -41,7 +40,7 @@ export const CSVImportModal: React.FC<CSVImportModalProps> = ({
   formFields,
   onImportComplete
 }) => {
-  const [currentStep, setCurrentStep] = useState<ImportStep>('instructions');
+  const [currentStep, setCurrentStep] = useState<ImportStep>('upload');
   const [csvData, setCsvData] = useState<CSVRow[]>([]);
   const [csvHeaders, setCsvHeaders] = useState<string[]>([]);
   const [fileName, setFileName] = useState('');
@@ -50,7 +49,7 @@ export const CSVImportModal: React.FC<CSVImportModalProps> = ({
   const [error, setError] = useState('');
 
   const resetModal = () => {
-    setCurrentStep('instructions');
+    setCurrentStep('upload');
     setCsvData([]);
     setCsvHeaders([]);
     setFileName('');
@@ -64,9 +63,6 @@ export const CSVImportModal: React.FC<CSVImportModalProps> = ({
     onClose();
   };
 
-  const handleInstructionsComplete = () => {
-    setCurrentStep('upload');
-  };
 
   const handleFileParsed = (data: CSVRow[], file: string, headers: string[]) => {
     setCsvData(data);
@@ -102,23 +98,11 @@ export const CSVImportModal: React.FC<CSVImportModalProps> = ({
 
   const handleRestart = () => {
     resetModal();
-    setCurrentStep('instructions');
+    setCurrentStep('upload');
   };
 
   const renderCurrentStep = () => {
     switch (currentStep) {
-      case 'instructions':
-        return (
-          <CSVImportInstructions
-            isOpen={true}
-            onClose={handleClose}
-            onDownloadSample={() => {
-              // Sample download is handled in the component
-            }}
-            onStartImport={handleInstructionsComplete}
-          />
-        );
-
       case 'upload':
         return (
           <div className="space-y-6">

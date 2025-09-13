@@ -63,7 +63,7 @@ export const FormBuilder: React.FC<FormBuilderProps> = ({
     const field = fields.find(f => f.id === fieldId);
     if (field) {
       const options = field.options || [];
-      updateField(fieldId, { options: [...options, ''] });
+      updateField(fieldId, { options: ['', ...options] });
     }
   };
 

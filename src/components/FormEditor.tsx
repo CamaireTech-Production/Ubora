@@ -85,7 +85,7 @@ export const FormEditor: React.FC<FormEditorProps> = ({
     const field = fields.find(f => f.id === fieldId);
     if (field) {
       const options = field.options || [];
-      updateField(fieldId, { options: [...options, ''] });
+      updateField(fieldId, { options: ['', ...options] });
     }
   };
 

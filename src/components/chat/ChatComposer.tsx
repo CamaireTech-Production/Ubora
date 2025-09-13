@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Mic, Paperclip } from 'lucide-react';
+import { Send } from 'lucide-react';
 import { Button } from '../Button';
 import { FormatSelector } from './FormatSelector';
 import { ComprehensiveFilter } from './ComprehensiveFilter';
@@ -36,7 +36,6 @@ interface ChatComposerProps {
   onFiltersChange: (filters: ChatFilters) => void;
   selectedFormIds: string[];
   onFormSelectionChange: (formIds: string[]) => void;
-  onFileUpload?: (files: File[]) => void;
   onKeyPress?: (e: React.KeyboardEvent) => void;
   disabled?: boolean;
   placeholder?: string;
@@ -60,7 +59,6 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
   onFiltersChange,
   selectedFormIds,
   onFormSelectionChange,
-  onFileUpload,
   onKeyPress,
   disabled = false,
   placeholder = "Écrivez votre message…",
@@ -70,7 +68,6 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
   allowMultipleFormats = false
 }) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const [rows, setRows] = useState(1);
 
   // Auto-resize textarea
@@ -79,15 +76,15 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
       const textarea = textareaRef.current;
       textarea.style.height = 'auto';
       const scrollHeight = textarea.scrollHeight;
-      const lineHeight = 24; // Approximate line height
-      const maxHeight = lineHeight * 5; // Max 5 lines
+      const lineHeight = 48; // Updated line height to match new minHeight
+      const maxHeight = lineHeight * 3; // Max 3 lines for better mobile experience
       
       if (scrollHeight <= maxHeight) {
         textarea.style.height = `${scrollHeight}px`;
         setRows(Math.max(1, Math.floor(scrollHeight / lineHeight)));
       } else {
         textarea.style.height = `${maxHeight}px`;
-        setRows(5);
+        setRows(3);
       }
     }
   }, [value]);
@@ -105,22 +102,6 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
   const canSend = !disabled && value.trim().length > 0;
   const isNearLimit = value.length > maxLength * 0.8;
 
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(event.target.files || []);
-    if (files.length > 0 && onFileUpload) {
-      onFileUpload(files);
-    }
-    // Reset the input value so the same file can be selected again
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
-  };
-
-  const handleFileButtonClick = () => {
-    if (fileInputRef.current) {
-      fileInputRef.current.click();
-    }
-  };
 
   return (
     <div className="fixed bottom-0 left-0 right-0 z-10 bg-gradient-to-t from-white via-white to-transparent pt-4">
@@ -182,64 +163,28 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
                 disabled={disabled}
                 maxLength={maxLength}
                 rows={rows}
-                className="w-full resize-none border-0 outline-none text-base placeholder-gray-400 bg-transparent"
+                className="w-full resize-none border-0 outline-none text-base placeholder-gray-400 bg-transparent md:text-base text-lg"
                 style={{
-                  minHeight: '24px',
-                  maxHeight: '120px',
-                  lineHeight: '24px'
+                  minHeight: '48px',
+                  maxHeight: '144px',
+                  lineHeight: '48px'
                 }}
               />
             </div>
 
-            {/* Action buttons */}
-            <div className="flex items-center space-x-2">
-              {/* File upload button */}
-              <Button
-                variant="secondary"
-                size="sm"
-                disabled={disabled}
-                onClick={handleFileButtonClick}
-                className="p-2 rounded-xl bg-gray-100 hover:bg-gray-200 border-0"
-                title="Joindre un fichier"
-              >
-                <Paperclip className="h-4 w-4 text-gray-600" />
-              </Button>
-
-              {/* Hidden file input */}
-              <input
-                ref={fileInputRef}
-                type="file"
-                multiple
-                accept="*/*"
-                onChange={handleFileUpload}
-                className="hidden"
-              />
-
-              {/* Voice input button (placeholder) */}
-              <Button
-                variant="secondary"
-                size="sm"
-                disabled={disabled}
-                className="p-2 rounded-xl bg-gray-100 hover:bg-gray-200 border-0"
-                title="Enregistrement vocal"
-              >
-                <Mic className="h-4 w-4 text-gray-600" />
-              </Button>
-
-              {/* Send button */}
-              <Button
-                onClick={onSend}
-                disabled={!canSend}
-                className={`p-2 rounded-xl transition-all duration-200 ${
-                  canSend
-                    ? 'bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-md'
-                    : 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                }`}
-                title="Envoyer le message"
-              >
-                <Send className="h-4 w-4" />
-              </Button>
-            </div>
+            {/* Send button */}
+            <Button
+              onClick={onSend}
+              disabled={!canSend}
+              className={`p-3 rounded-xl transition-all duration-200 ${
+                canSend
+                  ? 'bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-md'
+                  : 'bg-blue-200 text-blue-400 cursor-not-allowed'
+              }`}
+              title="Envoyer le message"
+            >
+              <Send className="h-5 w-5" />
+            </Button>
           </div>
           </div>
         </div>
