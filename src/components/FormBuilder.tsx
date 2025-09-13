@@ -6,6 +6,7 @@ import { Select } from './Select';
 import { Textarea } from './Textarea';
 import { Card } from './Card';
 import { FileTypeSelector } from './FileTypeSelector';
+import { FieldCSVImport } from './FieldCSVImport';
 import { Plus, Trash2, ArrowLeft, AlertCircle } from 'lucide-react';
 
 interface FormBuilderProps {
@@ -89,6 +90,10 @@ export const FormBuilder: React.FC<FormBuilderProps> = ({
         ? prev.filter(id => id !== employeeId)
         : [...prev, employeeId]
     );
+  };
+
+  const handleFieldOptionsUpdate = (fieldId: string, newOptions: string[]) => {
+    updateField(fieldId, { options: newOptions });
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -344,6 +349,14 @@ export const FormBuilder: React.FC<FormBuilderProps> = ({
                               Veuillez ajouter au moins une option pour cette liste déroulante
                             </p>
                           )}
+                          
+                          {/* CSV Import Option */}
+                          <FieldCSVImport
+                            fieldId={field.id}
+                            fieldLabel={field.label}
+                            currentOptions={field.options || []}
+                            onOptionsUpdate={handleFieldOptionsUpdate}
+                          />
                         </div>
                       )}
 

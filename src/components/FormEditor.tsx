@@ -6,6 +6,7 @@ import { Select } from './Select';
 import { Textarea } from './Textarea';
 import { Card } from './Card';
 import { FileTypeSelector } from './FileTypeSelector';
+import { FieldCSVImport } from './FieldCSVImport';
 import { Plus, Trash2, ArrowLeft, CheckSquare, Square, Loader2 } from 'lucide-react';
 
 interface FormEditorProps {
@@ -164,6 +165,11 @@ export const FormEditor: React.FC<FormEditorProps> = ({
     setTimeout(() => {
       setToast(prev => ({ ...prev, show: false }));
     }, 4000);
+  };
+
+  const handleFieldOptionsUpdate = (fieldId: string, newOptions: string[]) => {
+    updateField(fieldId, { options: newOptions });
+    showToast('success', 'Options importées avec succès');
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -518,6 +524,14 @@ export const FormEditor: React.FC<FormEditorProps> = ({
                               </div>
                             ))}
                           </div>
+                          
+                          {/* CSV Import Option */}
+                          <FieldCSVImport
+                            fieldId={field.id}
+                            fieldLabel={field.label}
+                            currentOptions={field.options || []}
+                            onOptionsUpdate={handleFieldOptionsUpdate}
+                          />
                         </div>
                       )}
 

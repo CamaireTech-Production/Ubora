@@ -10,7 +10,7 @@ studio-gpnfx-firebase-adminsdk-fbsvc-eed44532ba.json
 dist/
 dev-dist/
 build/
-out/
+out/oulant
 
 # Vite
 .vite/
