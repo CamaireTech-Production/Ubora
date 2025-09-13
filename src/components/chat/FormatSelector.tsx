@@ -145,18 +145,18 @@ export const FormatSelector: React.FC<FormatSelectorProps> = ({
 
       {/* Format options dropdown - floating above input */}
       {isOpen && (
-        <div className="absolute bottom-full left-0 right-0 mb-3 bg-white border border-gray-200 rounded-lg shadow-lg z-50 overflow-hidden sm:left-0 sm:right-0 -mx-4 sm:mx-0">
-            <div className="p-4">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-gray-900">Format de réponse</h3>
-                <span className="text-sm text-gray-500">
+        <div className="fixed left-4 right-4 bottom-36 bg-white border border-gray-200 rounded-lg shadow-lg z-50 overflow-hidden sm:absolute sm:bottom-full sm:left-0 sm:right-0 sm:mb-3 sm:mx-0">
+            <div className="p-3">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-base font-semibold text-gray-900">Format de réponse</h3>
+                <span className="text-xs text-gray-500">
                   {allowMultiple ? 'Sélectionnez plusieurs formats' : 'Sélectionnez un format'}
                 </span>
               </div>
               
               {/* Mobile: Horizontal scrollable layout */}
               <div className="block sm:hidden">
-                <div className="flex gap-3 overflow-x-auto pb-2" style={{ 
+                <div className="flex gap-2 overflow-x-auto pb-2" style={{ 
                   scrollbarWidth: 'thin',
                   scrollbarColor: '#cbd5e0 transparent',
                   WebkitOverflowScrolling: 'touch'
@@ -173,7 +173,7 @@ export const FormatSelector: React.FC<FormatSelectorProps> = ({
                         onClick={() => handleFormatSelect(option.id)}
                         disabled={disabled}
                         className={`
-                          flex-shrink-0 w-48 flex flex-col items-center gap-3 px-4 py-3 rounded-lg border transition-all duration-200 text-center
+                          flex-shrink-0 flex items-center gap-2 px-3 py-2 rounded-lg border transition-all duration-200 min-w-fit
                           ${isSelected 
                             ? 'border-blue-500 bg-blue-50 text-blue-700' 
                             : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:bg-gray-50'
@@ -183,7 +183,7 @@ export const FormatSelector: React.FC<FormatSelectorProps> = ({
                       >
                         {/* Selection indicator */}
                         <div className={`
-                          w-5 h-5 border-2 flex items-center justify-center flex-shrink-0
+                          w-4 h-4 border-2 flex items-center justify-center flex-shrink-0
                           ${allowMultiple ? 'rounded' : 'rounded-full'}
                           ${isSelected 
                             ? 'border-blue-500 bg-blue-500' 
@@ -192,34 +192,29 @@ export const FormatSelector: React.FC<FormatSelectorProps> = ({
                         `}>
                           {isSelected && (
                             allowMultiple ? (
-                              <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                              <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
                                 <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                               </svg>
                             ) : (
-                              <div className="w-2 h-2 bg-white rounded-full"></div>
+                              <div className="w-1.5 h-1.5 bg-white rounded-full"></div>
                             )
                           )}
                         </div>
 
                         {/* Icon */}
                         <div className={`
-                          w-8 h-8 rounded flex items-center justify-center flex-shrink-0
+                          w-5 h-5 rounded flex items-center justify-center flex-shrink-0
                           ${isSelected 
                             ? 'bg-blue-100 text-blue-600' 
                             : 'bg-gray-100 text-gray-500'
                           }
                         `}>
-                          <IconComponent className="h-5 w-5" />
+                          <IconComponent className="h-3.5 w-3.5" />
                         </div>
 
-                        {/* Label and description */}
-                        <div className="flex-1 min-w-0">
-                          <div className="text-base font-medium">
-                            {option.label}
-                          </div>
-                          <div className="text-sm text-gray-500">
-                            {option.description}
-                          </div>
+                        {/* Label only */}
+                        <div className="text-sm font-medium whitespace-nowrap">
+                          {option.label}
                         </div>
                       </button>
                     );
