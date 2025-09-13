@@ -101,57 +101,59 @@ export const CSVImportSummary: React.FC<CSVImportSummaryProps> = ({
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h2 className="text-xl font-bold text-gray-900">Résumé de l'import</h2>
+          <h2 className="text-lg sm:text-xl font-bold text-gray-900">Résumé de l'import</h2>
           <p className="text-sm text-gray-600 mt-1">
             Vérifiez les résultats avant d'appliquer les modifications
           </p>
         </div>
-        <div className="flex items-center space-x-2">
+        <div className="flex items-center gap-2">
           <Button
             variant="secondary"
             size="sm"
             onClick={() => setShowDetails(!showDetails)}
-            className="flex items-center space-x-2"
+            className="flex items-center space-x-1 sm:space-x-2"
           >
             {showDetails ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-            <span>{showDetails ? 'Masquer' : 'Détails'}</span>
+            <span className="hidden sm:inline">{showDetails ? 'Masquer' : 'Détails'}</span>
+            <span className="sm:hidden">{showDetails ? 'Masquer' : 'Détails'}</span>
           </Button>
           <Button
             variant="secondary"
             size="sm"
             onClick={downloadReport}
-            className="flex items-center space-x-2"
+            className="flex items-center space-x-1 sm:space-x-2"
           >
             <Download className="h-4 w-4" />
-            <span>Rapport</span>
+            <span className="hidden sm:inline">Rapport</span>
+            <span className="sm:hidden">Rapport</span>
           </Button>
         </div>
       </div>
 
       {/* Overall Summary */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card className="text-center">
-          <div className="text-2xl font-bold text-gray-900">{results.length}</div>
-          <div className="text-sm text-gray-600">Champs traités</div>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4">
+        <Card className="text-center p-3 sm:p-4">
+          <div className="text-lg sm:text-2xl font-bold text-gray-900">{results.length}</div>
+          <div className="text-xs sm:text-sm text-gray-600">Champs traités</div>
         </Card>
         
-        <Card className="text-center border-green-200 bg-green-50">
-          <div className="text-2xl font-bold text-green-600">{successfulResults.length}</div>
-          <div className="text-sm text-green-700">Succès</div>
+        <Card className="text-center border-green-200 bg-green-50 p-3 sm:p-4">
+          <div className="text-lg sm:text-2xl font-bold text-green-600">{successfulResults.length}</div>
+          <div className="text-xs sm:text-sm text-green-700">Succès</div>
         </Card>
         
         {failedResults.length > 0 && (
-          <Card className="text-center border-red-200 bg-red-50">
-            <div className="text-2xl font-bold text-red-600">{failedResults.length}</div>
-            <div className="text-sm text-red-700">Échecs</div>
+          <Card className="text-center border-red-200 bg-red-50 p-3 sm:p-4">
+            <div className="text-lg sm:text-2xl font-bold text-red-600">{failedResults.length}</div>
+            <div className="text-xs sm:text-sm text-red-700">Échecs</div>
           </Card>
         )}
         
-        <Card className="text-center border-blue-200 bg-blue-50">
-          <div className="text-2xl font-bold text-blue-600">{totalNewOptions}</div>
-          <div className="text-sm text-blue-700">Nouvelles options</div>
+        <Card className="text-center border-blue-200 bg-blue-50 p-3 sm:p-4">
+          <div className="text-lg sm:text-2xl font-bold text-blue-600">{totalNewOptions}</div>
+          <div className="text-xs sm:text-sm text-blue-700">Nouvelles options</div>
         </Card>
       </div>
 
@@ -322,19 +324,19 @@ export const CSVImportSummary: React.FC<CSVImportSummaryProps> = ({
       )}
 
       {/* Actions */}
-      <div className="flex justify-between">
-        <div className="flex space-x-3">
+      <div className="flex flex-col sm:flex-row gap-3 sm:justify-between">
+        <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
           <Button
             variant="secondary"
             onClick={onRestart}
-            className="flex items-center space-x-2"
+            className="flex items-center justify-center space-x-2 w-full sm:w-auto"
           >
             <span>Nouvel import</span>
           </Button>
           <Button
             variant="secondary"
             onClick={onCancel}
-            className="flex items-center space-x-2"
+            className="flex items-center justify-center space-x-2 w-full sm:w-auto"
           >
             <X className="h-4 w-4" />
             <span>Annuler</span>
@@ -344,7 +346,7 @@ export const CSVImportSummary: React.FC<CSVImportSummaryProps> = ({
         <Button
           onClick={() => onApply(successfulResults)}
           disabled={successfulResults.length === 0}
-          className="flex items-center space-x-2"
+          className="flex items-center justify-center space-x-2 w-full sm:w-auto"
         >
           <CheckCircle className="h-4 w-4" />
           <span>Appliquer les modifications</span>

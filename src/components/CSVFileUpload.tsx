@@ -8,7 +8,7 @@ interface CSVRow {
 }
 
 interface CSVFileUploadProps {
-  onFileParsed: (data: CSVRow[], fileName: string) => void;
+  onFileParsed: (data: CSVRow[], fileName: string, headers: string[]) => void;
   onError: (error: string) => void;
   disabled?: boolean;
 }
@@ -38,13 +38,8 @@ export const CSVFileUpload: React.FC<CSVFileUploadProps> = ({
     const headerLine = lines[0];
     const headers = parseCSVLine(headerLine);
     
-    // Validate headers
-    const requiredHeaders = ['option_value'];
-    const missingHeaders = requiredHeaders.filter(header => !headers.includes(header));
-    
-    if (missingHeaders.length > 0) {
-      throw new Error(`Colonne manquante: ${missingHeaders.join(', ')}. La colonne requise est: ${requiredHeaders.join(', ')}`);
-    }
+    // Check if we have the expected header, but don't throw error - let user map manually
+    const hasOptionValueHeader = headers.includes('option_value');
 
     // Parse data rows
     const data: CSVRow[] = [];
@@ -59,8 +54,12 @@ export const CSVFileUpload: React.FC<CSVFileUploadProps> = ({
           continue;
         }
 
+        // Try to get option value from the expected column, or use first column if not found
+        const optionValueIndex = hasOptionValueHeader ? headers.indexOf('option_value') : 0;
+        const optionValue = values[optionValueIndex]?.trim() || '';
+
         const row: CSVRow = {
-          option_value: values[headers.indexOf('option_value')]?.trim() || ''
+          option_value: optionValue
         };
 
         // Validate row data
@@ -148,8 +147,10 @@ export const CSVFileUpload: React.FC<CSVFileUploadProps> = ({
 
     try {
       const text = await file.text();
+      const lines = text.split('\n').filter(line => line.trim());
+      const headers = lines.length > 0 ? parseCSVLine(lines[0]) : [];
       const data = parseCSV(text);
-      onFileParsed(data, file.name);
+      onFileParsed(data, file.name, headers);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Erreur lors du parsing du fichier CSV';
       onError(errorMessage);

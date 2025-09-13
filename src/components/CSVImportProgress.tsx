@@ -5,7 +5,6 @@ import { CheckCircle, AlertCircle, Loader2, X } from 'lucide-react';
 import { FormField } from '../types';
 
 interface FieldMapping {
-  csvFieldLabel: string;
   formFieldId: string;
   formFieldLabel: string;
   options: string[];

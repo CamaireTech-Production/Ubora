@@ -2,17 +2,15 @@ import React, { useState } from 'react';
 import { FormField } from '../types';
 import { CSVImportInstructions } from './CSVImportInstructions';
 import { CSVFileUpload } from './CSVFileUpload';
-import { CSVFieldMapping } from './CSVFieldMapping';
+import { CSVFieldMapper } from './CSVFieldMapper';
 import { CSVImportProgress } from './CSVImportProgress';
 import { CSVImportSummary } from './CSVImportSummary';
 
 interface CSVRow {
-  field_label: string;
   option_value: string;
 }
 
 interface FieldMapping {
-  csvFieldLabel: string;
   formFieldId: string;
   formFieldLabel: string;
   options: string[];
@@ -45,6 +43,7 @@ export const CSVImportModal: React.FC<CSVImportModalProps> = ({
 }) => {
   const [currentStep, setCurrentStep] = useState<ImportStep>('instructions');
   const [csvData, setCsvData] = useState<CSVRow[]>([]);
+  const [csvHeaders, setCsvHeaders] = useState<string[]>([]);
   const [fileName, setFileName] = useState('');
   const [mappings, setMappings] = useState<FieldMapping[]>([]);
   const [importResults, setImportResults] = useState<ImportResult[]>([]);
@@ -53,6 +52,7 @@ export const CSVImportModal: React.FC<CSVImportModalProps> = ({
   const resetModal = () => {
     setCurrentStep('instructions');
     setCsvData([]);
+    setCsvHeaders([]);
     setFileName('');
     setMappings([]);
     setImportResults([]);
@@ -68,8 +68,9 @@ export const CSVImportModal: React.FC<CSVImportModalProps> = ({
     setCurrentStep('upload');
   };
 
-  const handleFileParsed = (data: CSVRow[], file: string) => {
+  const handleFileParsed = (data: CSVRow[], file: string, headers: string[]) => {
     setCsvData(data);
+    setCsvHeaders(headers);
     setFileName(file);
     setError('');
     setCurrentStep('mapping');
@@ -79,8 +80,13 @@ export const CSVImportModal: React.FC<CSVImportModalProps> = ({
     setError(errorMessage);
   };
 
-  const handleMappingComplete = (mappingData: FieldMapping[]) => {
-    setMappings(mappingData);
+  const handleMappingComplete = (fieldId: string, options: string[]) => {
+    const mapping: FieldMapping = {
+      formFieldId: fieldId,
+      formFieldLabel: formFields.find(f => f.id === fieldId)?.label || '',
+      options: options
+    };
+    setMappings([mapping]);
     setCurrentStep('progress');
   };
 
@@ -109,6 +115,7 @@ export const CSVImportModal: React.FC<CSVImportModalProps> = ({
             onDownloadSample={() => {
               // Sample download is handled in the component
             }}
+            onStartImport={handleInstructionsComplete}
           />
         );
 
@@ -154,8 +161,9 @@ export const CSVImportModal: React.FC<CSVImportModalProps> = ({
 
       case 'mapping':
         return (
-          <CSVFieldMapping
+          <CSVFieldMapper
             csvData={csvData}
+            csvHeaders={csvHeaders}
             formFields={formFields}
             onMappingComplete={handleMappingComplete}
             onCancel={handleClose}
@@ -192,7 +200,9 @@ export const CSVImportModal: React.FC<CSVImportModalProps> = ({
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
       <div className="bg-white rounded-lg shadow-xl max-w-6xl w-full max-h-[90vh] overflow-y-auto">
-        {renderCurrentStep()}
+        <div className="p-6">
+          {renderCurrentStep()}
+        </div>
       </div>
     </div>
   );

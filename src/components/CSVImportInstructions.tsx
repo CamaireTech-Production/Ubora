@@ -7,12 +7,14 @@ interface CSVImportInstructionsProps {
   isOpen: boolean;
   onClose: () => void;
   onDownloadSample: () => void;
+  onStartImport?: () => void;
 }
 
 export const CSVImportInstructions: React.FC<CSVImportInstructionsProps> = ({
   isOpen,
   onClose,
-  onDownloadSample
+  onDownloadSample,
+  onStartImport
 }) => {
   if (!isOpen) return null;
 
@@ -136,7 +138,7 @@ export const CSVImportInstructions: React.FC<CSVImportInstructionsProps> = ({
             Fermer
           </Button>
           <Button
-            onClick={onClose}
+            onClick={onStartImport || onClose}
             className="flex items-center space-x-2"
           >
             <span>Commencer l'import</span>
