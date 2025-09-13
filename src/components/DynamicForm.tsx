@@ -6,10 +6,9 @@ import { Textarea } from './Textarea';
 import { Select } from './Select';
 import { Card } from './Card';
 import { FileInput } from './FileInput';
-import { FileUploadService, UploadProgress, PDFExtractionResult } from '../services/fileUploadService';
+import { FileUploadService, UploadProgress } from '../services/fileUploadService';
 import { useAuth } from '../contexts/AuthContext';
 import { Upload, CheckCircle, AlertCircle, X, Clock, AlertTriangle, Loader2 } from 'lucide-react';
-import { PDFDebugModal } from './PDFDebugModal';
 
 interface DynamicFormProps {
   form: Form;
@@ -36,14 +35,6 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
   const [fileAttachments, setFileAttachments] = useState<FileAttachment[]>(initialFileAttachments);
   const [uploadProgress, setUploadProgress] = useState<Record<string, UploadProgress>>({});
   
-  // Debug modal state
-  const [debugModal, setDebugModal] = useState<{
-    isOpen: boolean;
-    data: PDFExtractionResult | null;
-  }>({
-    isOpen: false,
-    data: null
-  });
 
   const formatTimeRestrictions = (restrictions?: {
     startTime?: string;
@@ -146,10 +137,12 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
           }));
         },
         (pdfResult) => {
-          // Show debug modal for PDF extraction
-          setDebugModal({
-            isOpen: true,
-            data: pdfResult
+          // Log PDF extraction results to console
+          console.log('🎉 PDF Text Extraction Completed:', {
+            fileName: pdfResult.fileName,
+            textLength: pdfResult.extractedText.length,
+            pages: pdfResult.pages,
+            status: pdfResult.extractionStatus
           });
         }
       );
@@ -171,6 +164,13 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
           uploaded: true
         }
       }));
+
+      // Clear progress when completed
+      setUploadProgress(prev => {
+        const newProgress = { ...prev };
+        delete newProgress[fieldId];
+        return newProgress;
+      });
 
     } catch (error) {
       console.error('File upload error:', error);
@@ -317,41 +317,24 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
         
         return (
           <div key={field.id} className="space-y-2">
-            <FileInput
-              label={field.label + (field.required ? ' *' : '')}
-              value={fileAnswer?.uploaded ? new File([], fileAnswer.fileName) : null}
-              onChange={(file) => handleFileUpload(field.id, file)}
-              placeholder={field.placeholder}
-              error={errors[field.id]}
-              required={field.required}
-              acceptedTypes={field.acceptedTypes}
-            />
+            <label className="block text-sm font-medium text-gray-700">
+              {field.label + (field.required ? ' *' : '')}
+            </label>
             
-            {/* Upload Progress */}
-            {progress && (
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                <div className="flex items-center space-x-2">
-                  {progress.status === 'uploading' && (
-                    <Upload className="h-4 w-4 text-blue-600 animate-pulse" />
-                  )}
-                  {progress.status === 'completed' && (
-                    <CheckCircle className="h-4 w-4 text-green-600" />
-                  )}
-                  {progress.status === 'error' && (
-                    <AlertCircle className="h-4 w-4 text-red-600" />
-                  )}
-                  <span className="text-sm text-gray-700">{progress.fileName}</span>
-                  {progress.status === 'uploading' && (
-                    <span className="text-xs text-blue-600">{progress.progress}%</span>
-                  )}
-                </div>
-                {progress.status === 'error' && progress.error && (
-                  <p className="text-xs text-red-600 mt-1">{progress.error}</p>
-                )}
-              </div>
+            {/* Show file input only when no file is uploaded */}
+            {!fileAnswer?.uploaded && (
+              <FileInput
+                label=""
+                value={null}
+                onChange={(file) => handleFileUpload(field.id, file)}
+                placeholder={field.placeholder}
+                error={errors[field.id]}
+                required={field.required}
+                acceptedTypes={field.acceptedTypes}
+              />
             )}
             
-            {/* File Preview */}
+            {/* Show completed file with remove option */}
             {fileAnswer?.uploaded && (
               <div className="bg-green-50 border border-green-200 rounded-lg p-3">
                 <div className="flex items-center justify-between">
@@ -372,6 +355,34 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
                 </div>
               </div>
             )}
+            
+            {/* Upload Progress - only show when processing */}
+            {progress && progress.status !== 'completed' && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                <div className="flex items-center space-x-2">
+                  {progress.status === 'uploading' && (
+                    <Upload className="h-4 w-4 text-blue-600 animate-pulse" />
+                  )}
+                  {progress.status === 'extracting' && (
+                    <Clock className="h-4 w-4 text-yellow-600 animate-pulse" />
+                  )}
+                  {progress.status === 'error' && (
+                    <AlertCircle className="h-4 w-4 text-red-600" />
+                  )}
+                  <span className="text-sm text-gray-700">{progress.fileName}</span>
+                  {progress.status === 'uploading' && (
+                    <span className="text-xs text-blue-600">{progress.progress}%</span>
+                  )}
+                  {progress.status === 'extracting' && (
+                    <span className="text-xs text-yellow-600">Extraction...</span>
+                  )}
+                </div>
+                {progress.status === 'error' && progress.error && (
+                  <p className="text-xs text-red-600 mt-1">{progress.error}</p>
+                )}
+              </div>
+            )}
+            
           </div>
         );
       
@@ -459,19 +470,6 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
         </form>
       </Card>
       
-      {/* PDF Debug Modal */}
-      {debugModal.data && (
-        <PDFDebugModal
-          isOpen={debugModal.isOpen}
-          onClose={() => setDebugModal({ isOpen: false, data: null })}
-          fileName={debugModal.data.fileName}
-          extractedText={debugModal.data.extractedText}
-          extractionStatus={debugModal.data.extractionStatus}
-          error={debugModal.data.error}
-          pages={debugModal.data.pages}
-          fileSize={debugModal.data.fileSize}
-        />
-      )}
     </div>
   );
 };
