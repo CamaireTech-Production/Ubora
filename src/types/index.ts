@@ -46,6 +46,8 @@ export interface FileAttachment {
   downloadUrl: string;
   storagePath: string;
   uploadedAt: Date;
+  extractedText?: string; // Add extracted text for PDFs
+  textExtractionStatus?: 'pending' | 'completed' | 'failed'; // Track extraction status
 }
 
 export interface FormEntry {

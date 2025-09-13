@@ -1,4 +1,5 @@
 import React, { useState, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Form, FormField } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { useApp } from '../contexts/AppContext';
@@ -7,7 +8,7 @@ import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { FormEditor } from '../components/FormEditor';
 import { LoadingGuard } from '../components/LoadingGuard';
-import { Plus, FileText, Users, Eye, Trash2, Edit, UserCheck, Paperclip, BarChart3, Calendar, ChevronDown } from 'lucide-react';
+import { Plus, FileText, Users, Eye, Trash2, Edit, UserCheck, BarChart3, Calendar, ChevronDown } from 'lucide-react';
 // import { PendingApprovals } from '../components/PendingApprovals';
 import { VideoSection } from '../components/VideoSection';
 import { directorVideos } from '../data/videoData';
@@ -18,6 +19,7 @@ import { useToast } from '../hooks/useToast';
 import { Toast } from '../components/Toast';
 
 export const DirecteurDashboard: React.FC = () => {
+  const navigate = useNavigate();
   const { user, firebaseUser, isLoading } = useAuth();
   const { 
     forms,
@@ -37,7 +39,6 @@ export const DirecteurDashboard: React.FC = () => {
   
   const [showFormBuilder, setShowFormBuilder] = useState(false);
   const [editingForm, setEditingForm] = useState<Form | null>(null);
-  const [selectedFormId, setSelectedFormId] = useState<string | null>(null);
   const [showDashboardModal, setShowDashboardModal] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [selectedDashboard, setSelectedDashboard] = useState<any>(null);
@@ -53,6 +54,7 @@ export const DirecteurDashboard: React.FC = () => {
     end: ''
   });
   const [showCustomDatePicker, setShowCustomDatePicker] = useState(false);
+
 
   const handleCreateForm = async (formData: {
     title: string;
@@ -161,6 +163,10 @@ export const DirecteurDashboard: React.FC = () => {
     setSelectedDashboard(null);
   };
 
+  const handleViewResponses = (formId: string) => {
+    navigate(`/responses/${formId}`);
+  };
+
 
   const scrollLeft = () => {
     if (scrollContainerRef.current) {
@@ -263,10 +269,6 @@ export const DirecteurDashboard: React.FC = () => {
     };
   };
 
-  const getEmployeeName = (employeeId: string): string => {
-    const employee = employees.find(emp => emp?.id === employeeId);
-    return employee?.name || 'Employé inconnu';
-  };
 
 
   const formatTimeRestrictions = (restrictions?: {
@@ -588,13 +590,11 @@ export const DirecteurDashboard: React.FC = () => {
                             <Button
                               variant="secondary"
                               size="sm"
-                              onClick={() => setSelectedFormId(
-                                selectedFormId === form.id ? null : form.id
-                              )}
+                              onClick={() => handleViewResponses(form.id)}
                               className="flex-1 flex items-center justify-center space-x-1 text-xs"
                             >
                               <Eye className="h-3 w-3" />
-                              <span>{selectedFormId === form.id ? 'Masquer' : 'Voir'}</span>
+                              <span>Voir les réponses</span>
                             </Button>
                           </div>
                           
@@ -609,64 +609,6 @@ export const DirecteurDashboard: React.FC = () => {
                           </Button>
                         </div>
                         
-                        {/* Affichage des réponses */}
-                        {selectedFormId === form.id && (
-                          <div className="mt-4 pt-4 border-t border-gray-200">
-                            {formEntriesForForm.length === 0 ? (
-                              <p className="text-gray-500 italic text-center py-2">Aucune réponse pour ce formulaire</p>
-                            ) : (
-                              <div className="space-y-3 max-h-80 overflow-y-auto">
-                                {formEntriesForForm.map(entry => (
-                                  <div key={entry.id} className="bg-blue-50 p-3 rounded-lg border border-blue-100">
-                                    <div className="flex flex-col space-y-2 mb-3">
-                                      <div className="flex items-center justify-between">
-                                        <span className="text-sm font-medium text-blue-900">
-                                          {getEmployeeName(entry.userId)}
-                                        </span>
-                                        <span className="text-xs text-blue-600">
-                                          {new Date(entry.submittedAt).toLocaleDateString()}
-                                        </span>
-                                      </div>
-                                    </div>
-                                    <div className="space-y-2">
-                                      {Object.entries(entry.answers || {}).slice(0, 3).map(([fieldId, value]) => {
-                                        const field = form.fields.find(f => f.id === fieldId);
-                                        const fieldLabel = field?.label || fieldId;
-                                        
-                                        return (
-                                          <div key={fieldId} className="text-xs">
-                                            <span className="font-medium text-blue-800">{fieldLabel}:</span>
-                                            <span className="ml-1 text-blue-900">
-                                              {value !== null && value !== undefined ? 
-                                                (typeof value === 'boolean' ? (value ? 'Oui' : 'Non') : String(value).substring(0, 50) + (String(value).length > 50 ? '...' : '')) : 
-                                                '-'
-                                              }
-                                            </span>
-                                          </div>
-                                        );
-                                      })}
-                                      {Object.keys(entry.answers || {}).length > 3 && (
-                                        <div className="text-xs text-blue-600 italic">
-                                          +{Object.keys(entry.answers || {}).length - 3} autres champs...
-                                        </div>
-                                      )}
-                                    </div>
-                                    
-                                    {/* File Attachments */}
-                                    {entry.fileAttachments && entry.fileAttachments.length > 0 && (
-                                      <div className="mt-2 pt-2 border-t border-blue-200">
-                                        <div className="flex items-center space-x-1">
-                                          <Paperclip className="h-3 w-3 text-blue-600" />
-                                          <span className="text-xs text-blue-700">{entry.fileAttachments.length} fichier(s)</span>
-                                        </div>
-                                      </div>
-                                    )}
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        )}
                       </div>
                     );
                   })}

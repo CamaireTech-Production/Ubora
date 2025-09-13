@@ -12,6 +12,7 @@ import { EmployeDashboard } from './pages/EmployeDashboard';
 import { UnauthorizedPage } from './pages/UnauthorizedPage';
 import { PendingApprovalPage } from './pages/PendingApprovalPage';
 import { DashboardManagement } from './pages/DashboardManagement';
+import { ResponseDetailPage } from './pages/ResponseDetailPage';
 import { PWAInstallPrompt } from './components/PWAInstallPrompt';
 // import { PWAUpdateNotification } from './components/PWAUpdateNotification';
 
@@ -67,6 +68,16 @@ function App() {
               element={
                 <ProtectedRoute allowedRoles={['employe']}>
                   <EmployeDashboard />
+                </ProtectedRoute>
+              } 
+            />
+            
+            {/* Page de détails des réponses */}
+            <Route 
+              path="/responses/:formId" 
+              element={
+                <ProtectedRoute allowedRoles={['employe', 'directeur']}>
+                  <ResponseDetailPage />
                 </ProtectedRoute>
               } 
             />

@@ -1,4 +1,5 @@
 import React, { useState, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useApp } from '../contexts/AppContext';
 import { Layout } from '../components/Layout';
@@ -9,6 +10,7 @@ import { LoadingGuard } from '../components/LoadingGuard';
 import { Toast } from '../components/Toast';
 import { useToast } from '../hooks/useToast';
 import { FileText, CheckCircle, ArrowLeft, Eye, AlertTriangle, Edit, Trash2, Send, FileEdit, Filter, Calendar, SortAsc, SortDesc } from 'lucide-react';
+import { FileAttachment } from '../types';
 import { VideoSection } from '../components/VideoSection';
 import { employeeVideos } from '../data/videoData';
 
@@ -31,6 +33,32 @@ const ResponsesInterface: React.FC<ResponsesInterfaceProps> = ({
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [editingResponse, setEditingResponse] = useState<string | null>(null);
   const [isSubmittingEdit, setIsSubmittingEdit] = useState(false);
+
+  // Helper functions for file handling
+  const getFileIcon = (fileType: string): string => {
+    if (fileType.includes('pdf')) return '📄';
+    if (fileType.includes('word') || fileType.includes('document')) return '📝';
+    if (fileType.includes('excel') || fileType.includes('spreadsheet')) return '📊';
+    if (fileType.includes('powerpoint') || fileType.includes('presentation')) return '📽️';
+    if (fileType.includes('image')) return '🖼️';
+    if (fileType.includes('zip') || fileType.includes('rar')) return '📦';
+    if (fileType.includes('text')) return '📄';
+    return '📎';
+  };
+
+  const formatFileSize = (bytes: number): string => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  };
+
+  const handleViewPDF = (fileAttachment: FileAttachment) => {
+    if (fileAttachment.downloadUrl) {
+      window.open(fileAttachment.downloadUrl, '_blank');
+    }
+  };
 
   const getFilteredAndSortedEntries = () => {
     let filtered = [...myEntries];
@@ -250,9 +278,48 @@ const ResponsesInterface: React.FC<ResponsesInterfaceProps> = ({
                     {/* File attachments */}
                     {entry.fileAttachments && entry.fileAttachments.length > 0 && (
                       <div className="mt-3 pt-3 border-t border-gray-200">
-                        <div className="flex items-center space-x-1">
+                        <div className="flex items-center space-x-1 mb-3">
                           <FileText className="h-4 w-4 text-gray-500" />
                           <span className="text-sm text-gray-600">{entry.fileAttachments.length} fichier(s) joint(s)</span>
+                        </div>
+                        
+                        {/* File attachments list with PDF preview */}
+                        <div className="space-y-2">
+                          {entry.fileAttachments.map((attachment: FileAttachment, index: number) => (
+                            <div key={index} className="border rounded-lg p-3 bg-gray-50">
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center space-x-2">
+                                  <span className="text-lg">{getFileIcon(attachment.fileType)}</span>
+                                  <div>
+                                    <p className="font-medium text-sm">{attachment.fileName}</p>
+                                    <p className="text-xs text-gray-500">
+                                      {formatFileSize(attachment.fileSize)}
+                                    </p>
+                                  </div>
+                                </div>
+                                <button
+                                  onClick={() => handleViewPDF(attachment)}
+                                  className="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 text-xs"
+                                >
+                                  Voir
+                                </button>
+                              </div>
+                              
+                              {/* Show extraction status for AI processing */}
+                              {attachment.textExtractionStatus && (
+                                <div className="mt-2">
+                                  <span className={`text-xs px-2 py-1 rounded ${
+                                    attachment.textExtractionStatus === 'completed' ? 'bg-green-100 text-green-800' :
+                                    attachment.textExtractionStatus === 'failed' ? 'bg-red-100 text-red-800' :
+                                    'bg-yellow-100 text-yellow-800'
+                                  }`}>
+                                    IA: {attachment.textExtractionStatus === 'completed' ? 'Prête' : 
+                                         attachment.textExtractionStatus === 'failed' ? 'Échouée' : 'En cours'}
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                          ))}
                         </div>
                       </div>
                     )}
@@ -268,6 +335,7 @@ const ResponsesInterface: React.FC<ResponsesInterfaceProps> = ({
 };
 
 export const EmployeDashboard: React.FC = () => {
+  const navigate = useNavigate();
   const { user, firebaseUser, isLoading } = useAuth();
   const { 
     getFormsForEmployee, 
@@ -282,7 +350,6 @@ export const EmployeDashboard: React.FC = () => {
     isLoading: appLoading
   } = useApp();
   const [selectedFormId, setSelectedFormId] = useState<string | null>(null);
-  const [viewingEntries, setViewingEntries] = useState<string | null>(null);
   const [editingDraftId, setEditingDraftId] = useState<string | null>(null);
   const [isSubmittingDrafts, setIsSubmittingDrafts] = useState(false);
   const [isSavingDraft, setIsSavingDraft] = useState(false);
@@ -602,6 +669,10 @@ export const EmployeDashboard: React.FC = () => {
       console.error('Error updating response:', error);
       showError('Erreur lors de la mise à jour de la réponse');
     }
+  };
+
+  const handleViewResponses = (formId: string) => {
+    navigate(`/responses/${formId}`);
   };
 
   return (
@@ -963,62 +1034,15 @@ export const EmployeDashboard: React.FC = () => {
                               <Button
                                 variant="secondary"
                                 size="sm"
-                                onClick={() => setViewingEntries(
-                                  viewingEntries === form.id ? null : form.id
-                                )}
+                                onClick={() => handleViewResponses(form.id)}
                                 className="w-full flex items-center justify-center space-x-1 text-xs"
                               >
                                 <Eye className="h-3 w-3" />
-                                <span>{viewingEntries === form.id ? 'Masquer mes réponses' : 'Voir mes réponses'}</span>
+                                <span>Voir mes réponses</span>
                               </Button>
                             )}
                           </div>
 
-                          {/* Affichage des réponses de l'employé */}
-                          {viewingEntries === form.id && entryCount > 0 && (
-                            <div className="mt-4 pt-4 border-t border-gray-200">
-                              <h4 className="font-medium text-gray-900 mb-3 text-sm">Mes réponses précédentes</h4>
-                              <div className="space-y-3 max-h-80 overflow-y-auto">
-                                {myEntries
-                                  .filter(entry => entry.formId === form.id)
-                                  .map(entry => (
-                                    <div key={entry.id} className="bg-green-50 p-3 rounded-lg border border-green-100">
-                                      <div className="flex items-center justify-between mb-2">
-                                        <span className="text-xs text-green-600 font-medium">
-                                          Réponse #{myEntries.filter(e => e.formId === form.id).indexOf(entry) + 1}
-                                        </span>
-                                        <span className="text-xs text-green-600">
-                                          {new Date(entry.submittedAt).toLocaleDateString()}
-                                        </span>
-                                      </div>
-                                      <div className="space-y-2">
-                                        {Object.entries(entry.answers || {}).slice(0, 3).map(([fieldId, value]) => {
-                                          const field = form.fields.find(f => f.id === fieldId);
-                                          const fieldLabel = field?.label || fieldId;
-                                          
-                                          return (
-                                            <div key={fieldId} className="text-xs">
-                                              <span className="font-medium text-green-800">{fieldLabel}:</span>
-                                              <span className="ml-1 text-green-900">
-                                                {value !== null && value !== undefined ? 
-                                                  (typeof value === 'boolean' ? (value ? 'Oui' : 'Non') : String(value).substring(0, 50) + (String(value).length > 50 ? '...' : '')) : 
-                                                  '-'
-                                                }
-                                              </span>
-                                            </div>
-                                          );
-                                        })}
-                                        {Object.keys(entry.answers || {}).length > 3 && (
-                                          <div className="text-xs text-green-600 italic">
-                                            +{Object.keys(entry.answers || {}).length - 3} autres champs...
-                                          </div>
-                                        )}
-                                      </div>
-                                    </div>
-                                  ))}
-                              </div>
-                            </div>
-                          )}
                         </div>
                       );
                     })}

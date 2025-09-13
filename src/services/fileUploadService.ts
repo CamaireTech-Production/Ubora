@@ -7,12 +7,13 @@ import {
 } from 'firebase/storage';
 import { storage } from '../firebaseConfig';
 import { FileAttachment } from '../types';
+import { PDFTextExtractionService } from './pdfTextExtractionService';
 
 export interface UploadProgress {
   fieldId: string;
   fileName: string;
   progress: number;
-  status: 'uploading' | 'completed' | 'error';
+  status: 'uploading' | 'extracting' | 'completed' | 'error';
   error?: string;
 }
 
@@ -37,7 +38,7 @@ export class FileUploadService {
   ];
 
   /**
-   * Upload a single file to Firebase Storage
+   * Upload a single file to Firebase Storage with PDF text extraction
    */
   static async uploadFile(
     file: File,
@@ -60,7 +61,7 @@ export class FileUploadService {
       // Create storage reference
       const storageRef = ref(storage, storagePath);
 
-      // Update progress
+      // Update progress - uploading
       onProgress?.({
         fieldId,
         fileName: file.name,
@@ -74,7 +75,45 @@ export class FileUploadService {
       // Get download URL
       const downloadUrl = await getDownloadURL(uploadResult.ref);
 
-      // Update progress
+      // Initialize file attachment
+      const fileAttachment: FileAttachment = {
+        fieldId,
+        fileName: file.name,
+        fileSize: file.size,
+        fileType: file.type,
+        downloadUrl,
+        storagePath,
+        uploadedAt: new Date(),
+        textExtractionStatus: 'pending'
+      };
+
+      // Extract text if it's a PDF
+      if (PDFTextExtractionService.isPDF(file)) {
+        try {
+          // Update progress - extracting
+          onProgress?.({
+            fieldId,
+            fileName: file.name,
+            progress: 50,
+            status: 'extracting'
+          });
+
+          const extractionResult = await PDFTextExtractionService.extractTextFromPDF(file);
+          fileAttachment.extractedText = PDFTextExtractionService.cleanExtractedText(extractionResult.text);
+          fileAttachment.textExtractionStatus = 'completed';
+
+          console.log(`✅ PDF text extracted successfully for ${file.name}:`, {
+            pages: extractionResult.pages,
+            textLength: fileAttachment.extractedText.length
+          });
+        } catch (extractionError) {
+          console.error('Failed to extract PDF text:', extractionError);
+          fileAttachment.textExtractionStatus = 'failed';
+          // Don't throw error - file upload succeeded, just text extraction failed
+        }
+      }
+
+      // Update progress - completed
       onProgress?.({
         fieldId,
         fileName: file.name,
@@ -82,16 +121,7 @@ export class FileUploadService {
         status: 'completed'
       });
 
-      // Return file attachment info
-      return {
-        fieldId,
-        fileName: file.name,
-        fileSize: file.size,
-        fileType: file.type,
-        downloadUrl,
-        storagePath,
-        uploadedAt: new Date()
-      };
+      return fileAttachment;
 
     } catch (error) {
       console.error('Error uploading file:', error);
