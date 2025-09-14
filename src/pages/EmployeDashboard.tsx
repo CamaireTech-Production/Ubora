@@ -848,7 +848,7 @@ export const EmployeDashboard: React.FC = () => {
                         onCancel={() => setSelectedFormId(null)}
                         initialAnswers={{}}
                         initialFileAttachments={[]}
-                        isDraft={false}
+                        isDraft={true}
                         isLoading={isSavingDraft}
                       />
                     )}

@@ -384,7 +384,7 @@ export const DirecteurChat: React.FC = () => {
       isLoading={isLoading || appLoading} 
       user={user} 
       firebaseUser={firebaseUser}
-      message="Chargement du Chat IA..."
+      message="ARCHA loading..."
     >
       <div className="min-h-screen bg-gradient-to-b from-blue-50 via-white to-white">
         {/* Container centré pour toute l'interface */}

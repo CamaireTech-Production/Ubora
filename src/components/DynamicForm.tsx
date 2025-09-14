@@ -245,58 +245,61 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
     if (validateForm()) {
       setIsSubmitting(true);
       try {
-        // Get current user info
-        const currentUser = auth.currentUser;
-        if (!currentUser) {
-          throw new Error('User not authenticated');
-        }
+        // Only submit to Firebase if it's NOT a draft
+        if (!isDraft) {
+          // Get current user info
+          const currentUser = auth.currentUser;
+          if (!currentUser) {
+            throw new Error('User not authenticated');
+          }
 
-        // Get user data to get agencyId
-        const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
-        if (!userDoc.exists()) {
-          throw new Error('User data not found');
-        }
-        const userData = userDoc.data();
+          // Get user data to get agencyId
+          const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
+          if (!userDoc.exists()) {
+            throw new Error('User data not found');
+          }
+          const userData = userDoc.data();
 
-        // Submit to Firebase via AppContext
-        const formEntryData = {
-          formId: form.id,
-          answers: answers,
-          fileAttachments: fileAttachments
-        };
+          // Submit to Firebase via AppContext
+          const formEntryData = {
+            formId: form.id,
+            answers: answers,
+            fileAttachments: fileAttachments
+          };
 
-        // Submit to Firebase via AppContext
-        await submitFormEntry(formEntryData);
+          // Submit to Firebase via AppContext
+          await submitFormEntry(formEntryData);
 
-        // Log successful submission
-        console.log('🎉 Form Response Successfully Submitted to Firebase!');
-        console.log('📋 Response Details:', {
-          formId: form.id,
-          formTitle: form.title,
-          totalAnswers: Object.keys(answers).length,
-          fileAttachments: fileAttachments.length,
-          userId: currentUser.uid,
-          agencyId: userData.agencyId
-        });
-
-        // Log file attachment details
-        if (fileAttachments.length > 0) {
-          console.log('📎 File Attachments Details:');
-          fileAttachments.forEach((attachment, index) => {
-            console.log(`  ${index + 1}. ${attachment.fileName}`, {
-              fieldId: attachment.fieldId,
-              fileSize: attachment.fileSize,
-              fileType: attachment.fileType,
-              downloadUrl: attachment.downloadUrl,
-              storagePath: attachment.storagePath,
-              hasExtractedText: !!attachment.extractedText,
-              textLength: attachment.extractedText?.length || 0,
-              extractionStatus: attachment.textExtractionStatus
-            });
+          // Log successful submission
+          console.log('🎉 Form Response Successfully Submitted to Firebase!');
+          console.log('📋 Response Details:', {
+            formId: form.id,
+            formTitle: form.title,
+            totalAnswers: Object.keys(answers).length,
+            fileAttachments: fileAttachments.length,
+            userId: currentUser.uid,
+            agencyId: userData.agencyId
           });
+
+          // Log file attachment details
+          if (fileAttachments.length > 0) {
+            console.log('📎 File Attachments Details:');
+            fileAttachments.forEach((attachment, index) => {
+              console.log(`  ${index + 1}. ${attachment.fileName}`, {
+                fieldId: attachment.fieldId,
+                fileSize: attachment.fileSize,
+                fileType: attachment.fileType,
+                downloadUrl: attachment.downloadUrl,
+                storagePath: attachment.storagePath,
+                hasExtractedText: !!attachment.extractedText,
+                textLength: attachment.extractedText?.length || 0,
+                extractionStatus: attachment.textExtractionStatus
+              });
+            });
+          }
         }
 
-        // Submit only the form answers (fileAttachments are handled separately)
+        // Always call the onSubmit prop (parent handles draft vs final submission)
         onSubmit(answers, fileAttachments);
 
       } catch (error) {
