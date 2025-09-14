@@ -186,7 +186,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
                 ) : message.contentType === 'pdf' && message.pdfData ? (
                   <PDFPreview data={message.pdfData} />
                 ) : message.contentType === 'text-pdf' ? (
-                  <TextPDFPreview content={message.content} title="Rapport IA" />
+                  <TextPDFPreview content={message.content} title="RAPPORT UBORA généré par ARCHA" />
                 ) : message.contentType === 'table' && message.tableData ? (
                   <div className="space-y-4">
                     {/* Render text content */}

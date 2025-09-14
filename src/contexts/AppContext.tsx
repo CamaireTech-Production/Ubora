@@ -245,16 +245,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setError(null);
       
       // Garantir que tous les champs requis sont présents
-      const docData = {
+      const docData: any = {
         title: formData.title.trim(),
         description: formData.description.trim(),
         createdBy: user.id,
         assignedTo: formData.assignedTo || [],
         fields: formData.fields || [],
         agencyId: user.agencyId,
-        timeRestrictions: formData.timeRestrictions,
         createdAt: serverTimestamp()
       };
+
+      // Only add timeRestrictions if it's defined and has content
+      if (formData.timeRestrictions && Object.keys(formData.timeRestrictions).length > 0) {
+        docData.timeRestrictions = formData.timeRestrictions;
+      }
 
       console.log('Création du formulaire:', docData);
       await addDoc(collection(db, 'forms'), docData);
@@ -283,7 +287,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (formData.description !== undefined) updateData.description = formData.description.trim();
       if (formData.assignedTo !== undefined) updateData.assignedTo = formData.assignedTo;
       if (formData.fields !== undefined) updateData.fields = formData.fields;
-      if (formData.timeRestrictions !== undefined) updateData.timeRestrictions = formData.timeRestrictions;
+      
+      // Handle timeRestrictions properly - only add if it has content, or remove if undefined
+      if (formData.timeRestrictions !== undefined) {
+        if (formData.timeRestrictions && Object.keys(formData.timeRestrictions).length > 0) {
+          updateData.timeRestrictions = formData.timeRestrictions;
+        } else {
+          // If timeRestrictions is undefined or empty, remove the field from Firestore
+          updateData.timeRestrictions = null;
+        }
+      }
 
       console.log('Mise à jour du formulaire:', { formId, updateData });
       await updateDoc(doc(db, 'forms', formId), updateData);

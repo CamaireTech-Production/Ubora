@@ -12,7 +12,7 @@ export class PDFGenerator {
     this.doc = new jsPDF();
   }
 
-  generateReportFromText(content: string, title: string = 'Rapport IA'): void {
+  generateReportFromText(content: string, title: string = 'RAPPORT UBORA généré par ARCHA'): void {
     this.doc = new jsPDF();
     this.currentY = 20;
 

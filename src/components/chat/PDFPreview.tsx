@@ -372,7 +372,7 @@ const PDFModal: React.FC<PDFModalProps> = ({ data, isOpen, onClose }) => {
   );
 };
 
-export const TextPDFPreview: React.FC<TextPDFPreviewProps> = ({ content, title = 'Rapport IA', onExpand }) => {
+export const TextPDFPreview: React.FC<TextPDFPreviewProps> = ({ content, title = 'RAPPORT UBORA généré par ARCHA', onExpand }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   const handleExpand = () => {
