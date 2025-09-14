@@ -128,7 +128,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, title }) => {
                 className="w-full flex items-center justify-start space-x-2 mx-2 mb-1"
               >
                 <MessageSquare className="h-4 w-4" />
-                <span>Chat IA</span>
+                <span>Chat Archa</span>
               </Button>
               
               <Button
