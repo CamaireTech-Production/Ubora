@@ -9,7 +9,7 @@ import { Button } from '../components/Button';
 import { FormEditor } from '../components/FormEditor';
 import { LoadingGuard } from '../components/LoadingGuard';
 import { Plus, FileText, Users, Eye, Trash2, Edit, UserCheck, BarChart3, Calendar, ChevronDown } from 'lucide-react';
-// import { PendingApprovals } from '../components/PendingApprovals';
+import { PendingApprovals } from '../components/PendingApprovals';
 import { VideoSection } from '../components/VideoSection';
 import { directorVideos } from '../data/videoData';
 import { DashboardCreationModal } from '../components/DashboardCreationModal';
@@ -304,6 +304,10 @@ export const DirecteurDashboard: React.FC = () => {
   };
 
 
+  function refreshData(): void {
+    throw new Error('Function not implemented.');
+  }
+
   return (
     <LoadingGuard 
       isLoading={isLoading || appLoading} 
@@ -478,11 +482,11 @@ export const DirecteurDashboard: React.FC = () => {
             })()}
 
             {/* Section des approbations en attente */}
-            {/* <PendingApprovals
+            <PendingApprovals
               pendingEmployees={getPendingEmployees()}
               currentDirectorId={user?.id || ''}
               onApprovalChange={refreshData}
-            /> */}
+            />
 
             {/* Actions principales */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
