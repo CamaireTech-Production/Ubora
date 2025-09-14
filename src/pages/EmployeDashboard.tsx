@@ -585,8 +585,8 @@ export const EmployeDashboard: React.FC = () => {
         saveDraft(updatedDraft);
         showSuccess('Brouillon sauvegardé');
         
-        // Keep the form open for continued editing
-        // Don't close the section - user can continue editing or manually close
+        // Clear the form by exiting edit mode - this will show the empty form for new responses
+        setEditingDraftId(null);
       }
     } catch (error) {
       console.error('Error saving draft:', error);
