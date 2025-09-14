@@ -6,7 +6,7 @@ import { Layout } from '../components/Layout';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { LoadingGuard } from '../components/LoadingGuard';
-import { ArrowLeft, FileText, User, Calendar, Filter, Download, Eye, Edit, Trash2 } from 'lucide-react';
+import { ArrowLeft, FileText, User, Calendar, Filter, Download, Eye, Edit, Trash2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { FileAttachment } from '../types';
 import { useToast } from '../hooks/useToast';
 import { Toast } from '../components/Toast';
@@ -36,6 +36,8 @@ export const ResponseDetailPage: React.FC = () => {
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [editingResponse, setEditingResponse] = useState<string | null>(null);
   const [isSubmittingEdit, setIsSubmittingEdit] = useState(false);
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [itemsPerPage, setItemsPerPage] = useState<number>(10);
   const [pdfViewerModal, setPdfViewerModal] = useState<{
     isOpen: boolean;
     fileUrl: string;
@@ -287,6 +289,47 @@ export const ResponseDetailPage: React.FC = () => {
 
   const filteredResponses = getFilteredAndSortedResponses();
 
+  // Pagination logic
+  const totalPages = Math.ceil(filteredResponses.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedResponses = filteredResponses.slice(startIndex, endIndex);
+
+  // Reset to first page when filters change
+  React.useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedEmployeeFilter, dateFilter, sortOrder]);
+
+  // Pagination handlers
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+  };
+
+  const handleItemsPerPageChange = (newItemsPerPage: number) => {
+    setItemsPerPage(newItemsPerPage);
+    setCurrentPage(1); // Reset to first page
+  };
+
+  const getPageNumbers = () => {
+    const pages = [];
+    const maxVisiblePages = 5;
+    
+    if (totalPages <= maxVisiblePages) {
+      for (let i = 1; i <= totalPages; i++) {
+        pages.push(i);
+      }
+    } else {
+      const startPage = Math.max(1, currentPage - 2);
+      const endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+      
+      for (let i = startPage; i <= endPage; i++) {
+        pages.push(i);
+      }
+    }
+    
+    return pages;
+  };
+
   if (!form) {
     return (
       <LoadingGuard 
@@ -341,7 +384,7 @@ export const ResponseDetailPage: React.FC = () => {
           {/* Filters */}
           <Card>
             <div className="p-4">
-              <div className="flex flex-col sm:flex-row gap-4">
+              <div className="grid grid-cols-2 sm:flex sm:flex-row gap-4">
                 {/* Employee filter (only for directors) */}
                 {isDirector && (
                   <div className="flex items-center space-x-2">
@@ -349,7 +392,7 @@ export const ResponseDetailPage: React.FC = () => {
                     <select
                       value={selectedEmployeeFilter}
                       onChange={(e) => setSelectedEmployeeFilter(e.target.value)}
-                      className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-full"
                     >
                       <option value="all">Tous les employés</option>
                       {employees
@@ -369,7 +412,7 @@ export const ResponseDetailPage: React.FC = () => {
                   <select
                     value={dateFilter}
                     onChange={(e) => setDateFilter(e.target.value)}
-                    className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-full"
                   >
                     <option value="all">Toutes les périodes</option>
                     <option value="today">Aujourd'hui</option>
@@ -379,10 +422,10 @@ export const ResponseDetailPage: React.FC = () => {
                 </div>
 
                 {/* Sort order */}
-                <div className="flex items-center space-x-2">
+                <div className="flex items-center space-x-2 col-span-2 sm:col-span-1">
                   <button
                     onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
-                    className="flex items-center space-x-1 px-3 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="flex items-center space-x-1 px-3 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 w-full sm:w-auto"
                   >
                     <Filter className="h-4 w-4" />
                     <span>{sortOrder === 'asc' ? 'Plus ancien' : 'Plus récent'}</span>
@@ -392,10 +435,86 @@ export const ResponseDetailPage: React.FC = () => {
             </div>
           </Card>
 
-          {/* Results count */}
-          <div className="text-sm text-gray-600">
-            {filteredResponses.length} réponse(s) trouvée(s)
-          </div>
+          {/* Pagination Controls */}
+          {filteredResponses.length > 0 && (
+            <Card>
+              <div className="p-3">
+                {/* Top row: Results count, items per page, and navigation */}
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  {/* Left: Results count and items per page */}
+                  <div className="flex items-center gap-3">
+                    <span className="text-sm text-gray-600">
+                      {filteredResponses.length} réponse(s)
+                    </span>
+                    
+                    {/* Items per page dropdown - compact */}
+                    <div className="flex items-center gap-1">
+                      <select
+                        value={itemsPerPage}
+                        onChange={(e) => handleItemsPerPageChange(Number(e.target.value))}
+                        className="border border-gray-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      >
+                        <option value={5}>5</option>
+                        <option value={10}>10</option>
+                        <option value={20}>20</option>
+                        <option value={50}>50</option>
+                      </select>
+                      <span className="text-xs text-gray-500">/page</span>
+                    </div>
+                  </div>
+
+                  {/* Right: Page navigation with icons */}
+                  {totalPages > 1 && (
+                    <div className="flex items-center gap-1">
+                      {/* Previous button with icon */}
+                      <button
+                        onClick={() => handlePageChange(currentPage - 1)}
+                        disabled={currentPage === 1}
+                        className="p-1.5 border border-gray-300 rounded hover:bg-gray-100 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                        title="Page précédente"
+                      >
+                        <ChevronLeft className="h-4 w-4" />
+                      </button>
+
+                      {/* Page numbers - compact */}
+                      <div className="flex items-center gap-1">
+                        {getPageNumbers().map((pageNum) => (
+                          <button
+                            key={pageNum}
+                            onClick={() => handlePageChange(pageNum)}
+                            className={`px-2 py-1 border rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 ${
+                              currentPage === pageNum
+                                ? 'bg-blue-500 text-white border-blue-500'
+                                : 'border-gray-300 hover:bg-gray-100'
+                            }`}
+                          >
+                            {pageNum}
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* Next button with icon */}
+                      <button
+                        onClick={() => handlePageChange(currentPage + 1)}
+                        disabled={currentPage === totalPages}
+                        className="p-1.5 border border-gray-300 rounded hover:bg-gray-100 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                        title="Page suivante"
+                      >
+                        <ChevronRight className="h-4 w-4" />
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Bottom row: Page info - only show if multiple pages */}
+                {totalPages > 1 && (
+                  <div className="text-xs text-gray-500 text-center">
+                    Page {currentPage} sur {totalPages} • {startIndex + 1}-{Math.min(endIndex, filteredResponses.length)} sur {filteredResponses.length}
+                  </div>
+                )}
+              </div>
+            </Card>
+          )}
 
           {/* Responses list */}
           <div className="space-y-4">
@@ -407,9 +526,10 @@ export const ResponseDetailPage: React.FC = () => {
                 </div>
               </Card>
             ) : (
-              filteredResponses.map((response, index) => {
+              paginatedResponses.map((response, index) => {
                 const isEditable = isEmployee && canEditResponse(response.submittedAt);
                 const isEditing = editingResponse === response.id;
+                const globalIndex = startIndex + index; // Calculate global index for proper numbering
                 
                 return (
                   <Card key={response.id}>
@@ -436,10 +556,10 @@ export const ResponseDetailPage: React.FC = () => {
                             <div>
                               <div className="flex items-center space-x-2 mb-2">
                                 <h3 className="font-semibold text-gray-900">
-                                  {isEmployee ? `Ma réponse #${index + 1}` : `Réponse de ${getEmployeeName(response.userId)}`}
+                                  {isEmployee ? `Ma réponse #${globalIndex + 1}` : `Réponse de ${getEmployeeName(response.userId)}`}
                                 </h3>
                                 <span className="text-sm text-gray-500 bg-gray-100 px-2 py-1 rounded">
-                                  #{index + 1}
+                                  #{globalIndex + 1}
                                 </span>
                               </div>
                               <div className="flex items-center space-x-4 text-sm text-gray-500">
@@ -558,6 +678,52 @@ export const ResponseDetailPage: React.FC = () => {
               })
             )}
           </div>
+
+          {/* Bottom Pagination Controls */}
+          {filteredResponses.length > 0 && totalPages > 1 && (
+            <Card>
+              <div className="p-3">
+                <div className="flex items-center justify-center gap-2">
+                  {/* Previous button with icon */}
+                  <button
+                    onClick={() => handlePageChange(currentPage - 1)}
+                    disabled={currentPage === 1}
+                    className="p-1.5 border border-gray-300 rounded hover:bg-gray-100 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                    title="Page précédente"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </button>
+
+                  {/* Page numbers - compact */}
+                  <div className="flex items-center gap-1">
+                    {getPageNumbers().map((pageNum) => (
+                      <button
+                        key={pageNum}
+                        onClick={() => handlePageChange(pageNum)}
+                        className={`px-2 py-1 border rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 ${
+                          currentPage === pageNum
+                            ? 'bg-blue-500 text-white border-blue-500'
+                            : 'border-gray-300 hover:bg-gray-100'
+                        }`}
+                      >
+                        {pageNum}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Next button with icon */}
+                  <button
+                    onClick={() => handlePageChange(currentPage + 1)}
+                    disabled={currentPage === totalPages}
+                    className="p-1.5 border border-gray-300 rounded hover:bg-gray-100 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                    title="Page suivante"
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+            </Card>
+          )}
         </div>
 
         {/* Toast Notification */}

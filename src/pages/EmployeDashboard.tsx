@@ -137,13 +137,13 @@ const ResponsesInterface: React.FC<ResponsesInterfaceProps> = ({
   return (
     <div className="space-y-6">
       {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-4 p-4 bg-gray-50 rounded-lg">
+      <div className="grid grid-cols-2 sm:flex sm:flex-row gap-4 p-4 bg-gray-50 rounded-lg">
         <div className="flex items-center space-x-2">
           <Filter className="h-4 w-4 text-gray-500" />
           <select
             value={selectedFormFilter}
             onChange={(e) => setSelectedFormFilter(e.target.value)}
-            className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-full"
           >
             <option value="all">Tous les formulaires</option>
             {assignedForms.map(form => (
@@ -157,7 +157,7 @@ const ResponsesInterface: React.FC<ResponsesInterfaceProps> = ({
           <select
             value={dateFilter}
             onChange={(e) => setDateFilter(e.target.value)}
-            className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-full"
           >
             <option value="all">Toutes les périodes</option>
             <option value="today">Aujourd'hui</option>
@@ -166,10 +166,10 @@ const ResponsesInterface: React.FC<ResponsesInterfaceProps> = ({
           </select>
         </div>
 
-        <div className="flex items-center space-x-2">
+        <div className="flex items-center space-x-2 col-span-2 sm:col-span-1">
           <button
             onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
-            className="flex items-center space-x-1 px-3 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="flex items-center space-x-1 px-3 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 w-full sm:w-auto"
           >
             {sortOrder === 'asc' ? <SortAsc className="h-4 w-4" /> : <SortDesc className="h-4 w-4" />}
             <span>{sortOrder === 'asc' ? 'Plus ancien' : 'Plus récent'}</span>
