@@ -198,26 +198,44 @@ async function loadAndAggregateData(
 
   // Préparer les données détaillées des soumissions pour l'IA (limité à 50 pour éviter les timeouts)
   const limitedEntries = entries.slice(0, 50);
+  
+  // Debug: Log raw Firebase entries
+  console.log('\n=== FIREBASE ENTRIES DEBUG ===');
+  console.log('Total entries from Firebase:', entries.length);
+  console.log('Limited entries for AI:', limitedEntries.length);
+  
+  limitedEntries.forEach((entry, index) => {
+    console.log(`\n--- FIREBASE ENTRY ${index + 1} ---`);
+    console.log('Entry ID:', entry.id);
+    console.log('Entry answers:', JSON.stringify(entry.answers, null, 2));
+    console.log('Entry fileAttachments:', entry.fileAttachments);
+    console.log('Entry submittedAt:', entry.submittedAt);
+  });
+  
   const detailedSubmissions = limitedEntries.map(entry => {
     const user = usersById.get(entry.userId);
     const form = formsById.get(entry.formId);
     
-    // Créer un mapping des réponses avec les labels des champs
+    // Créer un mapping des réponses avec les labels des champs ET garder les fieldId pour référence
     const answersWithLabels = {};
+    const fieldMapping = {}; // Pour garder la correspondance fieldId -> fieldLabel
+    
     if (form && form.fields) {
       Object.entries(entry.answers || {}).forEach(([fieldId, value]) => {
         const field = form.fields.find(f => f.id === fieldId);
         const fieldLabel = field ? field.label : fieldId;
         answersWithLabels[fieldLabel] = value;
+        fieldMapping[fieldLabel] = fieldId; // Garder la correspondance
       });
     } else {
       // Fallback si pas de formulaire trouvé
       Object.entries(entry.answers || {}).forEach(([fieldId, value]) => {
         answersWithLabels[fieldId] = value;
+        fieldMapping[fieldId] = fieldId;
       });
     }
     
-    return {
+    const result = {
       id: entry.id,
       formTitle: form ? form.title : `Formulaire ${entry.formId}`,
       employeeName: user ? user.name : `Utilisateur ${entry.userId}`,
@@ -226,9 +244,13 @@ async function loadAndAggregateData(
       submittedDate: entry.submittedAt.toLocaleDateString('fr-FR'),
       submittedTime: entry.submittedAt.toLocaleTimeString('fr-FR'),
       answers: answersWithLabels,
+      fieldMapping: fieldMapping, // Include field mapping for proper file reference
+      fileAttachments: entry.fileAttachments || [], // Include file attachments
       isToday: entry.submittedAt.toDateString() === new Date().toDateString(),
       isThisWeek: entry.submittedAt >= start && entry.submittedAt <= end
     };
+    
+    return result;
   });
 
   return {
@@ -256,6 +278,10 @@ async function loadAndAggregateData(
     todaySubmissions: detailedSubmissions.filter(s => s.isToday),
     thisWeekSubmissions: detailedSubmissions.filter(s => s.isThisWeek)
   };
+  
+  // Debug: Log final data structure sent to AI
+  console.log('\n=== FINAL DATA STRUCTURE FOR AI ===');
+  console.log('All submissions sent to AI:', JSON.stringify(detailedSubmissions, null, 2));
 }
 
 module.exports = async function handler(req, res) {
@@ -270,6 +296,8 @@ module.exports = async function handler(req, res) {
   });
   
   try {
+    const startTime = Date.now(); // Track response time
+    
     // Headers CORS complets
     const corsHeaders = {
       'Access-Control-Allow-Origin': '*',
@@ -464,87 +492,75 @@ module.exports = async function handler(req, res) {
     
     console.log('=== END DATA LOGGING ===\n');
 
-    // 5. Construction du prompt pour OpenAI
-    const systemPrompt = `Tu es ARCHA, un assistant IA spécialisé dans l'analyse de données de formulaires d'entreprise.
+    // 5. Context-Aware System Message Construction
+    console.log('Step 5: Building context-aware system message...');
 
-RÈGLES STRICTES :
+    // Analyze content types present in the data
+    const hasPDFContent = data.submissions.some(s => 
+      s.fileAttachments?.some(att => att.fileType === 'application/pdf' && att.extractedText)
+    ) || data.submissions.some(s => 
+      Object.values(s.answers).some(value => 
+        value && typeof value === 'object' && value.uploaded && value.fileName && value.extractedText
+      )
+    );
+
+    const hasFileAttachments = data.submissions.some(s => 
+      s.fileAttachments && s.fileAttachments.length > 0
+    ) || data.submissions.some(s => 
+      Object.values(s.answers).some(value => 
+        value && typeof value === 'object' && value.uploaded && value.fileName
+      )
+    );
+
+    const hasComplexData = data.submissions.some(s => 
+      Object.values(s.answers).some(value => 
+        typeof value === 'object' && value !== null
+      )
+    );
+
+    // Build context-aware system message (inspired by Cursor/ChatGPT approach)
+    const buildSystemMessage = () => {
+      const baseRole = `Tu es ARCHA, un assistant IA spécialisé dans l'analyse de données de formulaires d'entreprise.`;
+      
+      const coreRules = `
+RÈGLES FONDAMENTALES :
 - Réponds UNIQUEMENT en français
-- Utilise les données EXACTES fournies ci-dessous
-- Ne JAMAIS inventer de données
-- Si tu n'as pas de données pour répondre, dis-le clairement
+- Utilise UNIQUEMENT les données fournies dans le message utilisateur
+- Ne JAMAIS inventer ou extrapoler de données
+- Si les données sont insuffisantes, dis-le clairement`;
 
+      const fileInstructions = hasPDFContent ? `
+ANALYSE DE FICHIERS :
+- Analyse le contenu des fichiers joints de manière structurée
+- Identifie les informations clés (dates, montants, noms, thèmes)
+- Si le contenu extrait semble incomplet, mention-le
+- Ne fais JAMAIS d'assumptions sur le contenu non fourni
+- IMPORTANT: Dans ta réponse, référence les fichiers analysés avec le format [FICHIER: nom_du_fichier.ext] [METADATA: {...}] pour permettre le téléchargement
+- Le METADATA doit contenir les informations complètes du fichier (fileName, fileType, fileSize, downloadUrl, storagePath)` : '';
+
+      const formatInstructions = getFormatInstructions(responseFormat, selectedResponseFormats);
+      
+      const contextInfo = `
 CONTEXTE :
 - Agence : ${userData.agencyId}
-- Période analysée : ${data.period.label}
+- Période : ${data.period.label}
 - Directeur : ${userData.name || 'Directeur'}
-- Date actuelle : ${new Date().toLocaleDateString('fr-FR')}
-- Format de réponse demandé : ${responseFormat || 'texte libre'}
-- Formats de réponse sélectionnés : ${selectedResponseFormats && selectedResponseFormats.length > 0 ? selectedResponseFormats.join(', ') : (responseFormat || 'texte libre')}
-- Formulaires sélectionnés : ${selectedFormats && selectedFormats.length > 0 ? selectedFormats.join(', ') : 'tous les formulaires'}
+- Date : ${new Date().toLocaleDateString('fr-FR')}`;
 
-FORMAT DE RÉPONSE :
-${responseFormat === 'stats' ? `
-- FORMAT STATISTIQUES : Tu dois OBLIGATOIREMENT retourner un graphique JSON avec la structure suivante :
+      return `${baseRole}${coreRules}${fileInstructions}${formatInstructions}${contextInfo}`;
+    };
 
-ANALYSE DES DONNÉES ET RECOMMANDATION DE GRAPHIQUE :
-1. Analyse les données fournies
-2. Recommande le type de graphique le plus approprié :
-   - "bar" : Pour comparer des valeurs (ex: soumissions par employé, par formulaire)
-   - "pie" : Pour montrer des proportions (ex: répartition des formulaires, satisfaction)
-   - "line" : Pour montrer des tendances dans le temps (ex: évolution des soumissions)
-   - "area" : Pour montrer des volumes cumulés dans le temps
-   - "scatter" : Pour montrer des corrélations entre deux variables
-
-3. Génère le JSON avec cette structure EXACTE :
+    // Format-specific instructions (clean and focused)
+    const getFormatInstructions = (responseFormat, selectedResponseFormats) => {
+      switch (responseFormat) {
+        case 'stats':
+          return `
+FORMAT STATISTIQUES :
+Retourne un graphique JSON avec cette structure EXACTE :
 \`\`\`json
 {
   "type": "bar|line|pie|area|scatter",
-  "title": "Titre descriptif du graphique",
-  "data": [
-    {"label": "Nom employé", "value": 5, "employee": "Nom employé", "email": "email@example.com"},
-    {"label": "Autre employé", "value": 3, "employee": "Autre employé", "email": "autre@example.com"}
-  ],
-  "xAxisKey": "label",
-  "yAxisKey": "value", 
-  "dataKey": "value",
-  "colors": ["#3B82F6", "#10B981", "#F59E0B", "#EF4444", "#8B5CF6"],
-  "options": {
-    "showLegend": true
-  }
-}
-\`\`\`
-
-RÈGLES IMPORTANTES :
-- Utilise les données EXACTES des soumissions fournies
-- Pour les données d'employés, utilise "employee" et "email" dans chaque objet data
-- Pour les données temporelles, utilise "date" comme clé
-- Le titre doit être descriptif et en français
-- Inclus TOUJOURS une explication textuelle après le JSON
-- Si pas de données, retourne un graphique vide avec message explicatif` : ''}
-${responseFormat === 'table' ? `
-- FORMAT TABLEAU : Tu dois retourner un tableau markdown avec la structure suivante :
-\`\`\`markdown
-| Colonne 1 | Colonne 2 | Colonne 3 |
-|-----------|-----------|-----------|
-| Valeur 1  | Valeur 2  | Valeur 3  |
-| Valeur 4  | Valeur 5  | Valeur 6  |
-\`\`\`
-- Inclus aussi une explication textuelle du tableau.` : ''}
-${responseFormat === 'pdf' ? `
-- FORMAT PDF : Tu dois retourner du contenu markdown structuré pour un rapport PDF :
-- Utilise des titres (# ## ###)
-- Inclus des listes à puces
-- Structure le contenu en sections
-- Inclus des métriques et analyses
-- Le contenu sera converti en PDF automatiquement.` : ''}
-${responseFormat === 'multi-format' ? `
-- FORMAT MULTI-FORMAT : Tu dois retourner une combinaison des formats sélectionnés :
-${selectedResponseFormats && selectedResponseFormats.includes('stats') ? `
-1. GRAPHIQUE JSON (si 'stats' sélectionné) :
-\`\`\`json
-{
-  "type": "bar|line|pie|area|scatter",
-  "title": "Titre descriptif du graphique",
+  "title": "Titre descriptif",
   "data": [...],
   "xAxisKey": "label",
   "yAxisKey": "value",
@@ -552,77 +568,146 @@ ${selectedResponseFormats && selectedResponseFormats.includes('stats') ? `
   "colors": ["#3B82F6", "#10B981", "#F59E0B", "#EF4444", "#8B5CF6"],
   "options": {"showLegend": true}
 }
-\`\`\`` : ''}
-${selectedResponseFormats && selectedResponseFormats.includes('table') ? `
-2. TABLEAU MARKDOWN (si 'table' sélectionné) :
+\`\`\`
+Inclus une explication textuelle après le JSON.`;
+
+        case 'table':
+          return `
+FORMAT TABLEAU :
+Retourne un tableau markdown structuré :
 \`\`\`markdown
 | Colonne 1 | Colonne 2 | Colonne 3 |
 |-----------|-----------|-----------|
 | Valeur 1  | Valeur 2  | Valeur 3  |
-\`\`\`` : ''}
-${selectedResponseFormats && selectedResponseFormats.includes('pdf') ? `
-3. CONTENU PDF MARKDOWN (si 'pdf' sélectionné) :
-## Section PDF
-Contenu structuré pour PDF...` : ''}
-- Inclus une explication textuelle pour chaque format
-- Organise les formats de manière logique et cohérente` : ''}
+\`\`\`
+Inclus une explication textuelle.
+- Si tu analyses des fichiers, référence-les avec [FICHIER: nom_du_fichier.ext]`;
 
-STATISTIQUES :
-- Total des entrées : ${data.totals.entries}
+        case 'pdf':
+          return `
+FORMAT PDF :
+Retourne du contenu markdown structuré :
+- Utilise des titres (# ## ###)
+- Inclus des listes et sections
+- Structure claire et professionnelle
+- Si tu analyses des fichiers, référence-les avec [FICHIER: nom_du_fichier.ext]`;
+
+        case 'multi-format':
+          return `
+FORMAT MULTI-FORMAT :
+Retourne une combinaison des formats sélectionnés :
+${selectedResponseFormats?.includes('stats') ? '- Graphique JSON avec explication' : ''}
+${selectedResponseFormats?.includes('table') ? '- Tableau markdown avec explication' : ''}
+${selectedResponseFormats?.includes('pdf') ? '- Contenu PDF structuré' : ''}
+Organise les formats de manière logique.`;
+
+        default:
+          return `
+FORMAT TEXTE LIBRE :
+Fournis une réponse claire et structurée basée sur les données disponibles.
+- Si tu analyses des fichiers, référence-les avec [FICHIER: nom_du_fichier.ext] dans ta réponse`;
+      }
+    };
+
+    const systemPrompt = buildSystemMessage();
+
+    // Enhanced user message with structured data
+    const buildUserMessage = () => {
+      const questionText = `Question : "${question}"`;
+      
+      const summary = `
+RÉSUMÉ DES DONNÉES :
+- Total soumissions : ${data.totals.entries}
 - Employés actifs : ${data.totals.uniqueUsers}/${data.totals.totalUsers}
 - Formulaires utilisés : ${data.totals.uniqueForms}/${data.totals.totalForms}
+- Période : ${data.period.label}`;
 
-ANALYSE DES DONNÉES DISPONIBLES :
-- Répartition par employé : ${data.userStats.map(u => `${u.name}: ${u.count}`).join(', ') || 'Aucune donnée'}
-- Répartition par formulaire : ${data.formStats.map(f => `${f.title}: ${f.count}`).join(', ') || 'Aucune donnée'}
-- Timeline des soumissions : ${data.timeline.length} jours avec des données
-- Période analysée : ${data.period.label}
+      const submissions = data.submissions.length > 0 ? 
+        buildSubmissionsData(data.submissions, hasPDFContent) : 
+        'AUCUNE SOUMISSION TROUVÉE';
 
-DONNÉES DÉTAILLÉES DES SOUMISSIONS :
-${data.submissions.length > 0 ? data.submissions.map((s, index) => {
-  const answersText = Object.entries(s.answers).map(([fieldLabel, value]) => {
-    const displayValue = value !== null && value !== undefined ? 
-      (typeof value === 'boolean' ? (value ? 'Oui' : 'Non') : String(value)) : 
-      'Non renseigné';
-    return `    • ${fieldLabel}: ${displayValue}`;
-  }).join('\n');
-  
-  return `SOUMISSION ${index + 1}:
+      return `${questionText}\n\n${summary}\n\n${submissions}`;
+    };
+
+    // Build submissions data with PDF content handling
+    const buildSubmissionsData = (submissions, hasPDFContent) => {
+      return submissions.map((s, index) => {
+        const answersText = Object.entries(s.answers).map(([fieldLabel, value]) => {
+          // Handle file attachments - check for uploaded file data
+          if (value && typeof value === 'object' && value.uploaded && value.fileName) {
+            // Include file metadata for proper download/view functionality
+            const fileMetadata = {
+              fileName: value.fileName,
+              fileType: value.fileType,
+              fileSize: value.fileSize,
+              downloadUrl: value.downloadUrl,
+              storagePath: value.storagePath
+            };
+            return `    • ${fieldLabel}: [FICHIER: ${value.fileName}] [METADATA: ${JSON.stringify(fileMetadata)}]`;
+          }
+          
+          // Handle other object values (like arrays, etc.) - but avoid showing [object Object]
+          if (value && typeof value === 'object' && !value.uploaded) {
+            // If it's an array, show it properly
+            if (Array.isArray(value)) {
+              return `    • ${fieldLabel}: ${value.join(', ')}`;
+            }
+            // If it's an object with meaningful properties, show them
+            if (value && Object.keys(value).length > 0) {
+              const meaningfulProps = Object.entries(value)
+                .filter(([key, val]) => val !== null && val !== undefined && val !== '')
+                .map(([key, val]) => `${key}: ${val}`)
+                .join(', ');
+              return `    • ${fieldLabel}: ${meaningfulProps || 'Données complexes'}`;
+            }
+            return `    • ${fieldLabel}: Données complexes`;
+          }
+          
+          const displayValue = value !== null && value !== undefined ? 
+            (typeof value === 'boolean' ? (value ? 'Oui' : 'Non') : String(value)) : 
+            'Non renseigné';
+          return `    • ${fieldLabel}: ${displayValue}`;
+        }).join('\n');
+        
+        // Add file content if available (PDFs and other extractable files)
+        const fileContent = hasPDFContent ? (() => {
+          const fileContents = [];
+          
+          // Check fileAttachments array
+          if (s.fileAttachments) {
+            s.fileAttachments
+              .filter(att => att.extractedText)
+              .forEach(att => {
+                const fileIcon = att.fileType === 'application/pdf' ? '📄' : '📎';
+                const fileTypeLabel = att.fileType === 'application/pdf' ? 'CONTENU PDF' : 'CONTENU FICHIER';
+                fileContents.push(`    ${fileIcon} ${fileTypeLabel} "${att.fileName}" (${att.fileSize ? (att.fileSize / 1024).toFixed(1) + ' KB' : 'Taille inconnue'}):\n${att.extractedText.substring(0, 800)}${att.extractedText.length > 800 ? '...' : ''}\n\n    RÉFÉRENCE FICHIER: [FICHIER: ${att.fileName}]`);
+              });
+          }
+          
+          // Check answers object for file data with extracted text
+          Object.entries(s.answers).forEach(([fieldLabel, value]) => {
+            if (value && typeof value === 'object' && value.uploaded && value.fileName && value.extractedText) {
+              const fileIcon = value.fileType === 'application/pdf' ? '📄' : '📎';
+              const fileTypeLabel = value.fileType === 'application/pdf' ? 'CONTENU PDF' : 'CONTENU FICHIER';
+              // Use the actual field label in the content section too
+              fileContents.push(`    ${fileIcon} ${fileTypeLabel} "${value.fileName}" (${value.fileSize ? (value.fileSize / 1024).toFixed(1) + ' KB' : 'Taille inconnue'}) - Champ: ${fieldLabel}:\n${value.extractedText.substring(0, 800)}${value.extractedText.length > 800 ? '...' : ''}\n\n    RÉFÉRENCE FICHIER: [FICHIER: ${value.fileName}]`);
+            }
+          });
+          
+          return fileContents.join('\n\n');
+        })() : '';
+        
+        return `SOUMISSION ${index + 1}:
 - Employé: ${s.employeeName} (${s.employeeEmail})
 - Formulaire: "${s.formTitle}"
 - Date: ${s.submittedDate} à ${s.submittedTime}${s.isToday ? ' (AUJOURD\'HUI)' : ''}
 - Réponses:
-${answersText}`;
-}).join('\n\n') : 'AUCUNE SOUMISSION TROUVÉE'}
+${answersText}${fileContent ? '\n\n' + fileContent : ''}`;
+      }).join('\n\n');
+    };
 
-SOUMISSIONS D'AUJOURD'HUI (${new Date().toLocaleDateString('fr-FR')}) :
-${data.todaySubmissions.length > 0 ? data.todaySubmissions.map((s, index) => {
-  const answersText = Object.entries(s.answers).map(([fieldLabel, value]) => {
-    const displayValue = value !== null && value !== undefined ? 
-      (typeof value === 'boolean' ? (value ? 'Oui' : 'Non') : String(value)) : 
-      'Non renseigné';
-    return `    • ${fieldLabel}: ${displayValue}`;
-  }).join('\n');
-  
-  return `SOUMISSION AUJOURD'HUI ${index + 1}:
-- Employé: ${s.employeeName} (${s.employeeEmail})
-- Formulaire: "${s.formTitle}"
-- Heure: ${s.submittedTime}
-- Réponses:
-${answersText}`;
-}).join('\n\n') : 'AUCUNE SOUMISSION AUJOURD\'HUI'}`;
+    const userPrompt = buildUserMessage();
 
-    const userPrompt = `Question de l'utilisateur : "${question}"
-
-Réponds à cette question en utilisant les données disponibles. Si la question ne peut pas être répondue avec ces données, explique pourquoi et suggère des alternatives.`;
-
-    // Debug: Log the complete prompt being sent to AI
-    console.log('\n=== COMPLETE PROMPT BEING SENT TO AI ===');
-    console.log('SYSTEM PROMPT:');
-    console.log(systemPrompt);
-    console.log('\nUSER PROMPT:');
-    console.log(userPrompt);
-    console.log('=== END PROMPT LOGGING ===\n');
 
     // 6. Appel OpenAI
     console.log('Step 6: Generating AI response...');
@@ -679,6 +764,7 @@ ${answersText}`;
       : 'Désolé, je n\'ai pas pu générer une réponse.';
         tokensUsed = completion.usage && completion.usage.total_tokens ? completion.usage.total_tokens : 0;
         console.log('OpenAI response generated successfully');
+    console.log('AI Response content:', answer.substring(0, 500) + '...');
       } catch (openaiError) {
         console.error('OpenAI error:', openaiError);
         // Fallback en cas d'erreur OpenAI
@@ -741,7 +827,7 @@ ${answersText}`;
       // Store user message
       const userMessage = {
         type: 'user',
-        content: question,
+        content: question || '',
         timestamp: admin.firestore.FieldValue.serverTimestamp(),
         filters: req.body.filters || {}
       };
@@ -749,21 +835,21 @@ ${answersText}`;
       // Store assistant response
       const assistantMessage = {
         type: 'assistant',
-        content: answer,
+        content: answer || '',
         timestamp: admin.firestore.FieldValue.serverTimestamp(),
         responseTime: Date.now() - startTime,
         meta: {
-          period: data.period.label,
-          usedEntries: data.totals.entries,
+          period: data.period?.label || 'unknown',
+          usedEntries: data.totals?.entries || 0,
           breakdown: {
-            users: data.totals.uniqueUsers,
-            forms: data.totals.uniqueForms,
+            users: data.totals?.uniqueUsers || 0,
+            forms: data.totals?.uniqueForms || 0,
             dateRange: {
-              start: data.period.start.toISOString(),
-              end: data.period.end.toISOString()
+              start: data.period?.start?.toISOString() || new Date().toISOString(),
+              end: data.period?.end?.toISOString() || new Date().toISOString()
             }
           },
-          tokensUsed
+          tokensUsed: tokensUsed || 0
         }
       };
 

@@ -73,6 +73,17 @@ export interface DraftResponse {
 }
 
 // Types pour les conversations IA
+export interface PDFFileReference {
+  fileName: string;
+  fileSize?: number;
+  fileType: string;
+  downloadUrl?: string;
+  storagePath?: string;
+  extractedText?: string;
+  submissionId?: string;
+  fieldId?: string;
+}
+
 export interface ChatMessage {
   id: string;
   type: 'user' | 'assistant';
@@ -83,6 +94,7 @@ export interface ChatMessage {
   graphData?: GraphData;
   pdfData?: PDFData;
   tableData?: string; // Markdown table content
+  pdfFiles?: PDFFileReference[]; // PDF files referenced in the response
   meta?: {
     period?: string;
     usedEntries?: number;

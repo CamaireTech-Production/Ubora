@@ -3,6 +3,7 @@ import { Bot, User, Clock } from 'lucide-react';
 import { GraphRenderer } from './GraphRenderer';
 import { PDFPreview, TextPDFPreview } from './PDFPreview';
 import { TableRenderer } from './TableRenderer';
+import { PDFFileDisplay } from './PDFFileDisplay';
 import { ChatMessage } from '../../types';
 
 interface MessageBubbleProps {
@@ -228,6 +229,11 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
               </div>
             )}
           </div>
+          
+          {/* PDF Files Display */}
+          {!isUser && message.pdfFiles && message.pdfFiles.length > 0 && (
+            <PDFFileDisplay pdfFiles={message.pdfFiles} />
+          )}
           
           {/* Meta information for assistant messages */}
           {!isUser && message.meta && (

@@ -1,4 +1,4 @@
-import { ChatMessage, GraphData, PDFData } from '../types';
+import { ChatMessage, GraphData, PDFData, PDFFileReference } from '../types';
 
 export interface ParsedResponse {
   contentType: 'text' | 'graph' | 'pdf' | 'text-pdf' | 'table' | 'mixed' | 'multi-format';
@@ -6,6 +6,7 @@ export interface ParsedResponse {
   graphData?: GraphData;
   pdfData?: PDFData;
   tableData?: string; // Markdown table content
+  pdfFiles?: PDFFileReference[]; // PDF files referenced in the response
   multiFormatData?: {
     graphData?: GraphData;
     tableData?: string;
@@ -13,22 +14,30 @@ export interface ParsedResponse {
   };
 }
 
+
 export class ResponseParser {
   static parseAIResponse(response: string, _userMessage?: string, selectedFormat?: string | null, selectedFormats?: string[]): ParsedResponse {
+    // Detect PDF file references in the response
+    const pdfFiles = this.detectPDFFileReferences(response);
+    
+    
     // Handle multi-format responses
     if (selectedFormats && selectedFormats.length > 1) {
-      return this.parseMultiFormatResponse(response, selectedFormats);
+      const result = this.parseMultiFormatResponse(response, selectedFormats);
+      return { ...result, pdfFiles };
     }
 
     // Handle format-specific responses based on selected format
     if (selectedFormat) {
-      return this.parseFormatSpecificResponse(response, selectedFormat);
+      const result = this.parseFormatSpecificResponse(response, selectedFormat);
+      return { ...result, pdfFiles };
     }
 
     // If no format is selected, return as simple text
     return {
       contentType: 'text',
-      content: response
+      content: response,
+      pdfFiles
     };
   }
   
@@ -240,6 +249,286 @@ export class ResponseParser {
       }
     }
     
+    if (parsedResponse.pdfFiles) {
+      baseMessage.pdfFiles = parsedResponse.pdfFiles;
+    }
+    
     return baseMessage;
+  }
+
+  /**
+   * Detect file references in AI responses
+   * Looks for patterns like [FICHIER PDF: filename.pdf] or [FICHIER: filename.ext]
+   */
+  private static detectPDFFileReferences(response: string): PDFFileReference[] {
+    console.log('🔍 ResponseParser received response:', response.substring(0, 200) + '...');
+    const pdfFiles: PDFFileReference[] = [];
+    
+    
+    // Pattern 1: [FICHIER PDF: filename.pdf]
+    const pdfPattern1 = /\[FICHIER PDF:\s*([^\]]+\.pdf)\]/gi;
+    let match;
+    
+    while ((match = pdfPattern1.exec(response)) !== null) {
+      const fileName = match[1].trim();
+      pdfFiles.push({
+        fileName,
+        fileType: 'application/pdf',
+        fileSize: undefined,
+        downloadUrl: undefined,
+        storagePath: undefined,
+        extractedText: undefined
+      });
+    }
+    
+    // Pattern 2: [FICHIER: filename.ext] [METADATA: {...}] (with metadata)
+    const fileWithMetadataPattern = /\[FICHIER:\s*([^\]]+\.[a-zA-Z0-9]+)\]\s*\[METADATA:\s*([^\]]+)\]/gi;
+    console.log('🔍 Looking for metadata pattern in response...');
+    while ((match = fileWithMetadataPattern.exec(response)) !== null) {
+      const fileName = match[1].trim();
+      const metadataString = match[2].trim();
+      console.log('🔍 Found metadata pattern:', fileName, metadataString);
+      
+      try {
+        const metadata = JSON.parse(metadataString);
+        console.log('🔍 Parsed file metadata:', metadata);
+        // Only add if not already added
+        if (!pdfFiles.some(pdf => pdf.fileName === fileName)) {
+          pdfFiles.push({
+            fileName: metadata.fileName || fileName,
+            fileType: metadata.fileType || 'application/octet-stream',
+            fileSize: metadata.fileSize,
+            downloadUrl: metadata.downloadUrl,
+            storagePath: metadata.storagePath,
+            extractedText: undefined
+          });
+        }
+      } catch (error) {
+        console.warn('Failed to parse file metadata:', metadataString, error);
+        // Fallback to basic file detection
+        const fileExtension = fileName.split('.').pop()?.toLowerCase();
+        let fileType = 'application/octet-stream';
+        if (fileExtension === 'pdf') fileType = 'application/pdf';
+        else if (fileExtension === 'doc' || fileExtension === 'docx') fileType = 'application/msword';
+        else if (fileExtension === 'xls' || fileExtension === 'xlsx') fileType = 'application/vnd.ms-excel';
+        else if (fileExtension === 'ppt' || fileExtension === 'pptx') fileType = 'application/vnd.ms-powerpoint';
+        else if (fileExtension === 'txt') fileType = 'text/plain';
+        else if (fileExtension === 'jpg' || fileExtension === 'jpeg') fileType = 'image/jpeg';
+        else if (fileExtension === 'png') fileType = 'image/png';
+        else if (fileExtension === 'gif') fileType = 'image/gif';
+        else if (fileExtension === 'zip') fileType = 'application/zip';
+        else if (fileExtension === 'rar') fileType = 'application/x-rar-compressed';
+        
+        if (!pdfFiles.some(pdf => pdf.fileName === fileName)) {
+          pdfFiles.push({
+            fileName,
+            fileType,
+            fileSize: undefined,
+            downloadUrl: undefined,
+            storagePath: undefined,
+            extractedText: undefined
+          });
+        }
+      }
+    }
+    
+    // Pattern 3: [FICHIER: filename.ext] (without metadata - fallback)
+    const filePattern = /\[FICHIER:\s*([^\]]+\.[a-zA-Z0-9]+)\](?!\s*\[METADATA:)/gi;
+    while ((match = filePattern.exec(response)) !== null) {
+      const fileName = match[1].trim();
+      const fileExtension = fileName.split('.').pop()?.toLowerCase();
+      
+      // Determine file type based on extension
+      let fileType = 'application/octet-stream'; // default
+      if (fileExtension === 'pdf') fileType = 'application/pdf';
+      else if (fileExtension === 'doc' || fileExtension === 'docx') fileType = 'application/msword';
+      else if (fileExtension === 'xls' || fileExtension === 'xlsx') fileType = 'application/vnd.ms-excel';
+      else if (fileExtension === 'ppt' || fileExtension === 'pptx') fileType = 'application/vnd.ms-powerpoint';
+      else if (fileExtension === 'txt') fileType = 'text/plain';
+      else if (fileExtension === 'jpg' || fileExtension === 'jpeg') fileType = 'image/jpeg';
+      else if (fileExtension === 'png') fileType = 'image/png';
+      else if (fileExtension === 'gif') fileType = 'image/gif';
+      else if (fileExtension === 'zip') fileType = 'application/zip';
+      else if (fileExtension === 'rar') fileType = 'application/x-rar-compressed';
+      
+      // Only add if not already added by previous patterns
+      if (!pdfFiles.some(pdf => pdf.fileName === fileName)) {
+        pdfFiles.push({
+          fileName,
+          fileType,
+          fileSize: undefined,
+          downloadUrl: undefined,
+          storagePath: undefined,
+          extractedText: undefined
+        });
+      }
+    }
+    
+    // Pattern 4: Look for PDF content sections with file size info
+    const pdfContentPattern = /📄 CONTENU PDF "([^"]+\.pdf)" \(([^)]+)\):/gi;
+    while ((match = pdfContentPattern.exec(response)) !== null) {
+      const fileName = match[1].trim();
+      const sizeInfo = match[2].trim();
+      
+      // Parse file size if available
+      let fileSize: number | undefined;
+      if (sizeInfo.includes('KB')) {
+        const sizeMatch = sizeInfo.match(/(\d+(?:\.\d+)?)\s*KB/);
+        if (sizeMatch) {
+          fileSize = parseFloat(sizeMatch[1]) * 1024; // Convert KB to bytes
+        }
+      }
+      
+      // Only add if not already added
+      if (!pdfFiles.some(pdf => pdf.fileName === fileName)) {
+        pdfFiles.push({
+          fileName,
+          fileType: 'application/pdf',
+          fileSize,
+          downloadUrl: undefined,
+          storagePath: undefined,
+          extractedText: undefined
+        });
+      }
+    }
+    
+    // Pattern 5: Look for PDF content sections without size info
+    const pdfContentPattern2 = /📄 CONTENU PDF "([^"]+\.pdf)":/gi;
+    while ((match = pdfContentPattern2.exec(response)) !== null) {
+      const fileName = match[1].trim();
+      // Only add if not already added
+      if (!pdfFiles.some(pdf => pdf.fileName === fileName)) {
+        pdfFiles.push({
+          fileName,
+          fileType: 'application/pdf',
+          fileSize: undefined,
+          downloadUrl: undefined,
+          storagePath: undefined,
+          extractedText: undefined
+        });
+      }
+    }
+    
+    // Pattern 6: Look for other file content sections
+    const fileContentPattern = /📎 CONTENU FICHIER "([^"]+\.[a-zA-Z0-9]+)" \(([^)]+)\) - Champ: ([^:]+):/gi;
+    while ((match = fileContentPattern.exec(response)) !== null) {
+      const fileName = match[1].trim();
+      const sizeInfo = match[2].trim();
+      const fieldLabel = match[3].trim();
+      
+      // Parse file size if available
+      let fileSize: number | undefined;
+      if (sizeInfo.includes('KB')) {
+        const sizeMatch = sizeInfo.match(/(\d+(?:\.\d+)?)\s*KB/);
+        if (sizeMatch) {
+          fileSize = parseFloat(sizeMatch[1]) * 1024; // Convert KB to bytes
+        }
+      }
+      
+      // Determine file type based on extension
+      const fileExtension = fileName.split('.').pop()?.toLowerCase();
+      let fileType = 'application/octet-stream';
+      if (fileExtension === 'pdf') fileType = 'application/pdf';
+      else if (fileExtension === 'doc' || fileExtension === 'docx') fileType = 'application/msword';
+      else if (fileExtension === 'xls' || fileExtension === 'xlsx') fileType = 'application/vnd.ms-excel';
+      else if (fileExtension === 'ppt' || fileExtension === 'pptx') fileType = 'application/vnd.ms-powerpoint';
+      else if (fileExtension === 'txt') fileType = 'text/plain';
+      else if (fileExtension === 'jpg' || fileExtension === 'jpeg') fileType = 'image/jpeg';
+      else if (fileExtension === 'png') fileType = 'image/png';
+      else if (fileExtension === 'gif') fileType = 'image/gif';
+      else if (fileExtension === 'zip') fileType = 'application/zip';
+      else if (fileExtension === 'rar') fileType = 'application/x-rar-compressed';
+      
+      // Only add if not already added
+      if (!pdfFiles.some(pdf => pdf.fileName === fileName)) {
+        pdfFiles.push({
+          fileName,
+          fileType,
+          fileSize,
+          downloadUrl: undefined,
+          storagePath: undefined,
+          extractedText: undefined,
+          fieldId: fieldLabel // Store the field label for reference
+        });
+      }
+    }
+    
+    // Pattern 7: Look for explicit file references
+    const fileReferencePattern = /RÉFÉRENCE FICHIER:\s*\[FICHIER:\s*([^\]]+\.[a-zA-Z0-9]+)\]/gi;
+    while ((match = fileReferencePattern.exec(response)) !== null) {
+      const fileName = match[1].trim();
+      const fileExtension = fileName.split('.').pop()?.toLowerCase();
+      
+      // Determine file type based on extension
+      let fileType = 'application/octet-stream';
+      if (fileExtension === 'pdf') fileType = 'application/pdf';
+      else if (fileExtension === 'doc' || fileExtension === 'docx') fileType = 'application/msword';
+      else if (fileExtension === 'xls' || fileExtension === 'xlsx') fileType = 'application/vnd.ms-excel';
+      else if (fileExtension === 'ppt' || fileExtension === 'pptx') fileType = 'application/vnd.ms-powerpoint';
+      else if (fileExtension === 'txt') fileType = 'text/plain';
+      else if (fileExtension === 'jpg' || fileExtension === 'jpeg') fileType = 'image/jpeg';
+      else if (fileExtension === 'png') fileType = 'image/png';
+      else if (fileExtension === 'gif') fileType = 'image/gif';
+      else if (fileExtension === 'zip') fileType = 'application/zip';
+      else if (fileExtension === 'rar') fileType = 'application/x-rar-compressed';
+      
+      // Only add if not already added
+      if (!pdfFiles.some(pdf => pdf.fileName === fileName)) {
+        pdfFiles.push({
+          fileName,
+          fileType,
+          fileSize: undefined,
+          downloadUrl: undefined,
+          storagePath: undefined,
+          extractedText: undefined
+        });
+      }
+    }
+    
+    // Pattern 8: Look for file content sections without field label (fallback)
+    const fileContentPatternFallback = /📎 CONTENU FICHIER "([^"]+\.[a-zA-Z0-9]+)" \(([^)]+)\):/gi;
+    while ((match = fileContentPatternFallback.exec(response)) !== null) {
+      const fileName = match[1].trim();
+      const sizeInfo = match[2].trim();
+      
+      // Parse file size if available
+      let fileSize: number | undefined;
+      if (sizeInfo.includes('KB')) {
+        const sizeMatch = sizeInfo.match(/(\d+(?:\.\d+)?)\s*KB/);
+        if (sizeMatch) {
+          fileSize = parseFloat(sizeMatch[1]) * 1024; // Convert KB to bytes
+        }
+      }
+      
+      // Determine file type based on extension
+      const fileExtension = fileName.split('.').pop()?.toLowerCase();
+      let fileType = 'application/octet-stream';
+      if (fileExtension === 'pdf') fileType = 'application/pdf';
+      else if (fileExtension === 'doc' || fileExtension === 'docx') fileType = 'application/msword';
+      else if (fileExtension === 'xls' || fileExtension === 'xlsx') fileType = 'application/vnd.ms-excel';
+      else if (fileExtension === 'ppt' || fileExtension === 'pptx') fileType = 'application/vnd.ms-powerpoint';
+      else if (fileExtension === 'txt') fileType = 'text/plain';
+      else if (fileExtension === 'jpg' || fileExtension === 'jpeg') fileType = 'image/jpeg';
+      else if (fileExtension === 'png') fileType = 'image/png';
+      else if (fileExtension === 'gif') fileType = 'image/gif';
+      else if (fileExtension === 'zip') fileType = 'application/zip';
+      else if (fileExtension === 'rar') fileType = 'application/x-rar-compressed';
+      
+      // Only add if not already added
+      if (!pdfFiles.some(pdf => pdf.fileName === fileName)) {
+        pdfFiles.push({
+          fileName,
+          fileType,
+          fileSize,
+          downloadUrl: undefined,
+          storagePath: undefined,
+          extractedText: undefined
+        });
+      }
+    }
+    
+    
+    console.log('🔍 Final detected files:', pdfFiles);
+    return pdfFiles;
   }
 }
