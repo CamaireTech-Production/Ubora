@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Dashboard } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { useApp } from '../contexts/AppContext';
@@ -7,7 +8,6 @@ import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { DashboardDisplay } from '../components/DashboardDisplay';
 import { DashboardCreationModal } from '../components/DashboardCreationModal';
-import { DashboardDetailModal } from '../components/DashboardDetailModal';
 import { ComingSoonModal } from '../components/ComingSoonModal';
 import { LoadingGuard } from '../components/LoadingGuard';
 import { Toast } from '../components/Toast';
@@ -15,6 +15,7 @@ import { useToast } from '../hooks/useToast';
 import { Plus, BarChart3, Grid, List } from 'lucide-react';
 
 export const DashboardManagement: React.FC = () => {
+  const navigate = useNavigate();
   const { user, firebaseUser, isLoading } = useAuth();
   const { 
     forms,
@@ -30,11 +31,7 @@ export const DashboardManagement: React.FC = () => {
   const [showDashboardModal, setShowDashboardModal] = useState(false);
   const [editingDashboard, setEditingDashboard] = useState<Dashboard | null>(null);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
-  const [showDetailModal, setShowDetailModal] = useState(false);
-  const [selectedDashboard, setSelectedDashboard] = useState<Dashboard | null>(null);
   const [showComingSoonModal, setShowComingSoonModal] = useState(false);
-  const [comingSoonTitle, setComingSoonTitle] = useState('');
-  const [comingSoonDescription, setComingSoonDescription] = useState('');
 
   const directorDashboards = user?.id ? getDashboardsForDirector(user.id) : [];
 
@@ -85,33 +82,10 @@ export const DashboardManagement: React.FC = () => {
   };
 
   const handleViewDashboard = (dashboard: Dashboard) => {
-    setSelectedDashboard(dashboard);
-    setShowDetailModal(true);
+    navigate(`/directeur/dashboards/${dashboard.id}`);
   };
 
-  const handleCloseDetailModal = () => {
-    setShowDetailModal(false);
-    setSelectedDashboard(null);
-  };
 
-  const handleEditMetric = (dashboard: Dashboard, metricIndex: number) => {
-    // Show coming soon modal instead of alert
-    setComingSoonTitle(`Édition de la métrique "${dashboard.metrics[metricIndex].name}"`);
-    setComingSoonDescription('Cette fonctionnalité d\'édition de métrique sera bientôt disponible.');
-    setShowComingSoonModal(true);
-  };
-
-  const handleDeleteMetric = async (dashboard: Dashboard, metricIndex: number) => {
-    try {
-      const updatedMetrics = dashboard.metrics.filter((_, index) => index !== metricIndex);
-      await updateDashboard(dashboard.id, {
-        metrics: updatedMetrics
-      });
-    } catch (error) {
-      console.error('Erreur lors de la suppression de la métrique:', error);
-      alert('Erreur lors de la suppression de la métrique. Veuillez réessayer.');
-    }
-  };
 
   return (
     <LoadingGuard 
@@ -273,25 +247,13 @@ export const DashboardManagement: React.FC = () => {
             agencyId={user?.agencyId || ''}
           />
 
-          {/* Dashboard Detail Modal */}
-          <DashboardDetailModal
-            isOpen={showDetailModal}
-            onClose={handleCloseDetailModal}
-            dashboard={selectedDashboard}
-            formEntries={formEntries}
-            forms={forms}
-            onEditDashboard={handleEditDashboard}
-            onDeleteDashboard={handleDeleteDashboard}
-            onEditMetric={handleEditMetric}
-            onDeleteMetric={handleDeleteMetric}
-          />
 
           {/* Coming Soon Modal */}
           <ComingSoonModal
             isOpen={showComingSoonModal}
             onClose={() => setShowComingSoonModal(false)}
-            title={comingSoonTitle}
-            description={comingSoonDescription}
+            title="Fonctionnalité bientôt disponible"
+            description="Cette fonctionnalité sera bientôt disponible."
           />
 
           {/* Toast Notification */}

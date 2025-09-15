@@ -158,8 +158,7 @@ export const DirecteurDashboard: React.FC = () => {
   };
 
   const handleViewDashboard = (dashboard: any) => {
-    setSelectedDashboard(dashboard);
-    setShowDetailModal(true);
+    navigate(`/directeur/dashboards/${dashboard.id}`);
   };
 
   const handleCloseDetailModal = () => {
@@ -339,13 +338,14 @@ export const DirecteurDashboard: React.FC = () => {
         <Layout title="Dashboard Directeur">
           <div className="space-y-6 lg:space-y-8">
             {/* Filtre temporel compact */}
-            <div className="flex items-center justify-between bg-white border border-gray-200 rounded-lg px-4 py-3 shadow-sm">
+            
+            <div className="flex items-center justify-between gap-2 bg-white border border-gray-200 rounded-lg px-3 py-2 shadow-sm">
               <div className="flex items-center space-x-2">
-                <Calendar className="h-4 w-4 text-gray-500" />
+                <Calendar className="h-4 w-4 text-gray-500 flex-shrink-0" />
                 <span className="text-sm font-medium text-gray-700">Période:</span>
               </div>
               
-              <div className="flex items-center space-x-3">
+              <div className="flex items-center space-x-2">
                 {/* Dropdown des périodes prédéfinies */}
                 <div className="relative">
                   <select
@@ -356,7 +356,7 @@ export const DirecteurDashboard: React.FC = () => {
                         setShowCustomDatePicker(false);
                       }
                     }}
-                    className="appearance-none bg-white border border-gray-300 rounded-md px-3 py-1.5 pr-7 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 min-w-[140px]"
+                    className="appearance-none bg-white border border-gray-300 rounded-md px-2 py-1.5 pr-6 text-xs sm:text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 min-w-[120px] sm:min-w-[140px]"
                   >
                     <option value="all">Toutes les périodes</option>
                     <option value="today">Aujourd'hui</option>
@@ -373,7 +373,7 @@ export const DirecteurDashboard: React.FC = () => {
                     <option value="lastyear">Année dernière</option>
                     <option value="custom">Période personnalisée</option>
                   </select>
-                  <ChevronDown className="absolute right-2 top-1/2 transform -translate-y-1/2 h-3 w-3 text-gray-400 pointer-events-none" />
+                  <ChevronDown className="absolute right-1.5 top-1/2 transform -translate-y-1/2 h-3 w-3 text-gray-400 pointer-events-none" />
                 </div>
                 
                 {/* Bouton pour ouvrir le sélecteur de dates personnalisées */}
@@ -441,43 +441,43 @@ export const DirecteurDashboard: React.FC = () => {
             {(() => {
               const filteredData = getFilteredData();
               return (
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
                   <Card className="bg-gradient-to-r from-blue-500 to-blue-600 text-white">
-                    <div className="flex items-center space-x-3">
-                      <FileText className="h-8 w-8 opacity-80" />
-                      <div>
-                        <p className="text-blue-100">Formulaires créés</p>
-                        <p className="text-xl sm:text-2xl font-bold">{filteredData.forms.length}</p>
+                    <div className="flex items-center space-x-2">
+                      <FileText className="h-5 w-5 sm:h-6 sm:w-6 lg:h-8 lg:w-8 opacity-80 flex-shrink-0" />
+                      <div className="min-w-0">
+                        <p className="text-blue-100 text-xs">Formulaires créés</p>
+                        <p className="text-base sm:text-lg lg:text-xl xl:text-2xl font-bold">{filteredData.forms.length}</p>
                       </div>
                     </div>
                   </Card>
                   
                   <Card className="bg-gradient-to-r from-green-500 to-green-600 text-white">
-                    <div className="flex items-center space-x-3">
-                      <Users className="h-8 w-8 opacity-80" />
-                      <div>
-                        <p className="text-green-100">Employés approuvés</p>
-                        <p className="text-xl sm:text-2xl font-bold">{filteredData.employees.filter(emp => emp.isApproved !== false).length}</p>
+                    <div className="flex items-center space-x-2">
+                      <Users className="h-5 w-5 sm:h-6 sm:w-6 lg:h-8 lg:w-8 opacity-80 flex-shrink-0" />
+                      <div className="min-w-0">
+                        <p className="text-green-100 text-xs">Employés approuvés</p>
+                        <p className="text-base sm:text-lg lg:text-xl xl:text-2xl font-bold">{filteredData.employees.filter(emp => emp.isApproved !== false).length}</p>
                       </div>
                     </div>
                   </Card>
 
                   <Card className="bg-gradient-to-r from-yellow-500 to-yellow-600 text-white">
-                    <div className="flex items-center space-x-3">
-                      <UserCheck className="h-8 w-8 opacity-80" />
-                      <div>
-                        <p className="text-yellow-100">En attente</p>
-                        <p className="text-xl sm:text-2xl font-bold">{getPendingEmployees().length}</p>
+                    <div className="flex items-center space-x-2">
+                      <UserCheck className="h-5 w-5 sm:h-6 sm:w-6 lg:h-8 lg:w-8 opacity-80 flex-shrink-0" />
+                      <div className="min-w-0">
+                        <p className="text-yellow-100 text-xs">En attente</p>
+                        <p className="text-base sm:text-lg lg:text-xl xl:text-2xl font-bold">{getPendingEmployees().length}</p>
                       </div>
                     </div>
                   </Card>
                   
                   <Card className="bg-gradient-to-r from-purple-500 to-purple-600 text-white">
-                    <div className="flex items-center space-x-3">
-                      <BarChart3 className="h-8 w-8 opacity-80" />
-                      <div>
-                        <p className="text-purple-100">Réponses totales</p>
-                        <p className="text-xl sm:text-2xl font-bold">{filteredData.formEntries.length}</p>
+                    <div className="flex items-center space-x-2">
+                      <BarChart3 className="h-5 w-5 sm:h-6 sm:w-6 lg:h-8 lg:w-8 opacity-80 flex-shrink-0" />
+                      <div className="min-w-0">
+                        <p className="text-purple-100 text-xs">Réponses totales</p>
+                        <p className="text-base sm:text-lg lg:text-xl xl:text-2xl font-bold">{filteredData.formEntries.length}</p>
                       </div>
                     </div>
                   </Card>
@@ -496,19 +496,19 @@ export const DirecteurDashboard: React.FC = () => {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
               <Button
                 onClick={() => setShowFormBuilder(true)}
-                className="flex items-center justify-center space-x-2 w-full"
+                className="flex items-center justify-center space-x-2 w-full text-sm sm:text-base"
               >
-                <Plus className="h-5 w-5" />
-                <span>Créer un nouveau formulaire</span>
+                <Plus className="h-4 w-4 sm:h-5 sm:w-5" />
+                <span className="truncate">Créer un nouveau formulaire</span>
               </Button>
               
               <Button
                 onClick={() => setShowDashboardModal(true)}
                 variant="secondary"
-                className="flex items-center justify-center space-x-2 w-full"
+                className="flex items-center justify-center space-x-2 w-full text-sm sm:text-base"
               >
-                <BarChart3 className="h-5 w-5" />
-                <span>Créer un nouveau tableau de bord</span>
+                <BarChart3 className="h-4 w-4 sm:h-5 sm:w-5" />
+                <span className="truncate">Créer un nouveau tableau de bord</span>
               </Button>
             </div>
 
