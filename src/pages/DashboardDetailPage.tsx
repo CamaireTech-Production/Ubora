@@ -12,6 +12,8 @@ import { MetricCalculator } from '../utils/MetricCalculator';
 import { useToast } from '../hooks/useToast';
 import { Toast } from '../components/Toast';
 import { ComingSoonModal } from '../components/ComingSoonModal';
+import { DashboardEditModal } from '../components/DashboardEditModal';
+import { MetricEditModal } from '../components/MetricEditModal';
 import { 
   ArrowLeft, 
   BarChart3, 
@@ -61,11 +63,14 @@ export const DashboardDetailPage: React.FC = () => {
   const [showDeleteMetricModal, setShowDeleteMetricModal] = useState(false);
   const [metricToDelete, setMetricToDelete] = useState<{index: number, name: string} | null>(null);
   const [showComingSoonModal, setShowComingSoonModal] = useState(false);
-  const [comingSoonTitle, setComingSoonTitle] = useState('');
-  const [comingSoonDescription, setComingSoonDescription] = useState('');
   const [isDeletingDashboard, setIsDeletingDashboard] = useState(false);
   const [isDeletingMetric, setIsDeletingMetric] = useState(false);
   const [isAddingMetric, setIsAddingMetric] = useState(false);
+  
+  // Edit modals state
+  const [showEditDashboardModal, setShowEditDashboardModal] = useState(false);
+  const [showEditMetricModal, setShowEditMetricModal] = useState(false);
+  const [editingMetricIndex, setEditingMetricIndex] = useState<number>(-1);
   
   // États pour le filtrage temporel
   const [timeFilter, setTimeFilter] = useState<string>('all');
@@ -273,6 +278,48 @@ export const DashboardDetailPage: React.FC = () => {
     setShowMetricModal(true);
   };
 
+  const handleEditDashboard = () => {
+    setShowEditDashboardModal(true);
+  };
+
+  const handleEditMetric = (metricIndex: number) => {
+    setEditingMetricIndex(metricIndex);
+    setShowEditMetricModal(true);
+  };
+
+  const handleSaveDashboardEdit = async (dashboardId: string, updates: any) => {
+    try {
+      await updateDashboard(dashboardId, updates);
+      showSuccess('Tableau de bord modifié avec succès !');
+    } catch (error) {
+      console.error('Erreur lors de la modification du tableau de bord:', error);
+      showError('Erreur lors de la modification du tableau de bord. Veuillez réessayer.');
+      throw error;
+    }
+  };
+
+  const handleSaveMetricEdit = async (metricIndex: number, updatedMetric: any) => {
+    if (!dashboard) return;
+
+    try {
+      const updatedMetrics = [...dashboard.metrics];
+      updatedMetrics[metricIndex] = {
+        ...updatedMetrics[metricIndex],
+        ...updatedMetric
+      };
+      
+      await updateDashboard(dashboard.id, {
+        metrics: updatedMetrics
+      });
+      
+      showSuccess('Métrique modifiée avec succès !');
+    } catch (error) {
+      console.error('Erreur lors de la modification de la métrique:', error);
+      showError('Erreur lors de la modification de la métrique. Veuillez réessayer.');
+      throw error;
+    }
+  };
+
   const handleSaveMetric = async () => {
     if (!dashboard) return;
 
@@ -361,11 +408,7 @@ export const DashboardDetailPage: React.FC = () => {
             <Button
               variant="secondary"
               size="sm"
-              onClick={() => {
-                setComingSoonTitle(`Édition du tableau de bord "${dashboard.name}"`);
-                setComingSoonDescription('Cette fonctionnalité d\'édition sera bientôt disponible.');
-                setShowComingSoonModal(true);
-              }}
+              onClick={handleEditDashboard}
               className="flex items-center space-x-2"
             >
               <Edit className="h-4 w-4" />
@@ -576,11 +619,7 @@ export const DashboardDetailPage: React.FC = () => {
                       <Button
                         variant="secondary"
                         size="sm"
-                        onClick={() => {
-                          setComingSoonTitle(`Édition de la métrique "${metric.name}"`);
-                          setComingSoonDescription('Cette fonctionnalité d\'édition de métrique sera bientôt disponible.');
-                          setShowComingSoonModal(true);
-                        }}
+                        onClick={() => handleEditMetric(index)}
                         className="p-1"
                         title="Modifier la métrique"
                       >
@@ -905,8 +944,31 @@ export const DashboardDetailPage: React.FC = () => {
       <ComingSoonModal
         isOpen={showComingSoonModal}
         onClose={() => setShowComingSoonModal(false)}
-        title={comingSoonTitle}
-        description={comingSoonDescription}
+        title="Fonctionnalité bientôt disponible"
+        description="Cette fonctionnalité sera bientôt disponible."
+      />
+
+      {/* Edit Dashboard Modal */}
+      <DashboardEditModal
+        isOpen={showEditDashboardModal}
+        onClose={() => setShowEditDashboardModal(false)}
+        onSave={handleSaveDashboardEdit}
+        dashboard={dashboard}
+      />
+
+      {/* Edit Metric Modal */}
+      <MetricEditModal
+        isOpen={showEditMetricModal}
+        onClose={() => {
+          setShowEditMetricModal(false);
+          setEditingMetricIndex(-1);
+        }}
+        onSave={handleSaveMetricEdit}
+        metric={dashboard && editingMetricIndex >= 0 ? dashboard.metrics[editingMetricIndex] : null}
+        metricIndex={editingMetricIndex}
+        forms={forms}
+        currentUserId={user?.id || ''}
+        agencyId={user?.agencyId || ''}
       />
 
       {/* Toast Notification */}
