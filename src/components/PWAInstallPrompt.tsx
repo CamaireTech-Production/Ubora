@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { Button } from './Button';
 import { Card } from './Card';
 import { Download, X, Smartphone, Monitor } from 'lucide-react';
 
@@ -51,19 +50,26 @@ export const PWAInstallPrompt: React.FC = () => {
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
     window.addEventListener('appinstalled', handleAppInstalled);
 
-    // Check if user has previously dismissed the prompt
-    const dismissed = localStorage.getItem('pwa-install-dismissed');
-    if (dismissed) {
-      const dismissedTime = parseInt(dismissed);
-      const daysSinceDismissed = (Date.now() - dismissedTime) / (1000 * 60 * 60 * 24);
-      
-      // Show prompt again after 7 days
-      if (daysSinceDismissed > 7) {
-        localStorage.removeItem('pwa-install-dismissed');
-      } else {
-        setShowInstallPrompt(false);
-      }
-    }
+     // Check if user has previously dismissed the prompt
+     const dismissed = localStorage.getItem('pwa-install-dismissed');
+     if (dismissed) {
+       const dismissedTime = parseInt(dismissed);
+       const daysSinceDismissed = (Date.now() - dismissedTime) / (1000 * 60 * 60 * 24);
+       
+       // Show prompt again after 1 day (reduced from 7 days for testing)
+       if (daysSinceDismissed > 1) {
+         localStorage.removeItem('pwa-install-dismissed');
+       } else {
+         setShowInstallPrompt(false);
+       }
+     }
+
+     // If no deferred prompt but app is installable, show prompt after a delay
+     if (!deferredPrompt && !isInstalled) {
+       setTimeout(() => {
+         setShowInstallPrompt(true);
+       }, 3000); // Show after 3 seconds
+     }
 
     return () => {
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
@@ -117,10 +123,10 @@ export const PWAInstallPrompt: React.FC = () => {
                 <Download className="h-5 w-5" />
               </div>
               <div>
-                <h3 className="font-semibold text-white">Installer l'application</h3>
-                <p className="text-blue-100 text-sm">
-                  Accédez plus rapidement à Multi-Agences
-                </p>
+                 <h3 className="font-semibold text-white">Installer Ubora</h3>
+                 <p className="text-blue-100 text-sm">
+                   Accédez plus rapidement à votre application
+                 </p>
               </div>
             </div>
             <button
@@ -157,13 +163,13 @@ export const PWAInstallPrompt: React.FC = () => {
               <p className="text-blue-100 text-sm">
                 Installez l'application pour une expérience optimale
               </p>
-              <Button
-                onClick={handleInstallClick}
-                className="w-full bg-white text-blue-600 hover:bg-blue-50 font-medium"
-              >
-                <Download className="h-4 w-4 mr-2" />
-                Installer maintenant
-              </Button>
+               <button
+                 onClick={handleInstallClick}
+                 className="w-full bg-white text-blue-600 hover:bg-blue-50 font-medium py-2 px-4 rounded-lg transition-all duration-200 flex items-center justify-center space-x-2"
+               >
+                 <Download className="h-4 w-4" />
+                 <span>Installer maintenant</span>
+               </button>
             </div>
           )}
 

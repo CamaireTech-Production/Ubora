@@ -1,5 +1,13 @@
 {
- "name": "App",
+ "name": "Ubora - Gestion des Formulaires",
+ "short_name": "Ubora",
+ "description": "Application de gestion des formulaires pour entreprises multi-agences",
+ "theme_color": "#3b82f6",
+ "background_color": "#ffffff",
+ "display": "standalone",
+ "orientation": "portrait-primary",
+ "scope": "/",
+ "start_url": "/",
  "icons": [
   {
    "src": "\/android-icon-36x36.png",
