@@ -15,6 +15,7 @@ import { directorVideos } from '../data/videoData';
 import { DashboardCreationModal } from '../components/DashboardCreationModal';
 import { DashboardDisplay } from '../components/DashboardDisplay';
 import { DashboardDetailModal } from '../components/DashboardDetailModal';
+import { ComingSoonModal } from '../components/ComingSoonModal';
 import { useToast } from '../hooks/useToast';
 import { Toast } from '../components/Toast';
 
@@ -42,6 +43,9 @@ export const DirecteurDashboard: React.FC = () => {
   const [showDashboardModal, setShowDashboardModal] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [selectedDashboard, setSelectedDashboard] = useState<any>(null);
+  const [showComingSoonModal, setShowComingSoonModal] = useState(false);
+  const [comingSoonTitle, setComingSoonTitle] = useState('');
+  const [comingSoonDescription, setComingSoonDescription] = useState('');
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   
   // États pour le filtrage temporel
@@ -712,18 +716,32 @@ export const DirecteurDashboard: React.FC = () => {
         formEntries={formEntries}
         forms={forms}
         onEditDashboard={(dashboard) => {
-          // For now, just show an alert. In a real implementation, you'd open an edit modal
-          alert(`Édition du tableau de bord "${dashboard.name}" - Fonctionnalité à implémenter`);
+          // Show coming soon modal instead of alert
+          setComingSoonTitle(`Édition du tableau de bord "${dashboard.name}"`);
+          setComingSoonDescription('Cette fonctionnalité d\'édition sera bientôt disponible.');
+          setShowComingSoonModal(true);
         }}
         onDeleteDashboard={handleDeleteDashboard}
         onEditMetric={(dashboard, metricIndex) => {
-          // For now, just show an alert. In a real implementation, you'd open a metric editing modal
-          alert(`Édition de la métrique "${dashboard.metrics[metricIndex].name}" - Fonctionnalité à implémenter`);
+          // Show coming soon modal instead of alert
+          setComingSoonTitle(`Édition de la métrique "${dashboard.metrics[metricIndex].name}"`);
+          setComingSoonDescription('Cette fonctionnalité d\'édition de métrique sera bientôt disponible.');
+          setShowComingSoonModal(true);
         }}
         onDeleteMetric={(dashboard, metricIndex) => {
-          // For now, just show an alert. In a real implementation, you'd delete the metric
-          alert(`Suppression de la métrique "${dashboard.metrics[metricIndex].name}" - Fonctionnalité à implémenter`);
+          // Show coming soon modal instead of alert
+          setComingSoonTitle(`Suppression de la métrique "${dashboard.metrics[metricIndex].name}"`);
+          setComingSoonDescription('Cette fonctionnalité de suppression sera bientôt disponible.');
+          setShowComingSoonModal(true);
         }}
+      />
+
+      {/* Coming Soon Modal */}
+      <ComingSoonModal
+        isOpen={showComingSoonModal}
+        onClose={() => setShowComingSoonModal(false)}
+        title={comingSoonTitle}
+        description={comingSoonDescription}
       />
 
       {/* Toast Notification */}

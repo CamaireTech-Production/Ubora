@@ -8,6 +8,7 @@ import { Button } from '../components/Button';
 import { DashboardDisplay } from '../components/DashboardDisplay';
 import { DashboardCreationModal } from '../components/DashboardCreationModal';
 import { DashboardDetailModal } from '../components/DashboardDetailModal';
+import { ComingSoonModal } from '../components/ComingSoonModal';
 import { LoadingGuard } from '../components/LoadingGuard';
 import { Toast } from '../components/Toast';
 import { useToast } from '../hooks/useToast';
@@ -31,6 +32,9 @@ export const DashboardManagement: React.FC = () => {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [selectedDashboard, setSelectedDashboard] = useState<Dashboard | null>(null);
+  const [showComingSoonModal, setShowComingSoonModal] = useState(false);
+  const [comingSoonTitle, setComingSoonTitle] = useState('');
+  const [comingSoonDescription, setComingSoonDescription] = useState('');
 
   const directorDashboards = user?.id ? getDashboardsForDirector(user.id) : [];
 
@@ -91,9 +95,10 @@ export const DashboardManagement: React.FC = () => {
   };
 
   const handleEditMetric = (dashboard: Dashboard, metricIndex: number) => {
-    // For now, we'll just show an alert. In a real implementation, 
-    // you'd open a metric editing modal
-    alert(`Édition de la métrique "${dashboard.metrics[metricIndex].name}" - Fonctionnalité à implémenter`);
+    // Show coming soon modal instead of alert
+    setComingSoonTitle(`Édition de la métrique "${dashboard.metrics[metricIndex].name}"`);
+    setComingSoonDescription('Cette fonctionnalité d\'édition de métrique sera bientôt disponible.');
+    setShowComingSoonModal(true);
   };
 
   const handleDeleteMetric = async (dashboard: Dashboard, metricIndex: number) => {
@@ -279,6 +284,14 @@ export const DashboardManagement: React.FC = () => {
             onDeleteDashboard={handleDeleteDashboard}
             onEditMetric={handleEditMetric}
             onDeleteMetric={handleDeleteMetric}
+          />
+
+          {/* Coming Soon Modal */}
+          <ComingSoonModal
+            isOpen={showComingSoonModal}
+            onClose={() => setShowComingSoonModal(false)}
+            title={comingSoonTitle}
+            description={comingSoonDescription}
           />
 
           {/* Toast Notification */}
