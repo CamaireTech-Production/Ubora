@@ -425,7 +425,17 @@ export const DirecteurDashboard: React.FC = () => {
                       <input
                         type="date"
                         value={customDateRange.start}
-                        onChange={(e) => setCustomDateRange(prev => ({ ...prev, start: e.target.value }))}
+                        max={customDateRange.end || undefined}
+                        onChange={(e) => {
+                          const startDate = e.target.value;
+                          // If start date is after end date, clear the end date
+                          if (customDateRange.end && startDate && new Date(startDate) > new Date(customDateRange.end)) {
+                            setCustomDateRange(prev => ({ ...prev, start: startDate, end: '' }));
+                            showError('La date de début ne peut pas être postérieure à la date de fin');
+                            return;
+                          }
+                          setCustomDateRange(prev => ({ ...prev, start: startDate }));
+                        }}
                         className="w-full px-2 py-1.5 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                       />
                     </div>
@@ -436,7 +446,17 @@ export const DirecteurDashboard: React.FC = () => {
                       <input
                         type="date"
                         value={customDateRange.end}
-                        onChange={(e) => setCustomDateRange(prev => ({ ...prev, end: e.target.value }))}
+                        min={customDateRange.start || undefined}
+                        onChange={(e) => {
+                          const endDate = e.target.value;
+                          // If end date is before start date, clear it
+                          if (customDateRange.start && endDate && new Date(endDate) < new Date(customDateRange.start)) {
+                            setCustomDateRange(prev => ({ ...prev, end: '' }));
+                            showError('La date de fin ne peut pas être antérieure à la date de début');
+                            return;
+                          }
+                          setCustomDateRange(prev => ({ ...prev, end: endDate }));
+                        }}
                         className="w-full px-2 py-1.5 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                       />
                     </div>

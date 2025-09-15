@@ -1,28 +1,27 @@
-import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
+import React, { useState } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useApp } from '../contexts/AppContext';
 import { Layout } from '../components/Layout';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { LoadingGuard } from '../components/LoadingGuard';
-import { ArrowLeft, FileText, User, Calendar, Filter, Download, Eye, Edit, Trash2, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ArrowLeft, FileText, User, Calendar, Filter, Download, Eye, Edit, ChevronLeft, ChevronRight } from 'lucide-react';
 import { FileAttachment } from '../types';
 import { useToast } from '../hooks/useToast';
 import { Toast } from '../components/Toast';
 import { getFileDownloadURL } from '../utils/firebaseStorageUtils';
 import { PDFViewerModal } from '../components/PDFViewerModal';
+import { DynamicForm } from '../components/DynamicForm';
 import { downloadFile } from '../utils/downloadUtils';
 import { forceDownloadFromFirebase } from '../utils/firebaseDownloadUtils';
 
 export const ResponseDetailPage: React.FC = () => {
   const { formId } = useParams<{ formId: string }>();
-  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { user, firebaseUser, isLoading } = useAuth();
   const { 
     forms, 
-    formEntries, 
     employees, 
     getEntriesForForm,
     getEntriesForEmployee,
@@ -264,6 +263,7 @@ export const ResponseDetailPage: React.FC = () => {
   };
 
   const handleUpdateResponse = async (responseId: string, updatedAnswers: Record<string, any>, updatedFileAttachments: any[]) => {
+    setIsSubmittingEdit(true);
     try {
       await updateFormEntry(responseId, {
         answers: updatedAnswers,
@@ -276,6 +276,8 @@ export const ResponseDetailPage: React.FC = () => {
     } catch (error) {
       console.error('Error updating response:', error);
       showError('Erreur lors de la mise à jour de la réponse');
+    } finally {
+      setIsSubmittingEdit(false);
     }
   };
 
@@ -345,7 +347,6 @@ export const ResponseDetailPage: React.FC = () => {
             <p className="text-gray-600 mb-4">Le formulaire demandé n'existe pas ou vous n'avez pas l'autorisation de le consulter.</p>
             <Button onClick={handleBack}>
               <ArrowLeft className="h-4 w-4 mr-2" />
-              Retour au dashboard
             </Button>
           </div>
         </Layout>
@@ -372,7 +373,6 @@ export const ResponseDetailPage: React.FC = () => {
                 className="flex items-center space-x-2"
               >
                 <ArrowLeft className="h-4 w-4" />
-                <span>Retour</span>
               </Button>
               <div>
                 <h1 className="text-2xl font-bold text-gray-900">{form.title}</h1>
@@ -384,15 +384,15 @@ export const ResponseDetailPage: React.FC = () => {
           {/* Filters */}
           <Card>
             <div className="p-4">
-              <div className="grid grid-cols-2 sm:flex sm:flex-row gap-4">
+              <div className="flex flex-wrap gap-2 sm:gap-4">
                 {/* Employee filter (only for directors) */}
                 {isDirector && (
-                  <div className="flex items-center space-x-2">
-                    <User className="h-4 w-4 text-gray-500" />
+                  <div className="flex items-center space-x-2 min-w-0 flex-1 sm:flex-none">
+                    <User className="h-4 w-4 text-gray-500 flex-shrink-0" />
                     <select
                       value={selectedEmployeeFilter}
                       onChange={(e) => setSelectedEmployeeFilter(e.target.value)}
-                      className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-full"
+                      className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-full min-w-0"
                     >
                       <option value="all">Tous les employés</option>
                       {employees
@@ -407,12 +407,12 @@ export const ResponseDetailPage: React.FC = () => {
                 )}
 
                 {/* Date filter */}
-                <div className="flex items-center space-x-2">
-                  <Calendar className="h-4 w-4 text-gray-500" />
+                <div className="flex items-center space-x-2 min-w-0 flex-1 sm:flex-none">
+                  <Calendar className="h-4 w-4 text-gray-500 flex-shrink-0" />
                   <select
                     value={dateFilter}
                     onChange={(e) => setDateFilter(e.target.value)}
-                    className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-full"
+                    className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-full min-w-0"
                   >
                     <option value="all">Toutes les périodes</option>
                     <option value="today">Aujourd'hui</option>
@@ -422,13 +422,13 @@ export const ResponseDetailPage: React.FC = () => {
                 </div>
 
                 {/* Sort order */}
-                <div className="flex items-center space-x-2 col-span-2 sm:col-span-1">
+                <div className="flex items-center space-x-2 min-w-0 flex-1 sm:flex-none">
                   <button
                     onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
-                    className="flex items-center space-x-1 px-3 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 w-full sm:w-auto"
+                    className="flex items-center space-x-1 px-3 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 w-full min-w-0"
                   >
-                    <Filter className="h-4 w-4" />
-                    <span>{sortOrder === 'asc' ? 'Plus ancien' : 'Plus récent'}</span>
+                    <Filter className="h-4 w-4 flex-shrink-0" />
+                    <span className="truncate">{sortOrder === 'asc' ? 'Plus ancien' : 'Plus récent'}</span>
                   </button>
                 </div>
               </div>
@@ -535,7 +535,7 @@ export const ResponseDetailPage: React.FC = () => {
                   <Card key={response.id}>
                     <div className="p-6">
                       {isEditing ? (
-                        /* Edit Form - This would need a DynamicForm component */
+                        /* Edit Form */
                         <div>
                           <div className="flex items-center justify-between mb-4">
                             <h3 className="font-semibold text-gray-900">Modifier la réponse</h3>
@@ -543,11 +543,24 @@ export const ResponseDetailPage: React.FC = () => {
                               variant="secondary"
                               size="sm"
                               onClick={() => setEditingResponse(null)}
+                              className="flex items-center space-x-1"
                             >
-                              Annuler
+                              <span>Annuler</span>
                             </Button>
                           </div>
-                          <p className="text-gray-600">Fonctionnalité d'édition à implémenter</p>
+                          
+                          {form && (
+                            <DynamicForm
+                              form={form}
+                              onSubmit={(answers, fileAttachments) => handleUpdateResponse(response.id, answers, fileAttachments || [])}
+                              onCancel={() => setEditingResponse(null)}
+                              initialAnswers={response.answers || {}}
+                              initialFileAttachments={response.fileAttachments || []}
+                              isDraft={false}
+                              isEditMode={true}
+                              isLoading={isSubmittingEdit}
+                            />
+                          )}
                         </div>
                       ) : (
                         /* Response Display */

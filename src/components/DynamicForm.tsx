@@ -21,6 +21,7 @@ interface DynamicFormProps {
   initialAnswers?: Record<string, any>;
   initialFileAttachments?: any[];
   isDraft?: boolean;
+  isEditMode?: boolean;
   isLoading?: boolean;
 }
 
@@ -31,6 +32,7 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
   initialAnswers = {},
   initialFileAttachments = [],
   isDraft = false,
+  isEditMode = false,
   isLoading = false
 }) => {
   const { user } = useAuth();
@@ -247,7 +249,13 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
     if (validateForm()) {
       setIsSubmitting(true);
       try {
-        // Only submit to Firebase if it's NOT a draft
+        // If in edit mode, use the onSubmit callback (which should handle updates)
+        if (isEditMode) {
+          onSubmit(answers, fileAttachments);
+          return;
+        }
+
+        // Only submit to Firebase if it's NOT a draft and NOT in edit mode
         if (!isDraft) {
           // Get current user info
           const currentUser = auth.currentUser;
@@ -541,13 +549,15 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
               ) : isLoading ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                  {isDraft ? 'Sauvegarde...' : 'Ajout en cours...'}
+                  {isDraft ? 'Sauvegarde...' : isEditMode ? 'Modification...' : 'Ajout en cours...'}
                 </>
               ) : !isWithinTimeRestrictions() 
                 ? 'Soumission non autorisée' 
                 : isDraft 
                   ? 'Sauvegarder le brouillon' 
-                  : 'Ajouter la réponse'
+                  : isEditMode
+                    ? 'Modifier la réponse'
+                    : 'Ajouter la réponse'
               }
             </Button>
             <Button type="button" variant="secondary" onClick={onCancel} className="w-full sm:w-auto">

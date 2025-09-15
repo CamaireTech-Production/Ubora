@@ -29,7 +29,8 @@ import {
   Trash2, 
   Plus,
   FileText,
-  X
+  X,
+  ChevronDown
 } from 'lucide-react';
 
 export const DashboardDetailPage: React.FC = () => {
@@ -65,9 +66,74 @@ export const DashboardDetailPage: React.FC = () => {
   const [isDeletingDashboard, setIsDeletingDashboard] = useState(false);
   const [isDeletingMetric, setIsDeletingMetric] = useState(false);
   const [isAddingMetric, setIsAddingMetric] = useState(false);
+  
+  // États pour le filtrage temporel
+  const [timeFilter, setTimeFilter] = useState<string>('all');
+  const [customDateRange, setCustomDateRange] = useState<{
+    start: string;
+    end: string;
+  }>({
+    start: '',
+    end: ''
+  });
+  const [showCustomDatePicker, setShowCustomDatePicker] = useState(false);
 
   // Find the dashboard
   const dashboard = dashboards.find(d => d.id === dashboardId) || null;
+
+  // Fonctions pour le filtrage temporel
+  const getDateRange = (filter: string) => {
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    
+    switch (filter) {
+      case 'today':
+        return { start: today, end: new Date(today.getTime() + 24 * 60 * 60 * 1000) };
+      case 'yesterday':
+        const yesterday = new Date(today.getTime() - 24 * 60 * 60 * 1000);
+        return { start: yesterday, end: today };
+      case 'last7days':
+        return { start: new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000), end: new Date(today.getTime() + 24 * 60 * 60 * 1000) };
+      case 'last30days':
+        return { start: new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000), end: new Date(today.getTime() + 24 * 60 * 60 * 1000) };
+      case 'last90days':
+        return { start: new Date(today.getTime() - 90 * 24 * 60 * 60 * 1000), end: new Date(today.getTime() + 24 * 60 * 60 * 1000) };
+      case 'thisMonth':
+        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+        const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+        return { start: startOfMonth, end: endOfMonth };
+      case 'lastMonth':
+        const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+        const endOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+        return { start: startOfLastMonth, end: endOfLastMonth };
+      case 'thisYear':
+        const startOfYear = new Date(now.getFullYear(), 0, 1);
+        const endOfYear = new Date(now.getFullYear() + 1, 0, 1);
+        return { start: startOfYear, end: endOfYear };
+      case 'custom':
+        return {
+          start: customDateRange.start ? new Date(customDateRange.start) : null,
+          end: customDateRange.end ? new Date(customDateRange.end + 'T23:59:59') : null
+        };
+      default:
+        return { start: null, end: null }; // All time
+    }
+  };
+
+  const isDateInRange = (date: Date, start: Date | null, end: Date | null) => {
+    if (!start && !end) return true; // All time
+    if (!start) return date <= end!;
+    if (!end) return date >= start;
+    return date >= start && date <= end;
+  };
+
+  // Get filtered form entries based on time filter
+  const getFilteredFormEntries = () => {
+    const { start, end } = getDateRange(timeFilter);
+    return formEntries.filter(entry => 
+      isDateInRange(new Date(entry.submittedAt), start, end)
+    );
+  };
 
   const getFieldIcon = (fieldType: string) => {
     switch (fieldType) {
@@ -347,11 +413,121 @@ export const DashboardDetailPage: React.FC = () => {
             <div>
               <span className="font-medium text-gray-700">Données disponibles:</span>
               <p className="text-gray-600">
-                {formEntries.filter(entry => dashboard.metrics.some(m => m.formId === entry.formId)).length} entrée{formEntries.filter(entry => dashboard.metrics.some(m => m.formId === entry.formId)).length > 1 ? 's' : ''}
+                {getFilteredFormEntries().filter(entry => dashboard.metrics.some(m => m.formId === entry.formId)).length} entrée{getFilteredFormEntries().filter(entry => dashboard.metrics.some(m => m.formId === entry.formId)).length > 1 ? 's' : ''}
+                {timeFilter !== 'all' && (
+                  <span className="text-xs text-gray-500 ml-1">
+                    (filtrées)
+                  </span>
+                )}
               </p>
             </div>
           </div>
         </Card>
+
+        {/* Time Filter */}
+        <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center space-x-2">
+              <Calendar className="h-5 w-5 text-gray-500" />
+              <span className="text-sm font-medium text-gray-700">Filtrer par période:</span>
+            </div>
+            
+            <div className="flex items-center space-x-2">
+              {/* Dropdown des périodes prédéfinies */}
+              <div className="relative">
+                <select
+                  value={timeFilter}
+                  onChange={(e) => {
+                    setTimeFilter(e.target.value);
+                    if (e.target.value !== 'custom') {
+                      setShowCustomDatePicker(false);
+                    }
+                  }}
+                  className="appearance-none bg-white border border-gray-300 rounded-md px-3 py-2 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 w-full max-w-[160px] min-w-[120px] sm:min-w-[140px]"
+                >
+                  <option value="all">Toutes les périodes</option>
+                  <option value="today">Aujourd'hui</option>
+                  <option value="yesterday">Hier</option>
+                  <option value="last7days">7 derniers jours</option>
+                  <option value="last30days">30 derniers jours</option>
+                  <option value="last90days">90 derniers jours</option>
+                  <option value="thisMonth">Ce mois</option>
+                  <option value="lastMonth">Mois dernier</option>
+                  <option value="thisYear">Cette année</option>
+                  <option value="custom">Période personnalisée</option>
+                </select>
+                <ChevronDown className="absolute right-1.5 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+              </div>
+              
+              {/* Bouton pour ouvrir le sélecteur de dates personnalisées */}
+              {timeFilter === 'custom' && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setShowCustomDatePicker(!showCustomDatePicker)}
+                  className="text-xs sm:text-sm"
+                >
+                  {showCustomDatePicker ? 'Masquer' : 'Dates'}
+                </Button>
+              )}
+            </div>
+          </div>
+            
+          {/* Sélecteur de dates personnalisées */}
+          {showCustomDatePicker && timeFilter === 'custom' && (
+            <div className="mt-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Date de début</label>
+                  <input
+                    type="date"
+                    value={customDateRange.start}
+                    max={customDateRange.end || undefined}
+                    onChange={(e) => {
+                      const startDate = e.target.value;
+                      // If start date is after end date, clear the end date
+                      if (customDateRange.end && startDate && new Date(startDate) > new Date(customDateRange.end)) {
+                        setCustomDateRange(prev => ({ ...prev, start: startDate, end: '' }));
+                        showError('La date de début ne peut pas être postérieure à la date de fin');
+                        return;
+                      }
+                      setCustomDateRange(prev => ({ ...prev, start: startDate }));
+                    }}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Date de fin</label>
+                  <input
+                    type="date"
+                    value={customDateRange.end}
+                    min={customDateRange.start || undefined}
+                    onChange={(e) => {
+                      const endDate = e.target.value;
+                      // If end date is before start date, clear it
+                      if (customDateRange.start && endDate && new Date(endDate) < new Date(customDateRange.start)) {
+                        setCustomDateRange(prev => ({ ...prev, end: '' }));
+                        showError('La date de fin ne peut pas être antérieure à la date de début');
+                        return;
+                      }
+                      setCustomDateRange(prev => ({ ...prev, end: endDate }));
+                    }}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+              </div>
+              
+              {/* Validation message */}
+              {customDateRange.start && customDateRange.end && new Date(customDateRange.end) < new Date(customDateRange.start) && (
+                <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded-md">
+                  <p className="text-sm text-red-600">
+                    ⚠️ La date de fin doit être postérieure ou égale à la date de début
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
 
         {/* Add Metric Button */}
         <div className="flex justify-center">
@@ -381,7 +557,8 @@ export const DashboardDetailPage: React.FC = () => {
         ) : (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 lg:gap-6">
             {dashboard.metrics.map((metric, index) => {
-              const result = MetricCalculator.calculateMetric(metric, formEntries);
+              const filteredEntries = getFilteredFormEntries();
+              const result = MetricCalculator.calculateMetric(metric, filteredEntries);
               
               return (
                 <Card key={metric.id || index} className="hover:shadow-lg transition-shadow h-full">

@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useApp } from '../contexts/AppContext';
@@ -61,6 +61,8 @@ const ResponsesInterface: React.FC<ResponsesInterfaceProps> = ({
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [editingResponse, setEditingResponse] = useState<string | null>(null);
   const [isSubmittingEdit, setIsSubmittingEdit] = useState(false);
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [itemsPerPage, setItemsPerPage] = useState<number>(10);
 
 
 
@@ -134,52 +136,160 @@ const ResponsesInterface: React.FC<ResponsesInterfaceProps> = ({
 
   const filteredEntries = getFilteredAndSortedEntries();
 
+  // Pagination logic
+  const totalPages = Math.ceil(filteredEntries.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedEntries = filteredEntries.slice(startIndex, endIndex);
+
+  // Reset to first page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedFormFilter, dateFilter, sortOrder]);
+
+  // Pagination handlers
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+  };
+
+  const handleItemsPerPageChange = (newItemsPerPage: number) => {
+    setItemsPerPage(newItemsPerPage);
+    setCurrentPage(1); // Reset to first page
+  };
+
+  const getPageNumbers = () => {
+    const pages = [];
+    const maxVisiblePages = 5;
+    
+    if (totalPages <= maxVisiblePages) {
+      for (let i = 1; i <= totalPages; i++) {
+        pages.push(i);
+      }
+    } else {
+      const startPage = Math.max(1, currentPage - 2);
+      const endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+      
+      for (let i = startPage; i <= endPage; i++) {
+        pages.push(i);
+      }
+    }
+    
+    return pages;
+  };
+
   return (
     <div className="space-y-6">
-      {/* Filters */}
-      <div className="grid grid-cols-2 sm:flex sm:flex-row gap-4 p-4 bg-gray-50 rounded-lg">
-        <div className="flex items-center space-x-2">
-          <Filter className="h-4 w-4 text-gray-500" />
-          <select
-            value={selectedFormFilter}
-            onChange={(e) => setSelectedFormFilter(e.target.value)}
-            className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-full"
-          >
-            <option value="all">Tous les formulaires</option>
-            {assignedForms.map(form => (
-              <option key={form.id} value={form.id}>{form.title}</option>
-            ))}
-          </select>
+      {/* Filters and Pagination Controls */}
+      <div className="space-y-4">
+        {/* Filters */}
+        <div className="flex flex-wrap gap-2 sm:gap-4 p-4 bg-gray-50 rounded-lg">
+          <div className="flex items-center space-x-2 min-w-0 flex-1 sm:flex-none">
+            <Filter className="h-4 w-4 text-gray-500 flex-shrink-0" />
+            <select
+              value={selectedFormFilter}
+              onChange={(e) => setSelectedFormFilter(e.target.value)}
+              className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-full min-w-0"
+            >
+              <option value="all">Tous les formulaires</option>
+              {assignedForms.map(form => (
+                <option key={form.id} value={form.id}>{form.title}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex items-center space-x-2 min-w-0 flex-1 sm:flex-none">
+            <Calendar className="h-4 w-4 text-gray-500 flex-shrink-0" />
+            <select
+              value={dateFilter}
+              onChange={(e) => setDateFilter(e.target.value)}
+              className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-full min-w-0"
+            >
+              <option value="all">Toutes les périodes</option>
+              <option value="today">Aujourd'hui</option>
+              <option value="week">Cette semaine</option>
+              <option value="month">Ce mois</option>
+            </select>
+          </div>
+
+          <div className="flex items-center space-x-2 min-w-0 flex-1 sm:flex-none">
+            <button
+              onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
+              className="flex items-center space-x-1 px-3 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 w-full min-w-0"
+            >
+              {sortOrder === 'asc' ? <SortAsc className="h-4 w-4 flex-shrink-0" /> : <SortDesc className="h-4 w-4 flex-shrink-0" />}
+              <span className="truncate">{sortOrder === 'asc' ? 'Plus ancien' : 'Plus récent'}</span>
+            </button>
+          </div>
         </div>
 
-        <div className="flex items-center space-x-2">
-          <Calendar className="h-4 w-4 text-gray-500" />
-          <select
-            value={dateFilter}
-            onChange={(e) => setDateFilter(e.target.value)}
-            className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-full"
-          >
-            <option value="all">Toutes les périodes</option>
-            <option value="today">Aujourd'hui</option>
-            <option value="week">Cette semaine</option>
-            <option value="month">Ce mois</option>
-          </select>
-        </div>
+        {/* Pagination Controls */}
+        {filteredEntries.length > 0 && (
+          <div className="flex items-center justify-between gap-2 p-3 bg-white border border-gray-200 rounded-lg">
+            {/* Left: Results count and items per page */}
+            <div className="flex items-center gap-3">
+              <span className="text-sm text-gray-600">
+                {filteredEntries.length} réponse(s)
+              </span>
+              
+              {/* Items per page dropdown - compact */}
+              <div className="flex items-center gap-1">
+                <select
+                  value={itemsPerPage}
+                  onChange={(e) => handleItemsPerPageChange(Number(e.target.value))}
+                  className="border border-gray-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
+                >
+                  <option value={5}>5</option>
+                  <option value={10}>10</option>
+                  <option value={20}>20</option>
+                  <option value={50}>50</option>
+                </select>
+                <span className="text-xs text-gray-500">/page</span>
+              </div>
+            </div>
 
-        <div className="flex items-center space-x-2 col-span-2 sm:col-span-1">
-          <button
-            onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
-            className="flex items-center space-x-1 px-3 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 w-full sm:w-auto"
-          >
-            {sortOrder === 'asc' ? <SortAsc className="h-4 w-4" /> : <SortDesc className="h-4 w-4" />}
-            <span>{sortOrder === 'asc' ? 'Plus ancien' : 'Plus récent'}</span>
-          </button>
-        </div>
-      </div>
+            {/* Right: Page navigation */}
+            <div className="flex items-center gap-2">
+              {/* Previous button */}
+              <button
+                onClick={() => handlePageChange(currentPage - 1)}
+                disabled={currentPage === 1}
+                className="p-1 rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                </svg>
+              </button>
 
-      {/* Results count */}
-      <div className="text-sm text-gray-600">
-        {filteredEntries.length} réponse(s) trouvée(s)
+              {/* Page numbers */}
+              <div className="flex items-center gap-1">
+                {getPageNumbers().map(pageNum => (
+                  <button
+                    key={pageNum}
+                    onClick={() => handlePageChange(pageNum)}
+                    className={`px-2 py-1 text-xs rounded ${
+                      pageNum === currentPage
+                        ? 'bg-blue-500 text-white'
+                        : 'hover:bg-gray-100'
+                    }`}
+                  >
+                    {pageNum}
+                  </button>
+                ))}
+              </div>
+
+              {/* Next button */}
+              <button
+                onClick={() => handlePageChange(currentPage + 1)}
+                disabled={currentPage === totalPages}
+                className="p-1 rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Responses list */}
@@ -190,7 +300,7 @@ const ResponsesInterface: React.FC<ResponsesInterfaceProps> = ({
             <p className="text-gray-500">Aucune réponse trouvée avec ces filtres</p>
           </div>
         ) : (
-          filteredEntries.map(entry => {
+          paginatedEntries.map(entry => {
             const form = assignedForms.find(f => f.id === entry.formId);
             const isEditable = canEditResponse(entry.submittedAt);
             const isEditing = editingResponse === entry.id;
@@ -220,6 +330,7 @@ const ResponsesInterface: React.FC<ResponsesInterfaceProps> = ({
                         initialAnswers={entry.answers || {}}
                         initialFileAttachments={entry.fileAttachments || []}
                         isDraft={false}
+                        isEditMode={true}
                         isLoading={isSubmittingEdit}
                       />
                     )}
