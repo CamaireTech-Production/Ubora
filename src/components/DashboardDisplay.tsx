@@ -76,7 +76,7 @@ export const DashboardDisplay: React.FC<DashboardDisplayProps> = ({
   };
 
   const handleDelete = () => {
-    if (onDelete && window.confirm(`Êtes-vous sûr de vouloir supprimer le tableau de bord "${dashboard.name}" ?`)) {
+    if (onDelete) {
       onDelete(dashboard.id);
     }
   };

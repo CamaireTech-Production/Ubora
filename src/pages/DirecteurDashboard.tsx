@@ -14,7 +14,6 @@ import { VideoSection } from '../components/VideoSection';
 import { directorVideos } from '../data/videoData';
 import { DashboardCreationModal } from '../components/DashboardCreationModal';
 import { DashboardDisplay } from '../components/DashboardDisplay';
-import { DashboardDetailModal } from '../components/DashboardDetailModal';
 import { ComingSoonModal } from '../components/ComingSoonModal';
 import { useToast } from '../hooks/useToast';
 import { Toast } from '../components/Toast';
@@ -41,11 +40,13 @@ export const DirecteurDashboard: React.FC = () => {
   const [showFormBuilder, setShowFormBuilder] = useState(false);
   const [editingForm, setEditingForm] = useState<Form | null>(null);
   const [showDashboardModal, setShowDashboardModal] = useState(false);
-  const [showDetailModal, setShowDetailModal] = useState(false);
-  const [selectedDashboard, setSelectedDashboard] = useState<any>(null);
   const [showComingSoonModal, setShowComingSoonModal] = useState(false);
-  const [comingSoonTitle, setComingSoonTitle] = useState('');
-  const [comingSoonDescription, setComingSoonDescription] = useState('');
+  const [showDeleteFormModal, setShowDeleteFormModal] = useState(false);
+  const [showDeleteDashboardModal, setShowDeleteDashboardModal] = useState(false);
+  const [formToDelete, setFormToDelete] = useState<{id: string, title: string} | null>(null);
+  const [dashboardToDelete, setDashboardToDelete] = useState<{id: string, name: string} | null>(null);
+  const [isDeletingForm, setIsDeletingForm] = useState(false);
+  const [isDeletingDashboard, setIsDeletingDashboard] = useState(false);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   
   // États pour le filtrage temporel
@@ -133,27 +134,53 @@ export const DirecteurDashboard: React.FC = () => {
     }
   };
 
-  const handleDeleteForm = async (formId: string) => {
-    if (window.confirm('Êtes-vous sûr de vouloir supprimer ce formulaire ?')) {
-      try {
-        await deleteForm(formId);
-        showSuccess('Formulaire supprimé avec succès !');
-      } catch (error) {
-        console.error('Erreur lors de la suppression:', error);
-        showError('Erreur lors de la suppression du formulaire.');
-      }
+  const handleDeleteForm = (formId: string) => {
+    const form = forms.find(f => f.id === formId);
+    if (form) {
+      setFormToDelete({ id: formId, title: form.title });
+      setShowDeleteFormModal(true);
     }
   };
 
-  const handleDeleteDashboard = async (dashboardId: string) => {
-    if (window.confirm('Êtes-vous sûr de vouloir supprimer ce tableau de bord ?')) {
-      try {
-        await deleteDashboard(dashboardId);
-        showSuccess('Tableau de bord supprimé avec succès !');
-      } catch (error) {
-        console.error('Erreur lors de la suppression du tableau de bord:', error);
-        showError('Erreur lors de la suppression du tableau de bord.');
-      }
+  const confirmDeleteForm = async () => {
+    if (!formToDelete) return;
+
+    setIsDeletingForm(true);
+    try {
+      await deleteForm(formToDelete.id);
+      showSuccess('Formulaire supprimé avec succès !');
+      setShowDeleteFormModal(false);
+      setFormToDelete(null);
+    } catch (error) {
+      console.error('Erreur lors de la suppression:', error);
+      showError('Erreur lors de la suppression du formulaire.');
+    } finally {
+      setIsDeletingForm(false);
+    }
+  };
+
+  const handleDeleteDashboard = (dashboardId: string) => {
+    const dashboard = dashboards.find(d => d.id === dashboardId);
+    if (dashboard) {
+      setDashboardToDelete({ id: dashboardId, name: dashboard.name });
+      setShowDeleteDashboardModal(true);
+    }
+  };
+
+  const confirmDeleteDashboard = async () => {
+    if (!dashboardToDelete) return;
+
+    setIsDeletingDashboard(true);
+    try {
+      await deleteDashboard(dashboardToDelete.id);
+      showSuccess('Tableau de bord supprimé avec succès !');
+      setShowDeleteDashboardModal(false);
+      setDashboardToDelete(null);
+    } catch (error) {
+      console.error('Erreur lors de la suppression du tableau de bord:', error);
+      showError('Erreur lors de la suppression du tableau de bord.');
+    } finally {
+      setIsDeletingDashboard(false);
     }
   };
 
@@ -161,10 +188,6 @@ export const DirecteurDashboard: React.FC = () => {
     navigate(`/directeur/dashboards/${dashboard.id}`);
   };
 
-  const handleCloseDetailModal = () => {
-    setShowDetailModal(false);
-    setSelectedDashboard(null);
-  };
 
   const handleViewResponses = (formId: string) => {
     navigate(`/responses/${formId}`);
@@ -708,41 +731,112 @@ export const DirecteurDashboard: React.FC = () => {
         agencyId={user?.agencyId || ''}
       />
 
-      {/* Dashboard Detail Modal */}
-      <DashboardDetailModal
-        isOpen={showDetailModal}
-        onClose={handleCloseDetailModal}
-        dashboard={selectedDashboard}
-        formEntries={formEntries}
-        forms={forms}
-        onEditDashboard={(dashboard) => {
-          // Show coming soon modal instead of alert
-          setComingSoonTitle(`Édition du tableau de bord "${dashboard.name}"`);
-          setComingSoonDescription('Cette fonctionnalité d\'édition sera bientôt disponible.');
-          setShowComingSoonModal(true);
-        }}
-        onDeleteDashboard={handleDeleteDashboard}
-        onEditMetric={(dashboard, metricIndex) => {
-          // Show coming soon modal instead of alert
-          setComingSoonTitle(`Édition de la métrique "${dashboard.metrics[metricIndex].name}"`);
-          setComingSoonDescription('Cette fonctionnalité d\'édition de métrique sera bientôt disponible.');
-          setShowComingSoonModal(true);
-        }}
-        onDeleteMetric={(dashboard, metricIndex) => {
-          // Show coming soon modal instead of alert
-          setComingSoonTitle(`Suppression de la métrique "${dashboard.metrics[metricIndex].name}"`);
-          setComingSoonDescription('Cette fonctionnalité de suppression sera bientôt disponible.');
-          setShowComingSoonModal(true);
-        }}
-      />
 
       {/* Coming Soon Modal */}
       <ComingSoonModal
         isOpen={showComingSoonModal}
         onClose={() => setShowComingSoonModal(false)}
-        title={comingSoonTitle}
-        description={comingSoonDescription}
+        title="Fonctionnalité bientôt disponible"
+        description="Cette fonctionnalité sera bientôt disponible."
       />
+
+      {/* Delete Form Confirmation Modal */}
+      {showDeleteFormModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
+            <div className="p-6">
+              <div className="flex items-center space-x-3 mb-4">
+                <div className="flex-shrink-0 w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
+                  <Trash2 className="h-5 w-5 text-red-600" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-medium text-gray-900">Supprimer le formulaire</h3>
+                  <p className="text-sm text-gray-500">Cette action est irréversible</p>
+                </div>
+              </div>
+              <p className="text-gray-700 mb-6">
+                Êtes-vous sûr de vouloir supprimer le formulaire <strong>"{formToDelete?.title}"</strong> ? 
+                Toutes les réponses associées seront également supprimées.
+              </p>
+              <div className="flex justify-end space-x-3">
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    setShowDeleteFormModal(false);
+                    setFormToDelete(null);
+                  }}
+                >
+                  Annuler
+                </Button>
+                <Button
+                  variant="danger"
+                  onClick={confirmDeleteForm}
+                  disabled={isDeletingForm}
+                  className={isDeletingForm ? 'opacity-75 cursor-not-allowed' : ''}
+                >
+                  {isDeletingForm ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                      Suppression...
+                    </>
+                  ) : (
+                    'Supprimer'
+                  )}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Dashboard Confirmation Modal */}
+      {showDeleteDashboardModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
+            <div className="p-6">
+              <div className="flex items-center space-x-3 mb-4">
+                <div className="flex-shrink-0 w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
+                  <Trash2 className="h-5 w-5 text-red-600" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-medium text-gray-900">Supprimer le tableau de bord</h3>
+                  <p className="text-sm text-gray-500">Cette action est irréversible</p>
+                </div>
+              </div>
+              <p className="text-gray-700 mb-6">
+                Êtes-vous sûr de vouloir supprimer le tableau de bord <strong>"{dashboardToDelete?.name}"</strong> ? 
+                Toutes les métriques associées seront également supprimées.
+              </p>
+              <div className="flex justify-end space-x-3">
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    setShowDeleteDashboardModal(false);
+                    setDashboardToDelete(null);
+                  }}
+                >
+                  Annuler
+                </Button>
+                <Button
+                  variant="danger"
+                  onClick={confirmDeleteDashboard}
+                  disabled={isDeletingDashboard}
+                  className={isDeletingDashboard ? 'opacity-75 cursor-not-allowed' : ''}
+                >
+                  {isDeletingDashboard ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                      Suppression...
+                    </>
+                  ) : (
+                    'Supprimer'
+                  )}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Toast Notification */}
       <Toast

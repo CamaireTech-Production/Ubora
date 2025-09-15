@@ -12,6 +12,7 @@ import { useApp } from '../contexts/AppContext';
 import { db, auth } from '../firebaseConfig';
 import { doc, getDoc } from 'firebase/firestore';
 import { Upload, CheckCircle, AlertCircle, X, Clock, AlertTriangle, Loader2 } from 'lucide-react';
+import { useToast } from '../hooks/useToast';
 
 interface DynamicFormProps {
   form: Form;
@@ -34,6 +35,7 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
 }) => {
   const { user } = useAuth();
   const { submitFormEntry } = useApp();
+  const { showError, showSuccess } = useToast();
   const [answers, setAnswers] = useState<Record<string, any>>(initialAnswers);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [fileAttachments, setFileAttachments] = useState<FileAttachment[]>(initialFileAttachments);
@@ -238,7 +240,7 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
     
     // Check time restrictions first
     if (!isWithinTimeRestrictions()) {
-      alert('Ce formulaire ne peut pas être soumis en dehors des heures autorisées.');
+      showError('Ce formulaire ne peut pas être soumis en dehors des heures autorisées.');
       return;
     }
     
@@ -304,7 +306,7 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
 
       } catch (error) {
         console.error('❌ Error storing form response:', error);
-        alert('Erreur lors de la sauvegarde de la réponse. Veuillez réessayer.');
+        showError('Erreur lors de la sauvegarde de la réponse. Veuillez réessayer.');
       } finally {
         setIsSubmitting(false);
       }

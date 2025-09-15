@@ -11,6 +11,7 @@ import { Select } from '../components/Select';
 import { MetricCalculator } from '../utils/MetricCalculator';
 import { useToast } from '../hooks/useToast';
 import { Toast } from '../components/Toast';
+import { ComingSoonModal } from '../components/ComingSoonModal';
 import { 
   ArrowLeft, 
   BarChart3, 
@@ -55,6 +56,15 @@ export const DashboardDetailPage: React.FC = () => {
     calculationType: 'count'
   });
   const [errors, setErrors] = useState<string[]>([]);
+  const [showDeleteDashboardModal, setShowDeleteDashboardModal] = useState(false);
+  const [showDeleteMetricModal, setShowDeleteMetricModal] = useState(false);
+  const [metricToDelete, setMetricToDelete] = useState<{index: number, name: string} | null>(null);
+  const [showComingSoonModal, setShowComingSoonModal] = useState(false);
+  const [comingSoonTitle, setComingSoonTitle] = useState('');
+  const [comingSoonDescription, setComingSoonDescription] = useState('');
+  const [isDeletingDashboard, setIsDeletingDashboard] = useState(false);
+  const [isDeletingMetric, setIsDeletingMetric] = useState(false);
+  const [isAddingMetric, setIsAddingMetric] = useState(false);
 
   // Find the dashboard
   const dashboard = dashboards.find(d => d.id === dashboardId) || null;
@@ -135,38 +145,52 @@ export const DashboardDetailPage: React.FC = () => {
     }
   };
 
-  const handleDeleteDashboard = async () => {
-    if (!dashboard || !window.confirm(`Êtes-vous sûr de vouloir supprimer le tableau de bord "${dashboard.name}" ?`)) {
-      return;
-    }
+  const handleDeleteDashboard = () => {
+    setShowDeleteDashboardModal(true);
+  };
 
+  const confirmDeleteDashboard = async () => {
+    if (!dashboard) return;
+
+    setIsDeletingDashboard(true);
     try {
       await deleteDashboard(dashboard.id);
       showSuccess('Tableau de bord supprimé avec succès !');
-      navigate('/directeur/dashboards');
+      setShowDeleteDashboardModal(false);
+      navigate('/directeur/dashboard');
     } catch (error) {
       console.error('Erreur lors de la suppression du tableau de bord:', error);
       showError('Erreur lors de la suppression du tableau de bord. Veuillez réessayer.');
+    } finally {
+      setIsDeletingDashboard(false);
     }
   };
 
-  const handleDeleteMetric = async (metricIndex: number) => {
+  const handleDeleteMetric = (metricIndex: number) => {
     if (!dashboard) return;
     
     const metric = dashboard.metrics[metricIndex];
-    if (!window.confirm(`Êtes-vous sûr de vouloir supprimer la métrique "${metric.name}" ?`)) {
-      return;
-    }
+    setMetricToDelete({ index: metricIndex, name: metric.name });
+    setShowDeleteMetricModal(true);
+  };
 
+  const confirmDeleteMetric = async () => {
+    if (!dashboard || !metricToDelete) return;
+
+    setIsDeletingMetric(true);
     try {
-      const updatedMetrics = dashboard.metrics.filter((_, index) => index !== metricIndex);
+      const updatedMetrics = dashboard.metrics.filter((_, index) => index !== metricToDelete.index);
       await updateDashboard(dashboard.id, {
         metrics: updatedMetrics
       });
       showSuccess('Métrique supprimée avec succès !');
+      setShowDeleteMetricModal(false);
+      setMetricToDelete(null);
     } catch (error) {
       console.error('Erreur lors de la suppression de la métrique:', error);
       showError('Erreur lors de la suppression de la métrique. Veuillez réessayer.');
+    } finally {
+      setIsDeletingMetric(false);
     }
   };
 
@@ -200,6 +224,7 @@ export const DashboardDetailPage: React.FC = () => {
       return;
     }
 
+    setIsAddingMetric(true);
     try {
       const metricToAdd: DashboardMetric = {
         ...newMetric,
@@ -219,6 +244,8 @@ export const DashboardDetailPage: React.FC = () => {
     } catch (error) {
       console.error('Erreur lors de l\'ajout de la métrique:', error);
       showError('Erreur lors de l\'ajout de la métrique. Veuillez réessayer.');
+    } finally {
+      setIsAddingMetric(false);
     }
   };
 
@@ -269,8 +296,9 @@ export const DashboardDetailPage: React.FC = () => {
               variant="secondary"
               size="sm"
               onClick={() => {
-                // TODO: Implement edit dashboard functionality
-                showError('Fonctionnalité d\'édition bientôt disponible');
+                setComingSoonTitle(`Édition du tableau de bord "${dashboard.name}"`);
+                setComingSoonDescription('Cette fonctionnalité d\'édition sera bientôt disponible.');
+                setShowComingSoonModal(true);
               }}
               className="flex items-center space-x-2"
             >
@@ -368,16 +396,17 @@ export const DashboardDetailPage: React.FC = () => {
 
                   {/* Action buttons */}
                   <div className="flex items-center justify-end space-x-1 mb-3">
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      onClick={() => {
-                        // TODO: Implement edit metric functionality
-                        showError('Fonctionnalité d\'édition bientôt disponible');
-                      }}
-                      className="p-1"
-                      title="Modifier la métrique"
-                    >
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => {
+                          setComingSoonTitle(`Édition de la métrique "${metric.name}"`);
+                          setComingSoonDescription('Cette fonctionnalité d\'édition de métrique sera bientôt disponible.');
+                          setShowComingSoonModal(true);
+                        }}
+                        className="p-1"
+                        title="Modifier la métrique"
+                      >
                       <Edit className="h-3 w-3" />
                     </Button>
                     <Button
@@ -584,14 +613,124 @@ export const DashboardDetailPage: React.FC = () => {
               </Button>
               <Button
                 onClick={handleSaveMetric}
-                disabled={!newMetric.name.trim() || !newMetric.fieldId}
+                disabled={!newMetric.name.trim() || !newMetric.fieldId || isAddingMetric}
+                className={isAddingMetric ? 'opacity-75 cursor-not-allowed' : ''}
               >
-                Ajouter la métrique
+                {isAddingMetric ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                    Ajout...
+                  </>
+                ) : (
+                  'Ajouter la métrique'
+                )}
               </Button>
             </div>
           </div>
         </div>
       )}
+
+      {/* Delete Dashboard Confirmation Modal */}
+      {showDeleteDashboardModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
+            <div className="p-6">
+              <div className="flex items-center space-x-3 mb-4">
+                <div className="flex-shrink-0 w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
+                  <Trash2 className="h-5 w-5 text-red-600" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-medium text-gray-900">Supprimer le tableau de bord</h3>
+                  <p className="text-sm text-gray-500">Cette action est irréversible</p>
+                </div>
+              </div>
+              <p className="text-gray-700 mb-6">
+                Êtes-vous sûr de vouloir supprimer le tableau de bord <strong>"{dashboard?.name}"</strong> ? 
+                Toutes les métriques associées seront également supprimées.
+              </p>
+              <div className="flex justify-end space-x-3">
+                <Button
+                  variant="secondary"
+                  onClick={() => setShowDeleteDashboardModal(false)}
+                >
+                  Annuler
+                </Button>
+                <Button
+                  variant="danger"
+                  onClick={confirmDeleteDashboard}
+                  disabled={isDeletingDashboard}
+                  className={isDeletingDashboard ? 'opacity-75 cursor-not-allowed' : ''}
+                >
+                  {isDeletingDashboard ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                      Suppression...
+                    </>
+                  ) : (
+                    'Supprimer'
+                  )}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Metric Confirmation Modal */}
+      {showDeleteMetricModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
+            <div className="p-6">
+              <div className="flex items-center space-x-3 mb-4">
+                <div className="flex-shrink-0 w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
+                  <Trash2 className="h-5 w-5 text-red-600" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-medium text-gray-900">Supprimer la métrique</h3>
+                  <p className="text-sm text-gray-500">Cette action est irréversible</p>
+                </div>
+              </div>
+              <p className="text-gray-700 mb-6">
+                Êtes-vous sûr de vouloir supprimer la métrique <strong>"{metricToDelete?.name}"</strong> ?
+              </p>
+              <div className="flex justify-end space-x-3">
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    setShowDeleteMetricModal(false);
+                    setMetricToDelete(null);
+                  }}
+                >
+                  Annuler
+                </Button>
+                <Button
+                  variant="danger"
+                  onClick={confirmDeleteMetric}
+                  disabled={isDeletingMetric}
+                  className={isDeletingMetric ? 'opacity-75 cursor-not-allowed' : ''}
+                >
+                  {isDeletingMetric ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                      Suppression...
+                    </>
+                  ) : (
+                    'Supprimer'
+                  )}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Coming Soon Modal */}
+      <ComingSoonModal
+        isOpen={showComingSoonModal}
+        onClose={() => setShowComingSoonModal(false)}
+        title={comingSoonTitle}
+        description={comingSoonDescription}
+      />
 
       {/* Toast Notification */}
       <Toast

@@ -11,7 +11,6 @@ import { DirecteurChat } from './pages/DirecteurChat';
 import { EmployeDashboard } from './pages/EmployeDashboard';
 import { UnauthorizedPage } from './pages/UnauthorizedPage';
 import { PendingApprovalPage } from './pages/PendingApprovalPage';
-import { DashboardManagement } from './pages/DashboardManagement';
 import { DashboardDetailPage } from './pages/DashboardDetailPage';
 import { ResponseDetailPage } from './pages/ResponseDetailPage';
 import { PWAInstallPrompt } from './components/PWAInstallPrompt';
@@ -53,15 +52,6 @@ function App() {
               } 
             />
             
-            {/* Gestion des tableaux de bord */}
-            <Route 
-              path="/directeur/dashboards" 
-              element={
-                <ProtectedRoute allowedRoles={['directeur']}>
-                  <DashboardManagement />
-                </ProtectedRoute>
-              } 
-            />
             
             {/* Détail d'un tableau de bord */}
             <Route 

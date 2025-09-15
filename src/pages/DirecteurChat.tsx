@@ -11,6 +11,7 @@ import { FloatingSidePanel } from '../components/chat/FloatingSidePanel';
 import { Footer } from '../components/Footer';
 import { ResponseParser } from '../utils/ResponseParser';
 import { ChatMessage } from '../types';
+import { useToast } from '../hooks/useToast';
 
 // Remove the old Message interface since we're using ChatMessage from types
 
@@ -55,6 +56,7 @@ export const DirecteurChat: React.FC = () => {
     addMessage
   } = useConversation();
   
+  const { showError } = useToast();
   const [inputMessage, setInputMessage] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [selectedFormat, setSelectedFormat] = useState<string | null>(null);
@@ -101,7 +103,7 @@ export const DirecteurChat: React.FC = () => {
         conversationId = await createNewConversation();
       } catch (error) {
         console.error('Error creating conversation:', error);
-        alert('Erreur lors de la création de la conversation');
+        showError('Erreur lors de la création de la conversation');
         return;
       }
     }

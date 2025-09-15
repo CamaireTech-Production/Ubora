@@ -372,7 +372,7 @@ const PDFModal: React.FC<PDFModalProps> = ({ data, isOpen, onClose }) => {
   );
 };
 
-export const TextPDFPreview: React.FC<TextPDFPreviewProps> = ({ content, title = 'RAPPORT UBORA généré par ARCHA', onExpand }) => {
+export const TextPDFPreview: React.FC<TextPDFPreviewProps> = ({ content, title = 'Rapport Ubora', onExpand }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   const handleExpand = () => {
@@ -398,7 +398,7 @@ export const TextPDFPreview: React.FC<TextPDFPreviewProps> = ({ content, title =
             </div>
             <div>
               <h3 className="text-sm font-semibold text-gray-900">{title}</h3>
-              <p className="text-xs text-gray-500">Rapport généré par ARCHA</p>
+              <p className="text-xs text-gray-500">Rapport généré avec Archa</p>
             </div>
           </div>
           <div className="flex items-center space-x-2">
@@ -446,7 +446,7 @@ export const TextPDFPreview: React.FC<TextPDFPreviewProps> = ({ content, title =
                 </div>
                 <div>
                   <h2 className="text-xl font-bold text-gray-900">{title}</h2>
-                  <p className="text-sm text-gray-500">Rapport généré par ARCHA</p>
+                  <p className="text-sm text-gray-500">Rapport généré avec Archa</p>
                 </div>
               </div>
               <div className="flex items-center space-x-3">

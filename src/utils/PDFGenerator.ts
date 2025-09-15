@@ -12,12 +12,15 @@ export class PDFGenerator {
     this.doc = new jsPDF();
   }
 
-  generateReportFromText(content: string, title: string = 'RAPPORT UBORA généré par ARCHA'): void {
+  generateReportFromText(content: string, title: string = 'Rapport Ubora'): void {
     this.doc = new jsPDF();
     this.currentY = 20;
 
     // Add title
     this.addTitle(title);
+    
+    // Add subtitle
+    this.addSubtitle('Rapport généré avec Archa');
     
     // Add generation date
     this.addSubtitle(`Généré le ${new Date().toLocaleDateString('fr-FR')} à ${new Date().toLocaleTimeString('fr-FR')}`);
