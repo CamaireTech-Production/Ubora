@@ -113,7 +113,7 @@ export const DirecteurChat: React.FC = () => {
       content: messageToSend,
       timestamp: new Date(),
         meta: {
-          selectedFormat: isMultiFormat ? null : actualFormats[0],
+          ...(isMultiFormat || actualFormats.length === 0 ? {} : { selectedFormat: actualFormats[0] }),
           selectedFormats: actualFormats,
           selectedFormIds: formsToAnalyze,
           selectedFormTitles: forms.filter(form => formsToAnalyze.includes(form.id)).map(form => form.title)
@@ -250,7 +250,7 @@ export const DirecteurChat: React.FC = () => {
       const responseTime = Date.now() - startTime;
 
       // Parse the AI response to detect graph/PDF data
-      const parsedResponse = ResponseParser.parseAIResponse(data.answer, messageToSend, isMultiFormat ? null : actualFormats[0], actualFormats);
+      const parsedResponse = ResponseParser.parseAIResponse(data.answer, messageToSend, isMultiFormat || actualFormats.length === 0 ? undefined : actualFormats[0], actualFormats);
 
       // Create assistant message with parsed content
       const assistantMessage = ResponseParser.createMessageFromParsedResponse(
@@ -259,7 +259,7 @@ export const DirecteurChat: React.FC = () => {
         responseTime,
         {
           ...data.meta,
-          selectedFormat: isMultiFormat ? null : actualFormats[0],
+          ...(isMultiFormat || actualFormats.length === 0 ? {} : { selectedFormat: actualFormats[0] }),
           selectedFormats: actualFormats,
           selectedFormIds: formsToAnalyze,
           selectedFormTitles: forms.filter(form => formsToAnalyze.includes(form.id)).map(form => form.title)
