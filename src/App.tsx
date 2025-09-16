@@ -13,6 +13,7 @@ import { UnauthorizedPage } from './pages/UnauthorizedPage';
 import { PendingApprovalPage } from './pages/PendingApprovalPage';
 import { DashboardDetailPage } from './pages/DashboardDetailPage';
 import { ResponseDetailPage } from './pages/ResponseDetailPage';
+import { PackagesPage } from './pages/PackagesPage';
 import { PWAInstallPrompt } from './components/PWAInstallPrompt';
 // import { PWAUpdateNotification } from './components/PWAUpdateNotification';
 
@@ -79,6 +80,16 @@ function App() {
               element={
                 <ProtectedRoute allowedRoles={['employe', 'directeur']}>
                   <ResponseDetailPage />
+                </ProtectedRoute>
+              } 
+            />
+            
+            {/* Page des packages */}
+            <Route 
+              path="/packages" 
+              element={
+                <ProtectedRoute allowedRoles={['directeur']}>
+                  <PackagesPage />
                 </ProtectedRoute>
               } 
             />

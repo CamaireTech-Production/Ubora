@@ -12,6 +12,8 @@ import { Footer } from '../components/Footer';
 import { ResponseParser } from '../utils/ResponseParser';
 import { ChatMessage } from '../types';
 import { useToast } from '../hooks/useToast';
+import { usePackageAccess } from '../hooks/usePackageAccess';
+import { TokenService } from '../services/tokenService';
 
 // Remove the old Message interface since we're using ChatMessage from types
 
@@ -45,6 +47,7 @@ if (!AI_ENDPOINT) {
 export const DirecteurChat: React.FC = () => {
   const { user, firebaseUser, isLoading, logout } = useAuth();
   const { forms, formEntries, employees, isLoading: appLoading } = useApp();
+  const { getMonthlyTokens, hasUnlimitedTokens } = usePackageAccess();
   const { 
     currentConversation, 
     conversations, 
@@ -86,6 +89,20 @@ export const DirecteurChat: React.FC = () => {
   const handleSendMessage = async (message?: string) => {
     const messageToSend = message || inputMessage.trim();
     if (!messageToSend || isTyping) return;
+
+    // Vérifier les tokens avant d'envoyer
+    if (user) {
+      const monthlyLimit = getMonthlyTokens();
+      const isUnlimited = hasUnlimitedTokens();
+      
+      if (!isUnlimited) {
+        const canUseTokens = TokenService.canUseTokens(user, 100, monthlyLimit); // Estimation de 100 tokens par requête
+        if (!canUseTokens) {
+          showError('Limite de tokens IA atteinte. Veuillez mettre à niveau votre package.');
+          return;
+        }
+      }
+    }
 
     const startTime = Date.now();
 
@@ -248,6 +265,24 @@ export const DirecteurChat: React.FC = () => {
       console.log('📥 Response status:', response.status);
       console.log('📥 Response data:', JSON.stringify(data, null, 2));
       console.log('⏱️ Response time:', Date.now() - startTime, 'ms');
+
+      // Soustraire les tokens utilisés
+      if (user && data.meta?.tokensUsed) {
+        const tokensUsed = data.meta.tokensUsed;
+        const success = await TokenService.subtractTokens(user.id, tokensUsed);
+        if (success) {
+          console.log(`✅ ${tokensUsed} tokens soustraits pour l'utilisateur ${user.id}`);
+        } else {
+          console.error('❌ Erreur lors de la soustraction des tokens');
+        }
+      } else if (user) {
+        // Si pas de tokens dans la réponse, soustraire une estimation
+        const estimatedTokens = 100;
+        const success = await TokenService.subtractTokens(user.id, estimatedTokens);
+        if (success) {
+          console.log(`✅ ${estimatedTokens} tokens estimés soustraits pour l'utilisateur ${user.id}`);
+        }
+      }
 
       const responseTime = Date.now() - startTime;
 
@@ -432,6 +467,7 @@ export const DirecteurChat: React.FC = () => {
             showComprehensiveFilter={true}
             allowMultipleFormats={true}
           />
+
 
           {/* Floating side panel */}
           <FloatingSidePanel

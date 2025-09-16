@@ -17,6 +17,9 @@ import { DashboardDisplay } from '../components/DashboardDisplay';
 import { ComingSoonModal } from '../components/ComingSoonModal';
 import { useToast } from '../hooks/useToast';
 import { Toast } from '../components/Toast';
+import { usePackageAccess } from '../hooks/usePackageAccess';
+import { PackageInfo, LimitReached } from '../components/PackageInfo';
+import { LimitReachedModal } from '../components/LimitReachedModal';
 
 export const DirecteurDashboard: React.FC = () => {
   const navigate = useNavigate();
@@ -36,6 +39,13 @@ export const DirecteurDashboard: React.FC = () => {
     isLoading: appLoading
   } = useApp();
   const { toast, showSuccess, showError } = useToast();
+  const { 
+    canCreateForm, 
+    canCreateDashboard, 
+    getLimit, 
+    isLimitUnlimited,
+    packageType 
+  } = usePackageAccess();
   
   const [showFormBuilder, setShowFormBuilder] = useState(false);
   const [editingForm, setEditingForm] = useState<Form | null>(null);
@@ -47,6 +57,8 @@ export const DirecteurDashboard: React.FC = () => {
   const [dashboardToDelete, setDashboardToDelete] = useState<{id: string, name: string} | null>(null);
   const [isDeletingForm, setIsDeletingForm] = useState(false);
   const [isDeletingDashboard, setIsDeletingDashboard] = useState(false);
+  const [showLimitModal, setShowLimitModal] = useState(false);
+  const [limitModalType, setLimitModalType] = useState<'forms' | 'dashboards' | 'users'>('forms');
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   
   // États pour le filtrage temporel
@@ -88,6 +100,24 @@ export const DirecteurDashboard: React.FC = () => {
     } catch (error) {
       console.error('Erreur lors de la création du formulaire:', error);
       showError('Erreur lors de la création du formulaire. Veuillez réessayer.');
+    }
+  };
+
+  const handleFormButtonClick = () => {
+    if (!canCreateForm(forms.length)) {
+      setLimitModalType('forms');
+      setShowLimitModal(true);
+    } else {
+      setShowFormBuilder(true);
+    }
+  };
+
+  const handleDashboardButtonClick = () => {
+    if (!canCreateDashboard(dashboards.length)) {
+      setLimitModalType('dashboards');
+      setShowLimitModal(true);
+    } else {
+      setShowDashboardModal(true);
     }
   };
 
@@ -535,10 +565,11 @@ export const DirecteurDashboard: React.FC = () => {
               onApprovalChange={refreshData}
             />
 
+
             {/* Actions principales */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
               <Button
-                onClick={() => setShowFormBuilder(true)}
+                onClick={handleFormButtonClick}
                 className="flex items-center justify-center space-x-2 w-full text-sm sm:text-base"
               >
                 <Plus className="h-4 w-4 sm:h-5 sm:w-5" />
@@ -546,7 +577,7 @@ export const DirecteurDashboard: React.FC = () => {
               </Button>
               
               <Button
-                onClick={() => setShowDashboardModal(true)}
+                onClick={handleDashboardButtonClick}
                 variant="secondary"
                 className="flex items-center justify-center space-x-2 w-full text-sm sm:text-base"
               >
@@ -569,7 +600,9 @@ export const DirecteurDashboard: React.FC = () => {
                       }
                     </p>
                     {timeFilter === 'all' && (
-                      <Button onClick={() => setShowFormBuilder(true)}>
+                      <Button 
+                        onClick={handleFormButtonClick}
+                      >
                         Créer votre premier formulaire
                       </Button>
                     )}
@@ -702,7 +735,9 @@ export const DirecteurDashboard: React.FC = () => {
                       }
                     </p>
                     {timeFilter === 'all' && (
-                      <Button onClick={() => setShowDashboardModal(true)}>
+                      <Button 
+                        onClick={handleDashboardButtonClick}
+                      >
                         Créer votre premier tableau de bord
                       </Button>
                     )}
@@ -758,6 +793,19 @@ export const DirecteurDashboard: React.FC = () => {
         onClose={() => setShowComingSoonModal(false)}
         title="Fonctionnalité bientôt disponible"
         description="Cette fonctionnalité sera bientôt disponible."
+      />
+
+      {/* Limit Reached Modal */}
+      <LimitReachedModal
+        isOpen={showLimitModal}
+        onClose={() => setShowLimitModal(false)}
+        type={limitModalType}
+        current={limitModalType === 'forms' ? forms.length : dashboards.length}
+        limit={limitModalType === 'forms' ? getLimit('maxForms') : getLimit('maxDashboards')}
+        onUpgrade={() => {
+          setShowLimitModal(false);
+          navigate('/packages');
+        }}
       />
 
       {/* Delete Form Confirmation Modal */}

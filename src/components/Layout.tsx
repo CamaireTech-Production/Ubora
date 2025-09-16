@@ -1,8 +1,9 @@
 import React from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from './Button';
 import { Footer } from './Footer';
+import { UserPackageInfo } from './UserPackageInfo';
 import { LogOut, BarChart3, MessageSquare, Menu, X } from 'lucide-react';
 
 interface LayoutProps {
@@ -13,6 +14,7 @@ interface LayoutProps {
 export const Layout: React.FC<LayoutProps> = ({ children, title }) => {
   const { user, logout } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
   const menuRef = React.useRef<HTMLDivElement>(null);
   
@@ -85,10 +87,21 @@ export const Layout: React.FC<LayoutProps> = ({ children, title }) => {
             
             <div className="flex items-center space-x-2 sm:space-x-4">
               {/* Profil utilisateur - masqué sur très petit écran */}
-              <div className="hidden sm:block text-right">
+              <div 
+                className={`hidden sm:block text-right ${isDirecteur ? 'cursor-pointer hover:bg-gray-50 rounded-lg p-2 transition-colors' : ''}`}
+                onClick={isDirecteur ? () => navigate('/packages') : undefined}
+                title={isDirecteur ? 'Cliquer pour voir les packages' : undefined}
+              >
                 <p className="text-sm font-medium text-gray-900 truncate max-w-[120px] lg:max-w-none">{user?.name}</p>
                 <p className="text-xs text-gray-500 truncate max-w-[120px] lg:max-w-none">{user?.email}</p>
               </div>
+              
+              {/* Package info pour les directeurs */}
+              {isDirecteur && user?.package && (
+                <div className="hidden md:block">
+                  <UserPackageInfo showTokens={true} clickable={true} />
+                </div>
+              )}
               
               {/* Bouton menu mobile pour directeur */}
               {isDirecteur && (
@@ -145,9 +158,23 @@ export const Layout: React.FC<LayoutProps> = ({ children, title }) => {
               </Button>
               
               {/* Profil utilisateur mobile */}
-              <div className="sm:hidden pt-2 border-t border-gray-200 mx-2 text-center">
+              <div 
+                className={`sm:hidden pt-2 border-t border-gray-200 mx-2 text-center ${isDirecteur ? 'cursor-pointer hover:bg-gray-50 rounded-lg p-2 transition-colors' : ''}`}
+                onClick={isDirecteur ? () => {
+                  navigate('/packages');
+                  closeMobileMenu();
+                } : undefined}
+                title={isDirecteur ? 'Cliquer pour voir les packages' : undefined}
+              >
                 <p className="text-sm font-medium text-gray-900">{user?.name}</p>
                 <p className="text-xs text-gray-500">{user?.email}</p>
+                
+                {/* Package info dans le menu mobile */}
+                {user?.package && (
+                  <div className="mt-2 flex justify-center">
+                    <UserPackageInfo showTokens={true} clickable={false} />
+                  </div>
+                )}
               </div>
             </div>
           )}

@@ -1,8 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send } from 'lucide-react';
+import { Send, Brain } from 'lucide-react';
 import { Button } from '../Button';
 import { FormatSelector } from './FormatSelector';
 import { ComprehensiveFilter } from './ComprehensiveFilter';
+import { useAuth } from '../../contexts/AuthContext';
+import { usePackageAccess } from '../../hooks/usePackageAccess';
+import { TokenService } from '../../services/tokenService';
 
 interface Form {
   id: string;
@@ -67,8 +70,15 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
   showComprehensiveFilter = true,
   allowMultipleFormats = false
 }) => {
+  const { user } = useAuth();
+  const { getMonthlyTokens, hasUnlimitedTokens } = usePackageAccess();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [rows, setRows] = useState(1);
+
+  // Calculer les tokens restants
+  const monthlyLimit = getMonthlyTokens();
+  const isUnlimited = hasUnlimitedTokens();
+  const remainingTokens = user && user.package ? TokenService.getRemainingTokens(user, monthlyLimit) : 0;
 
   // Auto-resize textarea
   useEffect(() => {
@@ -188,6 +198,23 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
           </div>
           </div>
         </div>
+        
+        {/* Affichage des tokens restants */}
+        {user && user.package && (
+          <div className="flex items-center justify-center space-x-1 text-xs text-gray-500 mt-2">
+            <Brain className="h-3 w-3 text-blue-500" />
+            <span>
+              {isUnlimited ? (
+                <span className="text-green-600 font-medium">Tokens illimités</span>
+              ) : (
+                <span>
+                  <span className="font-medium text-gray-700">{remainingTokens.toLocaleString()}</span>
+                  <span className="text-gray-400"> tokens restants</span>
+                </span>
+              )}
+            </span>
+          </div>
+        )}
       </div>
     </div>
   );

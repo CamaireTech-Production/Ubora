@@ -16,6 +16,7 @@ import { db } from '../firebaseConfig';
 import { Form, FormEntry, User, DraftResponse, Dashboard } from '../types';
 import { DraftService } from '../services/draftService';
 import { useAuth } from './AuthContext';
+import { usePackageAccess } from '../hooks/usePackageAccess';
 
 interface AppContextType {
   forms: Form[];
@@ -53,6 +54,7 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, firebaseUser } = useAuth();
+  const { canCreateForm, canCreateDashboard } = usePackageAccess();
   const [forms, setForms] = useState<Form[]>([]);
   const [formEntries, setFormEntries] = useState<FormEntry[]>([]);
   const [employees, setEmployees] = useState<User[]>([]);
@@ -239,6 +241,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const createForm = async (formData: Omit<Form, 'id' | 'createdAt'>) => {
     if (!user || user.role !== 'directeur' || !user.agencyId) {
       throw new Error('Seuls les directeurs peuvent créer des formulaires');
+    }
+
+    // Vérifier les limites du package
+    if (!canCreateForm(forms.length)) {
+      throw new Error('Limite de formulaires atteinte pour votre package. Veuillez mettre à niveau votre abonnement.');
     }
 
     try {
@@ -459,6 +466,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const createDashboard = async (dashboardData: Omit<Dashboard, 'id' | 'createdAt'>) => {
     if (!user || user.role !== 'directeur' || !user.agencyId) {
       throw new Error('Seuls les directeurs peuvent créer des tableaux de bord');
+    }
+
+    // Vérifier les limites du package
+    if (!canCreateDashboard(dashboards.length)) {
+      throw new Error('Limite de tableaux de bord atteinte pour votre package. Veuillez mettre à niveau votre abonnement.');
     }
 
     try {

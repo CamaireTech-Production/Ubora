@@ -49,6 +49,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           email: firebaseUser.email || '',
           role: additionalData.role || 'employe',
           agencyId: additionalData.agencyId || '',
+          ...(additionalData.role === 'directeur' && {
+            package: additionalData.package || 'starter', // Package seulement pour les directeurs
+            tokensUsedMonthly: 0,
+            tokensResetDate: serverTimestamp()
+          }),
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp()
         };
@@ -187,6 +192,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           email: result.user.email || '',
           role: 'employe', // Rôle par défaut
           agencyId: '', // L'utilisateur devra saisir son ID d'agence
+          // Pas de package pour les employés
           isApproved: false, // Les employés Google Auth doivent être approuvés
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp()
@@ -228,6 +234,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         email: email.trim().toLowerCase(),
         role,
         agencyId: agencyId.trim(),
+        ...(role === 'directeur' && {
+          package: 'starter', // Package seulement pour les directeurs
+          tokensUsedMonthly: 0,
+          tokensResetDate: serverTimestamp()
+        }),
         isApproved: role === 'directeur' ? true : false, // Les directeurs sont automatiquement approuvés
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
