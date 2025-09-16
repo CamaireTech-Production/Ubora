@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Form, FormField, FileAttachment } from '../types';
 import { Button } from './Button';
 import { Input } from './Input';
@@ -11,8 +11,9 @@ import { useAuth } from '../contexts/AuthContext';
 import { useApp } from '../contexts/AppContext';
 import { db, auth } from '../firebaseConfig';
 import { doc, getDoc } from 'firebase/firestore';
-import { Upload, CheckCircle, AlertCircle, X, Clock, AlertTriangle, Loader2 } from 'lucide-react';
+import { Upload, CheckCircle, AlertCircle, X, Clock, AlertTriangle, Loader2, Calculator } from 'lucide-react';
 import { useToast } from '../hooks/useToast';
+import { ExpressionCalculator } from '../utils/ExpressionCalculator';
 
 interface DynamicFormProps {
   form: Form;
@@ -106,10 +107,16 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
   };
 
   const handleFieldChange = (fieldId: string, value: any) => {
-    setAnswers(prev => ({
-      ...prev,
-      [fieldId]: value
-    }));
+    setAnswers(prev => {
+      const newAnswers = {
+        ...prev,
+        [fieldId]: value
+      };
+      
+      // Recalculate all calculated fields that depend on this field
+      const updatedAnswers = recalculateDependentFields(fieldId, newAnswers);
+      return updatedAnswers;
+    });
     
     // Supprimer l'erreur si le champ est rempli
     if (errors[fieldId] && value) {
@@ -119,6 +126,42 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
       }));
     }
   };
+
+  // Function to recalculate all calculated fields
+  const recalculateAllCalculatedFields = (currentAnswers: Record<string, any>): Record<string, any> => {
+    const updatedAnswers = { ...currentAnswers };
+    
+    form.fields.forEach(field => {
+      if (field.type === 'calculated') {
+        const calculatedValue = ExpressionCalculator.calculateByType(field, updatedAnswers, form.fields);
+        updatedAnswers[field.id] = calculatedValue;
+      }
+    });
+    
+    return updatedAnswers;
+  };
+
+  // Function to recalculate fields that depend on a changed field
+  const recalculateDependentFields = (changedFieldId: string, currentAnswers: Record<string, any>): Record<string, any> => {
+    const updatedAnswers = { ...currentAnswers };
+    
+    form.fields.forEach(field => {
+      if (field.type === 'calculated' && field.dependsOn?.includes(changedFieldId)) {
+        const calculatedValue = ExpressionCalculator.calculateByType(field, updatedAnswers, form.fields);
+        updatedAnswers[field.id] = calculatedValue;
+      }
+    });
+    
+    return updatedAnswers;
+  };
+
+  // Recalculate all calculated fields when form loads or initial answers change
+  useEffect(() => {
+    if (Object.keys(answers).length > 0) {
+      const recalculatedAnswers = recalculateAllCalculatedFields(answers);
+      setAnswers(recalculatedAnswers);
+    }
+  }, [form.fields]); // Recalculate when form fields change
 
   const handleFileUpload = async (fieldId: string, file: File | null) => {
     if (!file || !user) return;
@@ -473,6 +516,57 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
               </div>
             )}
             
+          </div>
+        );
+      
+      case 'calculated':
+        const calculatedValue = answers[field.id] || 0;
+        const dependentFields = field.dependsOn || [];
+        const dependentFieldLabels = dependentFields
+          .map(fieldId => form.fields.find(f => f.id === fieldId)?.label)
+          .filter(Boolean);
+        
+        return (
+          <div key={field.id} className="space-y-2">
+            <label className="block text-sm font-medium text-gray-700">
+              {field.label + (field.required ? ' *' : '')}
+            </label>
+            
+            <div className="relative">
+              <Input
+                {...commonProps}
+                type="number"
+                value={calculatedValue}
+                readOnly
+                className="bg-gray-50 border-gray-300 pr-10"
+                placeholder="Calculé automatiquement"
+              />
+              <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                <Calculator className="h-4 w-4 text-gray-400" />
+              </div>
+            </div>
+            
+            {field.calculationType && (
+              <div className="text-xs text-gray-500">
+                <span className="font-medium">Type:</span> {field.calculationType}
+                {dependentFieldLabels.length > 0 && (
+                  <>
+                    <br />
+                    <span className="font-medium">Dépend de:</span> {dependentFieldLabels.join(', ')}
+                  </>
+                )}
+                {field.calculationFormula && (
+                  <>
+                    <br />
+                    <span className="font-medium">Formule:</span> {field.calculationFormula}
+                  </>
+                )}
+              </div>
+            )}
+            
+            {errors[field.id] && (
+              <span className="text-sm text-red-600">{errors[field.id]}</span>
+            )}
           </div>
         );
       

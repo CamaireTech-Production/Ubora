@@ -4,6 +4,8 @@ import { Button } from './Button';
 import { Card } from './Card';
 import { Input } from './Input';
 import { Textarea } from './Textarea';
+import { GraphPreview } from './charts/GraphPreview';
+import { GraphModal } from './charts/GraphModal';
 import { X, BarChart3, FileText, Hash, Type, Mail, Calendar, CheckSquare, Upload } from 'lucide-react';
 
 interface MetricEditModalProps {
@@ -33,8 +35,11 @@ export const MetricEditModal: React.FC<MetricEditModalProps> = ({
   const [fieldId, setFieldId] = useState('');
   const [fieldType, setFieldType] = useState<'text' | 'number' | 'email' | 'textarea' | 'select' | 'checkbox' | 'date' | 'file'>('text');
   const [calculationType, setCalculationType] = useState<'count' | 'sum' | 'average' | 'min' | 'max' | 'unique'>('count');
+  const [metricType, setMetricType] = useState<'value' | 'graph'>('value');
+  const [graphConfig, setGraphConfig] = useState<DashboardMetric['graphConfig']>(undefined);
   const [errors, setErrors] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [showGraphPreview, setShowGraphPreview] = useState(false);
 
   // Reset form when modal opens/closes or metric changes
   useEffect(() => {
@@ -45,6 +50,8 @@ export const MetricEditModal: React.FC<MetricEditModalProps> = ({
       setFieldId(metric.fieldId);
       setFieldType(metric.fieldType);
       setCalculationType(metric.calculationType);
+      setMetricType(metric.metricType || 'value');
+      setGraphConfig(metric.graphConfig);
       setErrors([]);
       setIsLoading(false);
     }
@@ -119,7 +126,9 @@ export const MetricEditModal: React.FC<MetricEditModalProps> = ({
         formId,
         fieldId,
         fieldType,
-        calculationType
+        calculationType,
+        metricType,
+        graphConfig
       });
       
       // Small delay to show loading animation
@@ -240,21 +249,194 @@ export const MetricEditModal: React.FC<MetricEditModalProps> = ({
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Type de calcul *
+                  Type d'affichage *
                 </label>
                 <select
-                  value={calculationType}
-                  onChange={(e) => setCalculationType(e.target.value as any)}
+                  value={metricType}
+                  onChange={(e) => {
+                    const newMetricType = e.target.value as 'value' | 'graph';
+                    setMetricType(newMetricType);
+                    if (newMetricType === 'graph') {
+                      setGraphConfig({
+                        xAxisType: 'time',
+                        yAxisType: 'count',
+                        chartType: 'line'
+                      });
+                    } else {
+                      setGraphConfig(undefined);
+                    }
+                  }}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 >
-                  <option value="count">Nombre</option>
-                  <option value="sum">Somme</option>
-                  <option value="average">Moyenne</option>
-                  <option value="min">Minimum</option>
-                  <option value="max">Maximum</option>
-                  <option value="unique">Valeurs uniques</option>
+                  <option value="value">Valeur numérique</option>
+                  <option value="graph">Graphique</option>
                 </select>
               </div>
+
+              {/* Value type configuration */}
+              {metricType === 'value' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Type de calcul *
+                  </label>
+                  <select
+                    value={calculationType}
+                    onChange={(e) => setCalculationType(e.target.value as any)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="count">Nombre</option>
+                    <option value="sum">Somme</option>
+                    <option value="average">Moyenne</option>
+                    <option value="min">Minimum</option>
+                    <option value="max">Maximum</option>
+                    <option value="unique">Valeurs uniques</option>
+                  </select>
+                </div>
+              )}
+
+              {/* Graph type configuration */}
+              {metricType === 'graph' && graphConfig && (
+                <div className="space-y-4 p-4 bg-blue-50 rounded-lg">
+                  <h5 className="font-medium text-blue-900">Configuration du graphique</h5>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Axe X (horizontal)
+                      </label>
+                      <select
+                        value={graphConfig.xAxisType || 'time'}
+                        onChange={(e) => setGraphConfig({
+                          ...graphConfig,
+                          xAxisType: e.target.value as 'field' | 'time' | 'date'
+                        })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      >
+                        <option value="time">Heure de soumission</option>
+                        <option value="date">Date de soumission</option>
+                        <option value="field">Champ du formulaire</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Axe Y (vertical)
+                      </label>
+                      <select
+                        value={graphConfig.yAxisType || 'count'}
+                        onChange={(e) => setGraphConfig({
+                          ...graphConfig,
+                          yAxisType: e.target.value as 'field' | 'count' | 'sum' | 'average'
+                        })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      >
+                        <option value="count">Nombre de soumissions</option>
+                        <option value="sum">Somme des valeurs</option>
+                        <option value="average">Moyenne des valeurs</option>
+                        <option value="field">Valeur du champ</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* X Axis Field Selection */}
+                  {graphConfig.xAxisType === 'field' && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Champ pour l'axe X
+                      </label>
+                      <select
+                        value={graphConfig.xAxisFieldId || ''}
+                        onChange={(e) => setGraphConfig({
+                          ...graphConfig,
+                          xAxisFieldId: e.target.value
+                        })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      >
+                        <option value="">Choisir un champ...</option>
+                        {availableFields.map(field => (
+                          <option key={field.id} value={field.id}>
+                            {field.label} ({field.type})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  {/* Y Axis Field Selection */}
+                  {graphConfig.yAxisType === 'field' && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Champ pour l'axe Y
+                      </label>
+                      <select
+                        value={graphConfig.yAxisFieldId || ''}
+                        onChange={(e) => setGraphConfig({
+                          ...graphConfig,
+                          yAxisFieldId: e.target.value
+                        })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      >
+                        <option value="">Choisir un champ...</option>
+                        {availableFields.map(field => (
+                          <option key={field.id} value={field.id}>
+                            {field.label} ({field.type})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Type de graphique
+                    </label>
+                    <select
+                      value={graphConfig.chartType || 'line'}
+                      onChange={(e) => setGraphConfig({
+                        ...graphConfig,
+                        chartType: e.target.value as 'line' | 'bar' | 'area'
+                      })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    >
+                      <option value="line">Ligne</option>
+                      <option value="bar">Barres</option>
+                      <option value="area">Aire</option>
+                    </select>
+                  </div>
+                </div>
+              )}
+
+              {/* Graph Preview */}
+              {metricType === 'graph' && graphConfig && formId && (
+                <div className="mt-4 p-4 bg-green-50 rounded-lg">
+                  <div className="flex items-center justify-between mb-3">
+                    <h5 className="font-medium text-green-900">Aperçu du graphique</h5>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => setShowGraphPreview(!showGraphPreview)}
+                      className="text-xs"
+                    >
+                      {showGraphPreview ? 'Masquer' : 'Aperçu'}
+                    </Button>
+                  </div>
+                  
+                  {showGraphPreview && (
+                    <div className="h-32">
+                      <GraphPreview
+                        metric={{
+                          ...metric!,
+                          metricType: 'graph',
+                          graphConfig: graphConfig
+                        }}
+                        formEntries={[]} // We don't have form entries in edit mode
+                        forms={forms}
+                        compact={true}
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Preview */}
               <div className="mt-4 p-4 bg-gray-50 rounded-lg">

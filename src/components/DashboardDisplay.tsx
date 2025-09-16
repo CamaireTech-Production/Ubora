@@ -1,8 +1,10 @@
-import React from 'react';
-import { Dashboard, FormEntry, Form } from '../types';
+import React, { useState } from 'react';
+import { Dashboard, FormEntry, Form, DashboardMetric } from '../types';
 import { Card } from './Card';
 import { Button } from './Button';
 import { MetricCalculator } from '../utils/MetricCalculator';
+import { GraphPreview } from './charts/GraphPreview';
+import { GraphModal } from './charts/GraphModal';
 import { BarChart3, TrendingUp, TrendingDown, Minus, Hash, Type, Mail, Calendar, CheckSquare, Upload, Eye, Edit, Trash2 } from 'lucide-react';
 
 interface DashboardDisplayProps {
@@ -26,6 +28,7 @@ export const DashboardDisplay: React.FC<DashboardDisplayProps> = ({
   showActions = true,
   minimal = false
 }) => {
+  const [expandedGraph, setExpandedGraph] = useState<DashboardMetric | null>(null);
   const getFieldIcon = (fieldType: string) => {
     switch (fieldType) {
       case 'text': return <Type className="h-4 w-4" />;
@@ -199,22 +202,32 @@ export const DashboardDisplay: React.FC<DashboardDisplayProps> = ({
           <p className="text-gray-500">Aucune métrique configurée</p>
         </div>
       ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-4">
           {dashboard.metrics.map((metric, index) => {
             const result = MetricCalculator.calculateMetric(metric, formEntries);
             
             return (
               <div
                 key={metric.id || index}
-                className="bg-gray-50 rounded-lg p-2 sm:p-4 border border-gray-200 hover:border-gray-300 transition-colors"
+                className={`bg-gray-50 rounded-lg p-2 sm:p-4 border border-gray-200 hover:border-gray-300 transition-colors ${
+                  metric.metricType === 'graph' ? 'col-span-1 sm:col-span-2 lg:col-span-2' : ''
+                }`}
               >
                 <div className="flex items-start justify-between mb-2 sm:mb-3">
                   <div className="flex items-center space-x-1 sm:space-x-2">
                     {getFieldIcon(metric.fieldType)}
-                    {getCalculationIcon(metric.calculationType)}
+                    {metric.metricType === 'graph' ? (
+                      <BarChart3 className="h-4 w-4" />
+                    ) : (
+                      getCalculationIcon(metric.calculationType)
+                    )}
                   </div>
-                  <span className="text-xs text-gray-500 bg-white px-1 sm:px-2 py-0.5 sm:py-1 rounded text-xs">
-                    {getCalculationLabel(metric.calculationType)}
+                  <span className={`text-xs px-1 sm:px-2 py-0.5 sm:py-1 rounded text-xs ${
+                    metric.metricType === 'graph' 
+                      ? 'bg-blue-100 text-blue-700 border border-blue-200' 
+                      : 'bg-white text-gray-500'
+                  }`}>
+                    {metric.metricType === 'graph' ? '📊 Graphique' : getCalculationLabel(metric.calculationType)}
                   </span>
                 </div>
 
@@ -229,14 +242,28 @@ export const DashboardDisplay: React.FC<DashboardDisplayProps> = ({
                   )}
                 </div>
 
-                <div className="mb-2 sm:mb-3">
-                  <div className="text-lg sm:text-2xl font-bold text-blue-600 mb-0.5 sm:mb-1">
-                    {result.displayValue}
+                {metric.metricType === 'graph' ? (
+                  <div className="mb-2 sm:mb-3">
+                    <div className="bg-white rounded-lg border border-gray-200 p-2">
+                      <GraphPreview
+                        metric={metric}
+                        formEntries={formEntries}
+                        forms={forms}
+                        onExpand={() => setExpandedGraph(metric)}
+                        compact={true}
+                      />
+                    </div>
                   </div>
-                  <p className="text-xs text-gray-500">
-                    {result.description}
-                  </p>
-                </div>
+                ) : (
+                  <div className="mb-2 sm:mb-3">
+                    <div className="text-lg sm:text-2xl font-bold text-blue-600 mb-0.5 sm:mb-1">
+                      {result.displayValue}
+                    </div>
+                    <p className="text-xs text-gray-500">
+                      {result.description}
+                    </p>
+                  </div>
+                )}
 
                 <div className="text-xs text-gray-500 border-t border-gray-200 pt-1 sm:pt-2">
                   <div className="flex items-center space-x-1 mb-0.5 sm:mb-1">
@@ -252,6 +279,17 @@ export const DashboardDisplay: React.FC<DashboardDisplayProps> = ({
             );
           })}
         </div>
+      )}
+
+      {/* Graph Modal */}
+      {expandedGraph && (
+        <GraphModal
+          isOpen={!!expandedGraph}
+          onClose={() => setExpandedGraph(null)}
+          metric={expandedGraph}
+          formEntries={formEntries}
+          forms={forms}
+        />
       )}
     </Card>
   );

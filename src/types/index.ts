@@ -17,11 +17,16 @@ export interface User {
 export interface FormField {
   id: string;
   label: string;
-  type: 'text' | 'number' | 'email' | 'textarea' | 'select' | 'checkbox' | 'date' | 'file';
+  type: 'text' | 'number' | 'email' | 'textarea' | 'select' | 'checkbox' | 'date' | 'file' | 'calculated';
   required: boolean;
   placeholder?: string;
   options?: string[]; // Pour les champs select
   acceptedTypes?: string[]; // Pour les champs file (ex: [".pdf", ".doc", ".docx"])
+  // Calculated field properties
+  calculationFormula?: string; // Ex: "field1 + field2 * 0.2" or "SUM(field1, field2) * 0.1"
+  dependsOn?: string[]; // IDs of fields this field depends on
+  calculationType?: 'simple' | 'percentage' | 'average' | 'sum' | 'multiply' | 'custom';
+  constantValue?: number; // For percentage calculations or custom constants
 }
 
 export interface Form {
@@ -173,6 +178,15 @@ export interface DashboardMetric {
   fieldId: string;
   fieldType: 'text' | 'number' | 'email' | 'textarea' | 'select' | 'checkbox' | 'date' | 'file';
   calculationType: 'count' | 'sum' | 'average' | 'min' | 'max' | 'unique';
+  metricType: 'value' | 'graph'; // New: type of metric display
+  // Graph configuration (only used when metricType is 'graph')
+  graphConfig?: {
+    xAxisFieldId?: string; // Field for X axis
+    yAxisFieldId?: string; // Field for Y axis
+    xAxisType?: 'field' | 'time' | 'date'; // Type of X axis
+    yAxisType?: 'field' | 'count' | 'sum' | 'average'; // Type of Y axis
+    chartType?: 'line' | 'bar' | 'area'; // Chart type
+  };
   createdAt: Date;
   createdBy: string; // directeur ID
   agencyId: string;

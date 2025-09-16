@@ -9,7 +9,8 @@ import { FileTypeSelector } from './FileTypeSelector';
 import { FieldCSVImport } from './FieldCSVImport';
 import { Toast } from './Toast';
 import { useToast } from '../hooks/useToast';
-import { Plus, Trash2, ArrowLeft, CheckSquare, Square, Loader2 } from 'lucide-react';
+import { Plus, Trash2, ArrowLeft, CheckSquare, Square, Loader2, Calculator } from 'lucide-react';
+import { ExpressionCalculator } from '../utils/ExpressionCalculator';
 
 interface FormEditorProps {
   form?: Form; // If provided, we're editing an existing form
@@ -436,7 +437,12 @@ export const FormEditor: React.FC<FormEditorProps> = ({
                   <Card key={field.id} className="border-l-4 border-l-blue-500">
                     <div className="space-y-4">
                       <div className="flex items-center justify-between">
-                        <h4 className="font-medium text-gray-900">Champ {index + 1}</h4>
+                        <div>
+                          <h4 className="font-medium text-gray-900">Champ {index + 1}</h4>
+                          <p className="text-xs text-gray-500 font-mono bg-gray-100 px-2 py-1 rounded mt-1 inline-block">
+                            ID: {field.id}
+                          </p>
+                        </div>
                         <Button
                           type="button"
                           variant="danger"
@@ -470,6 +476,7 @@ export const FormEditor: React.FC<FormEditorProps> = ({
                             { value: 'select', label: 'Liste déroulante' },
                             { value: 'checkbox', label: 'Case à cocher' },
                             { value: 'file', label: 'Fichier' },
+                            { value: 'calculated', label: 'Champ calculé' },
                           ]}
                         />
                       </div>
@@ -533,6 +540,129 @@ export const FormEditor: React.FC<FormEditorProps> = ({
                           selectedTypes={field.acceptedTypes || []}
                           onChange={(types) => updateField(field.id, { acceptedTypes: types })}
                         />
+                      )}
+
+                      {field.type === 'calculated' && (
+                        <div className="space-y-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                          <div className="flex items-center space-x-2">
+                            <Calculator className="h-5 w-5 text-blue-600" />
+                            <h4 className="font-medium text-blue-900">Configuration du champ calculé</h4>
+                          </div>
+                          
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <Select
+                              label="Type de calcul"
+                              value={field.calculationType || 'simple'}
+                              onChange={(e) => updateField(field.id, { calculationType: e.target.value as FormField['calculationType'] })}
+                              options={[
+                                { value: 'simple', label: 'Calcul simple' },
+                                { value: 'sum', label: 'Somme' },
+                                { value: 'average', label: 'Moyenne' },
+                                { value: 'multiply', label: 'Multiplication' },
+                                { value: 'percentage', label: 'Pourcentage' },
+                                { value: 'custom', label: 'Formule personnalisée' },
+                              ]}
+                            />
+                            
+                            {field.calculationType === 'percentage' && (
+                              <Input
+                                label="Valeur du pourcentage"
+                                type="number"
+                                value={field.constantValue || ''}
+                                onChange={(e) => updateField(field.id, { constantValue: parseFloat(e.target.value) || 0 })}
+                                placeholder="Ex: 10 pour 10%"
+                              />
+                            )}
+                          </div>
+
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                              Champs dépendants *
+                            </label>
+                            <div className="space-y-2 max-h-32 overflow-y-auto border border-gray-200 rounded-lg p-3">
+                              {fields
+                                .filter(f => f.id !== field.id && (f.type === 'number' || f.type === 'calculated'))
+                                .map(dependentField => (
+                                  <label key={dependentField.id} className="flex items-start space-x-3 cursor-pointer hover:bg-gray-50 p-2 rounded">
+                                    <input
+                                      type="checkbox"
+                                      checked={field.dependsOn?.includes(dependentField.id) || false}
+                                      onChange={(e) => {
+                                        const currentDependsOn = field.dependsOn || [];
+                                        const newDependsOn = e.target.checked
+                                          ? [...currentDependsOn, dependentField.id]
+                                          : currentDependsOn.filter(id => id !== dependentField.id);
+                                        updateField(field.id, { dependsOn: newDependsOn });
+                                      }}
+                                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 mt-0.5"
+                                    />
+                                    <div className="flex-1">
+                                      <span className="text-sm font-medium text-gray-900">{dependentField.label}</span>
+                                      <div className="text-xs text-gray-500 space-y-1">
+                                        <div>({dependentField.type})</div>
+                                        <div className="font-mono bg-gray-100 px-2 py-1 rounded">
+                                          {dependentField.id}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </label>
+                                ))}
+                            </div>
+                            {(!field.dependsOn || field.dependsOn.length === 0) && (
+                              <p className="text-sm text-red-600 mt-1">Veuillez sélectionner au moins un champ dépendant</p>
+                            )}
+                          </div>
+
+                          {(field.calculationType === 'simple' || field.calculationType === 'custom') && (
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-2">
+                                Formule de calcul
+                              </label>
+                              <Input
+                                value={field.calculationFormula || ''}
+                                onChange={(e) => updateField(field.id, { calculationFormula: e.target.value })}
+                                placeholder={`Ex: ${field.dependsOn?.[0] || 'field_id'} + ${field.dependsOn?.[1] || 'field_id'} * 0.2`}
+                              />
+                              <div className="mt-2 text-xs text-gray-500">
+                                <p><strong>Champs disponibles:</strong></p>
+                                <div className="flex flex-wrap gap-1 mt-1">
+                                  {field.dependsOn?.map(fieldId => {
+                                    const dependentField = fields.find(f => f.id === fieldId);
+                                    return dependentField ? (
+                                      <div key={fieldId} className="px-2 py-1 bg-gray-100 rounded text-xs">
+                                        <div className="font-mono">{fieldId}</div>
+                                        <div className="text-gray-400">({dependentField.label})</div>
+                                      </div>
+                                    ) : null;
+                                  })}
+                                </div>
+                                <p className="mt-2">
+                                  <strong>Fonctions disponibles:</strong> SUM(), AVG(), MAX(), MIN()
+                                </p>
+                                <p>
+                                  <strong>Opérateurs:</strong> +, -, *, /, (, )
+                                </p>
+                                <p className="mt-2 text-blue-600">
+                                  <strong>Exemple:</strong> {field.dependsOn?.[0] || 'field_id'} + {field.dependsOn?.[1] || 'field_id'} * 0.2
+                                </p>
+                              </div>
+                            </div>
+                          )}
+
+                          {field.calculationType && field.dependsOn && field.dependsOn.length > 0 && (
+                            <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+                              <p className="text-sm text-green-800">
+                                <strong>Formule suggérée:</strong> {ExpressionCalculator.getFormulaSuggestion(
+                                  field.calculationType,
+                                  field.dependsOn.map(fieldId => {
+                                    const dependentField = fields.find(f => f.id === fieldId);
+                                    return { id: fieldId, label: dependentField?.label || fieldId };
+                                  })
+                                )}
+                              </p>
+                            </div>
+                          )}
+                        </div>
                       )}
                       
                       <label className="flex items-center space-x-2">

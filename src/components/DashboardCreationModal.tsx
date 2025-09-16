@@ -5,6 +5,7 @@ import { Card } from './Card';
 import { Input } from './Input';
 import { Textarea } from './Textarea';
 import { Select } from './Select';
+import { GraphPreview } from './charts/GraphPreview';
 import { X, Plus, Trash2, BarChart3, FileText, Hash, Type, Mail, Calendar, CheckSquare, Upload } from 'lucide-react';
 
 interface DashboardCreationModalProps {
@@ -30,6 +31,7 @@ export const DashboardCreationModal: React.FC<DashboardCreationModalProps> = ({
   const [metrics, setMetrics] = useState<Omit<DashboardMetric, 'id' | 'createdAt' | 'createdBy' | 'agencyId'>[]>([]);
   const [errors, setErrors] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [showGraphPreviews, setShowGraphPreviews] = useState<Record<number, boolean>>({});
 
   // Reset form when modal opens/closes
   useEffect(() => {
@@ -98,7 +100,9 @@ export const DashboardCreationModal: React.FC<DashboardCreationModalProps> = ({
       formId: selectedFormId,
       fieldId: '',
       fieldType: 'text',
-      calculationType: 'count'
+      calculationType: 'count',
+      metricType: 'value',
+      graphConfig: undefined
     };
 
     setMetrics([...metrics, newMetric]);
@@ -309,6 +313,40 @@ export const DashboardCreationModal: React.FC<DashboardCreationModalProps> = ({
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Type d'affichage
+                          </label>
+                          <Select
+                            value={metric.metricType || 'value'}
+                            onChange={(e) => {
+                              const metricType = e.target.value as 'value' | 'graph';
+                              updateMetric(index, { 
+                                metricType,
+                                graphConfig: metricType === 'graph' ? {
+                                  xAxisType: 'time',
+                                  yAxisType: 'count',
+                                  chartType: 'line'
+                                } : undefined
+                              });
+                            }}
+                            options={[
+                              { value: 'value', label: 'Valeur numérique' },
+                              { value: 'graph', label: 'Graphique' }
+                            ]}
+                          />
+                        </div>
+
+                        <Input
+                          label="Description (optionnel)"
+                          value={metric.description || ''}
+                          onChange={(e) => updateMetric(index, { description: e.target.value })}
+                          placeholder="Description de la métrique..."
+                        />
+                      </div>
+
+                      {/* Value type configuration */}
+                      {metric.metricType === 'value' && (
+                        <div className="mt-4">
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
                             Type de calcul
                           </label>
                           <div className="flex items-center space-x-2 p-3 bg-gray-50 rounded-lg">
@@ -320,14 +358,164 @@ export const DashboardCreationModal: React.FC<DashboardCreationModalProps> = ({
                             />
                           </div>
                         </div>
+                      )}
 
-                        <Input
-                          label="Description (optionnel)"
-                          value={metric.description || ''}
-                          onChange={(e) => updateMetric(index, { description: e.target.value })}
-                          placeholder="Description de la métrique..."
-                        />
-                      </div>
+                      {/* Graph type configuration */}
+                      {metric.metricType === 'graph' && metric.graphConfig && (
+                        <div className="mt-4 space-y-4 p-4 bg-blue-50 rounded-lg">
+                          <h5 className="font-medium text-blue-900">Configuration du graphique</h5>
+                          
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-1">
+                                Axe X (horizontal)
+                              </label>
+                              <Select
+                                value={metric.graphConfig.xAxisType || 'time'}
+                                onChange={(e) => updateMetric(index, { 
+                                  graphConfig: {
+                                    ...metric.graphConfig!,
+                                    xAxisType: e.target.value as 'field' | 'time' | 'date'
+                                  }
+                                })}
+                                options={[
+                                  { value: 'time', label: 'Heure de soumission' },
+                                  { value: 'date', label: 'Date de soumission' },
+                                  { value: 'field', label: 'Champ du formulaire' }
+                                ]}
+                              />
+                            </div>
+
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-1">
+                                Axe Y (vertical)
+                              </label>
+                              <Select
+                                value={metric.graphConfig.yAxisType || 'count'}
+                                onChange={(e) => updateMetric(index, { 
+                                  graphConfig: {
+                                    ...metric.graphConfig!,
+                                    yAxisType: e.target.value as 'field' | 'count' | 'sum' | 'average'
+                                  }
+                                })}
+                                options={[
+                                  { value: 'count', label: 'Nombre de soumissions' },
+                                  { value: 'sum', label: 'Somme des valeurs' },
+                                  { value: 'average', label: 'Moyenne des valeurs' },
+                                  { value: 'field', label: 'Valeur du champ' }
+                                ]}
+                              />
+                            </div>
+                          </div>
+
+                          {/* X Axis Field Selection */}
+                          {metric.graphConfig.xAxisType === 'field' && (
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-1">
+                                Champ pour l'axe X
+                              </label>
+                              <Select
+                                value={metric.graphConfig.xAxisFieldId || ''}
+                                onChange={(e) => updateMetric(index, { 
+                                  graphConfig: {
+                                    ...metric.graphConfig!,
+                                    xAxisFieldId: e.target.value
+                                  }
+                                })}
+                                options={[
+                                  { value: '', label: 'Choisir un champ...' },
+                                  ...selectedForm.fields.map((field: FormField) => ({
+                                    value: field.id,
+                                    label: `${field.label} (${field.type})`
+                                  }))
+                                ]}
+                              />
+                            </div>
+                          )}
+
+                          {/* Y Axis Field Selection */}
+                          {metric.graphConfig.yAxisType === 'field' && (
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-1">
+                                Champ pour l'axe Y
+                              </label>
+                              <Select
+                                value={metric.graphConfig.yAxisFieldId || ''}
+                                onChange={(e) => updateMetric(index, { 
+                                  graphConfig: {
+                                    ...metric.graphConfig!,
+                                    yAxisFieldId: e.target.value
+                                  }
+                                })}
+                                options={[
+                                  { value: '', label: 'Choisir un champ...' },
+                                  ...selectedForm.fields.map((field: FormField) => ({
+                                    value: field.id,
+                                    label: `${field.label} (${field.type})`
+                                  }))
+                                ]}
+                              />
+                            </div>
+                          )}
+
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                              Type de graphique
+                            </label>
+                            <Select
+                              value={metric.graphConfig.chartType || 'line'}
+                              onChange={(e) => updateMetric(index, { 
+                                graphConfig: {
+                                  ...metric.graphConfig!,
+                                  chartType: e.target.value as 'line' | 'bar' | 'area'
+                                }
+                              })}
+                              options={[
+                                { value: 'line', label: 'Ligne' },
+                                { value: 'bar', label: 'Barres' },
+                                { value: 'area', label: 'Aire' }
+                              ]}
+                            />
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Graph Preview */}
+                      {metric.metricType === 'graph' && metric.graphConfig && (
+                        <div className="mt-4 p-4 bg-green-50 rounded-lg">
+                          <div className="flex items-center justify-between mb-3">
+                            <h5 className="font-medium text-green-900">Aperçu du graphique</h5>
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              onClick={() => setShowGraphPreviews(prev => ({
+                                ...prev,
+                                [index]: !prev[index]
+                              }))}
+                              className="text-xs"
+                            >
+                              {showGraphPreviews[index] ? 'Masquer' : 'Aperçu'}
+                            </Button>
+                          </div>
+                          
+                          {showGraphPreviews[index] && (
+                            <div className="h-32">
+                              <GraphPreview
+                                metric={{
+                                  ...metric,
+                                  id: `preview-${index}`,
+                                  createdAt: new Date(),
+                                  createdBy: currentUserId,
+                                  agencyId: agencyId
+                                }}
+                                formEntries={[]} // We don't have form entries in creation mode
+                                forms={forms}
+                                compact={true}
+                              />
+                            </div>
+                          )}
+                        </div>
+                      )}
 
                       {/* Field Preview */}
                       {metric.fieldId && (
