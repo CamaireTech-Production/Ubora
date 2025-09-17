@@ -180,9 +180,9 @@ export class ExpressionCalculator {
     }
 
     try {
-      // Check for valid field references
+      // Check for valid field references (ignore numbers and mathematical operators)
       const fieldIds = fields.map(f => f.id);
-      const fieldReferences = formula.match(/\b\w+\b/g) || [];
+      const fieldReferences = formula.match(/\b[a-zA-Z_][a-zA-Z0-9_]*\b/g) || [];
       
       for (const reference of fieldReferences) {
         if (!fieldIds.includes(reference) && !this.isMathematicalFunction(reference)) {

@@ -9,7 +9,7 @@ import { FileTypeSelector } from './FileTypeSelector';
 import { FieldCSVImport } from './FieldCSVImport';
 import { Toast } from './Toast';
 import { useToast } from '../hooks/useToast';
-import { Plus, Trash2, ArrowLeft, CheckSquare, Square, Loader2, Calculator } from 'lucide-react';
+import { Plus, Trash2, ArrowLeft, CheckSquare, Square, Loader2, Calculator, Copy, Check, AlertCircle } from 'lucide-react';
 import { ExpressionCalculator } from '../utils/ExpressionCalculator';
 
 interface FormEditorProps {
@@ -39,6 +39,8 @@ export const FormEditor: React.FC<FormEditorProps> = ({
   const [description, setDescription] = useState(form?.description || '');
   const [assignedTo, setAssignedTo] = useState<string[]>(form?.assignedTo || []);
   const [fields, setFields] = useState<FormField[]>(form?.fields || []);
+  const [copiedFieldId, setCopiedFieldId] = useState<string | null>(null);
+  const [formulaValidation, setFormulaValidation] = useState<Record<string, { isValid: boolean; error?: string }>>({});
   const [timeRestrictions, setTimeRestrictions] = useState<{
     startTime?: string;
     endTime?: string;
@@ -163,6 +165,42 @@ export const FormEditor: React.FC<FormEditorProps> = ({
   const handleFieldOptionsUpdate = (fieldId: string, newOptions: string[]) => {
     updateField(fieldId, { options: newOptions });
     showSuccess('Options importées avec succès');
+  };
+
+  const copyFieldId = async (fieldId: string) => {
+    try {
+      await navigator.clipboard.writeText(fieldId);
+      setCopiedFieldId(fieldId);
+      setTimeout(() => setCopiedFieldId(null), 2000);
+    } catch (err) {
+      console.error('Failed to copy field ID:', err);
+    }
+  };
+
+  const generateFormula = (calculationType: string, dependsOn: string[]) => {
+    if (!dependsOn || dependsOn.length === 0) return '';
+    
+    switch (calculationType) {
+      case 'sum':
+        return dependsOn.join(' + ');
+      case 'average':
+        return `(${dependsOn.join(' + ')}) / ${dependsOn.length}`;
+      case 'multiply':
+        return dependsOn.join(' * ');
+      case 'percentage':
+        return dependsOn.length > 0 ? `${dependsOn[0]} * 0.1` : '';
+      default:
+        return '';
+    }
+  };
+
+  const validateFormula = (fieldId: string, formula: string) => {
+    const validation = ExpressionCalculator.validateFormula(formula, fields);
+    setFormulaValidation(prev => ({
+      ...prev,
+      [fieldId]: validation
+    }));
+    return validation;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -549,31 +587,6 @@ export const FormEditor: React.FC<FormEditorProps> = ({
                             <h4 className="font-medium text-blue-900">Configuration du champ calculé</h4>
                           </div>
                           
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            <Select
-                              label="Type de calcul"
-                              value={field.calculationType || 'simple'}
-                              onChange={(e) => updateField(field.id, { calculationType: e.target.value as FormField['calculationType'] })}
-                              options={[
-                                { value: 'simple', label: 'Calcul simple' },
-                                { value: 'sum', label: 'Somme' },
-                                { value: 'average', label: 'Moyenne' },
-                                { value: 'multiply', label: 'Multiplication' },
-                                { value: 'percentage', label: 'Pourcentage' },
-                                { value: 'custom', label: 'Formule personnalisée' },
-                              ]}
-                            />
-                            
-                            {field.calculationType === 'percentage' && (
-                              <Input
-                                label="Valeur du pourcentage"
-                                type="number"
-                                value={field.constantValue || ''}
-                                onChange={(e) => updateField(field.id, { constantValue: parseFloat(e.target.value) || 0 })}
-                                placeholder="Ex: 10 pour 10%"
-                              />
-                            )}
-                          </div>
 
                           <div>
                             <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -581,7 +594,7 @@ export const FormEditor: React.FC<FormEditorProps> = ({
                             </label>
                             <div className="space-y-2 max-h-32 overflow-y-auto border border-gray-200 rounded-lg p-3">
                               {fields
-                                .filter(f => f.id !== field.id && (f.type === 'number' || f.type === 'calculated'))
+                                .filter(f => f.id !== field.id)
                                 .map(dependentField => (
                                   <label key={dependentField.id} className="flex items-start space-x-3 cursor-pointer hover:bg-gray-50 p-2 rounded">
                                     <input
@@ -592,6 +605,7 @@ export const FormEditor: React.FC<FormEditorProps> = ({
                                         const newDependsOn = e.target.checked
                                           ? [...currentDependsOn, dependentField.id]
                                           : currentDependsOn.filter(id => id !== dependentField.id);
+                                        
                                         updateField(field.id, { dependsOn: newDependsOn });
                                       }}
                                       className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 mt-0.5"
@@ -600,8 +614,26 @@ export const FormEditor: React.FC<FormEditorProps> = ({
                                       <span className="text-sm font-medium text-gray-900">{dependentField.label}</span>
                                       <div className="text-xs text-gray-500 space-y-1">
                                         <div>({dependentField.type})</div>
-                                        <div className="font-mono bg-gray-100 px-2 py-1 rounded">
-                                          {dependentField.id}
+                                        <div className="flex items-center space-x-2">
+                                          <span className="font-mono bg-gray-100 px-2 py-1 rounded flex-1">
+                                            {dependentField.id}
+                                          </span>
+                                          <button
+                                            type="button"
+                                            onClick={(e) => {
+                                              e.preventDefault();
+                                              e.stopPropagation();
+                                              copyFieldId(dependentField.id);
+                                            }}
+                                            className="p-1 hover:bg-gray-200 rounded transition-colors"
+                                            title="Copier l'ID du champ"
+                                          >
+                                            {copiedFieldId === dependentField.id ? (
+                                              <Check className="h-3 w-3 text-green-600" />
+                                            ) : (
+                                              <Copy className="h-3 w-3 text-gray-500" />
+                                            )}
+                                          </button>
                                         </div>
                                       </div>
                                     </div>
@@ -613,55 +645,93 @@ export const FormEditor: React.FC<FormEditorProps> = ({
                             )}
                           </div>
 
-                          {(field.calculationType === 'simple' || field.calculationType === 'custom') && (
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                              Formule de calcul *
+                            </label>
                             <div>
-                              <label className="block text-sm font-medium text-gray-700 mb-2">
-                                Formule de calcul
-                              </label>
                               <Input
                                 value={field.calculationFormula || ''}
-                                onChange={(e) => updateField(field.id, { calculationFormula: e.target.value })}
-                                placeholder={`Ex: ${field.dependsOn?.[0] || 'field_id'} + ${field.dependsOn?.[1] || 'field_id'} * 0.2`}
+                                onChange={(e) => {
+                                  const newFormula = e.target.value;
+                                  updateField(field.id, { calculationFormula: newFormula });
+                                  validateFormula(field.id, newFormula);
+                                }}
+                                placeholder="Ex: field_id1 + field_id2 * 0.2"
+                                className={formulaValidation[field.id]?.isValid === false ? 'border-red-500 focus:border-red-500' : ''}
                               />
-                              <div className="mt-2 text-xs text-gray-500">
-                                <p><strong>Champs disponibles:</strong></p>
-                                <div className="flex flex-wrap gap-1 mt-1">
+                              {formulaValidation[field.id] && (
+                                <div className={`mt-1 text-xs ${formulaValidation[field.id].isValid ? 'text-green-600' : 'text-red-600'}`}>
+                                  {formulaValidation[field.id].isValid ? (
+                                    <span className="flex items-center">
+                                      <Check className="h-3 w-3 mr-1" />
+                                      Formule valide
+                                    </span>
+                                  ) : (
+                                    <span className="flex items-center">
+                                      <AlertCircle className="h-3 w-3 mr-1" />
+                                      {formulaValidation[field.id].error}
+                                    </span>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                            
+                            <div className="mt-3 space-y-3">
+                              <div>
+                                <p className="text-sm font-medium text-gray-700 mb-2">Champs disponibles :</p>
+                                <div className="flex flex-wrap gap-1">
                                   {field.dependsOn?.map(fieldId => {
                                     const dependentField = fields.find(f => f.id === fieldId);
                                     return dependentField ? (
-                                      <div key={fieldId} className="px-2 py-1 bg-gray-100 rounded text-xs">
-                                        <div className="font-mono">{fieldId}</div>
-                                        <div className="text-gray-400">({dependentField.label})</div>
+                                      <div key={fieldId} className="flex items-center space-x-1 px-2 py-1 bg-gray-100 rounded text-xs">
+                                        <span className="font-mono">{fieldId}</span>
+                                        <span className="text-gray-400">({dependentField.label})</span>
+                                        <button
+                                          type="button"
+                                          onClick={() => copyFieldId(fieldId)}
+                                          className="p-0.5 hover:bg-gray-200 rounded transition-colors"
+                                          title="Copier l'ID du champ"
+                                        >
+                                          {copiedFieldId === fieldId ? (
+                                            <Check className="h-3 w-3 text-green-600" />
+                                          ) : (
+                                            <Copy className="h-3 w-3 text-gray-500" />
+                                          )}
+                                        </button>
                                       </div>
                                     ) : null;
                                   })}
                                 </div>
-                                <p className="mt-2">
-                                  <strong>Fonctions disponibles:</strong> SUM(), AVG(), MAX(), MIN()
-                                </p>
-                                <p>
-                                  <strong>Opérateurs:</strong> +, -, *, /, (, )
-                                </p>
-                                <p className="mt-2 text-blue-600">
-                                  <strong>Exemple:</strong> {field.dependsOn?.[0] || 'field_id'} + {field.dependsOn?.[1] || 'field_id'} * 0.2
+                              </div>
+                              
+                              <div className="text-xs">
+                                <p className="font-medium text-gray-700 mb-2">Opérateurs et Fonctions :</p>
+                                <div className="grid grid-cols-2 gap-2 text-gray-600">
+                                  <div><code className="bg-gray-100 px-1 rounded">+</code> Addition</div>
+                                  <div><code className="bg-gray-100 px-1 rounded">SUM()</code> Somme</div>
+                                  <div><code className="bg-gray-100 px-1 rounded">-</code> Soustraction</div>
+                                  <div><code className="bg-gray-100 px-1 rounded">AVG()</code> Moyenne</div>
+                                  <div><code className="bg-gray-100 px-1 rounded">*</code> Multiplication</div>
+                                  <div><code className="bg-gray-100 px-1 rounded">MAX()</code> Maximum</div>
+                                  <div><code className="bg-gray-100 px-1 rounded">/</code> Division</div>
+                                  <div><code className="bg-gray-100 px-1 rounded">MIN()</code> Minimum</div>
+                                  <div><code className="bg-gray-100 px-1 rounded">( )</code> Parenthèses</div>
+                                </div>
+                              </div>
+                              
+                              <div className="p-2 bg-yellow-50 border border-yellow-200 rounded">
+                                <p className="text-xs text-yellow-800">
+                                  <strong>Exemples :</strong><br/>
+                                  • <code>field_id1 + field_id2</code> - Addition<br/>
+                                  • <code>field_id1 * 1.2</code> - Multiplication avec constante<br/>
+                                  • <code>(field_id1 + field_id2) / 2</code> - Moyenne<br/>
+                                  • <code>field_id1 * 0.1</code> - 10% d'un champ
                                 </p>
                               </div>
                             </div>
-                          )}
+                          </div>
 
-                          {field.calculationType && field.dependsOn && field.dependsOn.length > 0 && (
-                            <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
-                              <p className="text-sm text-green-800">
-                                <strong>Formule suggérée:</strong> {ExpressionCalculator.getFormulaSuggestion(
-                                  field.calculationType,
-                                  field.dependsOn.map(fieldId => {
-                                    const dependentField = fields.find(f => f.id === fieldId);
-                                    return { id: fieldId, label: dependentField?.label || fieldId };
-                                  })
-                                )}
-                              </p>
-                            </div>
-                          )}
                         </div>
                       )}
                       

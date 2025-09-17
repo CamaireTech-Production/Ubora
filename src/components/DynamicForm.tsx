@@ -132,9 +132,15 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
     const updatedAnswers = { ...currentAnswers };
     
     form.fields.forEach(field => {
-      if (field.type === 'calculated') {
-        const calculatedValue = ExpressionCalculator.calculateByType(field, updatedAnswers, form.fields);
-        updatedAnswers[field.id] = calculatedValue;
+      if (field.type === 'calculated' && field.calculationFormula) {
+        try {
+          const calculatedValue = ExpressionCalculator.evaluate(field.calculationFormula, updatedAnswers, form.fields);
+          updatedAnswers[field.id] = calculatedValue;
+          console.log(`🔄 Initial calculation ${field.label}: ${field.calculationFormula} = ${calculatedValue}`);
+        } catch (error) {
+          console.error(`❌ Error in initial calculation ${field.label}:`, error);
+          updatedAnswers[field.id] = 0;
+        }
       }
     });
     
@@ -146,16 +152,35 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
     const updatedAnswers = { ...currentAnswers };
     
     form.fields.forEach(field => {
-      if (field.type === 'calculated' && field.dependsOn?.includes(changedFieldId)) {
-        const calculatedValue = ExpressionCalculator.calculateByType(field, updatedAnswers, form.fields);
-        updatedAnswers[field.id] = calculatedValue;
+      if (field.type === 'calculated' && field.calculationFormula) {
+        // Check if this calculated field depends on the changed field
+        const dependsOnChangedField = field.dependsOn?.includes(changedFieldId);
+        
+        // Also recalculate if the formula contains the changed field ID
+        const formulaContainsField = field.calculationFormula.includes(changedFieldId);
+        
+        if (dependsOnChangedField || formulaContainsField) {
+          try {
+            const calculatedValue = ExpressionCalculator.evaluate(field.calculationFormula, updatedAnswers, form.fields);
+            updatedAnswers[field.id] = calculatedValue;
+            console.log(`🔄 Recalculated ${field.label}: ${field.calculationFormula} = ${calculatedValue}`);
+          } catch (error) {
+            console.error(`❌ Error calculating ${field.label}:`, error);
+            updatedAnswers[field.id] = 0;
+          }
+        }
       }
     });
     
     return updatedAnswers;
   };
 
-  // Recalculate all calculated fields when form loads or initial answers change
+  // Initialize answers and recalculate when initialAnswers change
+  useEffect(() => {
+    setAnswers(initialAnswers);
+  }, [initialAnswers]);
+
+  // Recalculate all calculated fields when form loads or answers change
   useEffect(() => {
     if (Object.keys(answers).length > 0) {
       const recalculatedAnswers = recalculateAllCalculatedFields(answers);
@@ -526,11 +551,47 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
           .map(fieldId => form.fields.find(f => f.id === fieldId)?.label)
           .filter(Boolean);
         
+        // Get current values of dependent fields for display
+        const dependentFieldValues = dependentFields.map(fieldId => {
+          const value = answers[fieldId];
+          const field = form.fields.find(f => f.id === fieldId);
+          return { id: fieldId, label: field?.label || fieldId, value: value || 0 };
+        });
+        
         return (
           <div key={field.id} className="space-y-2">
             <label className="block text-sm font-medium text-gray-700">
               {field.label + (field.required ? ' *' : '')}
             </label>
+            
+            {/* Display calculation formula and current values */}
+            {field.calculationFormula && (
+              <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <div className="text-sm text-blue-800">
+                  <div className="font-medium mb-2">Calcul automatique :</div>
+                  <div className="space-y-1">
+                    <div><span className="font-mono text-xs bg-white px-2 py-1 rounded border">{field.calculationFormula}</span></div>
+                    {dependentFieldValues.length > 0 && (
+                      <div className="text-xs">
+                        <span className="font-medium">Valeurs actuelles :</span>
+                        <div className="mt-1 space-y-1">
+                          {dependentFieldValues.map(({ label, value }) => (
+                            <div key={label} className="flex justify-between">
+                              <span>{label}:</span>
+                              <span className="font-mono">{value}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    <div className="pt-1 border-t border-blue-200">
+                      <span className="font-medium">Résultat :</span>
+                      <span className="font-mono ml-2 text-lg font-bold">{calculatedValue}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
             
             <div className="relative">
               <Input
@@ -545,24 +606,6 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
                 <Calculator className="h-4 w-4 text-gray-400" />
               </div>
             </div>
-            
-            {field.calculationType && (
-              <div className="text-xs text-gray-500">
-                <span className="font-medium">Type:</span> {field.calculationType}
-                {dependentFieldLabels.length > 0 && (
-                  <>
-                    <br />
-                    <span className="font-medium">Dépend de:</span> {dependentFieldLabels.join(', ')}
-                  </>
-                )}
-                {field.calculationFormula && (
-                  <>
-                    <br />
-                    <span className="font-medium">Formule:</span> {field.calculationFormula}
-                  </>
-                )}
-              </div>
-            )}
             
             {errors[field.id] && (
               <span className="text-sm text-red-600">{errors[field.id]}</span>
