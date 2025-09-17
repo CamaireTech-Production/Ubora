@@ -6,7 +6,8 @@ import { Input } from './Input';
 import { Textarea } from './Textarea';
 import { GraphPreview } from './charts/GraphPreview';
 import { GraphModal } from './charts/GraphModal';
-import { X, BarChart3, FileText, Hash, Type, Mail, Calendar, CheckSquare, Upload } from 'lucide-react';
+import { X, BarChart3, FileText, Hash, Type, Mail, Calendar, CheckSquare, Upload, AlertTriangle } from 'lucide-react';
+import { getValidYAxisFields, validateYAxisField, getFieldValidationErrorMessage } from '../utils/GraphFieldValidator';
 
 interface MetricEditModalProps {
   isOpen: boolean;
@@ -380,12 +381,55 @@ export const MetricEditModal: React.FC<MetricEditModalProps> = ({
                         className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       >
                         <option value="">Choisir un champ...</option>
-                        {availableFields.map(field => (
+                        {getValidYAxisFields(availableFields, calculationType, 'field').map(field => (
                           <option key={field.id} value={field.id}>
                             {field.label} ({field.type})
                           </option>
                         ))}
                       </select>
+                      
+                      {/* Field validation error message */}
+                      {graphConfig.yAxisFieldId && (() => {
+                        const selectedField = availableFields.find(f => f.id === graphConfig.yAxisFieldId);
+                        if (selectedField) {
+                          const validation = validateYAxisField(selectedField, calculationType, 'field');
+                          if (!validation.isValid) {
+                            return (
+                              <div className="mt-2 p-3 bg-red-50 border border-red-200 rounded-md">
+                                <div className="flex items-start">
+                                  <AlertTriangle className="h-4 w-4 text-red-500 mt-0.5 mr-2 flex-shrink-0" />
+                                  <div className="text-sm">
+                                    <p className="text-red-800 font-medium">
+                                      {validation.errorMessage}
+                                    </p>
+                                    {validation.warningMessage && (
+                                      <p className="text-red-700 mt-1">
+                                        {validation.warningMessage}
+                                      </p>
+                                    )}
+                                    {validation.suggestedAlternatives && validation.suggestedAlternatives.length > 0 && (
+                                      <div className="mt-2">
+                                        <p className="text-red-700 font-medium">Suggestions :</p>
+                                        <ul className="list-disc list-inside text-red-600 mt-1">
+                                          {validation.suggestedAlternatives.map((suggestion, idx) => (
+                                            <li key={idx}>{suggestion}</li>
+                                          ))}
+                                        </ul>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          }
+                        }
+                        return null;
+                      })()}
+                      
+                      {/* Help text for field selection */}
+                      <p className="mt-1 text-xs text-blue-600">
+                        💡 Seuls les champs numériques (number, calculated) sont disponibles pour l'axe Y
+                      </p>
                     </div>
                   )}
 

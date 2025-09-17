@@ -20,7 +20,7 @@ interface ProfileDropdownProps {
 
 export const ProfileDropdown: React.FC<ProfileDropdownProps> = ({ className = '' }) => {
   const { user, logout } = useAuth();
-  const { hasDirectorDashboardAccess, getUserAccessLevels, isDirector } = usePermissions();
+  const { hasDirectorDashboardAccess } = usePermissions();
   const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -62,7 +62,6 @@ export const ProfileDropdown: React.FC<ProfileDropdownProps> = ({ className = ''
     setIsOpen(false);
   };
 
-  const accessLevels = getUserAccessLevels();
   const hasDirectorAccess = hasDirectorDashboardAccess();
 
   if (!user) return null;
@@ -128,22 +127,6 @@ export const ProfileDropdown: React.FC<ProfileDropdownProps> = ({ className = ''
               </div>
             </div>
 
-            {/* Niveaux d'accès pour les employés */}
-            {user.role === 'employe' && accessLevels.length > 0 && (
-              <div className="px-4 py-2 border-b border-gray-100">
-                <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">
-                  Niveaux d'accès
-                </p>
-                <div className="space-y-1">
-                  {accessLevels.map((level) => (
-                    <div key={level.id} className="flex items-center space-x-2">
-                      <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                      <span className="text-xs text-gray-600">{level.name}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
 
             {/* Actions de navigation */}
             <div className="py-2">
@@ -169,8 +152,8 @@ export const ProfileDropdown: React.FC<ProfileDropdownProps> = ({ className = ''
                 </button>
               )}
 
-              {/* Chat Directeur (pour les directeurs et employés avec accès) */}
-              {(user.role === 'directeur' || hasDirectorAccess) && (
+              {/* Chat Directeur (pour les directeurs seulement) */}
+              {user.role === 'directeur' && (
                 <button
                   onClick={() => {
                     navigate('/directeur/chat');

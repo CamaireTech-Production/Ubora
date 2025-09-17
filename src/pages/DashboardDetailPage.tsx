@@ -16,6 +16,7 @@ import { DashboardEditModal } from '../components/DashboardEditModal';
 import { MetricEditModal } from '../components/MetricEditModal';
 import { GraphPreview } from '../components/charts/GraphPreview';
 import { GraphModal } from '../components/charts/GraphModal';
+import { getValidYAxisFields, validateYAxisField, getFieldValidationErrorMessage } from '../utils/GraphFieldValidator';
 import { 
   ArrowLeft, 
   BarChart3, 
@@ -956,12 +957,55 @@ export const DashboardDetailPage: React.FC = () => {
                             className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                           >
                             <option value="">Choisir un champ...</option>
-                            {selectedForm.fields.map(field => (
+                            {getValidYAxisFields(selectedForm.fields, newMetric.calculationType, 'field').map(field => (
                               <option key={field.id} value={field.id}>
                                 {field.label} ({field.type})
                               </option>
                             ))}
                           </select>
+                          
+                          {/* Field validation error message */}
+                          {newMetric.graphConfig.yAxisFieldId && (() => {
+                            const selectedField = selectedForm.fields.find(f => f.id === newMetric.graphConfig.yAxisFieldId);
+                            if (selectedField) {
+                              const validation = validateYAxisField(selectedField, newMetric.calculationType, 'field');
+                              if (!validation.isValid) {
+                                return (
+                                  <div className="mt-2 p-3 bg-red-50 border border-red-200 rounded-md">
+                                    <div className="flex items-start">
+                                      <AlertTriangle className="h-4 w-4 text-red-500 mt-0.5 mr-2 flex-shrink-0" />
+                                      <div className="text-sm">
+                                        <p className="text-red-800 font-medium">
+                                          {validation.errorMessage}
+                                        </p>
+                                        {validation.warningMessage && (
+                                          <p className="text-red-700 mt-1">
+                                            {validation.warningMessage}
+                                          </p>
+                                        )}
+                                        {validation.suggestedAlternatives && validation.suggestedAlternatives.length > 0 && (
+                                          <div className="mt-2">
+                                            <p className="text-red-700 font-medium">Suggestions :</p>
+                                            <ul className="list-disc list-inside text-red-600 mt-1">
+                                              {validation.suggestedAlternatives.map((suggestion, idx) => (
+                                                <li key={idx}>{suggestion}</li>
+                                              ))}
+                                            </ul>
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              }
+                            }
+                            return null;
+                          })()}
+                          
+                          {/* Help text for field selection */}
+                          <p className="mt-1 text-xs text-blue-600">
+                            💡 Seuls les champs numériques (number, calculated) sont disponibles pour l'axe Y
+                          </p>
                         </div>
                       )}
 

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Dashboard, FormEntry, Form, DashboardMetric } from '../types';
+import { Dashboard, FormEntry, Form, DashboardMetric, User } from '../types';
 import { Card } from './Card';
 import { Button } from './Button';
 import { MetricCalculator } from '../utils/MetricCalculator';
@@ -11,6 +11,7 @@ interface DashboardDisplayProps {
   dashboard: Dashboard;
   formEntries: FormEntry[];
   forms: Form[];
+  employees?: User[];
   onEdit?: (dashboard: Dashboard) => void;
   onDelete?: (dashboardId: string) => void;
   onView?: (dashboard: Dashboard) => void;
@@ -22,6 +23,7 @@ export const DashboardDisplay: React.FC<DashboardDisplayProps> = ({
   dashboard,
   formEntries,
   forms,
+  employees = [],
   onEdit,
   onDelete,
   onView,
@@ -100,6 +102,12 @@ export const DashboardDisplay: React.FC<DashboardDisplayProps> = ({
               </h3>
               <div className="flex items-center space-x-2 text-sm text-gray-500">
                 <span>Créé le {dashboard.createdAt.toLocaleDateString()}</span>
+                {dashboard.createdByRole === 'employe' && dashboard.createdByEmployeeId && (
+                  <>
+                    <span>•</span>
+                    <span>Par: {employees.find(emp => emp.id === dashboard.createdByEmployeeId)?.name || 'Employé inconnu'}</span>
+                  </>
+                )}
                 <span>•</span>
                 <span>{dashboard.metrics.length} métrique{dashboard.metrics.length > 1 ? 's' : ''}</span>
               </div>

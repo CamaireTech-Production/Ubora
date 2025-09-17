@@ -157,7 +157,7 @@ const RoleBasedRedirect: React.FC = () => {
 
   // Employé → Vérifier l'approbation
   if (user.role === 'employe') {
-    if (user.isApproved === false) {
+    if (user.isApproved === false && !user.hasDirectorDashboardAccess) {
       return <Navigate to="/pending-approval" replace />;
     }
     return <Navigate to="/employe/dashboard" replace />;

@@ -45,38 +45,19 @@ service cloud.firestore {
       );
     }
     
-    // Fonction pour vérifier si un employé a une permission spécifique
-    function hasEmployeePermission(permission) {
-      if (!isEmploye()) return false;
-      
-      let userData = getCurrentUser().data;
-      
-      // Vérifier les niveaux d'accès
-      if (userData.accessLevels != null) {
-        for (let i = 0; i < userData.accessLevels.size(); i++) {
-          let accessLevel = userData.accessLevels[i];
-          if (accessLevel.permissions != null && accessLevel.permissions.hasAny([permission])) {
-            return true;
-          }
-        }
-      }
-      
-      return false;
-    }
-    
     // Fonction pour vérifier si un utilisateur peut créer des formulaires
     function canCreateForms() {
-      return isDirecteur() || hasEmployeePermission('create_forms');
+      return isDirecteur() || hasDirectorDashboardAccess();
     }
     
     // Fonction pour vérifier si un utilisateur peut créer des tableaux de bord
     function canCreateDashboards() {
-      return isDirecteur() || hasEmployeePermission('create_dashboards');
+      return isDirecteur() || hasDirectorDashboardAccess();
     }
     
     // Fonction pour vérifier si un utilisateur peut gérer les formulaires d'autres employés
     function canManageEmployeeForms() {
-      return isDirecteur() || hasEmployeePermission('manage_employee_forms');
+      return isDirecteur() || hasDirectorDashboardAccess();
     }
 
     // =============================================================================
@@ -90,7 +71,8 @@ service cloud.firestore {
       // LECTURE des utilisateurs
       allow read: if isAuthenticated() && (
         request.auth.uid == userId ||
-        (isDirecteur() && isSameAgency(resource.data.agencyId))
+        (isDirecteur() && isSameAgency(resource.data.agencyId)) ||
+        (hasDirectorDashboardAccess() && isSameAgency(resource.data.agencyId))
       );
       
       // CRÉATION d'un utilisateur
@@ -157,6 +139,7 @@ service cloud.firestore {
       // LECTURE des entrées de formulaire
       allow read: if isAuthenticated() && (
         (isDirecteur() && isSameAgency(resource.data.agencyId)) ||
+        (hasDirectorDashboardAccess() && isSameAgency(resource.data.agencyId)) ||
         (isEmploye() && isOwner(resource.data.userId) && isSameAgency(resource.data.agencyId))
       );
       

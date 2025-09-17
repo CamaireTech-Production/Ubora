@@ -6,7 +6,8 @@ import { Input } from './Input';
 import { Textarea } from './Textarea';
 import { Select } from './Select';
 import { GraphPreview } from './charts/GraphPreview';
-import { X, Plus, Trash2, BarChart3, FileText, Hash, Type, Mail, Calendar, CheckSquare, Upload } from 'lucide-react';
+import { X, Plus, Trash2, BarChart3, FileText, Hash, Type, Mail, Calendar, CheckSquare, Upload, AlertTriangle } from 'lucide-react';
+import { getValidYAxisFields, validateYAxisField, getFieldValidationErrorMessage } from '../utils/GraphFieldValidator';
 
 interface DashboardCreationModalProps {
   isOpen: boolean;
@@ -453,12 +454,55 @@ export const DashboardCreationModal: React.FC<DashboardCreationModalProps> = ({
                                 })}
                                 options={[
                                   { value: '', label: 'Choisir un champ...' },
-                                  ...selectedForm.fields.map((field: FormField) => ({
+                                  ...getValidYAxisFields(selectedForm.fields, metric.calculationType, 'field').map((field: FormField) => ({
                                     value: field.id,
                                     label: `${field.label} (${field.type})`
                                   }))
                                 ]}
                               />
+                              
+                              {/* Field validation error message */}
+                              {metric.graphConfig.yAxisFieldId && (() => {
+                                const selectedField = selectedForm.fields.find(f => f.id === metric.graphConfig.yAxisFieldId);
+                                if (selectedField) {
+                                  const validation = validateYAxisField(selectedField, metric.calculationType, 'field');
+                                  if (!validation.isValid) {
+                                    return (
+                                      <div className="mt-2 p-3 bg-red-50 border border-red-200 rounded-md">
+                                        <div className="flex items-start">
+                                          <AlertTriangle className="h-4 w-4 text-red-500 mt-0.5 mr-2 flex-shrink-0" />
+                                          <div className="text-sm">
+                                            <p className="text-red-800 font-medium">
+                                              {validation.errorMessage}
+                                            </p>
+                                            {validation.warningMessage && (
+                                              <p className="text-red-700 mt-1">
+                                                {validation.warningMessage}
+                                              </p>
+                                            )}
+                                            {validation.suggestedAlternatives && validation.suggestedAlternatives.length > 0 && (
+                                              <div className="mt-2">
+                                                <p className="text-red-700 font-medium">Suggestions :</p>
+                                                <ul className="list-disc list-inside text-red-600 mt-1">
+                                                  {validation.suggestedAlternatives.map((suggestion, idx) => (
+                                                    <li key={idx}>{suggestion}</li>
+                                                  ))}
+                                                </ul>
+                                              </div>
+                                            )}
+                                          </div>
+                                        </div>
+                                      </div>
+                                    );
+                                  }
+                                }
+                                return null;
+                              })()}
+                              
+                              {/* Help text for field selection */}
+                              <p className="mt-1 text-xs text-blue-600">
+                                💡 Seuls les champs numériques (number, calculated) sont disponibles pour l'axe Y
+                              </p>
                             </div>
                           )}
 

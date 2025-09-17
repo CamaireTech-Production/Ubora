@@ -1,24 +1,16 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useApp } from '../contexts/AppContext';
-import { usePermissions } from '../hooks/usePermissions';
-import { PermissionManager } from '../utils/PermissionManager';
 import { Button } from './Button';
 import { Card } from './Card';
+import { useToast } from '../hooks/useToast';
+import { Toast } from './Toast';
 import { 
   Users, 
-  Shield, 
-  UserPlus, 
-  Settings, 
-  Check, 
-  X, 
-  Eye,
-  EyeOff,
-  Crown,
-  Star
+  Shield
 } from 'lucide-react';
-import { User, AccessLevel } from '../types';
+import { User } from '../types';
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 
@@ -29,13 +21,10 @@ interface EmployeeManagementProps {
 export const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ className = '' }) => {
   const { user: currentUser } = useAuth();
   const { employees, isLoading } = useApp();
-  const { getPredefinedAccessLevels } = usePermissions();
+  const { showSuccess, showError } = useToast();
   const [selectedEmployee, setSelectedEmployee] = useState<User | null>(null);
   const [showAccessModal, setShowAccessModal] = useState(false);
-  const [showGrantModal, setShowGrantModal] = useState(false);
-  const [selectedAccessLevel, setSelectedAccessLevel] = useState<string>('');
-
-  const predefinedLevels = getPredefinedAccessLevels();
+  const [isUpdatingAccess, setIsUpdatingAccess] = useState(false);
 
   // Filtrer les employés de l'agence du directeur
   const agencyEmployees = employees.filter(emp => 
@@ -45,25 +34,34 @@ export const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ classNam
   const handleGrantDirectorAccess = async (employee: User) => {
     if (!currentUser) return;
 
+    setIsUpdatingAccess(true);
     try {
       const employeeRef = doc(db, 'users', employee.id);
-      await updateDoc(employeeRef, {
+      const updateData = {
         hasDirectorDashboardAccess: true,
         directorDashboardAccessGrantedBy: currentUser.id,
         directorDashboardAccessGrantedAt: serverTimestamp(),
         updatedAt: serverTimestamp()
-      });
+      };
+      
+      
+      await updateDoc(employeeRef, updateData);
 
       setShowAccessModal(false);
       setSelectedEmployee(null);
+      showSuccess(`Accès directeur accordé à ${employee.name} avec succès !`);
     } catch (error) {
       console.error('Erreur lors de l\'octroi d\'accès:', error);
+      showError('Erreur lors de l\'octroi de l\'accès directeur. Veuillez réessayer.');
+    } finally {
+      setIsUpdatingAccess(false);
     }
   };
 
   const handleRevokeDirectorAccess = async (employee: User) => {
     if (!currentUser) return;
 
+    setIsUpdatingAccess(true);
     try {
       const employeeRef = doc(db, 'users', employee.id);
       await updateDoc(employeeRef, {
@@ -75,66 +73,15 @@ export const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ classNam
 
       setShowAccessModal(false);
       setSelectedEmployee(null);
+      showSuccess(`Accès directeur révoqué pour ${employee.name} avec succès !`);
     } catch (error) {
       console.error('Erreur lors de la révocation d\'accès:', error);
+      showError('Erreur lors de la révocation de l\'accès directeur. Veuillez réessayer.');
+    } finally {
+      setIsUpdatingAccess(false);
     }
   };
 
-  const handleGrantAccessLevel = async (employee: User, levelId: string) => {
-    if (!currentUser) return;
-
-    try {
-      const predefinedLevel = predefinedLevels[levelId];
-      if (!predefinedLevel) return;
-
-      const newAccessLevel: AccessLevel = {
-        ...predefinedLevel,
-        grantedBy: currentUser.id,
-        grantedAt: serverTimestamp()
-      };
-
-      const currentAccessLevels = employee.accessLevels || [];
-      const updatedAccessLevels = [...currentAccessLevels, newAccessLevel];
-
-      const employeeRef = doc(db, 'users', employee.id);
-      await updateDoc(employeeRef, {
-        accessLevels: updatedAccessLevels,
-        updatedAt: serverTimestamp()
-      });
-
-      setShowGrantModal(false);
-      setSelectedEmployee(null);
-      setSelectedAccessLevel('');
-    } catch (error) {
-      console.error('Erreur lors de l\'octroi du niveau d\'accès:', error);
-    }
-  };
-
-  const handleRevokeAccessLevel = async (employee: User, levelId: string) => {
-    if (!currentUser) return;
-
-    try {
-      const currentAccessLevels = employee.accessLevels || [];
-      const updatedAccessLevels = currentAccessLevels.filter(level => level.id !== levelId);
-
-      const employeeRef = doc(db, 'users', employee.id);
-      await updateDoc(employeeRef, {
-        accessLevels: updatedAccessLevels,
-        updatedAt: serverTimestamp()
-      });
-    } catch (error) {
-      console.error('Erreur lors de la révocation du niveau d\'accès:', error);
-    }
-  };
-
-  const getAccessLevelIcon = (level: number) => {
-    switch (level) {
-      case 1: return <Star className="h-4 w-4 text-blue-500" />;
-      case 2: return <Shield className="h-4 w-4 text-green-500" />;
-      case 3: return <Crown className="h-4 w-4 text-purple-500" />;
-      default: return <Star className="h-4 w-4 text-gray-500" />;
-    }
-  };
 
   if (isLoading) {
     return (
@@ -146,6 +93,7 @@ export const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ classNam
 
   return (
     <div className={`space-y-6 ${className}`}>
+      <Toast />
       {/* En-tête */}
       <div className="flex items-center justify-between">
         <div>
@@ -191,40 +139,8 @@ export const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ classNam
               </div>
 
               <div className="flex flex-col space-y-3 sm:flex-row sm:items-center sm:space-y-0 sm:space-x-2">
-                {/* Niveaux d'accès */}
-                <div className="flex flex-wrap items-center gap-1">
-                  {employee.accessLevels?.map((level) => (
-                    <div
-                      key={level.id}
-                      className="flex items-center space-x-1 bg-gray-100 rounded-full px-2 py-1"
-                    >
-                      {getAccessLevelIcon(level.level)}
-                      <span className="text-xs text-gray-600">{level.name}</span>
-                      <button
-                        onClick={() => handleRevokeAccessLevel(employee, level.id)}
-                        className="text-red-500 hover:text-red-700"
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-
                 {/* Actions */}
                 <div className="flex flex-col space-y-2 sm:flex-row sm:space-y-0 sm:space-x-2">
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => {
-                      setSelectedEmployee(employee);
-                      setShowGrantModal(true);
-                    }}
-                    className="w-full sm:w-auto"
-                  >
-                    <UserPlus className="h-4 w-4 mr-1" />
-                    Niveau
-                  </Button>
-                  
                   <Button
                     variant={employee.hasDirectorDashboardAccess ? "destructive" : "primary"}
                     size="sm"
@@ -232,18 +148,13 @@ export const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ classNam
                       setSelectedEmployee(employee);
                       setShowAccessModal(true);
                     }}
-                    className="w-full sm:w-auto"
+                    className="w-full sm:w-auto text-center"
+                    disabled={isUpdatingAccess}
                   >
                     {employee.hasDirectorDashboardAccess ? (
-                      <>
-                        <EyeOff className="h-4 w-4 mr-1" />
-                        Révoquer
-                      </>
+                      "Révoquer l'accès"
                     ) : (
-                      <>
-                        <Eye className="h-4 w-4 mr-1" />
-                        Accès Directeur
-                      </>
+                      "Accès Directeur"
                     )}
                   </Button>
                 </div>
@@ -268,16 +179,29 @@ export const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ classNam
           <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4 shadow-xl">
             <h3 className="text-lg font-medium text-gray-900 mb-4">
               {selectedEmployee.hasDirectorDashboardAccess 
-                ? 'Révoquer l\'accès au dashboard directeur' 
-                : 'Accorder l\'accès au dashboard directeur'
+                ? 'Révoquer l\'accès directeur' 
+                : 'Accorder l\'accès directeur'
               }
             </h3>
-            <p className="text-gray-600 mb-6">
-              {selectedEmployee.hasDirectorDashboardAccess 
-                ? `Êtes-vous sûr de vouloir révoquer l'accès au dashboard directeur pour ${selectedEmployee.name} ?`
-                : `Accorder l'accès au dashboard directeur à ${selectedEmployee.name} lui permettra de voir toutes les données de l'agence.`
-              }
-            </p>
+            <div className="text-gray-600 mb-6">
+              {selectedEmployee.hasDirectorDashboardAccess ? (
+                <p>Êtes-vous sûr de vouloir révoquer l'accès directeur pour <strong>{selectedEmployee.name}</strong> ?</p>
+              ) : (
+                <div>
+                  <p className="mb-3">
+                    Accorder l'accès directeur à <strong>{selectedEmployee.name}</strong> lui permettra de :
+                  </p>
+                  <ul className="list-disc list-inside space-y-1 ml-4">
+                    <li>Créer des formulaires et tableaux de bord</li>
+                    <li>Accéder au dashboard directeur</li>
+                    <li>Voir toutes les données de l'agence</li>
+                  </ul>
+                  <p className="mt-3 text-sm">
+                    <strong>Note :</strong> Il n'aura pas accès au chat ARCHA
+                  </p>
+                </div>
+              )}
+            </div>
             <div className="flex justify-end space-x-3">
               <Button
                 variant="secondary"
@@ -285,6 +209,7 @@ export const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ classNam
                   setShowAccessModal(false);
                   setSelectedEmployee(null);
                 }}
+                disabled={isUpdatingAccess}
               >
                 Annuler
               </Button>
@@ -297,85 +222,23 @@ export const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ classNam
                     handleGrantDirectorAccess(selectedEmployee);
                   }
                 }}
+                disabled={isUpdatingAccess}
               >
-                {selectedEmployee.hasDirectorDashboardAccess ? 'Révoquer' : 'Accorder'}
-              </Button>
-            </div>
-          </div>
-        </div>,
-        document.body
-      )}
-
-      {/* Modal d'octroi de niveau d'accès */}
-      {showGrantModal && selectedEmployee && createPortal(
-        <div 
-          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999]" 
-          style={{ top: 0, left: 0, right: 0, bottom: 0 }}
-          onClick={(e) => {
-            if (e.target === e.currentTarget) {
-              setShowGrantModal(false);
-              setSelectedEmployee(null);
-              setSelectedAccessLevel('');
-            }
-          }}
-        >
-          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4 shadow-xl">
-            <h3 className="text-lg font-medium text-gray-900 mb-4">
-              Accorder un niveau d'accès
-            </h3>
-            <p className="text-gray-600 mb-4">
-              Sélectionnez un niveau d'accès pour {selectedEmployee.name} :
-            </p>
-            
-            <div className="space-y-3 mb-6">
-              {Object.values(predefinedLevels).map((level) => (
-                <div
-                  key={level.id}
-                  className={`p-3 border rounded-lg cursor-pointer transition-colors ${
-                    selectedAccessLevel === level.id
-                      ? 'border-blue-500 bg-blue-50'
-                      : 'border-gray-200 hover:border-gray-300'
-                  }`}
-                  onClick={() => setSelectedAccessLevel(level.id)}
-                >
-                  <div className="flex items-center space-x-3">
-                    {getAccessLevelIcon(level.level)}
-                    <div>
-                      <h4 className="font-medium text-gray-900">{level.name}</h4>
-                      <p className="text-sm text-gray-600">{level.description}</p>
-                    </div>
+                {isUpdatingAccess ? (
+                  <div className="flex items-center space-x-2">
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    <span>Traitement...</span>
                   </div>
-                </div>
-              ))}
-            </div>
-
-            <div className="flex justify-end space-x-3">
-              <Button
-                variant="secondary"
-                onClick={() => {
-                  setShowGrantModal(false);
-                  setSelectedEmployee(null);
-                  setSelectedAccessLevel('');
-                }}
-              >
-                Annuler
-              </Button>
-              <Button
-                variant="primary"
-                onClick={() => {
-                  if (selectedAccessLevel) {
-                    handleGrantAccessLevel(selectedEmployee, selectedAccessLevel);
-                  }
-                }}
-                disabled={!selectedAccessLevel}
-              >
-                Accorder
+                ) : (
+                  selectedEmployee.hasDirectorDashboardAccess ? 'Révoquer' : 'Accorder'
+                )}
               </Button>
             </div>
           </div>
         </div>,
         document.body
       )}
+
     </div>
   );
 };

@@ -149,21 +149,21 @@ export class PermissionManager {
    * Vérifie si un utilisateur peut créer des formulaires
    */
   static canCreateForms(user: User): boolean {
-    return PermissionManager.hasPermission(user, PermissionManager.PERMISSIONS.CREATE_FORMS);
+    return PermissionManager.hasDirectorDashboardAccess(user);
   }
 
   /**
    * Vérifie si un utilisateur peut créer des tableaux de bord
    */
   static canCreateDashboards(user: User): boolean {
-    return PermissionManager.hasPermission(user, PermissionManager.PERMISSIONS.CREATE_DASHBOARDS);
+    return PermissionManager.hasDirectorDashboardAccess(user);
   }
 
   /**
    * Vérifie si un utilisateur peut gérer les formulaires d'autres employés
    */
   static canManageEmployeeForms(user: User): boolean {
-    return PermissionManager.hasPermission(user, PermissionManager.PERMISSIONS.MANAGE_EMPLOYEE_FORMS);
+    return PermissionManager.hasDirectorDashboardAccess(user);
   }
 
   /**

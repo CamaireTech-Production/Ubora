@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Form, FormField } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { useApp } from '../contexts/AppContext';
+import { usePermissions } from '../hooks/usePermissions';
 import { Layout } from '../components/Layout';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
@@ -25,6 +26,8 @@ import { LimitReachedModal } from '../components/LimitReachedModal';
 export const DirecteurDashboard: React.FC = () => {
   const navigate = useNavigate();
   const { user, firebaseUser, isLoading } = useAuth();
+  const { hasDirectorDashboardAccess } = usePermissions();
+  
   const { 
     forms,
     formEntries,
@@ -372,11 +375,11 @@ export const DirecteurDashboard: React.FC = () => {
       firebaseUser={firebaseUser}
       message="Chargement du dashboard directeur..."
     >
-      {user?.role !== 'directeur' ? (
+      {!hasDirectorDashboardAccess() ? (
         <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
           <Card className="max-w-md w-full text-center">
             <h1 className="text-xl font-bold text-red-600 mb-2">Accès refusé</h1>
-            <p className="text-gray-600">Seuls les directeurs peuvent accéder à cette page.</p>
+            <p className="text-gray-600">Vous n'avez pas les permissions nécessaires pour accéder à cette page.</p>
           </Card>
         </div>
       ) : showFormBuilder || editingForm ? (
@@ -662,9 +665,14 @@ export const DirecteurDashboard: React.FC = () => {
                           </div>
                         </div>
 
-                        {/* Date de création */}
+                        {/* Date de création et créateur */}
                         <div className="text-xs text-gray-500 mb-4">
-                          Créé le {form.createdAt.toLocaleDateString()}
+                          <div>Créé le {form.createdAt.toLocaleDateString()}</div>
+                          {form.createdByRole === 'employe' && form.createdByEmployeeId && (
+                            <div className="mt-1">
+                              Par: {employees.find(emp => emp.id === form.createdByEmployeeId)?.name || 'Employé inconnu'}
+                            </div>
+                          )}
                         </div>
 
                         {/* Actions */}
@@ -761,6 +769,7 @@ export const DirecteurDashboard: React.FC = () => {
                             dashboard={dashboard}
                             formEntries={formEntries}
                             forms={forms}
+                            employees={employees}
                             onView={handleViewDashboard}
                             onDelete={handleDeleteDashboard}
                             showActions={true}

@@ -86,7 +86,7 @@ export const GraphPreview: React.FC<GraphPreviewProps> = ({
   }
 
   // Prepare chart data
-  const chartData = prepareChartData(relevantEntries, form, graphConfig);
+  const chartData = prepareChartData(relevantEntries, form, graphConfig, metric);
   
   // Debug chart data
   console.log('📊 Chart Data Debug:', {
@@ -241,7 +241,7 @@ export const GraphPreview: React.FC<GraphPreviewProps> = ({
 };
 
 // Helper function to prepare chart data (same as in MetricChart)
-function prepareChartData(entries: FormEntry[], form: Form, graphConfig: NonNullable<DashboardMetric['graphConfig']>) {
+function prepareChartData(entries: FormEntry[], form: Form, graphConfig: NonNullable<DashboardMetric['graphConfig']>, metric: DashboardMetric) {
   const data: Array<{ x: string | number; y: number }> = [];
 
   console.log('🔧 prepareChartData called with:', {
@@ -295,9 +295,10 @@ function prepareChartData(entries: FormEntry[], form: Form, graphConfig: NonNull
           .filter(value => value !== null && value !== undefined && value !== '');
         
         if (fieldValues.length > 0) {
-          if (graphConfig.yAxisType === 'sum') {
+          // Use the metric's calculationType instead of yAxisType for sum/average
+          if (metric.calculationType === 'sum') {
             yValue = fieldValues.reduce((sum, val) => sum + (Number(val) || 0), 0);
-          } else if (graphConfig.yAxisType === 'average') {
+          } else if (metric.calculationType === 'average') {
             yValue = fieldValues.reduce((sum, val) => sum + (Number(val) || 0), 0) / fieldValues.length;
           } else {
             yValue = fieldValues.length;
@@ -336,9 +337,10 @@ function prepareChartData(entries: FormEntry[], form: Form, graphConfig: NonNull
           .filter(value => value !== null && value !== undefined && value !== '');
         
         if (yFieldValues.length > 0) {
-          if (graphConfig.yAxisType === 'sum') {
+          // Use the metric's calculationType instead of yAxisType for sum/average
+          if (metric.calculationType === 'sum') {
             yValue = yFieldValues.reduce((sum, val) => sum + (Number(val) || 0), 0);
-          } else if (graphConfig.yAxisType === 'average') {
+          } else if (metric.calculationType === 'average') {
             yValue = yFieldValues.reduce((sum, val) => sum + (Number(val) || 0), 0) / yFieldValues.length;
           } else {
             yValue = yFieldValues.length;

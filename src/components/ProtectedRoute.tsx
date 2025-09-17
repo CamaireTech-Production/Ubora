@@ -16,6 +16,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
 }) => {
   const { user, isLoading } = useAuth();
   const { hasDirectorDashboardAccess } = usePermissions();
+  
 
   if (isLoading) {
     return (
