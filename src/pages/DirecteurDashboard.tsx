@@ -10,7 +10,7 @@ import { Button } from '../components/Button';
 import { FormEditor } from '../components/FormEditor';
 import { FormBuilder } from '../components/FormBuilder';
 import { LoadingGuard } from '../components/LoadingGuard';
-import { Plus, FileText, Users, Eye, Trash2, Edit, UserCheck, BarChart3, Calendar, ChevronDown } from 'lucide-react';
+import { Plus, FileText, Users, Eye, Trash2, Edit, UserCheck, BarChart3, Calendar, ChevronDown, Crown, User as UserIcon } from 'lucide-react';
 import { PendingApprovals } from '../components/PendingApprovals';
 import { VideoSection } from '../components/VideoSection';
 import { directorVideos } from '../data/videoData';
@@ -675,13 +675,19 @@ export const DirecteurDashboard: React.FC = () => {
                         </div>
 
                         {/* Date de création et créateur */}
-                        <div className="text-xs text-gray-500 mb-4">
+                        <div className="text-xs text-gray-500 mb-4 space-y-1">
                           <div>Créé le {form.createdAt.toLocaleDateString()}</div>
-                          {form.createdByRole === 'employe' && form.createdByEmployeeId && (
-                            <div className="mt-1">
-                              Par: {employees.find(emp => emp.id === form.createdByEmployeeId)?.name || 'Employé inconnu'}
+                          {form.createdByRole === 'directeur' ? (
+                            <div className="flex items-center space-x-1">
+                              <Crown className="h-3 w-3 text-yellow-500" />
+                              <span className="text-yellow-600 font-medium">Créé par le Directeur</span>
                             </div>
-                          )}
+                          ) : form.createdByRole === 'employe' && form.createdByEmployeeId ? (
+                            <div className="flex items-center space-x-1">
+                              <UserIcon className="h-3 w-3 text-blue-500" />
+                              <span className="text-blue-600">Créé par: {employees.find(emp => emp.id === form.createdByEmployeeId)?.name || 'Employé inconnu'}</span>
+                            </div>
+                          ) : null}
                         </div>
 
                         {/* Actions */}

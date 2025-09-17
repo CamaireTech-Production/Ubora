@@ -238,13 +238,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         // Filtrer les tableaux de bord selon le rôle de l'utilisateur
         let filteredDashboards = allDashboardsData;
         if (user.role === 'employe') {
-          // Les employés voient les tableaux de bord qu'ils ont créés ET ceux de l'agence
-          // (car ils ont accès au dashboard directeur)
-          filteredDashboards = allDashboardsData.filter(dashboard => 
-            dashboard.createdByEmployeeId === user.id ||
-            dashboard.createdBy === user.id ||
-            dashboard.createdByRole === 'directeur' // Tableaux de bord créés par le directeur
-          );
+          // Les employés avec accès directeur voient TOUS les tableaux de bord de l'agence
+          if (PermissionManager.hasDirectorDashboardAccess(user)) {
+            filteredDashboards = allDashboardsData; // Voir tous les tableaux de bord
+          } else {
+            // Les employés normaux voient seulement leurs propres tableaux de bord
+            filteredDashboards = allDashboardsData.filter(dashboard => 
+              dashboard.createdByEmployeeId === user.id ||
+              dashboard.createdBy === user.id
+            );
+          }
         }
         
         setDashboards(filteredDashboards);

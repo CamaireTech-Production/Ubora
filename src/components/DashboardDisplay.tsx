@@ -5,7 +5,7 @@ import { Button } from './Button';
 import { MetricCalculator } from '../utils/MetricCalculator';
 import { GraphPreview } from './charts/GraphPreview';
 import { GraphModal } from './charts/GraphModal';
-import { BarChart3, TrendingUp, TrendingDown, Minus, Hash, Type, Mail, Calendar, CheckSquare, Upload, Eye, Edit, Trash2 } from 'lucide-react';
+import { BarChart3, TrendingUp, TrendingDown, Minus, Hash, Type, Mail, Calendar, CheckSquare, Upload, Eye, Edit, Trash2, Crown, User as UserIcon } from 'lucide-react';
 
 interface DashboardDisplayProps {
   dashboard: Dashboard;
@@ -94,55 +94,64 @@ export const DashboardDisplay: React.FC<DashboardDisplayProps> = ({
         className="cursor-pointer hover:shadow-md transition-shadow"
         onClick={() => onView?.(dashboard)}
       >
-        <Card>
-          <div className="flex items-center justify-between">
-            <div className="flex-1">
-              <h3 className="text-lg font-semibold text-gray-900 mb-1">
-                {dashboard.name}
-              </h3>
-              <div className="flex items-center space-x-2 text-sm text-gray-500">
+        <Card className="relative">
+          {/* Delete button in top-right corner */}
+          {showActions && onDelete && (
+            <div className="absolute top-2 right-2 z-10">
+              <Button
+                variant="danger"
+                size="sm"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleDelete();
+                }}
+                className="p-1.5 h-8 w-8"
+              >
+                <Trash2 className="h-3 w-3" />
+              </Button>
+            </div>
+          )}
+          
+          {/* Edit button in top-right corner (below delete if both exist) */}
+          {showActions && onEdit && (
+            <div className="absolute top-2 right-12 z-10">
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onEdit(dashboard);
+                }}
+                className="p-1.5 h-8 w-8"
+              >
+                <Edit className="h-3 w-3" />
+              </Button>
+            </div>
+          )}
+          
+          {/* Main content with padding to avoid overlap with buttons */}
+          <div className={`${showActions ? 'pr-20' : ''}`}>
+            <h3 className="text-lg font-semibold text-gray-900 mb-1">
+              {dashboard.name}
+            </h3>
+            <div className="text-sm text-gray-500 space-y-1">
+              <div className="flex items-center space-x-2">
                 <span>Créé le {dashboard.createdAt.toLocaleDateString()}</span>
-                {dashboard.createdByRole === 'employe' && dashboard.createdByEmployeeId && (
-                  <>
-                    <span>•</span>
-                    <span>Par: {employees.find(emp => emp.id === dashboard.createdByEmployeeId)?.name || 'Employé inconnu'}</span>
-                  </>
-                )}
                 <span>•</span>
                 <span>{dashboard.metrics.length} métrique{dashboard.metrics.length > 1 ? 's' : ''}</span>
               </div>
+              {dashboard.createdByRole === 'directeur' ? (
+                <div className="flex items-center space-x-1">
+                  <Crown className="h-3 w-3 text-yellow-500" />
+                  <span className="text-yellow-600 font-medium">Créé par le Directeur</span>
+                </div>
+              ) : dashboard.createdByRole === 'employe' && dashboard.createdByEmployeeId ? (
+                <div className="flex items-center space-x-1">
+                  <UserIcon className="h-3 w-3 text-blue-500" />
+                  <span className="text-blue-600">Créé par: {employees.find(emp => emp.id === dashboard.createdByEmployeeId)?.name || 'Employé inconnu'}</span>
+                </div>
+              ) : null}
             </div>
-            
-            {showActions && (
-              <div className="flex items-center space-x-2">
-                {onEdit && (
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onEdit(dashboard);
-                    }}
-                    className="p-2"
-                  >
-                    <Edit className="h-4 w-4" />
-                  </Button>
-                )}
-                {onDelete && (
-                  <Button
-                    variant="danger"
-                    size="sm"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDelete();
-                    }}
-                    className="p-2"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                )}
-              </div>
-            )}
           </div>
         </Card>
       </div>
