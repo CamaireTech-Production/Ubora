@@ -35,7 +35,7 @@ export const MetricEditModal: React.FC<MetricEditModalProps> = ({
   const [description, setDescription] = useState('');
   const [formId, setFormId] = useState('');
   const [fieldId, setFieldId] = useState('');
-  const [fieldType, setFieldType] = useState<'text' | 'number' | 'email' | 'textarea' | 'select' | 'checkbox' | 'date' | 'file'>('text');
+  const [fieldType, setFieldType] = useState<'text' | 'number' | 'email' | 'textarea' | 'select' | 'checkbox' | 'date' | 'file' | 'calculated'>('text');
   const [calculationType, setCalculationType] = useState<'count' | 'sum' | 'average' | 'min' | 'max' | 'unique'>('count');
   const [metricType, setMetricType] = useState<'value' | 'graph'>('value');
   const [graphConfig, setGraphConfig] = useState<DashboardMetric['graphConfig']>(undefined);
@@ -63,6 +63,7 @@ export const MetricEditModal: React.FC<MetricEditModalProps> = ({
     switch (fieldType) {
       case 'text': return <Type className="h-4 w-4" />;
       case 'number': return <Hash className="h-4 w-4" />;
+      case 'calculated': return <Hash className="h-4 w-4" />;
       case 'email': return <Mail className="h-4 w-4" />;
       case 'textarea': return <FileText className="h-4 w-4" />;
       case 'select': return <CheckSquare className="h-4 w-4" />;

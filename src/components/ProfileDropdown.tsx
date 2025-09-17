@@ -10,7 +10,8 @@ import {
   Settings, 
   LogOut,
   Shield,
-  Users
+  Users,
+  MessageSquare
 } from 'lucide-react';
 
 interface ProfileDropdownProps {
@@ -157,25 +158,28 @@ export const ProfileDropdown: React.FC<ProfileDropdownProps> = ({ className = ''
                 </button>
               )}
 
-              {/* Accès au dashboard directeur */}
-              {hasDirectorAccess && (
-                <button
-                  onClick={handleSwitchToDirectorDashboard}
-                  className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center space-x-2"
-                >
-                  <Shield className="h-4 w-4 text-blue-500" />
-                  <span>Dashboard Directeur</span>
-                </button>
-              )}
-
-              {/* Dashboard directeur (pour les directeurs) */}
-              {user.role === 'directeur' && (
+              {/* Dashboard directeur (pour les directeurs et employés avec accès) */}
+              {(user.role === 'directeur' || hasDirectorAccess) && (
                 <button
                   onClick={handleSwitchToDirectorDashboard}
                   className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center space-x-2"
                 >
                   <BarChart3 className="h-4 w-4 text-gray-400" />
                   <span>Dashboard Directeur</span>
+                </button>
+              )}
+
+              {/* Chat Directeur (pour les directeurs et employés avec accès) */}
+              {(user.role === 'directeur' || hasDirectorAccess) && (
+                <button
+                  onClick={() => {
+                    navigate('/directeur/chat');
+                    setIsOpen(false);
+                  }}
+                  className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center space-x-2"
+                >
+                  <MessageSquare className="h-4 w-4 text-gray-400" />
+                  <span>Chat Directeur</span>
                 </button>
               )}
 

@@ -34,6 +34,7 @@ export const DashboardDetailModal: React.FC<DashboardDetailModalProps> = ({
     switch (fieldType) {
       case 'text': return <Type className="h-4 w-4" />;
       case 'number': return <Hash className="h-4 w-4" />;
+      case 'calculated': return <Hash className="h-4 w-4" />;
       case 'email': return <Mail className="h-4 w-4" />;
       case 'textarea': return <Type className="h-4 w-4" />;
       case 'select': return <CheckSquare className="h-4 w-4" />;

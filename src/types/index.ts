@@ -193,7 +193,7 @@ export interface DashboardMetric {
   description?: string;
   formId: string;
   fieldId: string;
-  fieldType: 'text' | 'number' | 'email' | 'textarea' | 'select' | 'checkbox' | 'date' | 'file';
+  fieldType: 'text' | 'number' | 'email' | 'textarea' | 'select' | 'checkbox' | 'date' | 'file' | 'calculated';
   calculationType: 'count' | 'sum' | 'average' | 'min' | 'max' | 'unique';
   metricType: 'value' | 'graph'; // New: type of metric display
   // Graph configuration (only used when metricType is 'graph')

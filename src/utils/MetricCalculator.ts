@@ -206,6 +206,7 @@ export class MetricCalculator {
           { value: 'unique', label: 'Valeurs uniques' }
         ];
       case 'number':
+      case 'calculated':
         return [
           { value: 'count', label: 'Nombre de soumissions' },
           { value: 'sum', label: 'Somme' },

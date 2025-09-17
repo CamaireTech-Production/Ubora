@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useApp } from '../contexts/AppContext';
 import { usePermissions } from '../hooks/usePermissions';
@@ -162,8 +163,8 @@ export const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ classNam
       {/* Liste des employés */}
       <div className="grid gap-4">
         {agencyEmployees.map((employee) => (
-          <Card key={employee.id} className="p-6">
-            <div className="flex items-center justify-between">
+          <Card key={employee.id} className="p-4 sm:p-6">
+            <div className="flex flex-col space-y-4 sm:flex-row sm:items-center sm:justify-between sm:space-y-0">
               <div className="flex items-center space-x-4">
                 <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
                   <Users className="h-6 w-6 text-blue-600" />
@@ -173,11 +174,11 @@ export const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ classNam
                   <p className="text-sm text-gray-500">{employee.email}</p>
                   <div className="flex items-center space-x-2 mt-1">
                     <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
-                      employee.isApproved 
+                      employee.isApproved !== false 
                         ? 'bg-green-100 text-green-800' 
                         : 'bg-yellow-100 text-yellow-800'
                     }`}>
-                      {employee.isApproved ? 'Approuvé' : 'En attente'}
+                      {employee.isApproved !== false ? 'Approuvé' : 'En attente'}
                     </span>
                     {employee.hasDirectorDashboardAccess && (
                       <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
@@ -189,9 +190,9 @@ export const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ classNam
                 </div>
               </div>
 
-              <div className="flex items-center space-x-2">
+              <div className="flex flex-col space-y-3 sm:flex-row sm:items-center sm:space-y-0 sm:space-x-2">
                 {/* Niveaux d'accès */}
-                <div className="flex items-center space-x-1">
+                <div className="flex flex-wrap items-center gap-1">
                   {employee.accessLevels?.map((level) => (
                     <div
                       key={level.id}
@@ -210,7 +211,7 @@ export const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ classNam
                 </div>
 
                 {/* Actions */}
-                <div className="flex items-center space-x-2">
+                <div className="flex flex-col space-y-2 sm:flex-row sm:space-y-0 sm:space-x-2">
                   <Button
                     variant="secondary"
                     size="sm"
@@ -218,6 +219,7 @@ export const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ classNam
                       setSelectedEmployee(employee);
                       setShowGrantModal(true);
                     }}
+                    className="w-full sm:w-auto"
                   >
                     <UserPlus className="h-4 w-4 mr-1" />
                     Niveau
@@ -230,6 +232,7 @@ export const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ classNam
                       setSelectedEmployee(employee);
                       setShowAccessModal(true);
                     }}
+                    className="w-full sm:w-auto"
                   >
                     {employee.hasDirectorDashboardAccess ? (
                       <>
@@ -251,9 +254,18 @@ export const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ classNam
       </div>
 
       {/* Modal d'octroi/révocation d'accès directeur */}
-      {showAccessModal && selectedEmployee && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+      {showAccessModal && selectedEmployee && createPortal(
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999]" 
+          style={{ top: 0, left: 0, right: 0, bottom: 0 }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setShowAccessModal(false);
+              setSelectedEmployee(null);
+            }
+          }}
+        >
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4 shadow-xl">
             <h3 className="text-lg font-medium text-gray-900 mb-4">
               {selectedEmployee.hasDirectorDashboardAccess 
                 ? 'Révoquer l\'accès au dashboard directeur' 
@@ -290,13 +302,24 @@ export const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ classNam
               </Button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Modal d'octroi de niveau d'accès */}
-      {showGrantModal && selectedEmployee && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+      {showGrantModal && selectedEmployee && createPortal(
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999]" 
+          style={{ top: 0, left: 0, right: 0, bottom: 0 }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setShowGrantModal(false);
+              setSelectedEmployee(null);
+              setSelectedAccessLevel('');
+            }
+          }}
+        >
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4 shadow-xl">
             <h3 className="text-lg font-medium text-gray-900 mb-4">
               Accorder un niveau d'accès
             </h3>
@@ -350,7 +373,8 @@ export const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ classNam
               </Button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

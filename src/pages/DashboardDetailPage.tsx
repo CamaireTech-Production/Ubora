@@ -153,6 +153,7 @@ export const DashboardDetailPage: React.FC = () => {
     switch (fieldType) {
       case 'text': return <Type className="h-4 w-4" />;
       case 'number': return <Hash className="h-4 w-4" />;
+      case 'calculated': return <Hash className="h-4 w-4" />;
       case 'email': return <Mail className="h-4 w-4" />;
       case 'textarea': return <Type className="h-4 w-4" />;
       case 'select': return <CheckSquare className="h-4 w-4" />;
@@ -212,6 +213,7 @@ export const DashboardDetailPage: React.FC = () => {
           { value: 'unique', label: 'Valeurs uniques' }
         ];
       case 'number':
+      case 'calculated':
         return [
           { value: 'count', label: 'Nombre de soumissions' },
           { value: 'sum', label: 'Somme' },
