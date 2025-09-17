@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Form, FormField, Dashboard, DashboardMetric } from '../types';
+import { Form, FormField, Dashboard, DashboardMetric, FormEntry } from '../types';
 import { Button } from './Button';
 import { Card } from './Card';
 import { Input } from './Input';
@@ -13,6 +13,7 @@ interface DashboardCreationModalProps {
   onClose: () => void;
   onSave: (dashboard: Omit<Dashboard, 'id' | 'createdAt'>) => void;
   forms: Form[];
+  formEntries: FormEntry[];
   currentUserId: string;
   agencyId: string;
 }
@@ -22,6 +23,7 @@ export const DashboardCreationModal: React.FC<DashboardCreationModalProps> = ({
   onClose,
   onSave,
   forms,
+  formEntries,
   currentUserId,
   agencyId
 }) => {
@@ -508,7 +510,7 @@ export const DashboardCreationModal: React.FC<DashboardCreationModalProps> = ({
                                   createdBy: currentUserId,
                                   agencyId: agencyId
                                 }}
-                                formEntries={[]} // We don't have form entries in creation mode
+                                formEntries={formEntries.filter(entry => entry.formId === selectedFormId)}
                                 forms={forms}
                                 compact={true}
                               />

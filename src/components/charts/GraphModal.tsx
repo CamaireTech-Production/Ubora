@@ -1,8 +1,8 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { DashboardMetric, FormEntry, Form } from '../../types';
 import { GraphPreview } from './GraphPreview';
 import { Button } from '../Button';
-import { X, Download, BarChart3 } from 'lucide-react';
+import { X, BarChart3, Maximize2, Minimize2, RotateCcw, RotateCw } from 'lucide-react';
 
 interface GraphModalProps {
   isOpen: boolean;
@@ -19,6 +19,81 @@ export const GraphModal: React.FC<GraphModalProps> = ({
   formEntries,
   forms
 }) => {
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isLandscape, setIsLandscape] = useState(false);
+  const [chartHeight, setChartHeight] = useState(384); // 96 * 4 (h-96)
+
+  // Screen rotation detection
+  useEffect(() => {
+    const handleOrientationChange = () => {
+      const isLandscapeMode = window.innerWidth > window.innerHeight;
+      setIsLandscape(isLandscapeMode);
+      
+      if (isFullscreen) {
+        // Adjust chart height based on orientation
+        if (isLandscapeMode) {
+          setChartHeight(Math.min(window.innerHeight * 0.6, 600));
+        } else {
+          setChartHeight(Math.min(window.innerHeight * 0.5, 500));
+        }
+      }
+    };
+
+    // Initial check
+    handleOrientationChange();
+
+    // Listen for orientation changes
+    window.addEventListener('orientationchange', handleOrientationChange);
+    window.addEventListener('resize', handleOrientationChange);
+
+    return () => {
+      window.removeEventListener('orientationchange', handleOrientationChange);
+      window.removeEventListener('resize', handleOrientationChange);
+    };
+  }, [isFullscreen]);
+
+  // Fullscreen functionality
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().then(() => {
+        setIsFullscreen(true);
+        // Adjust chart height for fullscreen
+        const isLandscapeMode = window.innerWidth > window.innerHeight;
+        if (isLandscapeMode) {
+          setChartHeight(Math.min(window.innerHeight * 0.6, 600));
+        } else {
+          setChartHeight(Math.min(window.innerHeight * 0.5, 500));
+        }
+      }).catch(err => {
+        console.log('Error attempting to enable fullscreen:', err);
+      });
+    } else {
+      document.exitFullscreen().then(() => {
+        setIsFullscreen(false);
+        setChartHeight(384); // Reset to default
+      }).catch(err => {
+        console.log('Error attempting to exit fullscreen:', err);
+      });
+    }
+  };
+
+  // Handle escape key
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && isFullscreen) {
+        toggleFullscreen();
+      }
+    };
+
+    if (isOpen) {
+      document.addEventListener('keydown', handleKeyDown);
+    }
+
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isOpen, isFullscreen]);
+
   if (!isOpen) return null;
 
   const form = forms.find(f => f.id === metric.formId);
@@ -59,32 +134,68 @@ export const GraphModal: React.FC<GraphModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-lg shadow-xl max-w-6xl w-full max-h-[95vh] overflow-hidden">
+    <div className={`fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 ${isFullscreen ? 'p-0' : 'p-4'}`}>
+      <div className={`bg-white shadow-xl w-full overflow-hidden ${
+        isFullscreen 
+          ? 'h-full rounded-none' 
+          : 'rounded-lg max-w-6xl max-h-[95vh]'
+      }`}>
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-200">
+        <div className={`flex items-center justify-between border-b border-gray-200 ${
+          isFullscreen ? 'p-4' : 'p-6'
+        }`}>
           <div className="flex items-center space-x-3">
             <BarChart3 className="h-6 w-6 text-blue-600" />
             <div>
-              <h2 className="text-xl font-semibold text-gray-900">{metric.name}</h2>
+              <h2 className={`font-semibold text-gray-900 ${
+                isFullscreen ? 'text-2xl' : 'text-xl'
+              }`}>{metric.name}</h2>
               {metric.description && (
-                <p className="text-sm text-gray-600 mt-1">{metric.description}</p>
+                <p className={`text-gray-600 mt-1 ${
+                  isFullscreen ? 'text-base' : 'text-sm'
+                }`}>{metric.description}</p>
               )}
             </div>
           </div>
           <div className="flex items-center space-x-2">
+            {/* Fullscreen Toggle */}
             <Button
               variant="secondary"
               size="sm"
-              onClick={() => {
-                // TODO: Implement download functionality
-                console.log('Download chart');
-              }}
+              onClick={toggleFullscreen}
               className="flex items-center space-x-2"
+              title={isFullscreen ? 'Quitter le plein écran' : 'Plein écran'}
             >
-              <Download className="h-4 w-4" />
-              <span>Télécharger</span>
+              {isFullscreen ? (
+                <>
+                  <Minimize2 className="h-4 w-4" />
+                  <span className="hidden sm:inline">Quitter</span>
+                </>
+              ) : (
+                <>
+                  <Maximize2 className="h-4 w-4" />
+                  <span className="hidden sm:inline">Plein écran</span>
+                </>
+              )}
             </Button>
+            
+            {/* Orientation Hint */}
+            {isFullscreen && (
+              <div className="flex items-center space-x-1 text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
+                {isLandscape ? (
+                  <>
+                    <RotateCw className="h-3 w-3" />
+                    <span>Paysage</span>
+                  </>
+                ) : (
+                  <>
+                    <RotateCcw className="h-3 w-3" />
+                    <span>Portrait</span>
+                  </>
+                )}
+              </div>
+            )}
+            
             <Button
               variant="secondary"
               size="sm"
@@ -97,8 +208,14 @@ export const GraphModal: React.FC<GraphModalProps> = ({
         </div>
 
         {/* Chart Configuration Info */}
-        <div className="p-4 bg-gray-50 border-b border-gray-200">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+        <div className={`bg-gray-50 border-b border-gray-200 ${
+          isFullscreen ? 'p-3' : 'p-4'
+        }`}>
+          <div className={`grid gap-4 ${
+            isFullscreen 
+              ? 'grid-cols-1 lg:grid-cols-3 text-sm' 
+              : 'grid-cols-1 md:grid-cols-3 text-sm'
+          }`}>
             <div>
               <span className="font-medium text-gray-700">Axe X:</span>
               <span className="ml-2 text-gray-600">
@@ -118,7 +235,9 @@ export const GraphModal: React.FC<GraphModalProps> = ({
               </span>
             </div>
           </div>
-          <div className="mt-2 text-sm text-gray-600">
+          <div className={`text-gray-600 ${
+            isFullscreen ? 'mt-2 text-sm' : 'mt-2 text-sm'
+          }`}>
             <span className="font-medium">Données:</span>
             <span className="ml-2">{relevantEntries.length} soumission{relevantEntries.length > 1 ? 's' : ''}</span>
             <span className="mx-2">•</span>
@@ -127,8 +246,13 @@ export const GraphModal: React.FC<GraphModalProps> = ({
         </div>
 
         {/* Chart */}
-        <div className="p-6">
-          <div className="h-96">
+        <div className={`flex-1 flex flex-col ${
+          isFullscreen ? 'p-4' : 'p-6'
+        }`}>
+          <div 
+            className="flex-1 w-full"
+            style={{ height: `${chartHeight}px` }}
+          >
             <GraphPreview
               metric={metric}
               formEntries={formEntries}
@@ -139,13 +263,27 @@ export const GraphModal: React.FC<GraphModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end space-x-3 p-6 border-t border-gray-200 bg-gray-50">
-          <Button
-            variant="secondary"
-            onClick={onClose}
-          >
-            Fermer
-          </Button>
+        <div className={`flex items-center justify-between border-t border-gray-200 bg-gray-50 ${
+          isFullscreen ? 'p-3' : 'p-6'
+        }`}>
+          <div className="text-xs text-gray-500">
+            {isFullscreen ? (
+              <div className="flex items-center space-x-4">
+                <span>💡 Appuyez sur <kbd className="px-1 py-0.5 bg-gray-200 rounded text-xs">Échap</kbd> pour quitter le plein écran</span>
+                <span>📱 Faites pivoter votre appareil pour une meilleure vue</span>
+              </div>
+            ) : (
+              <span>💡 Cliquez sur "Plein écran" pour une vue agrandie</span>
+            )}
+          </div>
+          <div className="flex items-center space-x-3">
+            <Button
+              variant="secondary"
+              onClick={onClose}
+            >
+              Fermer
+            </Button>
+          </div>
         </div>
       </div>
     </div>

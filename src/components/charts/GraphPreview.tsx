@@ -43,13 +43,27 @@ export const GraphPreview: React.FC<GraphPreviewProps> = ({
   // Filter entries for the specific form
   const relevantEntries = formEntries.filter(entry => entry.formId === metric.formId);
   
+  // Debug logging
+  console.log('🔍 GraphPreview Debug:', {
+    totalFormEntries: formEntries.length,
+    metricFormId: metric.formId,
+    relevantEntriesCount: relevantEntries.length,
+    graphConfig: metric.graphConfig,
+    sampleEntry: relevantEntries[0]
+  });
+  
   if (relevantEntries.length === 0) {
     return (
       <div className="relative">
         <div className="flex flex-col items-center justify-center h-24 text-gray-500 text-sm bg-gray-50 rounded-lg border border-gray-200">
           <BarChart3 className="h-6 w-6 mb-2 text-gray-400" />
           <span>Aucune donnée disponible</span>
-          <span className="text-xs text-gray-400 mt-1">Soumettez des formulaires pour voir le graphique</span>
+          <span className="text-xs text-gray-400 mt-1">
+            {formEntries.length === 0 
+              ? 'Aucune soumission trouvée' 
+              : `Aucune soumission pour le formulaire "${form?.title || metric.formId}"`
+            }
+          </span>
         </div>
         {compact && onExpand && (
           <div className="absolute top-2 right-2">
@@ -73,6 +87,13 @@ export const GraphPreview: React.FC<GraphPreviewProps> = ({
 
   // Prepare chart data
   const chartData = prepareChartData(relevantEntries, form, graphConfig);
+  
+  // Debug chart data
+  console.log('📊 Chart Data Debug:', {
+    chartDataLength: chartData.length,
+    chartData: chartData,
+    graphConfig: graphConfig
+  });
 
   if (chartData.length === 0) {
     return (
@@ -80,7 +101,12 @@ export const GraphPreview: React.FC<GraphPreviewProps> = ({
         <div className="flex flex-col items-center justify-center h-24 text-gray-500 text-sm bg-gray-50 rounded-lg border border-gray-200">
           <BarChart3 className="h-6 w-6 mb-2 text-gray-400" />
           <span>Aucune donnée valide</span>
-          <span className="text-xs text-gray-400 mt-1">Vérifiez la configuration des axes</span>
+          <span className="text-xs text-gray-400 mt-1">
+            {graphConfig.xAxisType === 'time' || graphConfig.xAxisType === 'date' 
+              ? 'Vérifiez les timestamps des soumissions'
+              : 'Vérifiez la configuration des axes'
+            }
+          </span>
         </div>
         {compact && onExpand && (
           <div className="absolute top-2 right-2">
@@ -105,7 +131,7 @@ export const GraphPreview: React.FC<GraphPreviewProps> = ({
   const renderChart = () => {
     const commonProps = {
       data: chartData,
-      margin: compact ? { top: 5, right: 10, left: 5, bottom: 5 } : { top: 5, right: 30, left: 20, bottom: 5 }
+      margin: compact ? { top: 5, right: 5, left: 5, bottom: 5 } : { top: 5, right: 30, left: 20, bottom: 5 }
     };
 
     switch (graphConfig.chartType) {
@@ -187,7 +213,7 @@ export const GraphPreview: React.FC<GraphPreviewProps> = ({
   };
 
   return (
-    <div className="relative">
+    <div className="relative w-full">
       <div className={`w-full ${compact ? 'h-24' : 'h-48'}`}>
         <ResponsiveContainer width="100%" height="100%">
           {renderChart()}
@@ -218,16 +244,34 @@ export const GraphPreview: React.FC<GraphPreviewProps> = ({
 function prepareChartData(entries: FormEntry[], form: Form, graphConfig: NonNullable<DashboardMetric['graphConfig']>) {
   const data: Array<{ x: string | number; y: number }> = [];
 
+  console.log('🔧 prepareChartData called with:', {
+    entriesCount: entries.length,
+    xAxisType: graphConfig.xAxisType,
+    yAxisType: graphConfig.yAxisType,
+    chartType: graphConfig.chartType
+  });
+
   if (graphConfig.xAxisType === 'time' || graphConfig.xAxisType === 'date') {
     // Group by time/date
     const groupedByTime = new Map<string, FormEntry[]>();
     
     entries.forEach(entry => {
+      // Validate submittedAt
+      if (!entry.submittedAt) {
+        console.warn('⚠️ Entry missing submittedAt:', entry.id);
+        return;
+      }
+      
       const date = new Date(entry.submittedAt);
+      if (isNaN(date.getTime())) {
+        console.warn('⚠️ Invalid date in entry:', entry.id, entry.submittedAt);
+        return;
+      }
+      
       let timeKey: string;
       
       if (graphConfig.xAxisType === 'date') {
-        timeKey = date.toLocaleDateString();
+        timeKey = date.toLocaleDateString('fr-FR');
       } else {
         // Group by hour for time
         timeKey = date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });

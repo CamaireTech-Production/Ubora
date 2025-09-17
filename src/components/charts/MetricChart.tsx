@@ -31,10 +31,27 @@ export const MetricChart: React.FC<MetricChartProps> = ({ metric, formEntries, f
   // Filter entries for the specific form
   const relevantEntries = formEntries.filter(entry => entry.formId === metric.formId);
   
+  // Debug logging
+  console.log('🔍 MetricChart Debug:', {
+    totalFormEntries: formEntries.length,
+    metricFormId: metric.formId,
+    relevantEntriesCount: relevantEntries.length,
+    graphConfig: metric.graphConfig,
+    sampleEntry: relevantEntries[0]
+  });
+  
   if (relevantEntries.length === 0) {
     return (
       <div className="flex items-center justify-center h-48 text-gray-500">
-        Aucune donnée disponible
+        <div className="text-center">
+          <div className="text-lg font-medium">Aucune donnée disponible</div>
+          <div className="text-sm text-gray-400 mt-1">
+            {formEntries.length === 0 
+              ? 'Aucune soumission trouvée' 
+              : `Aucune soumission pour le formulaire "${form?.title || metric.formId}"`
+            }
+          </div>
+        </div>
       </div>
     );
   }

@@ -782,6 +782,7 @@ export const DirecteurDashboard: React.FC = () => {
         onClose={() => setShowDashboardModal(false)}
         onSave={handleCreateDashboard}
         forms={forms}
+        formEntries={formEntries}
         currentUserId={user?.id || ''}
         agencyId={user?.agencyId || ''}
       />

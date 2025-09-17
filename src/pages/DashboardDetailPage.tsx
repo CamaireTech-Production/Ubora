@@ -14,6 +14,8 @@ import { Toast } from '../components/Toast';
 import { ComingSoonModal } from '../components/ComingSoonModal';
 import { DashboardEditModal } from '../components/DashboardEditModal';
 import { MetricEditModal } from '../components/MetricEditModal';
+import { GraphPreview } from '../components/charts/GraphPreview';
+import { GraphModal } from '../components/charts/GraphModal';
 import { 
   ArrowLeft, 
   BarChart3, 
@@ -71,6 +73,10 @@ export const DashboardDetailPage: React.FC = () => {
   const [showEditDashboardModal, setShowEditDashboardModal] = useState(false);
   const [showEditMetricModal, setShowEditMetricModal] = useState(false);
   const [editingMetricIndex, setEditingMetricIndex] = useState<number>(-1);
+  
+  // Graph modal state
+  const [showGraphModal, setShowGraphModal] = useState(false);
+  const [expandedGraphMetric, setExpandedGraphMetric] = useState<DashboardMetric | null>(null);
   
   // États pour le filtrage temporel
   const [timeFilter, setTimeFilter] = useState<string>('all');
@@ -318,6 +324,11 @@ export const DashboardDetailPage: React.FC = () => {
       showError('Erreur lors de la modification de la métrique. Veuillez réessayer.');
       throw error;
     }
+  };
+
+  const handleExpandGraph = (metric: DashboardMetric) => {
+    setExpandedGraphMetric(metric);
+    setShowGraphModal(true);
   };
 
   const handleSaveMetric = async () => {
@@ -604,18 +615,19 @@ export const DashboardDetailPage: React.FC = () => {
               const result = MetricCalculator.calculateMetric(metric, filteredEntries);
               
               return (
-                <Card key={metric.id || index} className="hover:shadow-lg transition-shadow h-full">
-                  {/* Header with icons and badge */}
-                  <div className="flex items-center space-x-2 mb-2">
-                    {getFieldIcon(metric.fieldType)}
-                    {getCalculationIcon(metric.calculationType)}
-                    <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
-                      {getCalculationLabel(metric.calculationType)}
-                    </span>
-                  </div>
-
-                  {/* Action buttons */}
-                  <div className="flex items-center justify-end space-x-1 mb-3">
+                <Card key={metric.id || index} className="hover:shadow-lg transition-shadow h-full flex flex-col">
+                  {/* Header with icons, badge and action buttons */}
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center space-x-2">
+                      {getFieldIcon(metric.fieldType)}
+                      {getCalculationIcon(metric.calculationType)}
+                      <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
+                        {getCalculationLabel(metric.calculationType)}
+                      </span>
+                    </div>
+                    
+                    {/* Action buttons */}
+                    <div className="flex items-center space-x-1">
                       <Button
                         variant="secondary"
                         size="sm"
@@ -623,17 +635,18 @@ export const DashboardDetailPage: React.FC = () => {
                         className="p-1"
                         title="Modifier la métrique"
                       >
-                      <Edit className="h-3 w-3" />
-                    </Button>
-                    <Button
-                      variant="danger"
-                      size="sm"
-                      onClick={() => handleDeleteMetric(index)}
-                      className="p-1"
-                      title="Supprimer la métrique"
-                    >
-                      <Trash2 className="h-3 w-3" />
-                    </Button>
+                        <Edit className="h-3 w-3" />
+                      </Button>
+                      <Button
+                        variant="danger"
+                        size="sm"
+                        onClick={() => handleDeleteMetric(index)}
+                        className="p-1"
+                        title="Supprimer la métrique"
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    </div>
                   </div>
 
                   {/* Metric name and description */}
@@ -649,17 +662,31 @@ export const DashboardDetailPage: React.FC = () => {
                   </div>
 
                   {/* Metric value and result */}
-                  <div className="mb-3">
-                    <div className="text-xl lg:text-2xl font-bold text-blue-600 mb-1">
-                      {result.displayValue}
-                    </div>
-                    <p className="text-sm text-gray-500">
-                      {result.description}
-                    </p>
-                    {result.value === 0 && (
-                      <p className="text-xs text-orange-500 mt-1">
-                        Vérifiez que des données existent pour ce formulaire
-                      </p>
+                  <div className="flex-1 mb-3">
+                    {metric.metricType === 'graph' ? (
+                      <div className="w-full bg-white rounded-lg border border-gray-200 p-2 h-32">
+                        <GraphPreview
+                          metric={metric}
+                          formEntries={filteredEntries}
+                          forms={forms}
+                          onExpand={() => handleExpandGraph(metric)}
+                          compact={true}
+                        />
+                      </div>
+                    ) : (
+                      <div className="flex flex-col justify-center h-32">
+                        <div className="text-xl lg:text-2xl font-bold text-blue-600 mb-1">
+                          {result.displayValue}
+                        </div>
+                        <p className="text-sm text-gray-500">
+                          {result.description}
+                        </p>
+                        {result.value === 0 && (
+                          <p className="text-xs text-orange-500 mt-1">
+                            Vérifiez que des données existent pour ce formulaire
+                          </p>
+                        )}
+                      </div>
                     )}
                   </div>
 
@@ -967,9 +994,24 @@ export const DashboardDetailPage: React.FC = () => {
         metric={dashboard && editingMetricIndex >= 0 ? dashboard.metrics[editingMetricIndex] : null}
         metricIndex={editingMetricIndex}
         forms={forms}
+        formEntries={formEntries}
         currentUserId={user?.id || ''}
         agencyId={user?.agencyId || ''}
       />
+
+      {/* Graph Modal */}
+      {expandedGraphMetric && (
+        <GraphModal
+          isOpen={showGraphModal}
+          onClose={() => {
+            setShowGraphModal(false);
+            setExpandedGraphMetric(null);
+          }}
+          metric={expandedGraphMetric}
+          formEntries={getFilteredFormEntries()}
+          forms={forms}
+        />
+      )}
 
       {/* Toast Notification */}
       <Toast

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Form, FormField, DashboardMetric } from '../types';
+import { Form, FormField, DashboardMetric, FormEntry } from '../types';
 import { Button } from './Button';
 import { Card } from './Card';
 import { Input } from './Input';
@@ -15,6 +15,7 @@ interface MetricEditModalProps {
   metric: DashboardMetric | null;
   metricIndex: number;
   forms: Form[];
+  formEntries: FormEntry[];
   currentUserId: string;
   agencyId: string;
 }
@@ -26,6 +27,7 @@ export const MetricEditModal: React.FC<MetricEditModalProps> = ({
   metric,
   metricIndex,
   forms,
+  formEntries,
   currentUserId,
   agencyId
 }) => {
@@ -429,7 +431,7 @@ export const MetricEditModal: React.FC<MetricEditModalProps> = ({
                           metricType: 'graph',
                           graphConfig: graphConfig
                         }}
-                        formEntries={[]} // We don't have form entries in edit mode
+                        formEntries={formEntries.filter(entry => entry.formId === formId)}
                         forms={forms}
                         compact={true}
                       />
