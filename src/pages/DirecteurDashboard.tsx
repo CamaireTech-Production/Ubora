@@ -526,7 +526,11 @@ export const DirecteurDashboard: React.FC = () => {
             {(() => {
               const filteredData = getFilteredData();
               return (
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
+                <div className={`grid gap-3 sm:gap-4 lg:gap-6 ${
+                  user?.role === 'directeur' 
+                    ? 'grid-cols-2 lg:grid-cols-4' 
+                    : 'grid-cols-2 lg:grid-cols-3'
+                }`}>
                   <Card className="bg-gradient-to-r from-blue-500 to-blue-600 text-white">
                     <div className="flex items-center space-x-2">
                       <FileText className="h-5 w-5 sm:h-6 sm:w-6 lg:h-8 lg:w-8 opacity-80 flex-shrink-0" />
@@ -547,15 +551,18 @@ export const DirecteurDashboard: React.FC = () => {
                     </div>
                   </Card>
 
-                  <Card className="bg-gradient-to-r from-yellow-500 to-yellow-600 text-white">
-                    <div className="flex items-center space-x-2">
-                      <UserCheck className="h-5 w-5 sm:h-6 sm:w-6 lg:h-8 lg:w-8 opacity-80 flex-shrink-0" />
-                      <div className="min-w-0">
-                        <p className="text-yellow-100 text-xs">En attente</p>
-                        <p className="text-base sm:text-lg lg:text-xl xl:text-2xl font-bold">{getPendingEmployees().length}</p>
+                  {/* Only show "En attente" card for actual directors */}
+                  {user?.role === 'directeur' && (
+                    <Card className="bg-gradient-to-r from-yellow-500 to-yellow-600 text-white">
+                      <div className="flex items-center space-x-2">
+                        <UserCheck className="h-5 w-5 sm:h-6 sm:w-6 lg:h-8 lg:w-8 opacity-80 flex-shrink-0" />
+                        <div className="min-w-0">
+                          <p className="text-yellow-100 text-xs">En attente</p>
+                          <p className="text-base sm:text-lg lg:text-xl xl:text-2xl font-bold">{getPendingEmployees().length}</p>
+                        </div>
                       </div>
-                    </div>
-                  </Card>
+                    </Card>
+                  )}
                   
                   <Card className="bg-gradient-to-r from-purple-500 to-purple-600 text-white">
                     <div className="flex items-center space-x-2">
@@ -570,12 +577,14 @@ export const DirecteurDashboard: React.FC = () => {
               );
             })()}
 
-            {/* Section des approbations en attente */}
-            <PendingApprovals
-              pendingEmployees={getPendingEmployees()}
-              currentDirectorId={user?.id || ''}
-              onApprovalChange={refreshData}
-            />
+            {/* Section des approbations en attente - Only for actual directors */}
+            {user?.role === 'directeur' && (
+              <PendingApprovals
+                pendingEmployees={getPendingEmployees()}
+                currentDirectorId={user?.id || ''}
+                onApprovalChange={refreshData}
+              />
+            )}
 
 
             {/* Actions principales */}

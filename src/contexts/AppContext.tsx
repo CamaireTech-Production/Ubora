@@ -475,7 +475,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const getPendingEmployees = (): User[] => {
-    return employees.filter(emp => emp.role === 'employe' && emp.isApproved === false);
+    return employees.filter(emp => 
+      emp.role === 'employe' && 
+      emp.isApproved === false && 
+      !emp.hasDirectorDashboardAccess
+    );
   };
 
   const refreshData = () => {
