@@ -54,6 +54,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             tokensUsedMonthly: 0,
             tokensResetDate: serverTimestamp()
           }),
+          ...(additionalData.role === 'employe' && {
+            accessLevels: [],
+            hasDirectorDashboardAccess: false
+          }),
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp()
         };
@@ -238,6 +242,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           package: 'starter', // Package seulement pour les directeurs
           tokensUsedMonthly: 0,
           tokensResetDate: serverTimestamp()
+        }),
+        ...(role === 'employe' && {
+          accessLevels: [],
+          hasDirectorDashboardAccess: false
         }),
         isApproved: role === 'directeur' ? true : false, // Les directeurs sont automatiquement approuvés
         createdAt: serverTimestamp(),

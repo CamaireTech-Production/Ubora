@@ -50,7 +50,7 @@ export const TokenDisplay: React.FC<TokenDisplayProps> = ({
         <div className="flex items-center space-x-2">
           <Brain className="h-5 w-5 text-blue-500" />
           <h3 className="text-sm font-medium text-gray-900">
-            Tokens IA disponibles
+            Tokens Archa disponibles
           </h3>
         </div>
         {isUnlimited && (

@@ -72,7 +72,7 @@ export const PackageInfo: React.FC<PackageInfoProps> = ({
           </div>
           
           <div className="flex justify-between">
-            <span className="text-gray-600">Tokens IA/mois:</span>
+            <span className="text-gray-600">Tokens Archa/mois:</span>
             <span className="font-medium">
               {hasUnlimitedTokens() ? 'Illimités' : `${monthlyTokens.toLocaleString()}`}
             </span>

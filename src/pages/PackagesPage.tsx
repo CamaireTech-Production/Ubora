@@ -27,10 +27,12 @@ import {
   Users,
   BarChart3,
   Brain,
-  Palette
+  Palette,
+  Plus
 } from 'lucide-react';
 import { useToast } from '../hooks/useToast';
 import { Toast } from '../components/Toast';
+import { PaymentModal } from '../components/PaymentModal';
 
 export const PackagesPage: React.FC = () => {
   const navigate = useNavigate();
@@ -39,6 +41,15 @@ export const PackagesPage: React.FC = () => {
   const { toast, showSuccess, showError } = useToast();
   const [selectedPackage, setSelectedPackage] = useState<PackageType | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [paymentModal, setPaymentModal] = useState<{
+    isOpen: boolean;
+    type: 'tokens' | 'forms' | 'dashboards' | 'users';
+    currentLimit: number;
+  }>({
+    isOpen: false,
+    type: 'tokens',
+    currentLimit: 0
+  });
 
   const packages: PackageType[] = ['starter', 'standard', 'premium', 'custom'];
 
@@ -113,6 +124,16 @@ export const PackagesPage: React.FC = () => {
     return limit === -1 ? 'Illimité' : limit.toString();
   };
 
+  const handlePurchaseResource = (option: any) => {
+    // Simulation d'achat de ressource
+    showSuccess(`${option.name} acheté avec succès !`);
+    setPaymentModal({ isOpen: false, type: 'tokens', currentLimit: 0 });
+  };
+
+  const openPaymentModal = (type: 'tokens' | 'forms' | 'dashboards' | 'users', currentLimit: number) => {
+    setPaymentModal({ isOpen: true, type, currentLimit });
+  };
+
   return (
     <Layout title="Packages UBORA">
       <div className="max-w-6xl mx-auto space-y-8 px-4">
@@ -161,7 +182,7 @@ export const PackagesPage: React.FC = () => {
                       </div>
                       
                       <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium text-gray-600">Tokens restants:</span>
+                        <span className="text-sm font-medium text-gray-600">Tokens Archa restants:</span>
                         <span className="text-sm font-semibold text-green-600">
                           {(() => {
                             const monthlyLimit = getMonthlyTokens();
@@ -247,7 +268,7 @@ export const PackagesPage: React.FC = () => {
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-gray-600 flex items-center">
                       <Brain className="h-4 w-4 mr-2" />
-                      Tokens IA
+                      Tokens Archa
                     </span>
                     <span className="font-medium">{formatLimit(limits.monthlyTokens)}</span>
                   </div>
@@ -302,7 +323,118 @@ export const PackagesPage: React.FC = () => {
           })}
         </div>
 
+        {/* Section Ressources Supplémentaires */}
+        <div className="max-w-4xl mx-auto">
+          <Card className="p-6 bg-gradient-to-r from-green-50 to-blue-50 border-green-200">
+            <div className="text-center mb-6">
+              <h2 className="text-2xl font-bold text-gray-900 mb-2">
+                Ressources Supplémentaires
+              </h2>
+              <p className="text-gray-600">
+                Vous avez atteint une limite ? Achetez des ressources supplémentaires pour continuer à utiliser UBORA sans interruption.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              {/* Tokens Archa */}
+              <div className="bg-white rounded-lg p-4 border border-gray-200 hover:shadow-md transition-shadow">
+                <div className="text-center">
+                  <div className="inline-flex p-3 rounded-full bg-blue-100 text-blue-600 mb-3">
+                    <Brain className="h-6 w-6" />
+                  </div>
+                  <h3 className="font-semibold text-gray-900 mb-2">Tokens Archa</h3>
+                  <p className="text-sm text-gray-600 mb-4">
+                    Achetez des tokens supplémentaires pour continuer à utiliser l'IA
+                  </p>
+                  <Button
+                    onClick={() => openPaymentModal('tokens', 0)}
+                    className="w-full bg-blue-600 hover:bg-blue-700"
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Acheter des tokens
+                  </Button>
+                </div>
+              </div>
+
+              {/* Formulaires */}
+              <div className="bg-white rounded-lg p-4 border border-gray-200 hover:shadow-md transition-shadow">
+                <div className="text-center">
+                  <div className="inline-flex p-3 rounded-full bg-green-100 text-green-600 mb-3">
+                    <BarChart3 className="h-6 w-6" />
+                  </div>
+                  <h3 className="font-semibold text-gray-900 mb-2">Formulaires</h3>
+                  <p className="text-sm text-gray-600 mb-4">
+                    Ajoutez des formulaires supplémentaires à votre package
+                  </p>
+                  <Button
+                    onClick={() => openPaymentModal('forms', 4)}
+                    className="w-full bg-green-600 hover:bg-green-700"
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Acheter des formulaires
+                  </Button>
+                </div>
+              </div>
+
+              {/* Tableaux de bord */}
+              <div className="bg-white rounded-lg p-4 border border-gray-200 hover:shadow-md transition-shadow">
+                <div className="text-center">
+                  <div className="inline-flex p-3 rounded-full bg-purple-100 text-purple-600 mb-3">
+                    <BarChart3 className="h-6 w-6" />
+                  </div>
+                  <h3 className="font-semibold text-gray-900 mb-2">Tableaux de bord</h3>
+                  <p className="text-sm text-gray-600 mb-4">
+                    Créez plus de tableaux de bord pour vos analyses
+                  </p>
+                  <Button
+                    onClick={() => openPaymentModal('dashboards', 1)}
+                    className="w-full bg-purple-600 hover:bg-purple-700"
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Acheter des tableaux
+                  </Button>
+                </div>
+              </div>
+
+              {/* Utilisateurs */}
+              <div className="bg-white rounded-lg p-4 border border-gray-200 hover:shadow-md transition-shadow">
+                <div className="text-center">
+                  <div className="inline-flex p-3 rounded-full bg-orange-100 text-orange-600 mb-3">
+                    <Users className="h-6 w-6" />
+                  </div>
+                  <h3 className="font-semibold text-gray-900 mb-2">Utilisateurs</h3>
+                  <p className="text-sm text-gray-600 mb-4">
+                    Ajoutez des utilisateurs à votre équipe
+                  </p>
+                  <Button
+                    onClick={() => openPaymentModal('users', 3)}
+                    className="w-full bg-orange-600 hover:bg-orange-700"
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Acheter des utilisateurs
+                  </Button>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-6 text-center">
+              <p className="text-sm text-gray-600">
+                💳 Paiement sécurisé • 🔄 Ressources ajoutées immédiatement • 📞 Support 24/7
+              </p>
+            </div>
+          </Card>
+        </div>
+
       </div>
+
+      {/* Payment Modal */}
+      <PaymentModal
+        isOpen={paymentModal.isOpen}
+        onClose={() => setPaymentModal({ isOpen: false, type: 'tokens', currentLimit: 0 })}
+        type={paymentModal.type}
+        currentLimit={paymentModal.currentLimit}
+        onPurchase={handlePurchaseResource}
+      />
 
       <Toast {...toast} />
     </Layout>

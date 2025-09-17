@@ -7,7 +7,7 @@
 - 1 tableau de bord dynamique
 - Graphiques IA inclus
 - Export PDF & Excel inclus
-- Chat IA (via système de tokens)
+- Chat Archa (via système de tokens)
 - 3 utilisateurs inclus
 - +10 000 FCFA / utilisateur supplémentaire
 
@@ -35,7 +35,7 @@
 
 - Formulaires illimités
 - Tableaux de bord illimités
-- Chat IA Archa avec analyses croisées et tendances prédictives
+- Chat Archa avec analyses croisées et tendances prédictives
 - Branding personnalisé (logo & couleurs sur exports)
 - Support WhatsApp prioritaire
 - 20 utilisateurs inclus
@@ -49,7 +49,7 @@
 **À partir de 250 000 FCFA / mois (selon besoins)**
 
 - Formulaires & dashboards illimités
-- Chat IA avancé avec intégrations (comptabilité, RH, facturation…)
+- Chat Archa avancé avec intégrations (comptabilité, RH, facturation…)
 - Hébergement dédié & sécurisé
 - Formation des équipes et support sur site
 - Utilisateurs illimités ou tarif spécifique selon profil
@@ -71,6 +71,15 @@ Les tokens sont inclus dans chaque abonnement (quota mensuel).
 - **Sur mesure** : tokens à négocier
 
 > Possibilité d'acheter des tokens additionnels si le quota est dépassé.
+
+### Achat de ressources supplémentaires :
+
+Si vous atteignez les limites de votre package, vous pouvez acheter des ressources supplémentaires :
+
+- **Tokens Archa** : 5 000 tokens (5 000 FCFA), 10 000 tokens (9 000 FCFA), 25 000 tokens (20 000 FCFA)
+- **Formulaires** : 5 formulaires (15 000 FCFA), 10 formulaires (25 000 FCFA), illimités (50 000 FCFA)
+- **Tableaux de bord** : 3 tableaux (20 000 FCFA), 5 tableaux (30 000 FCFA), illimités (60 000 FCFA)
+- **Utilisateurs** : 3 utilisateurs (21 000 FCFA), 5 utilisateurs (35 000 FCFA), 10 utilisateurs (70 000 FCFA)
 
 ---
 

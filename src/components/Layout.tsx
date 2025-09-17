@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { Button } from './Button';
 import { Footer } from './Footer';
 import { UserPackageInfo } from './UserPackageInfo';
+import { ProfileDropdown } from './ProfileDropdown';
 import { LogOut, BarChart3, MessageSquare, Menu, X } from 'lucide-react';
 
 interface LayoutProps {
@@ -86,16 +87,6 @@ export const Layout: React.FC<LayoutProps> = ({ children, title }) => {
             )}
             
             <div className="flex items-center space-x-2 sm:space-x-4">
-              {/* Profil utilisateur - masqué sur très petit écran */}
-              <div 
-                className={`hidden sm:block text-right ${isDirecteur ? 'cursor-pointer hover:bg-gray-50 rounded-lg p-2 transition-colors' : ''}`}
-                onClick={isDirecteur ? () => navigate('/packages') : undefined}
-                title={isDirecteur ? 'Cliquer pour voir les packages' : undefined}
-              >
-                <p className="text-sm font-medium text-gray-900 truncate max-w-[120px] lg:max-w-none">{user?.name}</p>
-                <p className="text-xs text-gray-500 truncate max-w-[120px] lg:max-w-none">{user?.email}</p>
-              </div>
-              
               {/* Package info pour les directeurs */}
               {isDirecteur && user?.package && (
                 <div className="hidden md:block">
@@ -115,16 +106,8 @@ export const Layout: React.FC<LayoutProps> = ({ children, title }) => {
                 </Button>
               )}
               
-              {/* Bouton déconnexion */}
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={logout}
-                className="flex items-center space-x-1 sm:space-x-2"
-              >
-                <LogOut className="h-4 w-4" />
-                <span className="hidden sm:inline">Déconnexion</span>
-              </Button>
+              {/* Profile Dropdown */}
+              <ProfileDropdown />
             </div>
           </div>
           

@@ -10,8 +10,23 @@ export interface User {
   isApproved?: boolean; // Status d'approbation pour les employés
   approvedBy?: string; // ID du directeur qui a approuvé
   approvedAt?: any; // Timestamp d'approbation
+  // Access levels for employees
+  accessLevels?: AccessLevel[]; // Niveaux d'accès accordés par le directeur
+  hasDirectorDashboardAccess?: boolean; // Accès au dashboard directeur
+  directorDashboardAccessGrantedBy?: string; // ID du directeur qui a accordé l'accès
+  directorDashboardAccessGrantedAt?: any; // Timestamp d'octroi d'accès
   createdAt?: any; // Timestamp Firestore
   updatedAt?: any; // Timestamp Firestore
+}
+
+export interface AccessLevel {
+  id: string;
+  name: string;
+  level: number; // L1, L2, L3, etc.
+  permissions: string[]; // Permissions accordées
+  grantedBy: string; // ID du directeur qui a accordé le niveau
+  grantedAt: any; // Timestamp d'octroi
+  description?: string; // Description du niveau d'accès
 }
 
 export interface FormField {
@@ -34,6 +49,8 @@ export interface Form {
   title: string;
   description: string;
   createdBy: string; // directeur ID
+  createdByRole: 'directeur' | 'employe'; // Rôle du créateur
+  createdByEmployeeId?: string; // ID de l'employé si créé par un employé
   assignedTo: string[]; // array d'IDs des employés
   fields: FormField[];
   createdAt: Date;
@@ -199,6 +216,8 @@ export interface Dashboard {
   metrics: DashboardMetric[];
   createdAt: Date;
   createdBy: string; // directeur ID
+  createdByRole: 'directeur' | 'employe'; // Rôle du créateur
+  createdByEmployeeId?: string; // ID de l'employé si créé par un employé
   agencyId: string;
   isDefault?: boolean; // Pour le dashboard par défaut
 }

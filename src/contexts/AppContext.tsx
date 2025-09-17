@@ -17,6 +17,7 @@ import { Form, FormEntry, User, DraftResponse, Dashboard } from '../types';
 import { DraftService } from '../services/draftService';
 import { useAuth } from './AuthContext';
 import { usePackageAccess } from '../hooks/usePackageAccess';
+import { PermissionManager } from '../utils/PermissionManager';
 
 interface AppContextType {
   forms: Form[];
@@ -88,31 +89,46 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         orderBy('createdAt', 'desc')
       );
     } else {
-      // Les employés ne voient que les formulaires qui leur sont assignés
+      // Les employés voient les formulaires qui leur sont assignés ET ceux qu'ils ont créés
+      // Note: Firestore ne supporte pas les requêtes OR complexes, donc on récupère tous les formulaires
+      // et on filtre côté client
       formsQuery = query(
         collection(db, 'forms'),
         where('agencyId', '==', user.agencyId),
-        where('assignedTo', 'array-contains', user.id),
         orderBy('createdAt', 'desc')
       );
     }
 
     const unsubscribeForms = onSnapshot(formsQuery, (snapshot) => {
-      const formsData = snapshot.docs.map(doc => ({
+      const allFormsData = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data(),
         createdAt: doc.data().createdAt?.toDate() || new Date()
       })) as Form[];
-      setForms(formsData);
+      
+      // Filtrer les formulaires selon le rôle de l'utilisateur
+      let filteredForms = allFormsData;
+      if (user.role === 'employe') {
+        filteredForms = allFormsData.filter(form => 
+          form.assignedTo.includes(user.id) || 
+          form.createdByEmployeeId === user.id ||
+          form.createdBy === user.id
+        );
+      }
+      
+      setForms(filteredForms);
       console.log('Formulaires chargés:', {
-        count: formsData.length,
+        count: filteredForms.length,
         userRole: user.role,
         userAgencyId: user.agencyId,
-        forms: formsData.map(f => ({ 
+        forms: filteredForms.map(f => ({ 
           id: f.id, 
           title: f.title, 
           assignedTo: f.assignedTo,
-          agencyId: f.agencyId 
+          agencyId: f.agencyId,
+          createdBy: f.createdBy,
+          createdByRole: f.createdByRole,
+          createdByEmployeeId: f.createdByEmployeeId
         }))
       });
     }, (err) => {
@@ -201,9 +217,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setError('Erreur lors du chargement des employés');
     });
 
-    // Écouter les tableaux de bord de l'agence (seulement pour les directeurs)
+    // Écouter les tableaux de bord de l'agence
     let unsubscribeDashboards: (() => void) | undefined;
-    if (user.role === 'directeur') {
+    
+    // Les directeurs et employés avec accès peuvent voir les tableaux de bord
+    if (user.role === 'directeur' || PermissionManager.hasDirectorDashboardAccess(user)) {
       const dashboardsQuery = query(
         collection(db, 'dashboards'),
         where('agencyId', '==', user.agencyId),
@@ -211,14 +229,37 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       );
 
       unsubscribeDashboards = onSnapshot(dashboardsQuery, (snapshot) => {
-        const dashboardsData = snapshot.docs.map(doc => ({
+        const allDashboardsData = snapshot.docs.map(doc => ({
           id: doc.id,
           ...doc.data(),
           createdAt: doc.data().createdAt?.toDate() || new Date()
         })) as Dashboard[];
-        setDashboards(dashboardsData);
+        
+        // Filtrer les tableaux de bord selon le rôle de l'utilisateur
+        let filteredDashboards = allDashboardsData;
+        if (user.role === 'employe') {
+          // Les employés voient les tableaux de bord qu'ils ont créés ET ceux de l'agence
+          // (car ils ont accès au dashboard directeur)
+          filteredDashboards = allDashboardsData.filter(dashboard => 
+            dashboard.createdByEmployeeId === user.id ||
+            dashboard.createdBy === user.id ||
+            dashboard.createdByRole === 'directeur' // Tableaux de bord créés par le directeur
+          );
+        }
+        
+        setDashboards(filteredDashboards);
         setIsLoading(false);
-        console.log('Tableaux de bord chargés:', dashboardsData.length);
+        console.log('Tableaux de bord chargés:', {
+          count: filteredDashboards.length,
+          userRole: user.role,
+          dashboards: filteredDashboards.map(d => ({ 
+            id: d.id, 
+            name: d.name, 
+            createdBy: d.createdBy,
+            createdByRole: d.createdByRole,
+            createdByEmployeeId: d.createdByEmployeeId
+          }))
+        });
       }, (err) => {
         console.error('Erreur lors du chargement des tableaux de bord:', err);
         setError('Erreur lors du chargement des tableaux de bord');
@@ -239,12 +280,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [user, firebaseUser]);
 
   const createForm = async (formData: Omit<Form, 'id' | 'createdAt'>) => {
-    if (!user || user.role !== 'directeur' || !user.agencyId) {
-      throw new Error('Seuls les directeurs peuvent créer des formulaires');
+    if (!user || !user.agencyId) {
+      throw new Error('Données utilisateur manquantes');
     }
 
-    // Vérifier les limites du package
-    if (!canCreateForm(forms.length)) {
+    // Vérifier les permissions selon le rôle
+    if (user.role === 'employe') {
+      // Les employés peuvent créer des formulaires s'ils ont la permission
+      if (!PermissionManager.canCreateForms(user)) {
+        throw new Error('Vous n\'avez pas la permission de créer des formulaires');
+      }
+    } else if (user.role !== 'directeur') {
+      throw new Error('Seuls les directeurs et employés autorisés peuvent créer des formulaires');
+    }
+
+    // Vérifier les limites du package (seulement pour les directeurs)
+    if (user.role === 'directeur' && !canCreateForm(forms.length)) {
       throw new Error('Limite de formulaires atteinte pour votre package. Veuillez mettre à niveau votre abonnement.');
     }
 
@@ -256,6 +307,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         title: formData.title.trim(),
         description: formData.description.trim(),
         createdBy: user.id,
+        createdByRole: user.role,
+        createdByEmployeeId: user.role === 'employe' ? user.id : undefined,
         assignedTo: formData.assignedTo || [],
         fields: formData.fields || [],
         agencyId: user.agencyId,
@@ -464,12 +517,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Dashboard management functions
   const createDashboard = async (dashboardData: Omit<Dashboard, 'id' | 'createdAt'>) => {
-    if (!user || user.role !== 'directeur' || !user.agencyId) {
-      throw new Error('Seuls les directeurs peuvent créer des tableaux de bord');
+    if (!user || !user.agencyId) {
+      throw new Error('Données utilisateur manquantes');
     }
 
-    // Vérifier les limites du package
-    if (!canCreateDashboard(dashboards.length)) {
+    // Vérifier les permissions selon le rôle
+    if (user.role === 'employe') {
+      // Les employés peuvent créer des tableaux de bord s'ils ont la permission
+      if (!PermissionManager.canCreateDashboards(user)) {
+        throw new Error('Vous n\'avez pas la permission de créer des tableaux de bord');
+      }
+    } else if (user.role !== 'directeur') {
+      throw new Error('Seuls les directeurs et employés autorisés peuvent créer des tableaux de bord');
+    }
+
+    // Vérifier les limites du package (seulement pour les directeurs)
+    if (user.role === 'directeur' && !canCreateDashboard(dashboards.length)) {
       throw new Error('Limite de tableaux de bord atteinte pour votre package. Veuillez mettre à niveau votre abonnement.');
     }
 
@@ -484,6 +547,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           createdAt: new Date()
         })),
         createdBy: user.id,
+        createdByRole: user.role,
+        createdByEmployeeId: user.role === 'employe' ? user.id : undefined,
         agencyId: user.agencyId,
         isDefault: dashboardData.isDefault || false,
         createdAt: serverTimestamp()

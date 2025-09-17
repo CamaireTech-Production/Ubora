@@ -15,6 +15,8 @@ import { DashboardDetailPage } from './pages/DashboardDetailPage';
 import { ResponseDetailPage } from './pages/ResponseDetailPage';
 import { PackagesPage } from './pages/PackagesPage';
 import { PWAInstallPrompt } from './components/PWAInstallPrompt';
+import { EmployeeManagement } from './components/EmployeeManagement';
+import { Layout } from './components/Layout';
 // import { PWAUpdateNotification } from './components/PWAUpdateNotification';
 
 function App() {
@@ -37,7 +39,10 @@ function App() {
             <Route 
               path="/directeur/dashboard" 
               element={
-                <ProtectedRoute allowedRoles={['directeur']}>
+                <ProtectedRoute 
+                  allowedRoles={['directeur', 'employe']} 
+                  requireDirectorDashboardAccess={true}
+                >
                   <DirecteurDashboard />
                 </ProtectedRoute>
               } 
@@ -47,7 +52,10 @@ function App() {
             <Route 
               path="/directeur/chat" 
               element={
-                <ProtectedRoute allowedRoles={['directeur']}>
+                <ProtectedRoute 
+                  allowedRoles={['directeur', 'employe']} 
+                  requireDirectorDashboardAccess={true}
+                >
                   <DirecteurChat />
                 </ProtectedRoute>
               } 
@@ -58,7 +66,10 @@ function App() {
             <Route 
               path="/directeur/dashboards/:dashboardId" 
               element={
-                <ProtectedRoute allowedRoles={['directeur']}>
+                <ProtectedRoute 
+                  allowedRoles={['directeur', 'employe']} 
+                  requireDirectorDashboardAccess={true}
+                >
                   <DashboardDetailPage />
                 </ProtectedRoute>
               } 
@@ -90,6 +101,18 @@ function App() {
               element={
                 <ProtectedRoute allowedRoles={['directeur']}>
                   <PackagesPage />
+                </ProtectedRoute>
+              } 
+            />
+            
+            {/* Gestion des employés */}
+            <Route 
+              path="/directeur/employees" 
+              element={
+                <ProtectedRoute allowedRoles={['directeur']}>
+                  <Layout title="Gestion des Employés">
+                    <EmployeeManagement />
+                  </Layout>
                 </ProtectedRoute>
               } 
             />
