@@ -58,7 +58,9 @@ export const DashboardDetailPage: React.FC = () => {
     formId: '',
     fieldId: '',
     fieldType: 'text',
-    calculationType: 'count'
+    calculationType: 'count',
+    metricType: 'value',
+    graphConfig: undefined
   });
   const [errors, setErrors] = useState<string[]>([]);
   const [showDeleteDashboardModal, setShowDeleteDashboardModal] = useState(false);
@@ -68,6 +70,7 @@ export const DashboardDetailPage: React.FC = () => {
   const [isDeletingDashboard, setIsDeletingDashboard] = useState(false);
   const [isDeletingMetric, setIsDeletingMetric] = useState(false);
   const [isAddingMetric, setIsAddingMetric] = useState(false);
+  const [showGraphPreview, setShowGraphPreview] = useState(false);
   
   // Edit modals state
   const [showEditDashboardModal, setShowEditDashboardModal] = useState(false);
@@ -278,10 +281,19 @@ export const DashboardDetailPage: React.FC = () => {
       formId: '',
       fieldId: '',
       fieldType: 'text',
-      calculationType: 'count'
+      calculationType: 'count',
+      metricType: 'value',
+      graphConfig: undefined
     });
+    setShowGraphPreview(false);
     setErrors([]);
     setShowMetricModal(true);
+  };
+
+  const handleCloseMetricModal = () => {
+    setShowMetricModal(false);
+    setShowGraphPreview(false);
+    setErrors([]);
   };
 
   const handleEditDashboard = () => {
@@ -721,7 +733,7 @@ export const DashboardDetailPage: React.FC = () => {
               <Button
                 variant="secondary"
                 size="sm"
-                onClick={() => setShowMetricModal(false)}
+                onClick={handleCloseMetricModal}
                 className="p-2"
               >
                 <X className="h-4 w-4" />
@@ -812,6 +824,33 @@ export const DashboardDetailPage: React.FC = () => {
                       </div>
                     </div>
 
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Type d'affichage *
+                      </label>
+                      <Select
+                        value={newMetric.metricType || 'value'}
+                        onChange={(e) => {
+                          const metricType = e.target.value as 'value' | 'graph';
+                          setNewMetric(prev => ({ 
+                            ...prev,
+                            metricType,
+                            graphConfig: metricType === 'graph' ? {
+                              xAxisType: 'time',
+                              yAxisType: 'count',
+                              chartType: 'line'
+                            } : undefined
+                          }));
+                        }}
+                        options={[
+                          { value: 'value', label: 'Valeur numérique' },
+                          { value: 'graph', label: 'Graphique' }
+                        ]}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-4">
                     <Input
                       label="Description (optionnel)"
                       value={newMetric.description || ''}
@@ -819,6 +858,167 @@ export const DashboardDetailPage: React.FC = () => {
                       placeholder="Description de la métrique..."
                     />
                   </div>
+
+                  {/* Graph type configuration */}
+                  {newMetric.metricType === 'graph' && newMetric.graphConfig && (
+                    <div className="space-y-4 p-4 bg-blue-50 rounded-lg">
+                      <h5 className="font-medium text-blue-900">Configuration du graphique</h5>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Axe X (horizontal)
+                          </label>
+                          <select
+                            value={newMetric.graphConfig.xAxisType || 'time'}
+                            onChange={(e) => setNewMetric(prev => ({
+                              ...prev,
+                              graphConfig: {
+                                ...prev.graphConfig!,
+                                xAxisType: e.target.value as 'field' | 'time' | 'date'
+                              }
+                            }))}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          >
+                            <option value="time">Heure de soumission</option>
+                            <option value="date">Date de soumission</option>
+                            <option value="field">Champ du formulaire</option>
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Axe Y (vertical)
+                          </label>
+                          <select
+                            value={newMetric.graphConfig.yAxisType || 'count'}
+                            onChange={(e) => setNewMetric(prev => ({
+                              ...prev,
+                              graphConfig: {
+                                ...prev.graphConfig!,
+                                yAxisType: e.target.value as 'field' | 'count' | 'sum' | 'average'
+                              }
+                            }))}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          >
+                            <option value="count">Nombre de soumissions</option>
+                            <option value="sum">Somme des valeurs</option>
+                            <option value="average">Moyenne des valeurs</option>
+                            <option value="field">Valeur du champ</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      {/* X Axis Field Selection */}
+                      {newMetric.graphConfig.xAxisType === 'field' && (
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Champ pour l'axe X
+                          </label>
+                          <select
+                            value={newMetric.graphConfig.xAxisFieldId || ''}
+                            onChange={(e) => setNewMetric(prev => ({
+                              ...prev,
+                              graphConfig: {
+                                ...prev.graphConfig!,
+                                xAxisFieldId: e.target.value
+                              }
+                            }))}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          >
+                            <option value="">Choisir un champ...</option>
+                            {selectedForm.fields.map(field => (
+                              <option key={field.id} value={field.id}>
+                                {field.label} ({field.type})
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+
+                      {/* Y Axis Field Selection */}
+                      {newMetric.graphConfig.yAxisType === 'field' && (
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Champ pour l'axe Y
+                          </label>
+                          <select
+                            value={newMetric.graphConfig.yAxisFieldId || ''}
+                            onChange={(e) => setNewMetric(prev => ({
+                              ...prev,
+                              graphConfig: {
+                                ...prev.graphConfig!,
+                                yAxisFieldId: e.target.value
+                              }
+                            }))}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          >
+                            <option value="">Choisir un champ...</option>
+                            {selectedForm.fields.map(field => (
+                              <option key={field.id} value={field.id}>
+                                {field.label} ({field.type})
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Type de graphique
+                        </label>
+                        <select
+                          value={newMetric.graphConfig.chartType || 'line'}
+                          onChange={(e) => setNewMetric(prev => ({
+                            ...prev,
+                            graphConfig: {
+                              ...prev.graphConfig!,
+                              chartType: e.target.value as 'line' | 'bar' | 'area'
+                            }
+                          }))}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        >
+                          <option value="line">Ligne</option>
+                          <option value="bar">Barres</option>
+                          <option value="area">Aire</option>
+                        </select>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Graph Preview */}
+                  {newMetric.metricType === 'graph' && newMetric.graphConfig && newMetric.formId && (
+                    <div className="mt-4 p-4 bg-green-50 rounded-lg">
+                      <div className="flex items-center justify-between mb-3">
+                        <h5 className="font-medium text-green-900">Aperçu du graphique</h5>
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => setShowGraphPreview(!showGraphPreview)}
+                          className="text-xs"
+                        >
+                          {showGraphPreview ? 'Masquer' : 'Aperçu'}
+                        </Button>
+                      </div>
+                      
+                      {showGraphPreview && (
+                        <div className="h-32">
+                          <GraphPreview
+                            metric={{
+                              ...newMetric,
+                              id: 'preview-new-metric',
+                              createdAt: new Date(),
+                              createdBy: user?.id || '',
+                              agencyId: user?.agencyId || ''
+                            }}
+                            formEntries={formEntries.filter(entry => entry.formId === newMetric.formId)}
+                            forms={forms}
+                            compact={true}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   {/* Field Preview */}
                   {newMetric.fieldId && (
@@ -850,7 +1050,7 @@ export const DashboardDetailPage: React.FC = () => {
             <div className="flex items-center justify-end space-x-3 p-6 border-t border-gray-200 bg-gray-50">
               <Button
                 variant="secondary"
-                onClick={() => setShowMetricModal(false)}
+                onClick={handleCloseMetricModal}
               >
                 Annuler
               </Button>

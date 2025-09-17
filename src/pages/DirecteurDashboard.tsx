@@ -7,6 +7,7 @@ import { Layout } from '../components/Layout';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { FormEditor } from '../components/FormEditor';
+import { FormBuilder } from '../components/FormBuilder';
 import { LoadingGuard } from '../components/LoadingGuard';
 import { Plus, FileText, Users, Eye, Trash2, Edit, UserCheck, BarChart3, Calendar, ChevronDown } from 'lucide-react';
 import { PendingApprovals } from '../components/PendingApprovals';
@@ -380,12 +381,20 @@ export const DirecteurDashboard: React.FC = () => {
         </div>
       ) : showFormBuilder || editingForm ? (
         <Layout title={editingForm ? "Modifier le formulaire" : "Créer un formulaire"}>
-          <FormEditor
-            form={editingForm || undefined}
-            onSave={editingForm ? handleUpdateForm : handleCreateForm}
-            onCancel={handleCancelEdit}
-            employees={employees}
-          />
+          {editingForm ? (
+            <FormEditor
+              form={editingForm}
+              onSave={handleUpdateForm}
+              onCancel={handleCancelEdit}
+              employees={employees}
+            />
+          ) : (
+            <FormBuilder
+              onSave={handleCreateForm}
+              onCancel={handleCancelEdit}
+              employees={employees}
+            />
+          )}
         </Layout>
       ) : (
         <Layout title="Dashboard Directeur">
