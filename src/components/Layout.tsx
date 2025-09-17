@@ -53,12 +53,27 @@ export const Layout: React.FC<LayoutProps> = ({ children, title }) => {
       <header className="bg-white shadow-sm border-b border-gray-200 relative">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-14 sm:h-16">
-            <div className="flex items-center space-x-2 sm:space-x-3">
+            <div 
+              className="relative flex items-center space-x-2 sm:space-x-3 cursor-pointer hover:opacity-80 transition-opacity group"
+              onClick={() => {
+                if (isDirecteur) {
+                  navigate('/directeur/chat');
+                }
+              }}
+            >
               <img src="/fav-icons/favicon-96x96.png" alt="Ubora Logo" className="h-8 w-8 text-blue-600" />
               <div>
                 <h1 className="text-lg sm:text-xl font-bold text-gray-900 truncate max-w-[200px] sm:max-w-none">{title}</h1>
                 <p className="text-xs sm:text-sm text-gray-500 capitalize">{user?.role}</p>
               </div>
+              
+              {/* Tooltip pour directeurs */}
+              {isDirecteur && (
+                <div className="absolute -bottom-14 left-0 bg-gray-900 text-white text-xs px-3 py-2 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-50">
+                  Retour au chat Archa
+                  <div className="absolute -top-1 left-6 w-2 h-2 bg-gray-900 rotate-45"></div>
+                </div>
+              )}
             </div>
             
             {/* Navigation desktop pour directeur */}
