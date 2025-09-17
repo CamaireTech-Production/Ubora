@@ -11,7 +11,8 @@ import {
   LogOut,
   Shield,
   Users,
-  MessageSquare
+  MessageSquare,
+  Bell
 } from 'lucide-react';
 
 interface ProfileDropdownProps {
@@ -59,6 +60,11 @@ export const ProfileDropdown: React.FC<ProfileDropdownProps> = ({ className = ''
 
   const handleGoToPackages = () => {
     navigate('/packages');
+    setIsOpen(false);
+  };
+
+  const handleGoToNotifications = () => {
+    navigate('/notifications');
     setIsOpen(false);
   };
 
@@ -190,6 +196,15 @@ export const ProfileDropdown: React.FC<ProfileDropdownProps> = ({ className = ''
                   <span>Packages</span>
                 </button>
               )}
+
+              {/* Notifications Settings */}
+              <button
+                onClick={handleGoToNotifications}
+                className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center space-x-2"
+              >
+                <Bell className="h-4 w-4 text-gray-400" />
+                <span>Notifications</span>
+              </button>
             </div>
 
             {/* Séparateur */}

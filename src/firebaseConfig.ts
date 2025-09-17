@@ -3,6 +3,7 @@ import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore, connectFirestoreEmulator } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
+import { getMessaging, isSupported } from "firebase/messaging";
 
 // Configuration Firebase avec vos vraies clés
 const firebaseConfig = {
@@ -48,3 +49,13 @@ try {
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const storage = getStorage(app);
+
+// Initialisation de Firebase Messaging (seulement si supporté)
+export const messaging = isSupported().then((supported) => {
+  if (supported) {
+    return getMessaging(app);
+  } else {
+    console.warn('🔔 [Firebase] Messaging non supporté sur ce navigateur');
+    return null;
+  }
+});

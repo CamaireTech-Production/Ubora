@@ -14,6 +14,7 @@ import { PendingApprovalPage } from './pages/PendingApprovalPage';
 import { DashboardDetailPage } from './pages/DashboardDetailPage';
 import { ResponseDetailPage } from './pages/ResponseDetailPage';
 import { PackagesPage } from './pages/PackagesPage';
+import { NotificationsPage } from './pages/NotificationsPage';
 import { PWAInstallPrompt } from './components/PWAInstallPrompt';
 import { EmployeeManagement } from './components/EmployeeManagement';
 import { Layout } from './components/Layout';
@@ -101,6 +102,16 @@ function App() {
               element={
                 <ProtectedRoute allowedRoles={['directeur']}>
                   <PackagesPage />
+                </ProtectedRoute>
+              } 
+            />
+            
+            {/* Notifications Settings */}
+            <Route 
+              path="/notifications" 
+              element={
+                <ProtectedRoute allowedRoles={['directeur', 'employe']}>
+                  <NotificationsPage />
                 </ProtectedRoute>
               } 
             />
