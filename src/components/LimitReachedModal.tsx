@@ -1,5 +1,6 @@
 import React from 'react';
 import { X, AlertCircle, ArrowRight } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
 
 interface LimitReachedModalProps {
   isOpen: boolean;
@@ -18,6 +19,8 @@ export const LimitReachedModal: React.FC<LimitReachedModalProps> = ({
   limit,
   onUpgrade
 }) => {
+  const { user } = useAuth();
+  
   if (!isOpen) return null;
 
   const getTypeLabel = () => {
@@ -77,17 +80,22 @@ export const LimitReachedModal: React.FC<LimitReachedModalProps> = ({
         <div className="flex flex-col sm:flex-row gap-3">
           <button
             onClick={onClose}
-            className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors"
+            className={`px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors ${
+              user?.role === 'directeur' ? 'flex-1' : 'w-full'
+            }`}
           >
             Fermer
           </button>
-          <button
-            onClick={handleUpgrade}
-            className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
-          >
-            Voir les packages
-            <ArrowRight className="h-4 w-4" />
-          </button>
+          {/* Only show "Voir les packages" button for actual directors */}
+          {user?.role === 'directeur' && (
+            <button
+              onClick={handleUpgrade}
+              className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
+            >
+              Voir les packages
+              <ArrowRight className="h-4 w-4" />
+            </button>
+          )}
         </div>
       </div>
     </div>
