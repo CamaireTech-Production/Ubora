@@ -520,34 +520,36 @@ module.exports = async function handler(req, res) {
 
     // Build context-aware system message (inspired by Cursor/ChatGPT approach)
     const buildSystemMessage = () => {
-      const baseRole = `Tu es ARCHA, un assistant IA spécialisé dans l'analyse de données de formulaires d'entreprise.`;
+      const baseRole = `Tu es ARCHA, assistant IA spécialisé dans l'analyse de données de formulaires d'entreprise.`;
       
       const coreRules = `
-RÈGLES FONDAMENTALES :
+RÈGLES :
 - Réponds UNIQUEMENT en français
-- Utilise UNIQUEMENT les données fournies dans le message utilisateur
-- Ne JAMAIS inventer ou extrapoler de données
-- Si les données sont insuffisantes, dis-le clairement`;
+- Utilise UNIQUEMENT les données fournies
+- Ne JAMAIS inventer de données
+- Si données insuffisantes, dis-le clairement`;
+
+      const analysisStrategy = `
+STRATÉGIE D'ANALYSE :
+- Si l'utilisateur demande des statistiques spécifiques : fournis exactement ce qu'il demande
+- Si l'utilisateur pose une question générale ET a sélectionné le format statistique : propose des graphiques pertinents
+- Si l'utilisateur pose une question générale SANS format spécifique : réponds de manière textuelle structurée
+- Analyse les champs de formulaire pour identifier les données quantifiables quand approprié
+- Suggère des visualisations seulement si le format statistique est demandé`;
 
       const fileInstructions = hasPDFContent ? `
-ANALYSE DE FICHIERS :
-- Analyse le contenu des fichiers joints de manière structurée
+FICHIERS :
+- Analyse le contenu des fichiers de manière structurée
 - Identifie les informations clés (dates, montants, noms, thèmes)
-- Si le contenu extrait semble incomplet, mention-le
-- Ne fais JAMAIS d'assumptions sur le contenu non fourni
-- IMPORTANT: Dans ta réponse, référence les fichiers analysés avec le format [FICHIER: nom_du_fichier.ext] [METADATA: {...}] pour permettre le téléchargement
-- Le METADATA doit contenir les informations complètes du fichier (fileName, fileType, fileSize, downloadUrl, storagePath)` : '';
+- Référence les fichiers avec [FICHIER: nom_du_fichier.ext] [METADATA: {...}] pour téléchargement
+- METADATA doit contenir : fileName, fileType, fileSize, downloadUrl, storagePath` : '';
 
       const formatInstructions = getFormatInstructions(responseFormat, selectedResponseFormats);
       
       const contextInfo = `
-CONTEXTE :
-- Agence : ${userData.agencyId}
-- Période : ${data.period.label}
-- Directeur : ${userData.name || 'Directeur'}
-- Date : ${new Date().toLocaleDateString('fr-FR')}`;
+CONTEXTE : Agence ${userData.agencyId} | Période ${data.period.label} | ${new Date().toLocaleDateString('fr-FR')}`;
 
-      return `${baseRole}${coreRules}${fileInstructions}${formatInstructions}${contextInfo}`;
+      return `${baseRole}${coreRules}${analysisStrategy}${fileInstructions}${formatInstructions}${contextInfo}`;
     };
 
     // Format-specific instructions (clean and focused)
@@ -556,7 +558,7 @@ CONTEXTE :
         case 'stats':
           return `
 FORMAT STATISTIQUES :
-Retourne un graphique JSON avec cette structure EXACTE :
+Retourne un graphique JSON avec cette structure :
 \`\`\`json
 {
   "type": "bar|line|pie|area|scatter",
@@ -569,28 +571,19 @@ Retourne un graphique JSON avec cette structure EXACTE :
   "options": {"showLegend": true}
 }
 \`\`\`
-Inclus une explication textuelle après le JSON.`;
++ Explication textuelle.`;
 
         case 'table':
           return `
 FORMAT TABLEAU :
-Retourne un tableau markdown structuré :
-\`\`\`markdown
-| Colonne 1 | Colonne 2 | Colonne 3 |
-|-----------|-----------|-----------|
-| Valeur 1  | Valeur 2  | Valeur 3  |
-\`\`\`
-Inclus une explication textuelle.
-- Si tu analyses des fichiers, référence-les avec [FICHIER: nom_du_fichier.ext]`;
+Tableau markdown structuré + explication textuelle.
+Référence fichiers avec [FICHIER: nom_du_fichier.ext]`;
 
         case 'pdf':
           return `
 FORMAT PDF :
-Retourne du contenu markdown structuré :
-- Utilise des titres (# ## ###)
-- Inclus des listes et sections
-- Structure claire et professionnelle
-- Si tu analyses des fichiers, référence-les avec [FICHIER: nom_du_fichier.ext]`;
+Contenu markdown structuré avec titres (# ## ###), listes et sections.
+Référence fichiers avec [FICHIER: nom_du_fichier.ext]`;
 
         case 'multi-format':
           return `
@@ -604,8 +597,8 @@ Organise les formats de manière logique.`;
         default:
           return `
 FORMAT TEXTE LIBRE :
-Fournis une réponse claire et structurée basée sur les données disponibles.
-- Si tu analyses des fichiers, référence-les avec [FICHIER: nom_du_fichier.ext] dans ta réponse`;
+Réponse structurée + graphiques statistiques automatiques si appropriés.
+Référence fichiers avec [FICHIER: nom_du_fichier.ext]`;
       }
     };
 

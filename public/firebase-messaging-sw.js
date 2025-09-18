@@ -77,3 +77,4 @@ self.addEventListener('notificationclick', (event) => {
 self.addEventListener('notificationclose', (event) => {
   console.log('🔔 [SW] Notification fermée:', event);
 });
+
