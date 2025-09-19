@@ -4,8 +4,6 @@ import { useAuth } from '../contexts/AuthContext';
 import { usePackageAccess } from '../hooks/usePackageAccess';
 import { TokenService } from '../services/tokenService';
 import { Layout } from '../components/Layout';
-import { doc, updateDoc } from 'firebase/firestore';
-import { db } from '../firebaseConfig';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { 
@@ -27,15 +25,15 @@ import {
   Users,
   BarChart3,
   Brain,
-  Palette,
   Plus,
-  Calendar,
-  Clock,
   AlertTriangle
 } from 'lucide-react';
 import { useToast } from '../hooks/useToast';
 import { Toast } from '../components/Toast';
 import { PaymentModal } from '../components/PaymentModal';
+import { PayAsYouGoService } from '../services/payAsYouGoService';
+import { doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { db } from '../firebaseConfig';
 
 export const PackageManagementPage: React.FC = () => {
   const navigate = useNavigate();
@@ -125,13 +123,83 @@ export const PackageManagementPage: React.FC = () => {
     }
   };
 
-  const formatLimit = (limit: number) => {
-    return limit === -1 ? 'Illimité' : limit.toString();
-  };
 
-  const handlePurchaseResource = (option: any) => {
-    showSuccess(`${option.name} acheté avec succès !`);
-    setPaymentModal({ isOpen: false, type: 'tokens', currentLimit: 0 });
+  const handlePurchaseResource = async (option: any) => {
+    if (!user) {
+      showError('Utilisateur non connecté');
+      return;
+    }
+
+    try {
+      const userRef = doc(db, 'users', user.id);
+      const userDoc = await getDoc(userRef);
+      
+      if (!userDoc.exists()) {
+        throw new Error('Utilisateur non trouvé');
+      }
+      
+      const userData = userDoc.data();
+      const currentPayAsYouGoResources = userData.payAsYouGoResources || {};
+      
+      if (option.id.startsWith('tokens-')) {
+        // Handle token purchases using PayAsYouGoService
+        const tokenPackage = {
+          tokens: parseInt(option.id.split('-')[1].replace('k', '000')),
+          price: option.price,
+          popular: option.popular || false,
+          description: option.description
+        };
+        
+        const success = await PayAsYouGoService.purchaseTokens(user.id, tokenPackage);
+        if (!success) {
+          throw new Error('Erreur lors de l\'achat des tokens');
+        }
+      } else {
+        // Handle other resource purchases
+        let resourceType: string;
+        let quantity: number;
+        
+        if (option.id.startsWith('forms-')) {
+          resourceType = 'forms';
+          if (option.id.includes('unlimited')) {
+            quantity = 999; // Large number for unlimited
+          } else {
+            quantity = parseInt(option.id.split('-')[1]);
+          }
+        } else if (option.id.startsWith('dashboards-')) {
+          resourceType = 'dashboards';
+          if (option.id.includes('unlimited')) {
+            quantity = 999; // Large number for unlimited
+          } else {
+            quantity = parseInt(option.id.split('-')[1]);
+          }
+        } else if (option.id.startsWith('users-')) {
+          resourceType = 'users';
+          quantity = parseInt(option.id.split('-')[1]);
+        } else {
+          throw new Error('Type de ressource non reconnu');
+        }
+        
+        // Add the new resource to the user's pay-as-you-go resources
+        if (!currentPayAsYouGoResources[resourceType]) {
+          currentPayAsYouGoResources[resourceType] = 0;
+        }
+        currentPayAsYouGoResources[resourceType] += quantity;
+        
+        // Update the user document in Firebase
+        await updateDoc(userRef, {
+          payAsYouGoResources: currentPayAsYouGoResources,
+          updatedAt: serverTimestamp()
+        });
+      }
+      
+      showSuccess(`${option.name} acheté avec succès !`);
+      setPaymentModal({ isOpen: false, type: 'tokens', currentLimit: 0 });
+      
+    } catch (error) {
+      console.error('Erreur lors de l\'achat:', error);
+      showError('Erreur lors de l\'achat. Veuillez réessayer.');
+    }
   };
 
   const openPaymentModal = (type: 'tokens' | 'forms' | 'dashboards' | 'users', currentLimit: number) => {
@@ -245,7 +313,7 @@ export const PackageManagementPage: React.FC = () => {
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-gray-600">Agence:</span>
-                  <span className="font-medium">{user.agencyName || 'N/A'}</span>
+                  <span className="font-medium">{user.agencyId || 'N/A'}</span>
                 </div>
               </div>
               

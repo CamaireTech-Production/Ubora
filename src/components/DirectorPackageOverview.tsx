@@ -26,6 +26,9 @@ import {
 } from 'lucide-react';
 import { PaymentModal } from './PaymentModal';
 import { useToast } from '../hooks/useToast';
+import { PayAsYouGoService } from '../services/payAsYouGoService';
+import { doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { db } from '../firebaseConfig';
 
 interface DirectorPackageOverviewProps {
   className?: string;
@@ -123,7 +126,20 @@ export const DirectorPackageOverview: React.FC<DirectorPackageOverviewProps> = (
   const formsLimitReached = !isLimitUnlimited('maxForms') && currentForms >= maxForms;
   const dashboardsLimitReached = !isLimitUnlimited('maxDashboards') && currentDashboards >= maxDashboards;
   const usersLimitReached = !isLimitUnlimited('maxUsers') && currentUsers >= maxUsers;
-  const tokensLimitReached = !hasUnlimitedTokens() && remainingTokens <= 0;
+  const tokensLimitReached = !hasUnlimitedTokens() && (remainingTokens <= 0 || tokenUsagePercentage >= 50 || remainingTokens <= 2000);
+  
+  // Debug logging for token limits
+  console.log('🔍 Token limit debug:', {
+    hasUnlimitedTokens: hasUnlimitedTokens(),
+    remainingTokens,
+    tokenUsagePercentage: tokenUsagePercentage.toFixed(1) + '%',
+    tokensLimitReached,
+    totalAvailableTokens,
+    usedTokens,
+    monthlyTokens,
+    userTokensUsedMonthly: user.tokensUsedMonthly,
+    userPayAsYouGoTokens: user.payAsYouGoTokens
+  });
   
   const hasAnyLimitReached = formsLimitReached || dashboardsLimitReached || usersLimitReached || tokensLimitReached;
 
@@ -151,9 +167,82 @@ export const DirectorPackageOverview: React.FC<DirectorPackageOverviewProps> = (
     setPaymentModal({ isOpen: true, type, currentLimit });
   };
 
-  const handlePurchaseResource = (option: any) => {
-    showSuccess(`${option.name} acheté avec succès !`);
-    setPaymentModal({ isOpen: false, type: 'tokens', currentLimit: 0 });
+  const handlePurchaseResource = async (option: any) => {
+    if (!user) {
+      showError('Utilisateur non connecté');
+      return;
+    }
+
+    try {
+      const userRef = doc(db, 'users', user.id);
+      const userDoc = await getDoc(userRef);
+      
+      if (!userDoc.exists()) {
+        throw new Error('Utilisateur non trouvé');
+      }
+      
+      const userData = userDoc.data();
+      const currentPayAsYouGoResources = userData.payAsYouGoResources || {};
+      
+      if (option.id.startsWith('tokens-')) {
+        // Handle token purchases using PayAsYouGoService
+        const tokenPackage = {
+          tokens: parseInt(option.id.split('-')[1].replace('k', '000')),
+          price: option.price,
+          popular: option.popular || false,
+          description: option.description
+        };
+        
+        const success = await PayAsYouGoService.purchaseTokens(user.id, tokenPackage);
+        if (!success) {
+          throw new Error('Erreur lors de l\'achat des tokens');
+        }
+      } else {
+        // Handle other resource purchases
+        let resourceType: string;
+        let quantity: number;
+        
+        if (option.id.startsWith('forms-')) {
+          resourceType = 'forms';
+          if (option.id.includes('unlimited')) {
+            quantity = 999; // Large number for unlimited
+          } else {
+            quantity = parseInt(option.id.split('-')[1]);
+          }
+        } else if (option.id.startsWith('dashboards-')) {
+          resourceType = 'dashboards';
+          if (option.id.includes('unlimited')) {
+            quantity = 999; // Large number for unlimited
+          } else {
+            quantity = parseInt(option.id.split('-')[1]);
+          }
+        } else if (option.id.startsWith('users-')) {
+          resourceType = 'users';
+          quantity = parseInt(option.id.split('-')[1]);
+        } else {
+          throw new Error('Type de ressource non reconnu');
+        }
+        
+        // Add the new resource to the user's pay-as-you-go resources
+        if (!currentPayAsYouGoResources[resourceType]) {
+          currentPayAsYouGoResources[resourceType] = 0;
+        }
+        currentPayAsYouGoResources[resourceType] += quantity;
+        
+        // Update the user document in Firebase
+        await updateDoc(userRef, {
+          payAsYouGoResources: currentPayAsYouGoResources,
+          updatedAt: serverTimestamp()
+        });
+      }
+      
+      showSuccess(`${option.name} acheté avec succès !`);
+      setPaymentModal({ isOpen: false, type: 'tokens', currentLimit: 0 });
+      
+    } catch (error) {
+      console.error('Erreur lors de l\'achat:', error);
+      showError('Erreur lors de l\'achat. Veuillez réessayer.');
+    }
   };
 
   const handleManagePackages = () => {
@@ -326,12 +415,12 @@ export const DirectorPackageOverview: React.FC<DirectorPackageOverviewProps> = (
             Vous avez atteint une limite. Achetez des ressources supplémentaires pour continuer.
           </p>
           
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             {formsLimitReached && (
               <Button
                 size="sm"
                 onClick={() => openPaymentModal('forms', maxForms)}
-                className="bg-orange-600 hover:bg-orange-700 text-white"
+                className="bg-orange-600 hover:bg-orange-700 text-white flex items-center justify-center"
               >
                 <Plus className="h-3 w-3 mr-1" />
                 Formulaires
@@ -342,7 +431,7 @@ export const DirectorPackageOverview: React.FC<DirectorPackageOverviewProps> = (
               <Button
                 size="sm"
                 onClick={() => openPaymentModal('dashboards', maxDashboards)}
-                className="bg-orange-600 hover:bg-orange-700 text-white"
+                className="bg-orange-600 hover:bg-orange-700 text-white flex items-center justify-center"
               >
                 <Plus className="h-3 w-3 mr-1" />
                 Tableaux
@@ -353,7 +442,7 @@ export const DirectorPackageOverview: React.FC<DirectorPackageOverviewProps> = (
               <Button
                 size="sm"
                 onClick={() => openPaymentModal('users', maxUsers)}
-                className="bg-orange-600 hover:bg-orange-700 text-white"
+                className="bg-orange-600 hover:bg-orange-700 text-white flex items-center justify-center"
               >
                 <Plus className="h-3 w-3 mr-1" />
                 Utilisateurs
@@ -364,7 +453,7 @@ export const DirectorPackageOverview: React.FC<DirectorPackageOverviewProps> = (
               <Button
                 size="sm"
                 onClick={() => openPaymentModal('tokens', 0)}
-                className="bg-orange-600 hover:bg-orange-700 text-white"
+                className="bg-orange-600 hover:bg-orange-700 text-white flex items-center justify-center"
               >
                 <Plus className="h-3 w-3 mr-1" />
                 Tokens

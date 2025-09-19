@@ -188,10 +188,12 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       // Simulation de paiement
       await new Promise(resolve => setTimeout(resolve, 2000));
       
-      onPurchase(option);
+      // Call the onPurchase callback which should handle database updates
+      await onPurchase(option);
       showSuccess(`${option.name} acheté avec succès !`);
       onClose();
     } catch (error) {
+      console.error('Purchase error:', error);
       showError('Erreur lors de l\'achat. Veuillez réessayer.');
     } finally {
       setIsProcessing(false);
@@ -201,8 +203,8 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   const options = getPaymentOptions();
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" style={{ backdropFilter: 'blur(2px)' }}>
+      <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-200">
           <div>

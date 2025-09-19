@@ -86,8 +86,8 @@ export const PayAsYouGoModal: React.FC<PayAsYouGoModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <Card className="w-full max-w-lg max-h-[80vh] overflow-y-auto">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" style={{ backdropFilter: 'blur(2px)' }}>
+      <Card className="w-full max-w-lg max-h-[80vh] overflow-y-auto shadow-2xl">
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-blue-100 rounded-lg">
