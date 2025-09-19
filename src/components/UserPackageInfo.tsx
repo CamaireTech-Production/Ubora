@@ -59,7 +59,7 @@ export const UserPackageInfo: React.FC<UserPackageInfoProps> = ({
 
   const handleClick = () => {
     if (clickable) {
-      navigate('/packages');
+      navigate('/packages/manage');
     }
   };
 

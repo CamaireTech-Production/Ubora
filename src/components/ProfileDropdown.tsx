@@ -12,7 +12,8 @@ import {
   Shield,
   Users,
   MessageSquare,
-  Bell
+  Bell,
+  Package
 } from 'lucide-react';
 
 interface ProfileDropdownProps {
@@ -65,6 +66,11 @@ export const ProfileDropdown: React.FC<ProfileDropdownProps> = ({ className = ''
 
   const handleGoToNotifications = () => {
     navigate('/notifications');
+    setIsOpen(false);
+  };
+
+  const handleGoToSettings = () => {
+    navigate('/directeur/settings');
     setIsOpen(false);
   };
 
@@ -192,8 +198,19 @@ export const ProfileDropdown: React.FC<ProfileDropdownProps> = ({ className = ''
                   onClick={handleGoToPackages}
                   className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center space-x-2"
                 >
-                  <Settings className="h-4 w-4 text-gray-400" />
+                  <Package className="h-4 w-4 text-gray-400" />
                   <span>Packages</span>
+                </button>
+              )}
+
+              {/* Settings (pour les directeurs) */}
+              {user.role === 'directeur' && (
+                <button
+                  onClick={handleGoToSettings}
+                  className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center space-x-2"
+                >
+                  <Settings className="h-4 w-4 text-gray-400" />
+                  <span>Paramètres</span>
                 </button>
               )}
 

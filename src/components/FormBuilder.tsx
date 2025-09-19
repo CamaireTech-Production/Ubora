@@ -21,13 +21,15 @@ interface FormBuilderProps {
   onCancel: () => void;
   employees: Array<{ id: string; name: string; email: string }>;
   initialForm?: Pick<Form, 'id' | 'title' | 'description' | 'fields' | 'assignedTo'>;
+  isLoading?: boolean;
 }
 
 export const FormBuilder: React.FC<FormBuilderProps> = ({
   onSave,
   onCancel,
   employees,
-  initialForm
+  initialForm,
+  isLoading = false
 }) => {
   // Initialiser les états avec les valeurs du formulaire existant ou vides
   const [title, setTitle] = useState(initialForm?.title || '');
@@ -585,10 +587,27 @@ export const FormBuilder: React.FC<FormBuilderProps> = ({
           </div>
 
           <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 pt-4 sm:pt-6 border-t border-gray-200">
-            <Button type="submit" className="w-full sm:flex-1">
-              {isEditMode ? 'Mettre à jour le formulaire' : 'Créer le formulaire'}
+            <Button 
+              type="submit" 
+              className="w-full sm:flex-1"
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  {isEditMode ? 'Mise à jour...' : 'Création...'}
+                </>
+              ) : (
+                isEditMode ? 'Mettre à jour le formulaire' : 'Créer le formulaire'
+              )}
             </Button>
-            <Button type="button" variant="secondary" onClick={onCancel} className="w-full sm:w-auto">
+            <Button 
+              type="button" 
+              variant="secondary" 
+              onClick={onCancel} 
+              className="w-full sm:w-auto"
+              disabled={isLoading}
+            >
               Annuler
             </Button>
           </div>

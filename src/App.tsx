@@ -14,6 +14,8 @@ import { PendingApprovalPage } from './pages/PendingApprovalPage';
 import { DashboardDetailPage } from './pages/DashboardDetailPage';
 import { ResponseDetailPage } from './pages/ResponseDetailPage';
 import { PackagesPage } from './pages/PackagesPage';
+import { PackageManagementPage } from './pages/PackageManagementPage';
+import { DirectorSettingsPage } from './pages/DirectorSettingsPage';
 import { NotificationsPage } from './pages/NotificationsPage';
 import { PWAInstallPrompt } from './components/PWAInstallPrompt';
 import { EmployeeManagement } from './components/EmployeeManagement';
@@ -102,6 +104,26 @@ function App() {
               element={
                 <ProtectedRoute allowedRoles={['directeur']}>
                   <PackagesPage />
+                </ProtectedRoute>
+              } 
+            />
+            
+            {/* Page de gestion des packages */}
+            <Route 
+              path="/packages/manage" 
+              element={
+                <ProtectedRoute allowedRoles={['directeur']}>
+                  <PackageManagementPage />
+                </ProtectedRoute>
+              } 
+            />
+            
+            {/* Page des paramètres directeur */}
+            <Route 
+              path="/directeur/settings" 
+              element={
+                <ProtectedRoute allowedRoles={['directeur']}>
+                  <DirectorSettingsPage />
                 </ProtectedRoute>
               } 
             />

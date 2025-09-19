@@ -20,7 +20,6 @@ import { ComingSoonModal } from '../components/ComingSoonModal';
 import { useToast } from '../hooks/useToast';
 import { Toast } from '../components/Toast';
 import { usePackageAccess } from '../hooks/usePackageAccess';
-import { PackageInfo, LimitReached } from '../components/PackageInfo';
 import { LimitReachedModal } from '../components/LimitReachedModal';
 
 export const DirecteurDashboard: React.FC = () => {
@@ -46,9 +45,7 @@ export const DirecteurDashboard: React.FC = () => {
   const { 
     canCreateForm, 
     canCreateDashboard, 
-    getLimit, 
-    isLimitUnlimited,
-    packageType 
+    getLimit
   } = usePackageAccess();
   
   const [showFormBuilder, setShowFormBuilder] = useState(false);
@@ -63,6 +60,7 @@ export const DirecteurDashboard: React.FC = () => {
   const [isDeletingDashboard, setIsDeletingDashboard] = useState(false);
   const [showLimitModal, setShowLimitModal] = useState(false);
   const [limitModalType, setLimitModalType] = useState<'forms' | 'dashboards' | 'users'>('forms');
+  const [isCreatingForm, setIsCreatingForm] = useState(false);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   
   // États pour le filtrage temporel
@@ -88,6 +86,7 @@ export const DirecteurDashboard: React.FC = () => {
       allowedDays?: number[];
     };
   }) => {
+    setIsCreatingForm(true);
     try {
       if (!user?.id || !user?.agencyId) {
         throw new Error('Données utilisateur manquantes');
@@ -96,6 +95,7 @@ export const DirecteurDashboard: React.FC = () => {
       await createForm({
         ...formData,
         createdBy: user.id,
+        createdByRole: user.role,
         agencyId: user.agencyId,
       });
       setShowFormBuilder(false);
@@ -104,6 +104,8 @@ export const DirecteurDashboard: React.FC = () => {
     } catch (error) {
       console.error('Erreur lors de la création du formulaire:', error);
       showError('Erreur lors de la création du formulaire. Veuillez réessayer.');
+    } finally {
+      setIsCreatingForm(false);
     }
   };
 
@@ -396,6 +398,7 @@ export const DirecteurDashboard: React.FC = () => {
               onSave={handleCreateForm}
               onCancel={handleCancelEdit}
               employees={employees}
+              isLoading={isCreatingForm}
             />
           )}
         </Layout>
@@ -838,7 +841,7 @@ export const DirecteurDashboard: React.FC = () => {
         limit={limitModalType === 'forms' ? getLimit('maxForms') : getLimit('maxDashboards')}
         onUpgrade={() => {
           setShowLimitModal(false);
-          navigate('/packages');
+          navigate('/packages/manage');
         }}
       />
 

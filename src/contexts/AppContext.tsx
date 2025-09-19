@@ -311,12 +311,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         description: formData.description.trim(),
         createdBy: user.id,
         createdByRole: user.role,
-        createdByEmployeeId: user.role === 'employe' ? user.id : undefined,
         assignedTo: formData.assignedTo || [],
         fields: formData.fields || [],
         agencyId: user.agencyId,
         createdAt: serverTimestamp()
       };
+
+      // Only add createdByEmployeeId if the user is an employee
+      if (user.role === 'employe') {
+        docData.createdByEmployeeId = user.id;
+      }
 
       // Only add timeRestrictions if it's defined and has content
       if (formData.timeRestrictions && Object.keys(formData.timeRestrictions).length > 0) {
@@ -546,7 +550,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try {
       setError(null);
       
-      const docData = {
+      const docData: any = {
         name: dashboardData.name.trim(),
         description: dashboardData.description?.trim() || '',
         metrics: dashboardData.metrics.map(metric => ({
@@ -555,11 +559,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         })),
         createdBy: user.id,
         createdByRole: user.role,
-        createdByEmployeeId: user.role === 'employe' ? user.id : undefined,
         agencyId: user.agencyId,
         isDefault: dashboardData.isDefault || false,
         createdAt: serverTimestamp()
       };
+
+      // Only add createdByEmployeeId if the user is an employee
+      if (user.role === 'employe') {
+        docData.createdByEmployeeId = user.id;
+      }
 
       console.log('Création du tableau de bord:', docData);
       await addDoc(collection(db, 'dashboards'), docData);
