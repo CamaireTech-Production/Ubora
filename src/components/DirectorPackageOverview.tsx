@@ -42,7 +42,9 @@ export const DirectorPackageOverview: React.FC<DirectorPackageOverviewProps> = (
     isLimitUnlimited, 
     getMonthlyTokens,
     hasUnlimitedTokens,
-    getAdditionalUserCost 
+    getAdditionalUserCost,
+    getPayAsYouGoCapacity,
+    getTotalLimit
   } = usePackageAccess();
   const { forms, dashboards, employees } = useApp();
   const { toast, showSuccess, showError } = useToast();
@@ -74,10 +76,21 @@ export const DirectorPackageOverview: React.FC<DirectorPackageOverviewProps> = (
   const maxDashboards = getLimit('maxDashboards');
   const maxUsers = getLimit('maxUsers');
   
+  // Get pay-as-you-go capacities
+  const payAsYouGoForms = getPayAsYouGoCapacity('maxForms');
+  const payAsYouGoDashboards = getPayAsYouGoCapacity('maxDashboards');
+  const payAsYouGoUsers = getPayAsYouGoCapacity('maxUsers');
+  
+  // Get total limits (package + pay-as-you-go)
+  const totalForms = getTotalLimit('maxForms');
+  const totalDashboards = getTotalLimit('maxDashboards');
+  const totalUsers = getTotalLimit('maxUsers');
+  
   // Calculate token consumption
-  const remainingTokens = TokenService.getRemainingTokens(user, monthlyTokens);
-  const usedTokens = monthlyTokens - remainingTokens;
-  const tokenUsagePercentage = hasUnlimitedTokens() ? 0 : (usedTokens / monthlyTokens) * 100;
+  const remainingTokens = TokenService.getRemainingTokensWithPayAsYouGo(user, monthlyTokens);
+  const totalAvailableTokens = TokenService.getTotalAvailableTokens(user, monthlyTokens);
+  const usedTokens = totalAvailableTokens - remainingTokens;
+  const tokenUsagePercentage = hasUnlimitedTokens() ? 0 : (usedTokens / totalAvailableTokens) * 100;
   
   // Calculate subscription days remaining (assuming 30-day cycles)
   const subscriptionStartDate = user.subscriptionStartDate || user.createdAt;
@@ -228,7 +241,12 @@ export const DirectorPackageOverview: React.FC<DirectorPackageOverviewProps> = (
               </div>
               <div className="flex items-center space-x-2">
                 <span className="text-sm font-medium">
-                  {currentForms}/{isLimitUnlimited('maxForms') ? 'Illimité' : maxForms}
+                  {currentForms}/{isLimitUnlimited('maxForms') ? 'Illimité' : totalForms}
+                  {payAsYouGoForms > 0 && (
+                    <span className="text-xs text-green-600 ml-1">
+                      (+{payAsYouGoForms} pay-as-you-go)
+                    </span>
+                  )}
                 </span>
                 {formsLimitReached && (
                   <AlertTriangle className="h-4 w-4 text-orange-500" />
@@ -244,7 +262,12 @@ export const DirectorPackageOverview: React.FC<DirectorPackageOverviewProps> = (
               </div>
               <div className="flex items-center space-x-2">
                 <span className="text-sm font-medium">
-                  {currentDashboards}/{isLimitUnlimited('maxDashboards') ? 'Illimité' : maxDashboards}
+                  {currentDashboards}/{isLimitUnlimited('maxDashboards') ? 'Illimité' : totalDashboards}
+                  {payAsYouGoDashboards > 0 && (
+                    <span className="text-xs text-green-600 ml-1">
+                      (+{payAsYouGoDashboards} pay-as-you-go)
+                    </span>
+                  )}
                 </span>
                 {dashboardsLimitReached && (
                   <AlertTriangle className="h-4 w-4 text-orange-500" />
@@ -260,7 +283,12 @@ export const DirectorPackageOverview: React.FC<DirectorPackageOverviewProps> = (
               </div>
               <div className="flex items-center space-x-2">
                 <span className="text-sm font-medium">
-                  {currentUsers}/{isLimitUnlimited('maxUsers') ? 'Illimité' : maxUsers}
+                  {currentUsers}/{isLimitUnlimited('maxUsers') ? 'Illimité' : totalUsers}
+                  {payAsYouGoUsers > 0 && (
+                    <span className="text-xs text-green-600 ml-1">
+                      (+{payAsYouGoUsers} pay-as-you-go)
+                    </span>
+                  )}
                 </span>
                 {usersLimitReached && (
                   <AlertTriangle className="h-4 w-4 text-orange-500" />
@@ -276,7 +304,7 @@ export const DirectorPackageOverview: React.FC<DirectorPackageOverviewProps> = (
               </div>
               <div className="flex items-center space-x-2">
                 <span className="text-sm font-medium">
-                  {hasUnlimitedTokens() ? 'Illimité' : `${remainingTokens.toLocaleString()}/${monthlyTokens.toLocaleString()}`}
+                  {hasUnlimitedTokens() ? 'Illimité' : `${remainingTokens.toLocaleString()}/${totalAvailableTokens.toLocaleString()}`}
                 </span>
                 {tokensLimitReached && (
                   <AlertTriangle className="h-4 w-4 text-orange-500" />

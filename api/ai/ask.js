@@ -1,6 +1,7 @@
 const { adminAuth, adminDb } = require('../lib/firebaseAdmin.js');
 const admin = require('firebase-admin');
 const OpenAI = require('openai');
+const { TokenCounter } = require('../lib/tokenCounter.js');
 
 // Configuration OpenAI
 const openai = new OpenAI({
@@ -387,7 +388,13 @@ module.exports = async function handler(req, res) {
       });
     }
 
-    console.log('User data found:', { role: userData.role, agencyId: userData.agencyId });
+    console.log('User data found:', { 
+      role: userData.role, 
+      agencyId: userData.agencyId,
+      package: userData.package,
+      tokensUsedMonthly: userData.tokensUsedMonthly,
+      payAsYouGoTokens: userData.payAsYouGoTokens
+    });
     
     if (userData.role !== 'directeur') {
       console.log('User role is not directeur:', userData.role);
@@ -404,6 +411,7 @@ module.exports = async function handler(req, res) {
         code: 'MISSING_AGENCY'
       });
     }
+
 
     // 3. Validation du corps de la requête
     const { question, filters, selectedFormats, responseFormat, selectedResponseFormats } = req.body;
@@ -445,6 +453,159 @@ module.exports = async function handler(req, res) {
         error: 'Erreur lors du chargement des données',
         code: 'DATA_LOAD_ERROR',
         details: dataError.message
+      });
+    }
+
+    // 4.5. Vérification des tokens disponibles
+    console.log('Step 4.5: Checking available tokens...');
+    
+    // Estimate tokens needed for this request
+    // Create simplified versions of the prompts for estimation
+    const estimatedSystemPrompt = `Tu es ARCHA, assistant IA spécialisé dans l'analyse de données de formulaires d'entreprise.
+RÈGLES :
+- Réponds UNIQUEMENT en français
+- Utilise UNIQUEMENT les données fournies
+- Ne JAMAIS inventer de données
+- Si données insuffisantes, dis-le clairement
+
+ANALYSE :
+- Analyse les données fournies
+- Identifie les tendances et patterns
+- Fournis des insights actionables
+- Propose des recommandations concrètes
+
+RÉPONSE :
+- Structure claire et professionnelle
+- Utilise des émojis appropriés
+- Inclus des métriques précises
+- Référence les données sources`;
+
+    const estimatedUserPrompt = `Question : "${question}"
+
+RÉSUMÉ DES DONNÉES :
+- Total soumissions : ${data.totals.entries}
+- Employés actifs : ${data.totals.uniqueUsers}/${data.totals.totalUsers}
+- Formulaires utilisés : ${data.totals.uniqueForms}/${data.totals.totalForms}
+- Période : ${data.period.label}
+
+DONNÉES DÉTAILLÉES :
+${data.submissions.slice(0, 5).map(s => `- ${s.employeeName}: ${s.formTitle}`).join('\n')}`;
+
+    const estimatedTokens = TokenCounter.getTotalEstimatedTokens(estimatedSystemPrompt, estimatedUserPrompt, 800);
+    const userTokensToCharge = TokenCounter.getUserTokensToCharge(estimatedTokens, 1.5);
+    
+    // Calculate package limit based on user's package type
+    const getPackageLimit = (packageType) => {
+      const limits = {
+        starter: 10000,
+        standard: 30000,
+        premium: 100000,
+        custom: -1 // unlimited
+      };
+      return limits[packageType] || 0;
+    };
+
+    // Check subscription status and reset tokens if subscription has ended
+    const checkSubscriptionAndResetTokens = async (userData, uid) => {
+      const now = new Date();
+      const subscriptionEndDate = userData.subscriptionEndDate ? userData.subscriptionEndDate.toDate() : null;
+      const lastReset = userData.tokensResetDate ? userData.tokensResetDate.toDate() : null;
+      
+      // Check if subscription has ended
+      if (subscriptionEndDate && now > subscriptionEndDate) {
+        try {
+          // Subscription has ended - reset all tokens
+          await adminDb.collection('users').doc(uid).update({
+            tokensUsedMonthly: 0,
+            payAsYouGoTokens: 0, // Clear pay-as-you-go tokens when subscription ends
+            subscriptionStatus: 'expired',
+            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+          });
+          console.log(`⏰ Subscription expired for user ${uid} - all tokens cleared`);
+          return { tokensUsed: 0, payAsYouGoTokens: 0, subscriptionExpired: true };
+        } catch (resetError) {
+          console.error('Error clearing expired subscription tokens:', resetError);
+        }
+      }
+      
+      // Check if monthly tokens need to be reset (only if subscription is active)
+      if (!subscriptionEndDate || now <= subscriptionEndDate) {
+        if (!lastReset || lastReset.getMonth() !== now.getMonth() || lastReset.getFullYear() !== now.getFullYear()) {
+          try {
+            const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+            await adminDb.collection('users').doc(uid).update({
+              tokensUsedMonthly: 0,
+              tokensResetDate: nextMonth,
+              updatedAt: admin.firestore.FieldValue.serverTimestamp()
+            });
+            console.log(`🔄 Monthly tokens reset for user ${uid}`);
+            return { 
+              tokensUsed: 0, 
+              payAsYouGoTokens: userData.payAsYouGoTokens || 0, 
+              subscriptionExpired: false 
+            };
+          } catch (resetError) {
+            console.error('Error resetting monthly tokens:', resetError);
+          }
+        }
+      }
+      
+      return { 
+        tokensUsed: userData.tokensUsedMonthly || 0, 
+        payAsYouGoTokens: userData.payAsYouGoTokens || 0, 
+        subscriptionExpired: false 
+      };
+    };
+    
+    const packageLimit = getPackageLimit(userData.package);
+    
+    // Check subscription status and reset tokens if needed
+    const tokenStatus = await checkSubscriptionAndResetTokens(userData, uid);
+    const currentTokensUsed = tokenStatus.tokensUsed;
+    const payAsYouGoTokens = tokenStatus.payAsYouGoTokens;
+    const subscriptionExpired = tokenStatus.subscriptionExpired;
+    
+    // If subscription has expired, return error
+    if (subscriptionExpired) {
+      return res.status(402).json({ 
+        error: 'Abonnement expiré',
+        code: 'SUBSCRIPTION_EXPIRED',
+        message: 'Votre abonnement a expiré. Veuillez renouveler votre abonnement pour continuer à utiliser les services.',
+        canRenew: true
+      });
+    }
+    
+    console.log('Token estimation:', {
+      estimatedTokens,
+      userTokensToCharge,
+      currentUsage: currentTokensUsed,
+      payAsYouGoTokens: payAsYouGoTokens,
+      packageType: userData.package,
+      packageLimit: packageLimit,
+      subscriptionExpired: subscriptionExpired
+    });
+    
+    // Check if user has enough tokens (including pay-as-you-go tokens)
+    const totalAvailableTokens = packageLimit === -1 ? -1 : packageLimit + payAsYouGoTokens;
+    
+    // Skip token check for unlimited packages
+    if (packageLimit !== -1 && currentTokensUsed + userTokensToCharge > totalAvailableTokens) {
+      console.log('Insufficient tokens:', {
+        currentUsage: currentTokensUsed,
+        needed: userTokensToCharge,
+        available: totalAvailableTokens,
+        packageLimit,
+        payAsYouGoTokens
+      });
+      
+      return res.status(402).json({ 
+        error: 'Tokens insuffisants',
+        code: 'INSUFFICIENT_TOKENS',
+        required: userTokensToCharge,
+        available: totalAvailableTokens - currentTokensUsed,
+        packageLimit,
+        payAsYouGoTokens,
+        canPurchaseMore: true
       });
     }
 
@@ -706,6 +867,7 @@ ${answersText}${fileContent ? '\n\n' + fileContent : ''}`;
     console.log('Step 6: Generating AI response...');
     let answer = '';
     let tokensUsed = 0;
+    let finalUserTokens = 0;
     
     if (!process.env.OPENAI_API_KEY) {
       console.log('OpenAI not configured, using fallback response');
@@ -756,8 +918,17 @@ ${answersText}`;
       ? completion.choices[0].message.content 
       : 'Désolé, je n\'ai pas pu générer une réponse.';
         tokensUsed = completion.usage && completion.usage.total_tokens ? completion.usage.total_tokens : 0;
+        
+        // Calculate final user tokens to charge based on actual usage
+        finalUserTokens = TokenCounter.getUserTokensToCharge(tokensUsed, 1.5);
+        
         console.log('OpenAI response generated successfully');
-    console.log('AI Response content:', answer.substring(0, 500) + '...');
+        console.log('Token usage:', {
+          actualTokens: tokensUsed,
+          userTokensCharged: finalUserTokens,
+          multiplier: 1.5
+        });
+        console.log('AI Response content:', answer.substring(0, 500) + '...');
       } catch (openaiError) {
         console.error('OpenAI error:', openaiError);
         // Fallback en cas d'erreur OpenAI
@@ -842,13 +1013,55 @@ ${answersText}`;
               end: data.period?.end?.toISOString() || new Date().toISOString()
             }
           },
-          tokensUsed: tokensUsed || 0
+          tokensUsed: tokensUsed || 0,
+          userTokensCharged: finalUserTokens
         }
       };
 
       // Add messages to conversation subcollection
       await adminDb.collection('conversations').doc(conversationId).collection('messages').add(userMessage);
       await adminDb.collection('conversations').doc(conversationId).collection('messages').add(assistantMessage);
+
+      // Deduct tokens from user's account (only for limited packages)
+      if (packageLimit !== -1 && finalUserTokens > 0) {
+        try {
+          // Get fresh user data to ensure we have the latest token counts
+          const freshUserDoc = await adminDb.collection('users').doc(uid).get();
+          const freshUserData = freshUserDoc.data();
+          const freshTokensUsed = freshUserData.tokensUsedMonthly || 0;
+          const freshPayAsYouGoTokens = freshUserData.payAsYouGoTokens || 0;
+          
+          let newTokensUsed = freshTokensUsed;
+          let newPayAsYouGoTokens = freshPayAsYouGoTokens;
+          
+          // Calculate how many tokens to deduct from package vs pay-as-you-go
+          const packageTokensRemaining = packageLimit - freshTokensUsed;
+          
+          if (finalUserTokens <= packageTokensRemaining) {
+            // All tokens can be deducted from package
+            newTokensUsed = freshTokensUsed + finalUserTokens;
+          } else {
+            // Deduct remaining package tokens first, then from pay-as-you-go
+            const packageTokensToDeduct = Math.max(0, packageTokensRemaining);
+            const payAsYouGoTokensToDeduct = finalUserTokens - packageTokensToDeduct;
+            
+            newTokensUsed = freshTokensUsed + packageTokensToDeduct;
+            newPayAsYouGoTokens = Math.max(0, freshPayAsYouGoTokens - payAsYouGoTokensToDeduct);
+          }
+          
+          await adminDb.collection('users').doc(uid).update({
+            tokensUsedMonthly: newTokensUsed,
+            payAsYouGoTokens: newPayAsYouGoTokens,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+          });
+          
+          console.log(`✅ Tokens deducted: ${finalUserTokens} tokens charged to user ${uid}`);
+          console.log(`📊 New token usage: ${newTokensUsed}/${packageLimit} (package) + ${newPayAsYouGoTokens} (pay-as-you-go)`);
+        } catch (tokenError) {
+          console.error('❌ Error deducting tokens:', tokenError);
+          // Don't fail the request if token deduction fails
+        }
+      }
 
       // Update conversation metadata
       await adminDb.collection('conversations').doc(conversationId).update({
@@ -879,7 +1092,8 @@ ${answersText}`;
             end: data.period.end.toISOString()
           }
         },
-        tokensUsed
+        tokensUsed,
+        userTokensCharged: finalUserTokens
       }
     };
     

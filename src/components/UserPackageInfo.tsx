@@ -24,7 +24,7 @@ export const UserPackageInfo: React.FC<UserPackageInfoProps> = ({
 
   const monthlyLimit = getMonthlyTokens();
   const isUnlimited = hasUnlimitedTokens();
-  const remainingTokens = TokenService.getRemainingTokens(user, monthlyLimit);
+  const remainingTokens = TokenService.getRemainingTokensWithPayAsYouGo(user, monthlyLimit);
   const usagePercentage = TokenService.getTokenUsagePercentage(user, monthlyLimit);
 
   const getPackageIcon = (packageType: string) => {

@@ -111,9 +111,9 @@ export const PackageManagementPage: React.FC = () => {
       
       showSuccess(`Package ${getPackageDisplayName(pkg)} activé avec succès !`);
       
-      // Recharger la page pour refléter les changements
+      // Navigate back to the previous page instead of reloading
       setTimeout(() => {
-        window.location.reload();
+        navigate(-1); // Go back to the previous page
       }, 1500);
       
     } catch (error) {
@@ -238,7 +238,7 @@ export const PackageManagementPage: React.FC = () => {
                     {(() => {
                       const monthlyLimit = getMonthlyTokens();
                       const isUnlimited = hasUnlimitedTokens();
-                      const remainingTokens = TokenService.getRemainingTokens(user, monthlyLimit);
+                      const remainingTokens = TokenService.getRemainingTokensWithPayAsYouGo(user, monthlyLimit);
                       return isUnlimited ? 'Illimités' : remainingTokens.toLocaleString();
                     })()}
                   </span>

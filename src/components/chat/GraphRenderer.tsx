@@ -45,41 +45,43 @@ const GraphModal: React.FC<GraphModalProps> = ({ data, isOpen, onClose }) => {
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-6xl w-full max-h-[90vh] overflow-hidden">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999] p-4">
+      <div className="bg-white rounded-2xl shadow-2xl max-w-7xl w-full max-h-[95vh] overflow-hidden">
         {/* Modal Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-indigo-50">
-          <div>
-            <h2 className="text-2xl font-bold text-gray-900">{data.title}</h2>
-            <p className="text-sm text-gray-600 mt-1">
-              {data.data.length} points de données • Type: {data.type}
-            </p>
-          </div>
-          <div className="flex items-center space-x-3">
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={handleDownload}
-              className="flex items-center space-x-2 bg-white hover:bg-gray-50"
-            >
-              <Download className="h-4 w-4" />
-              <span>Télécharger</span>
-            </Button>
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={onClose}
-              className="p-2 bg-white hover:bg-gray-50"
-            >
-              ✕
-            </Button>
+        <div className="p-6 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-indigo-50">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="flex-1 min-w-0">
+              <h2 className="text-xl sm:text-2xl font-bold text-gray-900 truncate">{data.title}</h2>
+              <p className="text-sm text-gray-600 mt-1">
+                {data.data.length} points de données • Type: {data.type}
+              </p>
+            </div>
+            <div className="flex items-center space-x-3 flex-shrink-0">
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={handleDownload}
+                className="flex items-center space-x-2 bg-white hover:bg-gray-50 whitespace-nowrap"
+              >
+                <Download className="h-4 w-4" />
+                <span>PDF</span>
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={onClose}
+                className="p-2 bg-white hover:bg-gray-50"
+              >
+                ✕
+              </Button>
+            </div>
           </div>
         </div>
 
         {/* Modal Content */}
-        <div className="p-6 overflow-auto max-h-[calc(90vh-120px)] bg-gray-50">
+        <div className="p-6 overflow-auto max-h-[calc(95vh-120px)] bg-gray-50">
           <div className="bg-white rounded-lg p-4 shadow-sm">
-            <div className="w-full h-[600px]">
+            <div className="w-full h-[700px] min-w-[800px]">
               <ResponsiveContainer width="100%" height="100%">
                 {renderChart(data, false)}
               </ResponsiveContainer>
@@ -191,13 +193,13 @@ const TimelineTooltip = ({ active, payload, label }: any) => {
 const renderChart = (data: GraphData, isPreview: boolean) => {
   const commonProps = {
     data: data.data,
-    margin: isPreview ? { top: 5, right: 5, left: 5, bottom: 5 } : { top: 20, right: 30, left: 20, bottom: 5 },
+    margin: isPreview ? { top: 2, right: 2, left: 2, bottom: 2 } : { top: 20, right: 30, left: 20, bottom: 5 },
   };
 
   const chartProps = {
     ...commonProps,
-    width: isPreview ? 200 : undefined,
-    height: isPreview ? 120 : undefined,
+    width: isPreview ? 180 : undefined,
+    height: isPreview ? 80 : undefined,
   };
 
   // Check if this is employee data
@@ -338,36 +340,36 @@ export const GraphRenderer: React.FC<GraphRendererProps> = ({ data, isPreview = 
 
   return (
     <>
-      <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow duration-200">
-        <div className="flex items-center justify-between mb-3">
+      <div className="bg-white border border-gray-200 rounded-lg p-3 shadow-sm hover:shadow-md transition-shadow duration-200">
+        <div className="flex items-center justify-between mb-2">
           <div className="flex items-center space-x-2">
-            <div className={`w-2 h-2 rounded-full ${
+            <div className={`w-1.5 h-1.5 rounded-full ${
               data.type === 'bar' ? 'bg-blue-500' :
               data.type === 'line' ? 'bg-green-500' :
               data.type === 'pie' ? 'bg-purple-500' :
               data.type === 'area' ? 'bg-orange-500' : 'bg-gray-500'
             }`}></div>
-            <h3 className="text-sm font-semibold text-gray-900 truncate">{data.title}</h3>
+            <h3 className="text-xs font-semibold text-gray-900 truncate">{data.title}</h3>
           </div>
           <Button
             variant="secondary"
             size="sm"
             onClick={handleExpand}
-            className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors duration-200"
+            className="p-1 rounded-lg hover:bg-gray-100 transition-colors duration-200"
           >
             <Maximize2 className="h-3 w-3" />
           </Button>
         </div>
         
-        <div className="w-full h-32 bg-gray-50 rounded-lg p-2">
+        <div className="w-full h-24 bg-gray-50 rounded-lg p-1">
           <ResponsiveContainer width="100%" height="100%">
             {renderChart(data, isPreview)}
           </ResponsiveContainer>
         </div>
         
-        <div className="mt-3 flex items-center justify-between text-xs text-gray-500">
+        <div className="mt-2 flex items-center justify-between text-xs text-gray-500">
           <span className="flex items-center space-x-1">
-            <div className="w-1.5 h-1.5 bg-blue-400 rounded-full"></div>
+            <div className="w-1 h-1 bg-blue-400 rounded-full"></div>
             <span>
               {data.data.length > 0 && data.data[0].employee 
                 ? `${data.data.length} employé${data.data.length > 1 ? 's' : ''}`
@@ -377,7 +379,7 @@ export const GraphRenderer: React.FC<GraphRendererProps> = ({ data, isPreview = 
               }
             </span>
           </span>
-          <span className="capitalize">{data.type}</span>
+          <span className="capitalize text-xs">{data.type}</span>
         </div>
       </div>
 

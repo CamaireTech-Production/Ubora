@@ -21,6 +21,8 @@ import { useToast } from '../hooks/useToast';
 import { Toast } from '../components/Toast';
 import { usePackageAccess } from '../hooks/usePackageAccess';
 import { LimitReachedModal } from '../components/LimitReachedModal';
+import { doc, updateDoc, getDoc, serverTimestamp } from 'firebase/firestore';
+import { db } from '../firebaseConfig';
 
 export const DirecteurDashboard: React.FC = () => {
   const navigate = useNavigate();
@@ -110,6 +112,12 @@ export const DirecteurDashboard: React.FC = () => {
   };
 
   const handleFormButtonClick = () => {
+    console.log('🔍 Form button clicked:', {
+      formsLength: forms.length,
+      canCreateForm: canCreateForm(forms.length),
+      userPayAsYouGoResources: user?.payAsYouGoResources
+    });
+    
     if (!canCreateForm(forms.length)) {
       setLimitModalType('forms');
       setShowLimitModal(true);
@@ -842,6 +850,99 @@ export const DirecteurDashboard: React.FC = () => {
         onUpgrade={() => {
           setShowLimitModal(false);
           navigate('/packages/manage');
+        }}
+        onPayAsYouGo={async (type, quantity) => {
+          // Handle pay-as-you-go purchase
+          try {
+            if (!user?.id) {
+              throw new Error('Données utilisateur manquantes');
+            }
+
+            // Get pricing for the selected option based on type
+            const getPricingForType = (type: 'forms' | 'dashboards' | 'users') => {
+              switch (type) {
+                case 'forms':
+                  return [
+                    { quantity: 1, price: 2000 },
+                    { quantity: 3, price: 5000 },
+                    { quantity: 5, price: 8000 }
+                  ];
+                case 'dashboards':
+                  return [
+                    { quantity: 1, price: 3000 },
+                    { quantity: 2, price: 5500 },
+                    { quantity: 3, price: 8000 }
+                  ];
+                case 'users':
+                  return [
+                    { quantity: 1, price: 7000 },
+                    { quantity: 2, price: 13000 },
+                    { quantity: 3, price: 20000 }
+                  ];
+                default:
+                  return [];
+              }
+            };
+
+            const pricing = getPricingForType(type);
+            const selectedOption = pricing.find(opt => opt.quantity === quantity);
+            if (!selectedOption) {
+              throw new Error('Option de prix non trouvée');
+            }
+
+            // Simulate payment processing
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            
+            // Actually save the pay-as-you-go purchase to Firebase
+            const userRef = doc(db, 'users', user.id);
+            const userDoc = await getDoc(userRef);
+            
+            if (!userDoc.exists()) {
+              throw new Error('Utilisateur non trouvé');
+            }
+            
+            const userData = userDoc.data();
+            const currentPayAsYouGoResources = userData.payAsYouGoResources || {};
+            
+            console.log('📊 Before update:', {
+              currentPayAsYouGoResources,
+              type,
+              quantity
+            });
+            
+            // Add the new resource to the user's pay-as-you-go resources
+            if (!currentPayAsYouGoResources[type]) {
+              currentPayAsYouGoResources[type] = 0;
+            }
+            currentPayAsYouGoResources[type] += quantity;
+            
+            console.log('📊 After update:', {
+              currentPayAsYouGoResources,
+              newValue: currentPayAsYouGoResources[type]
+            });
+            
+            // Update the user document in Firebase
+            await updateDoc(userRef, {
+              payAsYouGoResources: currentPayAsYouGoResources,
+              updatedAt: serverTimestamp()
+            });
+            
+            console.log('💾 Pay-as-you-go purchase saved to Firebase:', {
+              type,
+              quantity,
+              price: selectedOption.price,
+              newPayAsYouGoResources: currentPayAsYouGoResources
+            });
+            
+            showSuccess(`${quantity} ${type === 'forms' ? 'formulaire(s)' : type === 'dashboards' ? 'tableau(x) de bord' : 'utilisateur(s)'} supplémentaire(s) ajouté(s) pour ce mois !`);
+            setShowLimitModal(false);
+            
+            // The user data will be automatically updated by the AuthContext
+            // No need to reload the page - the UI will update automatically
+          } catch (error) {
+            console.error('Erreur lors de l\'achat pay-as-you-go:', error);
+            showError('Erreur lors de l\'achat des ressources supplémentaires');
+          }
         }}
       />
 

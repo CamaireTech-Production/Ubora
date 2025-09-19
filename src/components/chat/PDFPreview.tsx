@@ -219,8 +219,8 @@ interface PDFModalProps {
 const PDFModal: React.FC<PDFModalProps> = ({ data, isOpen, onClose }) => {
   if (!isOpen) return null;
 
-  const handleDownload = () => {
-    generatePDF(data);
+  const handleDownload = async () => {
+    await generatePDF(data);
   };
 
   return (

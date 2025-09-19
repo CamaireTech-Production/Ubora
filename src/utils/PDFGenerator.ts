@@ -1,5 +1,6 @@
 import jsPDF from 'jspdf';
 import { PDFData, GraphData } from '../types';
+import { ChartToImage } from './ChartToImage';
 
 export class PDFGenerator {
   private doc: jsPDF;
@@ -36,7 +37,7 @@ export class PDFGenerator {
     this.doc.save(fileName);
   }
 
-  generateReport(pdfData: PDFData): void {
+  async generateReport(pdfData: PDFData): Promise<void> {
     this.doc = new jsPDF();
     this.currentY = 20;
 
@@ -66,7 +67,7 @@ export class PDFGenerator {
     // Add charts if they exist
     if (pdfData.charts && pdfData.charts.length > 0) {
       this.addPageBreak();
-      this.addChartsSection(pdfData.charts);
+      await this.addChartsSection(pdfData.charts);
     }
 
     // Add footer
@@ -120,18 +121,22 @@ export class PDFGenerator {
     this.currentY += 10;
 
     // Add section content based on type
-    switch (section.type) {
-      case 'text':
-        this.addTextContent(section.content);
-        break;
-      case 'list':
-        this.addListContent(section.data || []);
-        break;
-      case 'table':
-        this.addTableContent(section.data || []);
-        break;
-      default:
-        this.addTextContent(section.content);
+    if (section.isMarkdownTable) {
+      this.addMarkdownTable(section.content);
+    } else {
+      switch (section.type) {
+        case 'text':
+          this.addTextContent(section.content);
+          break;
+        case 'list':
+          this.addListContent(section.data || []);
+          break;
+        case 'table':
+          this.addTableContent(section.data || []);
+          break;
+        default:
+          this.addTextContent(section.content);
+      }
     }
 
     this.currentY += 10;
@@ -453,14 +458,59 @@ export class PDFGenerator {
     });
   }
 
-  private addChartsSection(charts: GraphData[]): void {
+  private addMarkdownTable(tableMarkdown: string): void {
+    const lines = tableMarkdown.split('\n');
+    const tableRows: string[][] = [];
+    
+    for (const line of lines) {
+      if (line.trim().startsWith('|') && line.trim().endsWith('|')) {
+        const cells = line.split('|').map(cell => cell.trim()).filter(cell => cell);
+        
+        // Skip separator rows (containing only dashes and spaces)
+        if (!cells.every(cell => /^[-:\s]+$/.test(cell))) {
+          tableRows.push(cells);
+        }
+      }
+    }
+    
+    if (tableRows.length === 0) return;
+    
+    const headers = tableRows[0];
+    const dataRows = tableRows.slice(1);
+    const colWidth = (this.pageWidth - 2 * this.margin) / headers.length;
+    
+    // Add headers
+    this.doc.setFontSize(10);
+    this.doc.setFont('helvetica', 'bold');
+    headers.forEach((header, index) => {
+      const x = this.margin + index * colWidth;
+      this.doc.text(header, x, this.currentY);
+    });
+    this.currentY += 8;
+    
+    // Add data rows
+    this.doc.setFont('helvetica', 'normal');
+    dataRows.slice(0, 15).forEach((row) => { // Limit to 15 rows
+      if (this.currentY > this.pageHeight - 20) {
+        this.addPageBreak();
+      }
+      
+      row.forEach((cell, index) => {
+        const x = this.margin + index * colWidth;
+        this.doc.text(cell, x, this.currentY);
+      });
+      this.currentY += 6;
+    });
+  }
+
+  private async addChartsSection(charts: GraphData[]): Promise<void> {
     this.doc.setFontSize(16);
     this.doc.setFont('helvetica', 'bold');
     this.doc.text('Graphiques', this.margin, this.currentY);
     this.currentY += 15;
 
-    charts.forEach((chart) => {
-      if (this.currentY > this.pageHeight - 60) {
+    for (const chart of charts) {
+      if (this.currentY > this.pageHeight - 100) {
         this.addPageBreak();
       }
       
@@ -470,14 +520,39 @@ export class PDFGenerator {
       this.doc.text(chart.title, this.margin, this.currentY);
       this.currentY += 8;
       
-      // Add placeholder for chart (in a real implementation, you'd render the chart to canvas)
-      this.doc.setFontSize(10);
-      this.doc.setFont('helvetica', 'normal');
-      this.doc.setTextColor(120, 120, 120);
-      this.doc.text(`[Graphique ${chart.type} - ${chart.data.length} points de données]`, this.margin, this.currentY);
-      this.currentY += 40;
-      this.doc.setTextColor(0, 0, 0);
-    });
+      try {
+        // Convert chart to high-resolution image
+        const chartImage = await ChartToImage.chartToBase64(chart, 400, 200);
+        
+        // Add chart image to PDF with proper scaling
+        const imgWidth = 160;
+        const imgHeight = 80;
+        const x = this.margin;
+        const y = this.currentY;
+        
+        this.doc.addImage(chartImage, 'PNG', x, y, imgWidth, imgHeight);
+        this.currentY += imgHeight + 10;
+        
+        // Add chart info
+        this.doc.setFontSize(8);
+        this.doc.setFont('helvetica', 'normal');
+        this.doc.setTextColor(120, 120, 120);
+        this.doc.text(`Type: ${chart.type} | Données: ${chart.data.length} points`, this.margin, this.currentY);
+        this.currentY += 15;
+        this.doc.setTextColor(0, 0, 0);
+        
+      } catch (error) {
+        console.error('Error rendering chart to image:', error);
+        
+        // Fallback to placeholder if image generation fails
+        this.doc.setFontSize(10);
+        this.doc.setFont('helvetica', 'normal');
+        this.doc.setTextColor(120, 120, 120);
+        this.doc.text(`[Graphique ${chart.type} - ${chart.data.length} points de données]`, this.margin, this.currentY);
+        this.currentY += 40;
+        this.doc.setTextColor(0, 0, 0);
+      }
+    }
   }
 
   private addFooter(generatedAt: Date): void {
@@ -512,7 +587,7 @@ export class PDFGenerator {
 }
 
 // Utility function to generate PDF from PDFData
-export const generatePDF = (pdfData: PDFData): void => {
+export const generatePDF = async (pdfData: PDFData): Promise<void> => {
   const generator = new PDFGenerator();
-  generator.generateReport(pdfData);
+  await generator.generateReport(pdfData);
 };

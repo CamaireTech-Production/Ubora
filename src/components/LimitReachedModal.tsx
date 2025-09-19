@@ -1,6 +1,8 @@
-import React from 'react';
-import { X, AlertCircle, ArrowRight } from 'lucide-react';
+import React, { useState } from 'react';
+import { X, AlertCircle, ArrowRight, Plus, CreditCard } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { Button } from './Button';
+import { useToast } from '../hooks/useToast';
 
 interface LimitReachedModalProps {
   isOpen: boolean;
@@ -9,6 +11,7 @@ interface LimitReachedModalProps {
   current: number;
   limit: number;
   onUpgrade: () => void;
+  onPayAsYouGo?: (type: 'forms' | 'dashboards' | 'users', quantity: number) => void;
 }
 
 export const LimitReachedModal: React.FC<LimitReachedModalProps> = ({
@@ -17,9 +20,14 @@ export const LimitReachedModal: React.FC<LimitReachedModalProps> = ({
   type,
   current,
   limit,
-  onUpgrade
+  onUpgrade,
+  onPayAsYouGo
 }) => {
   const { user } = useAuth();
+  const { showSuccess, showError } = useToast();
+  const [showPayAsYouGo, setShowPayAsYouGo] = useState(false);
+  const [selectedQuantity, setSelectedQuantity] = useState(1);
+  const [isProcessing, setIsProcessing] = useState(false);
   
   if (!isOpen) return null;
 
@@ -44,6 +52,48 @@ export const LimitReachedModal: React.FC<LimitReachedModalProps> = ({
     onUpgrade();
     onClose();
   };
+
+  const getPayAsYouGoOptions = () => {
+    switch (type) {
+      case 'forms':
+        return [
+          { quantity: 1, price: 2000, label: '1 formulaire supplémentaire' },
+          { quantity: 3, price: 5000, label: '3 formulaires supplémentaires' },
+          { quantity: 5, price: 8000, label: '5 formulaires supplémentaires' }
+        ];
+      case 'dashboards':
+        return [
+          { quantity: 1, price: 3000, label: '1 tableau de bord supplémentaire' },
+          { quantity: 2, price: 5500, label: '2 tableaux de bord supplémentaires' },
+          { quantity: 3, price: 8000, label: '3 tableaux de bord supplémentaires' }
+        ];
+      case 'users':
+        return [
+          { quantity: 1, price: 7000, label: '1 utilisateur supplémentaire' },
+          { quantity: 2, price: 13000, label: '2 utilisateurs supplémentaires' },
+          { quantity: 3, price: 20000, label: '3 utilisateurs supplémentaires' }
+        ];
+      default:
+        return [];
+    }
+  };
+
+  const handlePayAsYouGo = async () => {
+    if (!onPayAsYouGo) return;
+    
+    setIsProcessing(true);
+    try {
+      await onPayAsYouGo(type, selectedQuantity);
+      showSuccess(`${selectedQuantity} ${getTypeLabel()} supplémentaire(s) ajouté(s) pour ce mois !`);
+      onClose();
+    } catch (error) {
+      showError('Erreur lors de l\'ajout des ressources supplémentaires');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const payAsYouGoOptions = getPayAsYouGoOptions();
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -76,25 +126,95 @@ export const LimitReachedModal: React.FC<LimitReachedModalProps> = ({
           </p>
         </div>
 
+        {/* Pay-as-you-go Options */}
+        {!showPayAsYouGo && user?.role === 'directeur' && (
+          <div className="mb-6">
+            <div className="text-center mb-4">
+              <p className="text-sm text-gray-600 mb-3">
+                Vous pouvez acheter des ressources supplémentaires pour ce mois uniquement :
+              </p>
+            </div>
+            
+            <div className="space-y-2 mb-4">
+              {payAsYouGoOptions.map((option) => (
+                <div
+                  key={option.quantity}
+                  className={`p-3 border rounded-lg cursor-pointer transition-all ${
+                    selectedQuantity === option.quantity
+                      ? 'border-blue-500 bg-blue-50'
+                      : 'border-gray-200 hover:border-gray-300'
+                  }`}
+                  onClick={() => setSelectedQuantity(option.quantity)}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium text-gray-900">
+                      {option.label}
+                    </span>
+                    <span className="text-sm font-semibold text-gray-900">
+                      {option.price.toLocaleString()} FCFA
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+            
+            <div className="text-xs text-gray-500 text-center mb-4">
+              💡 Ces ressources sont valables uniquement pour le mois en cours
+            </div>
+          </div>
+        )}
+
         {/* Actions */}
-        <div className="flex flex-col sm:flex-row gap-3">
-          <button
-            onClick={onClose}
-            className={`px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors ${
-              user?.role === 'directeur' ? 'flex-1' : 'w-full'
-            }`}
-          >
-            Fermer
-          </button>
-          {/* Only show "Voir les packages" button for actual directors */}
-          {user?.role === 'directeur' && (
-            <button
-              onClick={handleUpgrade}
-              className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
+        <div className="flex flex-col gap-3">
+          {!showPayAsYouGo ? (
+            <>
+              <div className="flex flex-col sm:flex-row gap-3">
+                <Button
+                  variant="outline"
+                  onClick={onClose}
+                  className="flex-1"
+                >
+                  Fermer
+                </Button>
+                {user?.role === 'directeur' && (
+                  <Button
+                    onClick={handleUpgrade}
+                    className="flex-1 flex items-center justify-center gap-2"
+                  >
+                    Voir les packages
+                    <ArrowRight className="h-4 w-4" />
+                  </Button>
+                )}
+              </div>
+              
+              {user?.role === 'directeur' && (
+                <Button
+                  onClick={handlePayAsYouGo}
+                  disabled={isProcessing}
+                  className="w-full bg-orange-600 hover:bg-orange-700 text-white flex items-center justify-center gap-2"
+                >
+                  {isProcessing ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                      Traitement...
+                    </>
+                  ) : (
+                    <>
+                      <Plus className="h-4 w-4" />
+                      Acheter pour ce mois ({payAsYouGoOptions.find(opt => opt.quantity === selectedQuantity)?.price.toLocaleString()} FCFA)
+                    </>
+                  )}
+                </Button>
+              )}
+            </>
+          ) : (
+            <Button
+              onClick={() => setShowPayAsYouGo(false)}
+              variant="outline"
+              className="w-full"
             >
-              Voir les packages
-              <ArrowRight className="h-4 w-4" />
-            </button>
+              Retour
+            </Button>
           )}
         </div>
       </div>

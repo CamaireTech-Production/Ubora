@@ -24,7 +24,7 @@ export const usePackageAccess = () => {
     return hasPackageFeature(user.package, feature);
   };
 
-  // Vérifier si l'utilisateur respecte une limite spécifique
+  // Vérifier si l'utilisateur respecte une limite spécifique (incluant pay-as-you-go)
   const checkLimit = (limit: keyof PackageLimits, currentValue: number): boolean => {
     if (!user?.package) return false;
     
@@ -35,7 +35,11 @@ export const usePackageAccess = () => {
       return true;
     }
     
-    return currentValue < limitValue;
+    // Ajouter la capacité pay-as-you-go
+    const payAsYouGoCapacity = getPayAsYouGoCapacity(limit);
+    const totalCapacity = limitValue + payAsYouGoCapacity;
+    
+    return currentValue < totalCapacity;
   };
 
   // Obtenir la valeur d'une limite
@@ -57,7 +61,17 @@ export const usePackageAccess = () => {
 
   // Vérifier si l'utilisateur peut créer un nouveau formulaire
   const canCreateForm = (currentFormCount: number): boolean => {
-    return checkLimit('maxForms', currentFormCount);
+    const result = checkLimit('maxForms', currentFormCount);
+    console.log('🔍 canCreateForm Debug:', {
+      currentFormCount,
+      userPackage: user?.package,
+      packageLimit: getLimit('maxForms'),
+      payAsYouGoCapacity: getPayAsYouGoCapacity('maxForms'),
+      totalCapacity: getTotalLimit('maxForms'),
+      payAsYouGoResources: user?.payAsYouGoResources,
+      result
+    });
+    return result;
   };
 
   // Vérifier si l'utilisateur peut créer un nouveau tableau de bord
@@ -100,6 +114,41 @@ export const usePackageAccess = () => {
     return getLimit('additionalUserCost');
   };
 
+  // Obtenir la capacité pay-as-you-go pour un type de limite
+  const getPayAsYouGoCapacity = (limit: keyof PackageLimits): number => {
+    if (!user?.payAsYouGoResources) return 0;
+    
+    let resourceType: 'forms' | 'dashboards' | 'users' | 'tokens';
+    switch (limit) {
+      case 'maxForms':
+        resourceType = 'forms';
+        break;
+      case 'maxDashboards':
+        resourceType = 'dashboards';
+        break;
+      case 'maxUsers':
+        resourceType = 'users';
+        break;
+      case 'monthlyTokens':
+        resourceType = 'tokens';
+        break;
+      default:
+        return 0;
+    }
+    
+    // Get the additional capacity from pay-as-you-go resources
+    return user.payAsYouGoResources[resourceType] || 0;
+  };
+
+  // Obtenir la limite totale (package + pay-as-you-go)
+  const getTotalLimit = (limit: keyof PackageLimits): number => {
+    const packageLimit = getLimit(limit);
+    if (packageLimit === -1) return -1; // Unlimited
+    
+    const payAsYouGoCapacity = getPayAsYouGoCapacity(limit);
+    return packageLimit + payAsYouGoCapacity;
+  };
+
   return {
     // Fonctions de base
     hasFeature,
@@ -124,6 +173,10 @@ export const usePackageAccess = () => {
     
     // Fonctions de coût
     getAdditionalUserCost,
+    
+    // Fonctions pay-as-you-go
+    getPayAsYouGoCapacity,
+    getTotalLimit,
     
     // Informations sur l'utilisateur
     user,

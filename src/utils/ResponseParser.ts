@@ -33,11 +33,34 @@ export class ResponseParser {
       return { ...result, pdfFiles };
     }
 
-    // If no format is selected, return as simple text
+    // If no format is selected, try to auto-detect content type
+    const autoDetectedResult = this.autoDetectContentType(response);
+    return { ...autoDetectedResult, pdfFiles };
+  }
+
+  private static autoDetectContentType(response: string): ParsedResponse {
+    // Try to detect statistics/graph content
+    const statsResult = this.parseStatsResponse(response);
+    if (statsResult.contentType === 'graph') {
+      return statsResult;
+    }
+    
+    // Try to detect table content
+    const tableResult = this.parseTableResponse(response);
+    if (tableResult.contentType === 'table') {
+      return tableResult;
+    }
+    
+    // Try to detect PDF content
+    const pdfResult = this.parsePDFResponse(response);
+    if (pdfResult.contentType === 'text-pdf') {
+      return pdfResult;
+    }
+    
+    // Default to text
     return {
       contentType: 'text',
-      content: response,
-      pdfFiles
+      content: response
     };
   }
   
@@ -94,12 +117,24 @@ export class ResponseParser {
   }
 
   private static parseStatsResponse(response: string): ParsedResponse {
-    // Try to extract JSON graph data
-    const jsonMatch = response.match(/```json\s*([\s\S]*?)\s*```/);
+    // Try to extract JSON graph data with multiple patterns
+    let jsonMatch = response.match(/```json\s*([\s\S]*?)\s*```/);
+    
+    // If no match with closing ```, try without closing ```
+    if (!jsonMatch) {
+      jsonMatch = response.match(/```json\s*([\s\S]*?)(?=\n\n|\nExplication|$)/);
+    }
+    
+    // If still no match, try to find JSON object directly
+    if (!jsonMatch) {
+      jsonMatch = response.match(/\{\s*"type"\s*:\s*"[^"]*"\s*,[\s\S]*?\}/);
+    }
     
     if (jsonMatch) {
       try {
-        const jsonData = JSON.parse(jsonMatch[1]);
+        const jsonString = jsonMatch[1] || jsonMatch[0];
+        const jsonData = JSON.parse(jsonString);
+        
         if (this.isGraphData(jsonData)) {
           // Ensure the graph data has proper structure
           const enhancedGraphData = this.enhanceGraphData(jsonData);
@@ -111,6 +146,24 @@ export class ResponseParser {
         }
       } catch (error) {
         console.error('Error parsing stats JSON:', error);
+        // Try to find and parse JSON more aggressively
+        const jsonPattern = /\{\s*"type"\s*:\s*"[^"]*"\s*,[\s\S]*?\}/g;
+        let match;
+        while ((match = jsonPattern.exec(response)) !== null) {
+          try {
+            const jsonData = JSON.parse(match[0]);
+            if (this.isGraphData(jsonData)) {
+              const enhancedGraphData = this.enhanceGraphData(jsonData);
+              return {
+                contentType: 'graph',
+                content: this.extractTextFromResponse(response),
+                graphData: enhancedGraphData
+              };
+            }
+          } catch (parseError) {
+            console.error('Error parsing JSON pattern:', parseError);
+          }
+        }
       }
     }
     
@@ -184,6 +237,8 @@ export class ResponseParser {
     // Remove JSON code blocks and return the remaining text
     return response
       .replace(/```json\s*[\s\S]*?\s*```/g, '')
+      .replace(/```json\s*[\s\S]*?(?=\n\n|\nExplication|$)/g, '')
+      .replace(/\{\s*"type"\s*:\s*"[^"]*"\s*,[\s\S]*?\}/g, '')
       .replace(/\{[\s\S]*\}/g, '')
       .trim();
   }

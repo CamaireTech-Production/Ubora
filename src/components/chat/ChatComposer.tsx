@@ -78,7 +78,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
   // Calculer les tokens restants
   const monthlyLimit = getMonthlyTokens();
   const isUnlimited = hasUnlimitedTokens();
-  const remainingTokens = user && user.package ? TokenService.getRemainingTokens(user, monthlyLimit) : 0;
+  const remainingTokens = user && user.package ? TokenService.getRemainingTokensWithPayAsYouGo(user, monthlyLimit) : 0;
 
   // Auto-resize textarea
   useEffect(() => {

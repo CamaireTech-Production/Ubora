@@ -7,6 +7,13 @@ export interface User {
   agencyId: string;
   package: 'starter' | 'standard' | 'premium' | 'custom';
   packageFeatures?: string[]; // Fonctionnalités activées pour les packages custom
+  subscriptionStartDate?: Date; // Date de début d'abonnement pour le calcul des cycles mensuels
+  subscriptionEndDate?: Date; // Date de fin d'abonnement
+  subscriptionStatus?: 'active' | 'expired' | 'cancelled'; // Statut de l'abonnement
+  payAsYouGoResources?: any; // Ressources pay-as-you-go achetées
+  payAsYouGoTokens?: number; // Tokens pay-as-you-go achetés
+  tokensUsedMonthly?: number; // Tokens utilisés ce mois
+  tokensResetDate?: Date; // Date du dernier reset des tokens mensuels
   isApproved?: boolean; // Status d'approbation pour les employés
   approvedBy?: string; // ID du directeur qui a approuvé
   approvedAt?: any; // Timestamp d'approbation
@@ -170,8 +177,9 @@ export interface PDFData {
 export interface PDFSection {
   title: string;
   content: string;
-  type: 'text' | 'list' | 'table';
+  type?: 'text' | 'list' | 'table';
   data?: any[];
+  isMarkdownTable?: boolean;
 }
 
 export interface Conversation {

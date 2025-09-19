@@ -158,6 +158,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (userDoc.exists()) {
         const userData = userDoc.data() as Omit<User, 'id'>;
         
+        console.log('🔄 AuthContext: User document updated:', {
+          userId: firebaseUser.uid,
+          package: userData.package,
+          payAsYouGoResources: userData.payAsYouGoResources,
+          updatedAt: userData.updatedAt
+        });
         
         // Vérifier l'approbation pour les employés
         if (userData.role === 'employe' && userData.isApproved === false) {

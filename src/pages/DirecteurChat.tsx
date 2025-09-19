@@ -14,6 +14,9 @@ import { ChatMessage } from '../types';
 import { useToast } from '../hooks/useToast';
 import { usePackageAccess } from '../hooks/usePackageAccess';
 import { TokenService } from '../services/tokenService';
+import { TokenCounter } from '../services/tokenCounter';
+import { PayAsYouGoModal } from '../components/PayAsYouGoModal';
+import { PayAsYouGoService } from '../services/payAsYouGoService';
 
 // Remove the old Message interface since we're using ChatMessage from types
 
@@ -76,6 +79,10 @@ export const DirecteurChat: React.FC = () => {
   // États pour le panneau latéral
   const [panelOpen, setPanelOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'history' | 'forms' | 'employees' | 'entries' | null>(null);
+  
+  // État pour le modal pay-as-you-go
+  const [showPayAsYouGoModal, setShowPayAsYouGoModal] = useState(false);
+  const [requiredTokens, setRequiredTokens] = useState(0);
 
   // État pour l'écran de bienvenue (uniquement juste après login)
   const [showWelcome, setShowWelcome] = useState(() => {
@@ -86,6 +93,42 @@ export const DirecteurChat: React.FC = () => {
       return false;
     }
   });
+  const handlePurchaseTokens = async (tokens: number) => {
+    if (!user) return;
+    
+    try {
+      const tokenPackage = PayAsYouGoService.getTokenPackages().find(pkg => pkg.tokens === tokens);
+      if (!tokenPackage) {
+        showError('Package de tokens non trouvé');
+        return;
+      }
+      
+      const success = await PayAsYouGoService.purchaseTokens(user.id, tokenPackage);
+      if (success) {
+        console.log(`✅ ${tokens} tokens achetés avec succès`);
+        
+        // Update user data locally without page reload
+        if (user) {
+          const updatedUser = {
+            ...user,
+            payAsYouGoTokens: (user.payAsYouGoTokens || 0) + tokens,
+            subscriptionEndDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days from now
+            subscriptionStatus: 'active'
+          };
+          
+          // Update the user context (you'll need to implement this in your auth context)
+          // For now, we'll trigger a user refresh
+          console.log('🔄 User data updated locally');
+        }
+      } else {
+        showError('Erreur lors de l\'achat des tokens');
+      }
+    } catch (error) {
+      console.error('Error purchasing tokens:', error);
+      showError('Erreur lors de l\'achat des tokens');
+    }
+  };
+
   const handleSendMessage = async (message?: string) => {
     const messageToSend = message || inputMessage.trim();
     if (!messageToSend || isTyping) return;
@@ -95,10 +138,65 @@ export const DirecteurChat: React.FC = () => {
       const monthlyLimit = getMonthlyTokens();
       const isUnlimited = hasUnlimitedTokens();
       
+      console.log('🔍 User data debug:', {
+        userId: user.id,
+        package: user.package,
+        tokensUsedMonthly: user.tokensUsedMonthly,
+        payAsYouGoTokens: user.payAsYouGoTokens,
+        monthlyLimit,
+        isUnlimited
+      });
+      
       if (!isUnlimited) {
-        const canUseTokens = TokenService.canUseTokens(user, 100, monthlyLimit); // Estimation de 100 tokens par requête
-        if (!canUseTokens) {
-          showError('Limite de tokens IA atteinte. Veuillez mettre à niveau votre package.');
+        // Estimate tokens needed for this request
+        // Use the full system prompt for accurate estimation
+        const estimatedSystemPrompt = `Tu es ARCHA, assistant IA spécialisé dans l'analyse de données de formulaires d'entreprise.
+RÈGLES :
+- Réponds UNIQUEMENT en français
+- Utilise UNIQUEMENT les données fournies
+- Ne JAMAIS inventer de données
+- Si données insuffisantes, dis-le clairement
+
+ANALYSE :
+- Analyse les données fournies
+- Identifie les tendances et patterns
+- Fournis des insights actionables
+- Propose des recommandations concrètes
+
+RÉPONSE :
+- Structure claire et professionnelle
+- Utilise des émojis appropriés
+- Inclus des métriques précises
+- Référence les données sources`;
+
+        const estimatedTokens = TokenCounter.getTotalEstimatedTokens(estimatedSystemPrompt, messageToSend, 800);
+        const userTokensToCharge = Math.min(TokenCounter.getUserTokensToCharge(estimatedTokens, 1.5), 3000); // Cap at 3000 tokens
+        
+        // Check if user has enough tokens (including pay-as-you-go tokens)
+        const currentTokensUsed = user.tokensUsedMonthly || 0;
+        const payAsYouGoTokens = user.payAsYouGoTokens || 0;
+        const totalAvailableTokens = monthlyLimit + payAsYouGoTokens;
+        
+        console.log('🔍 Token validation debug:', {
+          messageToSend: messageToSend.substring(0, 50) + '...',
+          estimatedTokens,
+          userTokensToCharge,
+          currentTokensUsed,
+          payAsYouGoTokens,
+          monthlyLimit,
+          totalAvailableTokens,
+          remainingTokens: totalAvailableTokens - currentTokensUsed,
+          willShowModal: currentTokensUsed + userTokensToCharge > totalAvailableTokens,
+          systemPromptLength: estimatedSystemPrompt.length,
+          userPromptLength: messageToSend.length,
+          // Test with a simple message
+          simpleTest: TokenCounter.getTotalEstimatedTokens('Hello', 'Hi', 100)
+        });
+        
+        if (currentTokensUsed + userTokensToCharge > totalAvailableTokens) {
+          // Show pay-as-you-go modal instead of error
+          setRequiredTokens(userTokensToCharge);
+          setShowPayAsYouGoModal(true);
           return;
         }
       }
@@ -206,12 +304,12 @@ export const DirecteurChat: React.FC = () => {
         conversationId: conversationId
       };
 
-      // Timeout de 60 secondes pour laisser plus de temps au traitement IA
+      // Timeout de 90 secondes pour laisser plus de temps au traitement IA
       const controller = new AbortController();
       const timeoutId = setTimeout(() => {
-        console.log('Request timeout after 60 seconds');
+        console.log('Request timeout after 90 seconds');
         controller.abort();
-      }, 60000);
+      }, 90000);
 
       console.log('🤖 AI Request Details:');
       console.log('🔗 Endpoint:', AI_ENDPOINT);
@@ -253,6 +351,18 @@ export const DirecteurChat: React.FC = () => {
           if (errorData.error) {
             errorMessage = errorData.error;
           }
+          
+          // Handle insufficient tokens (402)
+          if (response.status === 402 && errorData.code === 'INSUFFICIENT_TOKENS') {
+            setShowPayAsYouGoModal(true);
+            return;
+          }
+          
+          // Handle subscription expired (402)
+          if (response.status === 402 && errorData.code === 'SUBSCRIPTION_EXPIRED') {
+            showError('Votre abonnement a expiré. Veuillez renouveler votre abonnement pour continuer.');
+            return;
+          }
         } catch {
           // Garder le message par défaut si pas de JSON
         }
@@ -266,22 +376,14 @@ export const DirecteurChat: React.FC = () => {
       console.log('📥 Response data:', JSON.stringify(data, null, 2));
       console.log('⏱️ Response time:', Date.now() - startTime, 'ms');
 
-      // Soustraire les tokens utilisés
-      if (user && data.meta?.tokensUsed) {
-        const tokensUsed = data.meta.tokensUsed;
-        const success = await TokenService.subtractTokens(user.id, tokensUsed);
-        if (success) {
-          console.log(`✅ ${tokensUsed} tokens soustraits pour l'utilisateur ${user.id}`);
-        } else {
-          console.error('❌ Erreur lors de la soustraction des tokens');
-        }
-      } else if (user) {
-        // Si pas de tokens dans la réponse, soustraire une estimation
-        const estimatedTokens = 100;
-        const success = await TokenService.subtractTokens(user.id, estimatedTokens);
-        if (success) {
-          console.log(`✅ ${estimatedTokens} tokens estimés soustraits pour l'utilisateur ${user.id}`);
-        }
+      // Tokens are now deducted on the server side
+      if (user && data.meta?.userTokensCharged) {
+        const userTokensCharged = data.meta.userTokensCharged;
+        console.log(`✅ ${userTokensCharged} tokens facturés (déduits côté serveur)`);
+        console.log(`📊 Détail: ${data.meta.tokensUsed} tokens OpenAI × 1.5 = ${userTokensCharged} tokens utilisateur`);
+        
+        // Update user data locally (you'll need to implement proper user context update)
+        console.log('🔄 User token usage updated');
       }
 
       const responseTime = Date.now() - startTime;
@@ -484,6 +586,17 @@ export const DirecteurChat: React.FC = () => {
             onLoadConversation={loadConversation}
             onCreateConversation={createNewConversation}
             onGoDashboard={() => (window.location.href = '/directeur/dashboard')}
+          />
+
+          {/* Pay-as-you-go Modal */}
+          <PayAsYouGoModal
+            isOpen={showPayAsYouGoModal}
+            onClose={() => setShowPayAsYouGoModal(false)}
+            onPurchase={handlePurchaseTokens}
+            currentTokens={user?.tokensUsedMonthly || 0}
+            packageLimit={getMonthlyTokens()}
+            payAsYouGoTokens={user?.payAsYouGoTokens || 0}
+            requiredTokens={requiredTokens}
           />
         </div>
       </div>

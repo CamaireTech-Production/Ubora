@@ -22,7 +22,7 @@ export const TokenDisplay: React.FC<TokenDisplayProps> = ({
 
   const monthlyLimit = getMonthlyTokens();
   const isUnlimited = hasUnlimitedTokens();
-  const remainingTokens = TokenService.getRemainingTokens(user, monthlyLimit);
+  const remainingTokens = TokenService.getRemainingTokensWithPayAsYouGo(user, monthlyLimit);
   const usagePercentage = TokenService.getTokenUsagePercentage(user, monthlyLimit);
   const tokensUsed = user.tokensUsedMonthly || 0;
 
@@ -36,7 +36,7 @@ export const TokenDisplay: React.FC<TokenDisplayProps> = ({
           ) : (
             <span>
               <span className="font-medium text-gray-900">{remainingTokens.toLocaleString()}</span>
-              <span className="text-gray-500">/{monthlyLimit.toLocaleString()}</span>
+              <span className="text-gray-500">/{TokenService.getTotalAvailableTokens(user, monthlyLimit).toLocaleString()}</span>
             </span>
           )}
         </span>
@@ -68,7 +68,7 @@ export const TokenDisplay: React.FC<TokenDisplayProps> = ({
               {remainingTokens.toLocaleString()} tokens restants
             </span>
             <span className="text-gray-500">
-              {tokensUsed.toLocaleString()}/{monthlyLimit.toLocaleString()}
+              {tokensUsed.toLocaleString()}/{TokenService.getTotalAvailableTokens(user, monthlyLimit).toLocaleString()}
             </span>
           </div>
           

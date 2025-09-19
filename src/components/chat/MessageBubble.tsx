@@ -5,6 +5,8 @@ import { PDFPreview, TextPDFPreview } from './PDFPreview';
 import { TableRenderer } from './TableRenderer';
 import { PDFFileDisplay } from './PDFFileDisplay';
 import { ChatMessage } from '../../types';
+import { MultiFormatToPDF } from '../../utils/MultiFormatToPDF';
+import { generatePDF } from '../../utils/PDFGenerator';
 
 interface MessageBubbleProps {
   message: ChatMessage;
@@ -183,13 +185,51 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
 
                 {/* Render content based on type */}
                 {message.contentType === 'graph' && message.graphData ? (
-                  <GraphRenderer data={message.graphData} />
+                  <div className="space-y-4">
+                    {/* PDF Generation Button for Graph */}
+                    <div className="flex justify-end mb-2">
+                      <button
+                        onClick={async () => {
+                          try {
+                            const pdfData = MultiFormatToPDF.convertToPDFData(message);
+                            await generatePDF(pdfData);
+                          } catch (error) {
+                            console.error('Error generating PDF:', error);
+                          }
+                        }}
+                        className="inline-flex items-center px-3 py-1.5 text-xs font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors duration-200"
+                        title="Générer un PDF avec le graphique"
+                      >
+                        📄 Générer PDF
+                      </button>
+                    </div>
+                    
+                    <GraphRenderer data={message.graphData} />
+                  </div>
                 ) : message.contentType === 'pdf' && message.pdfData ? (
                   <PDFPreview data={message.pdfData} />
                 ) : message.contentType === 'text-pdf' ? (
                   <TextPDFPreview content={message.content} title="Rapport Ubora" />
                 ) : message.contentType === 'table' && message.tableData ? (
                   <div className="space-y-4">
+                    {/* PDF Generation Button for Table */}
+                    <div className="flex justify-end mb-2">
+                      <button
+                        onClick={async () => {
+                          try {
+                            const pdfData = MultiFormatToPDF.convertToPDFData(message);
+                            await generatePDF(pdfData);
+                          } catch (error) {
+                            console.error('Error generating PDF:', error);
+                          }
+                        }}
+                        className="inline-flex items-center px-3 py-1.5 text-xs font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors duration-200"
+                        title="Générer un PDF avec le tableau"
+                      >
+                        📄 Générer PDF
+                      </button>
+                    </div>
+                    
                     {/* Render text content */}
                     {message.content && (
                       <div className="prose prose-sm max-w-none">
@@ -201,6 +241,26 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
                   </div>
                 ) : message.contentType === 'mixed' || message.contentType === 'multi-format' ? (
                   <div className="space-y-4">
+                    {/* PDF Generation Button for Multi-format */}
+                    {MultiFormatToPDF.canConvertToPDF(message) && (
+                      <div className="flex justify-end mb-2">
+                        <button
+                          onClick={async () => {
+                            try {
+                              const pdfData = MultiFormatToPDF.convertToPDFData(message);
+                              await generatePDF(pdfData);
+                            } catch (error) {
+                              console.error('Error generating PDF:', error);
+                            }
+                          }}
+                          className="inline-flex items-center px-3 py-1.5 text-xs font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors duration-200"
+                          title={MultiFormatToPDF.getPDFDescription(message)}
+                        >
+                          📄 Générer PDF
+                        </button>
+                      </div>
+                    )}
+                    
                     {/* Render text content */}
                     {message.content && (
                       <div className="prose prose-sm max-w-none">
