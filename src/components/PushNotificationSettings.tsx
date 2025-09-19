@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Button } from './Button';
 import { Card } from './Card';
-import { Bell, BellOff, Settings, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
+import { Bell, BellOff, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
 import { usePushNotifications } from '../hooks/usePushNotifications';
 
 export const PushNotificationSettings: React.FC = () => {
@@ -35,9 +35,11 @@ export const PushNotificationSettings: React.FC = () => {
   const handleRequestPermission = async () => {
     setIsLoading(true);
     try {
-      await requestPermission();
+      console.log('🔔 [Push] Requesting permission...');
+      const granted = await requestPermission();
+      console.log('🔔 [Push] Permission granted:', granted);
     } catch (error) {
-      console.error('Error requesting permission:', error);
+      console.error('🔔 [Push] Error requesting permission:', error);
     } finally {
       setIsLoading(false);
     }
@@ -176,14 +178,14 @@ export const PushNotificationSettings: React.FC = () => {
         </div>
 
         {/* Platform info */}
-        <div className="text-xs text-gray-500 bg-gray-50 p-3 rounded-lg">
+        {/* <div className="text-xs text-gray-500 bg-gray-50 p-3 rounded-lg">
           <p className="font-medium mb-1">Support des notifications :</p>
           <ul className="space-y-1">
             <li>✅ Android (PWA installée)</li>
             <li>✅ Desktop (Windows, Mac, Linux)</li>
             <li>⚠️ iOS (limitations Safari)</li>
           </ul>
-        </div>
+        </div> */}
       </div>
     </Card>
   );

@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Layout } from '../components/Layout';
 import { PushNotificationSettings } from '../components/PushNotificationSettings';
-import { NotificationTestPanel } from '../components/NotificationTestPanel';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { Bell, CheckCircle, XCircle, Clock } from 'lucide-react';
@@ -104,9 +103,6 @@ export const NotificationsPage: React.FC = () => {
       <div className="space-y-6">
         {/* Push Notification Settings */}
         <PushNotificationSettings />
-
-        {/* Test Panel */}
-        <NotificationTestPanel />
 
         {/* Notifications List */}
         <Card className="p-6">

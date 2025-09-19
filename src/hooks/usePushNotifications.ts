@@ -89,16 +89,45 @@ export const usePushNotifications = () => {
     }
   }, []);
 
+  // Save token to Firestore
+  const saveTokenToFirestore = useCallback(async (token: string) => {
+    if (!user || !user.id) {
+      console.error('🔔 [Push] User or user.id is undefined:', { user });
+      return;
+    }
+
+    try {
+      const userDocRef = doc(db, 'users', user.id);
+      await setDoc(userDocRef, {
+        fcmToken: token,
+        lastTokenUpdate: new Date(),
+        notificationEnabled: true,
+      }, { merge: true });
+      
+      console.log('🔔 [Push] Token saved to Firestore for user:', user.id);
+    } catch (error) {
+      console.error('🔔 [Push] Failed to save token:', error);
+    }
+  }, [user]);
+
   // Get FCM token
   const getFCMToken = useCallback(async () => {
     try {
+      console.log('🔔 [Push] Getting FCM token...', { user: user?.id });
+      
       const messagingInstance = await messaging;
       if (!messagingInstance) {
         throw new Error('Messaging not available');
       }
 
+      const vapidKey = import.meta.env.VITE_FIREBASE_VAPID_KEY;
+      
+      if (!vapidKey || vapidKey === 'YOUR_VAPID_KEY_HERE') {
+        throw new Error('VAPID key not configured. Please add VITE_FIREBASE_VAPID_KEY to your .env.local file');
+      }
+
       const token = await getToken(messagingInstance, {
-        vapidKey: import.meta.env.VITE_FIREBASE_VAPID_KEY || 'YOUR_VAPID_KEY_HERE'
+        vapidKey: vapidKey
       });
 
       if (token) {
@@ -109,7 +138,7 @@ export const usePushNotifications = () => {
           await saveTokenToFirestore(token);
         }
         
-        console.log('🔔 [Push] FCM Token:', token);
+        console.log('🔔 [Push] FCM Token generated successfully:', token.substring(0, 50) + '...');
         return token;
       } else {
         setState(prev => ({ ...prev, error: 'No registration token available' }));
@@ -120,25 +149,7 @@ export const usePushNotifications = () => {
       setState(prev => ({ ...prev, error: 'Failed to get token' }));
       return null;
     }
-  }, [user]);
-
-  // Save token to Firestore
-  const saveTokenToFirestore = useCallback(async (token: string) => {
-    if (!user) return;
-
-    try {
-      const userDocRef = doc(db, 'users', user.uid);
-      await setDoc(userDocRef, {
-        fcmToken: token,
-        lastTokenUpdate: new Date(),
-        notificationEnabled: true,
-      }, { merge: true });
-      
-      console.log('🔔 [Push] Token saved to Firestore');
-    } catch (error) {
-      console.error('🔔 [Push] Failed to save token:', error);
-    }
-  }, [user]);
+  }, [user, saveTokenToFirestore]);
 
   // Subscribe to push notifications
   const subscribe = useCallback(async () => {
@@ -167,8 +178,8 @@ export const usePushNotifications = () => {
   // Unsubscribe from push notifications
   const unsubscribe = useCallback(async () => {
     try {
-      if (user) {
-        const userDocRef = doc(db, 'users', user.uid);
+      if (user && user.id) {
+        const userDocRef = doc(db, 'users', user.id);
         await setDoc(userDocRef, {
           fcmToken: null,
           notificationEnabled: false,
@@ -218,15 +229,42 @@ export const usePushNotifications = () => {
     }
   }, [state.isSupported, state.permission.granted]);
 
+  // Check user's notification state from Firestore
+  const checkUserNotificationState = useCallback(async () => {
+    if (!user || !user.id) return;
+
+    try {
+      const userDocRef = doc(db, 'users', user.id);
+      const userDoc = await getDoc(userDocRef);
+      
+      if (userDoc.exists()) {
+        const userData = userDoc.data();
+        const hasToken = !!userData.fcmToken;
+        const isEnabled = userData.notificationEnabled === true;
+        
+        if (hasToken && isEnabled) {
+          setState(prev => ({ 
+            ...prev, 
+            token: userData.fcmToken,
+            isSubscribed: true 
+          }));
+        }
+      }
+    } catch (error) {
+      console.error('🔔 [Push] Error checking user notification state:', error);
+    }
+  }, [user]);
+
   // Initialize on mount
   useEffect(() => {
     const initialize = async () => {
       await checkSupport();
       checkPermission();
+      await checkUserNotificationState();
     };
 
     initialize();
-  }, [checkSupport, checkPermission]);
+  }, [checkSupport, checkPermission, checkUserNotificationState]);
 
   return {
     ...state,
