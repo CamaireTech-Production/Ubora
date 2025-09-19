@@ -86,15 +86,15 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
       const textarea = textareaRef.current;
       textarea.style.height = 'auto';
       const scrollHeight = textarea.scrollHeight;
-      const lineHeight = 48; // Updated line height to match new minHeight
-      const maxHeight = lineHeight * 3; // Max 3 lines for better mobile experience
+      const lineHeight = 24; // Standard line height for chat input
+      const maxHeight = lineHeight * 4; // Max 4 lines
       
       if (scrollHeight <= maxHeight) {
         textarea.style.height = `${scrollHeight}px`;
         setRows(Math.max(1, Math.floor(scrollHeight / lineHeight)));
       } else {
         textarea.style.height = `${maxHeight}px`;
-        setRows(3);
+        setRows(4);
       }
     }
   }, [value]);
@@ -160,42 +160,43 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
         )}
 
           {/* Composer input section */}
-          <div className="p-3 pt-0">
-          <div className="flex items-end space-x-3">
-            {/* Textarea */}
-            <div className="flex-1">
-              <textarea
-                ref={textareaRef}
-                value={value}
-                onChange={(e) => onChange(e.target.value)}
-                onKeyPress={handleKeyPress}
-                placeholder={placeholder}
-                disabled={disabled}
-                maxLength={maxLength}
-                rows={rows}
-                className="w-full resize-none border-0 outline-none text-base placeholder-gray-400 bg-transparent md:text-base text-lg"
-                style={{
-                  minHeight: '48px',
-                  maxHeight: '144px',
-                  lineHeight: '48px'
-                }}
-              />
-            </div>
+          <div className="p-4">
+            <div className="flex items-end space-x-3 bg-white border border-gray-200 rounded-2xl shadow-sm">
+              {/* Textarea */}
+              <div className="flex-1 p-3">
+                <textarea
+                  ref={textareaRef}
+                  value={value}
+                  onChange={(e) => onChange(e.target.value)}
+                  onKeyPress={handleKeyPress}
+                  placeholder={placeholder}
+                  disabled={disabled}
+                  maxLength={maxLength}
+                  rows={rows}
+                  className="w-full resize-none border-0 outline-none text-base placeholder-gray-500 bg-transparent leading-6"
+                  style={{
+                    minHeight: '24px',
+                    maxHeight: '96px'
+                  }}
+                />
+              </div>
 
-            {/* Send button */}
-            <Button
-              onClick={onSend}
-              disabled={!canSend}
-              className={`p-3 rounded-xl transition-all duration-200 ${
-                canSend
-                  ? 'bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-md'
-                  : 'bg-blue-200 text-blue-400 cursor-not-allowed'
-              }`}
-              title="Envoyer le message"
-            >
-              <Send className="h-5 w-5" />
-            </Button>
-          </div>
+              {/* Send button */}
+              <div className="p-2">
+                <Button
+                  onClick={onSend}
+                  disabled={!canSend}
+                  className={`p-2 rounded-full transition-all duration-200 ${
+                    canSend
+                      ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-sm'
+                      : 'bg-blue-300 text-gray-500 cursor-not-allowed border border-blue-300'
+                  }`}
+                  title="Envoyer le message"
+                >
+                  <Send className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
           </div>
         </div>
         

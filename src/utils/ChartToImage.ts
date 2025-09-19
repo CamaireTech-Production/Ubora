@@ -11,7 +11,7 @@ export class ChartToImage {
     return new Promise((resolve, reject) => {
       try {
         // Create a high-resolution canvas for crisp rendering
-        const scale = 2; // High DPI scaling
+        const scale = 3; // Higher DPI scaling for better quality
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
         if (!ctx) {
@@ -26,14 +26,19 @@ export class ChartToImage {
         // Scale the context for high DPI
         ctx.scale(scale, scale);
         
-        // Enable text antialiasing
+        // Enable text antialiasing and high quality rendering
         ctx.textRenderingOptimization = 'optimizeQuality';
         ctx.imageSmoothingEnabled = true;
         ctx.imageSmoothingQuality = 'high';
 
-        // Set background
+        // Set background with subtle border
         ctx.fillStyle = '#ffffff';
         ctx.fillRect(0, 0, width, height);
+        
+        // Add subtle border
+        ctx.strokeStyle = '#e5e7eb';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(0, 0, width, height);
 
         // Draw chart based on type
         this.drawChart(ctx, chartData, width, height);
@@ -51,7 +56,7 @@ export class ChartToImage {
    * Draw chart on canvas context
    */
   private static drawChart(ctx: CanvasRenderingContext2D, chartData: GraphData, width: number, height: number): void {
-    const margin = 60;
+    const margin = 80; // Increased margin for better axis labels
     const chartWidth = width - 2 * margin;
     const chartHeight = height - 2 * margin;
 
@@ -61,10 +66,10 @@ export class ChartToImage {
 
     // Draw title with high quality text rendering
     ctx.fillStyle = '#1f2937';
-    ctx.font = 'bold 18px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+    ctx.font = 'bold 20px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(chartData.title, width / 2, 30);
+    ctx.fillText(chartData.title, width / 2, 25);
 
     // Draw chart based on type
     switch (chartData.type) {
@@ -75,7 +80,7 @@ export class ChartToImage {
         this.drawLineChart(ctx, chartData, margin, chartWidth, chartHeight, primaryColor);
         break;
       case 'pie':
-        this.drawPieChart(ctx, chartData, width / 2, height / 2, Math.min(chartWidth, chartHeight) / 2 - 20, colors);
+        this.drawPieChart(ctx, chartData, width / 2, height / 2, Math.min(chartWidth, chartHeight) / 2 - 30, colors);
         break;
       case 'area':
         this.drawAreaChart(ctx, chartData, margin, chartWidth, chartHeight, primaryColor);
@@ -86,6 +91,9 @@ export class ChartToImage {
       default:
         this.drawBarChart(ctx, chartData, margin, chartWidth, chartHeight, primaryColor);
     }
+
+    // Add axis labels if available
+    this.drawAxisLabels(ctx, chartData, margin, chartWidth, chartHeight, width, height);
   }
 
   /**
@@ -147,7 +155,18 @@ export class ChartToImage {
       ctx.strokeRect(x, y, barWidth, barHeight);
     });
 
-    // Draw labels with high quality
+    // Draw Y-axis labels
+    ctx.fillStyle = '#6b7280';
+    ctx.font = '10px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'middle';
+    for (let i = 0; i <= 5; i++) {
+      const value = (maxValue / 5) * i;
+      const y = margin + chartHeight - (i / 5) * chartHeight;
+      ctx.fillText(Math.round(value).toString(), margin - 10, y);
+    }
+
+    // Draw X-axis labels with high quality
     ctx.fillStyle = '#374151';
     ctx.font = '11px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
     ctx.textAlign = 'center';
@@ -155,7 +174,9 @@ export class ChartToImage {
     data.forEach((item, index) => {
       const x = margin + index * (barWidth + barSpacing) + barWidth / 2;
       const label = item[chartData.xAxisKey || 'label'] || `Item ${index + 1}`;
-      ctx.fillText(label, x, margin + chartHeight + 15);
+      // Truncate long labels
+      const truncatedLabel = label.length > 12 ? label.substring(0, 12) + '...' : label;
+      ctx.fillText(truncatedLabel, x, margin + chartHeight + 15);
     });
   }
 
@@ -393,6 +414,44 @@ export class ChartToImage {
       ctx.arc(x, y, 4, 0, 2 * Math.PI);
       ctx.fill();
     });
+  }
+
+  /**
+   * Draw axis labels for charts
+   */
+  private static drawAxisLabels(
+    ctx: CanvasRenderingContext2D,
+    chartData: GraphData,
+    margin: number,
+    chartWidth: number,
+    chartHeight: number,
+    width: number,
+    height: number
+  ): void {
+    // Only draw axis labels for non-pie charts
+    if (chartData.type === 'pie') return;
+
+    // Draw X-axis label
+    if (chartData.xAxisKey) {
+      ctx.fillStyle = '#6b7280';
+      ctx.font = '12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'top';
+      ctx.fillText(chartData.xAxisKey, width / 2, height - 20);
+    }
+
+    // Draw Y-axis label
+    if (chartData.yAxisKey) {
+      ctx.save();
+      ctx.translate(15, height / 2);
+      ctx.rotate(-Math.PI / 2);
+      ctx.fillStyle = '#6b7280';
+      ctx.font = '12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(chartData.yAxisKey, 0, 0);
+      ctx.restore();
+    }
   }
 
   /**

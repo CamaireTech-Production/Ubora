@@ -696,14 +696,26 @@ STRATÉGIE D'ANALYSE :
 - Si l'utilisateur pose une question générale ET a sélectionné le format statistique : propose des graphiques pertinents
 - Si l'utilisateur pose une question générale SANS format spécifique : réponds de manière textuelle structurée
 - Analyse les champs de formulaire pour identifier les données quantifiables quand approprié
-- Suggère des visualisations seulement si le format statistique est demandé`;
+- Suggère des visualisations seulement si le format statistique est demandé
 
-      const fileInstructions = hasPDFContent ? `
+RECOMMANDATIONS DE GRAPHIQUES :
+- Données temporelles (dates, mois, années) → Graphique en ligne (line)
+- Comparaisons entre catégories → Graphique en barres (bar)
+- Proportions/parts d'un tout → Graphique en secteurs (pie)
+- Évolution continue dans le temps → Graphique en aires (area)
+- Corrélations entre deux variables → Graphique de dispersion (scatter)
+- Données numériques simples → Graphique en barres (bar) par défaut
+- Analysez toujours le type de données pour choisir le graphique le plus approprié`;
+
+      const fileInstructions = (hasPDFContent && (responseFormat === 'pdf' || (selectedResponseFormats && selectedResponseFormats.includes('pdf')))) ? `
 FICHIERS :
 - Analyse le contenu des fichiers de manière structurée
 - Identifie les informations clés (dates, montants, noms, thèmes)
+- Fournis un résumé clair et structuré du contenu des fichiers
 - Référence les fichiers avec [FICHIER: nom_du_fichier.ext] [METADATA: {...}] pour téléchargement
-- METADATA doit contenir : fileName, fileType, fileSize, downloadUrl, storagePath` : '';
+- METADATA doit contenir : fileName, fileType, fileSize, downloadUrl, storagePath
+- Utilise des noms de fichiers conviviaux (sans URLs techniques)
+- Présente les fichiers référencés à la fin de ta réponse, pas dans le texte principal` : '';
 
       const formatInstructions = getFormatInstructions(responseFormat, selectedResponseFormats);
       
@@ -732,7 +744,7 @@ Retourne un graphique JSON avec cette structure :
   "options": {"showLegend": true}
 }
 \`\`\`
-+ Explication textuelle.`;
++ Explication textuelle détaillée du graphique choisi et pourquoi il est approprié pour ces données.`;
 
         case 'table':
           return `
@@ -759,7 +771,9 @@ Organise les formats de manière logique.`;
           return `
 FORMAT TEXTE LIBRE :
 Réponse structurée + graphiques statistiques automatiques si appropriés.
-Référence fichiers avec [FICHIER: nom_du_fichier.ext]`;
+- Analyse les données et propose automatiquement le type de graphique le plus adapté
+- Inclus une explication de pourquoi ce type de graphique est choisi
+- Ne référence PAS les fichiers avec [FICHIER: ...] sauf si explicitement demandé`;
       }
     };
 
@@ -797,6 +811,7 @@ RÉSUMÉ DES DONNÉES :
               downloadUrl: value.downloadUrl,
               storagePath: value.storagePath
             };
+            const cleanFileName = value.fileName.replace(/^[0-9-]+-/, '').replace(/\.pdf$/i, '');
             return `    • ${fieldLabel}: [FICHIER: ${value.fileName}] [METADATA: ${JSON.stringify(fileMetadata)}]`;
           }
           
@@ -833,8 +848,15 @@ RÉSUMÉ DES DONNÉES :
               .filter(att => att.extractedText)
               .forEach(att => {
                 const fileIcon = att.fileType === 'application/pdf' ? '📄' : '📎';
-                const fileTypeLabel = att.fileType === 'application/pdf' ? 'CONTENU PDF' : 'CONTENU FICHIER';
-                fileContents.push(`    ${fileIcon} ${fileTypeLabel} "${att.fileName}" (${att.fileSize ? (att.fileSize / 1024).toFixed(1) + ' KB' : 'Taille inconnue'}):\n${att.extractedText.substring(0, 800)}${att.extractedText.length > 800 ? '...' : ''}\n\n    RÉFÉRENCE FICHIER: [FICHIER: ${att.fileName}]`);
+                const fileTypeLabel = att.fileType === 'application/pdf' ? 'FICHIER PDF' : 'FICHIER JOINT';
+                const cleanFileName = att.fileName.replace(/^[0-9-]+-/, '').replace(/\.pdf$/i, '');
+                fileContents.push(`    ${fileIcon} ${fileTypeLabel}: "${cleanFileName}" (${att.fileSize ? (att.fileSize / 1024).toFixed(1) + ' KB' : 'Taille inconnue'})\n    RÉFÉRENCE: [FICHIER: ${att.fileName}] [METADATA: ${JSON.stringify({
+                  fileName: att.fileName,
+                  fileType: att.fileType,
+                  fileSize: att.fileSize,
+                  downloadUrl: att.downloadUrl,
+                  storagePath: att.storagePath
+                })}]`);
               });
           }
           
@@ -842,9 +864,15 @@ RÉSUMÉ DES DONNÉES :
           Object.entries(s.answers).forEach(([fieldLabel, value]) => {
             if (value && typeof value === 'object' && value.uploaded && value.fileName && value.extractedText) {
               const fileIcon = value.fileType === 'application/pdf' ? '📄' : '📎';
-              const fileTypeLabel = value.fileType === 'application/pdf' ? 'CONTENU PDF' : 'CONTENU FICHIER';
-              // Use the actual field label in the content section too
-              fileContents.push(`    ${fileIcon} ${fileTypeLabel} "${value.fileName}" (${value.fileSize ? (value.fileSize / 1024).toFixed(1) + ' KB' : 'Taille inconnue'}) - Champ: ${fieldLabel}:\n${value.extractedText.substring(0, 800)}${value.extractedText.length > 800 ? '...' : ''}\n\n    RÉFÉRENCE FICHIER: [FICHIER: ${value.fileName}]`);
+              const fileTypeLabel = value.fileType === 'application/pdf' ? 'FICHIER PDF' : 'FICHIER JOINT';
+              const cleanFileName = value.fileName.replace(/^[0-9-]+-/, '').replace(/\.pdf$/i, '');
+              fileContents.push(`    ${fileIcon} ${fileTypeLabel}: "${cleanFileName}" - Champ: ${fieldLabel} (${value.fileSize ? (value.fileSize / 1024).toFixed(1) + ' KB' : 'Taille inconnue'})\n    RÉFÉRENCE: [FICHIER: ${value.fileName}] [METADATA: ${JSON.stringify({
+                fileName: value.fileName,
+                fileType: value.fileType,
+                fileSize: value.fileSize,
+                downloadUrl: value.downloadUrl,
+                storagePath: value.storagePath
+              })}]`);
             }
           });
           

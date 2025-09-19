@@ -93,6 +93,11 @@ export const ResponseDetailPage: React.FC = () => {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
+  // Clean file name for display (remove technical prefixes)
+  const getCleanFileName = (fileName: string) => {
+    return fileName.replace(/^[0-9-]+-/, '').replace(/\.pdf$/i, '');
+  };
+
   // Helper function to find file attachment for a field
   const findFileAttachment = (response: any, fieldId: string) => {
     // Try to find in fileAttachments array
@@ -638,7 +643,7 @@ export const ResponseDetailPage: React.FC = () => {
                                       <div className="text-gray-900 text-sm flex flex-col sm:flex-row sm:items-center gap-2">
                                         <div className="flex items-center space-x-2">
                                           <span className="text-lg">{getFileIcon((value as any).fileType)}</span>
-                                          <span>{(value as any).fileName}</span>
+                                          <span>{getCleanFileName((value as any).fileName)}</span>
                                           <span className="text-xs text-gray-500">({formatFileSize((value as any).fileSize)})</span>
                                         </div>
                                          <div className="flex items-center space-x-2">

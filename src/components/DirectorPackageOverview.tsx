@@ -393,7 +393,7 @@ export const DirectorPackageOverview: React.FC<DirectorPackageOverviewProps> = (
               </div>
               <div className="flex items-center space-x-2">
                 <span className="text-sm font-medium">
-                  {hasUnlimitedTokens() ? 'Illimité' : `${remainingTokens.toLocaleString()}/${totalAvailableTokens.toLocaleString()}`}
+                  {hasUnlimitedTokens() ? 'Illimité' : `${usedTokens.toLocaleString()}/${totalAvailableTokens.toLocaleString()} utilisés`}
                 </span>
                 {tokensLimitReached && (
                   <AlertTriangle className="h-4 w-4 text-orange-500" />

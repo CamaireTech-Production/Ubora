@@ -17,9 +17,9 @@ export interface ParsedResponse {
 
 export class ResponseParser {
   static parseAIResponse(response: string, _userMessage?: string, selectedFormat?: string | null, selectedFormats?: string[]): ParsedResponse {
-    // Detect PDF file references in the response
-    const pdfFiles = this.detectPDFFileReferences(response);
-    
+    // Only detect PDF file references if PDF format is explicitly selected
+    const shouldDetectPDFFiles = selectedFormat === 'pdf' || (selectedFormats && selectedFormats.includes('pdf'));
+    const pdfFiles = shouldDetectPDFFiles ? this.detectPDFFileReferences(response) : [];
     
     // Handle multi-format responses
     if (selectedFormats && selectedFormats.length > 1) {
@@ -33,8 +33,12 @@ export class ResponseParser {
       return { ...result, pdfFiles };
     }
 
-    // If no format is selected, try to auto-detect content type
+    // If no format is selected, try to auto-detect content type (but not PDF)
     const autoDetectedResult = this.autoDetectContentType(response);
+    // Clean up file references from the content
+    if (autoDetectedResult.contentType === 'text') {
+      autoDetectedResult.content = this.cleanFileReferencesFromText(autoDetectedResult.content);
+    }
     return { ...autoDetectedResult, pdfFiles };
   }
 
@@ -51,12 +55,7 @@ export class ResponseParser {
       return tableResult;
     }
     
-    // Try to detect PDF content
-    const pdfResult = this.parsePDFResponse(response);
-    if (pdfResult.contentType === 'text-pdf') {
-      return pdfResult;
-    }
-    
+    // Don't auto-detect PDF content - only use PDF format when explicitly selected
     // Default to text
     return {
       contentType: 'text',
@@ -240,6 +239,10 @@ export class ResponseParser {
       .replace(/```json\s*[\s\S]*?(?=\n\n|\nExplication|$)/g, '')
       .replace(/\{\s*"type"\s*:\s*"[^"]*"\s*,[\s\S]*?\}/g, '')
       .replace(/\{[\s\S]*\}/g, '')
+      // Remove file references with metadata
+      .replace(/\[FICHIER:\s*[^\]]+\]\s*\[METADATA:\s*[^\]]+\]/gi, '')
+      // Remove standalone file references
+      .replace(/\[FICHIER:\s*[^\]]+\]/gi, '')
       .trim();
   }
 
@@ -249,6 +252,10 @@ export class ResponseParser {
       .replace(/```markdown\s*[\s\S]*?\s*```/g, '')
       .replace(/(\|.*\|[\s\S]*?\|.*\|)/g, '')
       .replace(/```\s*[\s\S]*?\s*```/g, '')
+      // Remove file references with metadata
+      .replace(/\[FICHIER:\s*[^\]]+\]\s*\[METADATA:\s*[^\]]+\]/gi, '')
+      // Remove standalone file references
+      .replace(/\[FICHIER:\s*[^\]]+\]/gi, '')
       .trim();
   }
 
@@ -260,6 +267,22 @@ export class ResponseParser {
       .replace(/(\|.*\|[\s\S]*?\|.*\|)/g, '')
       .replace(/```\s*[\s\S]*?\s*```/g, '')
       .replace(/\{[\s\S]*\}/g, '')
+      // Remove file references with metadata
+      .replace(/\[FICHIER:\s*[^\]]+\]\s*\[METADATA:\s*[^\]]+\]/gi, '')
+      // Remove standalone file references
+      .replace(/\[FICHIER:\s*[^\]]+\]/gi, '')
+      .trim();
+  }
+
+  /**
+   * Clean file references from text content
+   */
+  private static cleanFileReferencesFromText(text: string): string {
+    return text
+      // Remove file references with metadata
+      .replace(/\[FICHIER:\s*[^\]]+\]\s*\[METADATA:\s*[^\]]+\]/gi, '')
+      // Remove standalone file references
+      .replace(/\[FICHIER:\s*[^\]]+\]/gi, '')
       .trim();
   }
   

@@ -370,19 +370,25 @@ export class PDFGenerator {
     this.doc.setFont('helvetica', 'normal');
     
     if (!text) {
-      this.currentY += 3; // Add small spacing for empty lines
+      this.currentY += 5; // Add small spacing for empty lines
       return;
     }
     
-    const lines = this.doc.splitTextToSize(text, this.pageWidth - (this.margin * 2));
+    // Clean up text and ensure proper wrapping
+    const cleanText = text.replace(/\s+/g, ' ').trim();
+    const lines = this.doc.splitTextToSize(cleanText, this.pageWidth - (this.margin * 2));
     
     lines.forEach((line: string) => {
-      if (this.currentY > this.pageHeight - 15) {
+      // Check if we need a page break before adding the line
+      if (this.currentY > this.pageHeight - 20) {
         this.addPageBreak();
       }
       this.doc.text(line, this.margin, this.currentY);
-      this.currentY += 6;
+      this.currentY += 7; // Increased line spacing for better readability
     });
+    
+    // Add extra spacing after paragraphs
+    this.currentY += 3;
   }
 
   private addSeparator(): void {
@@ -521,24 +527,29 @@ export class PDFGenerator {
       this.currentY += 8;
       
       try {
-        // Convert chart to high-resolution image
-        const chartImage = await ChartToImage.chartToBase64(chart, 400, 200);
+        // Convert chart to high-resolution image with better dimensions
+        const chartImage = await ChartToImage.chartToBase64(chart, 600, 350);
         
-        // Add chart image to PDF with proper scaling
-        const imgWidth = 160;
-        const imgHeight = 80;
+        // Add chart image to PDF with proper scaling and centering
+        const imgWidth = 170; // Increased width
+        const imgHeight = 100; // Increased height
         const x = this.margin;
         const y = this.currentY;
         
-        this.doc.addImage(chartImage, 'PNG', x, y, imgWidth, imgHeight);
-        this.currentY += imgHeight + 10;
+        // Check if chart fits on current page
+        if (this.currentY + imgHeight > this.pageHeight - 30) {
+          this.addPageBreak();
+        }
         
-        // Add chart info
-        this.doc.setFontSize(8);
+        this.doc.addImage(chartImage, 'PNG', x, y, imgWidth, imgHeight);
+        this.currentY += imgHeight + 15;
+        
+        // Add chart info with better formatting
+        this.doc.setFontSize(9);
         this.doc.setFont('helvetica', 'normal');
-        this.doc.setTextColor(120, 120, 120);
+        this.doc.setTextColor(100, 100, 100);
         this.doc.text(`Type: ${chart.type} | Données: ${chart.data.length} points`, this.margin, this.currentY);
-        this.currentY += 15;
+        this.currentY += 20;
         this.doc.setTextColor(0, 0, 0);
         
       } catch (error) {

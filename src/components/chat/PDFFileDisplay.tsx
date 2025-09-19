@@ -30,6 +30,11 @@ export const PDFFileDisplay: React.FC<PDFFileDisplayProps> = ({ pdfFiles }) => {
   const canViewFile = (fileType: string) => {
     return fileType.includes('pdf');
   };
+
+  // Clean file name for display (remove technical prefixes)
+  const getCleanFileName = (fileName: string) => {
+    return fileName.replace(/^[0-9-]+-/, '').replace(/\.pdf$/i, '');
+  };
   const [pdfViewerModal, setPdfViewerModal] = useState<{
     isOpen: boolean;
     fileUrl: string;
@@ -123,41 +128,45 @@ export const PDFFileDisplay: React.FC<PDFFileDisplayProps> = ({ pdfFiles }) => {
 
   return (
     <>
-      <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-        <div className="flex items-center space-x-2 mb-2">
-          <FileText className="h-4 w-4 text-blue-600" />
-          <span className="text-sm font-medium text-blue-900">
-            Fichiers joints référencés ({pdfFiles.length})
+      <div className="mt-4 p-4 bg-gray-50 border border-gray-200 rounded-lg">
+        <div className="flex items-center space-x-2 mb-3">
+          <FileText className="h-5 w-5 text-gray-600" />
+          <span className="text-sm font-semibold text-gray-800">
+            Fichiers joints ({pdfFiles.length})
           </span>
         </div>
-        <div className="space-y-2">
+        <div className="space-y-3">
           {pdfFiles.map((pdfFile, index) => (
-            <div key={index} className="flex items-center justify-between bg-white p-2 rounded border">
-              <div className="flex items-center space-x-2">
+            <div key={index} className="flex items-center justify-between bg-white p-3 rounded-lg border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
+              <div className="flex items-center space-x-3">
                 {getFileIcon(pdfFile.fileType)}
-                <span className="text-sm text-gray-700">{pdfFile.fileName}</span>
-                {pdfFile.fileSize && (
-                  <span className="text-xs text-gray-500">
-                    ({(pdfFile.fileSize / 1024).toFixed(1)} KB)
-                  </span>
-                )}
+                <div className="flex flex-col">
+                  <span className="text-sm font-medium text-gray-900">{getCleanFileName(pdfFile.fileName)}</span>
+                  {pdfFile.fileSize && (
+                    <span className="text-xs text-gray-500">
+                      {(pdfFile.fileSize / 1024).toFixed(1)} KB
+                    </span>
+                  )}
+                </div>
               </div>
               <div className="flex items-center space-x-2">
                 {canViewFile(pdfFile.fileType) && (
                   <button
                     onClick={() => handleViewPDF(pdfFile)}
-                    className="flex items-center justify-center w-8 h-8 bg-blue-500 text-white rounded hover:bg-blue-600"
+                    className="flex items-center space-x-1 px-3 py-1.5 bg-blue-500 text-white text-xs font-medium rounded-md hover:bg-blue-600 transition-colors"
                     title="Voir le fichier"
                   >
-                    <Eye className="h-4 w-4" />
+                    <Eye className="h-3 w-3" />
+                    <span>Voir</span>
                   </button>
                 )}
                 <button
                   onClick={() => handleDownloadPDF(pdfFile)}
-                  className="flex items-center justify-center w-8 h-8 bg-gray-500 text-white rounded hover:bg-gray-600"
+                  className="flex items-center space-x-1 px-3 py-1.5 bg-gray-600 text-white text-xs font-medium rounded-md hover:bg-gray-700 transition-colors"
                   title="Télécharger le fichier"
                 >
-                  <Download className="h-4 w-4" />
+                  <Download className="h-3 w-3" />
+                  <span>Télécharger</span>
                 </button>
               </div>
             </div>
