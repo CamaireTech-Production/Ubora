@@ -13,7 +13,6 @@ import { UnauthorizedPage } from './pages/UnauthorizedPage';
 import { PendingApprovalPage } from './pages/PendingApprovalPage';
 import { DashboardDetailPage } from './pages/DashboardDetailPage';
 import { ResponseDetailPage } from './pages/ResponseDetailPage';
-import { PackagesPage } from './pages/PackagesPage';
 import { PackageManagementPage } from './pages/PackageManagementPage';
 import { DirectorSettingsPage } from './pages/DirectorSettingsPage';
 import { NotificationsPage } from './pages/NotificationsPage';
@@ -94,16 +93,6 @@ function App() {
               element={
                 <ProtectedRoute allowedRoles={['employe', 'directeur']}>
                   <ResponseDetailPage />
-                </ProtectedRoute>
-              } 
-            />
-            
-            {/* Page des packages */}
-            <Route 
-              path="/packages" 
-              element={
-                <ProtectedRoute allowedRoles={['directeur']}>
-                  <PackagesPage />
                 </ProtectedRoute>
               } 
             />

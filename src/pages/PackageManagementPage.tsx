@@ -102,9 +102,10 @@ export const PackageManagementPage: React.FC = () => {
       
       // Mettre à jour le package dans Firestore
       const userRef = doc(db, 'users', user.id);
+      const activationDate = new Date();
       await updateDoc(userRef, {
         package: pkg,
-        subscriptionStartDate: new Date(), // Reset subscription date
+        subscriptionStartDate: activationDate, // Set activation date to current date
         updatedAt: new Date()
       });
       
@@ -158,12 +159,15 @@ export const PackageManagementPage: React.FC = () => {
   // Calculate days since activation and days remaining
   const now = new Date();
   const daysSinceActivation = Math.floor((now.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
-  const daysRemaining = Math.max(1, 30 - (daysSinceActivation % 30)); // Ensure at least 1 day remaining
-  const isNearRenewal = daysRemaining <= 7;
   
-  // Calculate next renewal date
+  // Calculate the next renewal date (30 days from activation, then every 30 days)
   const nextRenewalDate = new Date(startDate);
-  nextRenewalDate.setDate(startDate.getDate() + Math.ceil(daysSinceActivation / 30) * 30);
+  const cyclesPassed = Math.floor(daysSinceActivation / 30);
+  nextRenewalDate.setDate(startDate.getDate() + (cyclesPassed + 1) * 30);
+  
+  // Calculate days remaining until next renewal
+  const daysRemaining = Math.max(1, Math.ceil((nextRenewalDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
+  const isNearRenewal = daysRemaining <= 7;
 
   return (
     <Layout title="Gestion des Packages">
@@ -214,7 +218,7 @@ export const PackageManagementPage: React.FC = () => {
             
             {/* Subscription Details */}
             <div className="mb-4 p-3 bg-white rounded-lg border border-gray-200">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                 <div className="flex items-center justify-between">
                   <span className="text-gray-600">Activé le:</span>
                   <span className="font-medium">{startDate.toLocaleDateString('fr-FR')}</span>
@@ -223,36 +227,39 @@ export const PackageManagementPage: React.FC = () => {
                   <span className="text-gray-600">Prochain renouvellement:</span>
                   <span className="font-medium">{nextRenewalDate.toLocaleDateString('fr-FR')}</span>
                 </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-gray-600">Jours depuis activation:</span>
-                  <span className="font-medium">{daysSinceActivation} jour{daysSinceActivation > 1 ? 's' : ''}</span>
-                </div>
               </div>
             </div>
             
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-              <div className="flex items-center justify-between">
-                <span className="text-gray-600">Tokens restants:</span>
-                <span className="font-medium">
-                  {(() => {
-                    const monthlyLimit = getMonthlyTokens();
-                    const isUnlimited = hasUnlimitedTokens();
-                    const remainingTokens = TokenService.getRemainingTokens(user, monthlyLimit);
-                    return isUnlimited ? 'Illimités' : remainingTokens.toLocaleString();
-                  })()}
-                </span>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-600">Tokens restants:</span>
+                  <span className="font-medium">
+                    {(() => {
+                      const monthlyLimit = getMonthlyTokens();
+                      const isUnlimited = hasUnlimitedTokens();
+                      const remainingTokens = TokenService.getRemainingTokens(user, monthlyLimit);
+                      return isUnlimited ? 'Illimités' : remainingTokens.toLocaleString();
+                    })()}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-600">Agence:</span>
+                  <span className="font-medium">{user.agencyName || 'N/A'}</span>
+                </div>
               </div>
-              <div className="flex items-center justify-between">
-                <span className="text-gray-600">Email:</span>
-                <span className="font-medium">{user.email}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-gray-600">Agence:</span>
-                <span className="font-medium">{user.agencyName || 'N/A'}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-gray-600">Rôle:</span>
-                <span className="font-medium capitalize">{user.role}</span>
+              
+              <div className="space-y-3">
+                <div className="flex items-start justify-between">
+                  <span className="text-gray-600">Email:</span>
+                  <span className="font-medium text-right break-all max-w-[200px] truncate" title={user.email}>
+                    {user.email}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-600">Rôle:</span>
+                  <span className="font-medium capitalize">{user.role}</span>
+                </div>
               </div>
             </div>
           </Card>
@@ -317,28 +324,28 @@ export const PackageManagementPage: React.FC = () => {
                         <BarChart3 className="h-4 w-4 mr-2" />
                         Formulaires
                       </span>
-                      <span className="font-medium">{formatLimit(limits.maxForms)}</span>
+                      <span className="font-medium">{limits.maxForms === -1 ? 'Illimité' : limits.maxForms}</span>
                     </div>
                     <div className="flex items-center justify-between text-sm">
                       <span className="text-gray-600 flex items-center">
                         <BarChart3 className="h-4 w-4 mr-2" />
                         Tableaux de bord
                       </span>
-                      <span className="font-medium">{formatLimit(limits.maxDashboards)}</span>
+                      <span className="font-medium">{limits.maxDashboards === -1 ? 'Illimité' : limits.maxDashboards}</span>
                     </div>
                     <div className="flex items-center justify-between text-sm">
                       <span className="text-gray-600 flex items-center">
                         <Users className="h-4 w-4 mr-2" />
                         Utilisateurs
                       </span>
-                      <span className="font-medium">{formatLimit(limits.maxUsers)}</span>
+                      <span className="font-medium">{limits.maxUsers === -1 ? 'Illimité' : limits.maxUsers}</span>
                     </div>
                     <div className="flex items-center justify-between text-sm">
                       <span className="text-gray-600 flex items-center">
                         <Brain className="h-4 w-4 mr-2" />
                         Tokens Archa
                       </span>
-                      <span className="font-medium">{formatLimit(limits.monthlyTokens)}</span>
+                      <span className="font-medium">{limits.monthlyTokens === -1 ? 'Illimité' : limits.monthlyTokens.toLocaleString()}</span>
                     </div>
                   </div>
 

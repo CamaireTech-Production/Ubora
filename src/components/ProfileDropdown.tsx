@@ -60,7 +60,7 @@ export const ProfileDropdown: React.FC<ProfileDropdownProps> = ({ className = ''
   };
 
   const handleGoToPackages = () => {
-    navigate('/packages');
+    navigate('/packages/manage');
     setIsOpen(false);
   };
 

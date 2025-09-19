@@ -96,12 +96,15 @@ export const DirectorPackageOverview: React.FC<DirectorPackageOverviewProps> = (
   // Calculate days since activation and days remaining
   const now = new Date();
   const daysSinceActivation = Math.floor((now.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
-  const daysRemaining = Math.max(1, 30 - (daysSinceActivation % 30)); // Ensure at least 1 day remaining
-  const isNearRenewal = daysRemaining <= 7;
   
-  // Calculate next renewal date
+  // Calculate the next renewal date (30 days from activation, then every 30 days)
   const nextRenewalDate = new Date(startDate);
-  nextRenewalDate.setDate(startDate.getDate() + Math.ceil(daysSinceActivation / 30) * 30);
+  const cyclesPassed = Math.floor(daysSinceActivation / 30);
+  nextRenewalDate.setDate(startDate.getDate() + (cyclesPassed + 1) * 30);
+  
+  // Calculate days remaining until next renewal
+  const daysRemaining = Math.max(1, Math.ceil((nextRenewalDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
+  const isNearRenewal = daysRemaining <= 7;
   
   // Check if any limits are reached
   const formsLimitReached = !isLimitUnlimited('maxForms') && currentForms >= maxForms;
@@ -174,7 +177,7 @@ export const DirectorPackageOverview: React.FC<DirectorPackageOverviewProps> = (
 
         {/* Subscription Status */}
         <div className="mb-4 p-3 bg-gray-50 rounded-lg">
-          <div className="space-y-2">
+          <div className="space-y-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-2">
                 <Calendar className="h-4 w-4 text-gray-500" />
@@ -216,67 +219,69 @@ export const DirectorPackageOverview: React.FC<DirectorPackageOverviewProps> = (
 
         {/* Consumption Levels */}
         <div className="space-y-3">
-          {/* Forms */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-2">
-              <FileText className="h-4 w-4 text-gray-500" />
-              <span className="text-sm text-gray-600">Formulaires</span>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {/* Forms */}
+            <div className="flex items-center justify-between p-2 bg-gray-50 rounded-lg">
+              <div className="flex items-center space-x-2">
+                <FileText className="h-4 w-4 text-gray-500" />
+                <span className="text-sm text-gray-600">Formulaires</span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <span className="text-sm font-medium">
+                  {currentForms}/{isLimitUnlimited('maxForms') ? 'Illimité' : maxForms}
+                </span>
+                {formsLimitReached && (
+                  <AlertTriangle className="h-4 w-4 text-orange-500" />
+                )}
+              </div>
             </div>
-            <div className="flex items-center space-x-2">
-              <span className="text-sm font-medium">
-                {currentForms}/{isLimitUnlimited('maxForms') ? '∞' : maxForms}
-              </span>
-              {formsLimitReached && (
-                <AlertTriangle className="h-4 w-4 text-orange-500" />
-              )}
-            </div>
-          </div>
 
-          {/* Dashboards */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-2">
-              <BarChart3 className="h-4 w-4 text-gray-500" />
-              <span className="text-sm text-gray-600">Tableaux de bord</span>
+            {/* Dashboards */}
+            <div className="flex items-center justify-between p-2 bg-gray-50 rounded-lg">
+              <div className="flex items-center space-x-2">
+                <BarChart3 className="h-4 w-4 text-gray-500" />
+                <span className="text-sm text-gray-600">Tableaux de bord</span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <span className="text-sm font-medium">
+                  {currentDashboards}/{isLimitUnlimited('maxDashboards') ? 'Illimité' : maxDashboards}
+                </span>
+                {dashboardsLimitReached && (
+                  <AlertTriangle className="h-4 w-4 text-orange-500" />
+                )}
+              </div>
             </div>
-            <div className="flex items-center space-x-2">
-              <span className="text-sm font-medium">
-                {currentDashboards}/{isLimitUnlimited('maxDashboards') ? '∞' : maxDashboards}
-              </span>
-              {dashboardsLimitReached && (
-                <AlertTriangle className="h-4 w-4 text-orange-500" />
-              )}
-            </div>
-          </div>
 
-          {/* Users */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-2">
-              <Users className="h-4 w-4 text-gray-500" />
-              <span className="text-sm text-gray-600">Utilisateurs</span>
+            {/* Users */}
+            <div className="flex items-center justify-between p-2 bg-gray-50 rounded-lg">
+              <div className="flex items-center space-x-2">
+                <Users className="h-4 w-4 text-gray-500" />
+                <span className="text-sm text-gray-600">Utilisateurs</span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <span className="text-sm font-medium">
+                  {currentUsers}/{isLimitUnlimited('maxUsers') ? 'Illimité' : maxUsers}
+                </span>
+                {usersLimitReached && (
+                  <AlertTriangle className="h-4 w-4 text-orange-500" />
+                )}
+              </div>
             </div>
-            <div className="flex items-center space-x-2">
-              <span className="text-sm font-medium">
-                {currentUsers}/{isLimitUnlimited('maxUsers') ? '∞' : maxUsers}
-              </span>
-              {usersLimitReached && (
-                <AlertTriangle className="h-4 w-4 text-orange-500" />
-              )}
-            </div>
-          </div>
 
-          {/* Tokens */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-2">
-              <Brain className="h-4 w-4 text-gray-500" />
-              <span className="text-sm text-gray-600">Tokens Archa</span>
-            </div>
-            <div className="flex items-center space-x-2">
-              <span className="text-sm font-medium">
-                {hasUnlimitedTokens() ? '∞' : `${remainingTokens.toLocaleString()}/${monthlyTokens.toLocaleString()}`}
-              </span>
-              {tokensLimitReached && (
-                <AlertTriangle className="h-4 w-4 text-orange-500" />
-              )}
+            {/* Tokens */}
+            <div className="flex items-center justify-between p-2 bg-gray-50 rounded-lg">
+              <div className="flex items-center space-x-2">
+                <Brain className="h-4 w-4 text-gray-500" />
+                <span className="text-sm text-gray-600">Tokens Archa</span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <span className="text-sm font-medium">
+                  {hasUnlimitedTokens() ? 'Illimité' : `${remainingTokens.toLocaleString()}/${monthlyTokens.toLocaleString()}`}
+                </span>
+                {tokensLimitReached && (
+                  <AlertTriangle className="h-4 w-4 text-orange-500" />
+                )}
+              </div>
             </div>
           </div>
         </div>
