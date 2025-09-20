@@ -48,8 +48,9 @@ jobs:
         # Server Configuration
         PORT=3000
         
-        # Development URLs
-        VITE_API_URL=https://dev.ubora-app.com/api/ai/ask
+            # Development URLs - VPS Backend (HTTP temporarily)
+            VITE_API_URL=http://api-dev.ubora-app.com/api/ai/ask
+            VITE_AI_ENDPOINT=http://api-dev.ubora-app.com/api/ai/ask
         VITE_FIREBASE_API_KEY=${{ secrets.FIREBASE_API_KEY }}
         VITE_FIREBASE_AUTH_DOMAIN=${{ secrets.FIREBASE_AUTH_DOMAIN }}
         VITE_FIREBASE_PROJECT_ID=${{ secrets.FIREBASE_PROJECT_ID }}
@@ -72,46 +73,7 @@ jobs:
         # Copy built files
         cp -r dist/* deploy-package/
         
-        # Copy server files
-        cp -r server deploy-package/
-        cp -r api deploy-package/
-        
-        # Copy package.json and install production dependencies
-        cp package.json deploy-package/
-        cp package-lock.json deploy-package/
-        
-        # Copy environment file
-        cp .env.local deploy-package/
-        
-        # Create a simple start script for production
-        cat > deploy-package/start.sh << 'EOF'
-        #!/bin/bash
-        echo "Starting development server..."
-        export NODE_ENV=development
-        npm install --production
-        node server/production-server.js
-        EOF
-        chmod +x deploy-package/start.sh
-        
-        # Create package.json for production
-        cat > deploy-package/package.json << 'EOF'
-        {
-          "name": "ubora-dev",
-          "version": "1.0.0",
-          "type": "module",
-          "scripts": {
-            "start": "node server/production-server.js",
-            "install-deps": "npm install --production"
-          },
-          "dependencies": {
-            "express": "^4.18.2",
-            "cors": "^2.8.5",
-            "dotenv": "^16.3.1",
-            "firebase-admin": "^12.7.0",
-            "openai": "^4.28.0"
-          }
-        }
-        EOF
+        # No static API files needed - using VPS backend
          
         # Create .htaccess for Hostinger
         cat > deploy-package/.htaccess << 'EOF'
@@ -148,13 +110,27 @@ jobs:
             Header always set Referrer-Policy "strict-origin-when-cross-origin"
         </IfModule>
         
-        # Handle client-side routing
+        # Handle client-side routing (React Router)
         RewriteEngine On
         RewriteBase /
-        RewriteRule ^index\.html$ - [L]
+        
+        # Handle Angular and React Router
+        # Don't rewrite files that exist
         RewriteCond %{REQUEST_FILENAME} !-f
         RewriteCond %{REQUEST_FILENAME} !-d
+        RewriteCond %{REQUEST_FILENAME} !-l
+        
+        # Don't rewrite API calls
+        RewriteCond %{REQUEST_URI} !^/api/
+        
+        # Don't rewrite static assets
+        RewriteCond %{REQUEST_URI} !\.(css|js|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$
+        
+        # Rewrite everything else to index.html
         RewriteRule . /index.html [L]
+        
+        # Handle favicon
+        RewriteRule ^favicon\.ico$ /favicon.ico [L]
         EOF
          
     - name: Deploy to Hostinger via FTP
