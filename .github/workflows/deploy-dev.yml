@@ -48,7 +48,7 @@ jobs:
         # Server Configuration
         PORT=3000
         
-            # Development URLs - VPS Backend (HTTP temporarily)
+            # Development URLs - VPS Backend (HTTP)
             VITE_API_URL=http://api-dev.ubora-app.com/api/ai/ask
             VITE_AI_ENDPOINT=http://api-dev.ubora-app.com/api/ai/ask
         VITE_FIREBASE_API_KEY=${{ secrets.FIREBASE_API_KEY }}
