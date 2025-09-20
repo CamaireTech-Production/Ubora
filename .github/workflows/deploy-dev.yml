@@ -73,10 +73,10 @@ jobs:
         # Copy built files
         cp -r dist/* deploy-package/
         
-        # Create a simple API endpoint simulation for static hosting
+        # Create API endpoints for static hosting
         mkdir -p deploy-package/api/ai
         
-        # Create a simple health check endpoint
+        # Create health check endpoint
         cat > deploy-package/api/ai/health.php << 'EOF'
         <?php
         header('Content-Type: application/json');
@@ -99,7 +99,7 @@ jobs:
         ?>
         EOF
         
-        # Create a placeholder for the ask endpoint
+        # Create ask endpoint
         cat > deploy-package/api/ai/ask.php << 'EOF'
         <?php
         header('Content-Type: application/json');
@@ -118,6 +118,24 @@ jobs:
             'error' => 'Backend service not available',
             'message' => 'This is a static deployment. Backend services need to be hosted separately.',
             'suggestion' => 'Consider using Vercel, Netlify Functions, or a separate Node.js hosting service for the API'
+        ]);
+        ?>
+        EOF
+        
+        # Create index.php for the api/ai directory
+        cat > deploy-package/api/ai/index.php << 'EOF'
+        <?php
+        header('Content-Type: application/json');
+        header('Access-Control-Allow-Origin: *');
+        header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
+        header('Access-Control-Allow-Headers: Content-Type, Authorization');
+        
+        echo json_encode([
+            'message' => 'Ubora AI API (Dev)',
+            'endpoints' => [
+                'GET /api/ai/health' => 'Health check',
+                'POST /api/ai/ask' => 'AI chat endpoint'
+            ]
         ]);
         ?>
         EOF
@@ -157,17 +175,17 @@ jobs:
             Header always set Referrer-Policy "strict-origin-when-cross-origin"
         </IfModule>
         
-        # Handle API routes and client-side routing
+        # Handle client-side routing
         RewriteEngine On
         RewriteBase /
         
-        # API routes - don't rewrite to index.html
-        RewriteRule ^api/ - [L]
+        # Don't rewrite existing files or directories
+        RewriteCond %{REQUEST_FILENAME} -f [OR]
+        RewriteCond %{REQUEST_FILENAME} -d
+        RewriteRule . - [L]
         
         # Handle client-side routing for non-API routes
         RewriteRule ^index\.html$ - [L]
-        RewriteCond %{REQUEST_FILENAME} !-f
-        RewriteCond %{REQUEST_FILENAME} !-d
         RewriteRule . /index.html [L]
         EOF
          
