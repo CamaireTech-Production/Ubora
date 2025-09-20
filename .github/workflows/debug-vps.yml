@@ -1,0 +1,62 @@
+name: Debug VPS Status
+
+on:
+  workflow_dispatch:
+
+jobs:
+  debug-vps:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Debug VPS Status
+      uses: appleboy/ssh-action@v1.0.3
+      with:
+        host: ${{ secrets.VPS_HOST }}
+        username: ${{ secrets.VPS_USERNAME }}
+        key: ${{ secrets.VPS_SSH_KEY }}
+        port: ${{ secrets.VPS_PORT }}
+        script: |
+          echo "🔍 VPS Debug Information"
+          echo "========================"
+          
+          echo "📊 System Status:"
+          uptime
+          echo ""
+          
+          echo "🌐 Network Status:"
+          netstat -tlnp | grep -E ":(80|443|3000)"
+          echo ""
+          
+          echo "🔧 Nginx Status:"
+          systemctl status nginx --no-pager
+          echo ""
+          
+          echo "📁 Nginx Configuration:"
+          ls -la /etc/nginx/sites-enabled/
+          echo ""
+          
+          echo "🔍 Nginx Config Content:"
+          cat /etc/nginx/sites-enabled/api.ubora-app.com || echo "Config file not found"
+          echo ""
+          
+          echo "🚀 PM2 Status:"
+          pm2 list
+          echo ""
+          
+          echo "📝 PM2 Logs (last 10 lines):"
+          pm2 logs ubora-backend-prod --lines 10 --nostream || echo "No logs found"
+          echo ""
+          
+          echo "🧪 Local Backend Test:"
+          curl -v http://localhost:3000/health || echo "Local backend not responding"
+          echo ""
+          
+          echo "🌍 External Test:"
+          curl -v http://72.60.94.31:3000/health || echo "External access failed"
+          echo ""
+          
+          echo "🔒 Firewall Status:"
+          ufw status
+          echo ""
+          
+          echo "✅ Debug completed"

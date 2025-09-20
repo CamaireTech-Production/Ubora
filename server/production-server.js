@@ -66,8 +66,8 @@ app.get('*', (req, res) => {
   });
 });
 
-// Start server
-app.listen(PORT, () => {
+// Start server - bind to all interfaces
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Production server running on port ${PORT}`);
   console.log(`📡 AI endpoints available at:`);
   console.log(`   - POST /api/ai/ask`);
