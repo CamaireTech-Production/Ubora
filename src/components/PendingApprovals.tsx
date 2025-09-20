@@ -4,6 +4,7 @@ import { Button } from './Button';
 import { User, CheckCircle, XCircle, Clock, Mail, Building2 } from 'lucide-react';
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
+import { useToast } from '../hooks/useToast';
 
 interface PendingApprovalsProps {
   pendingEmployees: User[];
@@ -17,6 +18,7 @@ export const PendingApprovals: React.FC<PendingApprovalsProps> = ({
   onApprovalChange
 }) => {
   const [processingIds, setProcessingIds] = useState<Set<string>>(new Set());
+  const { showSuccess, showError } = useToast();
 
   const handleApproval = async (employeeId: string, approved: boolean) => {
     try {
@@ -31,9 +33,10 @@ export const PendingApprovals: React.FC<PendingApprovalsProps> = ({
       });
       
       onApprovalChange();
+      showSuccess(approved ? 'Employé approuvé avec succès !' : 'Employé rejeté avec succès !');
     } catch (error) {
       console.error('Erreur lors de l\'approbation:', error);
-      alert('Erreur lors de l\'approbation. Veuillez réessayer.');
+      showError('Erreur lors de l\'approbation. Veuillez réessayer.');
     } finally {
       setProcessingIds(prev => {
         const newSet = new Set(prev);

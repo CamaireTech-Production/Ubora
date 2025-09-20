@@ -1,0 +1,186 @@
+name: Deploy to Development (Hostinger)
+
+on:
+  push:
+    branches: [ dev ]
+  workflow_dispatch:
+
+env:
+  NODE_VERSION: '18'
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        
+    - name: Setup npm cache
+      uses: actions/cache@v3
+      with:
+        path: ~/.npm
+        key: ${{ runner.os }}-npm-${{ hashFiles('**/package-lock.json') }}
+        restore-keys: |
+          ${{ runner.os }}-npm-
+          
+    - name: Install dependencies
+      run: npm ci
+      
+    - name: Create environment file for development
+      run: |
+        cat > .env.local << EOF
+        # Development Environment Variables
+        
+        # Firebase Configuration
+        FIREBASE_PROJECT_ID=${{ secrets.FIREBASE_PROJECT_ID }}
+        FIREBASE_CLIENT_EMAIL=${{ secrets.FIREBASE_CLIENT_EMAIL }}
+        FIREBASE_PRIVATE_KEY="${{ secrets.FIREBASE_PRIVATE_KEY }}"
+        
+        # OpenAI Configuration
+        OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
+        
+        # Server Configuration
+        PORT=3000
+        
+        # Development URLs
+        VITE_API_URL=https://dev.ubora-app.com/api/ai/ask
+        VITE_FIREBASE_API_KEY=${{ secrets.FIREBASE_API_KEY }}
+        VITE_FIREBASE_AUTH_DOMAIN=${{ secrets.FIREBASE_AUTH_DOMAIN }}
+        VITE_FIREBASE_PROJECT_ID=${{ secrets.FIREBASE_PROJECT_ID }}
+        VITE_FIREBASE_STORAGE_BUCKET=${{ secrets.FIREBASE_STORAGE_BUCKET }}
+        VITE_FIREBASE_MESSAGING_SENDER_ID=${{ secrets.FIREBASE_MESSAGING_SENDER_ID }}
+        VITE_FIREBASE_APP_ID=${{ secrets.FIREBASE_APP_ID }}
+        VITE_FIREBASE_MEASUREMENT_ID=${{ secrets.FIREBASE_MEASUREMENT_ID }}
+        VITE_FIREBASE_VAPID_KEY=${{ secrets.FIREBASE_VAPID_KEY }}
+        EOF
+        
+    - name: Build application
+      run: |
+        npm run build
+        
+    - name: Create deployment package
+      run: |
+        # Create a deployment directory
+        mkdir -p deploy-package
+        
+        # Copy built files
+        cp -r dist/* deploy-package/
+        
+        # Copy server files
+        cp -r server deploy-package/
+        cp -r api deploy-package/
+        
+        # Copy package.json and install production dependencies
+        cp package.json deploy-package/
+        cp package-lock.json deploy-package/
+        
+        # Copy environment file
+        cp .env.local deploy-package/
+        
+        # Create a simple start script for production
+        cat > deploy-package/start.sh << 'EOF'
+        #!/bin/bash
+        echo "Starting development server..."
+        export NODE_ENV=development
+        npm install --production
+        node server/production-server.js
+        EOF
+        chmod +x deploy-package/start.sh
+        
+        # Create package.json for production
+        cat > deploy-package/package.json << 'EOF'
+        {
+          "name": "ubora-dev",
+          "version": "1.0.0",
+          "type": "module",
+          "scripts": {
+            "start": "node server/production-server.js",
+            "install-deps": "npm install --production"
+          },
+          "dependencies": {
+            "express": "^4.18.2",
+            "cors": "^2.8.5",
+            "dotenv": "^16.3.1",
+            "firebase-admin": "^12.7.0",
+            "openai": "^4.28.0"
+          }
+        }
+        EOF
+         
+        # Create .htaccess for Hostinger
+        cat > deploy-package/.htaccess << 'EOF'
+        # Enable compression
+        <IfModule mod_deflate.c>
+            AddOutputFilterByType DEFLATE text/plain
+            AddOutputFilterByType DEFLATE text/html
+            AddOutputFilterByType DEFLATE text/xml
+            AddOutputFilterByType DEFLATE text/css
+            AddOutputFilterByType DEFLATE application/xml
+            AddOutputFilterByType DEFLATE application/xhtml+xml
+            AddOutputFilterByType DEFLATE application/rss+xml
+            AddOutputFilterByType DEFLATE application/javascript
+            AddOutputFilterByType DEFLATE application/x-javascript
+        </IfModule>
+        
+        # Cache static assets
+        <IfModule mod_expires.c>
+            ExpiresActive on
+            ExpiresByType text/css "access plus 1 year"
+            ExpiresByType application/javascript "access plus 1 year"
+            ExpiresByType image/png "access plus 1 year"
+            ExpiresByType image/jpg "access plus 1 year"
+            ExpiresByType image/jpeg "access plus 1 year"
+            ExpiresByType image/gif "access plus 1 year"
+            ExpiresByType image/svg+xml "access plus 1 year"
+        </IfModule>
+        
+        # Security headers
+        <IfModule mod_headers.c>
+            Header always set X-Content-Type-Options nosniff
+            Header always set X-Frame-Options DENY
+            Header always set X-XSS-Protection "1; mode=block"
+            Header always set Referrer-Policy "strict-origin-when-cross-origin"
+        </IfModule>
+        
+        # Handle client-side routing
+        RewriteEngine On
+        RewriteBase /
+        RewriteRule ^index\.html$ - [L]
+        RewriteCond %{REQUEST_FILENAME} !-f
+        RewriteCond %{REQUEST_FILENAME} !-d
+        RewriteRule . /index.html [L]
+        EOF
+         
+    - name: Deploy to Hostinger via FTP
+      uses: SamKirkland/FTP-Deploy-Action@v4.3.4
+      with:
+        server: ${{ secrets.DEV_FTP_HOST }}
+        username: ${{ secrets.DEV_FTP_USERNAME }}
+        password: ${{ secrets.DEV_FTP_PASSWORD }}
+        local-dir: ./deploy-package/
+        server-dir: /
+        exclude: |
+          **/.git*
+          **/.git*/**
+          **/node_modules/**
+          **/.env*
+          **/README.md
+          **/.github/**
+          
+    - name: Notify deployment success
+      if: success()
+      run: |
+        echo "✅ Development deployment completed successfully!"
+        echo "🌐 Application deployed to: https://dev.ubora-app.com"
+        
+    - name: Notify deployment failure
+      if: failure()
+      run: |
+        echo "❌ Development deployment failed!"
+        echo "Please check the logs for more details."

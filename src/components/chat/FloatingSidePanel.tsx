@@ -1,9 +1,9 @@
-import React, { useEffect } from 'react';
-import { X, Home, History, Filter, FileText, Users, Clipboard } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { X, Home, History, FileText, Users, Clipboard, UserPlus, Copy, Check } from 'lucide-react';
 import { Button } from '../Button';
-import { Select } from '../Select';
+import { useAuth } from '../../contexts/AuthContext';
 
-type TabId = "history" | "filters" | "forms" | "employees" | "entries";
+type TabId = "history" | "forms" | "employees" | "entries";
 
 interface ChatFilters {
   period: string;
@@ -35,8 +35,8 @@ export const FloatingSidePanel: React.FC<FloatingSidePanelProps> = ({
   onOpenChange,
   activeTab,
   onTabChange,
-  filters,
-  onFiltersChange,
+  filters: _filters,
+  onFiltersChange: _onFiltersChange,
   conversations,
   forms,
   employees,
@@ -45,6 +45,9 @@ export const FloatingSidePanel: React.FC<FloatingSidePanelProps> = ({
   onCreateConversation,
   onGoDashboard
 }) => {
+  const { user } = useAuth();
+  const [showInviteModal, setShowInviteModal] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
   // Fermeture avec Escape
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
@@ -78,13 +81,6 @@ export const FloatingSidePanel: React.FC<FloatingSidePanelProps> = ({
       count: conversations.length
     },
     {
-      id: 'filters' as TabId,
-      label: 'Filtres',
-      icon: Filter,
-      onClick: () => handleTabClick('filters'),
-      count: null
-    },
-    {
       id: 'forms' as TabId,
       label: 'Formulaires',
       icon: FileText,
@@ -104,6 +100,15 @@ export const FloatingSidePanel: React.FC<FloatingSidePanelProps> = ({
       icon: Clipboard,
       onClick: () => handleTabClick('entries'),
       count: formEntries.length
+    },
+    {
+      id: 'invite' as const,
+      label: 'Inviter des collaborateurs',
+      icon: UserPlus,
+      onClick: () => {
+        setShowInviteModal(true);
+      },
+      count: null
     }
   ];
 
@@ -122,13 +127,40 @@ export const FloatingSidePanel: React.FC<FloatingSidePanelProps> = ({
     onTabChange(null);
   };
 
-  const quickPeriods = [
-    { value: 'today', label: 'Aujourd\'hui' },
-    { value: 'yesterday', label: 'Hier' },
-    { value: 'this_week', label: 'Cette semaine' },
-    { value: 'this_month', label: 'Ce mois' },
-    { value: 'last_30d', label: '30 derniers jours' }
-  ];
+  const generateInviteLink = () => {
+    if (!user?.agencyId) return '';
+    const baseUrl = window.location.origin;
+    return `${baseUrl}/login?invite=true&agencyId=${user.agencyId}&role=employe`;
+  };
+
+  const handleCopyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(generateInviteLink());
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 2000);
+    } catch (err) {
+      console.error('Erreur lors de la copie:', err);
+    }
+  };
+
+  const handleShareLink = async () => {
+    const link = generateInviteLink();
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: 'Invitation à rejoindre Multi-Agences',
+          text: 'Rejoignez notre équipe sur la plateforme Multi-Agences',
+          url: link
+        });
+      } catch (err) {
+        console.error('Erreur lors du partage:', err);
+        handleCopyLink();
+      }
+    } else {
+      handleCopyLink();
+    }
+  };
+
 
   const renderTabContent = () => {
     if (!activeTab) return null;
@@ -175,56 +207,6 @@ export const FloatingSidePanel: React.FC<FloatingSidePanelProps> = ({
           </div>
         );
 
-      case 'filters':
-        return (
-          <div className="space-y-4">
-            <h4 className="font-medium text-gray-900">Paramètres d'analyse</h4>
-            
-            {/* Quick period buttons */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Période
-              </label>
-              <div className="flex flex-wrap gap-1">
-                {quickPeriods.map(period => (
-                  <button
-                    key={period.value}
-                    onClick={() => onFiltersChange({ ...filters, period: period.value })}
-                    className={`px-3 py-1 rounded-full text-xs transition-colors ${
-                      filters.period === period.value
-                        ? 'bg-blue-100 text-blue-700 border border-blue-200'
-                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                    }`}
-                  >
-                    {period.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Form filter */}
-            <Select
-              label="Formulaire spécifique"
-              value={filters.formId}
-              onChange={(e) => onFiltersChange({ ...filters, formId: e.target.value })}
-              options={[
-                { value: '', label: 'Tous les formulaires' },
-                ...forms.map(form => ({ value: form.id, label: form.title }))
-              ]}
-            />
-
-            {/* Employee filter */}
-            <Select
-              label="Employé spécifique"
-              value={filters.userId}
-              onChange={(e) => onFiltersChange({ ...filters, userId: e.target.value })}
-              options={[
-                { value: '', label: 'Tous les employés' },
-                ...employees.map(emp => ({ value: emp.id, label: emp.name }))
-              ]}
-            />
-          </div>
-        );
 
       case 'forms':
         return (
@@ -367,41 +349,106 @@ export const FloatingSidePanel: React.FC<FloatingSidePanelProps> = ({
           <div className="space-y-1">
             {actions.map((action) => {
               const Icon = action.icon;
-              const isActive = activeTab === action.id && action.id !== 'dashboard';
+              const isActive = activeTab === action.id && (action.id === 'history' || action.id === 'forms' || action.id === 'employees' || action.id === 'entries');
+              const isInviteAction = action.id === 'invite';
               
               return (
-                <button
-                  key={action.id}
-                  onClick={action.onClick}
-                  className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors focus:ring-2 focus:ring-blue-300 ${
-                    isActive
-                      ? 'bg-blue-100 text-blue-700'
-                      : 'text-gray-700 hover:bg-gray-50'
-                  }`}
-                  aria-label={action.label}
-                >
-                  <Icon className="h-5 w-5" />
-                  <span className="font-medium">{action.label}</span>
-                  {action.count !== null && (
-                    <span className={`ml-auto text-xs px-2 py-0.5 rounded-full ${
-                      isActive ? 'bg-blue-200 text-blue-800' : 'bg-gray-200 text-gray-700'
-                    }`}>
-                      {action.count}
-                    </span>
+                <div key={action.id} className="space-y-1">
+                  {/* Add spacing before invite action */}
+                  {isInviteAction && <div className="border-t border-gray-200 my-3"></div>}
+                  
+                  <button
+                    onClick={action.onClick}
+                    className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors focus:ring-2 focus:ring-blue-300 ${
+                      isActive
+                        ? 'bg-blue-100 text-blue-700'
+                        : 'text-gray-700 hover:bg-gray-50'
+                    }`}
+                    aria-label={action.label}
+                  >
+                    <Icon className="h-5 w-5" />
+                    <span className="font-medium">{action.label}</span>
+                    {action.count !== null && (
+                      <span className={`ml-auto text-xs px-2 py-0.5 rounded-full ${
+                        isActive ? 'bg-blue-200 text-blue-800' : 'bg-gray-200 text-gray-700'
+                      }`}>
+                        {action.count}
+                      </span>
+                    )}
+                  </button>
+                  
+                  {/* Contenu de l'onglet actif directement sous l'item */}
+                  {isActive && (
+                    <div className="ml-3 mr-1 rounded-xl border border-gray-200 p-3 max-h-[55vh] overflow-auto">
+                      {renderTabContent()}
+                    </div>
                   )}
-                </button>
+                </div>
               );
             })}
           </div>
-
-          {/* Contenu de l'onglet actif */}
-          {activeTab && (
-            <div className="mt-3 rounded-xl border border-gray-200 p-3 max-h-[55vh] overflow-auto">
-              {renderTabContent()}
-            </div>
-          )}
         </div>
       </div>
+
+      {/* Modal d'invitation - Outside sidebar with higher z-index */}
+      {showInviteModal && (
+        <div className="fixed inset-0 z-[100] bg-black bg-opacity-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
+            <div className="text-center">
+              <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-blue-100 mb-4">
+                <UserPlus className="h-6 w-6 text-blue-600" />
+              </div>
+              
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                Inviter des collaborateurs
+              </h3>
+              
+              <p className="text-sm text-gray-600 mb-6">
+                Partagez ce lien pour permettre à vos collaborateurs de créer un compte employé dans votre agence.
+              </p>
+              
+              <div className="bg-gray-50 rounded-lg p-3 mb-4">
+                <p className="text-xs text-gray-500 text-left mb-2">Lien d'invitation :</p>
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="text"
+                    value={generateInviteLink()}
+                    readOnly
+                    className="flex-1 text-xs bg-white border border-gray-200 rounded px-2 py-1 text-gray-700"
+                  />
+                  <button
+                    onClick={handleCopyLink}
+                    className="p-1 text-gray-500 hover:text-gray-700 transition-colors"
+                    title="Copier le lien"
+                  >
+                    {linkCopied ? (
+                      <Check className="h-4 w-4 text-green-600" />
+                    ) : (
+                      <Copy className="h-4 w-4" />
+                    )}
+                  </button>
+                </div>
+              </div>
+              
+              <div className="flex space-x-3">
+                <Button
+                  onClick={handleShareLink}
+                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors"
+                >
+                  Partager
+                </Button>
+                <Button
+                  onClick={() => setShowInviteModal(false)}
+                  variant="secondary"
+                  className="flex-1 border border-gray-300 hover:border-gray-400 text-gray-700 hover:text-gray-900 font-medium py-2 px-4 rounded-lg transition-colors"
+                >
+                  Fermer
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 };

@@ -7,13 +7,23 @@ import {
 } from 'firebase/storage';
 import { storage } from '../firebaseConfig';
 import { FileAttachment } from '../types';
+import { PDFTextExtractionService } from './pdfTextExtractionService';
 
 export interface UploadProgress {
   fieldId: string;
   fileName: string;
   progress: number;
-  status: 'uploading' | 'completed' | 'error';
+  status: 'uploading' | 'extracting' | 'completed' | 'error';
   error?: string;
+}
+
+export interface PDFExtractionResult {
+  fileName: string;
+  extractedText: string;
+  extractionStatus: 'completed' | 'failed';
+  error?: string;
+  pages?: number;
+  fileSize: number;
 }
 
 export class FileUploadService {
@@ -37,7 +47,7 @@ export class FileUploadService {
   ];
 
   /**
-   * Upload a single file to Firebase Storage
+   * Upload file to Firebase Storage with PDF text extraction
    */
   static async uploadFile(
     file: File,
@@ -45,7 +55,8 @@ export class FileUploadService {
     formId: string,
     userId: string,
     agencyId: string,
-    onProgress?: (progress: UploadProgress) => void
+    onProgress?: (progress: UploadProgress) => void,
+    onPDFExtraction?: (result: PDFExtractionResult) => void
   ): Promise<FileAttachment> {
     try {
       // Validate file
@@ -56,11 +67,11 @@ export class FileUploadService {
       const fileExtension = file.name.split('.').pop() || '';
       const fileName = `${fieldId}_${timestamp}.${fileExtension}`;
       const storagePath = `form-uploads/${agencyId}/${formId}/${userId}/${fileName}`;
-      
+
       // Create storage reference
       const storageRef = ref(storage, storagePath);
 
-      // Update progress
+      // Update progress - uploading
       onProgress?.({
         fieldId,
         fileName: file.name,
@@ -68,13 +79,77 @@ export class FileUploadService {
         status: 'uploading'
       });
 
-      // Upload file
+      // Upload file to Firebase Storage
       const uploadResult: UploadResult = await uploadBytes(storageRef, file);
 
       // Get download URL
       const downloadUrl = await getDownloadURL(uploadResult.ref);
 
-      // Update progress
+      console.log('🔍 File uploaded successfully:', {
+        fileName: file.name,
+        storagePath,
+        downloadUrl,
+        fileSize: file.size
+      });
+
+      // Create file attachment
+      const fileAttachment: FileAttachment = {
+        fieldId,
+        fileName: file.name,
+        fileSize: file.size,
+        fileType: file.type,
+        downloadUrl,
+        storagePath,
+        uploadedAt: new Date(),
+        textExtractionStatus: 'pending'
+      };
+
+      console.log('🔍 Created file attachment:', fileAttachment);
+
+      // Extract text if it's a PDF
+      if (PDFTextExtractionService.isPDF(file)) {
+        try {
+          // Update progress - extracting
+          onProgress?.({
+            fieldId,
+            fileName: file.name,
+            progress: 50,
+            status: 'extracting'
+          });
+
+          const extractionResult = await PDFTextExtractionService.extractTextFromPDF(file);
+          fileAttachment.extractedText = PDFTextExtractionService.cleanExtractedText(extractionResult.text);
+          fileAttachment.textExtractionStatus = 'completed';
+
+          console.log(`✅ PDF text extracted successfully for ${file.name}:`, {
+            pages: extractionResult.pages,
+            textLength: fileAttachment.extractedText.length
+          });
+
+          // Trigger debug modal callback
+          onPDFExtraction?.({
+            fileName: file.name,
+            extractedText: fileAttachment.extractedText,
+            extractionStatus: 'completed',
+            pages: extractionResult.pages,
+            fileSize: file.size
+          });
+        } catch (extractionError) {
+          console.error('Failed to extract PDF text:', extractionError);
+          fileAttachment.textExtractionStatus = 'failed';
+          
+          // Trigger debug modal callback with error
+          onPDFExtraction?.({
+            fileName: file.name,
+            extractedText: '',
+            extractionStatus: 'failed',
+            error: extractionError instanceof Error ? extractionError.message : 'Unknown error',
+            fileSize: file.size
+          });
+        }
+      }
+
+      // Update progress - completed
       onProgress?.({
         fieldId,
         fileName: file.name,
@@ -82,29 +157,20 @@ export class FileUploadService {
         status: 'completed'
       });
 
-      // Return file attachment info
-      return {
-        fieldId,
-        fileName: file.name,
-        fileSize: file.size,
-        fileType: file.type,
-        downloadUrl,
-        storagePath,
-        uploadedAt: new Date()
-      };
+      return fileAttachment;
 
     } catch (error) {
-      console.error('Error uploading file:', error);
+      console.error('Error processing file:', error);
       
       onProgress?.({
         fieldId,
         fileName: file.name,
         progress: 0,
         status: 'error',
-        error: error instanceof Error ? error.message : 'Upload failed'
+        error: error instanceof Error ? error.message : 'Processing failed'
       });
 
-      throw new Error(`Failed to upload file: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(`Failed to process file: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
@@ -116,10 +182,11 @@ export class FileUploadService {
     formId: string,
     userId: string,
     agencyId: string,
-    onProgress?: (progress: UploadProgress) => void
+    onProgress?: (progress: UploadProgress) => void,
+    onPDFExtraction?: (result: PDFExtractionResult) => void
   ): Promise<FileAttachment[]> {
     const uploadPromises = files.map(({ file, fieldId }) =>
-      this.uploadFile(file, fieldId, formId, userId, agencyId, onProgress)
+      this.uploadFile(file, fieldId, formId, userId, agencyId, onProgress, onPDFExtraction)
     );
 
     try {

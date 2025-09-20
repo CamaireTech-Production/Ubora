@@ -2,7 +2,11 @@ import React from 'react';
 import { Bot, User, Clock } from 'lucide-react';
 import { GraphRenderer } from './GraphRenderer';
 import { PDFPreview, TextPDFPreview } from './PDFPreview';
+import { TableRenderer } from './TableRenderer';
+import { PDFFileDisplay } from './PDFFileDisplay';
 import { ChatMessage } from '../../types';
+import { MultiFormatToPDF } from '../../utils/MultiFormatToPDF';
+import { generatePDF } from '../../utils/PDFGenerator';
 
 interface MessageBubbleProps {
   message: ChatMessage;
@@ -70,7 +74,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
   const isUser = message.type === 'user';
   
   return (
-    <div className={`flex items-start space-x-3 mb-4 ${isUser ? 'flex-row-reverse space-x-reverse' : ''}`}>
+    <div className={`flex items-start space-x-3 ${isUser ? 'flex-row-reverse space-x-reverse' : ''}`}>
       {/* Avatar */}
       <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${
         isUser 
@@ -80,31 +84,183 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
         {isUser ? (
           <User className="h-4 w-4" />
         ) : (
-          <Bot className="h-4 w-4" />
+          <img 
+            src="/fav-icons/favicon-32x32.png" 
+            alt="ARCHA" 
+            className="w-6 h-6 rounded-full object-cover"
+          />
         )}
       </div>
 
       {/* Message bubble */}
-      <div className={`max-w-[85%] ${isUser ? 'items-end' : 'items-start'} flex flex-col`}>
-        <div className={`px-4 py-3 rounded-2xl shadow-sm ${
+      <div className={`w-full max-w-[95%] sm:max-w-[85%] min-w-0 mobile-chat-bubble ${isUser ? 'items-end' : 'items-start'} flex flex-col`}>
+        <div className={`px-4 py-3 rounded-2xl shadow-sm min-w-0 w-full overflow-x-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent mobile-chat-content ${
           isUser 
             ? 'bg-gradient-to-br from-blue-600 to-blue-700 text-white rounded-br-md' 
             : 'bg-white border border-gray-200 text-gray-900 rounded-bl-md'
-        }`}>
-          <div className="break-words">
+        }`} style={{ scrollbarWidth: 'thin' }}>
+          <div className="break-words min-w-0 w-full">
             {isUser ? (
-              <div className="text-sm leading-relaxed">{message.content}</div>
+              <div>
+                {/* Display format and form information for user messages */}
+                {(message.meta?.selectedFormat || message.meta?.selectedFormats?.length || message.meta?.selectedFormTitles?.length) && (
+                  <div className="mb-3 p-2 bg-blue-50 rounded-lg border border-blue-200 min-w-0">
+                    {/* Row 1: Selected formats with count */}
+                    <div className="flex items-center gap-2 text-xs mb-2 min-w-0">
+                      {(message.meta?.selectedFormat || message.meta?.selectedFormats?.length) && (
+                        <div className="flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-800 rounded-full flex-shrink-0">
+                          <span className="font-medium">
+                            {message.meta.selectedFormats && message.meta.selectedFormats.length > 1 ? (
+                              `📊📋📄 Multi-format (${message.meta.selectedFormats.length})`
+                            ) : (
+                              message.meta.selectedFormat === 'stats' ? '📊 Statistiques' :
+                              message.meta.selectedFormat === 'pdf' ? '📄 PDF' :
+                              message.meta.selectedFormat === 'table' ? '📋 Tableau' :
+                              message.meta.selectedFormat
+                            )}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                    
+                    {/* Row 2: Horizontally scrollable forms with count */}
+                    {message.meta?.selectedFormTitles?.length && (
+                      <div className="flex items-center gap-2 text-xs min-w-0">
+                        <span className="text-blue-600 font-medium whitespace-nowrap flex-shrink-0">
+                          Formulaires ({message.meta.selectedFormTitles.length}):
+                        </span>
+                        <div className="flex gap-1 overflow-x-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent min-w-0 flex-1" style={{ scrollbarWidth: 'thin' }}>
+                          {message.meta.selectedFormTitles.map((title, index) => (
+                            <span key={index} className="px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs whitespace-nowrap flex-shrink-0">
+                              {title}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+                <div className="text-sm leading-relaxed break-words overflow-wrap-anywhere">{message.content}</div>
+              </div>
             ) : (
               <div className="prose prose-sm max-w-none">
+                {/* Display format and form information */}
+                {(message.meta?.selectedFormat || message.meta?.selectedFormats?.length || message.meta?.selectedFormTitles?.length) && (
+                  <div className="mb-4 p-3 bg-gray-50 rounded-lg border border-gray-200 min-w-0">
+                    {/* Row 1: Selected formats with count */}
+                    <div className="flex items-center gap-2 text-xs mb-2 min-w-0">
+                      {(message.meta?.selectedFormat || message.meta?.selectedFormats?.length) && (
+                        <div className="flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-800 rounded-full flex-shrink-0">
+                          <span className="font-medium">
+                            {message.meta.selectedFormats && message.meta.selectedFormats.length > 1 ? (
+                              `📊📋📄 Multi-format (${message.meta.selectedFormats.length})`
+                            ) : (
+                              message.meta.selectedFormat === 'stats' ? '📊 Statistiques' :
+                              message.meta.selectedFormat === 'pdf' ? '📄 PDF' :
+                              message.meta.selectedFormat === 'table' ? '📋 Tableau' :
+                              message.meta.selectedFormat
+                            )}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                    
+                    {/* Row 2: Horizontally scrollable forms with count */}
+                    {message.meta?.selectedFormTitles?.length && (
+                      <div className="flex items-center gap-2 text-xs min-w-0">
+                        <span className="text-gray-600 font-medium whitespace-nowrap flex-shrink-0">
+                          Formulaires ({message.meta.selectedFormTitles.length}):
+                        </span>
+                        <div className="flex gap-1 overflow-x-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent min-w-0 flex-1" style={{ scrollbarWidth: 'thin' }}>
+                          {message.meta.selectedFormTitles.map((title, index) => (
+                            <span key={index} className="px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs whitespace-nowrap flex-shrink-0">
+                              {title}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {/* Render content based on type */}
                 {message.contentType === 'graph' && message.graphData ? (
-                  <GraphRenderer data={message.graphData} />
+                  <div className="space-y-4">
+                    {/* PDF Generation Button for Graph */}
+                    <div className="flex justify-end mb-2">
+                      <button
+                        onClick={async () => {
+                          try {
+                            const pdfData = MultiFormatToPDF.convertToPDFData(message);
+                            await generatePDF(pdfData);
+                          } catch (error) {
+                            console.error('Error generating PDF:', error);
+                          }
+                        }}
+                        className="inline-flex items-center px-3 py-1.5 text-xs font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors duration-200"
+                        title="Générer un PDF avec le graphique"
+                      >
+                        📄 Générer PDF
+                      </button>
+                    </div>
+                    
+                    <GraphRenderer data={message.graphData} />
+                  </div>
                 ) : message.contentType === 'pdf' && message.pdfData ? (
                   <PDFPreview data={message.pdfData} />
                 ) : message.contentType === 'text-pdf' ? (
-                  <TextPDFPreview content={message.content} title="Rapport IA" />
-                ) : message.contentType === 'mixed' ? (
+                  <TextPDFPreview content={message.content} title="Rapport Ubora" />
+                ) : message.contentType === 'table' && message.tableData ? (
                   <div className="space-y-4">
+                    {/* PDF Generation Button for Table */}
+                    <div className="flex justify-end mb-2">
+                      <button
+                        onClick={async () => {
+                          try {
+                            const pdfData = MultiFormatToPDF.convertToPDFData(message);
+                            await generatePDF(pdfData);
+                          } catch (error) {
+                            console.error('Error generating PDF:', error);
+                          }
+                        }}
+                        className="inline-flex items-center px-3 py-1.5 text-xs font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors duration-200"
+                        title="Générer un PDF avec le tableau"
+                      >
+                        📄 Générer PDF
+                      </button>
+                    </div>
+                    
+                    {/* Render text content */}
+                    {message.content && (
+                      <div className="prose prose-sm max-w-none">
+                        {formatMessageContent(message.content)}
+                      </div>
+                    )}
+                    {/* Render table */}
+                    <TableRenderer markdownTable={message.tableData} />
+                  </div>
+                ) : message.contentType === 'mixed' || message.contentType === 'multi-format' ? (
+                  <div className="space-y-4">
+                    {/* PDF Generation Button for Multi-format */}
+                    {MultiFormatToPDF.canConvertToPDF(message) && (
+                      <div className="flex justify-end mb-2">
+                        <button
+                          onClick={async () => {
+                            try {
+                              const pdfData = MultiFormatToPDF.convertToPDFData(message);
+                              await generatePDF(pdfData);
+                            } catch (error) {
+                              console.error('Error generating PDF:', error);
+                            }
+                          }}
+                          className="inline-flex items-center px-3 py-1.5 text-xs font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors duration-200"
+                          title={MultiFormatToPDF.getPDFDescription(message)}
+                        >
+                          📄 Générer PDF
+                        </button>
+                      </div>
+                    )}
+                    
                     {/* Render text content */}
                     {message.content && (
                       <div className="prose prose-sm max-w-none">
@@ -119,16 +275,25 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
                     {message.pdfData && (
                       <PDFPreview data={message.pdfData} />
                     )}
+                    {/* Render table if present */}
+                    {message.tableData && (
+                      <TableRenderer markdownTable={message.tableData} />
+                    )}
                   </div>
                 ) : (
                   /* Default text rendering */
-                  <div className="prose prose-sm max-w-none">
+                  <div className="prose prose-sm max-w-none break-words overflow-wrap-anywhere">
                     {formatMessageContent(message.content)}
                   </div>
                 )}
               </div>
             )}
           </div>
+          
+          {/* PDF Files Display */}
+          {!isUser && message.pdfFiles && message.pdfFiles.length > 0 && (
+            <PDFFileDisplay pdfFiles={message.pdfFiles} />
+          )}
           
           {/* Meta information for assistant messages */}
           {!isUser && message.meta && (

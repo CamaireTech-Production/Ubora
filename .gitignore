@@ -8,8 +8,9 @@ lerna-debug.log*
 studio-gpnfx-firebase-adminsdk-fbsvc-eed44532ba.json
 # Build outputs
 dist/
+dev-dist/
 build/
-out/
+out/oulant
 
 # Vite
 .vite/
@@ -91,7 +92,7 @@ jspm_packages/
 
 # Gatsby files
 .cache/
-public/
+# public/
 
 # Storybook build outputs
 .out/

@@ -36,6 +36,29 @@ service cloud.firestore {
     function isOwner(userId) {
       return isAuthenticated() && request.auth.uid == userId;
     }
+    
+    // Fonction pour vérifier si un employé a accès au dashboard directeur
+    function hasDirectorDashboardAccess() {
+      return isAuthenticated() && (
+        isDirecteur() || 
+        (isEmploye() && getCurrentUser().data.hasDirectorDashboardAccess == true)
+      );
+    }
+    
+    // Fonction pour vérifier si un utilisateur peut créer des formulaires
+    function canCreateForms() {
+      return isDirecteur() || hasDirectorDashboardAccess();
+    }
+    
+    // Fonction pour vérifier si un utilisateur peut créer des tableaux de bord
+    function canCreateDashboards() {
+      return isDirecteur() || hasDirectorDashboardAccess();
+    }
+    
+    // Fonction pour vérifier si un utilisateur peut gérer les formulaires d'autres employés
+    function canManageEmployeeForms() {
+      return isDirecteur() || hasDirectorDashboardAccess();
+    }
 
     // =============================================================================
     // COLLECTION USERS
@@ -48,7 +71,8 @@ service cloud.firestore {
       // LECTURE des utilisateurs
       allow read: if isAuthenticated() && (
         request.auth.uid == userId ||
-        (isDirecteur() && isSameAgency(resource.data.agencyId))
+        (isDirecteur() && isSameAgency(resource.data.agencyId)) ||
+        (hasDirectorDashboardAccess() && isSameAgency(resource.data.agencyId))
       );
       
       // CRÉATION d'un utilisateur
@@ -82,18 +106,25 @@ service cloud.firestore {
       allow read: if isAuthenticated() && isSameAgency(resource.data.agencyId);
       
       // CRÉATION des formulaires
-      allow create: if isDirecteur() && 
+      allow create: if canCreateForms() && 
                    isSameAgency(request.resource.data.agencyId) &&
-                   request.resource.data.createdBy == request.auth.uid;
+                   request.resource.data.createdBy == request.auth.uid &&
+                   request.resource.data.createdByRole in ['directeur', 'employe'];
       
       // MODIFICATION des formulaires
-      allow update: if isDirecteur() && 
-                   isSameAgency(resource.data.agencyId) &&
-                   isSameAgency(request.resource.data.agencyId);
+      allow update: if isAuthenticated() && isSameAgency(resource.data.agencyId) && (
+        isDirecteur() ||
+        (isEmploye() && (
+          resource.data.createdByEmployeeId == request.auth.uid ||
+          canManageEmployeeForms()
+        ))
+      );
       
       // SUPPRESSION des formulaires
-      allow delete: if isDirecteur() && 
-                   isSameAgency(resource.data.agencyId);
+      allow delete: if isAuthenticated() && isSameAgency(resource.data.agencyId) && (
+        isDirecteur() ||
+        (isEmploye() && resource.data.createdByEmployeeId == request.auth.uid)
+      );
     }
 
     // =============================================================================
@@ -108,6 +139,7 @@ service cloud.firestore {
       // LECTURE des entrées de formulaire
       allow read: if isAuthenticated() && (
         (isDirecteur() && isSameAgency(resource.data.agencyId)) ||
+        (hasDirectorDashboardAccess() && isSameAgency(resource.data.agencyId)) ||
         (isEmploye() && isOwner(resource.data.userId) && isSameAgency(resource.data.agencyId))
       );
       
@@ -136,32 +168,66 @@ service cloud.firestore {
     
     match /conversations/{conversationId} {
       // LECTURE des conversations
-      allow read: if isDirecteur() && 
+      allow read: if hasDirectorDashboardAccess() && 
                   isSameAgency(resource.data.agencyId) &&
                   resource.data.directorId == request.auth.uid;
       
       // CRÉATION des conversations
-      allow create: if isDirecteur() && 
+      allow create: if hasDirectorDashboardAccess() && 
                    isSameAgency(request.resource.data.agencyId) &&
                    request.resource.data.directorId == request.auth.uid &&
                    request.resource.data.keys().hasAll(['directorId', 'agencyId', 'title']);
       
       // MODIFICATION des conversations
-      allow update: if isDirecteur() && 
+      allow update: if hasDirectorDashboardAccess() && 
                    isSameAgency(resource.data.agencyId) &&
                    resource.data.directorId == request.auth.uid;
       
       // SUPPRESSION des conversations
-      allow delete: if isDirecteur() && 
+      allow delete: if hasDirectorDashboardAccess() && 
                    isSameAgency(resource.data.agencyId) &&
                    resource.data.directorId == request.auth.uid;
       
       // Messages des conversations
       match /messages/{messageId} {
-        allow read, write: if isDirecteur() && 
+        allow read, write: if hasDirectorDashboardAccess() && 
                           isSameAgency(get(/databases/$(database)/documents/conversations/$(conversationId)).data.agencyId) &&
                           get(/databases/$(database)/documents/conversations/$(conversationId)).data.directorId == request.auth.uid;
       }
+    }
+
+    // =============================================================================
+    // COLLECTION DASHBOARDS
+    // Règles pour les tableaux de bord personnalisés :
+    // - Seuls les directeurs peuvent créer/lire/modifier/supprimer leurs tableaux de bord
+    // - Les tableaux de bord sont isolés par agence
+    // =============================================================================
+    
+    match /dashboards/{dashboardId} {
+      // LECTURE des tableaux de bord
+      allow read: if hasDirectorDashboardAccess() && 
+                  isSameAgency(resource.data.agencyId);
+      
+      // CRÉATION des tableaux de bord
+      allow create: if canCreateDashboards() && 
+                   isSameAgency(request.resource.data.agencyId) &&
+                   request.resource.data.createdBy == request.auth.uid &&
+                   request.resource.data.createdByRole in ['directeur', 'employe'] &&
+                   request.resource.data.keys().hasAll(['name', 'metrics', 'createdBy', 'agencyId']);
+      
+      // MODIFICATION des tableaux de bord
+      allow update: if hasDirectorDashboardAccess() && 
+                   isSameAgency(resource.data.agencyId) && (
+        isDirecteur() ||
+        (isEmploye() && resource.data.createdByEmployeeId == request.auth.uid)
+      );
+      
+      // SUPPRESSION des tableaux de bord
+      allow delete: if hasDirectorDashboardAccess() && 
+                   isSameAgency(resource.data.agencyId) && (
+        isDirecteur() ||
+        (isEmploye() && resource.data.createdByEmployeeId == request.auth.uid)
+      );
     }
 
     // =============================================================================

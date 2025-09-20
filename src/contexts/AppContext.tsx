@@ -9,19 +9,26 @@ import {
   deleteDoc,
   updateDoc,
   doc,
-  serverTimestamp
+  serverTimestamp,
+  writeBatch
 } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
-import { Form, FormEntry, User } from '../types';
+import { Form, FormEntry, User, DraftResponse, Dashboard } from '../types';
+import { DraftService } from '../services/draftService';
 import { useAuth } from './AuthContext';
+import { usePackageAccess } from '../hooks/usePackageAccess';
+import { PermissionManager } from '../utils/PermissionManager';
 
 interface AppContextType {
   forms: Form[];
   formEntries: FormEntry[];
   employees: User[];
+  dashboards: Dashboard[];
   createForm: (form: Omit<Form, 'id' | 'createdAt'>) => Promise<void>;
   updateForm: (formId: string, form: Partial<Omit<Form, 'id' | 'createdAt' | 'createdBy' | 'agencyId'>>) => Promise<void>;
   submitFormEntry: (entry: Omit<FormEntry, 'id' | 'submittedAt' | 'userId' | 'agencyId'>) => Promise<void>;
+  updateFormEntry: (entryId: string, entry: Partial<Omit<FormEntry, 'id' | 'submittedAt' | 'userId' | 'agencyId'>>) => Promise<void>;
+  submitMultipleFormEntries: (entries: Omit<FormEntry, 'id' | 'submittedAt' | 'userId' | 'agencyId'>[]) => Promise<void>;
   deleteForm: (formId: string) => Promise<void>;
   getFormsForEmployee: (employeeId: string) => Form[];
   getEntriesForForm: (formId: string) => FormEntry[];
@@ -29,6 +36,17 @@ interface AppContextType {
   getEmployeesForAgency: (agencyId: string) => User[];
   getPendingEmployees: () => User[];
   refreshData: () => void;
+  // Dashboard management
+  createDashboard: (dashboard: Omit<Dashboard, 'id' | 'createdAt'>) => Promise<void>;
+  updateDashboard: (dashboardId: string, dashboard: Partial<Omit<Dashboard, 'id' | 'createdAt' | 'createdBy' | 'agencyId'>>) => Promise<void>;
+  deleteDashboard: (dashboardId: string) => Promise<void>;
+  getDashboardsForDirector: (directorId: string) => Dashboard[];
+  // Draft management
+  getDraftsForForm: (userId: string, formId: string) => DraftResponse[];
+  saveDraft: (draft: DraftResponse) => void;
+  deleteDraft: (draftId: string) => void;
+  deleteDraftsForForm: (userId: string, formId: string) => void;
+  createDraft: (formId: string, userId: string, agencyId: string, answers?: Record<string, any>, fileAttachments?: any[]) => DraftResponse;
   isLoading: boolean;
   error: string | null;
 }
@@ -37,9 +55,11 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, firebaseUser } = useAuth();
+  const { canCreateForm, canCreateDashboard } = usePackageAccess();
   const [forms, setForms] = useState<Form[]>([]);
   const [formEntries, setFormEntries] = useState<FormEntry[]>([]);
   const [employees, setEmployees] = useState<User[]>([]);
+  const [dashboards, setDashboards] = useState<Dashboard[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -50,6 +70,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setForms([]);
       setFormEntries([]);
       setEmployees([]);
+      setDashboards([]);
       return;
     }
 
@@ -68,31 +89,46 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         orderBy('createdAt', 'desc')
       );
     } else {
-      // Les employés ne voient que les formulaires qui leur sont assignés
+      // Les employés voient les formulaires qui leur sont assignés ET ceux qu'ils ont créés
+      // Note: Firestore ne supporte pas les requêtes OR complexes, donc on récupère tous les formulaires
+      // et on filtre côté client
       formsQuery = query(
         collection(db, 'forms'),
         where('agencyId', '==', user.agencyId),
-        where('assignedTo', 'array-contains', user.id),
         orderBy('createdAt', 'desc')
       );
     }
 
     const unsubscribeForms = onSnapshot(formsQuery, (snapshot) => {
-      const formsData = snapshot.docs.map(doc => ({
+      const allFormsData = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data(),
         createdAt: doc.data().createdAt?.toDate() || new Date()
       })) as Form[];
-      setForms(formsData);
+      
+      // Filtrer les formulaires selon le rôle de l'utilisateur
+      let filteredForms = allFormsData;
+      if (user.role === 'employe') {
+        filteredForms = allFormsData.filter(form => 
+          form.assignedTo.includes(user.id) || 
+          form.createdByEmployeeId === user.id ||
+          form.createdBy === user.id
+        );
+      }
+      
+      setForms(filteredForms);
       console.log('Formulaires chargés:', {
-        count: formsData.length,
+        count: filteredForms.length,
         userRole: user.role,
         userAgencyId: user.agencyId,
-        forms: formsData.map(f => ({ 
+        forms: filteredForms.map(f => ({ 
           id: f.id, 
           title: f.title, 
           assignedTo: f.assignedTo,
-          agencyId: f.agencyId 
+          agencyId: f.agencyId,
+          createdBy: f.createdBy,
+          createdByRole: f.createdByRole,
+          createdByEmployeeId: f.createdByEmployeeId
         }))
       });
     }, (err) => {
@@ -101,31 +137,68 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
 
     // Écouter les entrées de formulaires de l'agence
-    const entriesQuery = query(
-      collection(db, 'formEntries'),
-      where('agencyId', '==', user.agencyId),
-      orderBy('submittedAt', 'desc')
-    );
+    if (!user.agencyId) {
+      console.error('❌ User has no agencyId, cannot load form entries');
+      setError('Utilisateur sans agence assignée');
+      return;
+    }
+
+    // Try with orderBy first, fallback to simple query if it fails
+    let entriesQuery;
+    try {
+      if (user.role === 'directeur') {
+        // Directors can see all entries in their agency
+        entriesQuery = query(
+          collection(db, 'formEntries'),
+          where('agencyId', '==', user.agencyId),
+          orderBy('submittedAt', 'desc')
+        );
+      } else {
+        // Employees can only see their own entries
+        entriesQuery = query(
+          collection(db, 'formEntries'),
+          where('agencyId', '==', user.agencyId),
+          where('userId', '==', user.id),
+          orderBy('submittedAt', 'desc')
+        );
+      }
+    } catch (orderByError) {
+      console.warn('⚠️ OrderBy failed, using simple query:', orderByError);
+      if (user.role === 'directeur') {
+        entriesQuery = query(
+          collection(db, 'formEntries'),
+          where('agencyId', '==', user.agencyId)
+        );
+      } else {
+        entriesQuery = query(
+          collection(db, 'formEntries'),
+          where('agencyId', '==', user.agencyId),
+          where('userId', '==', user.id)
+        );
+      }
+    }
 
     const unsubscribeEntries = onSnapshot(entriesQuery, (snapshot) => {
-      const entriesData = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-        submittedAt: doc.data().submittedAt?.toDate() || new Date()
-      })) as FormEntry[];
+      const entriesData = snapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          ...data,
+          submittedAt: data.submittedAt?.toDate() || new Date()
+        };
+      }) as FormEntry[];
+      
       setFormEntries(entriesData);
-      console.log('Entrées chargées:', entriesData.length);
     }, (err) => {
       console.error('Erreur lors du chargement des entrées:', err);
       setError('Erreur lors du chargement des entrées');
     });
 
-    // Écouter les employés de l'agence (requête avec index composite)
+    // Écouter les employés de l'agence (sans orderBy pour éviter les problèmes d'index)
     const employeesQuery = query(
       collection(db, 'users'),
       where('agencyId', '==', user.agencyId),
-      where('role', '==', 'employe'),
-      orderBy('name', 'asc')
+      where('role', '==', 'employe')
     );
 
     const unsubscribeEmployees = onSnapshot(employeesQuery, (snapshot) => {
@@ -133,40 +206,126 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         id: doc.id,
         ...doc.data()
       })) as User[];
+      
+      // Sort employees by name in JavaScript
+      employeesData.sort((a, b) => a.name.localeCompare(b.name));
+      
       setEmployees(employeesData);
-      setIsLoading(false);
       console.log('Employés chargés:', employeesData.length);
     }, (err) => {
       console.error('Erreur lors du chargement des employés:', err);
       setError('Erreur lors du chargement des employés');
-      setIsLoading(false);
     });
+
+    // Écouter les tableaux de bord de l'agence
+    let unsubscribeDashboards: (() => void) | undefined;
+    
+    // Les directeurs et employés avec accès peuvent voir les tableaux de bord
+    if (user.role === 'directeur' || PermissionManager.hasDirectorDashboardAccess(user)) {
+      const dashboardsQuery = query(
+        collection(db, 'dashboards'),
+        where('agencyId', '==', user.agencyId),
+        orderBy('createdAt', 'desc')
+      );
+
+      unsubscribeDashboards = onSnapshot(dashboardsQuery, (snapshot) => {
+        const allDashboardsData = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data(),
+          createdAt: doc.data().createdAt?.toDate() || new Date()
+        })) as Dashboard[];
+        
+        // Filtrer les tableaux de bord selon le rôle de l'utilisateur
+        let filteredDashboards = allDashboardsData;
+        if (user.role === 'employe') {
+          // Les employés avec accès directeur voient TOUS les tableaux de bord de l'agence
+          if (PermissionManager.hasDirectorDashboardAccess(user)) {
+            filteredDashboards = allDashboardsData; // Voir tous les tableaux de bord
+          } else {
+            // Les employés normaux voient seulement leurs propres tableaux de bord
+            filteredDashboards = allDashboardsData.filter(dashboard => 
+              dashboard.createdByEmployeeId === user.id ||
+              dashboard.createdBy === user.id
+            );
+          }
+        }
+        
+        setDashboards(filteredDashboards);
+        setIsLoading(false);
+        console.log('Tableaux de bord chargés:', {
+          count: filteredDashboards.length,
+          userRole: user.role,
+          dashboards: filteredDashboards.map(d => ({ 
+            id: d.id, 
+            name: d.name, 
+            createdBy: d.createdBy,
+            createdByRole: d.createdByRole,
+            createdByEmployeeId: d.createdByEmployeeId
+          }))
+        });
+      }, (err) => {
+        console.error('Erreur lors du chargement des tableaux de bord:', err);
+        setError('Erreur lors du chargement des tableaux de bord');
+        setIsLoading(false);
+      });
+    } else {
+      setIsLoading(false);
+    }
 
     return () => {
       unsubscribeForms();
       unsubscribeEntries();
       unsubscribeEmployees();
+      if (unsubscribeDashboards) {
+        unsubscribeDashboards();
+      }
     };
   }, [user, firebaseUser]);
 
   const createForm = async (formData: Omit<Form, 'id' | 'createdAt'>) => {
-    if (!user || user.role !== 'directeur' || !user.agencyId) {
-      throw new Error('Seuls les directeurs peuvent créer des formulaires');
+    if (!user || !user.agencyId) {
+      throw new Error('Données utilisateur manquantes');
+    }
+
+    // Vérifier les permissions selon le rôle
+    if (user.role === 'employe') {
+      // Les employés peuvent créer des formulaires s'ils ont la permission
+      if (!PermissionManager.canCreateForms(user)) {
+        throw new Error('Vous n\'avez pas la permission de créer des formulaires');
+      }
+    } else if (user.role !== 'directeur') {
+      throw new Error('Seuls les directeurs et employés autorisés peuvent créer des formulaires');
+    }
+
+    // Vérifier les limites du package (seulement pour les directeurs)
+    if (user.role === 'directeur' && !canCreateForm(forms.length)) {
+      throw new Error('Limite de formulaires atteinte pour votre package. Veuillez mettre à niveau votre abonnement.');
     }
 
     try {
       setError(null);
       
       // Garantir que tous les champs requis sont présents
-      const docData = {
+      const docData: any = {
         title: formData.title.trim(),
         description: formData.description.trim(),
         createdBy: user.id,
+        createdByRole: user.role,
         assignedTo: formData.assignedTo || [],
         fields: formData.fields || [],
         agencyId: user.agencyId,
         createdAt: serverTimestamp()
       };
+
+      // Only add createdByEmployeeId if the user is an employee
+      if (user.role === 'employe') {
+        docData.createdByEmployeeId = user.id;
+      }
+
+      // Only add timeRestrictions if it's defined and has content
+      if (formData.timeRestrictions && Object.keys(formData.timeRestrictions).length > 0) {
+        docData.timeRestrictions = formData.timeRestrictions;
+      }
 
       console.log('Création du formulaire:', docData);
       await addDoc(collection(db, 'forms'), docData);
@@ -195,6 +354,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (formData.description !== undefined) updateData.description = formData.description.trim();
       if (formData.assignedTo !== undefined) updateData.assignedTo = formData.assignedTo;
       if (formData.fields !== undefined) updateData.fields = formData.fields;
+      
+      // Handle timeRestrictions properly - only add if it has content, or remove if undefined
+      if (formData.timeRestrictions !== undefined) {
+        if (formData.timeRestrictions && Object.keys(formData.timeRestrictions).length > 0) {
+          updateData.timeRestrictions = formData.timeRestrictions;
+        } else {
+          // If timeRestrictions is undefined or empty, remove the field from Firestore
+          updateData.timeRestrictions = null;
+        }
+      }
 
       console.log('Mise à jour du formulaire:', { formId, updateData });
       await updateDoc(doc(db, 'forms', formId), updateData);
@@ -242,6 +411,42 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  const updateFormEntry = async (entryId: string, entryData: Partial<Omit<FormEntry, 'id' | 'submittedAt' | 'userId' | 'agencyId'>>) => {
+    // Guard: Vérifier que l'utilisateur est connecté et a un profil complet
+    if (!firebaseUser || !user || !user.agencyId) {
+      throw new Error('Utilisateur non connecté ou profil incomplet');
+    }
+
+    try {
+      setError(null);
+      
+      // Préparer les données à mettre à jour
+      const updateData: Record<string, any> = {
+        updatedAt: serverTimestamp()
+      };
+
+      // Ajouter seulement les champs fournis
+      if (entryData.formId !== undefined) updateData.formId = entryData.formId;
+      if (entryData.answers !== undefined) updateData.answers = entryData.answers;
+      if (entryData.fileAttachments !== undefined) updateData.fileAttachments = entryData.fileAttachments;
+
+      console.log('Mise à jour de la réponse:', { entryId, updateData });
+      await updateDoc(doc(db, 'formEntries', entryId), updateData);
+      console.log('✅ Réponse mise à jour avec succès');
+    } catch (err) {
+      console.error('Erreur lors de la mise à jour de la réponse:', err);
+      if (err instanceof Error) {
+        if (err.message.includes('Missing or insufficient permissions')) {
+          setError('Permissions insuffisantes pour modifier cette réponse.');
+        } else {
+          setError(`Erreur lors de la mise à jour: ${err.message}`);
+        }
+      } else {
+        setError('Erreur lors de la mise à jour de la réponse');
+      }
+      throw err;
+    }
+  };
 
   const deleteForm = async (formId: string) => {
     if (!user || user.role !== 'directeur') {
@@ -277,7 +482,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const getPendingEmployees = (): User[] => {
-    return employees.filter(emp => emp.role === 'employe' && emp.isApproved === false);
+    return employees.filter(emp => 
+      emp.role === 'employe' && 
+      emp.isApproved === false && 
+      !emp.hasDirectorDashboardAccess
+    );
   };
 
   const refreshData = () => {
@@ -285,14 +494,173 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setIsLoading(true);
   };
 
+  const submitMultipleFormEntries = async (entries: Omit<FormEntry, 'id' | 'submittedAt' | 'userId' | 'agencyId'>[]) => {
+    if (!user || user.role !== 'employe' || !user.agencyId) {
+      throw new Error('Seuls les employés peuvent soumettre des formulaires');
+    }
+
+    try {
+      setError(null);
+      
+      const batch = writeBatch(db);
+      
+      entries.forEach((entry) => {
+        const docRef = doc(collection(db, 'formEntries'));
+        const docData = {
+          formId: entry.formId,
+          userId: user.id,
+          agencyId: user.agencyId,
+          answers: entry.answers,
+          fileAttachments: entry.fileAttachments || [],
+          submittedAt: serverTimestamp()
+        };
+        
+        batch.set(docRef, docData);
+      });
+
+      await batch.commit();
+    } catch (err) {
+      console.error('Erreur lors de la soumission multiple:', err);
+      setError('Erreur lors de la soumission des formulaires');
+      throw err;
+    }
+  };
+
+  // Dashboard management functions
+  const createDashboard = async (dashboardData: Omit<Dashboard, 'id' | 'createdAt'>) => {
+    if (!user || !user.agencyId) {
+      throw new Error('Données utilisateur manquantes');
+    }
+
+    // Vérifier les permissions selon le rôle
+    if (user.role === 'employe') {
+      // Les employés peuvent créer des tableaux de bord s'ils ont la permission
+      if (!PermissionManager.canCreateDashboards(user)) {
+        throw new Error('Vous n\'avez pas la permission de créer des tableaux de bord');
+      }
+    } else if (user.role !== 'directeur') {
+      throw new Error('Seuls les directeurs et employés autorisés peuvent créer des tableaux de bord');
+    }
+
+    // Vérifier les limites du package (seulement pour les directeurs)
+    if (user.role === 'directeur' && !canCreateDashboard(dashboards.length)) {
+      throw new Error('Limite de tableaux de bord atteinte pour votre package. Veuillez mettre à niveau votre abonnement.');
+    }
+
+    try {
+      setError(null);
+      
+      const docData: any = {
+        name: dashboardData.name.trim(),
+        description: dashboardData.description?.trim() || '',
+        metrics: dashboardData.metrics.map(metric => ({
+          ...metric,
+          createdAt: new Date()
+        })),
+        createdBy: user.id,
+        createdByRole: user.role,
+        agencyId: user.agencyId,
+        isDefault: dashboardData.isDefault || false,
+        createdAt: serverTimestamp()
+      };
+
+      // Only add createdByEmployeeId if the user is an employee
+      if (user.role === 'employe') {
+        docData.createdByEmployeeId = user.id;
+      }
+
+      console.log('Création du tableau de bord:', docData);
+      await addDoc(collection(db, 'dashboards'), docData);
+    } catch (err) {
+      console.error('Erreur lors de la création du tableau de bord:', err);
+      setError('Erreur lors de la création du tableau de bord');
+      throw err;
+    }
+  };
+
+  const updateDashboard = async (dashboardId: string, dashboardData: Partial<Omit<Dashboard, 'id' | 'createdAt' | 'createdBy' | 'agencyId'>>) => {
+    if (!user || user.role !== 'directeur' || !user.agencyId) {
+      throw new Error('Seuls les directeurs peuvent modifier des tableaux de bord');
+    }
+
+    try {
+      setError(null);
+      
+      const updateData: Record<string, any> = {
+        updatedAt: serverTimestamp()
+      };
+
+      if (dashboardData.name !== undefined) updateData.name = dashboardData.name.trim();
+      if (dashboardData.description !== undefined) updateData.description = dashboardData.description?.trim() || '';
+      if (dashboardData.metrics !== undefined) updateData.metrics = dashboardData.metrics;
+      if (dashboardData.isDefault !== undefined) updateData.isDefault = dashboardData.isDefault;
+
+      console.log('Mise à jour du tableau de bord:', { dashboardId, updateData });
+      await updateDoc(doc(db, 'dashboards', dashboardId), updateData);
+    } catch (err) {
+      console.error('Erreur lors de la mise à jour du tableau de bord:', err);
+      setError('Erreur lors de la mise à jour du tableau de bord');
+      throw err;
+    }
+  };
+
+  const deleteDashboard = async (dashboardId: string) => {
+    if (!user || user.role !== 'directeur') {
+      throw new Error('Seuls les directeurs peuvent supprimer des tableaux de bord');
+    }
+
+    try {
+      setError(null);
+      await deleteDoc(doc(db, 'dashboards', dashboardId));
+    } catch (err) {
+      console.error('Erreur lors de la suppression du tableau de bord:', err);
+      setError('Erreur lors de la suppression du tableau de bord');
+      throw err;
+    }
+  };
+
+  const getDashboardsForDirector = (directorId: string): Dashboard[] => {
+    return dashboards.filter(dashboard => dashboard.createdBy === directorId);
+  };
+
+  // Draft management functions
+  const getDraftsForForm = (userId: string, formId: string): DraftResponse[] => {
+    return DraftService.getDraftsForForm(userId, formId);
+  };
+
+  const saveDraft = (draft: DraftResponse): void => {
+    DraftService.saveDraft(draft);
+  };
+
+  const deleteDraft = (draftId: string): void => {
+    DraftService.deleteDraft(draftId);
+  };
+
+  const deleteDraftsForForm = (userId: string, formId: string): void => {
+    DraftService.deleteDraftsForForm(userId, formId);
+  };
+
+  const createDraft = (
+    formId: string, 
+    userId: string, 
+    agencyId: string, 
+    answers: Record<string, any> = {}, 
+    fileAttachments: any[] = []
+  ): DraftResponse => {
+    return DraftService.createDraft(formId, userId, agencyId, answers, fileAttachments);
+  };
+
   return (
     <AppContext.Provider value={{
       forms,
       formEntries,
       employees,
+      dashboards,
       createForm,
       updateForm,
       submitFormEntry,
+      updateFormEntry,
+      submitMultipleFormEntries,
       deleteForm,
       getFormsForEmployee,
       getEntriesForForm,
@@ -300,6 +668,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       getEmployeesForAgency,
       getPendingEmployees,
       refreshData,
+      // Dashboard management
+      createDashboard,
+      updateDashboard,
+      deleteDashboard,
+      getDashboardsForDirector,
+      // Draft management
+      getDraftsForForm,
+      saveDraft,
+      deleteDraft,
+      deleteDraftsForForm,
+      createDraft,
       isLoading,
       error
     }}>

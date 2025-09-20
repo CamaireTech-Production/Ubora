@@ -9,8 +9,8 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg'],
       manifest: {
-        name: 'Multi-Agences - Gestion des Formulaires',
-        short_name: 'Multi-Agences',
+        name: 'Ubora - Gestion des Formulaires',
+        short_name: 'Ubora',
         description: 'Application de gestion des formulaires pour entreprises multi-agences',
         theme_color: '#3b82f6',
         background_color: '#ffffff',

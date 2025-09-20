@@ -11,9 +11,15 @@ import { DirecteurChat } from './pages/DirecteurChat';
 import { EmployeDashboard } from './pages/EmployeDashboard';
 import { UnauthorizedPage } from './pages/UnauthorizedPage';
 import { PendingApprovalPage } from './pages/PendingApprovalPage';
+import { DashboardDetailPage } from './pages/DashboardDetailPage';
+import { ResponseDetailPage } from './pages/ResponseDetailPage';
+import { PackageManagementPage } from './pages/PackageManagementPage';
+import { DirectorSettingsPage } from './pages/DirectorSettingsPage';
+import { NotificationsPage } from './pages/NotificationsPage';
 import { PWAInstallPrompt } from './components/PWAInstallPrompt';
-import { PWAUpdateNotification } from './components/PWAUpdateNotification';
-import { PWAStatusIndicator } from './components/PWAStatusIndicator';
+import { EmployeeManagement } from './components/EmployeeManagement';
+import { Layout } from './components/Layout';
+// import { PWAUpdateNotification } from './components/PWAUpdateNotification';
 
 function App() {
   return (
@@ -35,18 +41,38 @@ function App() {
             <Route 
               path="/directeur/dashboard" 
               element={
-                <ProtectedRoute allowedRoles={['directeur']}>
+                <ProtectedRoute 
+                  allowedRoles={['directeur', 'employe']} 
+                  requireDirectorDashboardAccess={true}
+                >
                   <DirecteurDashboard />
                 </ProtectedRoute>
               } 
             />
             
-            {/* Chat IA directeur */}
+            {/* ARCHA - Chat directeur */}
             <Route 
               path="/directeur/chat" 
               element={
-                <ProtectedRoute allowedRoles={['directeur']}>
+                <ProtectedRoute 
+                  allowedRoles={['directeur', 'employe']} 
+                  requireDirectorDashboardAccess={true}
+                >
                   <DirecteurChat />
+                </ProtectedRoute>
+              } 
+            />
+            
+            
+            {/* Détail d'un tableau de bord */}
+            <Route 
+              path="/directeur/dashboards/:dashboardId" 
+              element={
+                <ProtectedRoute 
+                  allowedRoles={['directeur', 'employe']} 
+                  requireDirectorDashboardAccess={true}
+                >
+                  <DashboardDetailPage />
                 </ProtectedRoute>
               } 
             />
@@ -61,6 +87,58 @@ function App() {
               } 
             />
             
+            {/* Page de détails des réponses */}
+            <Route 
+              path="/responses/:formId" 
+              element={
+                <ProtectedRoute allowedRoles={['employe', 'directeur']}>
+                  <ResponseDetailPage />
+                </ProtectedRoute>
+              } 
+            />
+            
+            {/* Page de gestion des packages */}
+            <Route 
+              path="/packages/manage" 
+              element={
+                <ProtectedRoute allowedRoles={['directeur']}>
+                  <PackageManagementPage />
+                </ProtectedRoute>
+              } 
+            />
+            
+            {/* Page des paramètres directeur */}
+            <Route 
+              path="/directeur/settings" 
+              element={
+                <ProtectedRoute allowedRoles={['directeur']}>
+                  <DirectorSettingsPage />
+                </ProtectedRoute>
+              } 
+            />
+            
+            {/* Notifications Settings */}
+            <Route 
+              path="/notifications" 
+              element={
+                <ProtectedRoute allowedRoles={['directeur', 'employe']}>
+                  <NotificationsPage />
+                </ProtectedRoute>
+              } 
+            />
+            
+            {/* Gestion des employés */}
+            <Route 
+              path="/directeur/employees" 
+              element={
+                <ProtectedRoute allowedRoles={['directeur']}>
+                  <Layout title="Gestion des Employés">
+                    <EmployeeManagement />
+                  </Layout>
+                </ProtectedRoute>
+              } 
+            />
+            
             {/* Redirections par défaut selon le rôle */}
             <Route path="/" element={<RoleBasedRedirect />} />
             
@@ -70,9 +148,8 @@ function App() {
           </Router>
           
           {/* PWA Components */}
-          <PWAStatusIndicator />
           <PWAInstallPrompt />
-          <PWAUpdateNotification />
+          {/* <PWAUpdateNotification /> */}
         </ConversationProvider>
       </AppProvider>
     </AuthProvider>
@@ -102,7 +179,7 @@ const RoleBasedRedirect: React.FC = () => {
 
   // Employé → Vérifier l'approbation
   if (user.role === 'employe') {
-    if (user.isApproved === false) {
+    if (user.isApproved === false && !user.hasDirectorDashboardAccess) {
       return <Navigate to="/pending-approval" replace />;
     }
     return <Navigate to="/employe/dashboard" replace />;

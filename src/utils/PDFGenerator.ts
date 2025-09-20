@@ -1,5 +1,6 @@
 import jsPDF from 'jspdf';
 import { PDFData, GraphData } from '../types';
+import { ChartToImage } from './ChartToImage';
 
 export class PDFGenerator {
   private doc: jsPDF;
@@ -12,12 +13,15 @@ export class PDFGenerator {
     this.doc = new jsPDF();
   }
 
-  generateReportFromText(content: string, title: string = 'Rapport IA'): void {
+  generateReportFromText(content: string, title: string = 'Rapport Ubora'): void {
     this.doc = new jsPDF();
     this.currentY = 20;
 
     // Add title
     this.addTitle(title);
+    
+    // Add subtitle
+    this.addSubtitle('Rapport généré avec Archa');
     
     // Add generation date
     this.addSubtitle(`Généré le ${new Date().toLocaleDateString('fr-FR')} à ${new Date().toLocaleTimeString('fr-FR')}`);
@@ -33,7 +37,7 @@ export class PDFGenerator {
     this.doc.save(fileName);
   }
 
-  generateReport(pdfData: PDFData): void {
+  async generateReport(pdfData: PDFData): Promise<void> {
     this.doc = new jsPDF();
     this.currentY = 20;
 
@@ -63,7 +67,7 @@ export class PDFGenerator {
     // Add charts if they exist
     if (pdfData.charts && pdfData.charts.length > 0) {
       this.addPageBreak();
-      this.addChartsSection(pdfData.charts);
+      await this.addChartsSection(pdfData.charts);
     }
 
     // Add footer
@@ -117,18 +121,22 @@ export class PDFGenerator {
     this.currentY += 10;
 
     // Add section content based on type
-    switch (section.type) {
-      case 'text':
-        this.addTextContent(section.content);
-        break;
-      case 'list':
-        this.addListContent(section.data || []);
-        break;
-      case 'table':
-        this.addTableContent(section.data || []);
-        break;
-      default:
-        this.addTextContent(section.content);
+    if (section.isMarkdownTable) {
+      this.addMarkdownTable(section.content);
+    } else {
+      switch (section.type) {
+        case 'text':
+          this.addTextContent(section.content);
+          break;
+        case 'list':
+          this.addListContent(section.data || []);
+          break;
+        case 'table':
+          this.addTableContent(section.data || []);
+          break;
+        default:
+          this.addTextContent(section.content);
+      }
     }
 
     this.currentY += 10;
@@ -166,6 +174,9 @@ export class PDFGenerator {
         case 'list':
           this.addListContent(element.items || []);
           break;
+        case 'table':
+          this.addTableContent(element.tableData || []);
+          break;
         case 'separator':
           this.addSeparator();
           break;
@@ -177,8 +188,8 @@ export class PDFGenerator {
     });
   }
 
-  private parseMarkdownContent(content: string): Array<{type: string, text: string, items?: string[]}> {
-    const elements: Array<{type: string, text: string, items?: string[]}> = [];
+  private parseMarkdownContent(content: string): Array<{type: string, text: string, items?: string[], tableData?: any[]}> {
+    const elements: Array<{type: string, text: string, items?: string[], tableData?: any[]}> = [];
     const lines = content.split('\n');
     
     for (let i = 0; i < lines.length; i++) {
@@ -189,6 +200,16 @@ export class PDFGenerator {
         // Empty line - add some spacing
         elements.push({ type: 'text', text: '' });
         continue;
+      }
+      
+      // Check for markdown table
+      if (trimmedLine.includes('|') && trimmedLine.length > 0) {
+        const { tableData, endIndex } = this.parseMarkdownTable(lines, i);
+        if (tableData) {
+          elements.push({ type: 'table', text: '', tableData });
+          i = endIndex; // Skip the processed table lines
+          continue;
+        }
       }
       
       // Check for headers
@@ -226,6 +247,45 @@ export class PDFGenerator {
     }
     
     return elements;
+  }
+
+  private parseMarkdownTable(lines: string[], startIndex: number): { tableData: any[] | null, endIndex: number } {
+    const tableLines = [];
+    let currentIndex = startIndex;
+    
+    // Collect all table lines
+    while (currentIndex < lines.length) {
+      const line = lines[currentIndex].trim();
+      if (line.includes('|') && line.length > 0) {
+        tableLines.push(line);
+        currentIndex++;
+      } else {
+        break;
+      }
+    }
+    
+    if (tableLines.length < 2) {
+      return { tableData: null, endIndex: startIndex };
+    }
+    
+    // Parse header
+    const headerLine = tableLines[0];
+    const headers = headerLine.split('|').map(h => h.trim()).filter(h => h);
+    
+    // Skip separator line (second line)
+    const dataLines = tableLines.slice(2);
+    
+    // Parse data rows
+    const tableData = dataLines.map(line => {
+      const cells = line.split('|').map(c => c.trim()).filter(c => c);
+      const row: any = {};
+      headers.forEach((header, index) => {
+        row[header] = this.cleanMarkdown(cells[index] || '');
+      });
+      return row;
+    });
+    
+    return { tableData, endIndex: currentIndex - 1 };
   }
 
   private cleanMarkdown(text: string): string {
@@ -310,19 +370,25 @@ export class PDFGenerator {
     this.doc.setFont('helvetica', 'normal');
     
     if (!text) {
-      this.currentY += 3; // Add small spacing for empty lines
+      this.currentY += 5; // Add small spacing for empty lines
       return;
     }
     
-    const lines = this.doc.splitTextToSize(text, this.pageWidth - (this.margin * 2));
+    // Clean up text and ensure proper wrapping
+    const cleanText = text.replace(/\s+/g, ' ').trim();
+    const lines = this.doc.splitTextToSize(cleanText, this.pageWidth - (this.margin * 2));
     
     lines.forEach((line: string) => {
-      if (this.currentY > this.pageHeight - 15) {
+      // Check if we need a page break before adding the line
+      if (this.currentY > this.pageHeight - 20) {
         this.addPageBreak();
       }
       this.doc.text(line, this.margin, this.currentY);
-      this.currentY += 6;
+      this.currentY += 7; // Increased line spacing for better readability
     });
+    
+    // Add extra spacing after paragraphs
+    this.currentY += 3;
   }
 
   private addSeparator(): void {
@@ -398,14 +464,59 @@ export class PDFGenerator {
     });
   }
 
-  private addChartsSection(charts: GraphData[]): void {
+  private addMarkdownTable(tableMarkdown: string): void {
+    const lines = tableMarkdown.split('\n');
+    const tableRows: string[][] = [];
+    
+    for (const line of lines) {
+      if (line.trim().startsWith('|') && line.trim().endsWith('|')) {
+        const cells = line.split('|').map(cell => cell.trim()).filter(cell => cell);
+        
+        // Skip separator rows (containing only dashes and spaces)
+        if (!cells.every(cell => /^[-:\s]+$/.test(cell))) {
+          tableRows.push(cells);
+        }
+      }
+    }
+    
+    if (tableRows.length === 0) return;
+    
+    const headers = tableRows[0];
+    const dataRows = tableRows.slice(1);
+    const colWidth = (this.pageWidth - 2 * this.margin) / headers.length;
+    
+    // Add headers
+    this.doc.setFontSize(10);
+    this.doc.setFont('helvetica', 'bold');
+    headers.forEach((header, index) => {
+      const x = this.margin + index * colWidth;
+      this.doc.text(header, x, this.currentY);
+    });
+    this.currentY += 8;
+    
+    // Add data rows
+    this.doc.setFont('helvetica', 'normal');
+    dataRows.slice(0, 15).forEach((row) => { // Limit to 15 rows
+      if (this.currentY > this.pageHeight - 20) {
+        this.addPageBreak();
+      }
+      
+      row.forEach((cell, index) => {
+        const x = this.margin + index * colWidth;
+        this.doc.text(cell, x, this.currentY);
+      });
+      this.currentY += 6;
+    });
+  }
+
+  private async addChartsSection(charts: GraphData[]): Promise<void> {
     this.doc.setFontSize(16);
     this.doc.setFont('helvetica', 'bold');
     this.doc.text('Graphiques', this.margin, this.currentY);
     this.currentY += 15;
 
-    charts.forEach((chart) => {
-      if (this.currentY > this.pageHeight - 60) {
+    for (const chart of charts) {
+      if (this.currentY > this.pageHeight - 100) {
         this.addPageBreak();
       }
       
@@ -415,14 +526,44 @@ export class PDFGenerator {
       this.doc.text(chart.title, this.margin, this.currentY);
       this.currentY += 8;
       
-      // Add placeholder for chart (in a real implementation, you'd render the chart to canvas)
-      this.doc.setFontSize(10);
-      this.doc.setFont('helvetica', 'normal');
-      this.doc.setTextColor(120, 120, 120);
-      this.doc.text(`[Graphique ${chart.type} - ${chart.data.length} points de données]`, this.margin, this.currentY);
-      this.currentY += 40;
-      this.doc.setTextColor(0, 0, 0);
-    });
+      try {
+        // Convert chart to high-resolution image with better dimensions
+        const chartImage = await ChartToImage.chartToBase64(chart, 600, 350);
+        
+        // Add chart image to PDF with proper scaling and centering
+        const imgWidth = 170; // Increased width
+        const imgHeight = 100; // Increased height
+        const x = this.margin;
+        const y = this.currentY;
+        
+        // Check if chart fits on current page
+        if (this.currentY + imgHeight > this.pageHeight - 30) {
+          this.addPageBreak();
+        }
+        
+        this.doc.addImage(chartImage, 'PNG', x, y, imgWidth, imgHeight);
+        this.currentY += imgHeight + 15;
+        
+        // Add chart info with better formatting
+        this.doc.setFontSize(9);
+        this.doc.setFont('helvetica', 'normal');
+        this.doc.setTextColor(100, 100, 100);
+        this.doc.text(`Type: ${chart.type} | Données: ${chart.data.length} points`, this.margin, this.currentY);
+        this.currentY += 20;
+        this.doc.setTextColor(0, 0, 0);
+        
+      } catch (error) {
+        console.error('Error rendering chart to image:', error);
+        
+        // Fallback to placeholder if image generation fails
+        this.doc.setFontSize(10);
+        this.doc.setFont('helvetica', 'normal');
+        this.doc.setTextColor(120, 120, 120);
+        this.doc.text(`[Graphique ${chart.type} - ${chart.data.length} points de données]`, this.margin, this.currentY);
+        this.currentY += 40;
+        this.doc.setTextColor(0, 0, 0);
+      }
+    }
   }
 
   private addFooter(generatedAt: Date): void {
@@ -457,7 +598,7 @@ export class PDFGenerator {
 }
 
 // Utility function to generate PDF from PDFData
-export const generatePDF = (pdfData: PDFData): void => {
+export const generatePDF = async (pdfData: PDFData): Promise<void> => {
   const generator = new PDFGenerator();
-  generator.generateReport(pdfData);
+  await generator.generateReport(pdfData);
 };

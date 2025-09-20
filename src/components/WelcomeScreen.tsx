@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { Sparkles, ArrowRight } from 'lucide-react';
+import { ArrowRight, UserPlus, Copy, Check } from 'lucide-react';
 import { Button } from './Button';
+import { useAuth } from '../contexts/AuthContext';
 
 interface WelcomeScreenProps {
   userName?: string;
@@ -15,8 +16,11 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
   rememberKey = 'directeur_chat_welcome',
   show = false
 }) => {
+  const { user } = useAuth();
   const [isVisible, setIsVisible] = useState(false);
   const [shouldShow, setShouldShow] = useState(false);
+  const [showInviteModal, setShowInviteModal] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
 
   // Déterminer le message selon l'heure
   const getGreeting = () => {
@@ -56,6 +60,40 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
       handleContinue();
+    }
+  };
+
+  const generateInviteLink = () => {
+    if (!user?.agencyId) return '';
+    const baseUrl = window.location.origin;
+    return `${baseUrl}/login?invite=true&agencyId=${user.agencyId}&role=employe`;
+  };
+
+  const handleCopyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(generateInviteLink());
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 2000);
+    } catch (err) {
+      console.error('Erreur lors de la copie:', err);
+    }
+  };
+
+  const handleShareLink = async () => {
+    const link = generateInviteLink();
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: 'Invitation à rejoindre Multi-Agences',
+          text: 'Rejoignez notre équipe sur la plateforme Multi-Agences',
+          url: link
+        });
+      } catch (err) {
+        console.error('Erreur lors du partage:', err);
+        handleCopyLink();
+      }
+    } else {
+      handleCopyLink();
     }
   };
 
@@ -148,55 +186,130 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
             {/* Centre avec icône */}
             <div className="absolute inset-0 flex items-center justify-center">
               <div className="bg-white rounded-full p-4 shadow-lg animate-bounce-subtle">
-                <Sparkles className="h-8 w-8 text-blue-600" />
+                <img 
+                  src="/favicon-base.jpg" 
+                  alt="Ubora Logo" 
+                  className="w-12 h-12 rounded-full object-cover"
+                />
               </div>
             </div>
           </div>
         </div>
 
+        {/* Logo et nom de l'app */}
+        <div className="flex flex-col items-center mb-6">
+          {/* <img 
+            src="/logo-base.jpg" 
+            alt="Ubora Logo" 
+            className="w-20 h-20 rounded-full shadow-lg mb-4 object-cover"
+          /> */}
+          <h1 className="text-6xl sm:text-5xl font-bold text-gray-900 mb-2">
+            Ubora
+          </h1>
+        </div>
+
         {/* Contenu textuel */}
         <div className="space-y-4 mb-8">
-          <h1 
+          <h2 
             id="welcome-title"
             className="text-2xl sm:text-4xl font-bold text-gray-900"
           >
             {getGreeting()}, {userName} !
-          </h1>
+          </h2>
           
           <p 
             id="welcome-description"
             className="text-base sm:text-lg text-gray-600 leading-relaxed"
           >
-            Prêt à analyser vos données et optimiser vos performances ?
-          </p>
-          
-          <p className="text-sm text-gray-500">
-            Votre assistant IA vous attend pour des insights personnalisés
+            Prêt à analyser vos données et optimiser vos performances avec ARCHA ?
           </p>
         </div>
 
         {/* Bouton principal */}
-        <div className="space-y-3">
+        <div className="space-y-4">
           <Button
             onClick={handleContinue}
             onKeyDown={handleKeyPress}
-            className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold py-4 px-8 rounded-2xl shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200 flex items-center justify-center space-x-3"
+            className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold py-2 px-6 rounded-xl shadow-md hover:shadow-lg transform hover:scale-102 transition-all duration-200 flex items-center justify-center space-x-2"
             aria-label="Continuer vers l'interface d'analyse"
           >
-            <span className="text-lg">Continuer les analyses</span>
-            <ArrowRight className="h-5 w-5" />
+            <span className="text-base">Continuer les analyses</span>
+            <ArrowRight className="h-4 w-4" />
           </Button>
           
-          {/* Indication clavier */}
-          <p className="text-xs text-gray-400 flex items-center justify-center space-x-2">
-            <span>Appuyez sur</span>
-            <kbd className="px-2 py-1 bg-gray-100 border border-gray-300 rounded text-xs font-mono">
-              Entrée
-            </kbd>
-            <span>pour continuer</span>
-          </p>
+          {/* Bouton d'invitation discret */}
+          <div className="text-center">
+            <button
+              onClick={() => setShowInviteModal(true)}
+              className="text-sm text-gray-500 hover:text-gray-700 transition-colors duration-200 flex items-center justify-center space-x-1 mx-auto"
+              aria-label="Inviter des collaborateurs"
+            >
+              <UserPlus className="h-3 w-3" />
+              <span>Inviter des collaborateurs</span>
+            </button>
+          </div>
         </div>
       </div>
+
+      {/* Modal d'invitation */}
+      {showInviteModal && (
+        <div className="fixed inset-0 z-60 bg-black bg-opacity-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
+            <div className="text-center">
+              <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-blue-100 mb-4">
+                <UserPlus className="h-6 w-6 text-blue-600" />
+              </div>
+              
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                Inviter des collaborateurs
+              </h3>
+              
+              <p className="text-sm text-gray-600 mb-6">
+                Partagez ce lien pour permettre à vos collaborateurs de créer un compte employé dans votre agence.
+              </p>
+              
+              <div className="bg-gray-50 rounded-lg p-3 mb-4">
+                <p className="text-xs text-gray-500 text-left mb-2">Lien d'invitation :</p>
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="text"
+                    value={generateInviteLink()}
+                    readOnly
+                    className="flex-1 text-xs bg-white border border-gray-200 rounded px-2 py-1 text-gray-700"
+                  />
+                  <button
+                    onClick={handleCopyLink}
+                    className="p-1 text-gray-500 hover:text-gray-700 transition-colors"
+                    title="Copier le lien"
+                  >
+                    {linkCopied ? (
+                      <Check className="h-4 w-4 text-green-600" />
+                    ) : (
+                      <Copy className="h-4 w-4" />
+                    )}
+                  </button>
+                </div>
+              </div>
+              
+              <div className="flex space-x-3">
+                <Button
+                  onClick={handleShareLink}
+                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors"
+                >
+                  Partager
+                </Button>
+                <Button
+                  onClick={() => setShowInviteModal(false)}
+                  variant="secondary"
+                  className="flex-1 border border-gray-300 hover:border-gray-400 text-gray-700 hover:text-gray-900 font-medium py-2 px-4 rounded-lg transition-colors"
+                >
+                  Fermer
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

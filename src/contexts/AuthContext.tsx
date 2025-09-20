@@ -8,7 +8,7 @@ import {
   GoogleAuthProvider,
   User as FirebaseUser
 } from 'firebase/auth';
-import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, setDoc, serverTimestamp, onSnapshot } from 'firebase/firestore';
 import { auth, db } from '../firebaseConfig';
 import { User } from '../types';
 
@@ -19,6 +19,7 @@ interface AuthContextType {
   loginWithGoogle: () => Promise<boolean>;
   register: (email: string, password: string, name: string, role: 'directeur' | 'employe', agencyId: string) => Promise<boolean>;
   logout: () => Promise<void>;
+  refreshUserData: () => Promise<void>;
   isLoading: boolean;
   error: string | null;
 }
@@ -49,6 +50,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           email: firebaseUser.email || '',
           role: additionalData.role || 'employe',
           agencyId: additionalData.agencyId || '',
+          ...(additionalData.role === 'directeur' && {
+            package: additionalData.package || 'starter', // Package seulement pour les directeurs
+            tokensUsedMonthly: 0,
+            tokensResetDate: serverTimestamp()
+          }),
+          ...(additionalData.role === 'employe' && {
+            accessLevels: [],
+            hasDirectorDashboardAccess: false
+          }),
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp()
         };
@@ -138,6 +148,45 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => unsubscribe();
   }, []);
 
+  // Écouter les changements du document utilisateur en temps réel
+  useEffect(() => {
+    if (!firebaseUser) return;
+
+    const userDocRef = doc(db, 'users', firebaseUser.uid);
+    
+    const unsubscribe = onSnapshot(userDocRef, (userDoc) => {
+      if (userDoc.exists()) {
+        const userData = userDoc.data() as Omit<User, 'id'>;
+        
+        console.log('🔄 AuthContext: User document updated:', {
+          userId: firebaseUser.uid,
+          package: userData.package,
+          payAsYouGoResources: userData.payAsYouGoResources,
+          updatedAt: userData.updatedAt
+        });
+        
+        // Vérifier l'approbation pour les employés
+        if (userData.role === 'employe' && userData.isApproved === false) {
+          console.log('Employee not approved yet');
+          setUser({
+            id: firebaseUser.uid,
+            ...userData
+          });
+          return;
+        }
+        
+        setUser({
+          id: firebaseUser.uid,
+          ...userData
+        });
+      }
+    }, (error) => {
+      console.error('Erreur lors de l\'écoute des changements utilisateur:', error);
+    });
+
+    return () => unsubscribe();
+  }, [firebaseUser]);
+
   const login = async (email: string, password: string): Promise<boolean> => {
     try {
       setError(null);
@@ -187,6 +236,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           email: result.user.email || '',
           role: 'employe', // Rôle par défaut
           agencyId: '', // L'utilisateur devra saisir son ID d'agence
+          // Pas de package pour les employés
           isApproved: false, // Les employés Google Auth doivent être approuvés
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp()
@@ -228,6 +278,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         email: email.trim().toLowerCase(),
         role,
         agencyId: agencyId.trim(),
+        ...(role === 'directeur' && {
+          package: 'starter', // Package seulement pour les directeurs
+          tokensUsedMonthly: 0,
+          tokensResetDate: serverTimestamp()
+        }),
+        ...(role === 'employe' && {
+          accessLevels: [],
+          hasDirectorDashboardAccess: false
+        }),
         isApproved: role === 'directeur' ? true : false, // Les directeurs sont automatiquement approuvés
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
@@ -254,6 +313,36 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       try { sessionStorage.removeItem('show_welcome_after_login'); } catch {}
     } catch (err) {
       console.error('Erreur de déconnexion:', err);
+    }
+  };
+
+  const refreshUserData = async (): Promise<void> => {
+    if (!firebaseUser) return;
+
+    try {
+      const userDocRef = doc(db, 'users', firebaseUser.uid);
+      const userDoc = await getDoc(userDocRef);
+      
+      if (userDoc.exists()) {
+        const userData = userDoc.data() as Omit<User, 'id'>;
+        
+        // Vérifier l'approbation pour les employés
+        if (userData.role === 'employe' && userData.isApproved === false) {
+          console.log('Employee not approved yet');
+          setUser({
+            id: firebaseUser.uid,
+            ...userData
+          });
+          return;
+        }
+        
+        setUser({
+          id: firebaseUser.uid,
+          ...userData
+        });
+      }
+    } catch (err) {
+      console.error('Erreur lors du rafraîchissement des données utilisateur:', err);
     }
   };
 
@@ -286,6 +375,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       loginWithGoogle,
       register,
       logout,
+      refreshUserData,
       isLoading,
       error
     }}>

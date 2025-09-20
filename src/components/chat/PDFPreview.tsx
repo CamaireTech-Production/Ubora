@@ -52,73 +52,157 @@ const cleanMarkdown = (text: string): string => {
   return cleaned;
 };
 
+// Function to parse markdown table
+const parseMarkdownTable = (lines: string[], startIndex: number): { table: React.ReactNode, endIndex: number } => {
+  const tableLines = [];
+  let currentIndex = startIndex;
+  
+  // Collect all table lines
+  while (currentIndex < lines.length) {
+    const line = lines[currentIndex].trim();
+    if (line.includes('|') && line.length > 0) {
+      tableLines.push(line);
+      currentIndex++;
+    } else {
+      break;
+    }
+  }
+  
+  if (tableLines.length < 2) {
+    return { table: null, endIndex: startIndex };
+  }
+  
+  // Parse header
+  const headerLine = tableLines[0];
+  const headers = headerLine.split('|').map(h => h.trim()).filter(h => h);
+  
+  // Skip separator line (second line)
+  const dataLines = tableLines.slice(2);
+  
+  // Parse data rows
+  const rows = dataLines.map(line => {
+    const cells = line.split('|').map(c => c.trim()).filter(c => c);
+    return cells;
+  });
+  
+  const table = (
+    <div key={`table-${startIndex}`} className="my-4 overflow-x-auto border border-gray-200 rounded-lg">
+      <table className="min-w-full bg-white">
+        <thead className="bg-gray-50">
+          <tr>
+            {headers.map((header, index) => (
+              <th
+                key={index}
+                className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b border-gray-200"
+              >
+                {cleanMarkdown(header)}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody className="bg-white divide-y divide-gray-200">
+          {rows.map((row, rowIndex) => (
+            <tr key={rowIndex} className={rowIndex % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+              {row.map((cell, cellIndex) => (
+                <td
+                  key={cellIndex}
+                  className="px-4 py-3 text-sm text-gray-900 border-b border-gray-200"
+                >
+                  {cleanMarkdown(cell)}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+  
+  return { table, endIndex: currentIndex - 1 };
+};
+
 // Function to format markdown content for display
 const formatMarkdownContent = (content: string): React.ReactNode => {
   const lines = content.split('\n');
+  const elements: React.ReactNode[] = [];
+  let index = 0;
   
-  return lines.map((line, index) => {
+  while (index < lines.length) {
+    const line = lines[index];
     const trimmedLine = line.trim();
     
     // Skip empty lines
     if (!trimmedLine) {
-      return <br key={index} />;
+      elements.push(<br key={index} />);
+      index++;
+      continue;
+    }
+    
+    // Check for markdown table
+    if (trimmedLine.includes('|') && trimmedLine.length > 0) {
+      const { table, endIndex } = parseMarkdownTable(lines, index);
+      if (table) {
+        elements.push(table);
+        index = endIndex + 1;
+        continue;
+      }
     }
     
     // Handle headers
     if (trimmedLine.match(/^###\s+/)) {
       const text = cleanMarkdown(trimmedLine.replace(/^###\s+/, '').trim());
-      return <h3 key={index} className="text-lg font-semibold text-gray-900 mt-4 mb-2">{text}</h3>;
+      elements.push(<h3 key={index} className="text-lg font-semibold text-gray-900 mt-4 mb-2">{text}</h3>);
     } else if (trimmedLine.match(/^##\s+/)) {
       const text = cleanMarkdown(trimmedLine.replace(/^##\s+/, '').trim());
-      return <h2 key={index} className="text-xl font-bold text-gray-900 mt-6 mb-3">{text}</h2>;
+      elements.push(<h2 key={index} className="text-xl font-bold text-gray-900 mt-6 mb-3">{text}</h2>);
     } else if (trimmedLine.match(/^#\s+/)) {
       const text = cleanMarkdown(trimmedLine.replace(/^#\s+/, '').trim());
-      return <h1 key={index} className="text-2xl font-bold text-gray-900 mt-8 mb-4">{text}</h1>;
+      elements.push(<h1 key={index} className="text-2xl font-bold text-gray-900 mt-8 mb-4">{text}</h1>);
     }
-    
     // Handle bold text (entire line)
-    if (trimmedLine.match(/^\*\*.*\*\*$/)) {
+    else if (trimmedLine.match(/^\*\*.*\*\*$/)) {
       const text = cleanMarkdown(trimmedLine.replace(/^\*\*(.*)\*\*$/, '$1').trim());
-      return <div key={index} className="font-semibold text-gray-900 mb-2">{text}</div>;
+      elements.push(<div key={index} className="font-semibold text-gray-900 mb-2">{text}</div>);
     }
-    
     // Handle list items with bold
-    if (trimmedLine.match(/^[-*]\s+\*\*.*\*\*$/)) {
+    else if (trimmedLine.match(/^[-*]\s+\*\*.*\*\*$/)) {
       const text = cleanMarkdown(trimmedLine.replace(/^[-*]\s+\*\*(.*)\*\*$/, '$1').trim());
-      return (
+      elements.push(
         <div key={index} className="ml-4 mb-1 flex items-start">
           <span className="text-blue-600 mr-2 text-sm">•</span>
           <span className="text-sm text-gray-700 font-semibold">{text}</span>
         </div>
       );
     }
-    
     // Handle regular list items
-    if (trimmedLine.match(/^[-*]\s+/)) {
+    else if (trimmedLine.match(/^[-*]\s+/)) {
       const text = cleanMarkdown(trimmedLine.replace(/^[-*]\s+/, '').trim());
-      return (
+      elements.push(
         <div key={index} className="ml-4 mb-1 flex items-start">
           <span className="text-blue-600 mr-2 text-sm">•</span>
           <span className="text-sm text-gray-700">{text}</span>
         </div>
       );
     }
-    
     // Handle numbered lists
-    if (trimmedLine.match(/^\d+\.\s+/)) {
+    else if (trimmedLine.match(/^\d+\.\s+/)) {
       const text = cleanMarkdown(trimmedLine);
-      return <div key={index} className="ml-4 mb-1 text-sm text-gray-700">{text}</div>;
+      elements.push(<div key={index} className="ml-4 mb-1 text-sm text-gray-700">{text}</div>);
     }
-    
     // Handle separator lines
-    if (trimmedLine.includes('--')) {
-      return <hr key={index} className="my-4 border-gray-300" />;
+    else if (trimmedLine.includes('--')) {
+      elements.push(<hr key={index} className="my-4 border-gray-300" />);
+    }
+    // Regular text - clean all markdown
+    else {
+      const cleanedText = cleanMarkdown(line);
+      elements.push(<div key={index} className="mb-2 text-sm text-gray-700">{cleanedText}</div>);
     }
     
-    // Regular text - clean all markdown
-    const cleanedText = cleanMarkdown(line);
-    return <div key={index} className="mb-2 text-sm text-gray-700">{cleanedText}</div>;
-  });
+    index++;
+  }
+  
+  return elements;
 };
 
 interface PDFPreviewProps {
@@ -135,8 +219,8 @@ interface PDFModalProps {
 const PDFModal: React.FC<PDFModalProps> = ({ data, isOpen, onClose }) => {
   if (!isOpen) return null;
 
-  const handleDownload = () => {
-    generatePDF(data);
+  const handleDownload = async () => {
+    await generatePDF(data);
   };
 
   return (
@@ -288,7 +372,7 @@ const PDFModal: React.FC<PDFModalProps> = ({ data, isOpen, onClose }) => {
   );
 };
 
-export const TextPDFPreview: React.FC<TextPDFPreviewProps> = ({ content, title = 'Rapport IA', onExpand }) => {
+export const TextPDFPreview: React.FC<TextPDFPreviewProps> = ({ content, title = 'Rapport Ubora', onExpand }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   const handleExpand = () => {
@@ -314,7 +398,7 @@ export const TextPDFPreview: React.FC<TextPDFPreviewProps> = ({ content, title =
             </div>
             <div>
               <h3 className="text-sm font-semibold text-gray-900">{title}</h3>
-              <p className="text-xs text-gray-500">Rapport généré par IA</p>
+              <p className="text-xs text-gray-500">Rapport généré avec Archa</p>
             </div>
           </div>
           <div className="flex items-center space-x-2">
@@ -362,7 +446,7 @@ export const TextPDFPreview: React.FC<TextPDFPreviewProps> = ({ content, title =
                 </div>
                 <div>
                   <h2 className="text-xl font-bold text-gray-900">{title}</h2>
-                  <p className="text-sm text-gray-500">Rapport généré par IA</p>
+                  <p className="text-sm text-gray-500">Rapport généré avec Archa</p>
                 </div>
               </div>
               <div className="flex items-center space-x-3">
