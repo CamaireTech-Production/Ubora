@@ -59,6 +59,7 @@ jobs:
         
         # Production URLs
         VITE_API_URL=https://my.ubora-app.com/api/ai/ask
+        VITE_AI_ENDPOINT=https://my.ubora-app.com/api/ai/ask
         VITE_FIREBASE_API_KEY=${{ secrets.FIREBASE_API_KEY }}
         VITE_FIREBASE_AUTH_DOMAIN=${{ secrets.FIREBASE_AUTH_DOMAIN }}
         VITE_FIREBASE_PROJECT_ID=${{ secrets.FIREBASE_PROJECT_ID }}
