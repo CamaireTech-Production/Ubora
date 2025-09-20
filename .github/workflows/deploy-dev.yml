@@ -110,18 +110,27 @@ jobs:
             Header always set Referrer-Policy "strict-origin-when-cross-origin"
         </IfModule>
         
-        # Handle client-side routing
+        # Handle client-side routing (React Router)
         RewriteEngine On
         RewriteBase /
         
-        # Don't rewrite existing files or directories
-        RewriteCond %{REQUEST_FILENAME} -f [OR]
-        RewriteCond %{REQUEST_FILENAME} -d
-        RewriteRule . - [L]
+        # Handle Angular and React Router
+        # Don't rewrite files that exist
+        RewriteCond %{REQUEST_FILENAME} !-f
+        RewriteCond %{REQUEST_FILENAME} !-d
+        RewriteCond %{REQUEST_FILENAME} !-l
         
-        # Handle client-side routing
-        RewriteRule ^index\.html$ - [L]
+        # Don't rewrite API calls
+        RewriteCond %{REQUEST_URI} !^/api/
+        
+        # Don't rewrite static assets
+        RewriteCond %{REQUEST_URI} !\.(css|js|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$
+        
+        # Rewrite everything else to index.html
         RewriteRule . /index.html [L]
+        
+        # Handle favicon
+        RewriteRule ^favicon\.ico$ /favicon.ico [L]
         EOF
          
     - name: Deploy to Hostinger via FTP
