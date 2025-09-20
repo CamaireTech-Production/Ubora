@@ -3,11 +3,6 @@ name: Deploy Backend to VPS (Development)
 on:
   push:
     branches: [ dev ]
-    paths:
-      - 'api/**'
-      - 'server/**'
-      - 'package.json'
-      - 'package-lock.json'
 
 jobs:
   deploy-backend:

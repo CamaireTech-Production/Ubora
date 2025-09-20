@@ -3,11 +3,6 @@ name: Deploy Backend to VPS (Production)
 on:
   push:
     branches: [ master ]
-    paths:
-      - 'api/**'
-      - 'server/**'
-      - 'package.json'
-      - 'package-lock.json'
 
 jobs:
   deploy-backend:
