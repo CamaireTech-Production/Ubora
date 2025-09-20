@@ -1,0 +1,96 @@
+name: Deploy Backend to VPS (Development)
+
+on:
+  push:
+    branches: [ dev ]
+
+jobs:
+  deploy-backend:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: npm ci
+      
+    - name: Create environment file for backend
+      run: |
+        cat > .env << EOF
+        # Development Backend Environment Variables
+        
+        # Firebase Configuration
+        FIREBASE_PROJECT_ID=${{ secrets.FIREBASE_PROJECT_ID }}
+        FIREBASE_CLIENT_EMAIL=${{ secrets.FIREBASE_CLIENT_EMAIL }}
+        FIREBASE_PRIVATE_KEY=${{ secrets.FIREBASE_PRIVATE_KEY }}
+        
+        # OpenAI Configuration
+        OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
+        
+        # Server Configuration
+        PORT=3000
+        NODE_ENV=development
+        
+        # CORS Configuration
+        CORS_ORIGIN=https://dev.ubora-app.com
+        EOF
+        
+    - name: Deploy to VPS
+      uses: appleboy/ssh-action@v1.0.3
+      with:
+        host: ${{ secrets.VPS_HOST }}
+        username: ${{ secrets.VPS_USERNAME }}
+        key: ${{ secrets.VPS_SSH_KEY }}
+        port: ${{ secrets.VPS_PORT }}
+        script: |
+          # Create directories if they don't exist
+          mkdir -p /var/www/ubora-backend-dev
+          cd /var/www/ubora-backend-dev
+          
+          # Clone repository if it doesn't exist
+          if [ ! -d ".git" ]; then
+            git clone https://github.com/CamaireTech-Production/Ubora.git .
+            git checkout dev
+          else
+            git pull origin dev
+          fi
+          
+          # Install dependencies
+          npm ci
+          
+          # Create/update .env file
+          cat > .env << 'EOF'
+          FIREBASE_PROJECT_ID=${{ secrets.FIREBASE_PROJECT_ID }}
+          FIREBASE_CLIENT_EMAIL=${{ secrets.FIREBASE_CLIENT_EMAIL }}
+          FIREBASE_PRIVATE_KEY=${{ secrets.FIREBASE_PRIVATE_KEY }}
+          OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
+          PORT=3000
+          NODE_ENV=development
+          CORS_ORIGIN=https://dev.ubora-app.com
+          EOF
+          
+          # Stop existing process
+          pm2 stop ubora-backend-dev || true
+          pm2 delete ubora-backend-dev || true
+          
+          # Start fresh with PM2
+          pm2 start server/production-server.js --name ubora-backend-dev
+          pm2 save
+          
+          # Wait a moment for startup
+          sleep 3
+          
+          # Check if it's running
+          pm2 list
+          
+          # Test the endpoint
+          curl -f http://localhost:3000/health || echo "Health check failed"
+          
+          echo "Development backend deployed successfully"
