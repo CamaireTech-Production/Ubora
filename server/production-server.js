@@ -14,11 +14,11 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Middleware
-app.use(cors());
+app.use(cors({
+  origin: process.env.CORS_ORIGIN || '*',
+  credentials: true
+}));
 app.use(express.json());
-
-// Serve static files from the dist directory
-app.use(express.static(path.join(__dirname, '../dist')));
 
 // Import the AI handlers (CommonJS modules)
 import { createRequire } from 'module';
@@ -35,15 +35,35 @@ app.get('/api/ai/health', healthHandler);
 app.get('/health', (req, res) => {
   res.json({ 
     ok: true, 
-    message: 'Production server running on Render',
+    message: 'Production server running on VPS',
     timestamp: new Date().toISOString(),
     port: PORT
   });
 });
 
-// Serve React app for all other routes
+// Test endpoint for debugging
+app.get('/test', (req, res) => {
+  res.json({ 
+    message: 'Backend is working!',
+    env: {
+      firebaseProjectId: process.env.FIREBASE_PROJECT_ID ? 'Set' : 'Missing',
+      openaiKey: process.env.OPENAI_API_KEY ? 'Set' : 'Missing',
+      corsOrigin: process.env.CORS_ORIGIN || 'Not set'
+    }
+  });
+});
+
+// API-only server - no static file serving
 app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, '../dist/index.html'));
+  res.status(404).json({ 
+    error: 'Not Found',
+    message: 'This is an API-only server. Frontend is served separately.',
+    availableEndpoints: [
+      'POST /api/ai/ask',
+      'GET /api/ai/health',
+      'GET /health'
+    ]
+  });
 });
 
 // Start server
@@ -52,7 +72,9 @@ app.listen(PORT, () => {
   console.log(`📡 AI endpoints available at:`);
   console.log(`   - POST /api/ai/ask`);
   console.log(`   - GET  /api/ai/health`);
-  console.log(`🌐 Frontend served from /dist`);
+  console.log(`   - GET  /health`);
+  console.log(`   - GET  /test`);
+  console.log(`🌐 CORS Origin: ${process.env.CORS_ORIGIN || 'All origins allowed'}`);
   console.log(`🔧 Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`📊 Firebase Project: ${process.env.FIREBASE_PROJECT_ID || 'Not configured'}`);
   console.log(`🤖 OpenAI: ${process.env.OPENAI_API_KEY ? 'Configured' : 'Not configured'}`);
