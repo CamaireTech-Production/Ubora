@@ -48,9 +48,9 @@ jobs:
         # Server Configuration
         PORT=3000
         
-        # Development URLs
-        VITE_API_URL=https://dev.ubora-app.com/api/ai/ask
-        VITE_AI_ENDPOINT=https://dev.ubora-app.com/api/ai/ask
+            # Development URLs - VPS Backend
+            VITE_API_URL=https://api-dev.ubora-app.com/ai/ask
+            VITE_AI_ENDPOINT=https://api-dev.ubora-app.com/ai/ask
         VITE_FIREBASE_API_KEY=${{ secrets.FIREBASE_API_KEY }}
         VITE_FIREBASE_AUTH_DOMAIN=${{ secrets.FIREBASE_AUTH_DOMAIN }}
         VITE_FIREBASE_PROJECT_ID=${{ secrets.FIREBASE_PROJECT_ID }}
@@ -73,39 +73,7 @@ jobs:
         # Copy built files
         cp -r dist/* deploy-package/
         
-        # Create API endpoints as JSON files for static hosting
-        mkdir -p deploy-package/api/ai
-        
-        # Create health check endpoint as JSON
-        cat > deploy-package/api/ai/health.json << 'EOF'
-        {
-          "ok": true,
-          "ts": 1758342000,
-          "service": "Ubora AI Backend (Dev)",
-          "version": "1.0.0",
-          "message": "API endpoint is accessible"
-        }
-        EOF
-        
-        # Create ask endpoint as JSON
-        cat > deploy-package/api/ai/ask.json << 'EOF'
-        {
-          "error": "Backend service not available",
-          "message": "This is a static deployment. Backend services need to be hosted separately.",
-          "suggestion": "Consider using Vercel, Netlify Functions, or a separate Node.js hosting service for the API"
-        }
-        EOF
-        
-        # Create index.json for the api/ai directory
-        cat > deploy-package/api/ai/index.json << 'EOF'
-        {
-          "message": "Ubora AI API (Dev)",
-          "endpoints": {
-            "GET /api/ai/health": "Health check",
-            "POST /api/ai/ask": "AI chat endpoint"
-          }
-        }
-        EOF
+        # No static API files needed - using VPS backend
          
         # Create .htaccess for Hostinger
         cat > deploy-package/.htaccess << 'EOF'
@@ -142,14 +110,6 @@ jobs:
             Header always set Referrer-Policy "strict-origin-when-cross-origin"
         </IfModule>
         
-        # Set content type for JSON files
-        <Files "*.json">
-            Header set Content-Type "application/json"
-            Header set Access-Control-Allow-Origin "*"
-            Header set Access-Control-Allow-Methods "GET, POST, OPTIONS"
-            Header set Access-Control-Allow-Headers "Content-Type, Authorization"
-        </Files>
-        
         # Handle client-side routing
         RewriteEngine On
         RewriteBase /
@@ -159,7 +119,7 @@ jobs:
         RewriteCond %{REQUEST_FILENAME} -d
         RewriteRule . - [L]
         
-        # Handle client-side routing for non-API routes
+        # Handle client-side routing
         RewriteRule ^index\.html$ - [L]
         RewriteRule . /index.html [L]
         EOF

@@ -1,0 +1,90 @@
+name: Deploy Backend to VPS (Production)
+
+on:
+  push:
+    branches: [ master ]
+    paths:
+      - 'api/**'
+      - 'server/**'
+      - 'package.json'
+      - 'package-lock.json'
+
+jobs:
+  deploy-backend:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: npm ci
+      
+    - name: Run tests
+      run: npm test
+      
+    - name: Create environment file for backend
+      run: |
+        cat > .env << EOF
+        # Production Backend Environment Variables
+        
+        # Firebase Configuration
+        FIREBASE_PROJECT_ID=${{ secrets.FIREBASE_PROJECT_ID }}
+        FIREBASE_CLIENT_EMAIL=${{ secrets.FIREBASE_CLIENT_EMAIL }}
+        FIREBASE_PRIVATE_KEY="${{ secrets.FIREBASE_PRIVATE_KEY }}"
+        
+        # OpenAI Configuration
+        OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
+        
+        # Server Configuration
+        PORT=3000
+        NODE_ENV=production
+        
+        # CORS Configuration
+        CORS_ORIGIN=https://my.ubora-app.com
+        EOF
+        
+    - name: Deploy to VPS
+      uses: appleboy/ssh-action@v1.0.3
+      with:
+        host: ${{ secrets.VPS_HOST }}
+        username: ${{ secrets.VPS_USERNAME }}
+        key: ${{ secrets.VPS_SSH_KEY }}
+        port: ${{ secrets.VPS_PORT }}
+        script: |
+          # Create directories if they don't exist
+          mkdir -p /var/www/ubora-backend-prod
+          cd /var/www/ubora-backend-prod
+          
+          # Clone repository if it doesn't exist
+          if [ ! -d ".git" ]; then
+            git clone https://github.com/CamaireTech-Production/Ubora.git .
+            git checkout master
+          else
+            git pull origin master
+          fi
+          
+          # Install dependencies
+          npm ci
+          
+          # Create/update .env file
+          cat > .env << 'EOF'
+          FIREBASE_PROJECT_ID=${{ secrets.FIREBASE_PROJECT_ID }}
+          FIREBASE_CLIENT_EMAIL=${{ secrets.FIREBASE_CLIENT_EMAIL }}
+          FIREBASE_PRIVATE_KEY="${{ secrets.FIREBASE_PRIVATE_KEY }}"
+          OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
+          PORT=3000
+          NODE_ENV=production
+          CORS_ORIGIN=https://my.ubora-app.com
+          EOF
+          
+          # Start or restart with PM2
+          pm2 restart ubora-backend-prod || pm2 start server/production-server.js --name ubora-backend-prod
+          pm2 save
+          echo "Production backend deployed successfully"
