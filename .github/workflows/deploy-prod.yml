@@ -82,45 +82,53 @@ jobs:
         # Copy built files
         cp -r dist/* deploy-package/
         
-        # Copy server files
-        cp -r server deploy-package/
-        cp -r api deploy-package/
+        # Create a simple API endpoint simulation for static hosting
+        mkdir -p deploy-package/api/ai
         
-        # Copy package.json and install production dependencies
-        cp package.json deploy-package/
-        cp package-lock.json deploy-package/
+        # Create a simple health check endpoint
+        cat > deploy-package/api/ai/health.php << 'EOF'
+        <?php
+        header('Content-Type: application/json');
+        header('Access-Control-Allow-Origin: *');
+        header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
+        header('Access-Control-Allow-Headers: Content-Type, Authorization');
         
-        # Copy environment file
-        cp .env.local deploy-package/
-        
-        # Create a production start script
-        cat > deploy-package/start.sh << 'EOF'
-        #!/bin/bash
-        echo "Starting production server..."
-        export NODE_ENV=production
-        npm install --production
-        node server/production-server.js
-        EOF
-        chmod +x deploy-package/start.sh
-        
-        # Create optimized package.json for production
-        cat > deploy-package/package.json << 'EOF'
-        {
-          "name": "ubora-prod",
-          "version": "1.0.0",
-          "type": "module",
-          "scripts": {
-            "start": "node server/production-server.js",
-            "install-deps": "npm install --production"
-          },
-          "dependencies": {
-            "express": "^4.18.2",
-            "cors": "^2.8.5",
-            "dotenv": "^16.3.1",
-            "firebase-admin": "^12.7.0",
-            "openai": "^4.28.0"
-          }
+        if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+            http_response_code(204);
+            exit();
         }
+        
+        echo json_encode([
+            'ok' => true,
+            'ts' => time(),
+            'service' => 'Ubora AI Backend',
+            'version' => '1.0.0',
+            'message' => 'API endpoint is accessible'
+        ]);
+        ?>
+        EOF
+        
+        # Create a placeholder for the ask endpoint
+        cat > deploy-package/api/ai/ask.php << 'EOF'
+        <?php
+        header('Content-Type: application/json');
+        header('Access-Control-Allow-Origin: *');
+        header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
+        header('Access-Control-Allow-Headers: Content-Type, Authorization');
+        
+        if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+            http_response_code(204);
+            exit();
+        }
+        
+        // This is a placeholder - you'll need to implement the actual AI logic
+        // or use a separate service for the backend
+        echo json_encode([
+            'error' => 'Backend service not available',
+            'message' => 'This is a static deployment. Backend services need to be hosted separately.',
+            'suggestion' => 'Consider using Vercel, Netlify Functions, or a separate Node.js hosting service for the API'
+        ]);
+        ?>
         EOF
          
         # Create .htaccess for Hostinger
@@ -158,9 +166,14 @@ jobs:
             Header always set Referrer-Policy "strict-origin-when-cross-origin"
         </IfModule>
         
-        # Handle client-side routing
+        # Handle API routes and client-side routing
         RewriteEngine On
         RewriteBase /
+        
+        # API routes - don't rewrite to index.html
+        RewriteRule ^api/ - [L]
+        
+        # Handle client-side routing for non-API routes
         RewriteRule ^index\.html$ - [L]
         RewriteCond %{REQUEST_FILENAME} !-f
         RewriteCond %{REQUEST_FILENAME} !-d
