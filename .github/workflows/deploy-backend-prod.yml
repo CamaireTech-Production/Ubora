@@ -62,7 +62,7 @@ jobs:
             git pull origin master
           fi
           
-          # Install dependencies
+          # Install dependencies from root package.json
           npm ci
           
           # Create/update .env file
@@ -76,7 +76,21 @@ jobs:
           CORS_ORIGIN=https://my.ubora-app.com
           EOF
           
-          # Start or restart with PM2
-          pm2 restart ubora-backend-prod || pm2 start server/production-server.js --name ubora-backend-prod
+          # Stop existing process
+          pm2 stop ubora-backend-prod || true
+          pm2 delete ubora-backend-prod || true
+          
+          # Start fresh with PM2
+          pm2 start server/production-server.js --name ubora-backend-prod
           pm2 save
+          
+          # Wait a moment for startup
+          sleep 3
+          
+          # Check if it's running
+          pm2 list
+          
+          # Test the endpoint
+          curl -f http://localhost:3000/health || echo "Health check failed"
+          
           echo "Production backend deployed successfully"
