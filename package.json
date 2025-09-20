@@ -10,7 +10,11 @@
     "build": "vite build",
     "preview": "vite preview",
     "start": "node server/production-server.js",
-    "render-build": "npm run build"
+    "render-build": "npm run build",
+    "deploy:dev": "node scripts/deploy-dev.js",
+    "deploy:prod": "node scripts/deploy-prod.js",
+    "deploy:dev:local": "npm run deploy:dev && echo 'Development package ready for manual FTP upload'",
+    "deploy:prod:local": "npm run deploy:prod && echo 'Production package ready for manual FTP upload'"
   },
   "dependencies": {
     "@types/react-router-dom": "^5.3.3",
