@@ -157,7 +157,7 @@ jobs:
         RewriteRule . /index.html [L]
         EOF
          
-     - name: Deploy to Hostinger via FTP
+    - name: Deploy to Hostinger via FTP
       uses: SamKirkland/FTP-Deploy-Action@v4.3.4
       with:
         server: ${{ secrets.DEV_FTP_HOST }}
