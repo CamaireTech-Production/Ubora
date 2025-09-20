@@ -122,11 +122,11 @@ export const DirectorPackageOverview: React.FC<DirectorPackageOverviewProps> = (
   const daysRemaining = Math.max(1, Math.ceil((nextRenewalDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
   const isNearRenewal = daysRemaining <= 7;
   
-  // Check if any limits are reached
-  const formsLimitReached = !isLimitUnlimited('maxForms') && currentForms >= maxForms;
-  const dashboardsLimitReached = !isLimitUnlimited('maxDashboards') && currentDashboards >= maxDashboards;
-  const usersLimitReached = !isLimitUnlimited('maxUsers') && currentUsers >= maxUsers;
-  const tokensLimitReached = !hasUnlimitedTokens() && (remainingTokens <= 0 || tokenUsagePercentage >= 50 || remainingTokens <= 2000);
+  // Check if any limits are reached (only show warnings for actual limits, not pay-as-you-go)
+  const formsLimitReached = !isLimitUnlimited('maxForms') && currentForms >= maxForms && payAsYouGoForms === 0;
+  const dashboardsLimitReached = !isLimitUnlimited('maxDashboards') && currentDashboards >= maxDashboards && payAsYouGoDashboards === 0;
+  const usersLimitReached = !isLimitUnlimited('maxUsers') && currentUsers >= maxUsers && payAsYouGoUsers === 0;
+  const tokensLimitReached = !hasUnlimitedTokens() && remainingTokens <= 500; // Only show warning when critically low
   
   // Debug logging for token limits
   console.log('🔍 Token limit debug:', {
@@ -393,7 +393,7 @@ export const DirectorPackageOverview: React.FC<DirectorPackageOverviewProps> = (
               </div>
               <div className="flex items-center space-x-2">
                 <span className="text-sm font-medium">
-                  {hasUnlimitedTokens() ? 'Illimité' : `${usedTokens.toLocaleString()}/${totalAvailableTokens.toLocaleString()} utilisés`}
+                  {hasUnlimitedTokens() ? 'Illimité' : `${remainingTokens.toLocaleString()} restants`}
                 </span>
                 {tokensLimitReached && (
                   <AlertTriangle className="h-4 w-4 text-orange-500" />

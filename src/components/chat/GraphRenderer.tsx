@@ -20,7 +20,8 @@ import {
 } from 'recharts';
 import { Maximize2, Download } from 'lucide-react';
 import { Button } from '../Button';
-import { GraphData } from '../../types';
+import { GraphData, PDFData } from '../../types';
+import { generatePDF } from '../../utils/PDFGenerator';
 
 interface GraphRendererProps {
   data: GraphData;
@@ -39,9 +40,32 @@ const COLORS = ['#3B82F6', '#EF4444', '#10B981', '#F59E0B', '#8B5CF6', '#EC4899'
 const GraphModal: React.FC<GraphModalProps> = ({ data, isOpen, onClose }) => {
   if (!isOpen) return null;
 
-  const handleDownload = () => {
-    // TODO: Implement chart download functionality
-    console.log('Download chart:', data.title);
+  const handleDownload = async () => {
+    try {
+      // Create PDFData object from the graph data
+      const pdfData: PDFData = {
+        title: data.title,
+        subtitle: `Graphique ${data.type} - ${data.data.length} points de données`,
+        sections: [
+          {
+            title: 'Analyse du graphique',
+            content: `Ce graphique de type "${data.type}" présente ${data.data.length} points de données.`,
+            type: 'text'
+          }
+        ],
+        charts: [data],
+        generatedAt: new Date(),
+        metadata: {
+          totalEntries: data.data.length,
+          chartType: data.type
+        }
+      };
+      
+      // Generate and download the PDF
+      await generatePDF(pdfData);
+    } catch (error) {
+      console.error('Error generating PDF from graph modal:', error);
+    }
   };
 
   return (

@@ -648,10 +648,23 @@ export const DirecteurDashboard: React.FC = () => {
                     return (
                       <div
                         key={form.id}
-                        className="bg-white border border-gray-200 rounded-lg p-4 sm:p-5 hover:shadow-lg transition-all duration-200 hover:border-blue-300 mobile-form-card flex-shrink-0 w-80 sm:w-96"
+                        className="bg-white border border-gray-200 rounded-lg p-4 sm:p-5 hover:shadow-lg transition-all duration-200 hover:border-blue-300 mobile-form-card flex-shrink-0 w-80 sm:w-96 relative"
                       >
+                        {/* Delete button in top-right corner */}
+                        <div className="absolute top-3 right-3 z-10">
+                          <Button
+                            variant="danger"
+                            size="sm"
+                            onClick={() => handleDeleteForm(form.id)}
+                            className="p-1.5 h-8 w-8 opacity-70 hover:opacity-100 transition-opacity"
+                            title="Supprimer le formulaire"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
+                        </div>
+
                         {/* Header avec titre et badge */}
-                        <div className="mb-3">
+                        <div className="mb-3 pr-10">
                           <div className="flex flex-col space-y-2">
                             <h3 className="font-semibold text-gray-900 text-base sm:text-lg line-clamp-2 leading-tight">
                               {form.title}
@@ -702,37 +715,25 @@ export const DirecteurDashboard: React.FC = () => {
                         </div>
 
                         {/* Actions */}
-                        <div className="flex flex-col space-y-2 form-card-actions">
-                          <div className="flex space-x-2">
-                            <Button
-                              variant="secondary"
-                              size="sm"
-                              onClick={() => handleEditForm(form)}
-                              className="flex-1 flex items-center justify-center space-x-1 text-xs"
-                            >
-                              <Edit className="h-3 w-3" />
-                              <span>Modifier</span>
-                            </Button>
-                            
-                            <Button
-                              variant="secondary"
-                              size="sm"
-                              onClick={() => handleViewResponses(form.id)}
-                              className="flex-1 flex items-center justify-center space-x-1 text-xs"
-                            >
-                              <Eye className="h-3 w-3" />
-                              <span>Voir les réponses</span>
-                            </Button>
-                          </div>
+                        <div className="flex space-x-2 form-card-actions">
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={() => handleEditForm(form)}
+                            className="flex-1 flex items-center justify-center space-x-1 text-xs"
+                          >
+                            <Edit className="h-3 w-3" />
+                            <span>Modifier</span>
+                          </Button>
                           
                           <Button
-                            variant="danger"
+                            variant="secondary"
                             size="sm"
-                            onClick={() => handleDeleteForm(form.id)}
-                            className="w-full flex items-center justify-center space-x-1 text-xs"
+                            onClick={() => handleViewResponses(form.id)}
+                            className="flex-1 flex items-center justify-center space-x-1 text-xs"
                           >
-                            <Trash2 className="h-3 w-3" />
-                            <span>Supprimer</span>
+                            <Eye className="h-3 w-3" />
+                            <span>Voir les réponses</span>
                           </Button>
                         </div>
                         

@@ -17,8 +17,8 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
   onLogout
 }) => {
   return (
-    <div className="sticky top-0 z-30 bg-white/90 backdrop-blur shadow-sm px-3 py-2">
-      <div className="max-w-screen-md mx-auto">
+    <div className="sticky top-0 z-30 bg-white/90 backdrop-blur shadow-sm px-4 sm:px-6 lg:px-8 py-2">
+      <div className="max-w-7xl mx-auto">
         <div className="flex items-center justify-between">
           {/* Left: Panel button */}
           <div className="flex items-center">

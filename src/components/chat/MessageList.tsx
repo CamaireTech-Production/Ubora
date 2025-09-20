@@ -50,7 +50,7 @@ export const MessageList: React.FC<MessageListProps> = ({
   return (
     <div 
       ref={containerRef}
-      className="flex-1 overflow-y-auto pt-4 pb-48 px-4"
+      className="flex-1 overflow-y-auto pt-4 pb-48 px-4 sm:px-6 lg:px-8"
       onScroll={handleScroll}
       style={{ 
         maxHeight: 'calc(100vh - 140px)',

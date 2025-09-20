@@ -84,7 +84,7 @@ export const UserPackageInfo: React.FC<UserPackageInfoProps> = ({
             ) : (
               <span>
                 <span className="font-medium">{remainingTokens.toLocaleString()}</span>
-                <span className="text-gray-400">/{monthlyLimit.toLocaleString()}</span>
+                <span className="text-gray-400"> restants</span>
               </span>
             )}
           </span>

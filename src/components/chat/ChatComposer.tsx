@@ -87,14 +87,14 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
       textarea.style.height = 'auto';
       const scrollHeight = textarea.scrollHeight;
       const lineHeight = 24; // Standard line height for chat input
-      const maxHeight = lineHeight * 4; // Max 4 lines
+      const maxHeight = lineHeight * 5; // Max 5 lines
       
       if (scrollHeight <= maxHeight) {
         textarea.style.height = `${scrollHeight}px`;
         setRows(Math.max(1, Math.floor(scrollHeight / lineHeight)));
       } else {
         textarea.style.height = `${maxHeight}px`;
-        setRows(4);
+        setRows(5);
       }
     }
   }, [value]);
@@ -115,7 +115,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
 
   return (
     <div className="fixed bottom-0 left-0 right-0 z-10 bg-gradient-to-t from-white via-white to-transparent pt-4">
-      <div className="max-w-screen-md mx-auto px-4 pb-4" style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-4" style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
         
         {/* Common background container for filters and input */}
         <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-visible">
@@ -173,10 +173,10 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
                   disabled={disabled}
                   maxLength={maxLength}
                   rows={rows}
-                  className="w-full resize-none border-0 outline-none text-base placeholder-gray-500 bg-transparent leading-6"
+                  className="w-full resize-none border-0 outline-none text-base placeholder-gray-500 bg-transparent leading-6 overflow-y-auto"
                   style={{
                     minHeight: '24px',
-                    maxHeight: '96px'
+                    maxHeight: '120px' // 5 lines * 24px line height
                   }}
                 />
               </div>
