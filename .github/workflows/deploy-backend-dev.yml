@@ -36,7 +36,7 @@ jobs:
         OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
         
         # Server Configuration
-        PORT=3000
+        PORT=3001
         NODE_ENV=development
         
         # CORS Configuration
@@ -72,7 +72,7 @@ jobs:
           FIREBASE_CLIENT_EMAIL=${{ secrets.FIREBASE_CLIENT_EMAIL }}
           FIREBASE_PRIVATE_KEY=${{ secrets.FIREBASE_PRIVATE_KEY }}
           OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
-          PORT=3000
+          PORT=3001
           NODE_ENV=development
           CORS_ORIGIN=https://dev.ubora-app.com
           EOF
@@ -92,6 +92,6 @@ jobs:
           pm2 list
           
           # Test the endpoint
-          curl -f http://localhost:3000/health || echo "Health check failed"
+          curl -f http://localhost:3001/health || echo "Health check failed"
           
           echo "Development backend deployed successfully"
