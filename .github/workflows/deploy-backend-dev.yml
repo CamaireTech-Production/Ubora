@@ -3,6 +3,7 @@ name: Deploy Backend to VPS (Development)
 on:
   push:
     branches: [ dev ]
+  workflow_dispatch:
 
 jobs:
   deploy-backend:
