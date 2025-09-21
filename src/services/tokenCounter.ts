@@ -10,13 +10,13 @@
 export class TokenCounter {
   /**
    * Estimate tokens using a simplified approach
-   * This is a close approximation to tiktoken's gpt-4o encoding
+   * This is a close approximation to tiktoken's gpt-4.1 encoding
    */
   private static estimateTokens(text: string): number {
     if (!text) return 0;
     
     // Simple estimation: ~4 characters per token for most languages
-    // This is close to tiktoken's behavior for gpt-4o
+    // This is close to tiktoken's behavior for gpt-4.1
     const baseTokens = Math.ceil(text.length / 4);
     
     // Add overhead for special characters, punctuation, etc.
@@ -87,7 +87,7 @@ export class TokenCounter {
 import { encoding_for_model } from 'tiktoken';
 
 export class TokenCounter {
-  private static encoder = encoding_for_model('gpt-4o');
+  private static encoder = encoding_for_model('gpt-4.1');
 
   private static estimateTokens(text: string): number {
     return this.encoder.encode(text).length;
