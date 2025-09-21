@@ -134,9 +134,20 @@ export class ResponseParser {
       jsonMatch = response.match(/```json\s*([\s\S]*?)(?=\n\n|\nExplication|$)/);
     }
     
-    // If still no match, try to find JSON object directly
+    // If still no match, try to find JSON object directly with more flexible patterns
     if (!jsonMatch) {
+      // Try to find JSON object with type field
       jsonMatch = response.match(/\{\s*"type"\s*:\s*"[^"]*"\s*,[\s\S]*?\}/);
+    }
+    
+    // If still no match, try to find any JSON object that might be graph data
+    if (!jsonMatch) {
+      jsonMatch = response.match(/\{\s*"title"\s*:\s*"[^"]*"\s*,[\s\S]*?\}/);
+    }
+    
+    // If still no match, try to find JSON array with data
+    if (!jsonMatch) {
+      jsonMatch = response.match(/\{\s*"data"\s*:\s*\[[\s\S]*?\]\s*[,\s\S]*?\}/);
     }
     
     if (jsonMatch) {
@@ -155,22 +166,29 @@ export class ResponseParser {
         }
       } catch (error) {
         console.error('Error parsing stats JSON:', error);
-        // Try to find and parse JSON more aggressively
-        const jsonPattern = /\{\s*"type"\s*:\s*"[^"]*"\s*,[\s\S]*?\}/g;
-        let match;
-        while ((match = jsonPattern.exec(response)) !== null) {
-          try {
-            const jsonData = JSON.parse(match[0]);
-            if (this.isGraphData(jsonData)) {
-              const enhancedGraphData = this.enhanceGraphData(jsonData);
-              return {
-                contentType: 'graph',
-                content: this.extractTextFromResponse(response),
-                graphData: enhancedGraphData
-              };
+        // Try to find and parse JSON more aggressively with multiple patterns
+        const jsonPatterns = [
+          /\{\s*"type"\s*:\s*"[^"]*"\s*,[\s\S]*?\}/g,
+          /\{\s*"title"\s*:\s*"[^"]*"\s*,[\s\S]*?\}/g,
+          /\{\s*"data"\s*:\s*\[[\s\S]*?\]\s*[,\s\S]*?\}/g
+        ];
+        
+        for (const pattern of jsonPatterns) {
+          let match;
+          while ((match = pattern.exec(response)) !== null) {
+            try {
+              const jsonData = JSON.parse(match[0]);
+              if (this.isGraphData(jsonData)) {
+                const enhancedGraphData = this.enhanceGraphData(jsonData);
+                return {
+                  contentType: 'graph',
+                  content: this.extractTextFromResponse(response),
+                  graphData: enhancedGraphData
+                };
+              }
+            } catch (parseError) {
+              console.error('Error parsing JSON pattern:', parseError);
             }
-          } catch (parseError) {
-            console.error('Error parsing JSON pattern:', parseError);
           }
         }
       }
@@ -185,12 +203,15 @@ export class ResponseParser {
 
   private static enhanceGraphData(data: any): GraphData {
     
+    // Ensure data.data is always an array
+    const dataArray = Array.isArray(data.data) ? data.data : [];
+    
     // Enhanced graph data with new properties and better defaults
     const enhancedData: GraphData = {
       type: data.type || 'bar',
       title: data.title || 'Graphique des données',
       subtitle: data.subtitle || undefined,
-      data: data.data || [],
+      data: dataArray,
       xAxisKey: data.xAxisKey || 'label',
       yAxisKey: data.yAxisKey || 'value',
       dataKey: data.dataKey || 'value',
@@ -204,12 +225,22 @@ export class ResponseParser {
       }
     };
 
-    // Add insights and recommendations if available (extended properties)
+    // Add insights and recommendations if available
     if (data.insights && Array.isArray(data.insights)) {
-      (enhancedData as any).insights = data.insights;
+      enhancedData.insights = data.insights;
     }
     if (data.recommendations && Array.isArray(data.recommendations)) {
-      (enhancedData as any).recommendations = data.recommendations;
+      enhancedData.recommendations = data.recommendations;
+    }
+    
+    // Add metadata if available
+    if (data.metadata && typeof data.metadata === 'object') {
+      enhancedData.metadata = {
+        totalEntries: data.metadata.totalEntries,
+        chartType: data.metadata.chartType,
+        dataSource: data.metadata.dataSource,
+        generatedAt: data.metadata.generatedAt ? new Date(data.metadata.generatedAt) : new Date()
+      };
     }
 
     return enhancedData;
@@ -304,14 +335,43 @@ export class ResponseParser {
 
 
   private static isGraphData(data: any): boolean {
-    return (
-      data &&
-      typeof data === 'object' &&
-      data.type &&
-      ['line', 'bar', 'pie', 'area', 'scatter'].includes(data.type) &&
-      data.title &&
-      Array.isArray(data.data)
-    );
+    // Basic validation
+    if (!data || typeof data !== 'object') {
+      return false;
+    }
+    
+    // Check if it has a valid chart type
+    const validTypes = ['line', 'bar', 'pie', 'area', 'scatter'];
+    if (!data.type || !validTypes.includes(data.type)) {
+      return false;
+    }
+    
+    // Check if it has a title (required)
+    if (!data.title || typeof data.title !== 'string') {
+      return false;
+    }
+    
+    // Check if it has data array (required)
+    if (!Array.isArray(data.data) || data.data.length === 0) {
+      return false;
+    }
+    
+    // Additional validation for data structure
+    // At least one data point should have a value or be a valid data structure
+    const hasValidData = data.data.some((item: any) => {
+      if (typeof item === 'object' && item !== null) {
+        // Check for common data keys
+        return item.value !== undefined || 
+               item.label !== undefined || 
+               item.employee !== undefined || 
+               item.date !== undefined ||
+               item.submissions !== undefined ||
+               Object.keys(item).length > 0;
+      }
+      return false;
+    });
+    
+    return hasValidData;
   }
   
   
@@ -468,8 +528,7 @@ export class ResponseParser {
             fileSize: metadata.fileSize,
             downloadUrl: metadata.downloadUrl,
             storagePath: metadata.storagePath,
-            extractedText: metadata.extractedText,
-            textExtractionStatus: metadata.textExtractionStatus
+            extractedText: metadata.extractedText
           });
         }
       } catch (error) {

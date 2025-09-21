@@ -9,7 +9,6 @@ import { MessageList } from '../components/chat/MessageList';
 import { ChatComposer } from '../components/chat/ChatComposer';
 import { FloatingSidePanel } from '../components/chat/FloatingSidePanel';
 import { Footer } from '../components/Footer';
-import { ResponseParser } from '../utils/ResponseParser';
 import { ChatMessage } from '../types';
 import { useToast } from '../hooks/useToast';
 import { usePackageAccess } from '../hooks/usePackageAccess';
@@ -58,7 +57,7 @@ export const DirecteurChat: React.FC = () => {
     createNewConversation,
     loadConversation,
     loadMoreMessages,
-    addMessage
+    addMessageToLocalState
   } = useConversation();
   
   const { showError } = useToast();
@@ -108,13 +107,6 @@ export const DirecteurChat: React.FC = () => {
         
         // Update user data locally without page reload
         if (user) {
-          const updatedUserData = {
-            ...user,
-            payAsYouGoTokens: (user.payAsYouGoTokens || 0) + tokens,
-            subscriptionEndDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days from now
-            subscriptionStatus: 'active'
-          };
-          
           // Update the user context (you'll need to implement this in your auth context)
           // For now, we'll trigger a user refresh
           console.log('🔄 User data updated locally');
@@ -222,28 +214,7 @@ RÉPONSE :
       }
     }
 
-    // Ajouter le message utilisateur
-    const userMessage: ChatMessage = {
-      id: `user_${Date.now()}`,
-      type: 'user',
-      content: messageToSend,
-      timestamp: new Date(),
-        meta: {
-          ...(isMultiFormat || actualFormats.length === 0 ? {} : { selectedFormat: actualFormats[0] }),
-          selectedFormats: actualFormats,
-          selectedFormIds: formsToAnalyze,
-          selectedFormTitles: forms.filter(form => formsToAnalyze.includes(form.id)).map(form => form.title)
-        }
-    };
-
-    // Add message to conversation (only if we have a conversation)
-    if (currentConversation) {
-      try {
-        await addMessage(userMessage);
-      } catch (error) {
-        console.error('Error adding user message:', error);
-      }
-    }
+    // Server will handle all message persistence, so we don't add messages locally
 
     setInputMessage('');
     setIsTyping(true);
@@ -362,33 +333,10 @@ RÉPONSE :
         console.log('🔄 User token usage updated');
       }
 
-      const responseTime = Date.now() - startTime;
+      // Server handles message creation and persistence
 
-      // Parse the AI response to detect graph/PDF data
-      const parsedResponse = ResponseParser.parseAIResponse(data.answer, messageToSend, isMultiFormat || actualFormats.length === 0 ? undefined : actualFormats[0], actualFormats);
-
-      // Create assistant message with parsed content
-      const assistantMessage = ResponseParser.createMessageFromParsedResponse(
-        parsedResponse,
-        `assistant_${Date.now()}`,
-        responseTime,
-        {
-          ...data.meta,
-          ...(isMultiFormat || actualFormats.length === 0 ? {} : { selectedFormat: actualFormats[0] }),
-          selectedFormats: actualFormats,
-          selectedFormIds: formsToAnalyze,
-          selectedFormTitles: forms.filter(form => formsToAnalyze.includes(form.id)).map(form => form.title)
-        }
-      );
-
-      // Add assistant message to conversation (only if we have a conversation)
-      if (currentConversation) {
-        try {
-          await addMessage(assistantMessage);
-        } catch (error) {
-          console.error('Error adding assistant message:', error);
-        }
-      }
+      // Server handles all message persistence
+      // Messages will be loaded when the conversation is refreshed or when new messages arrive
 
     } catch (error) {
       console.error('Erreur lors de l\'envoi du message:', error);
@@ -419,12 +367,12 @@ RÉPONSE :
         responseTime
       };
 
-      // Try to persist the error message if a conversation exists
+      // Add error message to local state (errors are not persisted by server)
       if (currentConversation) {
         try {
-          await addMessage(errorMessage);
-        } catch (persistError) {
-          console.error('Error persisting error message:', persistError);
+          addMessageToLocalState(errorMessage);
+        } catch (error) {
+          console.error('Error adding error message to local state:', error);
         }
       }
     } finally {

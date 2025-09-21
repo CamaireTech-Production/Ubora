@@ -479,6 +479,59 @@ INSTRUCTIONS POUR FORMAT TABLEAU :
 - Assure-toi que le tableau répond directement à la question posée avec des données concrètes`;
       }
       
+      if (responseFormat === 'stats') {
+        return `
+
+INSTRUCTIONS POUR FORMAT STATISTIQUES :
+- Analyse la question du directeur et propose un graphique qui répond directement à sa demande
+- Crée un graphique JSON structuré avec des données pertinentes
+- Utilise UNIQUEMENT les données fournies
+- Choisis le type de graphique le plus approprié (line, bar, pie, area, scatter)
+- Inclus une brève explication avant le graphique si nécessaire
+- Format JSON OBLIGATOIRE avec DONNÉES RÉELLES :
+
+\`\`\`json
+{
+  "type": "bar|line|pie|area|scatter",
+  "title": "Titre descriptif du graphique",
+  "subtitle": "Sous-titre optionnel",
+  "data": [
+    {"label": "Catégorie1", "value": 10, "employee": "Nom Employé", "date": "2024-01-01"},
+    {"label": "Catégorie2", "value": 15, "employee": "Nom Employé", "date": "2024-01-02"}
+  ],
+  "xAxisKey": "label",
+  "yAxisKey": "value",
+  "dataKey": "value",
+  "colors": ["#3B82F6", "#10B981", "#F59E0B", "#EF4444", "#8B5CF6"],
+  "options": {
+    "showLegend": true,
+    "showGrid": true,
+    "showTooltip": true
+  },
+  "insights": [
+    "Insight clé basé sur les données",
+    "Observation importante"
+  ],
+  "recommendations": [
+    "Recommandation actionnable",
+    "Suggestion d'amélioration"
+  ]
+}
+\`\`\`
+
+- OBLIGATOIRE : Inclus TOUJOURS des données réelles dans le tableau "data"
+- OBLIGATOIRE : Le graphique doit contenir au minimum 2-3 points de données pour être utile
+- OBLIGATOIRE : Utilise des clés appropriées (label, value, employee, date, submissions, etc.)
+- OBLIGATOIRE : Inclus des insights et recommandations basés sur les données
+- Assure-toi que le graphique répond directement à la question posée avec des données concrètes
+- Types de graphiques recommandés :
+  * "bar" : pour comparer des catégories
+  * "line" : pour montrer des tendances temporelles
+  * "pie" : pour montrer des proportions
+  * "area" : pour montrer des volumes cumulés
+  * "scatter" : pour montrer des corrélations`;
+      }
+      
       return `
 
 INSTRUCTIONS POUR RÉPONSE TEXTE :

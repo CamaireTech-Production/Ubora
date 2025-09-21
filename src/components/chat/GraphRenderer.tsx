@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   LineChart, 
   Line, 
@@ -18,10 +19,9 @@ import {
   Legend, 
   ResponsiveContainer 
 } from 'recharts';
-import { Maximize2, Download } from 'lucide-react';
+import { Maximize2 } from 'lucide-react';
 import { Button } from '../Button';
-import { GraphData, PDFData } from '../../types';
-import { generatePDF } from '../../utils/PDFGenerator';
+import { GraphData } from '../../types';
 
 interface GraphRendererProps {
   data: GraphData;
@@ -38,38 +38,57 @@ interface GraphModalProps {
 const COLORS = ['#3B82F6', '#EF4444', '#10B981', '#F59E0B', '#8B5CF6', '#EC4899', '#06B6D4', '#84CC16'];
 
 const GraphModal: React.FC<GraphModalProps> = ({ data, isOpen, onClose }) => {
+  useEffect(() => {
+    if (isOpen) {
+      // Lock body scroll when modal is open
+      document.body.style.overflow = 'hidden';
+      document.body.style.position = 'fixed';
+      document.body.style.top = '0';
+      document.body.style.left = '0';
+      document.body.style.right = '0';
+      document.body.style.width = '100%';
+    } else {
+      // Restore body scroll when modal is closed
+      document.body.style.overflow = '';
+      document.body.style.position = '';
+      document.body.style.top = '';
+      document.body.style.left = '';
+      document.body.style.right = '';
+      document.body.style.width = '';
+    }
+
+    // Cleanup on unmount
+    return () => {
+      document.body.style.overflow = '';
+      document.body.style.position = '';
+      document.body.style.top = '';
+      document.body.style.left = '';
+      document.body.style.right = '';
+      document.body.style.width = '';
+    };
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
-  const handleDownload = async () => {
-    try {
-      // Create PDFData object from the graph data
-      const pdfData: PDFData = {
-        title: data.title,
-        subtitle: `Graphique ${data.type} - ${data.data.length} points de données`,
-        sections: [
-          {
-            title: 'Analyse du graphique',
-            content: `Ce graphique de type "${data.type}" présente ${data.data.length} points de données.`,
-            type: 'text'
-          }
-        ],
-        charts: [data],
-        generatedAt: new Date(),
-        metadata: {
-          totalEntries: data.data.length,
-          chartType: data.type
+  const modalContent = (
+    <div 
+      className="fixed bg-black bg-opacity-50 flex items-center justify-center p-4" 
+      style={{ 
+        top: 0, 
+        left: 0, 
+        right: 0, 
+        bottom: 0, 
+        width: '100vw', 
+        height: '100vh',
+        position: 'fixed',
+        zIndex: 9999
+      }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          onClose();
         }
-      };
-      
-      // Generate and download the PDF
-      await generatePDF(pdfData);
-    } catch (error) {
-      console.error('Error generating PDF from graph modal:', error);
-    }
-  };
-
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999] p-4">
+      }}
+    >
       <div className="bg-white rounded-2xl shadow-2xl max-w-7xl w-full max-h-[95vh] overflow-hidden">
         {/* Modal Header */}
         <div className="p-6 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-indigo-50">
@@ -81,15 +100,6 @@ const GraphModal: React.FC<GraphModalProps> = ({ data, isOpen, onClose }) => {
               </p>
             </div>
             <div className="flex items-center space-x-3 flex-shrink-0">
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={handleDownload}
-                className="flex items-center space-x-2 bg-white hover:bg-gray-50 whitespace-nowrap"
-              >
-                <Download className="h-4 w-4" />
-                <span>PDF</span>
-              </Button>
               <Button
                 variant="secondary"
                 size="sm"
@@ -159,6 +169,8 @@ const GraphModal: React.FC<GraphModalProps> = ({ data, isOpen, onClose }) => {
       </div>
     </div>
   );
+
+  return createPortal(modalContent, document.body);
 };
 
 // Custom tooltip for employee data
@@ -215,6 +227,18 @@ const TimelineTooltip = ({ active, payload, label }: any) => {
 };
 
 const renderChart = (data: GraphData, isPreview: boolean) => {
+  // Validate data structure
+  if (!data || !data.data || !Array.isArray(data.data) || data.data.length === 0) {
+    return (
+      <div className="flex items-center justify-center h-full text-gray-500 text-sm">
+        <div className="text-center">
+          <div className="text-lg mb-2">📊</div>
+          <div>Aucune donnée disponible</div>
+        </div>
+      </div>
+    );
+  }
+
   const commonProps = {
     data: data.data,
     margin: isPreview ? { top: 2, right: 2, left: 2, bottom: 2 } : { top: 20, right: 30, left: 20, bottom: 5 },
@@ -227,9 +251,9 @@ const renderChart = (data: GraphData, isPreview: boolean) => {
   };
 
   // Check if this is employee data
-  const isEmployeeData = data.data.length > 0 && data.data[0].employee;
+  const isEmployeeData = data.data.length > 0 && data.data[0]?.employee;
   // Check if this is timeline data
-  const isTimelineData = data.data.length > 0 && data.data[0].date;
+  const isTimelineData = data.data.length > 0 && data.data[0]?.date;
 
   switch (data.type) {
     case 'line':
@@ -353,6 +377,20 @@ const renderChart = (data: GraphData, isPreview: boolean) => {
 
 export const GraphRenderer: React.FC<GraphRendererProps> = ({ data, isPreview = true, onExpand }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
+
+  // Validate data structure early
+  if (!data || !data.data || !Array.isArray(data.data) || data.data.length === 0) {
+    return (
+      <div className="bg-white border border-gray-200 rounded-lg p-3 shadow-sm">
+        <div className="flex items-center justify-center h-24 text-gray-500 text-sm">
+          <div className="text-center">
+            <div className="text-lg mb-2">📊</div>
+            <div>Aucune donnée disponible</div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const handleExpand = () => {
     if (onExpand) {

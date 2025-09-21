@@ -251,11 +251,11 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
                       )}
                       
                       {/* Display Insights if available */}
-                      {(message.graphData as any).insights && (message.graphData as any).insights.length > 0 && (
+                      {message.graphData.insights && message.graphData.insights.length > 0 && (
                         <div className="mb-2">
                           <h4 className="text-xs font-medium text-blue-800 mb-1">💡 Insights clés :</h4>
                           <ul className="text-xs text-blue-700 space-y-1">
-                            {(message.graphData as any).insights.map((insight: string, index: number) => (
+                            {message.graphData.insights.map((insight: string, index: number) => (
                               <li key={index} className="flex items-start">
                                 <span className="text-blue-500 mr-1">•</span>
                                 <span>{insight}</span>
@@ -266,17 +266,35 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
                       )}
                       
                       {/* Display Recommendations if available */}
-                      {(message.graphData as any).recommendations && (message.graphData as any).recommendations.length > 0 && (
+                      {message.graphData.recommendations && message.graphData.recommendations.length > 0 && (
                         <div>
                           <h4 className="text-xs font-medium text-blue-800 mb-1">🎯 Recommandations :</h4>
                           <ul className="text-xs text-blue-700 space-y-1">
-                            {(message.graphData as any).recommendations.map((recommendation: string, index: number) => (
+                            {message.graphData.recommendations.map((recommendation: string, index: number) => (
                               <li key={index} className="flex items-start">
                                 <span className="text-green-500 mr-1">→</span>
                                 <span>{recommendation}</span>
                               </li>
                             ))}
                           </ul>
+                        </div>
+                      )}
+                      
+                      {/* Display Metadata if available */}
+                      {message.graphData.metadata && (
+                        <div className="mt-2 pt-2 border-t border-blue-200">
+                          <div className="flex items-center justify-between text-xs text-blue-600">
+                            <span>
+                              {message.graphData.metadata.totalEntries && 
+                                `${message.graphData.metadata.totalEntries} points de données`
+                              }
+                            </span>
+                            <span>
+                              {message.graphData.metadata.generatedAt && 
+                                `Généré le ${new Date(message.graphData.metadata.generatedAt).toLocaleDateString('fr-FR')}`
+                              }
+                            </span>
+                          </div>
                         </div>
                       )}
                     </div>
