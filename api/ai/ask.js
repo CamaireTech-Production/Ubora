@@ -81,6 +81,21 @@ function getPeriodDates(period) {
   return { start, end, label };
 }
 
+
+// Helper function to safely convert dates
+const safeToDate = (dateValue) => {
+  if (!dateValue) return null;
+  if (dateValue instanceof Date) return dateValue;
+  if (dateValue.toDate && typeof dateValue.toDate === 'function') {
+    // Firestore Timestamp
+    return dateValue.toDate();
+  }
+  if (typeof dateValue === 'string' || typeof dateValue === 'number') {
+    return new Date(dateValue);
+  }
+  return null;
+};
+
 // Fonction pour charger et agréger les données
 async function loadAndAggregateData(
   agencyId,
@@ -91,12 +106,12 @@ async function loadAndAggregateData(
 ) {
   const { start, end, label } = getPeriodDates(period);
 
-  // Requête de base MINIMALE pour éviter les index composites
+  // Requête de base pour récupérer TOUTES les données de l'agence
   // On récupère par agence puis on filtre/tri en mémoire
   const baseSnapshot = await adminDb
     .collection('formEntries')
     .where('agencyId', '==', agencyId)
-    .limit(500)
+    .limit(2000) // Increased limit for complete analysis
     .get();
 
   // Transformer, filtrer par période et filtres optionnels
@@ -105,21 +120,29 @@ async function loadAndAggregateData(
     formId: doc.data().formId || '',
     userId: doc.data().userId || '',
     agencyId: doc.data().agencyId || '',
-    submittedAt: doc.data().submittedAt ? doc.data().submittedAt.toDate() : new Date(),
+    submittedAt: doc.data().submittedAt || new Date(),
     answers: doc.data().answers || {}
   }));
 
   entries = entries.filter(e => {
-    const inDateRange = e.submittedAt >= start && e.submittedAt <= end;
+    const submittedDate = safeToDate(e.submittedAt);
+    const inDateRange = submittedDate ? submittedDate >= start && submittedDate <= end : false;
     const matchForm = !formId || e.formId === formId;
     const matchSelectedForms = !selectedFormats || selectedFormats.length === 0 || selectedFormats.includes(e.formId);
     const matchUser = !userId || e.userId === userId;
     return inDateRange && matchForm && matchSelectedForms && matchUser;
   });
 
-  // Trier par date desc et limiter à 100 après filtrage
-  entries.sort((a, b) => b.submittedAt.getTime() - a.submittedAt.getTime());
-  entries = entries.slice(0, 100);
+  // Trier par date desc (TOUTES les données sélectionnées)
+  entries.sort((a, b) => {
+    const dateA = safeToDate(a.submittedAt);
+    const dateB = safeToDate(b.submittedAt);
+    if (!dateA && !dateB) return 0;
+    if (!dateA) return 1;
+    if (!dateB) return -1;
+    return dateB.getTime() - dateA.getTime();
+  });
+  // No artificial limits - send ALL selected data to AI
 
   // Charger les métadonnées (formulaires et utilisateurs)
   const [formsSnapshot, usersSnapshot] = await Promise.all([
@@ -193,25 +216,16 @@ async function loadAndAggregateData(
   // Timeline par jour
   const timeline = {};
   entries.forEach(entry => {
-    const date = entry.submittedAt.toISOString().split('T')[0];
+    const submittedDate = safeToDate(entry.submittedAt);
+    if (submittedDate) {
+      const date = submittedDate.toISOString().split('T')[0];
     timeline[date] = (timeline[date] || 0) + 1;
+    }
   });
 
-  // Préparer les données détaillées des soumissions pour l'IA (limité à 50 pour éviter les timeouts)
-  const limitedEntries = entries.slice(0, 50);
+  // Préparer les données détaillées des soumissions pour l'IA (TOUTES les données sélectionnées)
+  const limitedEntries = entries; // Send ALL data - no artificial limits
   
-  // Debug: Log raw Firebase entries
-  console.log('\n=== FIREBASE ENTRIES DEBUG ===');
-  console.log('Total entries from Firebase:', entries.length);
-  console.log('Limited entries for AI:', limitedEntries.length);
-  
-  limitedEntries.forEach((entry, index) => {
-    console.log(`\n--- FIREBASE ENTRY ${index + 1} ---`);
-    console.log('Entry ID:', entry.id);
-    console.log('Entry answers:', JSON.stringify(entry.answers, null, 2));
-    console.log('Entry fileAttachments:', entry.fileAttachments);
-    console.log('Entry submittedAt:', entry.submittedAt);
-  });
   
   const detailedSubmissions = limitedEntries.map(entry => {
     const user = usersById.get(entry.userId);
@@ -236,19 +250,20 @@ async function loadAndAggregateData(
       });
     }
     
+    const submittedDate = safeToDate(entry.submittedAt);
     const result = {
       id: entry.id,
       formTitle: form ? form.title : `Formulaire ${entry.formId}`,
       employeeName: user ? user.name : `Utilisateur ${entry.userId}`,
       employeeEmail: user ? user.email : 'Email non disponible',
-      submittedAt: entry.submittedAt.toISOString(),
-      submittedDate: entry.submittedAt.toLocaleDateString('fr-FR'),
-      submittedTime: entry.submittedAt.toLocaleTimeString('fr-FR'),
+      submittedAt: submittedDate ? submittedDate.toISOString() : 'Inconnu',
+      submittedDate: submittedDate ? submittedDate.toLocaleDateString('fr-FR') : 'Inconnu',
+      submittedTime: submittedDate ? submittedDate.toLocaleTimeString('fr-FR') : 'Inconnu',
       answers: answersWithLabels,
       fieldMapping: fieldMapping, // Include field mapping for proper file reference
       fileAttachments: entry.fileAttachments || [], // Include file attachments
-      isToday: entry.submittedAt.toDateString() === new Date().toDateString(),
-      isThisWeek: entry.submittedAt >= start && entry.submittedAt <= end
+      isToday: submittedDate ? submittedDate.toDateString() === new Date().toDateString() : false,
+      isThisWeek: submittedDate ? submittedDate >= start && submittedDate <= end : false
     };
     
     return result;
@@ -280,21 +295,9 @@ async function loadAndAggregateData(
     thisWeekSubmissions: detailedSubmissions.filter(s => s.isThisWeek)
   };
   
-  // Debug: Log final data structure sent to AI
-  console.log('\n=== FINAL DATA STRUCTURE FOR AI ===');
-  console.log('All submissions sent to AI:', JSON.stringify(detailedSubmissions, null, 2));
 }
 
 module.exports = async function handler(req, res) {
-  console.log('=== AI ASK HANDLER START ===');
-  console.log('Method:', req.method);
-  console.log('URL:', req.url);
-  console.log('Environment check:', {
-    firebaseProjectId: process.env.FIREBASE_PROJECT_ID ? '✅ Set' : '❌ Missing',
-    firebaseClientEmail: process.env.FIREBASE_CLIENT_EMAIL ? '✅ Set' : '❌ Missing',
-    firebasePrivateKey: process.env.FIREBASE_PRIVATE_KEY ? '✅ Set' : '❌ Missing',
-    openaiKey: process.env.OPENAI_API_KEY ? '✅ Set' : '❌ Missing'
-  });
   
   try {
     const startTime = Date.now(); // Track response time
@@ -314,29 +317,22 @@ module.exports = async function handler(req, res) {
 
     // Gérer les requêtes OPTIONS (preflight CORS)
     if (req.method === 'OPTIONS') {
-      console.log('Handling OPTIONS request');
       return res.status(204).end();
     }
 
     if (req.method !== 'POST') {
-      console.log('Method not allowed:', req.method);
       return res.status(405).json({ error: 'Méthode non autorisée' });
     }
-
-    console.log('Processing POST request...');
     
     // 1. Vérification du token Firebase
-    console.log('Step 1: Checking Firebase token...');
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      console.log('Missing or invalid auth header');
       return res.status(401).json({ 
         error: 'Token d\'authentification manquant',
         code: 'MISSING_TOKEN'
       });
     }
 
-    console.log('Auth header found, verifying token...');
     const idToken = authHeader.split('Bearer ')[1];
     
     let decodedToken;
@@ -344,9 +340,7 @@ module.exports = async function handler(req, res) {
     try {
       decodedToken = await adminAuth.verifyIdToken(idToken);
       uid = decodedToken.uid;
-      console.log('Token verified for user:', uid);
     } catch (authError) {
-      console.error('Token verification failed:', authError);
       return res.status(401).json({ 
         error: 'Token invalide ou expiré',
         code: 'INVALID_TOKEN',
@@ -355,15 +349,12 @@ module.exports = async function handler(req, res) {
     }
 
     // 2. Vérification du profil utilisateur
-    console.log('Step 2: Checking user profile...');
     let userDoc;
     let userData;
     
     try {
       userDoc = await adminDb.collection('users').doc(uid).get();
-      console.log('User document retrieved successfully');
     } catch (firestoreError) {
-      console.error('Firestore error when getting user document:', firestoreError);
       return res.status(500).json({ 
         error: 'Erreur de connexion à la base de données',
         code: 'FIRESTORE_ERROR',
@@ -372,7 +363,6 @@ module.exports = async function handler(req, res) {
     }
     
     if (!userDoc.exists) {
-      console.log('User document not found for uid:', uid);
       return res.status(404).json({ 
         error: 'Profil utilisateur non trouvé',
         code: 'USER_NOT_FOUND'
@@ -381,23 +371,13 @@ module.exports = async function handler(req, res) {
 
     userData = userDoc.data();
     if (!userData) {
-      console.log('User data is null for uid:', uid);
       return res.status(404).json({ 
         error: 'Données utilisateur non trouvées',
         code: 'USER_DATA_MISSING'
       });
     }
-
-    console.log('User data found:', { 
-      role: userData.role, 
-      agencyId: userData.agencyId,
-      package: userData.package,
-      tokensUsedMonthly: userData.tokensUsedMonthly,
-      payAsYouGoTokens: userData.payAsYouGoTokens
-    });
     
     if (userData.role !== 'directeur') {
-      console.log('User role is not directeur:', userData.role);
       return res.status(403).json({ 
         error: 'Accès réservé aux directeurs',
         code: 'INSUFFICIENT_ROLE'
@@ -405,7 +385,6 @@ module.exports = async function handler(req, res) {
     }
 
     if (!userData.agencyId) {
-      console.log('User agencyId is missing');
       return res.status(403).json({ 
         error: 'Agence non définie pour cet utilisateur',
         code: 'MISSING_AGENCY'
@@ -422,17 +401,7 @@ module.exports = async function handler(req, res) {
       });
     }
 
-    console.log('Request body parameters:', {
-      question: question.substring(0, 100) + '...',
-      filters,
-      selectedFormats,
-      responseFormat
-    });
-
     // 4. Chargement et agrégation des données
-    console.log('Step 4: Loading and aggregating data...');
-    console.log('Filters:', { period: filters?.period, formId: filters?.formId, userId: filters?.userId });
-    
     let data;
     try {
       data = await loadAndAggregateData(
@@ -442,13 +411,7 @@ module.exports = async function handler(req, res) {
         filters?.userId,
         selectedFormats
       );
-      console.log('Data loaded successfully:', {
-        entries: data.totals.entries,
-        users: data.totals.uniqueUsers,
-        forms: data.totals.uniqueForms
-      });
     } catch (dataError) {
-      console.error('Error loading data:', dataError);
       return res.status(500).json({ 
         error: 'Erreur lors du chargement des données',
         code: 'DATA_LOAD_ERROR',
@@ -457,41 +420,69 @@ module.exports = async function handler(req, res) {
     }
 
     // 4.5. Vérification des tokens disponibles
-    console.log('Step 4.5: Checking available tokens...');
     
-    // Estimate tokens needed for this request
-    // Create simplified versions of the prompts for estimation
-    const estimatedSystemPrompt = `Tu es ARCHA, assistant IA spécialisé dans l'analyse de données de formulaires d'entreprise.
-RÈGLES :
+    // Build the actual system prompt first (we'll use this for both estimation and AI call)
+    const buildSystemMessage = () => {
+      const baseRole = `Tu es ARCHA, assistant IA expert en analyse de données d'entreprise.`;
+      
+      const coreRules = `
+RÈGLES FONDAMENTALES :
 - Réponds UNIQUEMENT en français
-- Utilise UNIQUEMENT les données fournies
-- Ne JAMAIS inventer de données
+- Utilise UNIQUEMENT les données fournies - ne JAMAIS inventer de données
 - Si données insuffisantes, dis-le clairement
+- Sois clair, concis et actionnable
+- Fournis des insights basés sur les données réelles`;
 
-ANALYSE :
-- Analyse les données fournies
-- Identifie les tendances et patterns
-- Fournis des insights actionables
-- Propose des recommandations concrètes
-
-RÉPONSE :
-- Structure claire et professionnelle
-- Utilise des émojis appropriés
-- Inclus des métriques précises
-- Référence les données sources`;
-
-    const estimatedUserPrompt = `Question : "${question}"
-
-RÉSUMÉ DES DONNÉES :
-- Total soumissions : ${data.totals.entries}
+      const formatInstructions = getFormatInstructions(responseFormat, selectedResponseFormats);
+      
+      const contextInfo = `
+CONTEXTE MÉTIER :
+- Agence : ${userData.agencyId}
+- Période d'analyse : ${data.period.label}
+- Nombre total de soumissions : ${data.totals.entries}
 - Employés actifs : ${data.totals.uniqueUsers}/${data.totals.totalUsers}
 - Formulaires utilisés : ${data.totals.uniqueForms}/${data.totals.totalForms}
+
+OBJECTIF : Répondre clairement à la question du directeur avec des insights basés sur les données.`;
+
+      return `${baseRole}${coreRules}${formatInstructions}${contextInfo}`;
+    };
+
+    // Simple format instructions - focus on clear text responses
+    const getFormatInstructions = (responseFormat, selectedResponseFormats) => {
+      return `
+
+INSTRUCTIONS POUR RÉPONSE :
+- Réponds naturellement et professionnellement à la question du directeur
+- Utilise UNIQUEMENT les données fournies
+- Sois clair, concis et actionnable
+- Inclus des insights basés sur les données
+- Propose des recommandations concrètes
+- Évite les sections de raisonnement interne ou les formats structurés`;
+    };
+
+    // Build the actual user message for estimation
+    const buildUserMessageForEstimation = () => {
+      const questionText = `QUESTION : "${question}"`;
+      
+      const dataOverview = `
+DONNÉES DISPONIBLES :
+- ${data.totals.entries} soumissions au total
+- ${data.totals.uniqueUsers} employés actifs
+- ${data.totals.uniqueForms} formulaires utilisés
 - Période : ${data.period.label}
 
-DONNÉES DÉTAILLÉES :
-${data.submissions.slice(0, 5).map(s => `- ${s.employeeName}: ${s.formTitle}`).join('\n')}`;
+TOP EMPLOYÉS : ${data.userStats.slice(0, 3).map(u => `${u.name} (${u.count} soumissions)`).join(', ')}
+TOP FORMULAIRES : ${data.formStats.slice(0, 3).map(f => `${f.title} (${f.count} soumissions)`).join(', ')}`;
 
-    const estimatedTokens = TokenCounter.getTotalEstimatedTokens(estimatedSystemPrompt, estimatedUserPrompt, 800);
+      return `${questionText}\n\n${dataOverview}`;
+    };
+
+    // We'll build the system prompt after hasPDFContent is defined
+    // For now, use a basic estimation
+    const basicSystemPrompt = `Tu es ARCHA, assistant IA expert en analyse de données d'entreprise.`;
+    const userPromptForEstimation = buildUserMessageForEstimation();
+    const estimatedTokens = TokenCounter.getTotalEstimatedTokens(basicSystemPrompt, userPromptForEstimation, 2000);
     const userTokensToCharge = TokenCounter.getUserTokensToCharge(estimatedTokens, 1.5);
     
     // Calculate package limit based on user's package type
@@ -575,29 +566,11 @@ ${data.submissions.slice(0, 5).map(s => `- ${s.employeeName}: ${s.formTitle}`).j
       });
     }
     
-    console.log('Token estimation:', {
-      estimatedTokens,
-      userTokensToCharge,
-      currentUsage: currentTokensUsed,
-      payAsYouGoTokens: payAsYouGoTokens,
-      packageType: userData.package,
-      packageLimit: packageLimit,
-      subscriptionExpired: subscriptionExpired
-    });
-    
     // Check if user has enough tokens (including pay-as-you-go tokens)
     const totalAvailableTokens = packageLimit === -1 ? -1 : packageLimit + payAsYouGoTokens;
     
     // Skip token check for unlimited packages
     if (packageLimit !== -1 && currentTokensUsed + userTokensToCharge > totalAvailableTokens) {
-      console.log('Insufficient tokens:', {
-        currentUsage: currentTokensUsed,
-        needed: userTokensToCharge,
-        available: totalAvailableTokens,
-        packageLimit,
-        payAsYouGoTokens
-      });
-      
       return res.status(402).json({ 
         error: 'Tokens insuffisants',
         code: 'INSUFFICIENT_TOKENS',
@@ -609,52 +582,8 @@ ${data.submissions.slice(0, 5).map(s => `- ${s.employeeName}: ${s.formTitle}`).j
       });
     }
 
-    // Debug: Log ALL data being sent to AI
-    console.log('=== COMPLETE DATA BEING SENT TO AI ===');
-    console.log('Total submissions:', data.submissions.length);
-    console.log('Today submissions:', data.todaySubmissions.length);
-    console.log('Period:', data.period);
-    console.log('Totals:', data.totals);
-    console.log('User stats:', data.userStats);
-    console.log('Form stats:', data.formStats);
-    console.log('Timeline:', data.timeline);
-    
-    console.log('\n=== ALL SUBMISSIONS DETAILS ===');
-    data.submissions.forEach((submission, index) => {
-      console.log(`\nSUBMISSION ${index + 1}:`);
-      console.log('- ID:', submission.id);
-      console.log('- Employee:', submission.employeeName, '(', submission.employeeEmail, ')');
-      console.log('- Form:', submission.formTitle);
-      console.log('- Date:', submission.submittedDate, 'at', submission.submittedTime);
-      console.log('- Is Today:', submission.isToday);
-      console.log('- Answers:', JSON.stringify(submission.answers, null, 2));
-    });
-    
-    console.log('\n=== TODAY SUBMISSIONS DETAILS ===');
-    data.todaySubmissions.forEach((submission, index) => {
-      console.log(`\nTODAY SUBMISSION ${index + 1}:`);
-      console.log('- ID:', submission.id);
-      console.log('- Employee:', submission.employeeName, '(', submission.employeeEmail, ')');
-      console.log('- Form:', submission.formTitle);
-      console.log('- Time:', submission.submittedTime);
-      console.log('- Answers:', JSON.stringify(submission.answers, null, 2));
-    });
-    
-    console.log('\n=== FORMS DATA ===');
-    const formsSnapshot = await adminDb.collection('forms').where('agencyId', '==', userData.agencyId).get();
-    formsSnapshot.docs.forEach((doc, index) => {
-      const formData = doc.data();
-      console.log(`\nFORM ${index + 1}:`);
-      console.log('- ID:', doc.id);
-      console.log('- Title:', formData.title);
-      console.log('- Fields:', JSON.stringify(formData.fields, null, 2));
-      console.log('- Assigned To:', formData.assignedTo);
-    });
-    
-    console.log('=== END DATA LOGGING ===\n');
 
     // 5. Context-Aware System Message Construction
-    console.log('Step 5: Building context-aware system message...');
 
     // Analyze content types present in the data
     const hasPDFContent = data.submissions.some(s => 
@@ -679,268 +608,82 @@ ${data.submissions.slice(0, 5).map(s => `- ${s.employeeName}: ${s.formTitle}`).j
       )
     );
 
-    // Build context-aware system message (inspired by Cursor/ChatGPT approach)
-    const buildSystemMessage = () => {
-      const baseRole = `Tu es ARCHA, assistant IA spécialisé dans l'analyse de données de formulaires d'entreprise.`;
-      
-      const coreRules = `
-RÈGLES :
-- Réponds UNIQUEMENT en français
-- Utilise UNIQUEMENT les données fournies
-- Ne JAMAIS inventer de données
-- Si données insuffisantes, dis-le clairement`;
-
-      const analysisStrategy = `
-STRATÉGIE D'ANALYSE :
-- Si l'utilisateur demande des statistiques spécifiques : fournis exactement ce qu'il demande
-- Si l'utilisateur pose une question générale ET a sélectionné le format statistique : propose des graphiques pertinents
-- Si l'utilisateur pose une question générale SANS format spécifique : réponds de manière textuelle structurée
-- Analyse les champs de formulaire pour identifier les données quantifiables quand approprié
-- Suggère des visualisations seulement si le format statistique est demandé
-
-RECOMMANDATIONS DE GRAPHIQUES :
-- Données temporelles (dates, mois, années) → Graphique en ligne (line)
-- Comparaisons entre catégories → Graphique en barres (bar)
-- Proportions/parts d'un tout → Graphique en secteurs (pie)
-- Évolution continue dans le temps → Graphique en aires (area)
-- Corrélations entre deux variables → Graphique de dispersion (scatter)
-- Données numériques simples → Graphique en barres (bar) par défaut
-- Analysez toujours le type de données pour choisir le graphique le plus approprié`;
-
-      const fileInstructions = (hasPDFContent && (responseFormat === 'pdf' || (selectedResponseFormats && selectedResponseFormats.includes('pdf')))) ? `
-FICHIERS :
-- Analyse le contenu des fichiers de manière structurée
-- Identifie les informations clés (dates, montants, noms, thèmes)
-- Fournis un résumé clair et structuré du contenu des fichiers
-- Référence les fichiers avec [FICHIER: nom_du_fichier.ext] [METADATA: {...}] pour téléchargement
-- METADATA doit contenir : fileName, fileType, fileSize, downloadUrl, storagePath
-- Utilise des noms de fichiers conviviaux (sans URLs techniques)
-- Présente les fichiers référencés à la fin de ta réponse, pas dans le texte principal` : '';
-
-      const formatInstructions = getFormatInstructions(responseFormat, selectedResponseFormats);
-      
-      const contextInfo = `
-CONTEXTE : Agence ${userData.agencyId} | Période ${data.period.label} | ${new Date().toLocaleDateString('fr-FR')}`;
-
-      return `${baseRole}${coreRules}${analysisStrategy}${fileInstructions}${formatInstructions}${contextInfo}`;
-    };
-
-    // Format-specific instructions (clean and focused)
-    const getFormatInstructions = (responseFormat, selectedResponseFormats) => {
-      switch (responseFormat) {
-        case 'stats':
-          return `
-FORMAT STATISTIQUES :
-Retourne un graphique JSON avec cette structure :
-\`\`\`json
-{
-  "type": "bar|line|pie|area|scatter",
-  "title": "Titre descriptif",
-  "data": [...],
-  "xAxisKey": "label",
-  "yAxisKey": "value",
-  "dataKey": "value",
-  "colors": ["#3B82F6", "#10B981", "#F59E0B", "#EF4444", "#8B5CF6"],
-  "options": {"showLegend": true}
-}
-\`\`\`
-+ Explication textuelle détaillée du graphique choisi et pourquoi il est approprié pour ces données.`;
-
-        case 'table':
-          return `
-FORMAT TABLEAU :
-Tableau markdown structuré + explication textuelle.
-Référence fichiers avec [FICHIER: nom_du_fichier.ext]`;
-
-        case 'pdf':
-          return `
-FORMAT PDF :
-Contenu markdown structuré avec titres (# ## ###), listes et sections.
-Référence fichiers avec [FICHIER: nom_du_fichier.ext]`;
-
-        case 'multi-format':
-          return `
-FORMAT MULTI-FORMAT :
-Retourne une combinaison des formats sélectionnés :
-${selectedResponseFormats?.includes('stats') ? '- Graphique JSON avec explication' : ''}
-${selectedResponseFormats?.includes('table') ? '- Tableau markdown avec explication' : ''}
-${selectedResponseFormats?.includes('pdf') ? '- Contenu PDF structuré' : ''}
-Organise les formats de manière logique.`;
-
-        default:
-          return `
-FORMAT TEXTE LIBRE :
-Réponse structurée + graphiques statistiques automatiques si appropriés.
-- Analyse les données et propose automatiquement le type de graphique le plus adapté
-- Inclus une explication de pourquoi ce type de graphique est choisi
-- Ne référence PAS les fichiers avec [FICHIER: ...] sauf si explicitement demandé`;
-      }
-    };
-
+    // Now build the actual system prompt with hasPDFContent available
     const systemPrompt = buildSystemMessage();
 
-    // Enhanced user message with structured data
-    const buildUserMessage = () => {
-      const questionText = `Question : "${question}"`;
-      
-      const summary = `
-RÉSUMÉ DES DONNÉES :
-- Total soumissions : ${data.totals.entries}
-- Employés actifs : ${data.totals.uniqueUsers}/${data.totals.totalUsers}
-- Formulaires utilisés : ${data.totals.uniqueForms}/${data.totals.totalForms}
-- Période : ${data.period.label}`;
 
-      const submissions = data.submissions.length > 0 ? 
-        buildSubmissionsData(data.submissions, hasPDFContent) : 
-        'AUCUNE SOUMISSION TROUVÉE';
-
-      return `${questionText}\n\n${summary}\n\n${submissions}`;
-    };
-
-    // Build submissions data with PDF content handling
-    const buildSubmissionsData = (submissions, hasPDFContent) => {
+    // Build simple submissions data
+    const buildSubmissionsData = (submissions) => {
       return submissions.map((s, index) => {
-        const answersText = Object.entries(s.answers).map(([fieldLabel, value]) => {
-          // Handle file attachments - check for uploaded file data
-          if (value && typeof value === 'object' && value.uploaded && value.fileName) {
-            // Include file metadata for proper download/view functionality
-            const fileMetadata = {
-              fileName: value.fileName,
-              fileType: value.fileType,
-              fileSize: value.fileSize,
-              downloadUrl: value.downloadUrl,
-              storagePath: value.storagePath
-            };
-            const cleanFileName = value.fileName.replace(/^[0-9-]+-/, '').replace(/\.pdf$/i, '');
-            return `    • ${fieldLabel}: [FICHIER: ${value.fileName}] [METADATA: ${JSON.stringify(fileMetadata)}]`;
-          }
-          
-          // Handle other object values (like arrays, etc.) - but avoid showing [object Object]
-          if (value && typeof value === 'object' && !value.uploaded) {
-            // If it's an array, show it properly
-            if (Array.isArray(value)) {
-              return `    • ${fieldLabel}: ${value.join(', ')}`;
-            }
-            // If it's an object with meaningful properties, show them
-            if (value && Object.keys(value).length > 0) {
-              const meaningfulProps = Object.entries(value)
-                .filter(([key, val]) => val !== null && val !== undefined && val !== '')
-                .map(([key, val]) => `${key}: ${val}`)
-                .join(', ');
-              return `    • ${fieldLabel}: ${meaningfulProps || 'Données complexes'}`;
-            }
-            return `    • ${fieldLabel}: Données complexes`;
-          }
-          
+        const fieldSummary = Object.entries(s.answers).map(([fieldLabel, value]) => {
           const displayValue = value !== null && value !== undefined ? 
             (typeof value === 'boolean' ? (value ? 'Oui' : 'Non') : String(value)) : 
             'Non renseigné';
-          return `    • ${fieldLabel}: ${displayValue}`;
-        }).join('\n');
+          return `${fieldLabel}: ${displayValue}`;
+        }).join(' | ');
         
-        // Add file content if available (PDFs and other extractable files)
-        const fileContent = hasPDFContent ? (() => {
-          const fileContents = [];
-          
-          // Check fileAttachments array
-          if (s.fileAttachments) {
-            s.fileAttachments
-              .filter(att => att.extractedText)
-              .forEach(att => {
-                const fileIcon = att.fileType === 'application/pdf' ? '📄' : '📎';
-                const fileTypeLabel = att.fileType === 'application/pdf' ? 'FICHIER PDF' : 'FICHIER JOINT';
-                const cleanFileName = att.fileName.replace(/^[0-9-]+-/, '').replace(/\.pdf$/i, '');
-                fileContents.push(`    ${fileIcon} ${fileTypeLabel}: "${cleanFileName}" (${att.fileSize ? (att.fileSize / 1024).toFixed(1) + ' KB' : 'Taille inconnue'})\n    RÉFÉRENCE: [FICHIER: ${att.fileName}] [METADATA: ${JSON.stringify({
-                  fileName: att.fileName,
-                  fileType: att.fileType,
-                  fileSize: att.fileSize,
-                  downloadUrl: att.downloadUrl,
-                  storagePath: att.storagePath
-                })}]`);
-              });
-          }
-          
-          // Check answers object for file data with extracted text
-          Object.entries(s.answers).forEach(([fieldLabel, value]) => {
-            if (value && typeof value === 'object' && value.uploaded && value.fileName && value.extractedText) {
-              const fileIcon = value.fileType === 'application/pdf' ? '📄' : '📎';
-              const fileTypeLabel = value.fileType === 'application/pdf' ? 'FICHIER PDF' : 'FICHIER JOINT';
-              const cleanFileName = value.fileName.replace(/^[0-9-]+-/, '').replace(/\.pdf$/i, '');
-              fileContents.push(`    ${fileIcon} ${fileTypeLabel}: "${cleanFileName}" - Champ: ${fieldLabel} (${value.fileSize ? (value.fileSize / 1024).toFixed(1) + ' KB' : 'Taille inconnue'})\n    RÉFÉRENCE: [FICHIER: ${value.fileName}] [METADATA: ${JSON.stringify({
-                fileName: value.fileName,
-                fileType: value.fileType,
-                fileSize: value.fileSize,
-                downloadUrl: value.downloadUrl,
-                storagePath: value.storagePath
-              })}]`);
-            }
-          });
-          
-          return fileContents.join('\n\n');
-        })() : '';
-        
-        return `SOUMISSION ${index + 1}:
-- Employé: ${s.employeeName} (${s.employeeEmail})
-- Formulaire: "${s.formTitle}"
-- Date: ${s.submittedDate} à ${s.submittedTime}${s.isToday ? ' (AUJOURD\'HUI)' : ''}
-- Réponses:
-${answersText}${fileContent ? '\n\n' + fileContent : ''}`;
+        return `SOUMISSION ${index + 1}: ${s.employeeName} | ${s.formTitle} | ${s.submittedDate}
+${fieldSummary}`;
       }).join('\n\n');
     };
 
-    const userPrompt = buildUserMessage();
+    // Build the complete user message with detailed submissions data
+    const buildUserMessage = () => {
+      const questionText = `QUESTION : "${question}"`;
+      
+      const dataOverview = `
+DONNÉES DISPONIBLES :
+- ${data.totals.entries} soumissions au total
+- ${data.totals.uniqueUsers} employés actifs
+- ${data.totals.uniqueForms} formulaires utilisés
+- Période : ${data.period.label}
+
+TOP EMPLOYÉS : ${data.userStats.slice(0, 3).map(u => `${u.name} (${u.count} soumissions)`).join(', ')}
+TOP FORMULAIRES : ${data.formStats.slice(0, 3).map(f => `${f.title} (${f.count} soumissions)`).join(', ')}`;
+
+      const submissions = data.submissions.length > 0 ? 
+        buildSubmissionsData(data.submissions) : 
+        'AUCUNE SOUMISSION TROUVÉE POUR CETTE PÉRIODE';
+
+      return `${questionText}\n\n${dataOverview}\n\n${submissions}`;
+    };
+
+    // Use the complete user message for the AI call
+    const userPromptForAI = buildUserMessage();
 
 
     // 6. Appel OpenAI
-    console.log('Step 6: Generating AI response...');
     let answer = '';
     let tokensUsed = 0;
     let finalUserTokens = 0;
     
     if (!process.env.OPENAI_API_KEY) {
-      console.log('OpenAI not configured, using fallback response');
       // Fallback si OpenAI n'est pas configuré
-      answer = `📊 Résumé ${data.period.label}
+      answer = `Basé sur l'analyse de vos données, voici les informations concernant votre question :
 
-• Entrées analysées: ${data.totals.entries}
-• Employés actifs: ${data.totals.uniqueUsers}/${data.totals.totalUsers}
-• Formulaires utilisés: ${data.totals.uniqueForms}/${data.totals.totalForms}
+**Données analysées :**
+${data.totals.entries} soumissions au total pour ${data.totals.uniqueUsers} employés actifs sur ${data.totals.totalUsers}, avec ${data.totals.uniqueForms} formulaires utilisés sur la période ${data.period.label}.
 
-Top employés:
-${data.userStats.map(u => `• ${u.name}: ${u.count} réponses`).join('\n') || '• Aucun'}
+**Principales observations :**
+L'employé le plus actif est ${data.userStats[0]?.name || 'N/A'} avec ${data.userStats[0]?.count || 0} soumissions. Le formulaire le plus utilisé est "${data.formStats[0]?.title || 'N/A'}" avec ${data.formStats[0]?.count || 0} soumissions. Le taux d'engagement est de ${((data.totals.uniqueUsers/data.totals.totalUsers)*100).toFixed(1)}% des employés.
 
-Top formulaires:
-${data.formStats.map(f => `• ${f.title}: ${f.count} réponses`).join('\n') || '• Aucun'}
+**Recommandations :**
+Il serait pertinent de surveiller l'engagement des employés moins actifs et d'analyser les formulaires peu utilisés pour identifier des opportunités d'amélioration. Maintenir la performance des employés les plus productifs est également important.
 
-📅 SOUMISSIONS DÉTAILLÉES D'AUJOURD'HUI (${new Date().toLocaleDateString('fr-FR')}):
-${data.todaySubmissions.length > 0 ? data.todaySubmissions.map((s, index) => {
-  const answersText = Object.entries(s.answers).map(([fieldLabel, value]) => {
-    const displayValue = value !== null && value !== undefined ? 
-      (typeof value === 'boolean' ? (value ? 'Oui' : 'Non') : String(value)) : 
-      'Non renseigné';
-    return `    • ${fieldLabel}: ${displayValue}`;
-  }).join('\n');
-  
-  return `SOUMISSION ${index + 1}:
-• Employé: ${s.employeeName} (${s.employeeEmail})
-• Formulaire: "${s.formTitle}"
-• Heure: ${s.submittedTime}
-• Réponses:
-${answersText}`;
-}).join('\n\n') : 'AUCUNE SOUMISSION AUJOURD\'HUI'}
-
-💡 Conseils: Affinez par employé ou formulaire pour plus de précision.`;
+*Note: Réponse générée sans IA (OpenAI non disponible)*`;
     } else {
-      console.log('Calling OpenAI API...');
       try {
     const completion = await openai.chat.completions.create({
-          model: 'gpt-4.1',
+          model: 'gpt-4.1', // Use the specialized GPT-4.1 model
       messages: [
         { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt }
+        { role: 'user', content: userPromptForAI }
       ],
-      max_tokens: 800,
-      temperature: 0.7
+      max_tokens: 2000, // Increased for more detailed responses
+      temperature: 0.3, // Lower temperature for more consistent, analytical responses
+      top_p: 0.9,
+      frequency_penalty: 0.1,
+      presence_penalty: 0.1
     });
         answer = completion.choices && completion.choices[0] && completion.choices[0].message && completion.choices[0].message.content 
       ? completion.choices[0].message.content 
@@ -949,58 +692,35 @@ ${answersText}`;
         
         // Calculate final user tokens to charge based on actual usage
         finalUserTokens = TokenCounter.getUserTokensToCharge(tokensUsed, 1.5);
-        
-        console.log('OpenAI response generated successfully');
-        console.log('Token usage:', {
-          actualTokens: tokensUsed,
-          userTokensCharged: finalUserTokens,
-          multiplier: 1.5
-        });
-        console.log('AI Response content:', answer.substring(0, 500) + '...');
       } catch (openaiError) {
         console.error('OpenAI error:', openaiError);
         // Fallback en cas d'erreur OpenAI
-        answer = `📊 Résumé ${data.period.label} (Mode Fallback)
+        answer = `Basé sur l'analyse de vos données, voici les informations concernant votre question :
 
-• Entrées analysées: ${data.totals.entries}
-• Employés actifs: ${data.totals.uniqueUsers}/${data.totals.totalUsers}
-• Formulaires utilisés: ${data.totals.uniqueForms}/${data.totals.totalForms}
+**Données analysées :**
+${data.totals.entries} soumissions au total pour ${data.totals.uniqueUsers} employés actifs sur ${data.totals.totalUsers}, avec ${data.totals.uniqueForms} formulaires utilisés sur la période ${data.period.label}.
 
-Top employés:
-${data.userStats.map(u => `• ${u.name}: ${u.count} réponses`).join('\n') || '• Aucun'}
+**Principales observations :**
+L'employé le plus actif est ${data.userStats[0]?.name || 'N/A'} avec ${data.userStats[0]?.count || 0} soumissions. Le formulaire le plus utilisé est "${data.formStats[0]?.title || 'N/A'}" avec ${data.formStats[0]?.count || 0} soumissions. Le taux d'engagement est de ${((data.totals.uniqueUsers/data.totals.totalUsers)*100).toFixed(1)}% des employés.
 
-Top formulaires:
-${data.formStats.map(f => `• ${f.title}: ${f.count} réponses`).join('\n') || '• Aucun'}
+**Recommandations :**
+Il serait pertinent de surveiller l'engagement des employés moins actifs et d'analyser les formulaires peu utilisés pour identifier des opportunités d'amélioration. Maintenir la performance des employés les plus productifs est également important.
 
-📅 SOUMISSIONS DÉTAILLÉES D'AUJOURD'HUI (${new Date().toLocaleDateString('fr-FR')}):
-${data.todaySubmissions.length > 0 ? data.todaySubmissions.map((s, index) => {
-  const answersText = Object.entries(s.answers).map(([fieldLabel, value]) => {
-    const displayValue = value !== null && value !== undefined ? 
-      (typeof value === 'boolean' ? (value ? 'Oui' : 'Non') : String(value)) : 
-      'Non renseigné';
-    return `    • ${fieldLabel}: ${displayValue}`;
-  }).join('\n');
-  
-  return `SOUMISSION ${index + 1}:
-• Employé: ${s.employeeName} (${s.employeeEmail})
-• Formulaire: "${s.formTitle}"
-• Heure: ${s.submittedTime}
-• Réponses:
-${answersText}`;
-}).join('\n\n') : 'AUCUNE SOUMISSION AUJOURD\'HUI'}
-
-⚠️ Note: Réponse générée sans IA (OpenAI non disponible)`;
+*Note: Réponse générée sans IA (OpenAI non disponible)*`;
       }
     }
 
-    // 7. Store conversation in Firestore
-    console.log('Step 7: Storing conversation...');
-    try {
-      // Get or create conversation
+    // 7. Enhanced conversation context and memory system
+    
+    // Initialize conversationId to ensure it's always defined
       let conversationId = req.body.conversationId;
+    let conversationContext = null;
+    
+    try {
+      // Get or create conversation with enhanced context
       
       if (!conversationId) {
-        // Create new conversation
+        // Create new conversation with enhanced metadata
         const conversationData = {
           directorId: uid,
           agencyId: userData.agencyId,
@@ -1008,23 +728,66 @@ ${answersText}`;
           createdAt: admin.firestore.FieldValue.serverTimestamp(),
           updatedAt: admin.firestore.FieldValue.serverTimestamp(),
           lastMessageAt: admin.firestore.FieldValue.serverTimestamp(),
-          messageCount: 2 // user message + assistant response
+          messageCount: 2, // user message + assistant response
+          context: {
+            lastAnalysisType: responseFormat || 'text',
+            lastFormats: selectedResponseFormats || [],
+            lastPeriod: filters?.period || 'all',
+            lastFormIds: selectedFormats || [],
+            dataInsights: {
+              totalEntries: data.totals.entries,
+              uniqueUsers: data.totals.uniqueUsers,
+              uniqueForms: data.totals.uniqueForms,
+              hasPDFContent: hasPDFContent
+            }
+          }
         };
         
         const conversationRef = await adminDb.collection('conversations').add(conversationData);
         conversationId = conversationRef.id;
-        console.log('New conversation created:', conversationId);
+      } else {
+        // Load existing conversation context for continuity
+        const conversationDoc = await adminDb.collection('conversations').doc(conversationId).get();
+        if (conversationDoc.exists) {
+          conversationContext = conversationDoc.data();
+          
+          // Update conversation with new context
+          await adminDb.collection('conversations').doc(conversationId).update({
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            lastMessageAt: admin.firestore.FieldValue.serverTimestamp(),
+            messageCount: admin.firestore.FieldValue.increment(2),
+            context: {
+              lastAnalysisType: responseFormat || 'text',
+              lastFormats: selectedResponseFormats || [],
+              lastPeriod: filters?.period || 'all',
+              lastFormIds: selectedFormats || [],
+              dataInsights: {
+                totalEntries: data.totals.entries,
+                uniqueUsers: data.totals.uniqueUsers,
+                uniqueForms: data.totals.uniqueForms,
+                hasPDFContent: hasPDFContent
+              },
+              previousContext: conversationContext?.context || null
+            }
+          });
+        }
       }
 
-      // Store user message
+      // Store user message with enhanced context
       const userMessage = {
         type: 'user',
         content: question || '',
         timestamp: admin.firestore.FieldValue.serverTimestamp(),
-        filters: req.body.filters || {}
+        filters: req.body.filters || {},
+        context: {
+          selectedFormats: selectedResponseFormats || [],
+          responseFormat: responseFormat || 'text',
+          conversationId: conversationId,
+          previousContext: conversationContext?.context || null
+        }
       };
 
-      // Store assistant response
+      // Store assistant response with enhanced context and memory
       const assistantMessage = {
         type: 'assistant',
         content: answer || '',
@@ -1042,7 +805,20 @@ ${answersText}`;
             }
           },
           tokensUsed: tokensUsed || 0,
-          userTokensCharged: finalUserTokens
+          userTokensCharged: finalUserTokens,
+          model: 'gpt-4.1',
+          responseFormat: responseFormat || 'text',
+          selectedFormats: selectedResponseFormats || [],
+          conversationContext: {
+            conversationId: conversationId,
+            messageSequence: conversationContext?.messageCount || 2,
+            previousAnalysis: conversationContext?.context?.lastAnalysisType || null,
+            dataEvolution: {
+              previousEntries: conversationContext?.context?.dataInsights?.totalEntries || 0,
+              currentEntries: data.totals?.entries || 0,
+              entriesChange: (data.totals?.entries || 0) - (conversationContext?.context?.dataInsights?.totalEntries || 0)
+            }
+          }
         }
       };
 
@@ -1082,9 +858,6 @@ ${answersText}`;
             payAsYouGoTokens: newPayAsYouGoTokens,
             updatedAt: admin.firestore.FieldValue.serverTimestamp()
           });
-          
-          console.log(`✅ Tokens deducted: ${finalUserTokens} tokens charged to user ${uid}`);
-          console.log(`📊 New token usage: ${newTokensUsed}/${packageLimit} (package) + ${newPayAsYouGoTokens} (pay-as-you-go)`);
         } catch (tokenError) {
           console.error('❌ Error deducting tokens:', tokenError);
           // Don't fail the request if token deduction fails
@@ -1098,14 +871,16 @@ ${answersText}`;
         messageCount: admin.firestore.FieldValue.increment(2)
       });
 
-      console.log('Conversation stored successfully');
     } catch (storeError) {
       console.error('Error storing conversation:', storeError);
       // Don't fail the request if conversation storage fails
+      // Ensure conversationId is set even if there was an error
+      if (!conversationId) {
+        conversationId = req.body.conversationId || 'error_' + Date.now();
+      }
     }
 
-    // 8. Réponse
-    console.log('Step 8: Sending response...');
+    // 8. Enhanced response with context
     const response = {
       answer,
       conversationId: req.body.conversationId || conversationId,
@@ -1121,11 +896,26 @@ ${answersText}`;
           }
         },
         tokensUsed,
-        userTokensCharged: finalUserTokens
+        userTokensCharged: finalUserTokens,
+        model: 'gpt-4.1',
+        responseFormat: responseFormat || 'text',
+        selectedFormats: selectedResponseFormats || [],
+        tokenDebug: {
+          systemPromptLength: systemPrompt.length,
+          userPromptLength: userPromptForAI.length,
+          totalPromptLength: systemPrompt.length + userPromptForAI.length,
+          estimatedTokens: estimatedTokens,
+          actualTokens: tokensUsed,
+          responseLength: answer.length
+        },
+        conversationContext: {
+          conversationId: conversationId,
+          messageSequence: conversationContext?.messageCount || 2,
+          previousAnalysis: conversationContext?.context?.lastAnalysisType || null
+        }
       }
     };
     
-    console.log('Response sent successfully');
     return res.status(200).json(response);
 
   } catch (err) {

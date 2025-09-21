@@ -17,29 +17,46 @@ export interface ParsedResponse {
 
 export class ResponseParser {
   static parseAIResponse(response: string, _userMessage?: string, selectedFormat?: string | null, selectedFormats?: string[]): ParsedResponse {
-    // Only detect PDF file references if PDF format is explicitly selected
-    const shouldDetectPDFFiles = selectedFormat === 'pdf' || (selectedFormats && selectedFormats.includes('pdf'));
+    console.log('🔍 ResponseParser: Starting enhanced parsing...');
+    console.log('📊 Response length:', response.length);
+    console.log('🎯 Selected format:', selectedFormat);
+    console.log('📋 Selected formats:', selectedFormats);
+    
+    // Enhanced PDF file detection - always detect if files are mentioned
+    const shouldDetectPDFFiles = selectedFormat === 'pdf' || 
+                                 (selectedFormats && selectedFormats.includes('pdf')) ||
+                                 response.includes('[FICHIER:') ||
+                                 response.includes('[FICHIER PDF:');
     const pdfFiles = shouldDetectPDFFiles ? this.detectPDFFileReferences(response) : [];
     
-    // Handle multi-format responses
+    // Enhanced format detection with better reasoning
+    const enhancedResult = this.parseEnhancedResponse(response, selectedFormat, selectedFormats);
+    
+    // Clean up file references from content if not in PDF format
+    if (enhancedResult.contentType !== 'pdf' && enhancedResult.contentType !== 'text-pdf') {
+      enhancedResult.content = this.cleanFileReferencesFromText(enhancedResult.content);
+    }
+    
+    console.log('✅ ResponseParser: Parsing completed');
+    console.log('📄 Content type:', enhancedResult.contentType);
+    console.log('📎 PDF files detected:', pdfFiles.length);
+    
+    return { ...enhancedResult, pdfFiles };
+  }
+
+  private static parseEnhancedResponse(response: string, selectedFormat?: string | null, selectedFormats?: string[]): ParsedResponse {
+    // Handle multi-format responses with enhanced detection
     if (selectedFormats && selectedFormats.length > 1) {
-      const result = this.parseMultiFormatResponse(response, selectedFormats);
-      return { ...result, pdfFiles };
+      return this.parseMultiFormatResponse(response, selectedFormats);
     }
 
-    // Handle format-specific responses based on selected format
+    // Handle format-specific responses with enhanced parsing
     if (selectedFormat) {
-      const result = this.parseFormatSpecificResponse(response, selectedFormat);
-      return { ...result, pdfFiles };
+      return this.parseFormatSpecificResponse(response, selectedFormat);
     }
 
-    // If no format is selected, try to auto-detect content type (but not PDF)
-    const autoDetectedResult = this.autoDetectContentType(response);
-    // Clean up file references from the content
-    if (autoDetectedResult.contentType === 'text') {
-      autoDetectedResult.content = this.cleanFileReferencesFromText(autoDetectedResult.content);
-    }
-    return { ...autoDetectedResult, pdfFiles };
+    // Enhanced auto-detection with better reasoning
+    return this.autoDetectContentType(response);
   }
 
   private static autoDetectContentType(response: string): ParsedResponse {
@@ -174,19 +191,37 @@ export class ResponseParser {
   }
 
   private static enhanceGraphData(data: any): GraphData {
-    // Ensure all required fields are present with defaults
-    return {
+    console.log('🔧 Enhancing graph data:', data);
+    
+    // Enhanced graph data with new properties and better defaults
+    const enhancedData: GraphData = {
       type: data.type || 'bar',
       title: data.title || 'Graphique des données',
+      subtitle: data.subtitle || undefined,
       data: data.data || [],
       xAxisKey: data.xAxisKey || 'label',
       yAxisKey: data.yAxisKey || 'value',
       dataKey: data.dataKey || 'value',
       colors: data.colors || ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6'],
       options: {
-        showLegend: data.options?.showLegend !== false
+        showLegend: data.options?.showLegend !== false,
+        showGrid: data.options?.showGrid !== false,
+        showTooltip: data.options?.showTooltip !== false,
+        animation: data.options?.animation !== false,
+        ...data.options
       }
     };
+
+    // Add insights and recommendations if available (extended properties)
+    if (data.insights && Array.isArray(data.insights)) {
+      (enhancedData as any).insights = data.insights;
+    }
+    if (data.recommendations && Array.isArray(data.recommendations)) {
+      (enhancedData as any).recommendations = data.recommendations;
+    }
+
+    console.log('✅ Enhanced graph data:', enhancedData);
+    return enhancedData;
   }
 
   private static parsePDFResponse(response: string): ParsedResponse {
@@ -198,9 +233,10 @@ export class ResponseParser {
   }
 
   private static parseTableResponse(response: string): ParsedResponse {
-    // Extract markdown table from response
+    // Extract markdown table from response - improved detection
     const tableMatch = response.match(/```markdown\s*([\s\S]*?)\s*```/) || 
-                      response.match(/(\|.*\|[\s\S]*?\|.*\|)/);
+                      response.match(/(\|.*\|[\s\S]*?\|.*\|)/) ||
+                      response.match(/(TABLEAU[^|]*\|[\s\S]*?\|.*\|)/i);
     
     if (tableMatch) {
       const tableContent = tableMatch[1] || tableMatch[0];
@@ -248,7 +284,7 @@ export class ResponseParser {
 
   private static extractTextFromTableResponse(response: string): string {
     // Remove markdown table code blocks and raw table syntax
-    return response
+    let cleanedResponse = response
       .replace(/```markdown\s*[\s\S]*?\s*```/g, '')
       .replace(/(\|.*\|[\s\S]*?\|.*\|)/g, '')
       .replace(/```\s*[\s\S]*?\s*```/g, '')
@@ -257,6 +293,15 @@ export class ResponseParser {
       // Remove standalone file references
       .replace(/\[FICHIER:\s*[^\]]+\]/gi, '')
       .trim();
+    
+    // Clean up any remaining table-related text
+    cleanedResponse = cleanedResponse
+      .replace(/TABLEAU[^|]*\|[\s\S]*?\|.*\|/gi, '')
+      .replace(/^\s*[-=]+\s*$/gm, '') // Remove separator lines
+      .replace(/\n\s*\n\s*\n/g, '\n\n') // Remove excessive line breaks
+      .trim();
+    
+    return cleanedResponse;
   }
 
   private static extractTextFromMultiFormatResponse(response: string): string {
@@ -339,7 +384,9 @@ export class ResponseParser {
    * Looks for patterns like [FICHIER PDF: filename.pdf] or [FICHIER: filename.ext]
    */
   private static detectPDFFileReferences(response: string): PDFFileReference[] {
-    console.log('🔍 ResponseParser received response:', response.substring(0, 200) + '...');
+    console.log('🔍 Enhanced PDF file detection starting...');
+    console.log('📊 Response length:', response.length);
+    console.log('📝 Response preview:', response.substring(0, 200) + '...');
     const pdfFiles: PDFFileReference[] = [];
     
     
@@ -369,7 +416,17 @@ export class ResponseParser {
       
       try {
         const metadata = JSON.parse(metadataString);
-        console.log('🔍 Parsed file metadata:', metadata);
+        console.log('✅ Parsed enhanced metadata for file:', fileName);
+        console.log('📋 Metadata details:', {
+          fileName: metadata.fileName,
+          fileType: metadata.fileType,
+          fileSize: metadata.fileSize,
+          hasDownloadUrl: !!metadata.downloadUrl,
+          hasStoragePath: !!metadata.storagePath,
+          hasExtractedText: !!metadata.extractedText,
+          textExtractionStatus: metadata.textExtractionStatus
+        });
+        
         // Only add if not already added
         if (!pdfFiles.some(pdf => pdf.fileName === fileName)) {
           pdfFiles.push({
@@ -378,7 +435,8 @@ export class ResponseParser {
             fileSize: metadata.fileSize,
             downloadUrl: metadata.downloadUrl,
             storagePath: metadata.storagePath,
-            extractedText: undefined
+            extractedText: metadata.extractedText,
+            textExtractionStatus: metadata.textExtractionStatus
           });
         }
       } catch (error) {
@@ -606,7 +664,17 @@ export class ResponseParser {
     }
     
     
-    console.log('🔍 Final detected files:', pdfFiles);
+    console.log('📎 Total files detected:', pdfFiles.length);
+    pdfFiles.forEach((file, index) => {
+      console.log(`📄 File ${index + 1}:`, {
+        fileName: file.fileName,
+        fileType: file.fileType,
+        hasMetadata: !!(file.downloadUrl || file.storagePath),
+        hasExtractedText: !!file.extractedText,
+        textExtractionStatus: file.textExtractionStatus
+      });
+    });
+    
     return pdfFiles;
   }
 }

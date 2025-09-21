@@ -186,22 +186,60 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
                 {/* Render content based on type */}
                 {message.contentType === 'graph' && message.graphData ? (
                   <div className="space-y-4">
-                    {/* PDF Generation Button for Graph */}
-                    <div className="flex justify-end mb-2">
-                      <button
-                        onClick={async () => {
-                          try {
-                            const pdfData = MultiFormatToPDF.convertToPDFData(message);
-                            await generatePDF(pdfData);
-                          } catch (error) {
-                            console.error('Error generating PDF:', error);
-                          }
-                        }}
-                        className="inline-flex items-center px-3 py-1.5 text-xs font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors duration-200"
-                        title="Générer un PDF avec le graphique"
-                      >
-                        📄 Générer PDF
-                      </button>
+                    {/* Enhanced Graph Header with Insights */}
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <h3 className="text-sm font-semibold text-blue-900">
+                          📊 {message.graphData.title}
+                        </h3>
+                        <button
+                          onClick={async () => {
+                            try {
+                              const pdfData = MultiFormatToPDF.convertToPDFData(message);
+                              await generatePDF(pdfData);
+                            } catch (error) {
+                              console.error('Error generating PDF:', error);
+                            }
+                          }}
+                          className="inline-flex items-center px-3 py-1.5 text-xs font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors duration-200"
+                          title="Générer un PDF avec le graphique"
+                        >
+                          📄 Générer PDF
+                        </button>
+                      </div>
+                      {message.graphData.subtitle && (
+                        <p className="text-xs text-blue-700 mb-2">{message.graphData.subtitle}</p>
+                      )}
+                      
+                      {/* Display Insights if available */}
+                      {(message.graphData as any).insights && (message.graphData as any).insights.length > 0 && (
+                        <div className="mb-2">
+                          <h4 className="text-xs font-medium text-blue-800 mb-1">💡 Insights clés :</h4>
+                          <ul className="text-xs text-blue-700 space-y-1">
+                            {(message.graphData as any).insights.map((insight: string, index: number) => (
+                              <li key={index} className="flex items-start">
+                                <span className="text-blue-500 mr-1">•</span>
+                                <span>{insight}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                      
+                      {/* Display Recommendations if available */}
+                      {(message.graphData as any).recommendations && (message.graphData as any).recommendations.length > 0 && (
+                        <div>
+                          <h4 className="text-xs font-medium text-blue-800 mb-1">🎯 Recommandations :</h4>
+                          <ul className="text-xs text-blue-700 space-y-1">
+                            {(message.graphData as any).recommendations.map((recommendation: string, index: number) => (
+                              <li key={index} className="flex items-start">
+                                <span className="text-green-500 mr-1">→</span>
+                                <span>{recommendation}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
                     </div>
                     
                     <GraphRenderer data={message.graphData} />
@@ -290,12 +328,51 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
             )}
           </div>
           
-          {/* PDF Files Display */}
+          {/* Enhanced PDF Files Display with Source Attribution */}
           {!isUser && message.pdfFiles && message.pdfFiles.length > 0 && (
-            <PDFFileDisplay pdfFiles={message.pdfFiles} />
+            <div className="mt-4 p-3 bg-gray-50 border border-gray-200 rounded-lg">
+              <h4 className="text-sm font-semibold text-gray-800 mb-2 flex items-center">
+                📎 Sources de données
+                <span className="ml-2 text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
+                  {message.pdfFiles.length} fichier{message.pdfFiles.length > 1 ? 's' : ''}
+                </span>
+              </h4>
+              <div className="space-y-2">
+                {message.pdfFiles.map((file, index) => (
+                  <div key={index} className="flex items-center justify-between p-2 bg-white border border-gray-200 rounded-md">
+                    <div className="flex items-center space-x-2">
+                      <span className="text-lg">
+                        {file.fileType === 'application/pdf' ? '📄' : '📎'}
+                      </span>
+                      <div>
+                        <p className="text-sm font-medium text-gray-900">{file.fileName}</p>
+                        <p className="text-xs text-gray-500">
+                          {file.fileType === 'application/pdf' ? 'Document PDF' : 'Fichier joint'}
+                          {file.fileSize && ` • ${(file.fileSize / 1024).toFixed(1)} KB`}
+                          {file.textExtractionStatus && ` • ${file.textExtractionStatus === 'completed' ? 'Texte extrait' : 'Extraction en cours'}`}
+                        </p>
+                      </div>
+                    </div>
+                    {file.downloadUrl && (
+                      <a
+                        href={file.downloadUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs text-blue-600 hover:text-blue-800 underline"
+                      >
+                        Télécharger
+                      </a>
+                    )}
+                  </div>
+                ))}
+              </div>
+              <p className="text-xs text-gray-600 mt-2 italic">
+                💡 Ces fichiers ont été analysés pour générer cette réponse. Cliquez sur "Télécharger" pour accéder aux documents originaux.
+              </p>
+            </div>
           )}
           
-          {/* Meta information for assistant messages */}
+          {/* Enhanced Meta information for assistant messages */}
           {!isUser && message.meta && (
             <div className="mt-3 pt-2 border-t border-gray-100">
               <div className="flex flex-wrap items-center gap-3 text-xs text-gray-500">
@@ -306,12 +383,59 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
                   </span>
                 )}
                 {message.meta.usedEntries && (
-                  <span>{message.meta.usedEntries} entrées</span>
+                  <span className="flex items-center space-x-1">
+                    <span className="w-1.5 h-1.5 bg-green-400 rounded-full"></span>
+                    <span>{message.meta.usedEntries} entrées</span>
+                  </span>
                 )}
                 {message.meta.users && (
-                  <span>{message.meta.users} employés</span>
+                  <span className="flex items-center space-x-1">
+                    <span className="w-1.5 h-1.5 bg-purple-400 rounded-full"></span>
+                    <span>{message.meta.users} employés</span>
+                  </span>
+                )}
+                {message.meta.forms && (
+                  <span className="flex items-center space-x-1">
+                    <span className="w-1.5 h-1.5 bg-orange-400 rounded-full"></span>
+                    <span>{message.meta.forms} formulaires</span>
+                  </span>
+                )}
+                {message.meta.tokensUsed && (
+                  <span className="flex items-center space-x-1">
+                    <span className="w-1.5 h-1.5 bg-yellow-400 rounded-full"></span>
+                    <span>{message.meta.tokensUsed} tokens</span>
+                  </span>
                 )}
               </div>
+              
+              {/* Additional context information */}
+              {(message.meta.selectedFormTitles?.length > 0 || message.meta.selectedFormats?.length > 0) && (
+                <div className="mt-2 pt-2 border-t border-gray-100">
+                  <div className="flex flex-wrap items-center gap-2 text-xs">
+                    {message.meta.selectedFormats?.length > 0 && (
+                      <div className="flex items-center space-x-1">
+                        <span className="text-gray-400">Formats:</span>
+                        {message.meta.selectedFormats.map((format, index) => (
+                          <span key={index} className="px-2 py-1 bg-gray-100 text-gray-700 rounded-full">
+                            {format === 'stats' ? '📊 Stats' : 
+                             format === 'table' ? '📋 Tableau' : 
+                             format === 'pdf' ? '📄 PDF' : format}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    {message.meta.selectedFormTitles?.length > 0 && (
+                      <div className="flex items-center space-x-1">
+                        <span className="text-gray-400">Formulaires:</span>
+                        <span className="text-gray-600">
+                          {message.meta.selectedFormTitles.slice(0, 2).join(', ')}
+                          {message.meta.selectedFormTitles.length > 2 && ` +${message.meta.selectedFormTitles.length - 2} autres`}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
