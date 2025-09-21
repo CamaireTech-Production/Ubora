@@ -292,7 +292,10 @@ async function loadAndAggregateData(
     // Nouvelles données détaillées pour l'IA
     submissions: detailedSubmissions,
     todaySubmissions: detailedSubmissions.filter(s => s.isToday),
-    thisWeekSubmissions: detailedSubmissions.filter(s => s.isThisWeek)
+    thisWeekSubmissions: detailedSubmissions.filter(s => s.isThisWeek),
+    // Include forms and users data for metadata
+    formsById: formsById,
+    usersById: usersById
   };
   
 }
@@ -532,6 +535,30 @@ INSTRUCTIONS POUR FORMAT STATISTIQUES :
   * "scatter" : pour montrer des corrélations`;
       }
       
+      if (responseFormat === 'pdf') {
+        return `
+
+INSTRUCTIONS POUR FORMAT PDF :
+- Analyse la question du directeur et crée un rapport PDF structuré et professionnel
+- Utilise UNIQUEMENT les données réelles fournies dans le contexte
+- Structure ta réponse en sections claires avec des titres markdown (##, ###)
+- Inclus une introduction, une analyse détaillée, et des conclusions
+- Utilise des listes à puces et des tableaux markdown pour organiser l'information
+- Inclus des métriques pertinentes, pourcentages, et insights basés sur les données
+- Assure-toi que le contenu est professionnel et prêt pour génération PDF
+- Le rapport doit être complet et répondre directement à la question posée
+- Utilise un langage clair et structuré adapté à un document officiel
+- Format recommandé :
+  ## Introduction
+  ## Analyse des données
+  ### Métriques clés
+  ### Tendances observées
+  ## Conclusions et recommandations
+- OBLIGATOIRE : Inclus des données concrètes et des insights actionables
+- OBLIGATOIRE : Utilise des tableaux markdown pour présenter les données importantes
+- OBLIGATOIRE : Structure le contenu de manière professionnelle et lisible`;
+      }
+      
       return `
 
 INSTRUCTIONS POUR RÉPONSE TEXTE :
@@ -764,6 +791,42 @@ ${data.userStats.slice(0, 5).map(u => `| ${u.name} | ${u.count} | ${((u.count/da
 **Employés actifs :** ${data.totals.uniqueUsers}/${data.totals.totalUsers}
 
 *Note: Réponse générée sans IA (OpenAI non disponible)*`;
+      } else if (responseFormat === 'pdf') {
+        answer = `# Rapport d'analyse - ${data.period.label}
+
+## Introduction
+
+Ce rapport présente une analyse des données de votre agence pour la période ${data.period.label}.
+
+## Analyse des données
+
+### Métriques clés
+
+| Métrique | Valeur | Détail |
+|----------|--------|--------|
+| Total soumissions | ${data.totals.entries} | Toutes périodes confondues |
+| Employés actifs | ${data.totals.uniqueUsers}/${data.totals.totalUsers} | ${((data.totals.uniqueUsers/data.totals.totalUsers)*100).toFixed(1)}% d'engagement |
+| Formulaires utilisés | ${data.totals.uniqueForms}/${data.totals.totalForms} | Diversité des outils |
+
+### Performance des employés
+
+| Employé | Soumissions | Pourcentage | Performance |
+|---------|-------------|-------------|-------------|
+${data.userStats.slice(0, 5).map(u => `| ${u.name} | ${u.count} | ${((u.count/data.totals.entries)*100).toFixed(1)}% | ${u.count > data.totals.entries/data.totals.uniqueUsers ? 'Au-dessus de la moyenne' : 'En dessous de la moyenne'} |`).join('\n')}
+
+## Conclusions et recommandations
+
+### Points positifs
+- **Engagement global :** ${((data.totals.uniqueUsers/data.totals.totalUsers)*100).toFixed(1)}% des employés sont actifs
+- **Employé le plus performant :** ${data.userStats[0]?.name || 'N/A'} avec ${data.userStats[0]?.count || 0} soumissions
+- **Formulaire principal :** "${data.formStats[0]?.title || 'N/A'}" avec ${data.formStats[0]?.count || 0} utilisations
+
+### Recommandations
+1. **Surveiller l'engagement :** Analyser les employés moins actifs pour identifier les obstacles
+2. **Optimiser les formulaires :** Améliorer les formulaires peu utilisés
+3. **Maintenir la performance :** Encourager les employés les plus productifs
+
+*Note: Rapport généré sans IA (OpenAI non disponible)*`;
       } else {
         answer = `Basé sur l'analyse de vos données, voici les informations concernant votre question :
 
@@ -814,6 +877,42 @@ ${data.userStats.slice(0, 5).map(u => `| ${u.name} | ${u.count} | ${((u.count/da
 **Employés actifs :** ${data.totals.uniqueUsers}/${data.totals.totalUsers}
 
 *Note: Réponse générée sans IA (OpenAI non disponible)*`;
+        } else if (responseFormat === 'pdf') {
+          answer = `# Rapport d'analyse - ${data.period.label}
+
+## Introduction
+
+Ce rapport présente une analyse des données de votre agence pour la période ${data.period.label}.
+
+## Analyse des données
+
+### Métriques clés
+
+| Métrique | Valeur | Détail |
+|----------|--------|--------|
+| Total soumissions | ${data.totals.entries} | Toutes périodes confondues |
+| Employés actifs | ${data.totals.uniqueUsers}/${data.totals.totalUsers} | ${((data.totals.uniqueUsers/data.totals.totalUsers)*100).toFixed(1)}% d'engagement |
+| Formulaires utilisés | ${data.totals.uniqueForms}/${data.totals.totalForms} | Diversité des outils |
+
+### Performance des employés
+
+| Employé | Soumissions | Pourcentage | Performance |
+|---------|-------------|-------------|-------------|
+${data.userStats.slice(0, 5).map(u => `| ${u.name} | ${u.count} | ${((u.count/data.totals.entries)*100).toFixed(1)}% | ${u.count > data.totals.entries/data.totals.uniqueUsers ? 'Au-dessus de la moyenne' : 'En dessous de la moyenne'} |`).join('\n')}
+
+## Conclusions et recommandations
+
+### Points positifs
+- **Engagement global :** ${((data.totals.uniqueUsers/data.totals.totalUsers)*100).toFixed(1)}% des employés sont actifs
+- **Employé le plus performant :** ${data.userStats[0]?.name || 'N/A'} avec ${data.userStats[0]?.count || 0} soumissions
+- **Formulaire principal :** "${data.formStats[0]?.title || 'N/A'}" avec ${data.formStats[0]?.count || 0} utilisations
+
+### Recommandations
+1. **Surveiller l'engagement :** Analyser les employés moins actifs pour identifier les obstacles
+2. **Optimiser les formulaires :** Améliorer les formulaires peu utilisés
+3. **Maintenir la performance :** Encourager les employés les plus productifs
+
+*Note: Rapport généré sans IA (OpenAI non disponible)*`;
         } else {
           answer = `Basé sur l'analyse de vos données, voici les informations concernant votre question :
 
@@ -849,7 +948,7 @@ Il serait pertinent de surveiller l'engagement des employés moins actifs et d'a
           createdAt: admin.firestore.FieldValue.serverTimestamp(),
           updatedAt: admin.firestore.FieldValue.serverTimestamp(),
           lastMessageAt: admin.firestore.FieldValue.serverTimestamp(),
-          messageCount: 2, // user message + assistant response
+          messageCount: 1, // only assistant response (user message handled by client)
           context: {
             lastAnalysisType: responseFormat || 'text',
             lastFormats: selectedResponseFormats || [],
@@ -876,7 +975,7 @@ Il serait pertinent de surveiller l'engagement des employés moins actifs et d'a
           await adminDb.collection('conversations').doc(conversationId).update({
             updatedAt: admin.firestore.FieldValue.serverTimestamp(),
             lastMessageAt: admin.firestore.FieldValue.serverTimestamp(),
-            messageCount: admin.firestore.FieldValue.increment(2),
+            messageCount: admin.firestore.FieldValue.increment(1),
             context: {
               lastAnalysisType: responseFormat || 'text',
               lastFormats: selectedResponseFormats || [],
@@ -894,19 +993,49 @@ Il serait pertinent de surveiller l'engagement des employés moins actifs et d'a
         }
       }
 
-      // Store user message with enhanced context
+      // Get form titles for the selected forms
+      const formTitles = [];
+      if (selectedFormats && selectedFormats.length > 0) {
+        // Get titles for selected forms
+        for (const formId of selectedFormats) {
+          const form = data.formsById?.get?.(formId);
+          if (form && form.title) {
+            formTitles.push(form.title);
+          }
+        }
+      } else {
+        // If no forms selected, get all available forms for the agency
+        if (data.formsById) {
+          for (const [formId, form] of data.formsById) {
+            if (form && form.title) {
+              formTitles.push(form.title);
+            }
+          }
+        }
+      }
+
+      // Store user message to ensure persistence
       const userMessage = {
         type: 'user',
-        content: question || '',
+        content: question,
         timestamp: admin.firestore.FieldValue.serverTimestamp(),
-        filters: req.body.filters || {},
-        context: {
-          selectedFormats: selectedResponseFormats || [],
-          responseFormat: responseFormat || 'text',
-          conversationId: conversationId,
-          previousContext: conversationContext?.context || null
+        meta: {
+          // Only include format info if formats are actually selected
+          ...(selectedResponseFormats && selectedResponseFormats.length > 0 ? {
+            ...(selectedResponseFormats.length > 1 ? {} : { selectedFormat: selectedResponseFormats[0] }),
+            selectedFormats: selectedResponseFormats
+          } : {}),
+          // Always include form info (will show all forms if none selected)
+          selectedFormIds: selectedFormats || [],
+          selectedFormTitles: formTitles,
+          period: filters?.period || 'all',
+          formId: filters?.formId || null,
+          userId: filters?.userId || null
         }
       };
+
+      // Add user message to conversation subcollection
+      await adminDb.collection('conversations').doc(conversationId).collection('messages').add(userMessage);
 
       // Store assistant response with enhanced context and memory
       const assistantMessage = {
@@ -914,7 +1043,16 @@ Il serait pertinent de surveiller l'engagement des employés moins actifs et d'a
         content: answer || '',
         timestamp: admin.firestore.FieldValue.serverTimestamp(),
         responseTime: Date.now() - startTime,
+        contentType: responseFormat === 'pdf' ? 'text-pdf' : (responseFormat || 'text'),
         meta: {
+          // Only include format info if formats are actually selected
+          ...(selectedResponseFormats && selectedResponseFormats.length > 0 ? {
+            ...(selectedResponseFormats.length > 1 ? {} : { selectedFormat: selectedResponseFormats[0] }),
+            selectedFormats: selectedResponseFormats
+          } : {}),
+          // Always include form info (will show all forms if none selected)
+          selectedFormIds: selectedFormats || [],
+          selectedFormTitles: formTitles,
           period: data.period?.label || 'unknown',
           usedEntries: data.totals?.entries || 0,
           breakdown: {
@@ -929,7 +1067,6 @@ Il serait pertinent de surveiller l'engagement des employés moins actifs et d'a
           userTokensCharged: finalUserTokens,
           model: 'gpt-4.1',
           responseFormat: responseFormat || 'text',
-          selectedFormats: selectedResponseFormats || [],
           conversationContext: {
             conversationId: conversationId,
             messageSequence: conversationContext?.messageCount || 2,
@@ -943,8 +1080,8 @@ Il serait pertinent de surveiller l'engagement des employés moins actifs et d'a
         }
       };
 
-      // Add messages to conversation subcollection
-      await adminDb.collection('conversations').doc(conversationId).collection('messages').add(userMessage);
+      // Add only assistant message to conversation subcollection
+      // User message is handled by client for immediate display
       await adminDb.collection('conversations').doc(conversationId).collection('messages').add(assistantMessage);
 
       // Deduct tokens from user's account (only for limited packages)

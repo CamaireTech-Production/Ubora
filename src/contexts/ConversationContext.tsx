@@ -224,7 +224,7 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       const exists = prev.some(m => 
         m.content === message.content && 
         m.type === message.type && 
-        Math.abs(m.timestamp.getTime() - message.timestamp.getTime()) < 5000 // Within 5 seconds
+        Math.abs(m.timestamp.getTime() - message.timestamp.getTime()) < 10000 // Within 10 seconds
       );
       
       if (exists) {
@@ -232,9 +232,12 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         return prev;
       }
       
-      return [...prev, message];
+      // Add message and sort by timestamp to maintain order
+      const newMessages = [...prev, message];
+      return newMessages.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
     });
   };
+
 
   const loadConversation = async (conversationId: string): Promise<void> => {
     if (!user || user.role !== 'directeur') {
@@ -309,18 +312,16 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       setLastMessageDoc(messagesSnapshot.docs[messagesSnapshot.docs.length - 1]);
 
       // Set up real-time listener for new messages
-      const realtimeQuery = query(
+      const messagesListenerQuery = query(
         collection(db, 'conversations', conversationId, 'messages'),
-        orderBy('timestamp', 'desc'),
-        limit(1)
+        orderBy('timestamp', 'asc')
       );
 
-      const unsubscribe = onSnapshot(realtimeQuery, (snapshot) => {
-        if (!snapshot.empty) {
-          const latestMessage = snapshot.docs[0];
-          const data = latestMessage.data();
-          const newMessage: ChatMessage = {
-            id: latestMessage.id,
+      const unsubscribe = onSnapshot(messagesListenerQuery, (snapshot) => {
+        const allMessages = snapshot.docs.map(doc => {
+          const data = doc.data();
+          const message: ChatMessage = {
+            id: doc.id,
             type: data.type,
             content: data.content,
             timestamp: data.timestamp?.toDate() || new Date(),
@@ -335,21 +336,28 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({ 
           // Validate and clean graph data if present
           if (data.graphData) {
             if (data.graphData.data && Array.isArray(data.graphData.data) && data.graphData.data.length > 0) {
-              newMessage.graphData = data.graphData;
+              message.graphData = data.graphData;
             } else {
-              newMessage.contentType = newMessage.contentType === 'graph' ? 'text' : newMessage.contentType;
+              console.warn('Removing invalid graph data from message:', doc.id);
+              message.contentType = message.contentType === 'graph' ? 'text' : message.contentType;
             }
           }
 
-          // Add new message if it doesn't already exist
-          setMessages(prev => {
-            const exists = prev.some(m => m.id === newMessage.id);
-            if (!exists) {
-              return [...prev, newMessage];
-            }
-            return prev;
-          });
-        }
+          return message;
+        });
+
+        // Remove duplicates based on content and timestamp
+        const uniqueMessages = allMessages.filter((message, index, array) => {
+          return array.findIndex(m => 
+            m.content === message.content && 
+            m.type === message.type && 
+            Math.abs(m.timestamp.getTime() - message.timestamp.getTime()) < 5000 // Within 5 seconds
+          ) === index;
+        });
+
+        setMessages(uniqueMessages);
+      }, (err) => {
+        console.error('Error in real-time messages listener:', err);
       });
 
       setMessagesListener(() => unsubscribe);

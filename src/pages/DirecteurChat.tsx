@@ -201,6 +201,9 @@ RÉPONSE :
     // Determine the actual format(s) to use
     const actualFormats = selectedFormats.length > 0 ? selectedFormats : (selectedFormat ? [selectedFormat] : []);
     const isMultiFormat = actualFormats.length > 1;
+    
+    // Get form titles for display
+    const formTitles = forms.filter(form => formsToAnalyze.includes(form.id)).map(form => form.title);
 
     // Create conversation if none exists
     let conversationId = currentConversation?.id;
@@ -214,7 +217,34 @@ RÉPONSE :
       }
     }
 
-    // Server will handle all message persistence, so we don't add messages locally
+    // Create user message for immediate display
+    const userMessage: ChatMessage = {
+      id: `user_${Date.now()}`,
+      type: 'user',
+      content: messageToSend,
+      timestamp: new Date(),
+      meta: {
+        // Only include format info if formats are actually selected
+        ...(actualFormats.length > 0 ? {
+          ...(isMultiFormat ? {} : { selectedFormat: actualFormats[0] }),
+          selectedFormats: actualFormats
+        } : {}),
+        // Always include form info (will show all forms if none selected)
+        selectedFormIds: formsToAnalyze,
+        selectedFormTitles: formTitles
+      }
+    };
+
+    // Add user message to local state for immediate display
+    if (currentConversation) {
+      try {
+        // Only add to local state for immediate display
+        // Persistence will be handled by the server response
+        addMessageToLocalState(userMessage);
+      } catch (error) {
+        console.error('Error adding user message to local state:', error);
+      }
+    }
 
     setInputMessage('');
     setIsTyping(true);
@@ -336,7 +366,8 @@ RÉPONSE :
       // Server handles message creation and persistence
 
       // Server handles all message persistence
-      // Messages will be loaded when the conversation is refreshed or when new messages arrive
+      // The AI response will be automatically added via the real-time listener
+      // No need to manually refresh the conversation
 
     } catch (error) {
       console.error('Erreur lors de l\'envoi du message:', error);
