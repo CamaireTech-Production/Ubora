@@ -6,13 +6,13 @@
 class TokenCounter {
   /**
    * Estimate tokens using a simplified approach
-   * This is a close approximation to tiktoken's gpt-4o-mini encoding
+   * This is a close approximation to tiktoken's gpt-4o encoding
    */
   static estimateTokens(text) {
     if (!text) return 0;
     
     // Simple estimation: ~4 characters per token for most languages
-    // This is close to tiktoken's behavior for gpt-4o-mini
+    // This is close to tiktoken's behavior for gpt-4o
     const baseTokens = Math.ceil(text.length / 4);
     
     // Add overhead for special characters, punctuation, etc.
