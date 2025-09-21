@@ -17,10 +17,6 @@ export interface ParsedResponse {
 
 export class ResponseParser {
   static parseAIResponse(response: string, _userMessage?: string, selectedFormat?: string | null, selectedFormats?: string[]): ParsedResponse {
-    console.log('🔍 ResponseParser: Starting enhanced parsing...');
-    console.log('📊 Response length:', response.length);
-    console.log('🎯 Selected format:', selectedFormat);
-    console.log('📋 Selected formats:', selectedFormats);
     
     // Enhanced PDF file detection - always detect if files are mentioned
     const shouldDetectPDFFiles = selectedFormat === 'pdf' || 
@@ -37,9 +33,6 @@ export class ResponseParser {
       enhancedResult.content = this.cleanFileReferencesFromText(enhancedResult.content);
     }
     
-    console.log('✅ ResponseParser: Parsing completed');
-    console.log('📄 Content type:', enhancedResult.contentType);
-    console.log('📎 PDF files detected:', pdfFiles.length);
     
     return { ...enhancedResult, pdfFiles };
   }
@@ -191,7 +184,6 @@ export class ResponseParser {
   }
 
   private static enhanceGraphData(data: any): GraphData {
-    console.log('🔧 Enhancing graph data:', data);
     
     // Enhanced graph data with new properties and better defaults
     const enhancedData: GraphData = {
@@ -220,7 +212,6 @@ export class ResponseParser {
       (enhancedData as any).recommendations = data.recommendations;
     }
 
-    console.log('✅ Enhanced graph data:', enhancedData);
     return enhancedData;
   }
 
@@ -233,13 +224,70 @@ export class ResponseParser {
   }
 
   private static parseTableResponse(response: string): ParsedResponse {
-    // Extract markdown table from response - improved detection
-    const tableMatch = response.match(/```markdown\s*([\s\S]*?)\s*```/) || 
-                      response.match(/(\|.*\|[\s\S]*?\|.*\|)/) ||
-                      response.match(/(TABLEAU[^|]*\|[\s\S]*?\|.*\|)/i);
     
+    // Try multiple patterns to detect tables
+    let tableMatch = null;
+    let tableContent = '';
+    
+    // Pattern 1: Tables wrapped in markdown code blocks
+    tableMatch = response.match(/```markdown\s*([\s\S]*?)\s*```/);
     if (tableMatch) {
-      const tableContent = tableMatch[1] || tableMatch[0];
+      tableContent = tableMatch[1];
+    }
+    
+    // Pattern 2: Direct markdown table (most common)
+    if (!tableMatch) {
+      tableMatch = response.match(/(\|[^|\n]*\|[\s\S]*?\|[^|\n]*\|)/);
+      if (tableMatch) {
+        tableContent = tableMatch[0];
+      }
+    }
+    
+    // Pattern 3: Table with TABLEAU prefix
+    if (!tableMatch) {
+      tableMatch = response.match(/(TABLEAU[^|]*\|[\s\S]*?\|.*\|)/i);
+      if (tableMatch) {
+        tableContent = tableMatch[0];
+      }
+    }
+    
+    // Pattern 4: Look for any table-like structure with pipes
+    if (!tableMatch) {
+      const lines = response.split('\n');
+      let tableStart = -1;
+      let tableEnd = -1;
+      
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i].trim();
+        if (line.includes('|') && line.split('|').length >= 3) {
+          if (tableStart === -1) {
+            tableStart = i;
+          }
+          tableEnd = i;
+        } else if (tableStart !== -1 && !line.includes('|')) {
+          break;
+        }
+      }
+      
+      if (tableStart !== -1 && tableEnd !== -1) {
+        tableContent = lines.slice(tableStart, tableEnd + 1).join('\n');
+      }
+    }
+    
+    if (tableContent) {
+      
+      // Check if table has data rows (not just headers)
+      const lines = tableContent.trim().split('\n').filter(line => line.trim());
+      const hasSeparator = lines.length > 1 && /^[\s\|\-\:]+$/.test(lines[1]);
+      const dataLines = hasSeparator ? lines.slice(2) : lines.slice(1);
+      
+      if (dataLines.length === 0) {
+        return {
+          contentType: 'text',
+          content: response
+        };
+      }
+      
       return {
         contentType: 'table',
         content: this.extractTextFromTableResponse(response),
@@ -384,9 +432,6 @@ export class ResponseParser {
    * Looks for patterns like [FICHIER PDF: filename.pdf] or [FICHIER: filename.ext]
    */
   private static detectPDFFileReferences(response: string): PDFFileReference[] {
-    console.log('🔍 Enhanced PDF file detection starting...');
-    console.log('📊 Response length:', response.length);
-    console.log('📝 Response preview:', response.substring(0, 200) + '...');
     const pdfFiles: PDFFileReference[] = [];
     
     
@@ -408,24 +453,12 @@ export class ResponseParser {
     
     // Pattern 2: [FICHIER: filename.ext] [METADATA: {...}] (with metadata)
     const fileWithMetadataPattern = /\[FICHIER:\s*([^\]]+\.[a-zA-Z0-9]+)\]\s*\[METADATA:\s*([^\]]+)\]/gi;
-    console.log('🔍 Looking for metadata pattern in response...');
     while ((match = fileWithMetadataPattern.exec(response)) !== null) {
       const fileName = match[1].trim();
       const metadataString = match[2].trim();
-      console.log('🔍 Found metadata pattern:', fileName, metadataString);
       
       try {
         const metadata = JSON.parse(metadataString);
-        console.log('✅ Parsed enhanced metadata for file:', fileName);
-        console.log('📋 Metadata details:', {
-          fileName: metadata.fileName,
-          fileType: metadata.fileType,
-          fileSize: metadata.fileSize,
-          hasDownloadUrl: !!metadata.downloadUrl,
-          hasStoragePath: !!metadata.storagePath,
-          hasExtractedText: !!metadata.extractedText,
-          textExtractionStatus: metadata.textExtractionStatus
-        });
         
         // Only add if not already added
         if (!pdfFiles.some(pdf => pdf.fileName === fileName)) {
@@ -664,16 +697,6 @@ export class ResponseParser {
     }
     
     
-    console.log('📎 Total files detected:', pdfFiles.length);
-    pdfFiles.forEach((file, index) => {
-      console.log(`📄 File ${index + 1}:`, {
-        fileName: file.fileName,
-        fileType: file.fileType,
-        hasMetadata: !!(file.downloadUrl || file.storagePath),
-        hasExtractedText: !!file.extractedText,
-        textExtractionStatus: file.textExtractionStatus
-      });
-    });
     
     return pdfFiles;
   }

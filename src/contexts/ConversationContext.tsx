@@ -158,9 +158,6 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     try {
       setError(null);
       
-      // Add message to local state immediately
-      setMessages(prev => [...prev, message]);
-      
       // Clean the message data to remove null and undefined values that Firebase doesn't accept
       const cleanMessage = {
         ...message,
@@ -169,9 +166,6 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         ) : undefined,
         timestamp: serverTimestamp()
       };
-      
-      // Debug: Log the cleaned message data
-      console.log('🔍 Cleaned message data for Firebase:', JSON.stringify(cleanMessage, null, 2));
       
       // Store message in Firestore subcollection
       const messageRef = await addDoc(collection(db, 'conversations', currentConversation.id, 'messages'), cleanMessage);
@@ -184,6 +178,9 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         messageCount: increment(1)
       });
 
+      // Add message to local state after successful Firebase operations
+      setMessages(prev => [...prev, message]);
+      
       // Update local conversation state
       setCurrentConversation(prev => prev ? {
         ...prev,

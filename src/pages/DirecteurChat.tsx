@@ -13,7 +13,6 @@ import { ResponseParser } from '../utils/ResponseParser';
 import { ChatMessage } from '../types';
 import { useToast } from '../hooks/useToast';
 import { usePackageAccess } from '../hooks/usePackageAccess';
-import { TokenService } from '../services/tokenService';
 import { TokenCounter } from '../services/tokenCounter';
 import { PayAsYouGoModal } from '../components/PayAsYouGoModal';
 import { PayAsYouGoService } from '../services/payAsYouGoService';
@@ -109,7 +108,7 @@ export const DirecteurChat: React.FC = () => {
         
         // Update user data locally without page reload
         if (user) {
-          const updatedUser = {
+          const updatedUserData = {
             ...user,
             payAsYouGoTokens: (user.payAsYouGoTokens || 0) + tokens,
             subscriptionEndDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days from now
@@ -266,30 +265,7 @@ RÉPONSE :
         'Authorization': `Bearer ${t}`
       });
 
-      // Get form submissions for debugging
-      const relevantSubmissions = formEntries.filter(entry => 
-        formsToAnalyze.includes(entry.formId)
-      );
       
-      console.log('🔍 DEBUG - Form Analysis Data:');
-      console.log('📋 Total forms available:', forms.length);
-      console.log('📋 Forms to analyze:', formsToAnalyze);
-      console.log('📋 Selected form IDs:', selectedFormIds);
-      console.log('📋 All form IDs:', forms.map(f => f.id));
-      console.log('📊 Total form entries:', formEntries.length);
-      console.log('📊 Relevant submissions:', relevantSubmissions.length);
-      console.log('📊 Submissions by form:', formsToAnalyze.map(formId => {
-        const formSubmissions = formEntries.filter(entry => entry.formId === formId);
-        const formTitle = forms.find(f => f.id === formId)?.title || 'Unknown';
-        return { formId, formTitle, count: formSubmissions.length };
-      }));
-      console.log('📊 Sample submissions:', relevantSubmissions.slice(0, 3));
-
-      console.log('🔍 DEBUG - Format Selection:');
-      console.log('📋 selectedFormat:', selectedFormat);
-      console.log('📋 selectedFormats:', selectedFormats);
-      console.log('📋 actualFormats:', actualFormats);
-      console.log('📋 isMultiFormat:', isMultiFormat);
       
       const requestData = {
         question: messageToSend,

@@ -12,9 +12,48 @@ interface MessageBubbleProps {
   message: ChatMessage;
 }
 
-// Function to format AI message content (remove markdown and clean up)
+// Function to format AI message content with markdown support
 const formatMessageContent = (content: string): React.ReactNode => {
-  // Split content into lines and process each line
+  // First, check if content contains a markdown table
+  const lines = content.split('\n');
+  let tableStart = -1;
+  let tableEnd = -1;
+  
+  // Find table boundaries
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (line.includes('|') && line.split('|').length >= 3) {
+      if (tableStart === -1) {
+        tableStart = i;
+      }
+      tableEnd = i;
+    } else if (tableStart !== -1 && !line.includes('|')) {
+      break;
+    }
+  }
+  
+  if (tableStart !== -1 && tableEnd !== -1) {
+    const tableContent = lines.slice(tableStart, tableEnd + 1).join('\n');
+    const beforeTable = lines.slice(0, tableStart).join('\n');
+    const afterTable = lines.slice(tableEnd + 1).join('\n');
+    
+    return (
+      <>
+        {beforeTable.trim() && <div className="mb-4">{formatTextContent(beforeTable)}</div>}
+        <div className="mb-4">
+          <TableRenderer markdownTable={tableContent} />
+        </div>
+        {afterTable.trim() && <div>{formatTextContent(afterTable)}</div>}
+      </>
+    );
+  }
+  
+  // If no table, format as regular text
+  return formatTextContent(content);
+};
+
+// Function to format text content (without tables)
+const formatTextContent = (content: string): React.ReactNode => {
   const lines = content.split('\n');
   
   return lines.map((line, index) => {

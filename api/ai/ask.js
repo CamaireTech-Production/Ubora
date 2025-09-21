@@ -443,16 +443,45 @@ CONTEXTE MÉTIER :
 - Employés actifs : ${data.totals.uniqueUsers}/${data.totals.totalUsers}
 - Formulaires utilisés : ${data.totals.uniqueForms}/${data.totals.totalForms}
 
-OBJECTIF : Répondre clairement à la question du directeur avec des insights basés sur les données.`;
+OBJECTIF : Répondre clairement à la question du directeur avec des insights basés sur les données.
+
+${responseFormat === 'table' ? `
+EXEMPLE DE TABLEAU CORRECT :
+| Employé | Soumissions | Pourcentage |
+|---------|-------------|-------------|
+| Jean Dupont | 15 | 60% |
+| Marie Martin | 10 | 40% |
+
+IMPORTANT : Le tableau DOIT contenir des lignes de données réelles, pas seulement les en-têtes !` : ''}`;
 
       return `${baseRole}${coreRules}${formatInstructions}${contextInfo}`;
     };
 
-    // Simple format instructions - focus on clear text responses
+    // Format-specific instructions
     const getFormatInstructions = (responseFormat, selectedResponseFormats) => {
+      if (responseFormat === 'table') {
+        return `
+
+INSTRUCTIONS POUR FORMAT TABLEAU :
+- Analyse la question du directeur et propose un tableau qui répond directement à sa demande
+- Crée un tableau markdown structuré avec des colonnes pertinentes
+- Utilise UNIQUEMENT les données fournies
+- Propose le tableau le plus utile basé sur la question et les données disponibles
+- Inclus une brève explication avant le tableau si nécessaire
+- Format du tableau OBLIGATOIRE avec DONNÉES RÉELLES :
+  | Colonne1 | Colonne2 | Colonne3 |
+  |----------|----------|----------|
+  | Donnée1  | Donnée2  | Donnée3  |
+  | Donnée4  | Donnée5  | Donnée6  |
+- OBLIGATOIRE : Inclus TOUJOURS des lignes de données réelles dans le tableau
+- OBLIGATOIRE : Inclus TOUJOURS la ligne de séparation avec des tirets
+- Le tableau doit contenir au minimum 2-3 lignes de données pour être utile
+- Assure-toi que le tableau répond directement à la question posée avec des données concrètes`;
+      }
+      
       return `
 
-INSTRUCTIONS POUR RÉPONSE :
+INSTRUCTIONS POUR RÉPONSE TEXTE :
 - Réponds naturellement et professionnellement à la question du directeur
 - Utilise UNIQUEMENT les données fournies
 - Sois clair, concis et actionnable
@@ -645,7 +674,18 @@ TOP FORMULAIRES : ${data.formStats.slice(0, 3).map(f => `${f.title} (${f.count} 
         buildSubmissionsData(data.submissions) : 
         'AUCUNE SOUMISSION TROUVÉE POUR CETTE PÉRIODE';
 
-      return `${questionText}\n\n${dataOverview}\n\n${submissions}`;
+      const tableFormatReminder = responseFormat === 'table' ? `
+
+IMPORTANT : Tu dois répondre avec un TABLEAU MARKDOWN qui contient des DONNÉES RÉELLES.
+Le tableau doit avoir cette structure :
+| Colonne1 | Colonne2 | Colonne3 |
+|----------|----------|----------|
+| Donnée1  | Donnée2  | Donnée3  |
+| Donnée4  | Donnée5  | Donnée6  |
+
+N'inclus PAS seulement les en-têtes - tu DOIS inclure des lignes de données réelles !` : '';
+
+      return `${questionText}\n\n${dataOverview}\n\n${submissions}${tableFormatReminder}`;
     };
 
     // Use the complete user message for the AI call
@@ -659,7 +699,20 @@ TOP FORMULAIRES : ${data.formStats.slice(0, 3).map(f => `${f.title} (${f.count} 
     
     if (!process.env.OPENAI_API_KEY) {
       // Fallback si OpenAI n'est pas configuré
-      answer = `Basé sur l'analyse de vos données, voici les informations concernant votre question :
+      if (responseFormat === 'table') {
+        answer = `Voici un tableau basé sur vos données :
+
+| Employé | Nombre de soumissions | Pourcentage | Formulaire principal |
+|---------|----------------------|-------------|---------------------|
+${data.userStats.slice(0, 5).map(u => `| ${u.name} | ${u.count} | ${((u.count/data.totals.entries)*100).toFixed(1)}% | ${data.formStats[0]?.title || 'N/A'} |`).join('\n')}
+
+**Période analysée :** ${data.period.label}  
+**Total soumissions :** ${data.totals.entries}  
+**Employés actifs :** ${data.totals.uniqueUsers}/${data.totals.totalUsers}
+
+*Note: Réponse générée sans IA (OpenAI non disponible)*`;
+      } else {
+        answer = `Basé sur l'analyse de vos données, voici les informations concernant votre question :
 
 **Données analysées :**
 ${data.totals.entries} soumissions au total pour ${data.totals.uniqueUsers} employés actifs sur ${data.totals.totalUsers}, avec ${data.totals.uniqueForms} formulaires utilisés sur la période ${data.period.label}.
@@ -671,6 +724,7 @@ L'employé le plus actif est ${data.userStats[0]?.name || 'N/A'} avec ${data.use
 Il serait pertinent de surveiller l'engagement des employés moins actifs et d'analyser les formulaires peu utilisés pour identifier des opportunités d'amélioration. Maintenir la performance des employés les plus productifs est également important.
 
 *Note: Réponse générée sans IA (OpenAI non disponible)*`;
+      }
     } else {
       try {
     const completion = await openai.chat.completions.create({
@@ -695,7 +749,20 @@ Il serait pertinent de surveiller l'engagement des employés moins actifs et d'a
       } catch (openaiError) {
         console.error('OpenAI error:', openaiError);
         // Fallback en cas d'erreur OpenAI
-        answer = `Basé sur l'analyse de vos données, voici les informations concernant votre question :
+        if (responseFormat === 'table') {
+          answer = `Voici un tableau basé sur vos données :
+
+| Employé | Nombre de soumissions | Pourcentage | Formulaire principal |
+|---------|----------------------|-------------|---------------------|
+${data.userStats.slice(0, 5).map(u => `| ${u.name} | ${u.count} | ${((u.count/data.totals.entries)*100).toFixed(1)}% | ${data.formStats[0]?.title || 'N/A'} |`).join('\n')}
+
+**Période analysée :** ${data.period.label}  
+**Total soumissions :** ${data.totals.entries}  
+**Employés actifs :** ${data.totals.uniqueUsers}/${data.totals.totalUsers}
+
+*Note: Réponse générée sans IA (OpenAI non disponible)*`;
+        } else {
+          answer = `Basé sur l'analyse de vos données, voici les informations concernant votre question :
 
 **Données analysées :**
 ${data.totals.entries} soumissions au total pour ${data.totals.uniqueUsers} employés actifs sur ${data.totals.totalUsers}, avec ${data.totals.uniqueForms} formulaires utilisés sur la période ${data.period.label}.
@@ -707,6 +774,7 @@ L'employé le plus actif est ${data.userStats[0]?.name || 'N/A'} avec ${data.use
 Il serait pertinent de surveiller l'engagement des employés moins actifs et d'analyser les formulaires peu utilisés pour identifier des opportunités d'amélioration. Maintenir la performance des employés les plus productifs est également important.
 
 *Note: Réponse générée sans IA (OpenAI non disponible)*`;
+        }
       }
     }
 

@@ -9,20 +9,27 @@ export const TableRenderer: React.FC<TableRendererProps> = ({ markdownTable }) =
   const parseMarkdownTable = (markdown: string): JSX.Element | null => {
     const lines = markdown.trim().split('\n').filter(line => line.trim());
     
-    if (lines.length < 2) return null;
+    if (lines.length < 1) return null;
+    
+    // Check if second line is a separator line (contains only |, -, and spaces)
+    const hasSeparator = lines.length > 1 && /^[\s\|\-\:]+$/.test(lines[1]);
     
     // Parse header
     const headerLine = lines[0];
     const headers = headerLine.split('|').map(h => h.trim()).filter(h => h);
     
-    // Skip separator line (second line)
-    const dataLines = lines.slice(2);
+    // Skip separator line if present, otherwise start from line 1
+    const dataLines = hasSeparator ? lines.slice(2) : lines.slice(1);
     
     // Parse data rows
     const rows = dataLines.map(line => {
       const cells = line.split('|').map(c => c.trim()).filter(c => c);
       return cells;
     });
+    
+    if (rows.length === 0) {
+      return null;
+    }
     
     return (
       <div className="overflow-x-auto">
@@ -32,7 +39,7 @@ export const TableRenderer: React.FC<TableRendererProps> = ({ markdownTable }) =
               {headers.map((header, index) => (
                 <th
                   key={index}
-                  className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b border-gray-200"
+                  className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b border-gray-200 whitespace-nowrap"
                 >
                   {header}
                 </th>
@@ -45,7 +52,8 @@ export const TableRenderer: React.FC<TableRendererProps> = ({ markdownTable }) =
                 {row.map((cell, cellIndex) => (
                   <td
                     key={cellIndex}
-                    className="px-4 py-3 text-sm text-gray-900 border-b border-gray-200"
+                    className="px-3 py-2 text-sm text-gray-900 border-b border-gray-200 max-w-xs truncate"
+                    title={cell} // Show full text on hover
                   >
                     {cell}
                   </td>
@@ -60,7 +68,9 @@ export const TableRenderer: React.FC<TableRendererProps> = ({ markdownTable }) =
 
   return (
     <div className="mt-4 max-h-96 overflow-auto border border-gray-200 rounded-lg">
-      {parseMarkdownTable(markdownTable)}
+      <div className="overflow-x-auto">
+        {parseMarkdownTable(markdownTable)}
+      </div>
     </div>
   );
 };
