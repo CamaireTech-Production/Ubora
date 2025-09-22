@@ -81,16 +81,42 @@ export class PDFGenerator {
   private addTitle(title: string): void {
     this.doc.setFontSize(24);
     this.doc.setFont('helvetica', 'bold');
-    this.doc.text(title, this.margin, this.currentY);
-    this.currentY += 15;
+    
+    // Calculate available width for title
+    const availableWidth = this.pageWidth - 2 * this.margin;
+    const lineHeight = 8;
+    
+    // Split title into multiple lines if it's too long
+    const lines = this.doc.splitTextToSize(title, availableWidth);
+    
+    // Add each line
+    lines.forEach((line: string) => {
+      this.doc.text(line, this.margin, this.currentY);
+      this.currentY += lineHeight;
+    });
+    
+    this.currentY += 5; // Extra spacing after title
   }
 
   private addSubtitle(subtitle: string): void {
     this.doc.setFontSize(14);
     this.doc.setFont('helvetica', 'normal');
     this.doc.setTextColor(100, 100, 100);
-    this.doc.text(subtitle, this.margin, this.currentY);
-    this.currentY += 10;
+    
+    // Calculate available width for subtitle
+    const availableWidth = this.pageWidth - 2 * this.margin;
+    const lineHeight = 6;
+    
+    // Split subtitle into multiple lines if it's too long
+    const lines = this.doc.splitTextToSize(subtitle, availableWidth);
+    
+    // Add each line
+    lines.forEach((line: string) => {
+      this.doc.text(line, this.margin, this.currentY);
+      this.currentY += lineHeight;
+    });
+    
+    this.currentY += 4; // Extra spacing after subtitle
     this.doc.setTextColor(0, 0, 0);
   }
 
@@ -106,8 +132,22 @@ export class PDFGenerator {
     if (metadata.totalForms) metadataText.push(`Formulaires: ${metadata.totalForms}`);
     
     if (metadataText.length > 0) {
-      this.doc.text(metadataText.join(' | '), this.margin, this.currentY);
-      this.currentY += 8;
+      const metadataString = metadataText.join(' | ');
+      
+      // Calculate available width for metadata
+      const availableWidth = this.pageWidth - 2 * this.margin;
+      const lineHeight = 5;
+      
+      // Split metadata into multiple lines if it's too long
+      const lines = this.doc.splitTextToSize(metadataString, availableWidth);
+      
+      // Add each line
+      lines.forEach((line: string) => {
+        this.doc.text(line, this.margin, this.currentY);
+        this.currentY += lineHeight;
+      });
+      
+      this.currentY += 3; // Extra spacing after metadata
     }
     
     this.doc.setTextColor(0, 0, 0);
@@ -483,30 +523,105 @@ export class PDFGenerator {
     
     const headers = tableRows[0];
     const dataRows = tableRows.slice(1);
-    const colWidth = (this.pageWidth - 2 * this.margin) / headers.length;
     
-    // Add headers
-    this.doc.setFontSize(10);
+    // Calculate column widths based on content length
+    const colWidths = this.calculateColumnWidths(headers, dataRows);
+    const totalWidth = colWidths.reduce((sum, width) => sum + width, 0);
+    const availableWidth = this.pageWidth - 2 * this.margin;
+    
+    // Scale column widths if they exceed available width
+    const scaleFactor = availableWidth / totalWidth;
+    const scaledColWidths = colWidths.map(width => width * scaleFactor);
+    
+    // Add table border
+    this.doc.setDrawColor(200, 200, 200);
+    this.doc.setLineWidth(0.5);
+    
+    // Add headers with background
+    this.doc.setFillColor(240, 240, 240);
+    this.doc.setFontSize(9);
     this.doc.setFont('helvetica', 'bold');
+    
+    let currentX = this.margin;
     headers.forEach((header, index) => {
-      const x = this.margin + index * colWidth;
-      this.doc.text(header, x, this.currentY);
+      const cellWidth = scaledColWidths[index];
+      const cellHeight = 8;
+      
+      // Draw header background
+      this.doc.rect(currentX, this.currentY - 6, cellWidth, cellHeight, 'F');
+      this.doc.rect(currentX, this.currentY - 6, cellWidth, cellHeight, 'S');
+      
+      // Add header text with word wrapping
+      this.addWrappedText(header, currentX + 2, this.currentY - 1, cellWidth - 4, 6);
+      currentX += cellWidth;
     });
     this.currentY += 8;
     
     // Add data rows
     this.doc.setFont('helvetica', 'normal');
-    dataRows.slice(0, 15).forEach((row) => { // Limit to 15 rows
-      if (this.currentY > this.pageHeight - 20) {
+    this.doc.setFontSize(8);
+    dataRows.slice(0, 20).forEach((row) => { // Limit to 20 rows
+      if (this.currentY > this.pageHeight - 30) {
         this.addPageBreak();
       }
       
+      currentX = this.margin;
       row.forEach((cell, index) => {
-        const x = this.margin + index * colWidth;
-        this.doc.text(cell, x, this.currentY);
+        const cellWidth = scaledColWidths[index];
+        const cellHeight = 6;
+        
+        // Draw cell border
+        this.doc.rect(currentX, this.currentY - 4, cellWidth, cellHeight, 'S');
+        
+        // Add cell text with word wrapping
+        this.addWrappedText(cell, currentX + 2, this.currentY - 1, cellWidth - 4, 4);
+        currentX += cellWidth;
       });
       this.currentY += 6;
     });
+  }
+  
+  private calculateColumnWidths(headers: string[], dataRows: string[][]): number[] {
+    const colCount = headers.length;
+    const colWidths = new Array(colCount).fill(0);
+    
+    // Calculate width based on header text
+    headers.forEach((header, index) => {
+      colWidths[index] = Math.max(colWidths[index], header.length * 1.2);
+    });
+    
+    // Calculate width based on data text
+    dataRows.forEach(row => {
+      row.forEach((cell, index) => {
+        colWidths[index] = Math.max(colWidths[index], cell.length * 1.1);
+      });
+    });
+    
+    // Set minimum and maximum widths
+    return colWidths.map(width => Math.max(15, Math.min(width, 50)));
+  }
+  
+  private addWrappedText(text: string, x: number, y: number, maxWidth: number, lineHeight: number): void {
+    const words = text.split(' ');
+    let line = '';
+    let currentY = y;
+    
+    for (let i = 0; i < words.length; i++) {
+      const testLine = line + words[i] + ' ';
+      const testWidth = this.doc.getTextWidth(testLine);
+      
+      if (testWidth > maxWidth && line !== '') {
+        this.doc.text(line, x, currentY);
+        line = words[i] + ' ';
+        currentY += lineHeight;
+      } else {
+        line = testLine;
+      }
+    }
+    
+    if (line) {
+      this.doc.text(line, x, currentY);
+    }
   }
 
   private async addChartsSection(charts: GraphData[]): Promise<void> {
@@ -528,11 +643,11 @@ export class PDFGenerator {
       
       try {
         // Convert chart to high-resolution image with better dimensions
-        const chartImage = await ChartToImage.chartToBase64(chart, 600, 350);
+        const chartImage = await ChartToImage.chartToBase64(chart, 800, 500);
         
         // Add chart image to PDF with proper scaling and centering
-        const imgWidth = 170; // Increased width
-        const imgHeight = 100; // Increased height
+        const imgWidth = 170; // PDF width
+        const imgHeight = 120; // Increased height for better visibility
         const x = this.margin;
         const y = this.currentY;
         

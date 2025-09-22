@@ -56,7 +56,9 @@ export class ChartToImage {
    * Draw chart on canvas context
    */
   private static drawChart(ctx: CanvasRenderingContext2D, chartData: GraphData, width: number, height: number): void {
-    const margin = 80; // Increased margin for better axis labels
+    // Adjust margin based on data length for rotated labels
+    const dataLength = chartData.data.length;
+    const margin = dataLength > 8 ? 100 : 80; // More margin for rotated labels
     const chartWidth = width - 2 * margin;
     const chartHeight = height - 2 * margin;
 
@@ -153,6 +155,13 @@ export class ChartToImage {
       ctx.strokeStyle = this.darkenColor(color, 0.3);
       ctx.lineWidth = 0.5;
       ctx.strokeRect(x, y, barWidth, barHeight);
+      
+      // Add value label on top of bar
+      ctx.fillStyle = '#374151';
+      ctx.font = 'bold 10px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'bottom';
+      ctx.fillText(this.formatValue(value), x + barWidth / 2, y - 2);
     });
 
     // Draw Y-axis labels
@@ -239,7 +248,7 @@ export class ChartToImage {
     
     ctx.stroke();
 
-    // Draw points with high quality
+    // Draw points with high quality and value labels
     ctx.fillStyle = color;
     data.forEach((item, index) => {
       const value = item[chartData.yAxisKey || chartData.dataKey || 'value'] || 0;
@@ -261,6 +270,16 @@ export class ChartToImage {
       ctx.shadowBlur = 0;
       ctx.shadowOffsetX = 0;
       ctx.shadowOffsetY = 0;
+      
+      // Draw value label above the point
+      ctx.fillStyle = '#374151';
+      ctx.font = 'bold 10px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'bottom';
+      ctx.fillText(this.formatValue(value), x, y - 8);
+      
+      // Reset color for next point
+      ctx.fillStyle = color;
     });
   }
 
@@ -431,27 +450,88 @@ export class ChartToImage {
     // Only draw axis labels for non-pie charts
     if (chartData.type === 'pie') return;
 
-    // Draw X-axis label
-    if (chartData.xAxisKey) {
-      ctx.fillStyle = '#6b7280';
-      ctx.font = '12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'top';
-      ctx.fillText(chartData.xAxisKey, width / 2, height - 20);
+    const data = chartData.data;
+    if (data.length === 0) return;
+
+    // Set up text styling for axis labels
+    ctx.fillStyle = '#374151';
+    ctx.font = 'bold 12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    // Draw X-axis labels (data labels) with smart orientation
+    const shouldRotateLabels = data.length > 8; // Rotate if more than 8 data points
+    
+    data.forEach((item, index) => {
+      const label = item[chartData.xAxisKey || 'label']?.toString() || `Point ${index + 1}`;
+      const x = margin + (index / (data.length - 1)) * chartWidth;
+      const y = margin + chartHeight + (shouldRotateLabels ? 25 : 15);
+      
+      if (shouldRotateLabels) {
+        // Rotate labels vertically for better readability
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.rotate(-Math.PI / 2);
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(label, 0, 0);
+        ctx.restore();
+      } else {
+        // Normal horizontal labels
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'top';
+        ctx.fillText(label, x, y);
+      }
+    });
+
+    // Draw Y-axis labels (values)
+    const maxValue = Math.max(...data.map(d => d[chartData.yAxisKey || chartData.dataKey || 'value'] || 0));
+    const minValue = Math.min(...data.map(d => d[chartData.yAxisKey || chartData.dataKey || 'value'] || 0));
+    const valueRange = maxValue - minValue || 1;
+
+    // Draw Y-axis value labels
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'middle';
+    for (let i = 0; i <= 5; i++) {
+      const value = minValue + (i / 5) * valueRange;
+      const y = margin + chartHeight - (i / 5) * chartHeight;
+      const formattedValue = this.formatValue(value);
+      
+      ctx.fillText(formattedValue, margin - 10, y);
     }
 
-    // Draw Y-axis label
+    // Draw axis titles
+    ctx.fillStyle = '#6b7280';
+    ctx.font = 'bold 14px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+    
+    // X-axis title
+    if (chartData.xAxisKey) {
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'top';
+      ctx.fillText(chartData.xAxisKey, width / 2, height - 35);
+    }
+
+    // Y-axis title
     if (chartData.yAxisKey) {
       ctx.save();
       ctx.translate(15, height / 2);
       ctx.rotate(-Math.PI / 2);
-      ctx.fillStyle = '#6b7280';
-      ctx.font = '12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText(chartData.yAxisKey, 0, 0);
       ctx.restore();
     }
+  }
+
+  private static formatValue(value: number): string {
+    if (value === 0) return '0';
+    if (value < 0.01) return value.toExponential(2);
+    if (value < 1) return value.toFixed(2);
+    if (value < 10) return value.toFixed(1);
+    if (value < 100) return value.toFixed(0);
+    if (value < 1000) return value.toFixed(0);
+    if (value < 1000000) return (value / 1000).toFixed(1) + 'K';
+    return (value / 1000000).toFixed(1) + 'M';
   }
 
   /**
