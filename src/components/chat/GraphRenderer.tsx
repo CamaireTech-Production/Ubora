@@ -321,7 +321,7 @@ const renderChart = (data: GraphData, isPreview: boolean) => {
             paddingAngle={2}
             dataKey={data.dataKey || 'value'}
           >
-            {data.data.map((entry, index) => (
+            {data.data.map((_, index) => (
               <Cell key={`cell-${index}`} fill={data.colors?.[index] || COLORS[index % COLORS.length]} />
             ))}
           </Pie>
@@ -346,7 +346,7 @@ const renderChart = (data: GraphData, isPreview: boolean) => {
           {!isPreview && data.options?.showLegend && <Legend />}
           <Area 
             type="monotone" 
-            dataKey={data.yAxisKey || data.dataKey} 
+            dataKey={data.yAxisKey || data.dataKey || 'value'} 
             stroke={data.colors?.[0] || COLORS[0]} 
             fill={data.colors?.[0] || COLORS[0]}
             fillOpacity={0.3}
@@ -378,19 +378,83 @@ const renderChart = (data: GraphData, isPreview: boolean) => {
 export const GraphRenderer: React.FC<GraphRendererProps> = ({ data, isPreview = true, onExpand }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
 
+  // 🔍 DEBUG: Log the received data in GraphRenderer
+  console.log('🔍 FRONTEND DEBUG - GraphRenderer received data:');
+  console.log('=====================================');
+  console.log('Raw data:', data);
+  console.log('Data type:', typeof data);
+  console.log('Has data property:', data && 'data' in data);
+  console.log('Data.data type:', data && data.data ? typeof data.data : 'N/A');
+  console.log('Data.data is array:', data && data.data ? Array.isArray(data.data) : 'N/A');
+  console.log('Data.data length:', data && data.data ? data.data.length : 'N/A');
+  console.log('Data.type:', data && data.type);
+  console.log('Data.title:', data && data.title);
+  console.log('Data.xAxisKey:', data && data.xAxisKey);
+  console.log('Data.yAxisKey:', data && data.yAxisKey);
+  console.log('Data.dataKey:', data && data.dataKey);
+  if (data && data.data && Array.isArray(data.data) && data.data.length > 0) {
+    console.log('First data item:', data.data[0]);
+    console.log('First data item keys:', data.data[0] ? Object.keys(data.data[0]) : 'N/A');
+    console.log('Sample data items:', data.data.slice(0, 3));
+  }
+  console.log('=====================================');
+
+  // Transform data to ensure it's in the correct format
+  const transformData = (rawData: any) => {
+    if (!rawData || !rawData.data || !Array.isArray(rawData.data) || rawData.data.length === 0) {
+      return null;
+    }
+
+    // Check if data is already in the correct format (x, y)
+    const firstItem = rawData.data[0];
+    if (firstItem && 'x' in firstItem && 'y' in firstItem) {
+      console.log('✅ FRONTEND DEBUG - Data already in correct format (x, y)');
+      return rawData;
+    }
+
+    // Transform from old format (label, value) to new format (x, y)
+    if (firstItem && 'label' in firstItem && 'value' in firstItem) {
+      console.log('🔧 FRONTEND DEBUG - Transforming data from old format (label, value) to new format (x, y)');
+      const transformedData = {
+        ...rawData,
+        data: rawData.data.map((item: any) => ({
+          x: item.label || item.employee || 'Unknown',
+          y: item.value || 0
+        })),
+        xAxisKey: 'x',
+        yAxisKey: 'y',
+        dataKey: 'y'
+      };
+      console.log('🔧 FRONTEND DEBUG - Transformed data:', transformedData);
+      return transformedData;
+    }
+
+    console.log('❌ FRONTEND DEBUG - Unknown data format, cannot transform');
+    return null;
+  };
+
+  const transformedData = transformData(data);
+
   // Validate data structure early
-  if (!data || !data.data || !Array.isArray(data.data) || data.data.length === 0) {
+  if (!transformedData) {
+    console.log('❌ FRONTEND DEBUG - GraphRenderer validation failed - no valid data');
     return (
       <div className="bg-white border border-gray-200 rounded-lg p-3 shadow-sm">
         <div className="flex items-center justify-center h-24 text-gray-500 text-sm">
           <div className="text-center">
             <div className="text-lg mb-2">📊</div>
             <div>Aucune donnée disponible</div>
+            <div className="text-xs text-gray-400 mt-1">
+              Format de données non supporté
+            </div>
           </div>
         </div>
       </div>
     );
   }
+
+  // Use transformed data for rendering
+  const finalData = transformedData;
 
   const handleExpand = () => {
     if (onExpand) {
@@ -406,12 +470,12 @@ export const GraphRenderer: React.FC<GraphRendererProps> = ({ data, isPreview = 
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center space-x-2">
             <div className={`w-1.5 h-1.5 rounded-full ${
-              data.type === 'bar' ? 'bg-blue-500' :
-              data.type === 'line' ? 'bg-green-500' :
-              data.type === 'pie' ? 'bg-purple-500' :
-              data.type === 'area' ? 'bg-orange-500' : 'bg-gray-500'
+              finalData.type === 'bar' ? 'bg-blue-500' :
+              finalData.type === 'line' ? 'bg-green-500' :
+              finalData.type === 'pie' ? 'bg-purple-500' :
+              finalData.type === 'area' ? 'bg-orange-500' : 'bg-gray-500'
             }`}></div>
-            <h3 className="text-xs font-semibold text-gray-900 truncate">{data.title}</h3>
+            <h3 className="text-xs font-semibold text-gray-900 truncate">{finalData.title}</h3>
           </div>
           <Button
             variant="secondary"
@@ -425,7 +489,7 @@ export const GraphRenderer: React.FC<GraphRendererProps> = ({ data, isPreview = 
         
         <div className="w-full h-24 bg-gray-50 rounded-lg p-1">
           <ResponsiveContainer width="100%" height="100%">
-            {renderChart(data, isPreview)}
+            {renderChart(finalData, isPreview)}
           </ResponsiveContainer>
         </div>
         
@@ -433,20 +497,20 @@ export const GraphRenderer: React.FC<GraphRendererProps> = ({ data, isPreview = 
           <span className="flex items-center space-x-1">
             <div className="w-1 h-1 bg-blue-400 rounded-full"></div>
             <span>
-              {data.data.length > 0 && data.data[0].employee 
-                ? `${data.data.length} employé${data.data.length > 1 ? 's' : ''}`
-                : data.data.length > 0 && data.data[0].date
-                ? `${data.data.length} jour${data.data.length > 1 ? 's' : ''}`
-                : `${data.data.length} points`
+              {finalData.data.length > 0 && finalData.data[0].employee 
+                ? `${finalData.data.length} employé${finalData.data.length > 1 ? 's' : ''}`
+                : finalData.data.length > 0 && finalData.data[0].date
+                ? `${finalData.data.length} jour${finalData.data.length > 1 ? 's' : ''}`
+                : `${finalData.data.length} points`
               }
             </span>
           </span>
-          <span className="capitalize text-xs">{data.type}</span>
+          <span className="capitalize text-xs">{finalData.type}</span>
         </div>
       </div>
 
       <GraphModal
-        data={data}
+        data={finalData}
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
       />

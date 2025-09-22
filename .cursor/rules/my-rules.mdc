@@ -4,6 +4,7 @@ globs:
 alwaysApply: true
 ---
 - dp not try to run the start command for the project because the project is always started
-- Always use clean code for implementation
+- Always use clean code for implementation and react js good practice
 - implement unit test to make sure that intividual functions work and test the whole functionality to ensure it is working
 - always make sure your implementation dapts web, tablette and phone view
+- Never broke is already existing and working avoid all linter errors and auto correct them

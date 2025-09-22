@@ -521,12 +521,12 @@ INSTRUCTIONS POUR FORMAT STATISTIQUES :
   "title": "Titre descriptif du graphique",
   "subtitle": "Sous-titre optionnel",
   "data": [
-    {"label": "Catégorie1", "value": 10, "employee": "Nom Employé", "date": "2024-01-01"},
-    {"label": "Catégorie2", "value": 15, "employee": "Nom Employé", "date": "2024-01-02"}
+    {"x": "Catégorie1", "y": 10},
+    {"x": "Catégorie2", "y": 15}
   ],
-  "xAxisKey": "label",
-  "yAxisKey": "value",
-  "dataKey": "value",
+  "xAxisKey": "x",
+  "yAxisKey": "y",
+  "dataKey": "y",
   "colors": ["#3B82F6", "#10B981", "#F59E0B", "#EF4444", "#8B5CF6"],
   "options": {
     "showLegend": true,
@@ -544,14 +544,19 @@ INSTRUCTIONS POUR FORMAT STATISTIQUES :
 }
 \`\`\`
 
+ATTENTION : Respecte EXACTEMENT ce format JSON. Chaque propriété doit avoir un deux-points : et les tableaux doivent être entre crochets [].
+
 - OBLIGATOIRE : Inclus TOUJOURS des données réelles dans le tableau "data"
 - OBLIGATOIRE : Le graphique doit contenir au minimum 2-3 points de données pour être utile
-- OBLIGATOIRE : Utilise des clés appropriées (label, value, employee, date, submissions, etc.)
+- OBLIGATOIRE : Utilise des clés appropriées (x, y) pour les données du graphique
 - OBLIGATOIRE : Inclus des insights et recommandations basés sur les données
 - OBLIGATOIRE : Le JSON doit être parfaitement formaté avec des crochets [] pour tous les tableaux
 - OBLIGATOIRE : Utilise des guillemets doubles " pour toutes les chaînes de caractères
 - OBLIGATOIRE : Pas de virgules en fin de ligne avant les accolades fermantes
 - OBLIGATOIRE : Le JSON doit être valide et parseable sans erreurs
+- OBLIGATOIRE : Chaque propriété doit avoir un deux-points : après le nom
+- OBLIGATOIRE : Les tableaux data, colors, insights, recommendations doivent être entre crochets []
+- OBLIGATOIRE : Vérifie que chaque objet JSON est correctement fermé avec }
 - Assure-toi que le graphique répond directement à la question posée avec des données concrètes
 - Types de graphiques recommandés :
   * "bar" : pour comparer des catégories
@@ -627,12 +632,12 @@ INSTRUCTIONS POUR FORMAT PDF + STATISTIQUES + TABLEAU :
   "title": "Titre descriptif du graphique",
   "subtitle": "Sous-titre optionnel",
   "data": [
-    {"label": "Catégorie1", "value": 10, "employee": "Nom Employé", "date": "2024-01-01"},
-    {"label": "Catégorie2", "value": 15, "employee": "Nom Employé", "date": "2024-01-02"}
+    {"x": "Catégorie1", "y": 10},
+    {"x": "Catégorie2", "y": 15}
   ],
-  "xAxisKey": "label",
-  "yAxisKey": "value",
-  "dataKey": "value",
+  "xAxisKey": "x",
+  "yAxisKey": "y",
+  "dataKey": "y",
   "colors": ["#3B82F6", "#10B981", "#F59E0B", "#EF4444", "#8B5CF6"],
   "options": {
     "showLegend": true,
@@ -668,7 +673,10 @@ INSTRUCTIONS POUR FORMAT PDF + STATISTIQUES + TABLEAU :
 - OBLIGATOIRE : Le JSON doit être parfaitement formaté avec des crochets [] pour tous les tableaux
 - OBLIGATOIRE : Utilise des guillemets doubles " pour toutes les chaînes de caractères
 - OBLIGATOIRE : Pas de virgules en fin de ligne avant les accolades fermantes
-- OBLIGATOIRE : Le JSON doit être valide et parseable sans erreurs`;
+- OBLIGATOIRE : Le JSON doit être valide et parseable sans erreurs
+- OBLIGATOIRE : Chaque propriété doit avoir un deux-points : après le nom
+- OBLIGATOIRE : Les tableaux data, colors, insights, recommendations doivent être entre crochets []
+- OBLIGATOIRE : Vérifie que chaque objet JSON est correctement fermé avec }`;
       }
 
       if (hasPDF && hasStats) {
@@ -696,12 +704,12 @@ INSTRUCTIONS POUR FORMAT PDF + STATISTIQUES :
   "title": "Titre descriptif du graphique",
   "subtitle": "Sous-titre optionnel",
   "data": [
-    {"label": "Catégorie1", "value": 10, "employee": "Nom Employé", "date": "2024-01-01"},
-    {"label": "Catégorie2", "value": 15, "employee": "Nom Employé", "date": "2024-01-02"}
+    {"x": "Catégorie1", "y": 10},
+    {"x": "Catégorie2", "y": 15}
   ],
-  "xAxisKey": "label",
-  "yAxisKey": "value",
-  "dataKey": "value",
+  "xAxisKey": "x",
+  "yAxisKey": "y",
+  "dataKey": "y",
   "colors": ["#3B82F6", "#10B981", "#F59E0B", "#EF4444", "#8B5CF6"],
   "options": {
     "showLegend": true,
@@ -729,7 +737,10 @@ INSTRUCTIONS POUR FORMAT PDF + STATISTIQUES :
 - OBLIGATOIRE : Le JSON doit être parfaitement formaté avec des crochets [] pour tous les tableaux
 - OBLIGATOIRE : Utilise des guillemets doubles " pour toutes les chaînes de caractères
 - OBLIGATOIRE : Pas de virgules en fin de ligne avant les accolades fermantes
-- OBLIGATOIRE : Le JSON doit être valide et parseable sans erreurs`;
+- OBLIGATOIRE : Le JSON doit être valide et parseable sans erreurs
+- OBLIGATOIRE : Chaque propriété doit avoir un deux-points : après le nom
+- OBLIGATOIRE : Les tableaux data, colors, insights, recommendations doivent être entre crochets []
+- OBLIGATOIRE : Vérifie que chaque objet JSON est correctement fermé avec }`;
       }
 
       if (hasPDF && hasTable) {
@@ -785,12 +796,12 @@ INSTRUCTIONS POUR FORMAT STATISTIQUES + TABLEAU :
   "title": "Titre descriptif du graphique",
   "subtitle": "Sous-titre optionnel",
   "data": [
-    {"label": "Catégorie1", "value": 10, "employee": "Nom Employé", "date": "2024-01-01"},
-    {"label": "Catégorie2", "value": 15, "employee": "Nom Employé", "date": "2024-01-02"}
+    {"x": "Catégorie1", "y": 10},
+    {"x": "Catégorie2", "y": 15}
   ],
-  "xAxisKey": "label",
-  "yAxisKey": "value",
-  "dataKey": "value",
+  "xAxisKey": "x",
+  "yAxisKey": "y",
+  "dataKey": "y",
   "colors": ["#3B82F6", "#10B981", "#F59E0B", "#EF4444", "#8B5CF6"],
   "options": {
     "showLegend": true,
@@ -824,7 +835,10 @@ INSTRUCTIONS POUR FORMAT STATISTIQUES + TABLEAU :
 - OBLIGATOIRE : Le JSON doit être parfaitement formaté avec des crochets [] pour tous les tableaux
 - OBLIGATOIRE : Utilise des guillemets doubles " pour toutes les chaînes de caractères
 - OBLIGATOIRE : Pas de virgules en fin de ligne avant les accolades fermantes
-- OBLIGATOIRE : Le JSON doit être valide et parseable sans erreurs`;
+- OBLIGATOIRE : Le JSON doit être valide et parseable sans erreurs
+- OBLIGATOIRE : Chaque propriété doit avoir un deux-points : après le nom
+- OBLIGATOIRE : Les tableaux data, colors, insights, recommendations doivent être entre crochets []
+- OBLIGATOIRE : Vérifie que chaque objet JSON est correctement fermé avec }`;
       }
 
       return `
@@ -888,11 +902,11 @@ Ce rapport présente une analyse complète des données de votre agence pour la 
   "title": "Top 5 des employés par nombre de soumissions",
   "subtitle": "Période: ${data.period.label}",
   "data": [
-    ${data.userStats.slice(0, 5).map(u => `{"label": "${u.name}", "value": ${u.count}, "employee": "${u.name}"}`).join(',\n    ')}
+    ${data.userStats.slice(0, 5).map(u => `{"x": "${u.name}", "y": ${u.count}}`).join(',\n    ')}
   ],
-  "xAxisKey": "label",
-  "yAxisKey": "value",
-  "dataKey": "value",
+  "xAxisKey": "x",
+  "yAxisKey": "y",
+  "dataKey": "y",
   "colors": ["#3B82F6", "#10B981", "#F59E0B", "#EF4444", "#8B5CF6"],
   "options": {
     "showLegend": true,
@@ -943,11 +957,11 @@ Ce rapport présente une analyse des données de votre agence pour la période $
   "title": "Top 5 des employés par nombre de soumissions",
   "subtitle": "Période: ${data.period.label}",
   "data": [
-    ${data.userStats.slice(0, 5).map(u => `{"label": "${u.name}", "value": ${u.count}, "employee": "${u.name}"}`).join(',\n    ')}
+    ${data.userStats.slice(0, 5).map(u => `{"x": "${u.name}", "y": ${u.count}}`).join(',\n    ')}
   ],
-  "xAxisKey": "label",
-  "yAxisKey": "value",
-  "dataKey": "value",
+  "xAxisKey": "x",
+  "yAxisKey": "y",
+  "dataKey": "y",
   "colors": ["#3B82F6", "#10B981", "#F59E0B", "#EF4444", "#8B5CF6"],
   "options": {
     "showLegend": true,
@@ -1010,11 +1024,11 @@ ${data.userStats.slice(0, 5).map(u => `| ${u.name} | ${u.count} | ${((u.count/da
   "title": "Top 5 des employés par nombre de soumissions",
   "subtitle": "Période: ${data.period.label}",
   "data": [
-    ${data.userStats.slice(0, 5).map(u => `{"label": "${u.name}", "value": ${u.count}, "employee": "${u.name}"}`).join(',\n    ')}
+    ${data.userStats.slice(0, 5).map(u => `{"x": "${u.name}", "y": ${u.count}}`).join(',\n    ')}
   ],
-  "xAxisKey": "label",
-  "yAxisKey": "value",
-  "dataKey": "value",
+  "xAxisKey": "x",
+  "yAxisKey": "y",
+  "dataKey": "y",
   "colors": ["#3B82F6", "#10B981", "#F59E0B", "#EF4444", "#8B5CF6"],
   "options": {
     "showLegend": true,
@@ -1688,6 +1702,60 @@ Il serait pertinent de surveiller l'engagement des employés moins actifs et d'a
         }
       }
     };
+
+    // 🔍 DEBUG: Log the AI response for graph debugging
+    console.log('🔍 AI BACKEND DEBUG - Raw AI Response:');
+    console.log('=====================================');
+    console.log('Response Format:', responseFormat);
+    console.log('Selected Formats:', selectedResponseFormats);
+    console.log('Raw Answer Length:', answer.length);
+    console.log('Raw Answer Content:');
+    console.log(answer);
+    console.log('=====================================');
+    
+    // Try to extract and log JSON from the response
+    if (answer) {
+      const jsonMatch = answer.match(/```json\s*([\s\S]*?)\s*```/);
+      if (jsonMatch) {
+        console.log('🔍 AI BACKEND DEBUG - Found JSON Block:');
+        console.log('=====================================');
+        console.log('JSON String:', jsonMatch[1]);
+        try {
+          const parsedJson = JSON.parse(jsonMatch[1]);
+          console.log('Parsed JSON:', JSON.stringify(parsedJson, null, 2));
+          console.log('JSON Type:', typeof parsedJson);
+          console.log('Has type property:', 'type' in parsedJson);
+          console.log('Has data property:', 'data' in parsedJson);
+          console.log('Data is array:', Array.isArray(parsedJson.data));
+          console.log('Data length:', parsedJson.data ? parsedJson.data.length : 'N/A');
+          console.log('Data content:', parsedJson.data);
+          console.log('Type value:', parsedJson.type);
+          console.log('Title value:', parsedJson.title);
+          console.log('xAxisKey value:', parsedJson.xAxisKey);
+          console.log('yAxisKey value:', parsedJson.yAxisKey);
+          console.log('dataKey value:', parsedJson.dataKey);
+          if (parsedJson.data && Array.isArray(parsedJson.data) && parsedJson.data.length > 0) {
+            console.log('First data item:', parsedJson.data[0]);
+            console.log('First data item keys:', Object.keys(parsedJson.data[0]));
+            console.log('Sample data items:', parsedJson.data.slice(0, 3));
+          }
+          console.log('✅ AI BACKEND DEBUG - JSON is valid and ready for frontend');
+        } catch (e) {
+          console.log('❌ AI BACKEND DEBUG - JSON Parse Error:', e.message);
+          console.log('❌ AI BACKEND DEBUG - Raw JSON that failed to parse:', jsonMatch[1]);
+        }
+        console.log('=====================================');
+      } else {
+        console.log('🔍 AI BACKEND DEBUG - No JSON block found in response');
+        console.log('🔍 AI BACKEND DEBUG - Looking for direct JSON...');
+        const directJsonMatch = answer.match(/\{\s*"type"\s*:\s*"[^"]*"\s*,[\s\S]*?\}/);
+        if (directJsonMatch) {
+          console.log('🔍 AI BACKEND DEBUG - Found direct JSON:', directJsonMatch[0]);
+        } else {
+          console.log('❌ AI BACKEND DEBUG - No JSON found at all in response');
+        }
+      }
+    }
     
     return res.status(200).json(response);
 

@@ -53,169 +53,73 @@ const cleanMarkdown = (text: string): string => {
   return cleaned;
 };
 
-// Function to repair common JSON syntax errors
-const repairJsonString = (jsonString: string): string => {
-  let repaired = jsonString.trim();
-  
-  // Remove any leading/trailing whitespace and ensure it starts with {
-  if (!repaired.startsWith('{')) {
-    repaired = '{' + repaired;
-  }
-  if (!repaired.endsWith('}')) {
-    repaired = repaired + '}';
-  }
-  
-  // Fix missing array brackets for data
-  repaired = repaired.replace(/"data"\s*:\s*([^[\]]+?)(?=,|\s*"|$)/g, (match, dataContent) => {
-    // Check if dataContent is already an array
-    if (dataContent.trim().startsWith('[') && dataContent.trim().endsWith(']')) {
-      return match;
-    }
-    
-    // Handle the case where data is a list of objects without array brackets
-    let cleanDataContent = dataContent.trim();
-    
-    // Remove any trailing commas at the end
-    cleanDataContent = cleanDataContent.replace(/,\s*$/, '');
-    
-    // Split by },{ pattern to get individual objects
-    const objectStrings = cleanDataContent.split('},{');
-    
-    // Wrap individual objects in array brackets
-    const objects = objectStrings.map((obj: string, index: number) => {
-      let cleanObj = obj.trim();
-      if (index === 0 && !cleanObj.startsWith('{')) {
-        cleanObj = '{' + cleanObj;
-      }
-      if (index === objectStrings.length - 1 && !cleanObj.endsWith('}')) {
-        cleanObj = cleanObj + '}';
-      }
-      return cleanObj;
-    });
-    
-    return `"data": [${objects.join(', ')}]`;
-  });
-  
-  // Fix missing array brackets for colors
-  repaired = repaired.replace(/"colors"\s*:\s*([^[\]]+?)(?=,|\s*"|$)/g, (match, colorsContent) => {
-    if (colorsContent.trim().startsWith('[') && colorsContent.trim().endsWith(']')) {
-      return match;
-    }
-    
-    // Handle the case where colors is a comma-separated list without array brackets
-    let cleanColorsContent = colorsContent.trim();
-    
-    // Remove any trailing commas at the end
-    cleanColorsContent = cleanColorsContent.replace(/,\s*$/, '');
-    
-    // Split by comma and wrap in array brackets
-    const colors = cleanColorsContent.split(',').map((color: string) => color.trim()).filter((color: string) => color);
-    return `"colors": [${colors.join(', ')}]`;
-  });
-  
-  // Fix missing array brackets for insights
-  repaired = repaired.replace(/"insights"\s*:\s*([^[\]]+?)(?=,|\s*"|$)/g, (match, insightsContent) => {
-    if (insightsContent.trim().startsWith('[') && insightsContent.trim().endsWith(']')) {
-      return match;
-    }
-    
-    // Handle the case where insights is a list of strings without array brackets
-    let cleanInsightsContent = insightsContent.trim();
-    
-    // Remove any trailing commas at the end
-    cleanInsightsContent = cleanInsightsContent.replace(/,\s*$/, '');
-    
-    // Split by comma and wrap in array brackets, ensuring proper string quotes
-    const insights = cleanInsightsContent.split(',').map((insight: string) => {
-      let cleanInsight = insight.trim();
-      if (!cleanInsight.startsWith('"')) {
-        cleanInsight = '"' + cleanInsight;
-      }
-      if (!cleanInsight.endsWith('"')) {
-        cleanInsight = cleanInsight + '"';
-      }
-      return cleanInsight;
-    }).filter((insight: string) => insight.length > 2);
-    
-    return `"insights": [${insights.join(', ')}]`;
-  });
-  
-  // Fix missing array brackets for recommendations
-  repaired = repaired.replace(/"recommendations"\s*:\s*([^[\]]+?)(?=,|\s*"|$)/g, (match, recommendationsContent) => {
-    if (recommendationsContent.trim().startsWith('[') && recommendationsContent.trim().endsWith(']')) {
-      return match;
-    }
-    
-    // Handle the case where recommendations is a list of strings without array brackets
-    let cleanRecommendationsContent = recommendationsContent.trim();
-    
-    // Remove any trailing commas at the end
-    cleanRecommendationsContent = cleanRecommendationsContent.replace(/,\s*$/, '');
-    
-    // Split by comma and wrap in array brackets, ensuring proper string quotes
-    const recommendations = cleanRecommendationsContent.split(',').map((recommendation: string) => {
-      let cleanRecommendation = recommendation.trim();
-      if (!cleanRecommendation.startsWith('"')) {
-        cleanRecommendation = '"' + cleanRecommendation;
-      }
-      if (!cleanRecommendation.endsWith('"')) {
-        cleanRecommendation = cleanRecommendation + '"';
-      }
-      return cleanRecommendation;
-    }).filter((recommendation: string) => recommendation.length > 2);
-    
-    return `"recommendations": [${recommendations.join(', ')}]`;
-  });
-  
-  // Remove trailing commas before closing braces/brackets
-  repaired = repaired.replace(/,(\s*[}\]])/g, '$1');
-  
-  // Fix any remaining syntax issues
-  repaired = repaired.replace(/,(\s*[,}])/g, '$1'); // Remove double commas
-  
-  // Fix common typos in JSON
-  repaired = repaired.replace(/"datakev"/g, '"dataKey"');
-  repaired = repaired.replace(/"xAxisKey"/g, '"xAxisKey"');
-  repaired = repaired.replace(/"yAxisKey"/g, '"yAxisKey"');
-  
-  return repaired;
-};
+// Removed repairJsonString function - AI now returns correct format directly
 
 // Function to detect and parse JSON content in sections
 const parseJsonInContent = (content: string): GraphData | null => {
   if (!content) return null;
   
+  // 🔍 DEBUG: Log the content being parsed in PDF preview
+  console.log('🔍 FRONTEND DEBUG - PDFPreview parsing content:');
+  console.log('=====================================');
+  console.log('Content length:', content.length);
+  console.log('Content preview:', content.substring(0, 200) + '...');
+  console.log('=====================================');
+  
   // Try to find JSON blocks in the content
   const jsonMatch = content.match(/```json\s*([\s\S]*?)\s*```/);
   if (jsonMatch) {
+    console.log('🔍 FRONTEND DEBUG - PDFPreview found JSON block');
+    console.log('=====================================');
+    console.log('JSON String:', jsonMatch[1]);
+    console.log('=====================================');
+    
     try {
       const jsonString = jsonMatch[1];
-      const repairedJsonString = repairJsonString(jsonString);
-      const jsonData = JSON.parse(repairedJsonString);
+      console.log('🔍 FRONTEND DEBUG - PDFPreview raw JSON:', jsonString);
+      
+      const jsonData = JSON.parse(jsonString);
+      console.log('🔍 FRONTEND DEBUG - PDFPreview parsed JSON:', jsonData);
       
       // Check if it's valid graph data
       if (jsonData && typeof jsonData === 'object' && jsonData.type && jsonData.data) {
+        console.log('✅ FRONTEND DEBUG - PDFPreview valid graph data found');
         return jsonData as GraphData;
+      } else {
+        console.log('❌ FRONTEND DEBUG - PDFPreview invalid graph data structure');
       }
     } catch (error) {
-      console.error('Error parsing JSON in content:', error);
+      console.error('❌ FRONTEND DEBUG - PDFPreview error parsing JSON:', error);
     }
   }
   
   // Try to find JSON object directly
   const directJsonMatch = content.match(/\{\s*"type"\s*:\s*"[^"]*"\s*,[\s\S]*?\}/);
   if (directJsonMatch) {
+    console.log('🔍 FRONTEND DEBUG - PDFPreview found direct JSON');
+    console.log('=====================================');
+    console.log('Direct JSON String:', directJsonMatch[0]);
+    console.log('=====================================');
+    
     try {
-      const repairedJsonString = repairJsonString(directJsonMatch[0]);
-      const jsonData = JSON.parse(repairedJsonString);
+      const jsonString = directJsonMatch[0];
+      console.log('🔍 FRONTEND DEBUG - PDFPreview direct JSON:', jsonString);
+      
+      const jsonData = JSON.parse(jsonString);
+      console.log('🔍 FRONTEND DEBUG - PDFPreview parsed direct JSON:', jsonData);
+      
       if (jsonData && typeof jsonData === 'object' && jsonData.type && jsonData.data) {
+        console.log('✅ FRONTEND DEBUG - PDFPreview valid direct graph data found');
         return jsonData as GraphData;
+      } else {
+        console.log('❌ FRONTEND DEBUG - PDFPreview invalid direct graph data structure');
       }
     } catch (error) {
-      console.error('Error parsing direct JSON in content:', error);
+      console.error('❌ FRONTEND DEBUG - PDFPreview error parsing direct JSON:', error);
     }
   }
   
+  console.log('❌ FRONTEND DEBUG - PDFPreview no JSON found in content');
   return null;
 };
 
@@ -302,6 +206,43 @@ const formatMarkdownContent = (content: string): React.ReactNode => {
     if (!trimmedLine) {
       elements.push(<br key={index} />);
       index++;
+      continue;
+    }
+    
+    // Check for JSON code blocks - preserve them completely
+    if (trimmedLine.startsWith('```json')) {
+      // Find the end of the JSON block
+      let jsonBlock = '';
+      let jsonIndex = index;
+      while (jsonIndex < lines.length) {
+        const currentLine = lines[jsonIndex];
+        jsonBlock += currentLine + '\n';
+        if (currentLine.trim() === '```') {
+          break;
+        }
+        jsonIndex++;
+      }
+      
+      // Parse and render the JSON as a graph
+      const graphData = parseJsonInContent(jsonBlock);
+      if (graphData) {
+        elements.push(
+          <div key={index} className="my-4">
+            <GraphRenderer data={graphData} />
+          </div>
+        );
+      } else {
+        // If parsing fails, show the raw JSON in a code block
+        elements.push(
+          <div key={index} className="my-4">
+            <pre className="bg-gray-100 p-4 rounded-lg text-sm overflow-x-auto">
+              <code>{jsonBlock}</code>
+            </pre>
+          </div>
+        );
+      }
+      
+      index = jsonIndex + 1;
       continue;
     }
     
