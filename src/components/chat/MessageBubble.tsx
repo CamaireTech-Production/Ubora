@@ -1,9 +1,8 @@
 import React from 'react';
-import { Bot, User, Clock } from 'lucide-react';
+import { User, Clock } from 'lucide-react';
 import { GraphRenderer } from './GraphRenderer';
 import { PDFPreview, TextPDFPreview } from './PDFPreview';
 import { TableRenderer } from './TableRenderer';
-import { PDFFileDisplay } from './PDFFileDisplay';
 import { ChatMessage } from '../../types';
 import { MultiFormatToPDF } from '../../utils/MultiFormatToPDF';
 import { generatePDF } from '../../utils/PDFGenerator';
@@ -12,49 +11,294 @@ interface MessageBubbleProps {
   message: ChatMessage;
 }
 
+// Function to repair common JSON syntax errors
+const repairJsonString = (jsonString: string): string => {
+  let repaired = jsonString.trim();
+  
+  // Remove any leading/trailing whitespace and ensure it starts with {
+  if (!repaired.startsWith('{')) {
+    repaired = '{' + repaired;
+  }
+  if (!repaired.endsWith('}')) {
+    repaired = repaired + '}';
+  }
+  
+  // Fix missing array brackets for data
+  repaired = repaired.replace(/"data"\s*:\s*([^[\]]+?)(?=,|\s*"|$)/g, (match, dataContent) => {
+    // Check if dataContent is already an array
+    if (dataContent.trim().startsWith('[') && dataContent.trim().endsWith(']')) {
+      return match;
+    }
+    
+    // Handle the case where data is a list of objects without array brackets
+    let cleanDataContent = dataContent.trim();
+    
+    // Remove any trailing commas at the end
+    cleanDataContent = cleanDataContent.replace(/,\s*$/, '');
+    
+    // Split by },{ pattern to get individual objects
+    const objectStrings = cleanDataContent.split('},{');
+    
+    // Wrap individual objects in array brackets
+    const objects = objectStrings.map((obj: string, index: number) => {
+      let cleanObj = obj.trim();
+      if (index === 0 && !cleanObj.startsWith('{')) {
+        cleanObj = '{' + cleanObj;
+      }
+      if (index === objectStrings.length - 1 && !cleanObj.endsWith('}')) {
+        cleanObj = cleanObj + '}';
+      }
+      return cleanObj;
+    });
+    
+    return `"data": [${objects.join(', ')}]`;
+  });
+  
+  // Fix missing array brackets for colors
+  repaired = repaired.replace(/"colors"\s*:\s*([^[\]]+?)(?=,|\s*"|$)/g, (match, colorsContent) => {
+    if (colorsContent.trim().startsWith('[') && colorsContent.trim().endsWith(']')) {
+      return match;
+    }
+    
+    // Handle the case where colors is a comma-separated list without array brackets
+    let cleanColorsContent = colorsContent.trim();
+    
+    // Remove any trailing commas at the end
+    cleanColorsContent = cleanColorsContent.replace(/,\s*$/, '');
+    
+    // Split by comma and wrap in array brackets
+    const colors = cleanColorsContent.split(',').map((color: string) => color.trim()).filter((color: string) => color);
+    return `"colors": [${colors.join(', ')}]`;
+  });
+  
+  // Fix missing array brackets for insights
+  repaired = repaired.replace(/"insights"\s*:\s*([^[\]]+?)(?=,|\s*"|$)/g, (match, insightsContent) => {
+    if (insightsContent.trim().startsWith('[') && insightsContent.trim().endsWith(']')) {
+      return match;
+    }
+    
+    // Handle the case where insights is a list of strings without array brackets
+    let cleanInsightsContent = insightsContent.trim();
+    
+    // Remove any trailing commas at the end
+    cleanInsightsContent = cleanInsightsContent.replace(/,\s*$/, '');
+    
+    // Split by comma and wrap in array brackets, ensuring proper string quotes
+    const insights = cleanInsightsContent.split(',').map((insight: string) => {
+      let cleanInsight = insight.trim();
+      if (!cleanInsight.startsWith('"')) {
+        cleanInsight = '"' + cleanInsight;
+      }
+      if (!cleanInsight.endsWith('"')) {
+        cleanInsight = cleanInsight + '"';
+      }
+      return cleanInsight;
+    }).filter((insight: string) => insight.length > 2);
+    
+    return `"insights": [${insights.join(', ')}]`;
+  });
+  
+  // Fix missing array brackets for recommendations
+  repaired = repaired.replace(/"recommendations"\s*:\s*([^[\]]+?)(?=,|\s*"|$)/g, (match, recommendationsContent) => {
+    if (recommendationsContent.trim().startsWith('[') && recommendationsContent.trim().endsWith(']')) {
+      return match;
+    }
+    
+    // Handle the case where recommendations is a list of strings without array brackets
+    let cleanRecommendationsContent = recommendationsContent.trim();
+    
+    // Remove any trailing commas at the end
+    cleanRecommendationsContent = cleanRecommendationsContent.replace(/,\s*$/, '');
+    
+    // Split by comma and wrap in array brackets, ensuring proper string quotes
+    const recommendations = cleanRecommendationsContent.split(',').map((recommendation: string) => {
+      let cleanRecommendation = recommendation.trim();
+      if (!cleanRecommendation.startsWith('"')) {
+        cleanRecommendation = '"' + cleanRecommendation;
+      }
+      if (!cleanRecommendation.endsWith('"')) {
+        cleanRecommendation = cleanRecommendation + '"';
+      }
+      return cleanRecommendation;
+    }).filter((recommendation: string) => recommendation.length > 2);
+    
+    return `"recommendations": [${recommendations.join(', ')}]`;
+  });
+  
+  // Remove trailing commas before closing braces/brackets
+  repaired = repaired.replace(/,(\s*[}\]])/g, '$1');
+  
+  // Fix any remaining syntax issues
+  repaired = repaired.replace(/,(\s*[,}])/g, '$1'); // Remove double commas
+  
+  // Fix common typos in JSON
+  repaired = repaired.replace(/"datakev"/g, '"dataKey"');
+  repaired = repaired.replace(/"xAxisKey"/g, '"xAxisKey"');
+  repaired = repaired.replace(/"yAxisKey"/g, '"yAxisKey"');
+  
+  return repaired;
+};
+
+// Function to detect and parse JSON content
+const parseJsonInContent = (content: string): any | null => {
+  if (!content) return null;
+  
+  // Try to find JSON blocks in the content
+  const jsonMatch = content.match(/```json\s*([\s\S]*?)\s*```/);
+  if (jsonMatch) {
+    try {
+      const jsonString = jsonMatch[1];
+      const repairedJsonString = repairJsonString(jsonString);
+      const jsonData = JSON.parse(repairedJsonString);
+      
+      // Check if it's valid graph data
+      if (jsonData && typeof jsonData === 'object' && jsonData.type && jsonData.data) {
+        return jsonData;
+      }
+    } catch (error) {
+      console.error('Error parsing JSON in content:', error);
+      return null; // Return null instead of showing raw JSON
+    }
+  }
+  
+  // Try to find JSON object directly
+  const directJsonMatch = content.match(/\{\s*"type"\s*:\s*"[^"]*"\s*,[\s\S]*?\}/);
+  if (directJsonMatch) {
+    try {
+      const repairedJsonString = repairJsonString(directJsonMatch[0]);
+      const jsonData = JSON.parse(repairedJsonString);
+      if (jsonData && typeof jsonData === 'object' && jsonData.type && jsonData.data) {
+        return jsonData;
+      }
+    } catch (error) {
+      console.error('Error parsing direct JSON in content:', error);
+      return null; // Return null instead of showing raw JSON
+    }
+  }
+  
+  return null;
+};
+
 // Function to format AI message content with markdown support
 const formatMessageContent = (content: string): React.ReactNode => {
-  // First, check if content contains a markdown table
   const lines = content.split('\n');
-  let tableStart = -1;
-  let tableEnd = -1;
+  const elements: React.ReactNode[] = [];
+  let currentIndex = 0;
   
-  // Find table boundaries
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i].trim();
-    if (line.includes('|') && line.split('|').length >= 3) {
-      if (tableStart === -1) {
-        tableStart = i;
+  while (currentIndex < lines.length) {
+    // Check for JSON blocks first
+    const jsonMatch = content.substring(currentIndex).match(/```json\s*([\s\S]*?)\s*```/);
+    const directJsonMatch = content.substring(currentIndex).match(/\{\s*"type"\s*:\s*"[^"]*"\s*,[\s\S]*?\}/);
+    
+    // Check for markdown tables
+    let tableStart = -1;
+    let tableEnd = -1;
+    
+    for (let i = currentIndex; i < lines.length; i++) {
+      const line = lines[i].trim();
+      if (line.includes('|') && line.split('|').length >= 3) {
+        if (tableStart === -1) {
+          tableStart = i;
+        }
+        tableEnd = i;
+      } else if (tableStart !== -1 && !line.includes('|')) {
+        break;
       }
-      tableEnd = i;
-    } else if (tableStart !== -1 && !line.includes('|')) {
+    }
+    
+    // Determine which comes first: JSON or table
+    let jsonIndex = -1;
+    let tableIndex = -1;
+    
+    if (jsonMatch) {
+      jsonIndex = currentIndex + content.substring(currentIndex).indexOf(jsonMatch[0]);
+    }
+    if (directJsonMatch) {
+      const directJsonIndex = currentIndex + content.substring(currentIndex).indexOf(directJsonMatch[0]);
+      if (jsonIndex === -1 || directJsonIndex < jsonIndex) {
+        jsonIndex = directJsonIndex;
+      }
+    }
+    if (tableStart !== -1) {
+      tableIndex = tableStart;
+    }
+    
+    // Process the element that comes first
+    if (jsonIndex !== -1 && (tableIndex === -1 || jsonIndex < tableIndex)) {
+      // Process JSON - show text before JSON but hide the JSON itself
+      const beforeJson = content.substring(currentIndex, jsonIndex).trim();
+      if (beforeJson) {
+        elements.push(<div key={`text-${currentIndex}`} className="mb-4">{formatTextContent(beforeJson)}</div>);
+      }
+      
+      const jsonData = parseJsonInContent(content.substring(jsonIndex));
+      if (jsonData) {
+        // Only show the graph, not the raw JSON
+        elements.push(
+          <div key={`graph-${currentIndex}`} className="mb-4">
+            <GraphRenderer data={jsonData} />
+          </div>
+        );
+      } else {
+        // JSON parsing failed, show a user-friendly message instead of raw JSON
+        elements.push(
+          <div key={`error-${currentIndex}`} className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+            <div className="flex items-center">
+              <div className="text-yellow-600 mr-2">⚠️</div>
+              <div className="text-sm text-yellow-800">
+                Format de données invalide - Impossible d'afficher le graphique
+              </div>
+            </div>
+          </div>
+        );
+      }
+      
+      // Move to after JSON - skip the JSON content completely
+      if (jsonMatch) {
+        currentIndex = jsonIndex + jsonMatch[0].length;
+      } else if (directJsonMatch) {
+        currentIndex = jsonIndex + directJsonMatch[0].length;
+      }
+    } else if (tableIndex !== -1) {
+      // Process table
+      const beforeTable = lines.slice(currentIndex, tableIndex).join('\n').trim();
+      if (beforeTable) {
+        elements.push(<div key={`text-${currentIndex}`} className="mb-4">{formatTextContent(beforeTable)}</div>);
+      }
+      
+      const tableContent = lines.slice(tableStart, tableEnd + 1).join('\n');
+      elements.push(
+        <div key={`table-${currentIndex}`} className="mb-4">
+          <TableRenderer markdownTable={tableContent} />
+        </div>
+      );
+      
+      currentIndex = tableEnd + 1;
+    } else {
+      // No more special content, process remaining as text
+      const remainingContent = lines.slice(currentIndex).join('\n').trim();
+      if (remainingContent) {
+        elements.push(<div key={`text-${currentIndex}`}>{formatTextContent(remainingContent)}</div>);
+      }
       break;
     }
   }
   
-  if (tableStart !== -1 && tableEnd !== -1) {
-    const tableContent = lines.slice(tableStart, tableEnd + 1).join('\n');
-    const beforeTable = lines.slice(0, tableStart).join('\n');
-    const afterTable = lines.slice(tableEnd + 1).join('\n');
-    
-    return (
-      <>
-        {beforeTable.trim() && <div className="mb-4">{formatTextContent(beforeTable)}</div>}
-        <div className="mb-4">
-          <TableRenderer markdownTable={tableContent} />
-        </div>
-        {afterTable.trim() && <div>{formatTextContent(afterTable)}</div>}
-      </>
-    );
-  }
-  
-  // If no table, format as regular text
-  return formatTextContent(content);
+  return elements.length > 0 ? <>{elements}</> : formatTextContent(content);
 };
 
-// Function to format text content (without tables)
+// Function to format text content (without tables and JSON)
 const formatTextContent = (content: string): React.ReactNode => {
-  const lines = content.split('\n');
+  // Remove JSON blocks from content before processing
+  let cleanContent = content;
+  
+  // Remove ```json blocks
+  cleanContent = cleanContent.replace(/```json\s*[\s\S]*?\s*```/g, '');
+  
+  // Remove direct JSON objects
+  cleanContent = cleanContent.replace(/\{\s*"type"\s*:\s*"[^"]*"\s*,[\s\S]*?\}/g, '');
+  
+  const lines = cleanContent.split('\n');
   
   return lines.map((line, index) => {
     // Skip empty lines
@@ -303,6 +547,8 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
                   </div>
                 ) : message.contentType === 'pdf' && message.pdfData ? (
                   <PDFPreview data={message.pdfData} />
+                ) : message.contentType === 'text-pdf' && message.pdfData ? (
+                  <PDFPreview data={message.pdfData} />
                 ) : message.contentType === 'text-pdf' ? (
                   <TextPDFPreview content={message.content} title="Rapport Ubora" />
                 ) : message.contentType === 'table' && message.tableData ? (
@@ -406,7 +652,6 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
                         <p className="text-xs text-gray-500">
                           {file.fileType === 'application/pdf' ? 'Document PDF' : 'Fichier joint'}
                           {file.fileSize && ` • ${(file.fileSize / 1024).toFixed(1)} KB`}
-                          {file.textExtractionStatus && ` • ${file.textExtractionStatus === 'completed' ? 'Texte extrait' : 'Extraction en cours'}`}
                         </p>
                       </div>
                     </div>
@@ -466,13 +711,13 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
               </div>
               
               {/* Additional context information */}
-              {(message.meta.selectedFormTitles?.length > 0 || message.meta.selectedFormats?.length > 0) && (
+              {((message.meta?.selectedFormTitles?.length ?? 0) > 0 || (message.meta?.selectedFormats?.length ?? 0) > 0) && (
                 <div className="mt-2 pt-2 border-t border-gray-100">
                   <div className="flex flex-wrap items-center gap-2 text-xs">
-                    {message.meta.selectedFormats?.length > 0 && (
+                    {(message.meta?.selectedFormats?.length ?? 0) > 0 && (
                       <div className="flex items-center space-x-1">
                         <span className="text-gray-400">Formats:</span>
-                        {message.meta.selectedFormats.map((format, index) => (
+                        {message.meta?.selectedFormats?.map((format, index) => (
                           <span key={index} className="px-2 py-1 bg-gray-100 text-gray-700 rounded-full">
                             {format === 'stats' ? '📊 Stats' : 
                              format === 'table' ? '📋 Tableau' : 
@@ -481,12 +726,12 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
                         ))}
                       </div>
                     )}
-                    {message.meta.selectedFormTitles?.length > 0 && (
+                    {(message.meta?.selectedFormTitles?.length ?? 0) > 0 && (
                       <div className="flex items-center space-x-1">
                         <span className="text-gray-400">Formulaires:</span>
                         <span className="text-gray-600">
-                          {message.meta.selectedFormTitles.slice(0, 2).join(', ')}
-                          {message.meta.selectedFormTitles.length > 2 && ` +${message.meta.selectedFormTitles.length - 2} autres`}
+                          {message.meta?.selectedFormTitles?.slice(0, 2).join(', ')}
+                          {(message.meta?.selectedFormTitles?.length ?? 0) > 2 && ` +${(message.meta?.selectedFormTitles?.length ?? 0) - 2} autres`}
                         </span>
                       </div>
                     )}

@@ -438,6 +438,17 @@ RÈGLES FONDAMENTALES :
 
       const formatInstructions = getFormatInstructions(responseFormat, selectedResponseFormats);
       
+      // Add JSON validation instructions for any format that includes stats
+      const jsonValidationInstructions = (selectedResponseFormats && selectedResponseFormats.includes('stats')) || responseFormat === 'stats' ? `
+
+VALIDATION JSON OBLIGATOIRE :
+- Vérifie que ton JSON est parfaitement formaté avant de le retourner
+- Assure-toi que tous les tableaux (data, colors, insights, recommendations) sont entre crochets []
+- Vérifie que toutes les chaînes de caractères sont entre guillemets doubles "
+- Élimine toute virgule en fin de ligne avant les accolades fermantes }
+- Teste mentalement que le JSON est parseable sans erreurs
+- Si tu génères du JSON, il DOIT être valide et fonctionnel` : '';
+      
       const contextInfo = `
 CONTEXTE MÉTIER :
 - Agence : ${userData.agencyId}
@@ -457,11 +468,16 @@ EXEMPLE DE TABLEAU CORRECT :
 
 IMPORTANT : Le tableau DOIT contenir des lignes de données réelles, pas seulement les en-têtes !` : ''}`;
 
-      return `${baseRole}${coreRules}${formatInstructions}${contextInfo}`;
+      return `${baseRole}${coreRules}${formatInstructions}${jsonValidationInstructions}${contextInfo}`;
     };
 
     // Format-specific instructions
     const getFormatInstructions = (responseFormat, selectedResponseFormats) => {
+      // Handle multi-format combinations
+      if (selectedResponseFormats && selectedResponseFormats.length > 1) {
+        return getMultiFormatInstructions(selectedResponseFormats);
+      }
+
       if (responseFormat === 'table') {
         return `
 
@@ -526,6 +542,10 @@ INSTRUCTIONS POUR FORMAT STATISTIQUES :
 - OBLIGATOIRE : Le graphique doit contenir au minimum 2-3 points de données pour être utile
 - OBLIGATOIRE : Utilise des clés appropriées (label, value, employee, date, submissions, etc.)
 - OBLIGATOIRE : Inclus des insights et recommandations basés sur les données
+- OBLIGATOIRE : Le JSON doit être parfaitement formaté avec des crochets [] pour tous les tableaux
+- OBLIGATOIRE : Utilise des guillemets doubles " pour toutes les chaînes de caractères
+- OBLIGATOIRE : Pas de virgules en fin de ligne avant les accolades fermantes
+- OBLIGATOIRE : Le JSON doit être valide et parseable sans erreurs
 - Assure-toi que le graphique répond directement à la question posée avec des données concrètes
 - Types de graphiques recommandés :
   * "bar" : pour comparer des catégories
@@ -568,6 +588,464 @@ INSTRUCTIONS POUR RÉPONSE TEXTE :
 - Inclus des insights basés sur les données
 - Propose des recommandations concrètes
 - Évite les sections de raisonnement interne ou les formats structurés`;
+    };
+
+    // Multi-format instructions
+    const getMultiFormatInstructions = (selectedFormats) => {
+      const hasPDF = selectedFormats.includes('pdf');
+      const hasStats = selectedFormats.includes('stats');
+      const hasTable = selectedFormats.includes('table');
+
+      if (hasPDF && hasStats && hasTable) {
+        return `
+
+INSTRUCTIONS POUR FORMAT PDF + STATISTIQUES + TABLEAU :
+- Analyse la question du directeur et crée un rapport PDF complet avec graphique et tableau
+- Utilise UNIQUEMENT les données réelles fournies dans le contexte
+- Structure ta réponse en sections claires avec des titres markdown (##, ###)
+- OBLIGATOIRE : Inclus UN GRAPHIQUE JSON et UN TABLEAU MARKDOWN dans le même rapport
+- Format de réponse OBLIGATOIRE :
+
+## Introduction
+[Texte d'introduction basé sur la question]
+
+## Analyse des données
+[Texte d'analyse avec insights]
+
+### Graphique statistique
+[Insère ici le graphique JSON avec le format exact ci-dessous]
+
+\`\`\`json
+{
+  "type": "bar|line|pie|area|scatter",
+  "title": "Titre descriptif du graphique",
+  "subtitle": "Sous-titre optionnel",
+  "data": [
+    {"label": "Catégorie1", "value": 10, "employee": "Nom Employé", "date": "2024-01-01"},
+    {"label": "Catégorie2", "value": 15, "employee": "Nom Employé", "date": "2024-01-02"}
+  ],
+  "xAxisKey": "label",
+  "yAxisKey": "value",
+  "dataKey": "value",
+  "colors": ["#3B82F6", "#10B981", "#F59E0B", "#EF4444", "#8B5CF6"],
+  "options": {
+    "showLegend": true,
+    "showGrid": true,
+    "showTooltip": true
+  },
+  "insights": [
+    "Insight clé basé sur les données",
+    "Observation importante"
+  ],
+  "recommendations": [
+    "Recommandation actionnable",
+    "Suggestion d'amélioration"
+  ]
+}
+\`\`\`
+
+### Données tabulaires
+[Insère ici le tableau markdown avec le format exact ci-dessous]
+
+| Colonne1 | Colonne2 | Colonne3 |
+|----------|----------|----------|
+| Donnée1  | Donnée2  | Donnée3  |
+| Donnée4  | Donnée5  | Donnée6  |
+
+## Conclusions et recommandations
+[Texte de conclusion avec recommandations]
+
+- OBLIGATOIRE : Le graphique JSON et le tableau markdown doivent être dans le même rapport
+- OBLIGATOIRE : Utilise des données réelles pour le graphique et le tableau
+- OBLIGATOIRE : Structure le contenu de manière professionnelle et lisible
+- OBLIGATOIRE : Le rapport doit être complet et répondre directement à la question posée
+- OBLIGATOIRE : Le JSON doit être parfaitement formaté avec des crochets [] pour tous les tableaux
+- OBLIGATOIRE : Utilise des guillemets doubles " pour toutes les chaînes de caractères
+- OBLIGATOIRE : Pas de virgules en fin de ligne avant les accolades fermantes
+- OBLIGATOIRE : Le JSON doit être valide et parseable sans erreurs`;
+      }
+
+      if (hasPDF && hasStats) {
+        return `
+
+INSTRUCTIONS POUR FORMAT PDF + STATISTIQUES :
+- Analyse la question du directeur et crée un rapport PDF avec graphique statistique
+- Utilise UNIQUEMENT les données réelles fournies dans le contexte
+- Structure ta réponse en sections claires avec des titres markdown (##, ###)
+- OBLIGATOIRE : Inclus UN GRAPHIQUE JSON dans le rapport PDF
+- Format de réponse OBLIGATOIRE :
+
+## Introduction
+[Texte d'introduction basé sur la question]
+
+## Analyse des données
+[Texte d'analyse avec insights]
+
+### Graphique statistique
+[Insère ici le graphique JSON avec le format exact ci-dessous]
+
+\`\`\`json
+{
+  "type": "bar|line|pie|area|scatter",
+  "title": "Titre descriptif du graphique",
+  "subtitle": "Sous-titre optionnel",
+  "data": [
+    {"label": "Catégorie1", "value": 10, "employee": "Nom Employé", "date": "2024-01-01"},
+    {"label": "Catégorie2", "value": 15, "employee": "Nom Employé", "date": "2024-01-02"}
+  ],
+  "xAxisKey": "label",
+  "yAxisKey": "value",
+  "dataKey": "value",
+  "colors": ["#3B82F6", "#10B981", "#F59E0B", "#EF4444", "#8B5CF6"],
+  "options": {
+    "showLegend": true,
+    "showGrid": true,
+    "showTooltip": true
+  },
+  "insights": [
+    "Insight clé basé sur les données",
+    "Observation importante"
+  ],
+  "recommendations": [
+    "Recommandation actionnable",
+    "Suggestion d'amélioration"
+  ]
+}
+\`\`\`
+
+## Conclusions et recommandations
+[Texte de conclusion avec recommandations]
+
+- OBLIGATOIRE : Le graphique JSON doit être dans le rapport PDF
+- OBLIGATOIRE : Utilise des données réelles pour le graphique
+- OBLIGATOIRE : Structure le contenu de manière professionnelle et lisible
+- OBLIGATOIRE : Le rapport doit être complet et répondre directement à la question posée
+- OBLIGATOIRE : Le JSON doit être parfaitement formaté avec des crochets [] pour tous les tableaux
+- OBLIGATOIRE : Utilise des guillemets doubles " pour toutes les chaînes de caractères
+- OBLIGATOIRE : Pas de virgules en fin de ligne avant les accolades fermantes
+- OBLIGATOIRE : Le JSON doit être valide et parseable sans erreurs`;
+      }
+
+      if (hasPDF && hasTable) {
+        return `
+
+INSTRUCTIONS POUR FORMAT PDF + TABLEAU :
+- Analyse la question du directeur et crée un rapport PDF avec tableau de données
+- Utilise UNIQUEMENT les données réelles fournies dans le contexte
+- Structure ta réponse en sections claires avec des titres markdown (##, ###)
+- OBLIGATOIRE : Inclus UN TABLEAU MARKDOWN dans le rapport PDF
+- Format de réponse OBLIGATOIRE :
+
+## Introduction
+[Texte d'introduction basé sur la question]
+
+## Analyse des données
+[Texte d'analyse avec insights]
+
+### Données tabulaires
+[Insère ici le tableau markdown avec le format exact ci-dessous]
+
+| Colonne1 | Colonne2 | Colonne3 |
+|----------|----------|----------|
+| Donnée1  | Donnée2  | Donnée3  |
+| Donnée4  | Donnée5  | Donnée6  |
+
+## Conclusions et recommandations
+[Texte de conclusion avec recommandations]
+
+- OBLIGATOIRE : Le tableau markdown doit être dans le rapport PDF
+- OBLIGATOIRE : Utilise des données réelles pour le tableau
+- OBLIGATOIRE : Structure le contenu de manière professionnelle et lisible
+- OBLIGATOIRE : Le rapport doit être complet et répondre directement à la question posée`;
+      }
+
+      if (hasStats && hasTable) {
+        return `
+
+INSTRUCTIONS POUR FORMAT STATISTIQUES + TABLEAU :
+- Analyse la question du directeur et fournis un graphique ET un tableau
+- Utilise UNIQUEMENT les données réelles fournies dans le contexte
+- OBLIGATOIRE : Inclus UN GRAPHIQUE JSON et UN TABLEAU MARKDOWN dans la même réponse
+- Format de réponse OBLIGATOIRE :
+
+[Texte d'introduction et d'analyse basé sur la question]
+
+### Graphique statistique
+[Insère ici le graphique JSON avec le format exact ci-dessous]
+
+\`\`\`json
+{
+  "type": "bar|line|pie|area|scatter",
+  "title": "Titre descriptif du graphique",
+  "subtitle": "Sous-titre optionnel",
+  "data": [
+    {"label": "Catégorie1", "value": 10, "employee": "Nom Employé", "date": "2024-01-01"},
+    {"label": "Catégorie2", "value": 15, "employee": "Nom Employé", "date": "2024-01-02"}
+  ],
+  "xAxisKey": "label",
+  "yAxisKey": "value",
+  "dataKey": "value",
+  "colors": ["#3B82F6", "#10B981", "#F59E0B", "#EF4444", "#8B5CF6"],
+  "options": {
+    "showLegend": true,
+    "showGrid": true,
+    "showTooltip": true
+  },
+  "insights": [
+    "Insight clé basé sur les données",
+    "Observation importante"
+  ],
+  "recommendations": [
+    "Recommandation actionnable",
+    "Suggestion d'amélioration"
+  ]
+}
+\`\`\`
+
+### Données tabulaires
+[Insère ici le tableau markdown avec le format exact ci-dessous]
+
+| Colonne1 | Colonne2 | Colonne3 |
+|----------|----------|----------|
+| Donnée1  | Donnée2  | Donnée3  |
+| Donnée4  | Donnée5  | Donnée6  |
+
+[Texte de conclusion avec recommandations]
+
+- OBLIGATOIRE : Le graphique JSON et le tableau markdown doivent être dans la même réponse
+- OBLIGATOIRE : Utilise des données réelles pour le graphique et le tableau
+- OBLIGATOIRE : Le contenu doit être complet et répondre directement à la question posée
+- OBLIGATOIRE : Le JSON doit être parfaitement formaté avec des crochets [] pour tous les tableaux
+- OBLIGATOIRE : Utilise des guillemets doubles " pour toutes les chaînes de caractères
+- OBLIGATOIRE : Pas de virgules en fin de ligne avant les accolades fermantes
+- OBLIGATOIRE : Le JSON doit être valide et parseable sans erreurs`;
+      }
+
+      return `
+
+INSTRUCTIONS POUR FORMAT MULTI-FORMAT :
+- Analyse la question du directeur et fournis une réponse adaptée aux formats sélectionnés
+- Utilise UNIQUEMENT les données réelles fournies dans le contexte
+- Assure-toi que la réponse est complète et répond directement à la question posée
+- OBLIGATOIRE : Inclus des données concrètes et des insights basés sur les données réelles`;
+    };
+
+    // Determine content type for response based on formats
+    const getContentTypeForResponse = (responseFormat, selectedResponseFormats) => {
+      // Handle multi-format combinations
+      if (selectedResponseFormats && selectedResponseFormats.length > 1) {
+        const hasPDF = selectedResponseFormats.includes('pdf');
+        const hasStats = selectedResponseFormats.includes('stats');
+        const hasTable = selectedResponseFormats.includes('table');
+
+        if (hasPDF) {
+          return 'text-pdf'; // PDF format with embedded content
+        } else if (hasStats && hasTable) {
+          return 'multi-format'; // Stats + Table combination
+        } else {
+          return 'multi-format'; // Other multi-format combinations
+        }
+      }
+
+      // Handle single format
+      if (responseFormat === 'pdf') {
+        return 'text-pdf';
+      } else if (responseFormat === 'stats') {
+        return 'graph';
+      } else if (responseFormat === 'table') {
+        return 'table';
+      } else {
+        return 'text';
+      }
+    };
+
+    // Generate fallback response for multi-format combinations
+    const generateMultiFormatFallbackResponse = (selectedFormats, data) => {
+      const hasPDF = selectedFormats.includes('pdf');
+      const hasStats = selectedFormats.includes('stats');
+      const hasTable = selectedFormats.includes('table');
+
+      if (hasPDF && hasStats && hasTable) {
+        return `# Rapport d'analyse - ${data.period.label}
+
+## Introduction
+
+Ce rapport présente une analyse complète des données de votre agence pour la période ${data.period.label}.
+
+## Analyse des données
+
+### Graphique statistique
+
+\`\`\`json
+{
+  "type": "bar",
+  "title": "Top 5 des employés par nombre de soumissions",
+  "subtitle": "Période: ${data.period.label}",
+  "data": [
+    ${data.userStats.slice(0, 5).map(u => `{"label": "${u.name}", "value": ${u.count}, "employee": "${u.name}"}`).join(',\n    ')}
+  ],
+  "xAxisKey": "label",
+  "yAxisKey": "value",
+  "dataKey": "value",
+  "colors": ["#3B82F6", "#10B981", "#F59E0B", "#EF4444", "#8B5CF6"],
+  "options": {
+    "showLegend": true,
+    "showGrid": true,
+    "showTooltip": true
+  },
+  "insights": [
+    "Top employé: ${data.userStats[0]?.name || 'N/A'} avec ${data.userStats[0]?.count || 0} soumissions",
+    "Total de ${data.totals.entries} soumissions analysées"
+  ],
+  "recommendations": [
+    "Analyser les bonnes pratiques du top employé",
+    "Identifier les opportunités d'amélioration"
+  ]
+}
+\`\`\`
+
+### Données tabulaires
+
+| Employé | Nombre de soumissions | Pourcentage | Formulaire principal |
+|---------|----------------------|-------------|---------------------|
+${data.userStats.slice(0, 5).map(u => `| ${u.name} | ${u.count} | ${((u.count/data.totals.entries)*100).toFixed(1)}% | ${data.formStats[0]?.title || 'N/A'} |`).join('\n')}
+
+## Conclusions et recommandations
+
+- **Période analysée :** ${data.period.label}
+- **Total soumissions :** ${data.totals.entries}
+- **Employés actifs :** ${data.totals.uniqueUsers}/${data.totals.totalUsers}
+- **Formulaires utilisés :** ${data.totals.uniqueForms}/${data.totals.totalForms}
+
+*Note: Réponse générée sans IA (OpenAI non disponible)*`;
+      }
+
+      if (hasPDF && hasStats) {
+        return `# Rapport d'analyse - ${data.period.label}
+
+## Introduction
+
+Ce rapport présente une analyse des données de votre agence pour la période ${data.period.label}.
+
+## Analyse des données
+
+### Graphique statistique
+
+\`\`\`json
+{
+  "type": "bar",
+  "title": "Top 5 des employés par nombre de soumissions",
+  "subtitle": "Période: ${data.period.label}",
+  "data": [
+    ${data.userStats.slice(0, 5).map(u => `{"label": "${u.name}", "value": ${u.count}, "employee": "${u.name}"}`).join(',\n    ')}
+  ],
+  "xAxisKey": "label",
+  "yAxisKey": "value",
+  "dataKey": "value",
+  "colors": ["#3B82F6", "#10B981", "#F59E0B", "#EF4444", "#8B5CF6"],
+  "options": {
+    "showLegend": true,
+    "showGrid": true,
+    "showTooltip": true
+  },
+  "insights": [
+    "Top employé: ${data.userStats[0]?.name || 'N/A'} avec ${data.userStats[0]?.count || 0} soumissions",
+    "Total de ${data.totals.entries} soumissions analysées"
+  ],
+  "recommendations": [
+    "Analyser les bonnes pratiques du top employé",
+    "Identifier les opportunités d'amélioration"
+  ]
+}
+\`\`\`
+
+## Conclusions et recommandations
+
+- **Période analysée :** ${data.period.label}
+- **Total soumissions :** ${data.totals.entries}
+- **Employés actifs :** ${data.totals.uniqueUsers}/${data.totals.totalUsers}
+
+*Note: Réponse générée sans IA (OpenAI non disponible)*`;
+      }
+
+      if (hasPDF && hasTable) {
+        return `# Rapport d'analyse - ${data.period.label}
+
+## Introduction
+
+Ce rapport présente une analyse des données de votre agence pour la période ${data.period.label}.
+
+## Analyse des données
+
+### Données tabulaires
+
+| Employé | Nombre de soumissions | Pourcentage | Formulaire principal |
+|---------|----------------------|-------------|---------------------|
+${data.userStats.slice(0, 5).map(u => `| ${u.name} | ${u.count} | ${((u.count/data.totals.entries)*100).toFixed(1)}% | ${data.formStats[0]?.title || 'N/A'} |`).join('\n')}
+
+## Conclusions et recommandations
+
+- **Période analysée :** ${data.period.label}
+- **Total soumissions :** ${data.totals.entries}
+- **Employés actifs :** ${data.totals.uniqueUsers}/${data.totals.totalUsers}
+- **Formulaires utilisés :** ${data.totals.uniqueForms}/${data.totals.totalForms}
+
+*Note: Réponse générée sans IA (OpenAI non disponible)*`;
+      }
+
+      if (hasStats && hasTable) {
+        return `Analyse des données pour la période ${data.period.label}
+
+### Graphique statistique
+
+\`\`\`json
+{
+  "type": "bar",
+  "title": "Top 5 des employés par nombre de soumissions",
+  "subtitle": "Période: ${data.period.label}",
+  "data": [
+    ${data.userStats.slice(0, 5).map(u => `{"label": "${u.name}", "value": ${u.count}, "employee": "${u.name}"}`).join(',\n    ')}
+  ],
+  "xAxisKey": "label",
+  "yAxisKey": "value",
+  "dataKey": "value",
+  "colors": ["#3B82F6", "#10B981", "#F59E0B", "#EF4444", "#8B5CF6"],
+  "options": {
+    "showLegend": true,
+    "showGrid": true,
+    "showTooltip": true
+  },
+  "insights": [
+    "Top employé: ${data.userStats[0]?.name || 'N/A'} avec ${data.userStats[0]?.count || 0} soumissions",
+    "Total de ${data.totals.entries} soumissions analysées"
+  ],
+  "recommendations": [
+    "Analyser les bonnes pratiques du top employé",
+    "Identifier les opportunités d'amélioration"
+  ]
+}
+\`\`\`
+
+### Données tabulaires
+
+| Employé | Nombre de soumissions | Pourcentage | Formulaire principal |
+|---------|----------------------|-------------|---------------------|
+${data.userStats.slice(0, 5).map(u => `| ${u.name} | ${u.count} | ${((u.count/data.totals.entries)*100).toFixed(1)}% | ${data.formStats[0]?.title || 'N/A'} |`).join('\n')}
+
+**Période analysée :** ${data.period.label}  
+**Total soumissions :** ${data.totals.entries}  
+**Employés actifs :** ${data.totals.uniqueUsers}/${data.totals.totalUsers}
+
+*Note: Réponse générée sans IA (OpenAI non disponible)*`;
+      }
+
+      return `Analyse des données pour la période ${data.period.label}
+
+**Période analysée :** ${data.period.label}  
+**Total soumissions :** ${data.totals.entries}  
+**Employés actifs :** ${data.totals.uniqueUsers}/${data.totals.totalUsers}
+
+*Note: Réponse générée sans IA (OpenAI non disponible)*`;
     };
 
     // Build the actual user message for estimation
@@ -779,7 +1257,9 @@ N'inclus PAS seulement les en-têtes - tu DOIS inclure des lignes de données r�
     
     if (!process.env.OPENAI_API_KEY) {
       // Fallback si OpenAI n'est pas configuré
-      if (responseFormat === 'table') {
+      if (selectedResponseFormats && selectedResponseFormats.length > 1) {
+        answer = generateMultiFormatFallbackResponse(selectedResponseFormats, data);
+      } else if (responseFormat === 'table') {
         answer = `Voici un tableau basé sur vos données :
 
 | Employé | Nombre de soumissions | Pourcentage | Formulaire principal |
@@ -865,7 +1345,9 @@ Il serait pertinent de surveiller l'engagement des employés moins actifs et d'a
       } catch (openaiError) {
         console.error('OpenAI error:', openaiError);
         // Fallback en cas d'erreur OpenAI
-        if (responseFormat === 'table') {
+        if (selectedResponseFormats && selectedResponseFormats.length > 1) {
+          answer = generateMultiFormatFallbackResponse(selectedResponseFormats, data);
+        } else if (responseFormat === 'table') {
           answer = `Voici un tableau basé sur vos données :
 
 | Employé | Nombre de soumissions | Pourcentage | Formulaire principal |
@@ -1043,7 +1525,7 @@ Il serait pertinent de surveiller l'engagement des employés moins actifs et d'a
         content: answer || '',
         timestamp: admin.firestore.FieldValue.serverTimestamp(),
         responseTime: Date.now() - startTime,
-        contentType: responseFormat === 'pdf' ? 'text-pdf' : (responseFormat || 'text'),
+        contentType: getContentTypeForResponse(responseFormat, selectedResponseFormats),
         meta: {
           // Only include format info if formats are actually selected
           ...(selectedResponseFormats && selectedResponseFormats.length > 0 ? {

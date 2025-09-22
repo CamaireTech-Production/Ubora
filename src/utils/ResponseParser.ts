@@ -7,11 +7,6 @@ export interface ParsedResponse {
   pdfData?: PDFData;
   tableData?: string; // Markdown table content
   pdfFiles?: PDFFileReference[]; // PDF files referenced in the response
-  multiFormatData?: {
-    graphData?: GraphData;
-    tableData?: string;
-    pdfContent?: string;
-  };
 }
 
 
@@ -105,7 +100,9 @@ export class ResponseParser {
     return {
       contentType: hasAnyFormat ? 'multi-format' : 'text',
       content: this.extractTextFromMultiFormatResponse(response),
-      multiFormatData: hasAnyFormat ? multiFormatData : undefined
+      graphData: multiFormatData.graphData,
+      tableData: multiFormatData.tableData,
+      pdfData: multiFormatData.pdfContent ? this.parsePDFContentForMultiFormat(multiFormatData.pdfContent, multiFormatData.graphData, multiFormatData.tableData) : undefined
     };
   }
 
@@ -153,7 +150,8 @@ export class ResponseParser {
     if (jsonMatch) {
       try {
         const jsonString = jsonMatch[1] || jsonMatch[0];
-        const jsonData = JSON.parse(jsonString);
+        const repairedJsonString = this.repairJsonString(jsonString);
+        const jsonData = JSON.parse(repairedJsonString);
         
         if (this.isGraphData(jsonData)) {
           // Ensure the graph data has proper structure
@@ -177,7 +175,8 @@ export class ResponseParser {
           let match;
           while ((match = pattern.exec(response)) !== null) {
             try {
-              const jsonData = JSON.parse(match[0]);
+              const repairedJsonString = this.repairJsonString(match[0]);
+              const jsonData = JSON.parse(repairedJsonString);
               if (this.isGraphData(jsonData)) {
                 const enhancedGraphData = this.enhanceGraphData(jsonData);
                 return {
@@ -455,29 +454,15 @@ export class ResponseParser {
       meta
     };
     
+    // Multi-format data is now directly on the parsedResponse object
     if (parsedResponse.graphData) {
       baseMessage.graphData = parsedResponse.graphData;
     }
-    
-    if (parsedResponse.pdfData) {
-      baseMessage.pdfData = parsedResponse.pdfData;
-    }
-    
     if (parsedResponse.tableData) {
       baseMessage.tableData = parsedResponse.tableData;
     }
-    
-    if (parsedResponse.multiFormatData) {
-      if (parsedResponse.multiFormatData.graphData) {
-        baseMessage.graphData = parsedResponse.multiFormatData.graphData;
-      }
-      if (parsedResponse.multiFormatData.tableData) {
-        baseMessage.tableData = parsedResponse.multiFormatData.tableData;
-      }
-      if (parsedResponse.multiFormatData.pdfContent) {
-        baseMessage.content = parsedResponse.multiFormatData.pdfContent;
-        baseMessage.contentType = 'text-pdf';
-      }
+    if (parsedResponse.pdfData) {
+      baseMessage.pdfData = parsedResponse.pdfData;
     }
     
     if (parsedResponse.pdfFiles) {
@@ -485,6 +470,87 @@ export class ResponseParser {
     }
     
     return baseMessage;
+  }
+
+  /**
+   * Parse PDF content for multi-format responses, properly structuring sections and charts
+   */
+  private static parsePDFContentForMultiFormat(pdfContent: string, graphData?: GraphData, tableData?: string): PDFData {
+    const sections: any[] = [];
+    const charts: GraphData[] = [];
+
+    // Split content into sections based on markdown headers
+    const lines = pdfContent.split('\n');
+    let currentSection: any = null;
+    let currentContent: string[] = [];
+
+    for (const line of lines) {
+      if (line.startsWith('## ')) {
+        // Save previous section
+        if (currentSection) {
+          currentSection.content = currentContent.join('\n');
+          sections.push(currentSection);
+        }
+        
+        // Start new section
+        currentSection = {
+          title: line.replace('## ', '').trim(),
+          content: ''
+        };
+        currentContent = [];
+      } else if (line.startsWith('### ')) {
+        // Save previous section
+        if (currentSection) {
+          currentSection.content = currentContent.join('\n');
+          sections.push(currentSection);
+        }
+        
+        // Start new subsection
+        currentSection = {
+          title: line.replace('### ', '').trim(),
+          content: ''
+        };
+        currentContent = [];
+      } else {
+        currentContent.push(line);
+      }
+    }
+
+    // Save last section
+    if (currentSection) {
+      currentSection.content = currentContent.join('\n');
+      sections.push(currentSection);
+    }
+
+    // If no sections were created, create a default one
+    if (sections.length === 0) {
+      sections.push({
+        title: 'Contenu',
+        content: pdfContent
+      });
+    }
+
+    // Add graph data if available
+    if (graphData) {
+      charts.push(graphData);
+    }
+
+    // Add table data as a section if available
+    if (tableData) {
+      sections.push({
+        title: 'Données tabulaires',
+        content: tableData,
+        isMarkdownTable: true
+      });
+    }
+
+    return {
+      title: 'Rapport d\'analyse',
+      subtitle: 'Généré automatiquement',
+      sections,
+      charts,
+      generatedAt: new Date()
+    };
   }
 
   /**
@@ -758,5 +824,108 @@ export class ResponseParser {
     
     
     return pdfFiles;
+  }
+
+  /**
+   * Repair common JSON syntax errors in AI-generated JSON
+   */
+  private static repairJsonString(jsonString: string): string {
+    let repaired = jsonString.trim();
+    
+    // Remove any leading/trailing whitespace and ensure it starts with {
+    if (!repaired.startsWith('{')) {
+      repaired = '{' + repaired;
+    }
+    if (!repaired.endsWith('}')) {
+      repaired = repaired + '}';
+    }
+    
+    // Fix missing array brackets for data
+    repaired = repaired.replace(/"data"\s*:\s*([^[\]]+?)(?=,|\s*"|$)/g, (match, dataContent) => {
+      // Check if dataContent is already an array
+      if (dataContent.trim().startsWith('[') && dataContent.trim().endsWith(']')) {
+        return match;
+      }
+      
+      // Wrap individual objects in array brackets
+      const objects = dataContent.split('},{').map((obj: string, index: number) => {
+        let cleanObj = obj.trim();
+        if (index === 0 && !cleanObj.startsWith('{')) {
+          cleanObj = '{' + cleanObj;
+        }
+        if (index === objects.length - 1 && !cleanObj.endsWith('}')) {
+          cleanObj = cleanObj + '}';
+        }
+        return cleanObj;
+      });
+      
+      return `"data": [${objects.join(', ')}]`;
+    });
+    
+    // Fix missing array brackets for colors
+    repaired = repaired.replace(/"colors"\s*:\s*([^[\]]+?)(?=,|\s*"|$)/g, (match, colorsContent) => {
+      if (colorsContent.trim().startsWith('[') && colorsContent.trim().endsWith(']')) {
+        return match;
+      }
+      
+      // Split by comma and wrap in array brackets
+      const colors = colorsContent.split(',').map((color: string) => color.trim()).filter((color: string) => color);
+      return `"colors": [${colors.join(', ')}]`;
+    });
+    
+    // Fix missing array brackets for insights
+    repaired = repaired.replace(/"insights"\s*:\s*([^[\]]+?)(?=,|\s*"|$)/g, (match, insightsContent) => {
+      if (insightsContent.trim().startsWith('[') && insightsContent.trim().endsWith(']')) {
+        return match;
+      }
+      
+      // Split by comma and wrap in array brackets, ensuring proper string quotes
+      const insights = insightsContent.split(',').map((insight: string) => {
+        let cleanInsight = insight.trim();
+        if (!cleanInsight.startsWith('"')) {
+          cleanInsight = '"' + cleanInsight;
+        }
+        if (!cleanInsight.endsWith('"')) {
+          cleanInsight = cleanInsight + '"';
+        }
+        return cleanInsight;
+      }).filter((insight: string) => insight.length > 2);
+      
+      return `"insights": [${insights.join(', ')}]`;
+    });
+    
+    // Fix missing array brackets for recommendations
+    repaired = repaired.replace(/"recommendations"\s*:\s*([^[\]]+?)(?=,|\s*"|$)/g, (match, recommendationsContent) => {
+      if (recommendationsContent.trim().startsWith('[') && recommendationsContent.trim().endsWith(']')) {
+        return match;
+      }
+      
+      // Split by comma and wrap in array brackets, ensuring proper string quotes
+      const recommendations = recommendationsContent.split(',').map((recommendation: string) => {
+        let cleanRecommendation = recommendation.trim();
+        if (!cleanRecommendation.startsWith('"')) {
+          cleanRecommendation = '"' + cleanRecommendation;
+        }
+        if (!cleanRecommendation.endsWith('"')) {
+          cleanRecommendation = cleanRecommendation + '"';
+        }
+        return cleanRecommendation;
+      }).filter((recommendation: string) => recommendation.length > 2);
+      
+      return `"recommendations": [${recommendations.join(', ')}]`;
+    });
+    
+    // Remove trailing commas before closing braces/brackets
+    repaired = repaired.replace(/,(\s*[}\]])/g, '$1');
+    
+    // Fix any remaining syntax issues
+    repaired = repaired.replace(/,(\s*[,}])/g, '$1'); // Remove double commas
+    
+    // Fix common typos in JSON
+    repaired = repaired.replace(/"datakev"/g, '"dataKey"');
+    repaired = repaired.replace(/"xAxisKey"/g, '"xAxisKey"');
+    repaired = repaired.replace(/"yAxisKey"/g, '"yAxisKey"');
+    
+    return repaired;
   }
 }
