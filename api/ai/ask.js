@@ -459,6 +459,12 @@ CONTEXTE MÉTIER :
 
 OBJECTIF : Répondre clairement à la question du directeur avec des insights basés sur les données.
 
+${hasPDFContent ? `
+📄 DONNÉES SUPPLÉMENTAIRES :
+- Certaines soumissions incluent des documents PDF avec leur contenu textuel
+- Analyse ces informations comme partie intégrante des données de soumission
+- Utilise toutes les informations disponibles pour répondre précisément à la question` : ''}
+
 ${responseFormat === 'table' ? `
 EXEMPLE DE TABLEAU CORRECT :
 | Employé | Soumissions | Pourcentage |
@@ -1209,8 +1215,23 @@ TOP FORMULAIRES : ${data.formStats.slice(0, 3).map(f => `${f.title} (${f.count} 
           return `${fieldLabel}: ${displayValue}`;
         }).join(' | ');
         
+        // Add extracted text from file attachments as part of the submission data
+        let extractedTextSummary = '';
+        if (s.fileAttachments && s.fileAttachments.length > 0) {
+          const pdfFiles = s.fileAttachments.filter(att => 
+            att.fileType === 'application/pdf' && att.extractedText
+          );
+          
+          if (pdfFiles.length > 0) {
+            pdfFiles.forEach((file, fileIndex) => {
+              // Include extracted text as additional field data, not as separate section
+              extractedTextSummary += ` | Document: ${file.fileName} (${file.extractedText.substring(0, 1500)}${file.extractedText.length > 1500 ? '...' : ''})`;
+            });
+          }
+        }
+        
         return `SOUMISSION ${index + 1}: ${s.employeeName} | ${s.formTitle} | ${s.submittedDate}
-${fieldSummary}`;
+${fieldSummary}${extractedTextSummary}`;
       }).join('\n\n');
     };
 
@@ -1559,7 +1580,19 @@ Il serait pertinent de surveiller l'engagement des employés moins actifs et d'a
               entriesChange: (data.totals?.entries || 0) - (conversationContext?.context?.dataInsights?.totalEntries || 0)
             }
           }
-        }
+        },
+        // Include PDF files that were analyzed in this response
+        pdfFiles: hasPDFContent ? data.submissions.flatMap(s => 
+          (s.fileAttachments || []).filter(att => 
+            att.fileType === 'application/pdf' && att.extractedText
+          ).map(att => ({
+            fileName: att.fileName,
+            fileType: att.fileType,
+            fileSize: att.fileSize,
+            downloadUrl: att.downloadUrl,
+            fieldId: att.fieldId
+          }))
+        ) : []
       };
 
       // Add only assistant message to conversation subcollection

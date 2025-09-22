@@ -633,25 +633,31 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
           
           {/* Enhanced PDF Files Display with Source Attribution */}
           {!isUser && message.pdfFiles && message.pdfFiles.length > 0 && (
-            <div className="mt-4 p-3 bg-gray-50 border border-gray-200 rounded-lg">
-              <h4 className="text-sm font-semibold text-gray-800 mb-2 flex items-center">
-                📎 Sources de données
-                <span className="ml-2 text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
+            <div className="mt-4 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg shadow-sm">
+              <h4 className="text-sm font-semibold text-blue-900 mb-3 flex items-center">
+                <span className="mr-2">📄</span>
+                Documents analysés
+                <span className="ml-2 text-xs bg-blue-200 text-blue-900 px-2 py-1 rounded-full font-medium">
                   {message.pdfFiles.length} fichier{message.pdfFiles.length > 1 ? 's' : ''}
                 </span>
               </h4>
-              <div className="space-y-2">
+              <div className="space-y-3">
                 {message.pdfFiles.map((file, index) => (
-                  <div key={index} className="flex items-center justify-between p-2 bg-white border border-gray-200 rounded-md">
-                    <div className="flex items-center space-x-2">
-                      <span className="text-lg">
-                        {file.fileType === 'application/pdf' ? '📄' : '📎'}
-                      </span>
-                      <div>
-                        <p className="text-sm font-medium text-gray-900">{file.fileName}</p>
-                        <p className="text-xs text-gray-500">
-                          {file.fileType === 'application/pdf' ? 'Document PDF' : 'Fichier joint'}
-                          {file.fileSize && ` • ${(file.fileSize / 1024).toFixed(1)} KB`}
+                  <div key={index} className="flex items-center justify-between p-3 bg-white border border-blue-100 rounded-lg shadow-sm hover:shadow-md transition-shadow">
+                    <div className="flex items-center space-x-3">
+                      <div className="flex-shrink-0 w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center">
+                        <span className="text-lg">📄</span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-900 truncate">{file.fileName}</p>
+                        <p className="text-xs text-gray-500 flex items-center space-x-2">
+                          <span>Document PDF analysé</span>
+                          {file.fileSize && (
+                            <>
+                              <span>•</span>
+                              <span>{(file.fileSize / 1024).toFixed(1)} KB</span>
+                            </>
+                          )}
                         </p>
                       </div>
                     </div>
@@ -660,17 +666,20 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
                         href={file.downloadUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-xs text-blue-600 hover:text-blue-800 underline"
+                        className="flex-shrink-0 ml-3 px-3 py-1.5 text-xs font-medium text-blue-700 bg-blue-100 hover:bg-blue-200 rounded-md transition-colors"
                       >
-                        Télécharger
+                        📥 Télécharger
                       </a>
                     )}
                   </div>
                 ))}
               </div>
-              <p className="text-xs text-gray-600 mt-2 italic">
-                💡 Ces fichiers ont été analysés pour générer cette réponse. Cliquez sur "Télécharger" pour accéder aux documents originaux.
-              </p>
+              <div className="mt-3 p-2 bg-blue-100 rounded-md">
+                <p className="text-xs text-blue-800 flex items-center">
+                  <span className="mr-1">💡</span>
+                  Le contenu de ces documents a été analysé pour générer cette réponse. Cliquez sur "Télécharger" pour accéder aux documents originaux.
+                </p>
+              </div>
             </div>
           )}
           
