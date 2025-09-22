@@ -447,7 +447,9 @@ VALIDATION JSON OBLIGATOIRE :
 - Vérifie que toutes les chaînes de caractères sont entre guillemets doubles "
 - Élimine toute virgule en fin de ligne avant les accolades fermantes }
 - Teste mentalement que le JSON est parseable sans erreurs
-- Si tu génères du JSON, il DOIT être valide et fonctionnel` : '';
+- Si tu génères du JSON, il DOIT être valide et fonctionnel
+- OBLIGATOIRE : Utilise SEULEMENT {"x": "nom", "y": nombre} pour les données - PAS de "label" ou "value"
+- OBLIGATOIRE : Vérifie que chaque point de données a exactement les clés "x" et "y"` : '';
       
       const contextInfo = `
 CONTEXTE MÉTIER :
@@ -548,7 +550,9 @@ ATTENTION : Respecte EXACTEMENT ce format JSON. Chaque propriété doit avoir un
 
 - OBLIGATOIRE : Inclus TOUJOURS des données réelles dans le tableau "data"
 - OBLIGATOIRE : Le graphique doit contenir au minimum 2-3 points de données pour être utile
-- OBLIGATOIRE : Utilise des clés appropriées (x, y) pour les données du graphique
+- OBLIGATOIRE : Utilise EXACTEMENT les clés (x, y) pour les données du graphique - PAS de "label" ou "value"
+- OBLIGATOIRE : Chaque point de données doit avoir la structure {"x": "nom", "y": nombre}
+- OBLIGATOIRE : INTERDIT d'utiliser "label" ou "value" dans les données - utilise SEULEMENT "x" et "y"
 - OBLIGATOIRE : Inclus des insights et recommandations basés sur les données
 - OBLIGATOIRE : Le JSON doit être parfaitement formaté avec des crochets [] pour tous les tableaux
 - OBLIGATOIRE : Utilise des guillemets doubles " pour toutes les chaînes de caractères
@@ -783,6 +787,8 @@ INSTRUCTIONS POUR FORMAT STATISTIQUES + TABLEAU :
 - Analyse la question du directeur et fournis un graphique ET un tableau
 - Utilise UNIQUEMENT les données réelles fournies dans le contexte
 - OBLIGATOIRE : Inclus UN GRAPHIQUE JSON et UN TABLEAU MARKDOWN dans la même réponse
+- OBLIGATOIRE : Le graphique et le tableau doivent compléter l'analyse (pas les mêmes données)
+- OBLIGATOIRE : Le tableau doit avoir des en-têtes et des données réelles (pas seulement des en-têtes)
 - Format de réponse OBLIGATOIRE :
 
 [Texte d'introduction et d'analyse basé sur la question]
@@ -838,7 +844,11 @@ INSTRUCTIONS POUR FORMAT STATISTIQUES + TABLEAU :
 - OBLIGATOIRE : Le JSON doit être valide et parseable sans erreurs
 - OBLIGATOIRE : Chaque propriété doit avoir un deux-points : après le nom
 - OBLIGATOIRE : Les tableaux data, colors, insights, recommendations doivent être entre crochets []
-- OBLIGATOIRE : Vérifie que chaque objet JSON est correctement fermé avec }`;
+- OBLIGATOIRE : Vérifie que chaque objet JSON est correctement fermé avec }
+- OBLIGATOIRE : Le graphique et le tableau doivent offrir des perspectives complémentaires sur les données
+- OBLIGATOIRE : Inclus des insights et recommandations basés sur l'analyse des deux formats
+- OBLIGATOIRE : INTERDIT d'utiliser "label" ou "value" dans les données du graphique - utilise SEULEMENT "x" et "y"
+- OBLIGATOIRE : Chaque point de données du graphique doit avoir la structure {"x": "nom", "y": nombre}`;
       }
 
       return `
@@ -1705,6 +1715,42 @@ Il serait pertinent de surveiller l'engagement des employés moins actifs et d'a
 
     // 🔍 DEBUG: Log the AI response for graph debugging
     console.log('🔍 AI BACKEND DEBUG - Raw AI Response:');
+    console.log('=====================================');
+    console.log('Response length:', answer.length);
+    console.log('Response preview:', answer.substring(0, 500) + '...');
+    
+    // Check if response contains JSON and what format it uses
+    const jsonMatch = answer.match(/```json\s*([\s\S]*?)\s*```/);
+    if (jsonMatch) {
+      console.log('🔍 AI BACKEND DEBUG - Found JSON Block:');
+      console.log('=====================================');
+      console.log('JSON String:', jsonMatch[1]);
+      console.log('=====================================');
+      
+      try {
+        const jsonData = JSON.parse(jsonMatch[1]);
+        console.log('Parsed JSON:', jsonData);
+        console.log('JSON Type:', typeof jsonData);
+        console.log('Has type property:', 'type' in jsonData);
+        console.log('Has data property:', 'data' in jsonData);
+        console.log('Data is array:', Array.isArray(jsonData.data));
+        console.log('Data length:', jsonData.data ? jsonData.data.length : 'N/A');
+        console.log('Data content:', jsonData.data);
+        console.log('Type value:', jsonData.type);
+        console.log('Title value:', jsonData.title);
+        console.log('xAxisKey value:', jsonData.xAxisKey);
+        console.log('yAxisKey value:', jsonData.yAxisKey);
+        console.log('dataKey value:', jsonData.dataKey);
+        console.log('First data item:', jsonData.data && jsonData.data[0]);
+        console.log('First data item keys:', jsonData.data && jsonData.data[0] ? Object.keys(jsonData.data[0]) : 'N/A');
+        console.log('Sample data items:', jsonData.data ? jsonData.data.slice(0, 3) : 'N/A');
+        console.log('✅ AI BACKEND DEBUG - JSON is valid and ready for frontend');
+      } catch (error) {
+        console.error('❌ AI BACKEND DEBUG - JSON parsing failed:', error);
+      }
+    } else {
+      console.log('❌ AI BACKEND DEBUG - No JSON block found in response');
+    }
     console.log('=====================================');
     console.log('Response Format:', responseFormat);
     console.log('Selected Formats:', selectedResponseFormats);
