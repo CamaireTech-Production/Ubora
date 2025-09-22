@@ -224,6 +224,13 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
               pages: pdfResult.pages,
               status: pdfResult.extractionStatus
             });
+            
+            // Show success message for PDF extraction
+            if (pdfResult.extractionStatus === 'completed') {
+              showSuccess(`PDF "${pdfResult.fileName}" analysé avec succès (${pdfResult.extractedText.length} caractères extraits)`);
+            } else {
+              showError(`Échec de l'analyse du PDF "${pdfResult.fileName}": ${pdfResult.error || 'Erreur inconnue'}`);
+            }
           }
         );
 
@@ -489,6 +496,7 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
                 error={errors[field.id]}
                 required={field.required}
                 acceptedTypes={field.acceptedTypes}
+                progress={progress}
               />
             )}
             
@@ -511,33 +519,6 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
                     <X className="h-4 w-4" />
                   </button>
                 </div>
-              </div>
-            )}
-            
-            {/* Upload Progress - only show when processing */}
-            {progress && progress.status !== 'completed' && (
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                <div className="flex items-center space-x-2">
-                  {progress.status === 'uploading' && (
-                    <Upload className="h-4 w-4 text-blue-600 animate-pulse" />
-                  )}
-                  {progress.status === 'extracting' && (
-                    <Clock className="h-4 w-4 text-yellow-600 animate-pulse" />
-                  )}
-                  {progress.status === 'error' && (
-                    <AlertCircle className="h-4 w-4 text-red-600" />
-                  )}
-                  <span className="text-sm text-gray-700">{progress.fileName}</span>
-                  {progress.status === 'uploading' && (
-                    <span className="text-xs text-blue-600">{progress.progress}%</span>
-                  )}
-                  {progress.status === 'extracting' && (
-                    <span className="text-xs text-yellow-600">Extraction...</span>
-                  )}
-                </div>
-                {progress.status === 'error' && progress.error && (
-                  <p className="text-xs text-red-600 mt-1">{progress.error}</p>
-                )}
               </div>
             )}
             
@@ -670,6 +651,54 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6">
+          {/* File Attachments Display */}
+          {fileAttachments.length > 0 && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <h3 className="text-sm font-medium text-blue-900 mb-3 flex items-center">
+                📎 Fichiers joints ({fileAttachments.length})
+              </h3>
+              <div className="space-y-2">
+                {fileAttachments.map((attachment, index) => (
+                  <div key={index} className="flex items-center justify-between p-3 bg-white border border-blue-200 rounded-md">
+                    <div className="flex items-center space-x-3">
+                      <span className="text-lg">
+                        {attachment.fileType === 'application/pdf' ? '📄' : '📎'}
+                      </span>
+                      <div>
+                        <p className="text-sm font-medium text-gray-900">{attachment.fileName}</p>
+                        <p className="text-xs text-gray-500">
+                          {attachment.fileType === 'application/pdf' ? 'Document PDF' : 'Fichier joint'}
+                          {attachment.fileSize && ` • ${(attachment.fileSize / 1024).toFixed(1)} KB`}
+                          {attachment.textExtractionStatus && (
+                            <span className={`ml-2 px-2 py-1 rounded-full text-xs ${
+                              attachment.textExtractionStatus === 'completed' 
+                                ? 'bg-green-100 text-green-700' 
+                                : 'bg-yellow-100 text-yellow-700'
+                            }`}>
+                              {attachment.textExtractionStatus === 'completed' ? '✅ Texte extrait' : '⏳ Extraction...'}
+                            </span>
+                          )}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      {attachment.downloadUrl && (
+                        <a
+                          href={attachment.downloadUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="px-3 py-1 text-xs bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors"
+                        >
+                          📥 Télécharger
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {form.fields.map(field => renderField(field))}
 
           <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 pt-4 sm:pt-6 border-t border-gray-200">
@@ -703,6 +732,7 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
           </div>
         </form>
       </Card>
+      
       
     </div>
   );

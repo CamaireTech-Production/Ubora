@@ -98,7 +98,7 @@ export const MessageList: React.FC<MessageListProps> = ({
       )}
 
       {/* Messages */}
-      <div className="space-y-6">
+      <div className="space-y-3 sm:space-y-6">
         {messages.map((message) => (
           <MessageBubble key={message.id} message={message} />
         ))}

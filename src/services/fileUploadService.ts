@@ -109,31 +109,47 @@ export class FileUploadService {
       // Extract text if it's a PDF
       if (PDFTextExtractionService.isPDF(file)) {
         try {
-          // Update progress - extracting
+          // Update progress - extracting (no percentage for PDF extraction)
           onProgress?.({
             fieldId,
             fileName: file.name,
-            progress: 50,
+            progress: 0, // No percentage shown for extraction
             status: 'extracting'
           });
 
           const extractionResult = await PDFTextExtractionService.extractTextFromPDF(file);
-          fileAttachment.extractedText = PDFTextExtractionService.cleanExtractedText(extractionResult.text);
-          fileAttachment.textExtractionStatus = 'completed';
+          
+          if (extractionResult.success) {
+            fileAttachment.extractedText = PDFTextExtractionService.cleanExtractedText(extractionResult.text);
+            fileAttachment.textExtractionStatus = 'completed';
 
-          console.log(`✅ PDF text extracted successfully for ${file.name}:`, {
-            pages: extractionResult.pages,
-            textLength: fileAttachment.extractedText.length
-          });
+            console.log(`✅ PDF text extracted successfully for ${file.name}:`, {
+              pages: extractionResult.pages,
+              textLength: fileAttachment.extractedText.length
+            });
 
-          // Trigger debug modal callback
-          onPDFExtraction?.({
-            fileName: file.name,
-            extractedText: fileAttachment.extractedText,
-            extractionStatus: 'completed',
-            pages: extractionResult.pages,
-            fileSize: file.size
-          });
+            // Trigger debug modal callback
+            onPDFExtraction?.({
+              fileName: file.name,
+              extractedText: fileAttachment.extractedText,
+              extractionStatus: 'completed',
+              pages: extractionResult.pages,
+              fileSize: file.size
+            });
+          } else {
+            // Extraction failed
+            fileAttachment.textExtractionStatus = 'failed';
+            console.error(`❌ PDF text extraction failed for ${file.name}:`, extractionResult.error);
+
+            // Trigger debug modal callback with error
+            onPDFExtraction?.({
+              fileName: file.name,
+              extractedText: extractionResult.text, // This will be the error message
+              extractionStatus: 'failed',
+              error: extractionResult.error,
+              fileSize: file.size
+            });
+          }
         } catch (extractionError) {
           console.error('Failed to extract PDF text:', extractionError);
           fileAttachment.textExtractionStatus = 'failed';
@@ -153,7 +169,7 @@ export class FileUploadService {
       onProgress?.({
         fieldId,
         fileName: file.name,
-        progress: 100,
+        progress: PDFTextExtractionService.isPDF(file) ? 0 : 100, // No percentage for PDF extraction
         status: 'completed'
       });
 

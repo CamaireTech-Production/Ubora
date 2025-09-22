@@ -1,5 +1,13 @@
 import React, { useRef } from 'react';
-import { Upload, File, X } from 'lucide-react';
+import { Upload, File, X, Loader2 } from 'lucide-react';
+
+interface UploadProgress {
+  fieldId: string;
+  fileName: string;
+  progress: number;
+  status: 'uploading' | 'extracting' | 'completed' | 'error';
+  error?: string;
+}
 
 interface FileInputProps {
   label: string;
@@ -10,6 +18,7 @@ interface FileInputProps {
   required?: boolean;
   acceptedTypes?: string[];
   className?: string;
+  progress?: UploadProgress;
 }
 
 export const FileInput: React.FC<FileInputProps> = ({
@@ -20,7 +29,8 @@ export const FileInput: React.FC<FileInputProps> = ({
   error,
   required = false,
   acceptedTypes = [],
-  className = ""
+  className = "",
+  progress
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -60,7 +70,33 @@ export const FileInput: React.FC<FileInputProps> = ({
           className="hidden"
         />
         
-        {!value ? (
+        {progress && progress.status !== 'completed' ? (
+          // Show loading animation during upload/extraction
+          <div className="w-full p-4 border-2 border-dashed border-yellow-300 rounded-lg bg-yellow-50">
+            <div className="flex flex-col items-center space-y-3">
+              <Loader2 className="h-8 w-8 text-yellow-600 animate-spin" />
+              <div className="text-center">
+                <p className="text-sm font-medium text-yellow-800">
+                  {progress.status === 'uploading' ? 'Téléchargement en cours...' : 'Analyse du PDF en cours...'}
+                </p>
+                <p className="text-xs text-yellow-600 mt-1">
+                  {progress.fileName}
+                </p>
+                {progress.status === 'uploading' && progress.progress > 0 && (
+                  <p className="text-xs text-yellow-600 mt-1">
+                    {progress.progress}%
+                  </p>
+                )}
+                {progress.status === 'extracting' && (
+                  <div className="flex items-center justify-center mt-2">
+                    <Loader2 className="h-4 w-4 animate-spin mr-2 text-yellow-600" />
+                    <span className="text-xs text-yellow-600">Extraction du texte...</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        ) : !value ? (
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}

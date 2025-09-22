@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
 import { 
   collection, 
   addDoc, 
@@ -12,7 +12,6 @@ import {
   limit,
   startAfter,
   getDocs,
-  Timestamp,
   increment
 } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
@@ -27,6 +26,7 @@ interface ConversationContextType {
   hasMoreMessages: boolean;
   createConversation: (title: string) => Promise<string>;
   addMessage: (message: ChatMessage) => Promise<void>;
+  addMessageToLocalState: (message: ChatMessage) => void;
   loadMoreMessages: () => Promise<void>;
   loadConversation: (conversationId: string) => Promise<void>;
   createNewConversation: () => Promise<string>;
@@ -37,7 +37,7 @@ interface ConversationContextType {
 const ConversationContext = createContext<ConversationContextType | undefined>(undefined);
 
 export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { user, firebaseUser } = useAuth();
+  const { user } = useAuth();
   const [currentConversation, setCurrentConversation] = useState<Conversation | null>(null);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -45,6 +45,8 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   const [hasMoreMessages, setHasMoreMessages] = useState(true);
   const [lastMessageDoc, setLastMessageDoc] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isAddingMessage, setIsAddingMessage] = useState(false);
+  const [messagesListener, setMessagesListener] = useState<any>(null);
 
   // Load conversations list for the director
   useEffect(() => {
@@ -67,14 +69,20 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     );
 
     const unsubscribe = onSnapshot(conversationsQuery, (snapshot) => {
-      const conversationsData = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-        createdAt: doc.data().createdAt?.toDate() || new Date(),
-        updatedAt: doc.data().updatedAt?.toDate() || new Date(),
-        lastMessageAt: doc.data().lastMessageAt?.toDate() || new Date(),
-        messages: [] // Messages will be loaded separately
-      })) as Conversation[];
+      const conversationsData = snapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          directorId: data.directorId,
+          agencyId: data.agencyId,
+          title: data.title,
+          messageCount: data.messageCount || 0,
+          createdAt: data.createdAt?.toDate() || new Date(),
+          updatedAt: data.updatedAt?.toDate() || new Date(),
+          lastMessageAt: data.lastMessageAt?.toDate() || new Date(),
+          messages: [] // Messages will be loaded separately
+        } as Conversation;
+      });
       
       setConversations(conversationsData);
       setIsLoading(false);
@@ -90,7 +98,8 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   // Auto-load the most recent conversation when conversations are loaded
   useEffect(() => {
     const autoLoadRecent = async () => {
-      if (conversations.length > 0 && !currentConversation && !isLoading) {
+      // Only auto-load if we have conversations, no current conversation, not loading, and not adding a message
+      if (conversations.length > 0 && !currentConversation && !isLoading && !isAddingMessage) {
         try {
           await loadConversation(conversations[0].id);
         } catch (error) {
@@ -100,7 +109,16 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     };
     
     autoLoadRecent();
-  }, [conversations.length, currentConversation, isLoading]);
+  }, [conversations.length, currentConversation?.id, isLoading, isAddingMessage]);
+
+  // Cleanup listener on unmount
+  useEffect(() => {
+    return () => {
+      if (messagesListener) {
+        messagesListener();
+      }
+    };
+  }, [messagesListener]);
 
   const createConversation = async (title: string): Promise<string> => {
     if (!user || user.role !== 'directeur' || !user.agencyId) {
@@ -157,9 +175,7 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
     try {
       setError(null);
-      
-      // Add message to local state immediately
-      setMessages(prev => [...prev, message]);
+      setIsAddingMessage(true);
       
       // Clean the message data to remove null and undefined values that Firebase doesn't accept
       const cleanMessage = {
@@ -170,13 +186,10 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         timestamp: serverTimestamp()
       };
       
-      // Debug: Log the cleaned message data
-      console.log('🔍 Cleaned message data for Firebase:', JSON.stringify(cleanMessage, null, 2));
-      
       // Store message in Firestore subcollection
-      const messageRef = await addDoc(collection(db, 'conversations', currentConversation.id, 'messages'), cleanMessage);
+      await addDoc(collection(db, 'conversations', currentConversation.id, 'messages'), cleanMessage);
 
-      // Update conversation metadata in Firestore
+      // Update conversation metadata in Firestore (but don't trigger conversations list reload)
       const conversationRef = doc(db, 'conversations', currentConversation.id);
       await updateDoc(conversationRef, {
         updatedAt: serverTimestamp(),
@@ -184,6 +197,9 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         messageCount: increment(1)
       });
 
+      // Add message to local state after successful Firebase operations
+      setMessages(prev => [...prev, message]);
+      
       // Update local conversation state
       setCurrentConversation(prev => prev ? {
         ...prev,
@@ -197,8 +213,31 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       console.error('Erreur lors de l\'ajout du message:', err);
       setError('Erreur lors de l\'ajout du message');
       throw err;
+    } finally {
+      setIsAddingMessage(false);
     }
   };
+
+  const addMessageToLocalState = (message: ChatMessage): void => {
+    setMessages(prev => {
+      // Check if message already exists to prevent duplicates
+      const exists = prev.some(m => 
+        m.content === message.content && 
+        m.type === message.type && 
+        Math.abs(m.timestamp.getTime() - message.timestamp.getTime()) < 10000 // Within 10 seconds
+      );
+      
+      if (exists) {
+        console.log('Preventing duplicate message:', message.content.substring(0, 50));
+        return prev;
+      }
+      
+      // Add message and sort by timestamp to maintain order
+      const newMessages = [...prev, message];
+      return newMessages.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+    });
+  };
+
 
   const loadConversation = async (conversationId: string): Promise<void> => {
     if (!user || user.role !== 'directeur') {
@@ -216,7 +255,13 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
       setCurrentConversation(conversation);
       
-      // Load messages with pagination
+      // Clean up existing listener
+      if (messagesListener) {
+        messagesListener();
+        setMessagesListener(null);
+      }
+      
+      // Load initial messages with pagination
       const messagesQuery = query(
         collection(db, 'conversations', conversationId, 'messages'),
         orderBy('timestamp', 'desc'),
@@ -224,16 +269,98 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       );
 
       const messagesSnapshot = await getDocs(messagesQuery);
-      const messagesData = messagesSnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-        timestamp: doc.data().timestamp?.toDate() || new Date()
-      })) as ChatMessage[];
+      const messagesData = messagesSnapshot.docs.map(doc => {
+        const data = doc.data();
+        const message: ChatMessage = {
+          id: doc.id,
+          type: data.type,
+          content: data.content,
+          timestamp: data.timestamp?.toDate() || new Date(),
+          responseTime: data.responseTime,
+          contentType: data.contentType,
+          meta: data.meta,
+          tableData: data.tableData,
+          pdfData: data.pdfData,
+          pdfFiles: data.pdfFiles
+        };
 
-      setMessages(messagesData.reverse()); // Reverse to show oldest first
+        // Validate and clean graph data if present
+        if (data.graphData) {
+          if (data.graphData.data && Array.isArray(data.graphData.data) && data.graphData.data.length > 0) {
+            message.graphData = data.graphData;
+          } else {
+            // Remove invalid graph data
+            console.warn('Removing invalid graph data from message:', doc.id);
+            message.contentType = message.contentType === 'graph' ? 'text' : message.contentType;
+          }
+        }
+
+        return message;
+      });
+
+      // Remove duplicates based on content and timestamp
+      const uniqueMessages = messagesData.filter((message, index, array) => {
+        return array.findIndex(m => 
+          m.content === message.content && 
+          m.type === message.type && 
+          Math.abs(m.timestamp.getTime() - message.timestamp.getTime()) < 5000 // Within 5 seconds
+        ) === index;
+      });
+
+      setMessages(uniqueMessages.reverse()); // Reverse to show oldest first
       setHasMoreMessages(messagesSnapshot.docs.length === 20);
       setLastMessageDoc(messagesSnapshot.docs[messagesSnapshot.docs.length - 1]);
 
+      // Set up real-time listener for new messages
+      const messagesListenerQuery = query(
+        collection(db, 'conversations', conversationId, 'messages'),
+        orderBy('timestamp', 'asc')
+      );
+
+      const unsubscribe = onSnapshot(messagesListenerQuery, (snapshot) => {
+        const allMessages = snapshot.docs.map(doc => {
+          const data = doc.data();
+          const message: ChatMessage = {
+            id: doc.id,
+            type: data.type,
+            content: data.content,
+            timestamp: data.timestamp?.toDate() || new Date(),
+            responseTime: data.responseTime,
+            contentType: data.contentType,
+            meta: data.meta,
+            tableData: data.tableData,
+            pdfData: data.pdfData,
+            pdfFiles: data.pdfFiles
+          };
+
+          // Validate and clean graph data if present
+          if (data.graphData) {
+            if (data.graphData.data && Array.isArray(data.graphData.data) && data.graphData.data.length > 0) {
+              message.graphData = data.graphData;
+            } else {
+              console.warn('Removing invalid graph data from message:', doc.id);
+              message.contentType = message.contentType === 'graph' ? 'text' : message.contentType;
+            }
+          }
+
+          return message;
+        });
+
+        // Remove duplicates based on content and timestamp
+        const uniqueMessages = allMessages.filter((message, index, array) => {
+          return array.findIndex(m => 
+            m.content === message.content && 
+            m.type === message.type && 
+            Math.abs(m.timestamp.getTime() - message.timestamp.getTime()) < 5000 // Within 5 seconds
+          ) === index;
+        });
+
+        setMessages(uniqueMessages);
+      }, (err) => {
+        console.error('Error in real-time messages listener:', err);
+      });
+
+      setMessagesListener(() => unsubscribe);
       setIsLoading(false);
     } catch (err) {
       console.error('Erreur lors du chargement de la conversation:', err);
@@ -259,11 +386,34 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       );
 
       const messagesSnapshot = await getDocs(messagesQuery);
-      const newMessages = messagesSnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-        timestamp: doc.data().timestamp?.toDate() || new Date()
-      })) as ChatMessage[];
+      const newMessages = messagesSnapshot.docs.map(doc => {
+        const data = doc.data();
+        const message: ChatMessage = {
+          id: doc.id,
+          type: data.type,
+          content: data.content,
+          timestamp: data.timestamp?.toDate() || new Date(),
+          responseTime: data.responseTime,
+          contentType: data.contentType,
+          meta: data.meta,
+          tableData: data.tableData,
+          pdfData: data.pdfData,
+          pdfFiles: data.pdfFiles
+        };
+
+        // Validate and clean graph data if present
+        if (data.graphData) {
+          if (data.graphData.data && Array.isArray(data.graphData.data) && data.graphData.data.length > 0) {
+            message.graphData = data.graphData;
+          } else {
+            // Remove invalid graph data
+            console.warn('Removing invalid graph data from message:', doc.id);
+            message.contentType = message.contentType === 'graph' ? 'text' : message.contentType;
+          }
+        }
+
+        return message;
+      });
 
       if (newMessages.length > 0) {
         setMessages(prev => [...newMessages.reverse(), ...prev]);
@@ -323,6 +473,7 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       hasMoreMessages,
       createConversation,
       addMessage,
+      addMessageToLocalState,
       loadMoreMessages,
       loadConversation,
       createNewConversation,

@@ -1,9 +1,8 @@
 import React from 'react';
-import { Bot, User, Clock } from 'lucide-react';
+import { User, Clock } from 'lucide-react';
 import { GraphRenderer } from './GraphRenderer';
 import { PDFPreview, TextPDFPreview } from './PDFPreview';
 import { TableRenderer } from './TableRenderer';
-import { PDFFileDisplay } from './PDFFileDisplay';
 import { ChatMessage } from '../../types';
 import { MultiFormatToPDF } from '../../utils/MultiFormatToPDF';
 import { generatePDF } from '../../utils/PDFGenerator';
@@ -12,10 +11,294 @@ interface MessageBubbleProps {
   message: ChatMessage;
 }
 
-// Function to format AI message content (remove markdown and clean up)
+// Function to repair common JSON syntax errors
+const repairJsonString = (jsonString: string): string => {
+  let repaired = jsonString.trim();
+  
+  // Remove any leading/trailing whitespace and ensure it starts with {
+  if (!repaired.startsWith('{')) {
+    repaired = '{' + repaired;
+  }
+  if (!repaired.endsWith('}')) {
+    repaired = repaired + '}';
+  }
+  
+  // Fix missing array brackets for data
+  repaired = repaired.replace(/"data"\s*:\s*([^[\]]+?)(?=,|\s*"|$)/g, (match, dataContent) => {
+    // Check if dataContent is already an array
+    if (dataContent.trim().startsWith('[') && dataContent.trim().endsWith(']')) {
+      return match;
+    }
+    
+    // Handle the case where data is a list of objects without array brackets
+    let cleanDataContent = dataContent.trim();
+    
+    // Remove any trailing commas at the end
+    cleanDataContent = cleanDataContent.replace(/,\s*$/, '');
+    
+    // Split by },{ pattern to get individual objects
+    const objectStrings = cleanDataContent.split('},{');
+    
+    // Wrap individual objects in array brackets
+    const objects = objectStrings.map((obj: string, index: number) => {
+      let cleanObj = obj.trim();
+      if (index === 0 && !cleanObj.startsWith('{')) {
+        cleanObj = '{' + cleanObj;
+      }
+      if (index === objectStrings.length - 1 && !cleanObj.endsWith('}')) {
+        cleanObj = cleanObj + '}';
+      }
+      return cleanObj;
+    });
+    
+    return `"data": [${objects.join(', ')}]`;
+  });
+  
+  // Fix missing array brackets for colors
+  repaired = repaired.replace(/"colors"\s*:\s*([^[\]]+?)(?=,|\s*"|$)/g, (match, colorsContent) => {
+    if (colorsContent.trim().startsWith('[') && colorsContent.trim().endsWith(']')) {
+      return match;
+    }
+    
+    // Handle the case where colors is a comma-separated list without array brackets
+    let cleanColorsContent = colorsContent.trim();
+    
+    // Remove any trailing commas at the end
+    cleanColorsContent = cleanColorsContent.replace(/,\s*$/, '');
+    
+    // Split by comma and wrap in array brackets
+    const colors = cleanColorsContent.split(',').map((color: string) => color.trim()).filter((color: string) => color);
+    return `"colors": [${colors.join(', ')}]`;
+  });
+  
+  // Fix missing array brackets for insights
+  repaired = repaired.replace(/"insights"\s*:\s*([^[\]]+?)(?=,|\s*"|$)/g, (match, insightsContent) => {
+    if (insightsContent.trim().startsWith('[') && insightsContent.trim().endsWith(']')) {
+      return match;
+    }
+    
+    // Handle the case where insights is a list of strings without array brackets
+    let cleanInsightsContent = insightsContent.trim();
+    
+    // Remove any trailing commas at the end
+    cleanInsightsContent = cleanInsightsContent.replace(/,\s*$/, '');
+    
+    // Split by comma and wrap in array brackets, ensuring proper string quotes
+    const insights = cleanInsightsContent.split(',').map((insight: string) => {
+      let cleanInsight = insight.trim();
+      if (!cleanInsight.startsWith('"')) {
+        cleanInsight = '"' + cleanInsight;
+      }
+      if (!cleanInsight.endsWith('"')) {
+        cleanInsight = cleanInsight + '"';
+      }
+      return cleanInsight;
+    }).filter((insight: string) => insight.length > 2);
+    
+    return `"insights": [${insights.join(', ')}]`;
+  });
+  
+  // Fix missing array brackets for recommendations
+  repaired = repaired.replace(/"recommendations"\s*:\s*([^[\]]+?)(?=,|\s*"|$)/g, (match, recommendationsContent) => {
+    if (recommendationsContent.trim().startsWith('[') && recommendationsContent.trim().endsWith(']')) {
+      return match;
+    }
+    
+    // Handle the case where recommendations is a list of strings without array brackets
+    let cleanRecommendationsContent = recommendationsContent.trim();
+    
+    // Remove any trailing commas at the end
+    cleanRecommendationsContent = cleanRecommendationsContent.replace(/,\s*$/, '');
+    
+    // Split by comma and wrap in array brackets, ensuring proper string quotes
+    const recommendations = cleanRecommendationsContent.split(',').map((recommendation: string) => {
+      let cleanRecommendation = recommendation.trim();
+      if (!cleanRecommendation.startsWith('"')) {
+        cleanRecommendation = '"' + cleanRecommendation;
+      }
+      if (!cleanRecommendation.endsWith('"')) {
+        cleanRecommendation = cleanRecommendation + '"';
+      }
+      return cleanRecommendation;
+    }).filter((recommendation: string) => recommendation.length > 2);
+    
+    return `"recommendations": [${recommendations.join(', ')}]`;
+  });
+  
+  // Remove trailing commas before closing braces/brackets
+  repaired = repaired.replace(/,(\s*[}\]])/g, '$1');
+  
+  // Fix any remaining syntax issues
+  repaired = repaired.replace(/,(\s*[,}])/g, '$1'); // Remove double commas
+  
+  // Fix common typos in JSON
+  repaired = repaired.replace(/"datakev"/g, '"dataKey"');
+  repaired = repaired.replace(/"xAxisKey"/g, '"xAxisKey"');
+  repaired = repaired.replace(/"yAxisKey"/g, '"yAxisKey"');
+  
+  return repaired;
+};
+
+// Function to detect and parse JSON content
+const parseJsonInContent = (content: string): any | null => {
+  if (!content) return null;
+  
+  // Try to find JSON blocks in the content
+  const jsonMatch = content.match(/```json\s*([\s\S]*?)\s*```/);
+  if (jsonMatch) {
+    try {
+      const jsonString = jsonMatch[1];
+      const repairedJsonString = repairJsonString(jsonString);
+      const jsonData = JSON.parse(repairedJsonString);
+      
+      // Check if it's valid graph data
+      if (jsonData && typeof jsonData === 'object' && jsonData.type && jsonData.data) {
+        return jsonData;
+      }
+    } catch (error) {
+      console.error('Error parsing JSON in content:', error);
+      return null; // Return null instead of showing raw JSON
+    }
+  }
+  
+  // Try to find JSON object directly
+  const directJsonMatch = content.match(/\{\s*"type"\s*:\s*"[^"]*"\s*,[\s\S]*?\}/);
+  if (directJsonMatch) {
+    try {
+      const repairedJsonString = repairJsonString(directJsonMatch[0]);
+      const jsonData = JSON.parse(repairedJsonString);
+      if (jsonData && typeof jsonData === 'object' && jsonData.type && jsonData.data) {
+        return jsonData;
+      }
+    } catch (error) {
+      console.error('Error parsing direct JSON in content:', error);
+      return null; // Return null instead of showing raw JSON
+    }
+  }
+  
+  return null;
+};
+
+// Function to format AI message content with markdown support
 const formatMessageContent = (content: string): React.ReactNode => {
-  // Split content into lines and process each line
   const lines = content.split('\n');
+  const elements: React.ReactNode[] = [];
+  let currentIndex = 0;
+  
+  while (currentIndex < lines.length) {
+    // Check for JSON blocks first
+    const jsonMatch = content.substring(currentIndex).match(/```json\s*([\s\S]*?)\s*```/);
+    const directJsonMatch = content.substring(currentIndex).match(/\{\s*"type"\s*:\s*"[^"]*"\s*,[\s\S]*?\}/);
+    
+    // Check for markdown tables
+    let tableStart = -1;
+    let tableEnd = -1;
+    
+    for (let i = currentIndex; i < lines.length; i++) {
+      const line = lines[i].trim();
+      if (line.includes('|') && line.split('|').length >= 3) {
+        if (tableStart === -1) {
+          tableStart = i;
+        }
+        tableEnd = i;
+      } else if (tableStart !== -1 && !line.includes('|')) {
+        break;
+      }
+    }
+    
+    // Determine which comes first: JSON or table
+    let jsonIndex = -1;
+    let tableIndex = -1;
+    
+    if (jsonMatch) {
+      jsonIndex = currentIndex + content.substring(currentIndex).indexOf(jsonMatch[0]);
+    }
+    if (directJsonMatch) {
+      const directJsonIndex = currentIndex + content.substring(currentIndex).indexOf(directJsonMatch[0]);
+      if (jsonIndex === -1 || directJsonIndex < jsonIndex) {
+        jsonIndex = directJsonIndex;
+      }
+    }
+    if (tableStart !== -1) {
+      tableIndex = tableStart;
+    }
+    
+    // Process the element that comes first
+    if (jsonIndex !== -1 && (tableIndex === -1 || jsonIndex < tableIndex)) {
+      // Process JSON - show text before JSON but hide the JSON itself
+      const beforeJson = content.substring(currentIndex, jsonIndex).trim();
+      if (beforeJson) {
+        elements.push(<div key={`text-${currentIndex}`} className="mb-4">{formatTextContent(beforeJson)}</div>);
+      }
+      
+      const jsonData = parseJsonInContent(content.substring(jsonIndex));
+      if (jsonData) {
+        // Only show the graph, not the raw JSON
+        elements.push(
+          <div key={`graph-${currentIndex}`} className="mb-4">
+            <GraphRenderer data={jsonData} />
+          </div>
+        );
+      } else {
+        // JSON parsing failed, show a user-friendly message instead of raw JSON
+        elements.push(
+          <div key={`error-${currentIndex}`} className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+            <div className="flex items-center">
+              <div className="text-yellow-600 mr-2">⚠️</div>
+              <div className="text-sm text-yellow-800">
+                Format de données invalide - Impossible d'afficher le graphique
+              </div>
+            </div>
+          </div>
+        );
+      }
+      
+      // Move to after JSON - skip the JSON content completely
+      if (jsonMatch) {
+        currentIndex = jsonIndex + jsonMatch[0].length;
+      } else if (directJsonMatch) {
+        currentIndex = jsonIndex + directJsonMatch[0].length;
+      }
+    } else if (tableIndex !== -1) {
+      // Process table
+      const beforeTable = lines.slice(currentIndex, tableIndex).join('\n').trim();
+      if (beforeTable) {
+        elements.push(<div key={`text-${currentIndex}`} className="mb-4">{formatTextContent(beforeTable)}</div>);
+      }
+      
+      const tableContent = lines.slice(tableStart, tableEnd + 1).join('\n');
+      elements.push(
+        <div key={`table-${currentIndex}`} className="mb-4">
+          <TableRenderer markdownTable={tableContent} />
+        </div>
+      );
+      
+      currentIndex = tableEnd + 1;
+    } else {
+      // No more special content, process remaining as text
+      const remainingContent = lines.slice(currentIndex).join('\n').trim();
+      if (remainingContent) {
+        elements.push(<div key={`text-${currentIndex}`}>{formatTextContent(remainingContent)}</div>);
+      }
+      break;
+    }
+  }
+  
+  return elements.length > 0 ? <>{elements}</> : formatTextContent(content);
+};
+
+// Function to format text content (without tables and JSON)
+const formatTextContent = (content: string): React.ReactNode => {
+  // Remove JSON blocks from content before processing
+  let cleanContent = content;
+  
+  // Remove ```json blocks
+  cleanContent = cleanContent.replace(/```json\s*[\s\S]*?\s*```/g, '');
+  
+  // Remove direct JSON objects
+  cleanContent = cleanContent.replace(/\{\s*"type"\s*:\s*"[^"]*"\s*,[\s\S]*?\}/g, '');
+  
+  const lines = cleanContent.split('\n');
   
   return lines.map((line, index) => {
     // Skip empty lines
@@ -74,9 +357,9 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
   const isUser = message.type === 'user';
   
   return (
-    <div className={`flex items-start space-x-3 ${isUser ? 'flex-row-reverse space-x-reverse' : ''}`}>
+    <div className={`mobile-message-container ${isUser ? 'user-message' : 'ai-message'}`}>
       {/* Avatar */}
-      <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${
+      <div className={`w-8 h-8 rounded-full flex items-center justify-center mobile-avatar-spacing ${
         isUser 
           ? 'bg-gradient-to-br from-blue-500 to-blue-600 text-white' 
           : 'bg-gradient-to-br from-gray-100 to-gray-200 text-gray-600'
@@ -93,7 +376,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
       </div>
 
       {/* Message bubble */}
-      <div className={`w-full max-w-[95%] sm:max-w-[85%] min-w-0 mobile-chat-bubble ${isUser ? 'items-end' : 'items-start'} flex flex-col`}>
+      <div className={`mobile-chat-bubble ${isUser ? 'mobile-user-message' : 'mobile-ai-message'} flex flex-col`}>
         <div className={`px-4 py-3 rounded-2xl shadow-sm min-w-0 w-full overflow-x-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent mobile-chat-content ${
           isUser 
             ? 'bg-gradient-to-br from-blue-600 to-blue-700 text-white rounded-br-md' 
@@ -129,9 +412,9 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
                         <span className="text-blue-600 font-medium whitespace-nowrap flex-shrink-0">
                           Formulaires ({message.meta.selectedFormTitles.length}):
                         </span>
-                        <div className="flex gap-1 overflow-x-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent min-w-0 flex-1" style={{ scrollbarWidth: 'thin' }}>
+                        <div className="flex gap-1 overflow-x-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent min-w-0 flex-1 form-tags-container" style={{ scrollbarWidth: 'thin' }}>
                           {message.meta.selectedFormTitles.map((title, index) => (
-                            <span key={index} className="px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs whitespace-nowrap flex-shrink-0">
+                            <span key={index} className="px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs whitespace-nowrap flex-shrink-0 form-tag">
                               {title}
                             </span>
                           ))}
@@ -171,9 +454,9 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
                         <span className="text-gray-600 font-medium whitespace-nowrap flex-shrink-0">
                           Formulaires ({message.meta.selectedFormTitles.length}):
                         </span>
-                        <div className="flex gap-1 overflow-x-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent min-w-0 flex-1" style={{ scrollbarWidth: 'thin' }}>
+                        <div className="flex gap-1 overflow-x-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent min-w-0 flex-1 form-tags-container" style={{ scrollbarWidth: 'thin' }}>
                           {message.meta.selectedFormTitles.map((title, index) => (
-                            <span key={index} className="px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs whitespace-nowrap flex-shrink-0">
+                            <span key={index} className="px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs whitespace-nowrap flex-shrink-0 form-tag">
                               {title}
                             </span>
                           ))}
@@ -186,27 +469,85 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
                 {/* Render content based on type */}
                 {message.contentType === 'graph' && message.graphData ? (
                   <div className="space-y-4">
-                    {/* PDF Generation Button for Graph */}
-                    <div className="flex justify-end mb-2">
-                      <button
-                        onClick={async () => {
-                          try {
-                            const pdfData = MultiFormatToPDF.convertToPDFData(message);
-                            await generatePDF(pdfData);
-                          } catch (error) {
-                            console.error('Error generating PDF:', error);
-                          }
-                        }}
-                        className="inline-flex items-center px-3 py-1.5 text-xs font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors duration-200"
-                        title="Générer un PDF avec le graphique"
-                      >
-                        📄 Générer PDF
-                      </button>
+                    {/* Enhanced Graph Header with Insights */}
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <h3 className="text-sm font-semibold text-blue-900">
+                          📊 {message.graphData.title}
+                        </h3>
+                        <button
+                          onClick={async () => {
+                            try {
+                              const pdfData = MultiFormatToPDF.convertToPDFData(message);
+                              await generatePDF(pdfData);
+                            } catch (error) {
+                              console.error('Error generating PDF:', error);
+                            }
+                          }}
+                          className="inline-flex items-center px-3 py-1.5 text-xs font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors duration-200"
+                          title="Générer un PDF avec le graphique"
+                        >
+                          📄 Générer PDF
+                        </button>
+                      </div>
+                      {message.graphData.subtitle && (
+                        <p className="text-xs text-blue-700 mb-2">{message.graphData.subtitle}</p>
+                      )}
+                      
+                      {/* Display Insights if available */}
+                      {message.graphData.insights && message.graphData.insights.length > 0 && (
+                        <div className="mb-2">
+                          <h4 className="text-xs font-medium text-blue-800 mb-1">💡 Insights clés :</h4>
+                          <ul className="text-xs text-blue-700 space-y-1">
+                            {message.graphData.insights.map((insight: string, index: number) => (
+                              <li key={index} className="flex items-start">
+                                <span className="text-blue-500 mr-1">•</span>
+                                <span>{insight}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                      
+                      {/* Display Recommendations if available */}
+                      {message.graphData.recommendations && message.graphData.recommendations.length > 0 && (
+                        <div>
+                          <h4 className="text-xs font-medium text-blue-800 mb-1">🎯 Recommandations :</h4>
+                          <ul className="text-xs text-blue-700 space-y-1">
+                            {message.graphData.recommendations.map((recommendation: string, index: number) => (
+                              <li key={index} className="flex items-start">
+                                <span className="text-green-500 mr-1">→</span>
+                                <span>{recommendation}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                      
+                      {/* Display Metadata if available */}
+                      {message.graphData.metadata && (
+                        <div className="mt-2 pt-2 border-t border-blue-200">
+                          <div className="flex items-center justify-between text-xs text-blue-600">
+                            <span>
+                              {message.graphData.metadata.totalEntries && 
+                                `${message.graphData.metadata.totalEntries} points de données`
+                              }
+                            </span>
+                            <span>
+                              {message.graphData.metadata.generatedAt && 
+                                `Généré le ${new Date(message.graphData.metadata.generatedAt).toLocaleDateString('fr-FR')}`
+                              }
+                            </span>
+                          </div>
+                        </div>
+                      )}
                     </div>
                     
                     <GraphRenderer data={message.graphData} />
                   </div>
                 ) : message.contentType === 'pdf' && message.pdfData ? (
+                  <PDFPreview data={message.pdfData} />
+                ) : message.contentType === 'text-pdf' && message.pdfData ? (
                   <PDFPreview data={message.pdfData} />
                 ) : message.contentType === 'text-pdf' ? (
                   <TextPDFPreview content={message.content} title="Rapport Ubora" />
@@ -290,12 +631,50 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
             )}
           </div>
           
-          {/* PDF Files Display */}
+          {/* Enhanced PDF Files Display with Source Attribution */}
           {!isUser && message.pdfFiles && message.pdfFiles.length > 0 && (
-            <PDFFileDisplay pdfFiles={message.pdfFiles} />
+            <div className="mt-4 p-3 bg-gray-50 border border-gray-200 rounded-lg">
+              <h4 className="text-sm font-semibold text-gray-800 mb-2 flex items-center">
+                📎 Sources de données
+                <span className="ml-2 text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
+                  {message.pdfFiles.length} fichier{message.pdfFiles.length > 1 ? 's' : ''}
+                </span>
+              </h4>
+              <div className="space-y-2">
+                {message.pdfFiles.map((file, index) => (
+                  <div key={index} className="flex items-center justify-between p-2 bg-white border border-gray-200 rounded-md">
+                    <div className="flex items-center space-x-2">
+                      <span className="text-lg">
+                        {file.fileType === 'application/pdf' ? '📄' : '📎'}
+                      </span>
+                      <div>
+                        <p className="text-sm font-medium text-gray-900">{file.fileName}</p>
+                        <p className="text-xs text-gray-500">
+                          {file.fileType === 'application/pdf' ? 'Document PDF' : 'Fichier joint'}
+                          {file.fileSize && ` • ${(file.fileSize / 1024).toFixed(1)} KB`}
+                        </p>
+                      </div>
+                    </div>
+                    {file.downloadUrl && (
+                      <a
+                        href={file.downloadUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs text-blue-600 hover:text-blue-800 underline"
+                      >
+                        Télécharger
+                      </a>
+                    )}
+                  </div>
+                ))}
+              </div>
+              <p className="text-xs text-gray-600 mt-2 italic">
+                💡 Ces fichiers ont été analysés pour générer cette réponse. Cliquez sur "Télécharger" pour accéder aux documents originaux.
+              </p>
+            </div>
           )}
           
-          {/* Meta information for assistant messages */}
+          {/* Enhanced Meta information for assistant messages */}
           {!isUser && message.meta && (
             <div className="mt-3 pt-2 border-t border-gray-100">
               <div className="flex flex-wrap items-center gap-3 text-xs text-gray-500">
@@ -306,12 +685,59 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
                   </span>
                 )}
                 {message.meta.usedEntries && (
-                  <span>{message.meta.usedEntries} entrées</span>
+                  <span className="flex items-center space-x-1">
+                    <span className="w-1.5 h-1.5 bg-green-400 rounded-full"></span>
+                    <span>{message.meta.usedEntries} entrées</span>
+                  </span>
                 )}
                 {message.meta.users && (
-                  <span>{message.meta.users} employés</span>
+                  <span className="flex items-center space-x-1">
+                    <span className="w-1.5 h-1.5 bg-purple-400 rounded-full"></span>
+                    <span>{message.meta.users} employés</span>
+                  </span>
+                )}
+                {message.meta.forms && (
+                  <span className="flex items-center space-x-1">
+                    <span className="w-1.5 h-1.5 bg-orange-400 rounded-full"></span>
+                    <span>{message.meta.forms} formulaires</span>
+                  </span>
+                )}
+                {message.meta.tokensUsed && (
+                  <span className="flex items-center space-x-1">
+                    <span className="w-1.5 h-1.5 bg-yellow-400 rounded-full"></span>
+                    <span>{message.meta.tokensUsed} tokens</span>
+                  </span>
                 )}
               </div>
+              
+              {/* Additional context information */}
+              {((message.meta?.selectedFormTitles?.length ?? 0) > 0 || (message.meta?.selectedFormats?.length ?? 0) > 0) && (
+                <div className="mt-2 pt-2 border-t border-gray-100">
+                  <div className="flex flex-wrap items-center gap-2 text-xs">
+                    {(message.meta?.selectedFormats?.length ?? 0) > 0 && (
+                      <div className="flex items-center space-x-1">
+                        <span className="text-gray-400">Formats:</span>
+                        {message.meta?.selectedFormats?.map((format, index) => (
+                          <span key={index} className="px-2 py-1 bg-gray-100 text-gray-700 rounded-full">
+                            {format === 'stats' ? '📊 Stats' : 
+                             format === 'table' ? '📋 Tableau' : 
+                             format === 'pdf' ? '📄 PDF' : format}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    {(message.meta?.selectedFormTitles?.length ?? 0) > 0 && (
+                      <div className="flex items-center space-x-1">
+                        <span className="text-gray-400">Formulaires:</span>
+                        <span className="text-gray-600">
+                          {message.meta?.selectedFormTitles?.slice(0, 2).join(', ')}
+                          {(message.meta?.selectedFormTitles?.length ?? 0) > 2 && ` +${(message.meta?.selectedFormTitles?.length ?? 0) - 2} autres`}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>

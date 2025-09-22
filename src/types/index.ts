@@ -144,6 +144,7 @@ export interface ChatMessage {
 export interface GraphData {
   type: 'line' | 'bar' | 'pie' | 'area' | 'scatter';
   title: string;
+  subtitle?: string;
   data: any[];
   xAxisKey?: string;
   yAxisKey?: string;
@@ -156,6 +157,24 @@ export interface GraphData {
     showGrid?: boolean;
     showTooltip?: boolean;
     responsive?: boolean;
+    animation?: boolean;
+    stacked?: boolean;
+    horizontal?: boolean;
+    fillOpacity?: number;
+    strokeWidth?: number;
+    radius?: number;
+    innerRadius?: number;
+    outerRadius?: number;
+  };
+  // Extended properties for insights and recommendations
+  insights?: string[];
+  recommendations?: string[];
+  // Metadata for better chart rendering
+  metadata?: {
+    totalEntries?: number;
+    chartType?: string;
+    dataSource?: string;
+    generatedAt?: Date;
   };
 }
 

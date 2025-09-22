@@ -39,15 +39,16 @@
     border-radius: 1px;
   }
   
-  /* Mobile chat bubble constraints */
+  /* Mobile chat bubble constraints - fixed width approach */
   .mobile-chat-bubble {
-    max-width: 90vw !important;
-    width: 90vw !important;
+    width: auto !important;
+    max-width: none !important;
   }
   
   /* Ensure content doesn't break mobile layout */
   .mobile-chat-content {
     min-width: 0;
+    max-width: 100% !important;
     overflow-x: auto;
     word-wrap: break-word;
     word-break: break-word;
@@ -55,11 +56,148 @@
     hyphens: auto;
   }
   
+  /* Mobile message container - full width with proper padding */
+  .mobile-message-container {
+    width: 100%;
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+    margin-bottom: 0.75rem;
+    display: flex;
+    align-items: flex-start;
+  }
+  
+  /* User message container - avatar on right, bubble on left */
+  .mobile-message-container.user-message {
+    flex-direction: row-reverse;
+    justify-content: flex-start;
+  }
+  
+  /* AI message container - avatar on left, bubble on right */
+  .mobile-message-container.ai-message {
+    flex-direction: row;
+    justify-content: flex-start;
+  }
+  
+  /* Avatar spacing */
+  .mobile-avatar-spacing {
+    flex-shrink: 0;
+    margin: 0 0.5rem;
+  }
+  
+  /* User message bubble - percentage width */
+  .mobile-user-message {
+    width: 85% !important;
+    max-width: 85% !important;
+    margin-left: 0;
+    margin-right: 0;
+  }
+  
+  /* AI message bubble - percentage width */
+  .mobile-ai-message {
+    width: 85% !important;
+    max-width: 85% !important;
+    margin-left: 0;
+    margin-right: 0;
+  }
+  
   /* Handle very long words and URLs */
   .mobile-chat-content * {
     word-break: break-word;
     overflow-wrap: anywhere;
-    hyphens: auto;
+  }
+  
+  /* Mobile form tags styling */
+  .mobile-chat-content .form-tag {
+    font-size: 0.75rem;
+    padding: 0.125rem 0.375rem;
+    margin: 0.125rem;
+    min-width: fit-content;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  
+  /* Mobile form tags container - horizontal scroll */
+  .mobile-chat-content .form-tags-container {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 0.125rem;
+    max-width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: thin;
+    scrollbar-color: #d1d5db transparent;
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  .mobile-chat-content .form-tags-container::-webkit-scrollbar {
+    height: 3px;
+  }
+  
+  .mobile-chat-content .form-tags-container::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  
+  .mobile-chat-content .form-tags-container::-webkit-scrollbar-thumb {
+    background-color: #d1d5db;
+    border-radius: 1.5px;
+  }
+}
+
+/* Desktop styles - override mobile styles on larger screens */
+@media (min-width: 640px) {
+  .mobile-message-container {
+    display: flex !important;
+    flex-direction: row !important;
+    justify-content: flex-start !important;
+    align-items: flex-start !important;
+    padding: 0 !important;
+    margin-bottom: 1.5rem !important;
+  }
+  
+  .mobile-message-container.user-message {
+    flex-direction: row-reverse !important;
+    justify-content: flex-start !important;
+  }
+  
+  .mobile-message-container.ai-message {
+    flex-direction: row !important;
+    justify-content: flex-start !important;
+  }
+  
+  .mobile-chat-bubble {
+    width: auto !important;
+    max-width: 85% !important;
+    flex: 1 !important;
+  }
+  
+  .mobile-user-message,
+  .mobile-ai-message {
+    width: auto !important;
+    max-width: 85% !important;
+    margin: 0 !important;
+  }
+  
+  .mobile-avatar-spacing {
+    margin: 0 0.75rem !important;
+  }
+  
+  /* Desktop form tags container - horizontal scroll */
+  .mobile-chat-content .form-tags-container {
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    gap: 0.125rem !important;
+    max-width: 100% !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    scrollbar-width: thin !important;
+    scrollbar-color: #d1d5db transparent !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+  
+  .mobile-chat-content .form-tag {
+    min-width: fit-content !important;
+    white-space: nowrap !important;
+    flex-shrink: 0 !important;
   }
   
   /* Mobile form cards optimization */

@@ -5,7 +5,7 @@ import { Button } from '../components/Button';
 import { Input } from '../components/Input';
 import { Card } from '../components/Card';
 import { Footer } from '../components/Footer';
-import { Building2, Lock, Mail, AlertCircle, UserPlus } from 'lucide-react';
+import { Lock, Mail, AlertCircle } from 'lucide-react';
 
 export const LoginPage: React.FC = () => {
   const { user, login, loginWithGoogle, register, isLoading, error } = useAuth();
@@ -13,7 +13,7 @@ export const LoginPage: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
-  const [role, setRole] = useState<'directeur' | 'employe'>('employe');
+  const [role, setRole] = useState<'directeur' | 'employe'>('directeur');
   const [agencyId, setAgencyId] = useState('');
   const [isRegisterMode, setIsRegisterMode] = useState(false);
   const [localError, setLocalError] = useState('');
@@ -23,18 +23,16 @@ export const LoginPage: React.FC = () => {
   useEffect(() => {
     const invite = searchParams.get('invite');
     const inviteAgencyId = searchParams.get('agencyId');
-    const inviteRole = searchParams.get('role');
     
     if (invite === 'true') {
       setIsInviteLink(true);
       setIsRegisterMode(true);
       
+      // For invite links, always set role to employee and make it non-changeable
+      setRole('employe');
+      
       if (inviteAgencyId) {
         setAgencyId(inviteAgencyId);
-      }
-      
-      if (inviteRole === 'employe') {
-        setRole('employe');
       }
     }
   }, [searchParams]);
@@ -54,6 +52,18 @@ export const LoginPage: React.FC = () => {
     
     try {
       if (isRegisterMode) {
+        // Validation: Only directors can sign up directly (not through invite links)
+        if (!isInviteLink && role !== 'directeur') {
+          setLocalError('Seuls les directeurs peuvent créer des comptes directement. Les employés doivent utiliser un lien d\'invitation.');
+          return;
+        }
+        
+        // Validation: Agency ID is required for directors
+        if (role === 'directeur' && !agencyId.trim()) {
+          setLocalError('L\'ID d\'agence est obligatoire pour les directeurs.');
+          return;
+        }
+        
         const success = await register(email, password, name, role, agencyId);
         if (success) {
           setIsRegisterMode(false);
@@ -97,13 +107,17 @@ export const LoginPage: React.FC = () => {
             {isInviteLink 
               ? 'Vous avez été invité à rejoindre l\'équipe' 
               : isRegisterMode 
-                ? 'Créer un compte Ubora' 
+                ? 'Créer un compte directeur Ubora' 
                 : 'Connectez-vous à votre espace Ubora'
             }
           </p>
-          {isInviteLink && (
+          {isInviteLink ? (
             <p className="text-xs text-green-600 mt-2 font-medium">
               Rôle employé pré-sélectionné
+            </p>
+          ) : isRegisterMode && (
+            <p className="text-xs text-blue-600 mt-2 font-medium">
+              Création de compte directeur uniquement
             </p>
           )}
         </div>
@@ -113,7 +127,7 @@ export const LoginPage: React.FC = () => {
             {isRegisterMode && (
               <>
                 <Input
-                  label="Nom complet"
+                  label="Nom complet *"
                   type="text"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
@@ -128,43 +142,55 @@ export const LoginPage: React.FC = () => {
                   <select
                     value={role}
                     onChange={(e) => setRole(e.target.value as 'directeur' | 'employe')}
-                    disabled={isInviteLink}
+                    disabled={true}
                     className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-base ${
                       isInviteLink 
                         ? 'border-green-300 bg-green-50 text-green-700 cursor-not-allowed' 
-                        : 'border-gray-300'
+                        : 'border-blue-300 bg-blue-50 text-blue-700 cursor-not-allowed'
                     }`}
                   >
-                    <option value="employe">Employé</option>
                     <option value="directeur">Directeur</option>
+                    <option value="employe">Employé</option>
                   </select>
-                  {isInviteLink && (
+                  {isInviteLink ? (
                     <p className="text-xs text-green-600 mt-1">
                       Rôle défini par l'invitation
+                    </p>
+                  ) : (
+                    <p className="text-xs text-blue-600 mt-1">
+                      Rôle directeur verrouillé pour la création directe
                     </p>
                   )}
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    ID Agence
+                    ID Agence {role === 'directeur' && !isInviteLink && <span className="text-red-500">*</span>}
                   </label>
                   <input
                     type="text"
                     value={agencyId}
                     onChange={(e) => setAgencyId(e.target.value)}
-                    placeholder="Entrez votre ID d'agence"
+                    placeholder={isInviteLink ? "ID d'agence fourni par l'invitation" : "Entrez votre ID d'agence"}
                     disabled={isInviteLink}
-                    required
+                    required={role === 'directeur' && !isInviteLink}
                     className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-base ${
                       isInviteLink 
                         ? 'border-green-300 bg-green-50 text-green-700 cursor-not-allowed' 
                         : 'border-gray-300'
                     }`}
                   />
-                  {isInviteLink && (
+                  {isInviteLink ? (
                     <p className="text-xs text-green-600 mt-1">
                       Agence définie par l'invitation
+                    </p>
+                  ) : role === 'directeur' ? (
+                    <p className="text-xs text-blue-600 mt-1">
+                      Obligatoire pour créer un compte directeur
+                    </p>
+                  ) : (
+                    <p className="text-xs text-gray-500 mt-1">
+                      L'ID d'agence sera fourni par votre directeur
                     </p>
                   )}
                 </div>
@@ -174,7 +200,7 @@ export const LoginPage: React.FC = () => {
             <div className="relative">
               <Mail className="absolute left-3 top-9 h-5 w-5 text-gray-400" />
               <Input
-                label="Email"
+                label="Email *"
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -187,7 +213,7 @@ export const LoginPage: React.FC = () => {
             <div className="relative">
               <Lock className="absolute left-3 top-9 h-5 w-5 text-gray-400" />
               <Input
-                label="Mot de passe"
+                label="Mot de passe *"
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}

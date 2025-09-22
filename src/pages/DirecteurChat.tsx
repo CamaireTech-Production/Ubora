@@ -9,11 +9,9 @@ import { MessageList } from '../components/chat/MessageList';
 import { ChatComposer } from '../components/chat/ChatComposer';
 import { FloatingSidePanel } from '../components/chat/FloatingSidePanel';
 import { Footer } from '../components/Footer';
-import { ResponseParser } from '../utils/ResponseParser';
 import { ChatMessage } from '../types';
 import { useToast } from '../hooks/useToast';
 import { usePackageAccess } from '../hooks/usePackageAccess';
-import { TokenService } from '../services/tokenService';
 import { TokenCounter } from '../services/tokenCounter';
 import { PayAsYouGoModal } from '../components/PayAsYouGoModal';
 import { PayAsYouGoService } from '../services/payAsYouGoService';
@@ -59,7 +57,7 @@ export const DirecteurChat: React.FC = () => {
     createNewConversation,
     loadConversation,
     loadMoreMessages,
-    addMessage
+    addMessageToLocalState
   } = useConversation();
   
   const { showError } = useToast();
@@ -109,13 +107,6 @@ export const DirecteurChat: React.FC = () => {
         
         // Update user data locally without page reload
         if (user) {
-          const updatedUser = {
-            ...user,
-            payAsYouGoTokens: (user.payAsYouGoTokens || 0) + tokens,
-            subscriptionEndDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days from now
-            subscriptionStatus: 'active'
-          };
-          
           // Update the user context (you'll need to implement this in your auth context)
           // For now, we'll trigger a user refresh
           console.log('🔄 User data updated locally');
@@ -210,6 +201,9 @@ RÉPONSE :
     // Determine the actual format(s) to use
     const actualFormats = selectedFormats.length > 0 ? selectedFormats : (selectedFormat ? [selectedFormat] : []);
     const isMultiFormat = actualFormats.length > 1;
+    
+    // Get form titles for display
+    const formTitles = forms.filter(form => formsToAnalyze.includes(form.id)).map(form => form.title);
 
     // Create conversation if none exists
     let conversationId = currentConversation?.id;
@@ -223,26 +217,32 @@ RÉPONSE :
       }
     }
 
-    // Ajouter le message utilisateur
+    // Create user message for immediate display
     const userMessage: ChatMessage = {
       id: `user_${Date.now()}`,
       type: 'user',
       content: messageToSend,
       timestamp: new Date(),
-        meta: {
-          ...(isMultiFormat || actualFormats.length === 0 ? {} : { selectedFormat: actualFormats[0] }),
-          selectedFormats: actualFormats,
-          selectedFormIds: formsToAnalyze,
-          selectedFormTitles: forms.filter(form => formsToAnalyze.includes(form.id)).map(form => form.title)
-        }
+      meta: {
+        // Only include format info if formats are actually selected
+        ...(actualFormats.length > 0 ? {
+          ...(isMultiFormat ? {} : { selectedFormat: actualFormats[0] }),
+          selectedFormats: actualFormats
+        } : {}),
+        // Always include form info (will show all forms if none selected)
+        selectedFormIds: formsToAnalyze,
+        selectedFormTitles: formTitles
+      }
     };
 
-    // Add message to conversation (only if we have a conversation)
+    // Add user message to local state for immediate display
     if (currentConversation) {
       try {
-        await addMessage(userMessage);
+        // Only add to local state for immediate display
+        // Persistence will be handled by the server response
+        addMessageToLocalState(userMessage);
       } catch (error) {
-        console.error('Error adding user message:', error);
+        console.error('Error adding user message to local state:', error);
       }
     }
 
@@ -266,30 +266,7 @@ RÉPONSE :
         'Authorization': `Bearer ${t}`
       });
 
-      // Get form submissions for debugging
-      const relevantSubmissions = formEntries.filter(entry => 
-        formsToAnalyze.includes(entry.formId)
-      );
       
-      console.log('🔍 DEBUG - Form Analysis Data:');
-      console.log('📋 Total forms available:', forms.length);
-      console.log('📋 Forms to analyze:', formsToAnalyze);
-      console.log('📋 Selected form IDs:', selectedFormIds);
-      console.log('📋 All form IDs:', forms.map(f => f.id));
-      console.log('📊 Total form entries:', formEntries.length);
-      console.log('📊 Relevant submissions:', relevantSubmissions.length);
-      console.log('📊 Submissions by form:', formsToAnalyze.map(formId => {
-        const formSubmissions = formEntries.filter(entry => entry.formId === formId);
-        const formTitle = forms.find(f => f.id === formId)?.title || 'Unknown';
-        return { formId, formTitle, count: formSubmissions.length };
-      }));
-      console.log('📊 Sample submissions:', relevantSubmissions.slice(0, 3));
-
-      console.log('🔍 DEBUG - Format Selection:');
-      console.log('📋 selectedFormat:', selectedFormat);
-      console.log('📋 selectedFormats:', selectedFormats);
-      console.log('📋 actualFormats:', actualFormats);
-      console.log('📋 isMultiFormat:', isMultiFormat);
       
       const requestData = {
         question: messageToSend,
@@ -386,33 +363,11 @@ RÉPONSE :
         console.log('🔄 User token usage updated');
       }
 
-      const responseTime = Date.now() - startTime;
+      // Server handles message creation and persistence
 
-      // Parse the AI response to detect graph/PDF data
-      const parsedResponse = ResponseParser.parseAIResponse(data.answer, messageToSend, isMultiFormat || actualFormats.length === 0 ? undefined : actualFormats[0], actualFormats);
-
-      // Create assistant message with parsed content
-      const assistantMessage = ResponseParser.createMessageFromParsedResponse(
-        parsedResponse,
-        `assistant_${Date.now()}`,
-        responseTime,
-        {
-          ...data.meta,
-          ...(isMultiFormat || actualFormats.length === 0 ? {} : { selectedFormat: actualFormats[0] }),
-          selectedFormats: actualFormats,
-          selectedFormIds: formsToAnalyze,
-          selectedFormTitles: forms.filter(form => formsToAnalyze.includes(form.id)).map(form => form.title)
-        }
-      );
-
-      // Add assistant message to conversation (only if we have a conversation)
-      if (currentConversation) {
-        try {
-          await addMessage(assistantMessage);
-        } catch (error) {
-          console.error('Error adding assistant message:', error);
-        }
-      }
+      // Server handles all message persistence
+      // The AI response will be automatically added via the real-time listener
+      // No need to manually refresh the conversation
 
     } catch (error) {
       console.error('Erreur lors de l\'envoi du message:', error);
@@ -443,12 +398,12 @@ RÉPONSE :
         responseTime
       };
 
-      // Try to persist the error message if a conversation exists
+      // Add error message to local state (errors are not persisted by server)
       if (currentConversation) {
         try {
-          await addMessage(errorMessage);
-        } catch (persistError) {
-          console.error('Error persisting error message:', persistError);
+          addMessageToLocalState(errorMessage);
+        } catch (error) {
+          console.error('Error adding error message to local state:', error);
         }
       }
     } finally {
@@ -527,7 +482,7 @@ RÉPONSE :
     >
       <div className="min-h-screen bg-gradient-to-b from-blue-50 via-white to-white">
         {/* Container centré pour toute l'interface */}
-        <div className="max-w-7xl mx-auto flex flex-col h-screen px-4 sm:px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto flex flex-col h-screen px-0 sm:px-6 lg:px-8">
           
           {/* Top bar */}
           <ChatTopBar
