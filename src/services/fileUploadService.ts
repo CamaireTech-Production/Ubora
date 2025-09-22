@@ -85,12 +85,6 @@ export class FileUploadService {
       // Get download URL
       const downloadUrl = await getDownloadURL(uploadResult.ref);
 
-      console.log('🔍 File uploaded successfully:', {
-        fileName: file.name,
-        storagePath,
-        downloadUrl,
-        fileSize: file.size
-      });
 
       // Create file attachment
       const fileAttachment: FileAttachment = {
@@ -104,7 +98,6 @@ export class FileUploadService {
         textExtractionStatus: 'pending'
       };
 
-      console.log('🔍 Created file attachment:', fileAttachment);
 
       // Extract text if it's a PDF
       if (PDFTextExtractionService.isPDF(file)) {
@@ -123,10 +116,6 @@ export class FileUploadService {
             fileAttachment.extractedText = PDFTextExtractionService.cleanExtractedText(extractionResult.text);
             fileAttachment.textExtractionStatus = 'completed';
 
-            console.log(`✅ PDF text extracted successfully for ${file.name}:`, {
-              pages: extractionResult.pages,
-              textLength: fileAttachment.extractedText.length
-            });
 
             // Trigger debug modal callback
             onPDFExtraction?.({

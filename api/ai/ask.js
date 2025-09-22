@@ -115,14 +115,28 @@ async function loadAndAggregateData(
     .get();
 
   // Transformer, filtrer par période et filtres optionnels
-  let entries = baseSnapshot.docs.map((doc) => ({
-    id: doc.id,
-    formId: doc.data().formId || '',
-    userId: doc.data().userId || '',
-    agencyId: doc.data().agencyId || '',
-    submittedAt: doc.data().submittedAt || new Date(),
-    answers: doc.data().answers || {}
-  }));
+  let entries = baseSnapshot.docs.map((doc) => {
+    const data = doc.data();
+    const entry = {
+      id: doc.id,
+      formId: data.formId || '',
+      userId: data.userId || '',
+      agencyId: data.agencyId || '',
+      submittedAt: data.submittedAt || new Date(),
+      answers: data.answers || {},
+      fileAttachments: data.fileAttachments || [] // Include fileAttachments from Firestore
+    };
+    
+    // Log raw entry data for debugging
+    console.log(`🔍 RAW FIRESTORE ENTRY ${doc.id}:`, {
+      hasFileAttachments: !!data.fileAttachments,
+      fileAttachmentsLength: data.fileAttachments ? data.fileAttachments.length : 0,
+      fileAttachmentsType: typeof data.fileAttachments,
+      rawFileAttachments: data.fileAttachments
+    });
+    
+    return entry;
+  });
 
   entries = entries.filter(e => {
     const submittedDate = safeToDate(e.submittedAt);
@@ -265,6 +279,15 @@ async function loadAndAggregateData(
       isToday: submittedDate ? submittedDate.toDateString() === new Date().toDateString() : false,
       isThisWeek: submittedDate ? submittedDate >= start && submittedDate <= end : false
     };
+    
+    // Log detailed submission creation
+    console.log(`🔍 CREATING DETAILED SUBMISSION ${entry.id}:`, {
+      employeeName: result.employeeName,
+      formTitle: result.formTitle,
+      hasFileAttachments: !!entry.fileAttachments,
+      fileAttachmentsLength: entry.fileAttachments ? entry.fileAttachments.length : 0,
+      rawFileAttachments: entry.fileAttachments
+    });
     
     return result;
   });
@@ -462,10 +485,13 @@ CONTEXTE MÉTIER :
 OBJECTIF : Répondre clairement à la question du directeur avec des insights basés sur les données.
 
 ${hasPDFContent ? `
-📄 DONNÉES SUPPLÉMENTAIRES :
-- Certaines soumissions incluent des documents PDF avec leur contenu textuel
-- Analyse ces informations comme partie intégrante des données de soumission
-- Utilise toutes les informations disponibles pour répondre précisément à la question` : ''}
+📄 DONNÉES SUPPLÉMENTAIRES IMPORTANTES :
+- Certaines soumissions incluent des documents PDF avec leur contenu textuel extrait
+- Ces documents sont marqués par "Document: [nom_fichier] (contenu_extraite)"
+- OBLIGATOIRE : Analyse le contenu textuel de ces documents comme partie intégrante des données de soumission
+- OBLIGATOIRE : Utilise toutes les informations des documents PDF pour répondre précisément à la question
+- OBLIGATOIRE : Référence le contenu des documents dans ton analyse quand c'est pertinent
+- Le contenu des documents PDF fait partie des données de soumission et doit être traité comme tel` : ''}
 
 ${responseFormat === 'table' ? `
 EXEMPLE DE TABLEAU CORRECT :
@@ -1227,6 +1253,15 @@ TOP FORMULAIRES : ${data.formStats.slice(0, 3).map(f => `${f.title} (${f.count} 
 
     // Now build the actual system prompt with hasPDFContent available
     const systemPrompt = buildSystemMessage();
+    
+    // 🔍 DEBUG: Log system prompt information
+    console.log('🔍 AI BACKEND DEBUG - System Prompt:');
+    console.log('=====================================');
+    console.log('System prompt length:', systemPrompt.length);
+    console.log('Contains PDF instructions:', systemPrompt.includes('DONNÉES SUPPLÉMENTAIRES'));
+    console.log('PDF content detected:', hasPDFContent);
+    console.log('System prompt preview (first 500 chars):', systemPrompt.substring(0, 500) + '...');
+    console.log('=====================================');
 
 
     // Build simple submissions data
@@ -1247,10 +1282,32 @@ TOP FORMULAIRES : ${data.formStats.slice(0, 3).map(f => `${f.title} (${f.count} 
           );
           
           if (pdfFiles.length > 0) {
+            console.log(`🔍 Adding PDF content to submission ${index + 1}:`, {
+              employeeName: s.employeeName,
+              formTitle: s.formTitle,
+              pdfFilesCount: pdfFiles.length
+            });
+            
             pdfFiles.forEach((file, fileIndex) => {
+              console.log(`  📄 Processing PDF ${fileIndex + 1}: ${file.fileName}`, {
+                originalTextLength: file.extractedText.length,
+                truncatedLength: Math.min(1500, file.extractedText.length)
+              });
+              
+              console.log(`  📝 EXTRACTED TEXT BEING ADDED TO AI PROMPT:`);
+              console.log(`  "${file.extractedText.substring(0, 500)}${file.extractedText.length > 500 ? '...' : ''}"`);
+              
               // Include extracted text as additional field data, not as separate section
               extractedTextSummary += ` | Document: ${file.fileName} (${file.extractedText.substring(0, 1500)}${file.extractedText.length > 1500 ? '...' : ''})`;
             });
+          } else {
+            console.log(`🔍 No PDF files found for submission ${index + 1} (${s.employeeName} - ${s.formTitle})`);
+            console.log(`  Total file attachments: ${s.fileAttachments ? s.fileAttachments.length : 0}`);
+            if (s.fileAttachments && s.fileAttachments.length > 0) {
+              s.fileAttachments.forEach((att, attIndex) => {
+                console.log(`  File ${attIndex + 1}: ${att.fileName} (${att.fileType}) - hasExtractedText: ${!!att.extractedText}`);
+              });
+            }
           }
         }
         
@@ -1288,11 +1345,28 @@ Le tableau doit avoir cette structure :
 
 N'inclus PAS seulement les en-têtes - tu DOIS inclure des lignes de données réelles !` : '';
 
-      return `${questionText}\n\n${dataOverview}\n\n${submissions}${tableFormatReminder}`;
+      const pdfContentReminder = hasPDFContent ? `
+
+IMPORTANT : Les soumissions ci-dessous contiennent des documents PDF avec du contenu textuel extrait.
+Ces documents sont marqués par "Document: [nom_fichier] (contenu_extraite)".
+OBLIGATOIRE : Analyse le contenu de ces documents comme partie intégrante des données de soumission.
+OBLIGATOIRE : Utilise toutes les informations des documents PDF pour répondre à la question.
+OBLIGATOIRE : Référence le contenu des documents dans ton analyse quand c'est pertinent.` : '';
+
+      return `${questionText}\n\n${dataOverview}\n\n${submissions}${tableFormatReminder}${pdfContentReminder}`;
     };
 
     // Use the complete user message for the AI call
     const userPromptForAI = buildUserMessage();
+    
+    // 🔍 DEBUG: Log the complete user prompt being sent to AI
+    console.log('🔍 AI BACKEND DEBUG - Complete User Prompt:');
+    console.log('=====================================');
+    console.log('Prompt length:', userPromptForAI.length);
+    console.log('Contains PDF content:', userPromptForAI.includes('Document:'));
+    console.log('PDF content count:', (userPromptForAI.match(/Document:/g) || []).length);
+    console.log('Prompt preview (first 1000 chars):', userPromptForAI.substring(0, 1000) + '...');
+    console.log('=====================================');
 
 
     // 6. Appel OpenAI
@@ -1713,95 +1787,113 @@ Il serait pertinent de surveiller l'engagement des employés moins actifs et d'a
       }
     };
 
-    // 🔍 DEBUG: Log the AI response for graph debugging
-    console.log('🔍 AI BACKEND DEBUG - Raw AI Response:');
+    // 🔍 DEBUG: Log file attachments processing
+    console.log('🔍 AI BACKEND DEBUG - File Attachments Analysis:');
+    console.log('=====================================');
+    console.log('Total submissions:', data.submissions.length);
+    console.log('Has PDF content detected:', hasPDFContent);
+    console.log('Has file attachments detected:', hasFileAttachments);
+    console.log('Has complex data detected:', hasComplexData);
+    
+    // Log detailed file attachment information
+    console.log('🔍 DETAILED FILE ATTACHMENT ANALYSIS:');
+    console.log('=====================================');
+    
+    data.submissions.forEach((submission, index) => {
+      console.log(`📎 Submission ${index + 1} (${submission.employeeName} - ${submission.formTitle}):`);
+      console.log(`  Submission ID: ${submission.id}`);
+      console.log(`  Submitted Date: ${submission.submittedDate}`);
+      console.log(`  Raw fileAttachments field:`, submission.fileAttachments);
+      console.log(`  fileAttachments type:`, typeof submission.fileAttachments);
+      console.log(`  fileAttachments is array:`, Array.isArray(submission.fileAttachments));
+      console.log(`  fileAttachments length:`, submission.fileAttachments ? submission.fileAttachments.length : 'null/undefined');
+      
+      if (submission.fileAttachments && submission.fileAttachments.length > 0) {
+        console.log(`  ✅ HAS FILE ATTACHMENTS: ${submission.fileAttachments.length} files`);
+        
+        submission.fileAttachments.forEach((attachment, attIndex) => {
+          console.log(`  📄 File ${attIndex + 1} DETAILS:`);
+          console.log(`    - fileName: ${attachment.fileName}`);
+          console.log(`    - fileType: ${attachment.fileType}`);
+          console.log(`    - fieldId: ${attachment.fieldId}`);
+          console.log(`    - fileSize: ${attachment.fileSize}`);
+          console.log(`    - hasExtractedText: ${!!attachment.extractedText}`);
+          console.log(`    - extractedTextLength: ${attachment.extractedText ? attachment.extractedText.length : 0}`);
+          console.log(`    - extractionStatus: ${attachment.textExtractionStatus || 'unknown'}`);
+          console.log(`    - downloadUrl: ${attachment.downloadUrl ? 'present' : 'missing'}`);
+          console.log(`    - storagePath: ${attachment.storagePath || 'missing'}`);
+          
+          if (attachment.extractedText) {
+            console.log(`    📝 EXTRACTED TEXT PREVIEW (first 300 chars):`);
+            console.log(`    "${attachment.extractedText.substring(0, 300)}${attachment.extractedText.length > 300 ? '...' : ''}"`);
+            console.log(`    📝 EXTRACTED TEXT FULL LENGTH: ${attachment.extractedText.length} characters`);
+          } else {
+            console.log(`    ❌ NO EXTRACTED TEXT FOUND`);
+          }
+        });
+      } else {
+        console.log(`  ❌ NO FILE ATTACHMENTS FOUND`);
+        console.log(`  Raw submission data:`, JSON.stringify(submission, null, 2));
+      }
+      console.log('  ----------------------------------------');
+    });
+    
+    // Log submissions with PDF content specifically
+    const submissionsWithPDF = data.submissions.filter(s => 
+      s.fileAttachments?.some(att => att.fileType === 'application/pdf' && att.extractedText)
+    );
+    console.log(`📄 Submissions with PDF content: ${submissionsWithPDF.length}`);
+    
+    submissionsWithPDF.forEach((submission, index) => {
+      console.log(`  PDF Submission ${index + 1}:`, {
+        employeeName: submission.employeeName,
+        formTitle: submission.formTitle,
+        submittedDate: submission.submittedDate,
+        pdfFiles: submission.fileAttachments.filter(att => 
+          att.fileType === 'application/pdf' && att.extractedText
+        ).map(att => ({
+          fileName: att.fileName,
+          textLength: att.extractedText.length
+        }))
+      });
+    });
+    
+    console.log('=====================================');
+    
+    // 🔍 DEBUG: Log processing summary
+    console.log('🔍 AI BACKEND DEBUG - Processing Summary:');
+    console.log('=====================================');
+    console.log('Total submissions processed:', data.submissions.length);
+    console.log('Submissions with file attachments:', data.submissions.filter(s => s.fileAttachments && s.fileAttachments.length > 0).length);
+    console.log('Submissions with PDF content:', submissionsWithPDF.length);
+    console.log('Total PDF files with extracted text:', data.submissions.reduce((total, s) => {
+      return total + (s.fileAttachments?.filter(att => att.fileType === 'application/pdf' && att.extractedText).length || 0);
+    }, 0));
+    console.log('System prompt includes PDF instructions:', systemPrompt.includes('DONNÉES SUPPLÉMENTAIRES'));
+    console.log('User prompt includes PDF content:', userPromptForAI.includes('Document:'));
+    console.log('=====================================');
+    
+    // 🔍 DEBUG: Log AI response analysis
+    console.log('🔍 AI BACKEND DEBUG - AI Response Analysis:');
     console.log('=====================================');
     console.log('Response length:', answer.length);
-    console.log('Response preview:', answer.substring(0, 500) + '...');
+    console.log('Response format:', responseFormat);
+    console.log('Selected formats:', selectedResponseFormats);
+    console.log('Response preview (first 500 chars):', answer.substring(0, 500) + '...');
     
-    // Check if response contains JSON and what format it uses
-    const jsonMatch = answer.match(/```json\s*([\s\S]*?)\s*```/);
-    if (jsonMatch) {
-      console.log('🔍 AI BACKEND DEBUG - Found JSON Block:');
-      console.log('=====================================');
-      console.log('JSON String:', jsonMatch[1]);
-      console.log('=====================================');
-      
-      try {
-        const jsonData = JSON.parse(jsonMatch[1]);
-        console.log('Parsed JSON:', jsonData);
-        console.log('JSON Type:', typeof jsonData);
-        console.log('Has type property:', 'type' in jsonData);
-        console.log('Has data property:', 'data' in jsonData);
-        console.log('Data is array:', Array.isArray(jsonData.data));
-        console.log('Data length:', jsonData.data ? jsonData.data.length : 'N/A');
-        console.log('Data content:', jsonData.data);
-        console.log('Type value:', jsonData.type);
-        console.log('Title value:', jsonData.title);
-        console.log('xAxisKey value:', jsonData.xAxisKey);
-        console.log('yAxisKey value:', jsonData.yAxisKey);
-        console.log('dataKey value:', jsonData.dataKey);
-        console.log('First data item:', jsonData.data && jsonData.data[0]);
-        console.log('First data item keys:', jsonData.data && jsonData.data[0] ? Object.keys(jsonData.data[0]) : 'N/A');
-        console.log('Sample data items:', jsonData.data ? jsonData.data.slice(0, 3) : 'N/A');
-        console.log('✅ AI BACKEND DEBUG - JSON is valid and ready for frontend');
-      } catch (error) {
-        console.error('❌ AI BACKEND DEBUG - JSON parsing failed:', error);
-      }
-    } else {
-      console.log('❌ AI BACKEND DEBUG - No JSON block found in response');
-    }
-    console.log('=====================================');
-    console.log('Response Format:', responseFormat);
-    console.log('Selected Formats:', selectedResponseFormats);
-    console.log('Raw Answer Length:', answer.length);
-    console.log('Raw Answer Content:');
-    console.log(answer);
-    console.log('=====================================');
+    // Check if AI mentioned PDF content in response
+    const mentionsPDF = answer.toLowerCase().includes('document') || 
+                       answer.toLowerCase().includes('pdf') || 
+                       answer.toLowerCase().includes('fichier');
+    console.log('AI mentions PDF/Document content:', mentionsPDF);
     
-    // Try to extract and log JSON from the response
-    if (answer) {
-      const jsonMatch = answer.match(/```json\s*([\s\S]*?)\s*```/);
-      if (jsonMatch) {
-        console.log('🔍 AI BACKEND DEBUG - Found JSON Block:');
-        console.log('=====================================');
-        console.log('JSON String:', jsonMatch[1]);
-        try {
-          const parsedJson = JSON.parse(jsonMatch[1]);
-          console.log('Parsed JSON:', JSON.stringify(parsedJson, null, 2));
-          console.log('JSON Type:', typeof parsedJson);
-          console.log('Has type property:', 'type' in parsedJson);
-          console.log('Has data property:', 'data' in parsedJson);
-          console.log('Data is array:', Array.isArray(parsedJson.data));
-          console.log('Data length:', parsedJson.data ? parsedJson.data.length : 'N/A');
-          console.log('Data content:', parsedJson.data);
-          console.log('Type value:', parsedJson.type);
-          console.log('Title value:', parsedJson.title);
-          console.log('xAxisKey value:', parsedJson.xAxisKey);
-          console.log('yAxisKey value:', parsedJson.yAxisKey);
-          console.log('dataKey value:', parsedJson.dataKey);
-          if (parsedJson.data && Array.isArray(parsedJson.data) && parsedJson.data.length > 0) {
-            console.log('First data item:', parsedJson.data[0]);
-            console.log('First data item keys:', Object.keys(parsedJson.data[0]));
-            console.log('Sample data items:', parsedJson.data.slice(0, 3));
-          }
-          console.log('✅ AI BACKEND DEBUG - JSON is valid and ready for frontend');
-        } catch (e) {
-          console.log('❌ AI BACKEND DEBUG - JSON Parse Error:', e.message);
-          console.log('❌ AI BACKEND DEBUG - Raw JSON that failed to parse:', jsonMatch[1]);
-        }
-        console.log('=====================================');
-      } else {
-        console.log('🔍 AI BACKEND DEBUG - No JSON block found in response');
-        console.log('🔍 AI BACKEND DEBUG - Looking for direct JSON...');
-        const directJsonMatch = answer.match(/\{\s*"type"\s*:\s*"[^"]*"\s*,[\s\S]*?\}/);
-        if (directJsonMatch) {
-          console.log('🔍 AI BACKEND DEBUG - Found direct JSON:', directJsonMatch[0]);
-        } else {
-          console.log('❌ AI BACKEND DEBUG - No JSON found at all in response');
-        }
-      }
-    }
+    // Check if AI analyzed the extracted text
+    const analyzesContent = answer.toLowerCase().includes('contenu') || 
+                           answer.toLowerCase().includes('texte') || 
+                           answer.toLowerCase().includes('information');
+    console.log('AI analyzes document content:', analyzesContent);
+    
+    console.log('=====================================');
     
     return res.status(200).json(response);
 

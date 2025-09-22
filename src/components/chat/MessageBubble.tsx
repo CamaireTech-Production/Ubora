@@ -19,36 +19,10 @@ const parseJsonInContent = (content: string, isStatsTableFormat: boolean = false
   if (!content) return null;
   
   // 🔍 DEBUG: Enhanced logging for stats + table format
-  if (isStatsTableFormat) {
-    console.log('🎯 STATS+TABLE DEBUG - Parsing JSON content for graph:');
-    console.log('=====================================');
-    console.log('📊 Content length:', content.length);
-    console.log('📊 Content preview:', content.substring(0, 300) + '...');
-    console.log('🔍 Looking for JSON blocks...');
-    console.log('=====================================');
-  } else {
-    console.log('🔍 FRONTEND DEBUG - MessageBubble parsing content:');
-    console.log('=====================================');
-    console.log('Content length:', content.length);
-    console.log('Content preview:', content.substring(0, 200) + '...');
-    console.log('=====================================');
-  }
   
   // Try to find JSON blocks in the content
   const jsonMatch = content.match(/```json\s*([\s\S]*?)\s*```/);
   if (jsonMatch) {
-    if (isStatsTableFormat) {
-      console.log('🎯 STATS+TABLE DEBUG - Found JSON block in content');
-      console.log('=====================================');
-      console.log('📊 JSON String length:', jsonMatch[1].length);
-      console.log('📊 JSON String preview:', jsonMatch[1].substring(0, 200) + '...');
-      console.log('=====================================');
-    } else {
-      console.log('🔍 FRONTEND DEBUG - Found JSON block in content');
-      console.log('=====================================');
-      console.log('JSON String:', jsonMatch[1]);
-      console.log('=====================================');
-    }
     
     try {
       const jsonString = jsonMatch[1].trim();
@@ -715,7 +689,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
             )}
           </div>
           
-          {/* Enhanced PDF Files Display with Source Attribution */}
+          {/* Enhanced PDF Files Display with Source Attribution - Horizontal Layout */}
           {!isUser && message.pdfFiles && message.pdfFiles.length > 0 && (
             <div className="mt-4 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg shadow-sm">
               <h4 className="text-sm font-semibold text-blue-900 mb-3 flex items-center">
@@ -725,43 +699,56 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
                   {message.pdfFiles.length} fichier{message.pdfFiles.length > 1 ? 's' : ''}
                 </span>
               </h4>
-              <div className="space-y-3">
-                {message.pdfFiles.map((file, index) => (
-                  <div key={index} className="flex items-center justify-between p-3 bg-white border border-blue-100 rounded-lg shadow-sm hover:shadow-md transition-shadow">
-                    <div className="flex items-center space-x-3">
-                      <div className="flex-shrink-0 w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center">
-                        <span className="text-lg">📄</span>
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-900 truncate">{file.fileName}</p>
-                        <p className="text-xs text-gray-500 flex items-center space-x-2">
-                          <span>Document PDF analysé</span>
-                          {file.fileSize && (
-                            <>
-                              <span>•</span>
-                              <span>{(file.fileSize / 1024).toFixed(1)} KB</span>
-                            </>
-                          )}
-                        </p>
+              
+              {/* Horizontal scrollable container */}
+              <div className="overflow-x-auto pb-2">
+                <div className="flex space-x-3 min-w-max">
+                  {message.pdfFiles.map((file, index) => (
+                    <div key={index} className="flex-shrink-0 w-64 bg-white border border-blue-100 rounded-lg shadow-sm hover:shadow-md transition-shadow">
+                      <div className="p-3">
+                        <div className="flex items-start space-x-3">
+                          <div className="flex-shrink-0 w-8 h-8 bg-red-100 rounded-lg flex items-center justify-center">
+                            <span className="text-sm">📄</span>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-gray-900 truncate" title={file.fileName}>
+                              {file.fileName}
+                            </p>
+                            <p className="text-xs text-gray-500 mt-1">
+                              Document PDF analysé
+                              {file.fileSize && (
+                                <span className="block">{(file.fileSize / 1024).toFixed(1)} KB</span>
+                              )}
+                            </p>
+                          </div>
+                        </div>
+                        
+                        {/* Download button with icon only */}
+                        {file.downloadUrl && (
+                          <div className="mt-3 flex justify-end">
+                            <a
+                              href={file.downloadUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center justify-center w-8 h-8 text-blue-700 bg-blue-100 hover:bg-blue-200 rounded-md transition-colors"
+                              title="Télécharger le document"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                              </svg>
+                            </a>
+                          </div>
+                        )}
                       </div>
                     </div>
-                    {file.downloadUrl && (
-                      <a
-                        href={file.downloadUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex-shrink-0 ml-3 px-3 py-1.5 text-xs font-medium text-blue-700 bg-blue-100 hover:bg-blue-200 rounded-md transition-colors"
-                      >
-                        📥 Télécharger
-                      </a>
-                    )}
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
+              
               <div className="mt-3 p-2 bg-blue-100 rounded-md">
                 <p className="text-xs text-blue-800 flex items-center">
                   <span className="mr-1">💡</span>
-                  Le contenu de ces documents a été analysé pour générer cette réponse. Cliquez sur "Télécharger" pour accéder aux documents originaux.
+                  Le contenu de ces documents a été analysé pour générer cette réponse. Cliquez sur l'icône de téléchargement pour accéder aux documents originaux.
                 </p>
               </div>
             </div>

@@ -136,7 +136,6 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
         try {
           const calculatedValue = ExpressionCalculator.evaluate(field.calculationFormula, updatedAnswers, form.fields);
           updatedAnswers[field.id] = calculatedValue;
-          console.log(`🔄 Initial calculation ${field.label}: ${field.calculationFormula} = ${calculatedValue}`);
         } catch (error) {
           console.error(`❌ Error in initial calculation ${field.label}:`, error);
           updatedAnswers[field.id] = 0;
@@ -163,7 +162,6 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
           try {
             const calculatedValue = ExpressionCalculator.evaluate(field.calculationFormula, updatedAnswers, form.fields);
             updatedAnswers[field.id] = calculatedValue;
-            console.log(`🔄 Recalculated ${field.label}: ${field.calculationFormula} = ${calculatedValue}`);
           } catch (error) {
             console.error(`❌ Error calculating ${field.label}:`, error);
             updatedAnswers[field.id] = 0;
@@ -217,13 +215,6 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
             }));
           },
           (pdfResult) => {
-            // Log PDF extraction results to console
-            console.log('🎉 PDF Text Extraction Completed:', {
-              fileName: pdfResult.fileName,
-              textLength: pdfResult.extractedText.length,
-              pages: pdfResult.pages,
-              status: pdfResult.extractionStatus
-            });
             
             // Show success message for PDF extraction
             if (pdfResult.extractionStatus === 'completed') {
@@ -254,11 +245,6 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
         textExtractionStatus: attachment.textExtractionStatus
       };
 
-      console.log('🔍 Storing file answer data:', {
-        fieldId,
-        fileAnswerData,
-        attachment
-      });
 
       setAnswers(prev => ({
         ...prev,
@@ -355,33 +341,6 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
           // Submit to Firebase via AppContext
           await submitFormEntry(formEntryData);
 
-          // Log successful submission
-          console.log('🎉 Form Response Successfully Submitted to Firebase!');
-          console.log('📋 Response Details:', {
-            formId: form.id,
-            formTitle: form.title,
-            totalAnswers: Object.keys(answers).length,
-            fileAttachments: fileAttachments.length,
-            userId: currentUser.uid,
-            agencyId: userData.agencyId
-          });
-
-          // Log file attachment details
-          if (fileAttachments.length > 0) {
-            console.log('📎 File Attachments Details:');
-            fileAttachments.forEach((attachment, index) => {
-              console.log(`  ${index + 1}. ${attachment.fileName}`, {
-                fieldId: attachment.fieldId,
-                fileSize: attachment.fileSize,
-                fileType: attachment.fileType,
-                downloadUrl: attachment.downloadUrl,
-                storagePath: attachment.storagePath,
-                hasExtractedText: !!attachment.extractedText,
-                textLength: attachment.extractedText?.length || 0,
-                extractionStatus: attachment.textExtractionStatus
-              });
-            });
-          }
         }
 
         // Always call the onSubmit prop (parent handles draft vs final submission)

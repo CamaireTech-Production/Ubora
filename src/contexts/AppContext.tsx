@@ -77,7 +77,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setIsLoading(true);
     setError(null);
 
-    console.log('Chargement des données pour l\'agence:', user.agencyId);
 
     // Écouter les formulaires selon le rôle de l'utilisateur
     let formsQuery;
@@ -117,20 +116,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
       
       setForms(filteredForms);
-      console.log('Formulaires chargés:', {
-        count: filteredForms.length,
-        userRole: user.role,
-        userAgencyId: user.agencyId,
-        forms: filteredForms.map(f => ({ 
-          id: f.id, 
-          title: f.title, 
-          assignedTo: f.assignedTo,
-          agencyId: f.agencyId,
-          createdBy: f.createdBy,
-          createdByRole: f.createdByRole,
-          createdByEmployeeId: f.createdByEmployeeId
-        }))
-      });
     }, (err) => {
       console.error('Erreur lors du chargement des formulaires:', err);
       setError('Erreur lors du chargement des formulaires');
@@ -211,7 +196,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       employeesData.sort((a, b) => a.name.localeCompare(b.name));
       
       setEmployees(employeesData);
-      console.log('Employés chargés:', employeesData.length);
     }, (err) => {
       console.error('Erreur lors du chargement des employés:', err);
       setError('Erreur lors du chargement des employés');
@@ -252,17 +236,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         
         setDashboards(filteredDashboards);
         setIsLoading(false);
-        console.log('Tableaux de bord chargés:', {
-          count: filteredDashboards.length,
-          userRole: user.role,
-          dashboards: filteredDashboards.map(d => ({ 
-            id: d.id, 
-            name: d.name, 
-            createdBy: d.createdBy,
-            createdByRole: d.createdByRole,
-            createdByEmployeeId: d.createdByEmployeeId
-          }))
-        });
       }, (err) => {
         console.error('Erreur lors du chargement des tableaux de bord:', err);
         setError('Erreur lors du chargement des tableaux de bord');
@@ -327,7 +300,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         docData.timeRestrictions = formData.timeRestrictions;
       }
 
-      console.log('Création du formulaire:', docData);
       await addDoc(collection(db, 'forms'), docData);
     } catch (err) {
       console.error('Erreur lors de la création du formulaire:', err);
@@ -365,7 +337,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
       }
 
-      console.log('Mise à jour du formulaire:', { formId, updateData });
       await updateDoc(doc(db, 'forms', formId), updateData);
     } catch (err) {
       console.error('Erreur lors de la mise à jour du formulaire:', err);
@@ -393,9 +364,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         submittedAt: serverTimestamp() // Forcer serverTimestamp
       };
 
-      console.log('Soumission du formulaire vers formEntries:', docData);
       await addDoc(collection(db, 'formEntries'), docData);
-      console.log('✅ Formulaire soumis avec succès');
     } catch (err) {
       console.error('Erreur lors de la soumission du formulaire:', err);
       if (err instanceof Error) {
@@ -430,9 +399,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (entryData.answers !== undefined) updateData.answers = entryData.answers;
       if (entryData.fileAttachments !== undefined) updateData.fileAttachments = entryData.fileAttachments;
 
-      console.log('Mise à jour de la réponse:', { entryId, updateData });
       await updateDoc(doc(db, 'formEntries', entryId), updateData);
-      console.log('✅ Réponse mise à jour avec succès');
     } catch (err) {
       console.error('Erreur lors de la mise à jour de la réponse:', err);
       if (err instanceof Error) {
@@ -569,7 +536,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         docData.createdByEmployeeId = user.id;
       }
 
-      console.log('Création du tableau de bord:', docData);
       await addDoc(collection(db, 'dashboards'), docData);
     } catch (err) {
       console.error('Erreur lors de la création du tableau de bord:', err);
@@ -595,7 +561,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (dashboardData.metrics !== undefined) updateData.metrics = dashboardData.metrics;
       if (dashboardData.isDefault !== undefined) updateData.isDefault = dashboardData.isDefault;
 
-      console.log('Mise à jour du tableau de bord:', { dashboardId, updateData });
       await updateDoc(doc(db, 'dashboards', dashboardId), updateData);
     } catch (err) {
       console.error('Erreur lors de la mise à jour du tableau de bord:', err);
