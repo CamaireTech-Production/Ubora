@@ -113,9 +113,9 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
   const isUser = message.type === 'user';
   
   return (
-    <div className={`flex items-start space-x-3 ${isUser ? 'flex-row-reverse space-x-reverse' : ''}`}>
+    <div className={`mobile-message-container ${isUser ? 'user-message' : 'ai-message'}`}>
       {/* Avatar */}
-      <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${
+      <div className={`w-8 h-8 rounded-full flex items-center justify-center mobile-avatar-spacing ${
         isUser 
           ? 'bg-gradient-to-br from-blue-500 to-blue-600 text-white' 
           : 'bg-gradient-to-br from-gray-100 to-gray-200 text-gray-600'
@@ -132,7 +132,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
       </div>
 
       {/* Message bubble */}
-      <div className={`w-full max-w-[95%] sm:max-w-[85%] min-w-0 mobile-chat-bubble ${isUser ? 'items-end' : 'items-start'} flex flex-col`}>
+      <div className={`mobile-chat-bubble ${isUser ? 'mobile-user-message' : 'mobile-ai-message'} flex flex-col`}>
         <div className={`px-4 py-3 rounded-2xl shadow-sm min-w-0 w-full overflow-x-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent mobile-chat-content ${
           isUser 
             ? 'bg-gradient-to-br from-blue-600 to-blue-700 text-white rounded-br-md' 
@@ -168,9 +168,9 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
                         <span className="text-blue-600 font-medium whitespace-nowrap flex-shrink-0">
                           Formulaires ({message.meta.selectedFormTitles.length}):
                         </span>
-                        <div className="flex gap-1 overflow-x-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent min-w-0 flex-1" style={{ scrollbarWidth: 'thin' }}>
+                        <div className="flex gap-1 overflow-x-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent min-w-0 flex-1 form-tags-container" style={{ scrollbarWidth: 'thin' }}>
                           {message.meta.selectedFormTitles.map((title, index) => (
-                            <span key={index} className="px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs whitespace-nowrap flex-shrink-0">
+                            <span key={index} className="px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs whitespace-nowrap flex-shrink-0 form-tag">
                               {title}
                             </span>
                           ))}
@@ -210,9 +210,9 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
                         <span className="text-gray-600 font-medium whitespace-nowrap flex-shrink-0">
                           Formulaires ({message.meta.selectedFormTitles.length}):
                         </span>
-                        <div className="flex gap-1 overflow-x-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent min-w-0 flex-1" style={{ scrollbarWidth: 'thin' }}>
+                        <div className="flex gap-1 overflow-x-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent min-w-0 flex-1 form-tags-container" style={{ scrollbarWidth: 'thin' }}>
                           {message.meta.selectedFormTitles.map((title, index) => (
-                            <span key={index} className="px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs whitespace-nowrap flex-shrink-0">
+                            <span key={index} className="px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs whitespace-nowrap flex-shrink-0 form-tag">
                               {title}
                             </span>
                           ))}
