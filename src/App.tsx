@@ -14,6 +14,7 @@ import { PendingApprovalPage } from './pages/PendingApprovalPage';
 import { DashboardDetailPage } from './pages/DashboardDetailPage';
 import { ResponseDetailPage } from './pages/ResponseDetailPage';
 import { PackageManagementPage } from './pages/PackageManagementPage';
+import { PackageSelectionPage } from './pages/PackageSelectionPage';
 import { DirectorSettingsPage } from './pages/DirectorSettingsPage';
 import { NotificationsPage } from './pages/NotificationsPage';
 import { PWAInstallPrompt } from './components/PWAInstallPrompt';
@@ -97,6 +98,16 @@ function App() {
               } 
             />
             
+            {/* Page de sélection des packages pour nouveaux directeurs */}
+            <Route 
+              path="/packages" 
+              element={
+                <ProtectedRoute allowedRoles={['directeur']}>
+                  <PackageSelectionPage />
+                </ProtectedRoute>
+              } 
+            />
+            
             {/* Page de gestion des packages */}
             <Route 
               path="/packages/manage" 
@@ -172,8 +183,11 @@ const RoleBasedRedirect: React.FC = () => {
     return <Navigate to="/login" replace />;
   }
 
-  // Directeur → Dashboard en priorité
+  // Directeur → Vérifier si un package doit être sélectionné
   if (user.role === 'directeur') {
+    if (user.needsPackageSelection) {
+      return <Navigate to="/packages" replace />;
+    }
     return <Navigate to="/directeur/dashboard" replace />;
   }
 

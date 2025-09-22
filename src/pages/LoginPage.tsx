@@ -18,6 +18,8 @@ export const LoginPage: React.FC = () => {
   const [isRegisterMode, setIsRegisterMode] = useState(false);
   const [localError, setLocalError] = useState('');
   const [isInviteLink, setIsInviteLink] = useState(false);
+  const [showAccountExistsModal, setShowAccountExistsModal] = useState(false);
+  const [modalCountdown, setModalCountdown] = useState(5);
 
   // Gérer les paramètres d'invitation depuis l'URL
   useEffect(() => {
@@ -37,9 +39,36 @@ export const LoginPage: React.FC = () => {
     }
   }, [searchParams]);
 
+  // Gérer l'erreur de compte existant
+  useEffect(() => {
+    if (error === 'ACCOUNT_EXISTS') {
+      setShowAccountExistsModal(true);
+      setModalCountdown(5);
+      
+      // Countdown timer
+      const countdownInterval = setInterval(() => {
+        setModalCountdown(prev => {
+          if (prev <= 1) {
+            clearInterval(countdownInterval);
+            setShowAccountExistsModal(false);
+            setIsRegisterMode(false);
+            setLocalError('');
+            return 5;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+      
+      return () => clearInterval(countdownInterval);
+    }
+  }, [error]);
+
   // Rediriger si déjà connecté
   if (user) {
     if (user.role === 'directeur') {
+      if (user.needsPackageSelection) {
+        return <Navigate to="/packages" replace />;
+      }
       return <Navigate to="/directeur/chat" replace />;
     } else if (user.role === 'employe') {
       return <Navigate to="/employe/dashboard" replace />;
@@ -70,6 +99,8 @@ export const LoginPage: React.FC = () => {
           setEmail('');
           setPassword('');
           setName('');
+        } else if (error === 'ACCOUNT_EXISTS') {
+          setShowAccountExistsModal(true);
         }
       } else {
         await login(email, password);
@@ -88,7 +119,8 @@ export const LoginPage: React.FC = () => {
     }
   };
 
-  const displayError = error || localError;
+  // Filter out ACCOUNT_EXISTS error from display since it's handled by modal
+  const displayError = (error && error !== 'ACCOUNT_EXISTS') ? error : localError;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex flex-col">
@@ -280,6 +312,53 @@ export const LoginPage: React.FC = () => {
         </Card>
         </div>
       </div>
+      
+      {/* Modal pour compte existant */}
+      {showAccountExistsModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
+            <div className="text-center">
+              <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-blue-100 mb-4">
+                <svg className="h-8 w-8 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                </svg>
+              </div>
+              
+              <h3 className="text-xl font-semibold text-gray-900 mb-3">
+                Compte déjà existant
+              </h3>
+              
+              <p className="text-gray-600 mb-4">
+                Un compte avec l'adresse email <strong>{email}</strong> existe déjà. 
+                Veuillez vous connecter avec vos identifiants existants.
+              </p>
+              
+              <p className="text-sm text-gray-500 mb-6">
+                Redirection automatique vers la connexion dans <span className="font-semibold text-blue-600">{modalCountdown}</span> seconde{modalCountdown > 1 ? 's' : ''}...
+              </p>
+              
+              <div className="flex space-x-3">
+                <button
+                  onClick={() => {
+                    setShowAccountExistsModal(false);
+                    setIsRegisterMode(false);
+                    setLocalError('');
+                  }}
+                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-4 rounded-lg transition-colors"
+                >
+                  Se connecter maintenant
+                </button>
+                <button
+                  onClick={() => setShowAccountExistsModal(false)}
+                  className="flex-1 border border-gray-300 hover:border-gray-400 text-gray-700 hover:text-gray-900 font-medium py-3 px-4 rounded-lg transition-colors"
+                >
+                  Annuler
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       
       <Footer />
     </div>

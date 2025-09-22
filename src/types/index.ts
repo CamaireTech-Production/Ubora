@@ -5,7 +5,8 @@ export interface User {
   email: string;
   role: 'directeur' | 'employe';
   agencyId: string;
-  package: 'starter' | 'standard' | 'premium' | 'custom';
+  package?: 'starter' | 'standard' | 'premium' | 'custom'; // Optional for new directors
+  needsPackageSelection?: boolean; // Flag to indicate if director needs to select a package
   packageFeatures?: string[]; // Fonctionnalités activées pour les packages custom
   subscriptionStartDate?: Date; // Date de début d'abonnement pour le calcul des cycles mensuels
   subscriptionEndDate?: Date; // Date de fin d'abonnement

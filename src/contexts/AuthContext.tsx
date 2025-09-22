@@ -51,7 +51,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           role: additionalData.role || 'employe',
           agencyId: additionalData.agencyId || '',
           ...(additionalData.role === 'directeur' && {
-            package: additionalData.package || 'starter', // Package seulement pour les directeurs
+            needsPackageSelection: !additionalData.package, // Need package selection if no package provided
+            package: additionalData.package, // Package seulement pour les directeurs
             tokensUsedMonthly: 0,
             tokensResetDate: serverTimestamp()
           }),
@@ -279,7 +280,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         role,
         agencyId: agencyId.trim(),
         ...(role === 'directeur' && {
-          package: 'starter', // Package seulement pour les directeurs
+          needsPackageSelection: true, // New directors need to select a package
           tokensUsedMonthly: 0,
           tokensResetDate: serverTimestamp()
         }),
@@ -353,7 +354,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       case 'auth/wrong-password':
         return 'Mot de passe incorrect';
       case 'auth/email-already-in-use':
-        return 'Cet email est déjà utilisé';
+        return 'ACCOUNT_EXISTS'; // Special flag for existing account
       case 'auth/weak-password':
         return 'Le mot de passe doit contenir au moins 6 caractères';
       case 'auth/invalid-email':
