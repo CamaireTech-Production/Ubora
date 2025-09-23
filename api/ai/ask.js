@@ -477,6 +477,9 @@ ${hasPDFContent ? `
 - OBLIGATOIRE : Analyse le contenu textuel de ces documents comme partie intégrante des données de soumission
 - OBLIGATOIRE : Utilise toutes les informations des documents PDF pour répondre précisément à la question
 - OBLIGATOIRE : Référence le contenu des documents dans ton analyse quand c'est pertinent
+- OBLIGATOIRE : MENTIONNE EXPLICITEMENT le nom des fichiers PDF que tu utilises comme référence dans ta réponse
+- OBLIGATOIRE : Utilise des phrases comme "Selon le document [nom_fichier]", "Dans le fichier [nom_fichier]", "D'après [nom_fichier]"
+- OBLIGATOIRE : Cite le nom exact du fichier PDF quand tu fais référence à son contenu
 - Le contenu des documents PDF fait partie des données de soumission et doit être traité comme tel` : ''}
 
 ${responseFormat === 'table' ? `
@@ -1309,7 +1312,10 @@ IMPORTANT : Les soumissions ci-dessous contiennent des documents PDF avec du con
 Ces documents sont marqués par "Document: [nom_fichier] (contenu_extraite)".
 OBLIGATOIRE : Analyse le contenu de ces documents comme partie intégrante des données de soumission.
 OBLIGATOIRE : Utilise toutes les informations des documents PDF pour répondre à la question.
-OBLIGATOIRE : Référence le contenu des documents dans ton analyse quand c'est pertinent.` : '';
+OBLIGATOIRE : Référence le contenu des documents dans ton analyse quand c'est pertinent.
+OBLIGATOIRE : MENTIONNE EXPLICITEMENT le nom des fichiers PDF que tu utilises comme référence.
+OBLIGATOIRE : Utilise des phrases comme "Selon le document [nom_fichier]", "Dans le fichier [nom_fichier]", "D'après [nom_fichier]".
+OBLIGATOIRE : Cite le nom exact du fichier PDF quand tu fais référence à son contenu.` : '';
 
       return `${questionText}\n\n${dataOverview}\n\n${submissions}${tableFormatReminder}${pdfContentReminder}`;
     };
@@ -1616,6 +1622,142 @@ Il serait pertinent de surveiller l'engagement des employés moins actifs et d'a
         throw saveError;
       }
 
+      // Function to detect which PDF files are actually referenced in the AI response
+      const getReferencedPDFFiles = (aiResponse, allPDFFiles) => {
+        if (!aiResponse || !allPDFFiles || allPDFFiles.length === 0) {
+          return [];
+        }
+        
+        const responseText = aiResponse.toLowerCase();
+        const referencedFiles = [];
+        
+        // Check each PDF file to see if it's mentioned in the response
+        allPDFFiles.forEach(pdfFile => {
+          const fileName = pdfFile.fileName.toLowerCase();
+          const cleanFileName = fileName.replace(/^[0-9-]+-/, '').replace(/\.pdf$/i, '');
+          
+          // Check various ways the file might be referenced
+          const isReferenced = 
+            // Direct filename match (exact or partial) - highest priority
+            responseText.includes(fileName) ||
+            responseText.includes(cleanFileName) ||
+            // Check for explicit AI citations with file names
+            responseText.includes(`selon le document ${fileName}`) ||
+            responseText.includes(`selon le document ${cleanFileName}`) ||
+            responseText.includes(`dans le fichier ${fileName}`) ||
+            responseText.includes(`dans le fichier ${cleanFileName}`) ||
+            responseText.includes(`d'après ${fileName}`) ||
+            responseText.includes(`d'après ${cleanFileName}`) ||
+            responseText.includes(`selon ${fileName}`) ||
+            responseText.includes(`selon ${cleanFileName}`) ||
+            // Check for variations with quotes or brackets
+            responseText.includes(`"${fileName}"`) ||
+            responseText.includes(`"${cleanFileName}"`) ||
+            responseText.includes(`[${fileName}]`) ||
+            responseText.includes(`[${cleanFileName}]`) ||
+            // Check for citations with "le fichier" or "le document"
+            responseText.includes(`le fichier ${fileName}`) ||
+            responseText.includes(`le fichier ${cleanFileName}`) ||
+            responseText.includes(`le document ${fileName}`) ||
+            responseText.includes(`le document ${cleanFileName}`) ||
+            // Check for partial matches (common words in filename)
+            cleanFileName.split(/[-_\s]+/).some(word => 
+              word.length > 3 && responseText.includes(word)
+            ) ||
+            // Check for document references that might match this file
+            (responseText.includes('document') && 
+             (fileName.includes('doc') || fileName.includes('rapport') || fileName.includes('rapport'))) ||
+            // Check for specific content that might be from this file
+            (responseText.includes('fichier') && 
+             (fileName.includes('fichier') || fileName.includes('file'))) ||
+            // Check for content analysis indicators
+            (responseText.includes('contenu') && 
+             (fileName.includes('contenu') || fileName.includes('content'))) ||
+            // Check for report analysis
+            (responseText.includes('rapport') && fileName.includes('rapport')) ||
+            // Check for specific field references
+            (responseText.includes('dans le document') || responseText.includes('dans le fichier'));
+          
+          if (isReferenced) {
+            referencedFiles.push(pdfFile);
+          }
+        });
+        
+        // If no specific files are referenced but AI mentions PDF content, 
+        // only include files if the response is very specific about PDF analysis
+        if (referencedFiles.length === 0) {
+          const mentionsPDFContent = responseText.includes('document') || 
+                                    responseText.includes('pdf') || 
+                                    responseText.includes('fichier') ||
+                                    responseText.includes('contenu') ||
+                                    responseText.includes('texte extrait') ||
+                                    responseText.includes('analyse du document') ||
+                                    responseText.includes('dans le document') ||
+                                    responseText.includes('dans le fichier');
+          
+          // Only show all files if AI explicitly mentions analyzing PDF content
+          // and the response is substantial (not just a brief mention)
+          if (mentionsPDFContent && (
+            responseText.includes('analyse') || 
+            responseText.includes('extrait') ||
+            responseText.includes('contenu du document') ||
+            responseText.includes('dans le fichier') ||
+            responseText.includes('dans le document') ||
+            responseText.includes('selon le document') ||
+            responseText.includes('d\'après le fichier')
+          )) {
+            // Additional check: only show all files if the response is substantial
+            // (more than just a brief mention of documents)
+            const substantialAnalysis = responseText.includes('contenu') ||
+                                      responseText.includes('information') ||
+                                      responseText.includes('données') ||
+                                      responseText.includes('résultat') ||
+                                      responseText.includes('analyse');
+            
+            if (substantialAnalysis) {
+              return allPDFFiles;
+            }
+          }
+        }
+        
+        return referencedFiles;
+      };
+      
+      // Get all PDF files that were analyzed
+      const allAnalyzedPDFFiles = hasPDFContent ? data.submissions.flatMap(s => 
+        (s.fileAttachments || []).filter(att => 
+          att.fileType === 'application/pdf' && att.extractedText
+        ).map(att => ({
+          fileName: att.fileName,
+          fileType: att.fileType,
+          fileSize: att.fileSize,
+          downloadUrl: att.downloadUrl,
+          fieldId: att.fieldId
+        }))
+      ) : [];
+      
+      // Get only the PDF files that are actually referenced in the response
+      const referencedPDFFiles = getReferencedPDFFiles(answer, allAnalyzedPDFFiles);
+      
+      // Log PDF file detection for debugging
+      console.log(`📄 PDF FILE DETECTION: Found ${allAnalyzedPDFFiles.length} analyzed PDFs, ${referencedPDFFiles.length} referenced in response`);
+      if (allAnalyzedPDFFiles.length > 0) {
+        console.log('📄 All analyzed PDFs:', allAnalyzedPDFFiles.map(f => f.fileName));
+        console.log('📄 Referenced PDFs:', referencedPDFFiles.map(f => f.fileName));
+        if (referencedPDFFiles.length === 0 && allAnalyzedPDFFiles.length > 0) {
+          console.log('📄 No PDFs detected in response - checking for explicit citations...');
+          const responseText = answer.toLowerCase();
+          allAnalyzedPDFFiles.forEach(pdfFile => {
+            const fileName = pdfFile.fileName.toLowerCase();
+            const cleanFileName = fileName.replace(/^[0-9-]+-/, '').replace(/\.pdf$/i, '');
+            const hasExplicitCitation = responseText.includes(`selon le document ${fileName}`) ||
+                                      responseText.includes(`dans le fichier ${fileName}`) ||
+                                      responseText.includes(`d'après ${fileName}`);
+            console.log(`📄 ${pdfFile.fileName}: explicit citation = ${hasExplicitCitation}`);
+          });
+        }
+      }
+
       // Store assistant response with enhanced context and memory
       const assistantMessage = {
         type: 'assistant',
@@ -1657,18 +1799,8 @@ Il serait pertinent de surveiller l'engagement des employés moins actifs et d'a
             }
           }
         },
-        // Include PDF files that were analyzed in this response
-        pdfFiles: hasPDFContent ? data.submissions.flatMap(s => 
-          (s.fileAttachments || []).filter(att => 
-            att.fileType === 'application/pdf' && att.extractedText
-          ).map(att => ({
-            fileName: att.fileName,
-            fileType: att.fileType,
-            fileSize: att.fileSize,
-            downloadUrl: att.downloadUrl,
-            fieldId: att.fieldId
-          }))
-        ) : []
+        // Include only PDF files that are actually referenced in the response
+        pdfFiles: referencedPDFFiles
       };
       
       try {
