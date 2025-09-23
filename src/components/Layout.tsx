@@ -6,6 +6,7 @@ import { Footer } from './Footer';
 import { UserPackageInfo } from './UserPackageInfo';
 import { ProfileDropdown } from './ProfileDropdown';
 import { LogOut, BarChart3, MessageSquare, Menu, X } from 'lucide-react';
+import { ShareCollaboratorButton } from './ShareCollaboratorButton';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -79,6 +80,11 @@ export const Layout: React.FC<LayoutProps> = ({ children, title }) => {
             {/* Navigation desktop pour directeur */}
             {isDirecteur && (
               <div className="hidden md:flex items-center space-x-2">
+                <ShareCollaboratorButton 
+                  variant="secondary"
+                  size="sm"
+                />
+                
                 <Button
                   variant={isChat ? "primary" : "secondary"}
                   size="sm"
@@ -129,6 +135,14 @@ export const Layout: React.FC<LayoutProps> = ({ children, title }) => {
           {/* Menu mobile pour directeur - Floating dropdown */}
           {isDirecteur && isMobileMenuOpen && (
             <div ref={menuRef} className="md:hidden absolute top-full right-4 mt-2 w-64 bg-white rounded-lg shadow-lg border border-gray-200 py-2 z-50">
+              <div className="mx-2 mb-1">
+                <ShareCollaboratorButton 
+                  variant="secondary"
+                  size="sm"
+                  className="w-full flex items-center justify-start space-x-2"
+                />
+              </div>
+              
               <Button
                 variant={isChat ? "primary" : "secondary"}
                 size="sm"

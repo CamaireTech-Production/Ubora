@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   LineChart, 
   Line, 
@@ -18,10 +19,10 @@ import {
   Legend, 
   ResponsiveContainer 
 } from 'recharts';
-import { Maximize2, Download } from 'lucide-react';
+import { useCurrentPng } from 'recharts-to-png';
+import { Maximize2, Download, Loader2 } from 'lucide-react';
 import { Button } from '../Button';
-import { GraphData, PDFData } from '../../types';
-import { generatePDF } from '../../utils/PDFGenerator';
+import { GraphData } from '../../types';
 
 interface GraphRendererProps {
   data: GraphData;
@@ -38,38 +39,81 @@ interface GraphModalProps {
 const COLORS = ['#3B82F6', '#EF4444', '#10B981', '#F59E0B', '#8B5CF6', '#EC4899', '#06B6D4', '#84CC16'];
 
 const GraphModal: React.FC<GraphModalProps> = ({ data, isOpen, onClose }) => {
-  if (!isOpen) return null;
+  const [getPng, { ref, isLoading }] = useCurrentPng();
+  const [isDownloading, setIsDownloading] = useState(false);
 
-  const handleDownload = async () => {
+  useEffect(() => {
+    if (isOpen) {
+      // Lock body scroll when modal is open
+      document.body.style.overflow = 'hidden';
+      document.body.style.position = 'fixed';
+      document.body.style.top = '0';
+      document.body.style.left = '0';
+      document.body.style.right = '0';
+      document.body.style.width = '100%';
+    } else {
+      // Restore body scroll when modal is closed
+      document.body.style.overflow = '';
+      document.body.style.position = '';
+      document.body.style.top = '';
+      document.body.style.left = '';
+      document.body.style.right = '';
+      document.body.style.width = '';
+    }
+
+    // Cleanup on unmount
+    return () => {
+      document.body.style.overflow = '';
+      document.body.style.position = '';
+      document.body.style.top = '';
+      document.body.style.left = '';
+      document.body.style.right = '';
+      document.body.style.width = '';
+    };
+  }, [isOpen]);
+
+  const handleDownloadImage = async () => {
     try {
-      // Create PDFData object from the graph data
-      const pdfData: PDFData = {
-        title: data.title,
-        subtitle: `Graphique ${data.type} - ${data.data.length} points de données`,
-        sections: [
-          {
-            title: 'Analyse du graphique',
-            content: `Ce graphique de type "${data.type}" présente ${data.data.length} points de données.`,
-            type: 'text'
-          }
-        ],
-        charts: [data],
-        generatedAt: new Date(),
-        metadata: {
-          totalEntries: data.data.length,
-          chartType: data.type
-        }
-      };
+      setIsDownloading(true);
+      const png = await getPng();
       
-      // Generate and download the PDF
-      await generatePDF(pdfData);
+      if (png) {
+        // Create a download link
+        const link = document.createElement('a');
+        link.href = png;
+        link.download = `${data.title.replace(/[^a-zA-Z0-9]/g, '_')}_graph.png`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      }
     } catch (error) {
-      console.error('Error generating PDF from graph modal:', error);
+      console.error('Error downloading chart image:', error);
+    } finally {
+      setIsDownloading(false);
     }
   };
 
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999] p-4">
+  if (!isOpen) return null;
+
+  const modalContent = (
+    <div 
+      className="fixed bg-black bg-opacity-50 flex items-center justify-center p-4" 
+      style={{ 
+        top: 0, 
+        left: 0, 
+        right: 0, 
+        bottom: 0, 
+        width: '100vw', 
+        height: '100vh',
+        position: 'fixed',
+        zIndex: 9999
+      }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          onClose();
+        }
+      }}
+    >
       <div className="bg-white rounded-2xl shadow-2xl max-w-7xl w-full max-h-[95vh] overflow-hidden">
         {/* Modal Header */}
         <div className="p-6 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-indigo-50">
@@ -84,11 +128,18 @@ const GraphModal: React.FC<GraphModalProps> = ({ data, isOpen, onClose }) => {
               <Button
                 variant="secondary"
                 size="sm"
-                onClick={handleDownload}
-                className="flex items-center space-x-2 bg-white hover:bg-gray-50 whitespace-nowrap"
+                onClick={handleDownloadImage}
+                disabled={isDownloading || isLoading}
+                className="flex items-center space-x-2 bg-white hover:bg-gray-50 border border-gray-300 hover:border-gray-400"
               >
-                <Download className="h-4 w-4" />
-                <span>PDF</span>
+                {isDownloading || isLoading ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Download className="w-4 h-4" />
+                )}
+                <span className="hidden sm:inline">
+                  {isDownloading || isLoading ? 'Génération...' : 'Télécharger'}
+                </span>
               </Button>
               <Button
                 variant="secondary"
@@ -105,7 +156,7 @@ const GraphModal: React.FC<GraphModalProps> = ({ data, isOpen, onClose }) => {
         {/* Modal Content */}
         <div className="p-6 overflow-auto max-h-[calc(95vh-120px)] bg-gray-50">
           <div className="bg-white rounded-lg p-4 shadow-sm">
-            <div className="w-full h-[700px] min-w-[800px]">
+            <div ref={ref} className="w-full h-[700px] min-w-[800px]">
               <ResponsiveContainer width="100%" height="100%">
                 {renderChart(data, false)}
               </ResponsiveContainer>
@@ -159,6 +210,8 @@ const GraphModal: React.FC<GraphModalProps> = ({ data, isOpen, onClose }) => {
       </div>
     </div>
   );
+
+  return createPortal(modalContent, document.body);
 };
 
 // Custom tooltip for employee data
@@ -215,6 +268,18 @@ const TimelineTooltip = ({ active, payload, label }: any) => {
 };
 
 const renderChart = (data: GraphData, isPreview: boolean) => {
+  // Validate data structure
+  if (!data || !data.data || !Array.isArray(data.data) || data.data.length === 0) {
+    return (
+      <div className="flex items-center justify-center h-full text-gray-500 text-sm">
+        <div className="text-center">
+          <div className="text-lg mb-2">📊</div>
+          <div>Aucune donnée disponible</div>
+        </div>
+      </div>
+    );
+  }
+
   const commonProps = {
     data: data.data,
     margin: isPreview ? { top: 2, right: 2, left: 2, bottom: 2 } : { top: 20, right: 30, left: 20, bottom: 5 },
@@ -227,9 +292,9 @@ const renderChart = (data: GraphData, isPreview: boolean) => {
   };
 
   // Check if this is employee data
-  const isEmployeeData = data.data.length > 0 && data.data[0].employee;
+  const isEmployeeData = data.data.length > 0 && data.data[0]?.employee;
   // Check if this is timeline data
-  const isTimelineData = data.data.length > 0 && data.data[0].date;
+  const isTimelineData = data.data.length > 0 && data.data[0]?.date;
 
   switch (data.type) {
     case 'line':
@@ -297,7 +362,7 @@ const renderChart = (data: GraphData, isPreview: boolean) => {
             paddingAngle={2}
             dataKey={data.dataKey || 'value'}
           >
-            {data.data.map((entry, index) => (
+            {data.data.map((_, index) => (
               <Cell key={`cell-${index}`} fill={data.colors?.[index] || COLORS[index % COLORS.length]} />
             ))}
           </Pie>
@@ -322,7 +387,7 @@ const renderChart = (data: GraphData, isPreview: boolean) => {
           {!isPreview && data.options?.showLegend && <Legend />}
           <Area 
             type="monotone" 
-            dataKey={data.yAxisKey || data.dataKey} 
+            dataKey={data.yAxisKey || data.dataKey || 'value'} 
             stroke={data.colors?.[0] || COLORS[0]} 
             fill={data.colors?.[0] || COLORS[0]}
             fillOpacity={0.3}
@@ -354,6 +419,60 @@ const renderChart = (data: GraphData, isPreview: boolean) => {
 export const GraphRenderer: React.FC<GraphRendererProps> = ({ data, isPreview = true, onExpand }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
 
+  // 🔍 DEBUG: Log the received data in GraphRenderer
+
+  // Transform data to ensure it's in the correct format
+  const transformData = (rawData: any) => {
+    if (!rawData || !rawData.data || !Array.isArray(rawData.data) || rawData.data.length === 0) {
+      return null;
+    }
+
+    // Check if data is already in the correct format (x, y)
+    const firstItem = rawData.data[0];
+    if (firstItem && 'x' in firstItem && 'y' in firstItem) {
+      return rawData;
+    }
+
+    // Transform from old format (label, value) to new format (x, y)
+    if (firstItem && 'label' in firstItem && 'value' in firstItem) {
+      const transformedData = {
+        ...rawData,
+        data: rawData.data.map((item: any) => ({
+          x: item.label || item.employee || 'Unknown',
+          y: item.value || 0
+        })),
+        xAxisKey: 'x',
+        yAxisKey: 'y',
+        dataKey: 'y'
+      };
+      return transformedData;
+    }
+
+    return null;
+  };
+
+  const transformedData = transformData(data);
+
+  // Validate data structure early
+  if (!transformedData) {
+    return (
+      <div className="bg-white border border-gray-200 rounded-lg p-3 shadow-sm">
+        <div className="flex items-center justify-center h-24 text-gray-500 text-sm">
+          <div className="text-center">
+            <div className="text-lg mb-2">📊</div>
+            <div>Aucune donnée disponible</div>
+            <div className="text-xs text-gray-400 mt-1">
+              Format de données non supporté
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Use transformed data for rendering
+  const finalData = transformedData;
+
   const handleExpand = () => {
     if (onExpand) {
       onExpand();
@@ -368,12 +487,12 @@ export const GraphRenderer: React.FC<GraphRendererProps> = ({ data, isPreview = 
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center space-x-2">
             <div className={`w-1.5 h-1.5 rounded-full ${
-              data.type === 'bar' ? 'bg-blue-500' :
-              data.type === 'line' ? 'bg-green-500' :
-              data.type === 'pie' ? 'bg-purple-500' :
-              data.type === 'area' ? 'bg-orange-500' : 'bg-gray-500'
+              finalData.type === 'bar' ? 'bg-blue-500' :
+              finalData.type === 'line' ? 'bg-green-500' :
+              finalData.type === 'pie' ? 'bg-purple-500' :
+              finalData.type === 'area' ? 'bg-orange-500' : 'bg-gray-500'
             }`}></div>
-            <h3 className="text-xs font-semibold text-gray-900 truncate">{data.title}</h3>
+            <h3 className="text-xs font-semibold text-gray-900 truncate">{finalData.title}</h3>
           </div>
           <Button
             variant="secondary"
@@ -387,7 +506,7 @@ export const GraphRenderer: React.FC<GraphRendererProps> = ({ data, isPreview = 
         
         <div className="w-full h-24 bg-gray-50 rounded-lg p-1">
           <ResponsiveContainer width="100%" height="100%">
-            {renderChart(data, isPreview)}
+            {renderChart(finalData, isPreview)}
           </ResponsiveContainer>
         </div>
         
@@ -395,20 +514,20 @@ export const GraphRenderer: React.FC<GraphRendererProps> = ({ data, isPreview = 
           <span className="flex items-center space-x-1">
             <div className="w-1 h-1 bg-blue-400 rounded-full"></div>
             <span>
-              {data.data.length > 0 && data.data[0].employee 
-                ? `${data.data.length} employé${data.data.length > 1 ? 's' : ''}`
-                : data.data.length > 0 && data.data[0].date
-                ? `${data.data.length} jour${data.data.length > 1 ? 's' : ''}`
-                : `${data.data.length} points`
+              {finalData.data.length > 0 && finalData.data[0].employee 
+                ? `${finalData.data.length} employé${finalData.data.length > 1 ? 's' : ''}`
+                : finalData.data.length > 0 && finalData.data[0].date
+                ? `${finalData.data.length} jour${finalData.data.length > 1 ? 's' : ''}`
+                : `${finalData.data.length} points`
               }
             </span>
           </span>
-          <span className="capitalize text-xs">{data.type}</span>
+          <span className="capitalize text-xs">{finalData.type}</span>
         </div>
       </div>
 
       <GraphModal
-        data={data}
+        data={finalData}
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
       />

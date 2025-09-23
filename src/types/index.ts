@@ -5,7 +5,8 @@ export interface User {
   email: string;
   role: 'directeur' | 'employe';
   agencyId: string;
-  package: 'starter' | 'standard' | 'premium' | 'custom';
+  package?: 'starter' | 'standard' | 'premium' | 'custom'; // Optional for new directors
+  needsPackageSelection?: boolean; // Flag to indicate if director needs to select a package
   packageFeatures?: string[]; // Fonctionnalités activées pour les packages custom
   subscriptionStartDate?: Date; // Date de début d'abonnement pour le calcul des cycles mensuels
   subscriptionEndDate?: Date; // Date de fin d'abonnement
@@ -115,6 +116,18 @@ export interface PDFFileReference {
   fieldId?: string;
 }
 
+export interface ImageFileReference {
+  fileName: string;
+  fileSize?: number;
+  fileType: string;
+  downloadUrl?: string;
+  storagePath?: string;
+  extractedText?: string;
+  confidence?: number;
+  submissionId?: string;
+  fieldId?: string;
+}
+
 export interface ChatMessage {
   id: string;
   type: 'user' | 'assistant';
@@ -126,6 +139,7 @@ export interface ChatMessage {
   pdfData?: PDFData;
   tableData?: string; // Markdown table content
   pdfFiles?: PDFFileReference[]; // PDF files referenced in the response
+  imageFiles?: ImageFileReference[]; // Image files referenced in the response
   meta?: {
     period?: string;
     usedEntries?: number;
@@ -144,6 +158,7 @@ export interface ChatMessage {
 export interface GraphData {
   type: 'line' | 'bar' | 'pie' | 'area' | 'scatter';
   title: string;
+  subtitle?: string;
   data: any[];
   xAxisKey?: string;
   yAxisKey?: string;
@@ -156,6 +171,24 @@ export interface GraphData {
     showGrid?: boolean;
     showTooltip?: boolean;
     responsive?: boolean;
+    animation?: boolean;
+    stacked?: boolean;
+    horizontal?: boolean;
+    fillOpacity?: number;
+    strokeWidth?: number;
+    radius?: number;
+    innerRadius?: number;
+    outerRadius?: number;
+  };
+  // Extended properties for insights and recommendations
+  insights?: string[];
+  recommendations?: string[];
+  // Metadata for better chart rendering
+  metadata?: {
+    totalEntries?: number;
+    chartType?: string;
+    dataSource?: string;
+    generatedAt?: Date;
   };
 }
 

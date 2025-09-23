@@ -11,7 +11,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useApp } from '../contexts/AppContext';
 import { db, auth } from '../firebaseConfig';
 import { doc, getDoc } from 'firebase/firestore';
-import { Upload, CheckCircle, AlertCircle, X, Clock, AlertTriangle, Loader2, Calculator } from 'lucide-react';
+import { Upload, CheckCircle, AlertCircle, X, Clock, AlertTriangle, Loader2, Calculator, Trash2 } from 'lucide-react';
 import { useToast } from '../hooks/useToast';
 import { ExpressionCalculator } from '../utils/ExpressionCalculator';
 
@@ -136,7 +136,6 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
         try {
           const calculatedValue = ExpressionCalculator.evaluate(field.calculationFormula, updatedAnswers, form.fields);
           updatedAnswers[field.id] = calculatedValue;
-          console.log(`🔄 Initial calculation ${field.label}: ${field.calculationFormula} = ${calculatedValue}`);
         } catch (error) {
           console.error(`❌ Error in initial calculation ${field.label}:`, error);
           updatedAnswers[field.id] = 0;
@@ -163,7 +162,6 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
           try {
             const calculatedValue = ExpressionCalculator.evaluate(field.calculationFormula, updatedAnswers, form.fields);
             updatedAnswers[field.id] = calculatedValue;
-            console.log(`🔄 Recalculated ${field.label}: ${field.calculationFormula} = ${calculatedValue}`);
           } catch (error) {
             console.error(`❌ Error calculating ${field.label}:`, error);
             updatedAnswers[field.id] = 0;
@@ -217,13 +215,22 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
             }));
           },
           (pdfResult) => {
-            // Log PDF extraction results to console
-            console.log('🎉 PDF Text Extraction Completed:', {
-              fileName: pdfResult.fileName,
-              textLength: pdfResult.extractedText.length,
-              pages: pdfResult.pages,
-              status: pdfResult.extractionStatus
-            });
+            
+            // Show success message for PDF extraction
+            if (pdfResult.extractionStatus === 'completed') {
+              showSuccess(`PDF "${pdfResult.fileName}" analysé avec succès (${pdfResult.extractedText.length} caractères extraits)`);
+            } else {
+              showError(`Échec de l'analyse du PDF "${pdfResult.fileName}": ${pdfResult.error || 'Erreur inconnue'}`);
+            }
+          },
+          (imageResult) => {
+            
+            // Show success message for image extraction
+            if (imageResult.extractionStatus === 'completed') {
+              showSuccess(`Image "${imageResult.fileName}" analysée avec succès (${imageResult.extractedText.length} caractères extraits, confiance: ${imageResult.confidence?.toFixed(1)}%)`);
+            } else {
+              showError(`Échec de l'analyse de l'image "${imageResult.fileName}": ${imageResult.error || 'Erreur inconnue'}`);
+            }
           }
         );
 
@@ -247,11 +254,6 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
         textExtractionStatus: attachment.textExtractionStatus
       };
 
-      console.log('🔍 Storing file answer data:', {
-        fieldId,
-        fileAnswerData,
-        attachment
-      });
 
       setAnswers(prev => ({
         ...prev,
@@ -348,33 +350,6 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
           // Submit to Firebase via AppContext
           await submitFormEntry(formEntryData);
 
-          // Log successful submission
-          console.log('🎉 Form Response Successfully Submitted to Firebase!');
-          console.log('📋 Response Details:', {
-            formId: form.id,
-            formTitle: form.title,
-            totalAnswers: Object.keys(answers).length,
-            fileAttachments: fileAttachments.length,
-            userId: currentUser.uid,
-            agencyId: userData.agencyId
-          });
-
-          // Log file attachment details
-          if (fileAttachments.length > 0) {
-            console.log('📎 File Attachments Details:');
-            fileAttachments.forEach((attachment, index) => {
-              console.log(`  ${index + 1}. ${attachment.fileName}`, {
-                fieldId: attachment.fieldId,
-                fileSize: attachment.fileSize,
-                fileType: attachment.fileType,
-                downloadUrl: attachment.downloadUrl,
-                storagePath: attachment.storagePath,
-                hasExtractedText: !!attachment.extractedText,
-                textLength: attachment.extractedText?.length || 0,
-                extractionStatus: attachment.textExtractionStatus
-              });
-            });
-          }
         }
 
         // Always call the onSubmit prop (parent handles draft vs final submission)
@@ -489,6 +464,7 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
                 error={errors[field.id]}
                 required={field.required}
                 acceptedTypes={field.acceptedTypes}
+                progress={progress}
               />
             )}
             
@@ -507,37 +483,11 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
                     type="button"
                     onClick={() => handleFileRemove(field.id)}
                     className="text-red-600 hover:text-red-800"
+                    title="Supprimer le fichier"
                   >
-                    <X className="h-4 w-4" />
+                    <Trash2 className="h-4 w-4" />
                   </button>
                 </div>
-              </div>
-            )}
-            
-            {/* Upload Progress - only show when processing */}
-            {progress && progress.status !== 'completed' && (
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                <div className="flex items-center space-x-2">
-                  {progress.status === 'uploading' && (
-                    <Upload className="h-4 w-4 text-blue-600 animate-pulse" />
-                  )}
-                  {progress.status === 'extracting' && (
-                    <Clock className="h-4 w-4 text-yellow-600 animate-pulse" />
-                  )}
-                  {progress.status === 'error' && (
-                    <AlertCircle className="h-4 w-4 text-red-600" />
-                  )}
-                  <span className="text-sm text-gray-700">{progress.fileName}</span>
-                  {progress.status === 'uploading' && (
-                    <span className="text-xs text-blue-600">{progress.progress}%</span>
-                  )}
-                  {progress.status === 'extracting' && (
-                    <span className="text-xs text-yellow-600">Extraction...</span>
-                  )}
-                </div>
-                {progress.status === 'error' && progress.error && (
-                  <p className="text-xs text-red-600 mt-1">{progress.error}</p>
-                )}
               </div>
             )}
             
@@ -670,6 +620,54 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6">
+          {/* File Attachments Display */}
+          {fileAttachments.length > 0 && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <h3 className="text-sm font-medium text-blue-900 mb-3 flex items-center">
+                📎 Fichiers joints ({fileAttachments.length})
+              </h3>
+              <div className="space-y-2">
+                {fileAttachments.map((attachment, index) => (
+                  <div key={index} className="flex items-center justify-between p-3 bg-white border border-blue-200 rounded-md">
+                    <div className="flex items-center space-x-3">
+                      <span className="text-lg">
+                        {attachment.fileType === 'application/pdf' ? '📄' : '📎'}
+                      </span>
+                      <div>
+                        <p className="text-sm font-medium text-gray-900">{attachment.fileName}</p>
+                        <p className="text-xs text-gray-500">
+                          {attachment.fileType === 'application/pdf' ? 'Document PDF' : 'Fichier joint'}
+                          {attachment.fileSize && ` • ${(attachment.fileSize / 1024).toFixed(1)} KB`}
+                          {attachment.textExtractionStatus && (
+                            <span className={`ml-2 px-2 py-1 rounded-full text-xs ${
+                              attachment.textExtractionStatus === 'completed' 
+                                ? 'bg-green-100 text-green-700' 
+                                : 'bg-yellow-100 text-yellow-700'
+                            }`}>
+                              {attachment.textExtractionStatus === 'completed' ? '✅ Texte extrait' : '⏳ Extraction...'}
+                            </span>
+                          )}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      {attachment.downloadUrl && (
+                        <a
+                          href={attachment.downloadUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="px-3 py-1 text-xs bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors"
+                        >
+                          📥 Télécharger
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {form.fields.map(field => renderField(field))}
 
           <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 pt-4 sm:pt-6 border-t border-gray-200">
@@ -703,6 +701,7 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
           </div>
         </form>
       </Card>
+      
       
     </div>
   );

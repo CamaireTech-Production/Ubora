@@ -47,9 +47,9 @@ export const PDFFileDisplay: React.FC<PDFFileDisplayProps> = ({ pdfFiles }) => {
 
   const handleViewPDF = async (pdfFile: PDFFileReference) => {
     try {
-      console.log('🔍 Attempting to view file:', pdfFile);
+      // console.log('🔍 Attempting to view file:', pdfFile);
       const downloadUrl = await getFileDownloadURL(pdfFile);
-      console.log('🔍 Generated download URL:', downloadUrl);
+      // console.log('🔍 Generated download URL:', downloadUrl);
       
       // Open in PDF viewer modal
       setPdfViewerModal({
@@ -58,18 +58,18 @@ export const PDFFileDisplay: React.FC<PDFFileDisplayProps> = ({ pdfFiles }) => {
         fileName: pdfFile.fileName
       });
     } catch (error) {
-      console.error('Error viewing file:', error);
+      // console.error('Error viewing file:', error);
       showError('Erreur lors de l\'ouverture du fichier');
     }
   };
 
   const handleDownloadPDF = async (pdfFile: PDFFileReference) => {
     try {
-      console.log('🔍 Attempting to download file:', pdfFile);
+      // console.log('🔍 Attempting to download file:', pdfFile);
       
       // Try Firebase-specific download first
       if (pdfFile.storagePath) {
-        console.log('🔄 Using Firebase-specific download method...');
+        // console.log('🔄 Using Firebase-specific download method...');
         await forceDownloadFromFirebase(
           pdfFile.storagePath,
           pdfFile.fileName,
@@ -88,7 +88,7 @@ export const PDFFileDisplay: React.FC<PDFFileDisplayProps> = ({ pdfFiles }) => {
       // Fallback to regular download
       await handleDownloadFallback(pdfFile);
     } catch (error) {
-      console.error('Error downloading file:', error);
+      // console.error('Error downloading file:', error);
       showError('Erreur lors du téléchargement du fichier');
     }
   };
@@ -96,7 +96,7 @@ export const PDFFileDisplay: React.FC<PDFFileDisplayProps> = ({ pdfFiles }) => {
   const handleDownloadFallback = async (pdfFile: PDFFileReference) => {
     try {
       const downloadUrl = await getFileDownloadURL(pdfFile);
-      console.log('🔍 Generated download URL:', downloadUrl);
+      // console.log('🔍 Generated download URL:', downloadUrl);
       
       await downloadFile({
         fileName: pdfFile.fileName,
@@ -109,7 +109,7 @@ export const PDFFileDisplay: React.FC<PDFFileDisplayProps> = ({ pdfFiles }) => {
         }
       });
     } catch (error) {
-      console.error('Fallback download failed:', error);
+      // console.error('Fallback download failed:', error);
       showError('Erreur lors du téléchargement du fichier');
     }
   };

@@ -161,7 +161,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
 
           {/* Composer input section */}
           <div className="p-4">
-            <div className="flex items-end space-x-3 bg-white border border-gray-200 rounded-2xl shadow-sm">
+            <div className="flex items-end space-x-3 bg-white rounded-2xl">
               {/* Textarea */}
               <div className="flex-1 p-3">
                 <textarea

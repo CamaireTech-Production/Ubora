@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { MessageBubble } from './MessageBubble';
+import MessageBubble from './MessageBubble';
 import { Bot, Loader2, ChevronUp } from 'lucide-react';
 import { Button } from '../Button';
 
@@ -98,9 +98,12 @@ export const MessageList: React.FC<MessageListProps> = ({
       )}
 
       {/* Messages */}
-      <div className="space-y-6">
-        {messages.map((message) => (
-          <MessageBubble key={message.id} message={message} />
+      <div className="space-y-3 sm:space-y-6">
+        {messages.map((message, index) => (
+          <MessageBubble 
+            key={`${message.id}-${message.timestamp.getTime()}-${index}`} 
+            message={message} 
+          />
         ))}
       </div>
 

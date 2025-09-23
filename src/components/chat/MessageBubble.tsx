@@ -1,21 +1,104 @@
 import React from 'react';
-import { Bot, User, Clock } from 'lucide-react';
+import { User, Clock } from 'lucide-react';
 import { GraphRenderer } from './GraphRenderer';
 import { PDFPreview, TextPDFPreview } from './PDFPreview';
 import { TableRenderer } from './TableRenderer';
-import { PDFFileDisplay } from './PDFFileDisplay';
+import { ImageFileDisplay } from './ImageFileDisplay';
 import { ChatMessage } from '../../types';
 import { MultiFormatToPDF } from '../../utils/MultiFormatToPDF';
 import { generatePDF } from '../../utils/PDFGenerator';
+import { MultiFormatPDFGenerator } from '../PDFGeneration/MultiFormatPDFGenerator';
 
 interface MessageBubbleProps {
   message: ChatMessage;
 }
 
-// Function to format AI message content (remove markdown and clean up)
-const formatMessageContent = (content: string): React.ReactNode => {
-  // Split content into lines and process each line
-  const lines = content.split('\n');
+// Function to repair common JSON syntax errors
+// Removed repairJsonString function - AI now returns correct format directly
+
+// Function to detect and parse JSON content
+const parseJsonInContent = (content: string, isStatsTableFormat: boolean = false): any | null => {
+  if (!content) return null;
+  
+  // 🔍 DEBUG: Enhanced logging for stats + table format
+  
+  // Try to find JSON blocks in the content
+  const jsonMatch = content.match(/```json\s*([\s\S]*?)\s*```/);
+  if (jsonMatch) {
+    
+    try {
+      const jsonString = jsonMatch[1].trim();
+      
+      const jsonData = JSON.parse(jsonString);
+      
+      // Check if it's valid graph data
+      if (jsonData && typeof jsonData === 'object' && jsonData.type && jsonData.data && Array.isArray(jsonData.data) && jsonData.data.length > 0) {
+        if (isStatsTableFormat) {
+        } else {
+        }
+        return jsonData;
+      } else {
+        
+        // Try to create a fallback with sample data if the structure is mostly correct
+        if (jsonData && typeof jsonData === 'object' && jsonData.type) {
+          const fallbackData = {
+            type: jsonData.type,
+            title: jsonData.title || 'Graphique',
+            subtitle: jsonData.subtitle,
+            data: jsonData.data && Array.isArray(jsonData.data) ? jsonData.data : [
+              { x: 'Donnée 1', y: 10 },
+              { x: 'Donnée 2', y: 20 }
+            ],
+            xAxisKey: jsonData.xAxisKey || 'x',
+            yAxisKey: jsonData.yAxisKey || 'y',
+            dataKey: jsonData.dataKey || 'y',
+            colors: jsonData.colors || ['#3B82F6', '#10B981', '#F59E0B'],
+            options: jsonData.options || { showLegend: true, showGrid: true, showTooltip: true },
+            insights: jsonData.insights || [],
+            recommendations: jsonData.recommendations || []
+          };
+          return fallbackData;
+        }
+      }
+    } catch (error) {
+      return null; // Return null instead of showing raw JSON
+    }
+  }
+  
+  // Try to find JSON object directly (more robust pattern)
+  const directJsonMatch = content.match(/\{\s*"type"\s*:\s*"[^"]*"\s*,[\s\S]*?\}(?=\s*(?:\n|$|\s*###|\s*##|\s*#|\s*\|))/);
+  if (directJsonMatch) {
+    
+    try {
+      const jsonString = directJsonMatch[0].trim();
+      
+      const jsonData = JSON.parse(jsonString);
+      if (jsonData && typeof jsonData === 'object' && jsonData.type && jsonData.data) {
+        return jsonData;
+      }
+    } catch (error) {
+      return null; // Return null instead of showing raw JSON
+    }
+  }
+  
+  return null;
+};
+
+// Function to format text content (without tables and JSON)
+const formatTextContent = (content: string): React.ReactNode => {
+  // Remove JSON blocks from content before processing
+  let cleanContent = content;
+  
+  // Remove ```json blocks
+  cleanContent = cleanContent.replace(/```json\s*[\s\S]*?\s*```/g, '');
+  
+  // Remove direct JSON objects (more robust pattern)
+  cleanContent = cleanContent.replace(/\{\s*"type"\s*:\s*"[^"]*"\s*,[\s\S]*?\}(?=\s*(?:\n|$|\s*###|\s*##|\s*#|\s*\|))/g, '');
+  
+  // Remove any remaining JSON-like content
+  cleanContent = cleanContent.replace(/\{\s*"type"\s*:\s*"[^"]*"\s*,[\s\S]*?\}/g, '');
+  
+  const lines = cleanContent.split('\n');
   
   return lines.map((line, index) => {
     // Skip empty lines
@@ -70,13 +153,155 @@ const formatMessageContent = (content: string): React.ReactNode => {
   });
 };
 
-export const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
+// Function to format AI message content with markdown support
+const formatMessageContent = (content: string, messageMeta?: any): React.ReactNode => {
+  const lines = content.split('\n');
+  const elements: React.ReactNode[] = [];
+  let currentIndex = 0;
+
+  // Determine if this is a stats + table combination
+  const isStatsTableFormat = messageMeta?.selectedFormats?.includes('stats') && 
+                            messageMeta?.selectedFormats?.includes('table') &&
+                            messageMeta?.selectedFormats?.length === 2;
+  
+  while (currentIndex < lines.length) {
+    // Check for JSON blocks first
+    const jsonMatch = content.substring(currentIndex).match(/```json\s*([\s\S]*?)\s*```/);
+    const directJsonMatch = content.substring(currentIndex).match(/\{\s*"type"\s*:\s*"[^"]*"\s*,[\s\S]*?\}(?=\s*(?:\n|$|\s*###|\s*##|\s*#|\s*\|))/);
+    
+    // Enhanced logging for stats + table format
+    if (isStatsTableFormat) {
+      if (jsonMatch) {
+      }
+      if (directJsonMatch) {
+      }
+    }
+    
+    // Check for markdown tables
+    let tableStart = -1;
+    let tableEnd = -1;
+    
+    for (let i = currentIndex; i < lines.length; i++) {
+      const line = lines[i].trim();
+      if (line.includes('|') && line.split('|').length >= 3) {
+        if (tableStart === -1) {
+          tableStart = i;
+        }
+        tableEnd = i;
+      } else if (tableStart !== -1 && !line.includes('|')) {
+        break;
+      }
+    }
+    
+    // Enhanced logging for table detection
+    if (isStatsTableFormat && tableStart !== -1) {
+    }
+    
+    // Determine which comes first: JSON or table
+    let jsonIndex = -1;
+    let tableIndex = -1;
+    
+    if (jsonMatch) {
+      jsonIndex = currentIndex + content.substring(currentIndex).indexOf(jsonMatch[0]);
+    }
+    if (directJsonMatch) {
+      const directJsonIndex = currentIndex + content.substring(currentIndex).indexOf(directJsonMatch[0]);
+      if (jsonIndex === -1 || directJsonIndex < jsonIndex) {
+        jsonIndex = directJsonIndex;
+      }
+    }
+    if (tableStart !== -1) {
+      tableIndex = tableStart;
+    }
+    
+    // Process the element that comes first
+    if (jsonIndex !== -1 && (tableIndex === -1 || jsonIndex < tableIndex)) {
+      // Process JSON - show text before JSON but hide the JSON itself
+      const beforeJson = content.substring(currentIndex, jsonIndex).trim();
+      if (beforeJson) {
+        if (isStatsTableFormat) {
+        }
+        elements.push(<div key={`text-${currentIndex}`} className="mb-4">{formatTextContent(beforeJson)}</div>);
+      }
+      
+      if (isStatsTableFormat) {
+      }
+      
+      const jsonData = parseJsonInContent(content.substring(jsonIndex), isStatsTableFormat);
+      if (jsonData) {
+        // Only show the graph, not the raw JSON
+        elements.push(
+          <div key={`graph-${currentIndex}`} className="mb-4">
+            <GraphRenderer data={jsonData} />
+          </div>
+        );
+      } else {
+        // JSON parsing failed, show a user-friendly message instead of raw JSON
+        elements.push(
+          <div key={`error-${currentIndex}`} className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+            <div className="flex items-center">
+              <div className="text-yellow-600 mr-2">⚠️</div>
+              <div className="text-sm text-yellow-800">
+                Format de données invalide - Impossible d'afficher le graphique
+              </div>
+            </div>
+            <div className="text-xs text-yellow-600 mt-2">
+              Vérifiez la console pour plus de détails sur l'erreur
+            </div>
+          </div>
+        );
+      }
+      
+      // Move to after JSON - skip the JSON content completely
+      if (jsonMatch) {
+        currentIndex = jsonIndex + jsonMatch[0].length;
+      } else if (directJsonMatch) {
+        currentIndex = jsonIndex + directJsonMatch[0].length;
+      }
+    } else if (tableIndex !== -1) {
+      // Process table
+      const beforeTable = lines.slice(currentIndex, tableIndex).join('\n').trim();
+      if (beforeTable) {
+        if (isStatsTableFormat) {
+        }
+        elements.push(<div key={`text-${currentIndex}`} className="mb-4">{formatTextContent(beforeTable)}</div>);
+      }
+      
+      const tableContent = lines.slice(tableStart, tableEnd + 1).join('\n');
+      if (isStatsTableFormat) {
+      }
+      elements.push(
+        <div key={`table-${currentIndex}`} className="mb-4">
+          <TableRenderer markdownTable={tableContent} />
+        </div>
+      );
+      
+      currentIndex = tableEnd + 1;
+    } else {
+      // No more special content, process remaining as text
+      const remainingContent = lines.slice(currentIndex).join('\n').trim();
+      if (remainingContent) {
+        elements.push(<div key={`text-${currentIndex}`}>{formatTextContent(remainingContent)}</div>);
+      }
+      break;
+    }
+  }
+  
+  if (isStatsTableFormat) {
+  } else {
+  }
+  
+  return elements.length > 0 ? <>{elements}</> : formatTextContent(content);
+};
+
+
+const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
   const isUser = message.type === 'user';
   
   return (
-    <div className={`flex items-start space-x-3 ${isUser ? 'flex-row-reverse space-x-reverse' : ''}`}>
+    <div className={`mobile-message-container ${isUser ? 'user-message' : 'ai-message'}`}>
       {/* Avatar */}
-      <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${
+      <div className={`w-8 h-8 rounded-full flex items-center justify-center mobile-avatar-spacing ${
         isUser 
           ? 'bg-gradient-to-br from-blue-500 to-blue-600 text-white' 
           : 'bg-gradient-to-br from-gray-100 to-gray-200 text-gray-600'
@@ -93,7 +318,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
       </div>
 
       {/* Message bubble */}
-      <div className={`w-full max-w-[95%] sm:max-w-[85%] min-w-0 mobile-chat-bubble ${isUser ? 'items-end' : 'items-start'} flex flex-col`}>
+      <div className={`mobile-chat-bubble ${isUser ? 'mobile-user-message' : 'mobile-ai-message'} flex flex-col`}>
         <div className={`px-4 py-3 rounded-2xl shadow-sm min-w-0 w-full overflow-x-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent mobile-chat-content ${
           isUser 
             ? 'bg-gradient-to-br from-blue-600 to-blue-700 text-white rounded-br-md' 
@@ -129,9 +354,9 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
                         <span className="text-blue-600 font-medium whitespace-nowrap flex-shrink-0">
                           Formulaires ({message.meta.selectedFormTitles.length}):
                         </span>
-                        <div className="flex gap-1 overflow-x-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent min-w-0 flex-1" style={{ scrollbarWidth: 'thin' }}>
+                        <div className="flex gap-1 overflow-x-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent min-w-0 flex-1 form-tags-container" style={{ scrollbarWidth: 'thin' }}>
                           {message.meta.selectedFormTitles.map((title, index) => (
-                            <span key={index} className="px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs whitespace-nowrap flex-shrink-0">
+                            <span key={index} className="px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs whitespace-nowrap flex-shrink-0 form-tag">
                               {title}
                             </span>
                           ))}
@@ -171,9 +396,9 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
                         <span className="text-gray-600 font-medium whitespace-nowrap flex-shrink-0">
                           Formulaires ({message.meta.selectedFormTitles.length}):
                         </span>
-                        <div className="flex gap-1 overflow-x-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent min-w-0 flex-1" style={{ scrollbarWidth: 'thin' }}>
+                        <div className="flex gap-1 overflow-x-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent min-w-0 flex-1 form-tags-container" style={{ scrollbarWidth: 'thin' }}>
                           {message.meta.selectedFormTitles.map((title, index) => (
-                            <span key={index} className="px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs whitespace-nowrap flex-shrink-0">
+                            <span key={index} className="px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs whitespace-nowrap flex-shrink-0 form-tag">
                               {title}
                             </span>
                           ))}
@@ -186,54 +411,137 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
                 {/* Render content based on type */}
                 {message.contentType === 'graph' && message.graphData ? (
                   <div className="space-y-4">
-                    {/* PDF Generation Button for Graph */}
-                    <div className="flex justify-end mb-2">
-                      <button
-                        onClick={async () => {
-                          try {
-                            const pdfData = MultiFormatToPDF.convertToPDFData(message);
-                            await generatePDF(pdfData);
-                          } catch (error) {
-                            console.error('Error generating PDF:', error);
-                          }
-                        }}
-                        className="inline-flex items-center px-3 py-1.5 text-xs font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors duration-200"
-                        title="Générer un PDF avec le graphique"
-                      >
-                        📄 Générer PDF
-                      </button>
+                    {/* Enhanced Graph Header with Insights */}
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <h3 className="text-sm font-semibold text-blue-900">
+                          📊 {message.graphData.title}
+                        </h3>
+                        <button
+                          onClick={async () => {
+                            try {
+                              const pdfData = MultiFormatToPDF.convertToPDFData(message);
+                              await generatePDF(pdfData);
+                            } catch (error) {
+                            }
+                          }}
+                          className="inline-flex items-center px-3 py-1.5 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors duration-200"
+                          title="Générer un PDF avec le graphique"
+                        >
+                          📄 Générer le PDF
+                        </button>
+                      </div>
+                      {message.graphData.subtitle && (
+                        <p className="text-xs text-blue-700 mb-2">{message.graphData.subtitle}</p>
+                      )}
+                      
+                      {/* Display Insights if available */}
+                      {message.graphData.insights && message.graphData.insights.length > 0 && (
+                        <div className="mb-2">
+                          <h4 className="text-xs font-medium text-blue-800 mb-1">💡 Insights clés :</h4>
+                          <ul className="text-xs text-blue-700 space-y-1">
+                            {message.graphData.insights.map((insight: string, index: number) => (
+                              <li key={index} className="flex items-start">
+                                <span className="text-blue-500 mr-1">•</span>
+                                <span>{insight}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                      
+                      {/* Display Recommendations if available */}
+                      {message.graphData.recommendations && message.graphData.recommendations.length > 0 && (
+                        <div>
+                          <h4 className="text-xs font-medium text-blue-800 mb-1">🎯 Recommandations :</h4>
+                          <ul className="text-xs text-blue-700 space-y-1">
+                            {message.graphData.recommendations.map((recommendation: string, index: number) => (
+                              <li key={index} className="flex items-start">
+                                <span className="text-green-500 mr-1">→</span>
+                                <span>{recommendation}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                      
+                      {/* Display Metadata if available */}
+                      {message.graphData.metadata && (
+                        <div className="mt-2 pt-2 border-t border-blue-200">
+                          <div className="flex items-center justify-between text-xs text-blue-600">
+                            <span>
+                              {message.graphData.metadata.totalEntries && 
+                                `${message.graphData.metadata.totalEntries} points de données`
+                              }
+                            </span>
+                            <span>
+                              {message.graphData.metadata.generatedAt && 
+                                `Généré le ${new Date(message.graphData.metadata.generatedAt).toLocaleDateString('fr-FR')}`
+                              }
+                            </span>
+                          </div>
+                        </div>
+                      )}
                     </div>
                     
                     <GraphRenderer data={message.graphData} />
                   </div>
                 ) : message.contentType === 'pdf' && message.pdfData ? (
                   <PDFPreview data={message.pdfData} />
+                ) : message.contentType === 'text-pdf' && message.pdfData ? (
+                  <PDFPreview data={message.pdfData} />
                 ) : message.contentType === 'text-pdf' ? (
-                  <TextPDFPreview content={message.content} title="Rapport Ubora" />
+                  <TextPDFPreview content={message.content} title="Rapport Ubora" message={message} />
                 ) : message.contentType === 'table' && message.tableData ? (
                   <div className="space-y-4">
-                    {/* PDF Generation Button for Table */}
+                    {/* Simple PDF Generation Button for Table */}
                     <div className="flex justify-end mb-2">
                       <button
                         onClick={async () => {
                           try {
                             const pdfData = MultiFormatToPDF.convertToPDFData(message);
-                            await generatePDF(pdfData);
+                            
+                            // If there are charts, convert them to PNG using recharts-to-png
+                            if (pdfData.charts && pdfData.charts.length > 0) {
+                              const { RechartsToPNG } = await import('../../utils/RechartsToPNG');
+                              
+                              const updatedPdfData = {
+                                ...pdfData,
+                                charts: await Promise.all(
+                                  pdfData.charts.map(async (chart: any) => {
+                                    try {
+                                      const chartImage = await RechartsToPNG.convertChartDataToPNG(chart, 800, 500);
+                                      return {
+                                        ...chart,
+                                        imageData: chartImage
+                                      };
+                                    } catch (error) {
+                                      console.error('Error converting chart to PNG:', error);
+                                      return chart;
+                                    }
+                                  })
+                                )
+                              };
+                              
+                              await generatePDF(updatedPdfData);
+                            } else {
+                              await generatePDF(pdfData);
+                            }
                           } catch (error) {
                             console.error('Error generating PDF:', error);
                           }
                         }}
-                        className="inline-flex items-center px-3 py-1.5 text-xs font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors duration-200"
+                        className="inline-flex items-center px-3 py-1.5 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors duration-200"
                         title="Générer un PDF avec le tableau"
                       >
-                        📄 Générer PDF
+                        📄 Générer le PDF
                       </button>
                     </div>
                     
                     {/* Render text content */}
                     {message.content && (
                       <div className="prose prose-sm max-w-none">
-                        {formatMessageContent(message.content)}
+                        {formatMessageContent(message.content, message.meta)}
                       </div>
                     )}
                     {/* Render table */}
@@ -241,30 +549,13 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
                   </div>
                 ) : message.contentType === 'mixed' || message.contentType === 'multi-format' ? (
                   <div className="space-y-4">
-                    {/* PDF Generation Button for Multi-format */}
-                    {MultiFormatToPDF.canConvertToPDF(message) && (
-                      <div className="flex justify-end mb-2">
-                        <button
-                          onClick={async () => {
-                            try {
-                              const pdfData = MultiFormatToPDF.convertToPDFData(message);
-                              await generatePDF(pdfData);
-                            } catch (error) {
-                              console.error('Error generating PDF:', error);
-                            }
-                          }}
-                          className="inline-flex items-center px-3 py-1.5 text-xs font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors duration-200"
-                          title={MultiFormatToPDF.getPDFDescription(message)}
-                        >
-                          📄 Générer PDF
-                        </button>
-                      </div>
-                    )}
+                    {/* PDF Generation Component for Multi-format */}
+                    <MultiFormatPDFGenerator message={message} className="mb-4" />
                     
                     {/* Render text content */}
                     {message.content && (
                       <div className="prose prose-sm max-w-none">
-                        {formatMessageContent(message.content)}
+                        {formatMessageContent(message.content, message.meta)}
                       </div>
                     )}
                     {/* Render graph if present */}
@@ -290,12 +581,140 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
             )}
           </div>
           
-          {/* PDF Files Display */}
+          {/* Enhanced PDF Files Display with Source Attribution - Horizontal Layout */}
           {!isUser && message.pdfFiles && message.pdfFiles.length > 0 && (
-            <PDFFileDisplay pdfFiles={message.pdfFiles} />
+            <div className="mt-4 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg shadow-sm">
+              <h4 className="text-sm font-semibold text-blue-900 mb-3 flex items-center">
+                <span className="mr-2">📄</span>
+                Documents analysés
+                <span className="ml-2 text-xs bg-blue-200 text-blue-900 px-2 py-1 rounded-full font-medium">
+                  {message.pdfFiles.length} fichier{message.pdfFiles.length > 1 ? 's' : ''}
+                </span>
+              </h4>
+              
+              {/* Horizontal scrollable container */}
+              <div className="overflow-x-auto pb-2">
+                <div className="flex space-x-3 min-w-max">
+                  {message.pdfFiles.map((file, index) => (
+                    <div key={index} className="flex-shrink-0 w-64 bg-white border border-blue-100 rounded-lg shadow-sm hover:shadow-md transition-shadow">
+                      <div className="p-3">
+                        <div className="flex items-start space-x-3">
+                          <div className="flex-shrink-0 w-8 h-8 bg-red-100 rounded-lg flex items-center justify-center">
+                            <span className="text-sm">📄</span>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-gray-900 truncate" title={file.fileName}>
+                              {file.fileName}
+                            </p>
+                            <p className="text-xs text-gray-500 mt-1">
+                              Document PDF analysé
+                              {file.fileSize && (
+                                <span className="block">{(file.fileSize / 1024).toFixed(1)} KB</span>
+                              )}
+                            </p>
+                          </div>
+                        </div>
+                        
+                        {/* Download button with icon only */}
+                        {file.downloadUrl && (
+                          <div className="mt-3 flex justify-end">
+                            <a
+                              href={file.downloadUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center justify-center w-8 h-8 text-blue-700 bg-blue-100 hover:bg-blue-200 rounded-md transition-colors"
+                              title="Télécharger le document"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                              </svg>
+                            </a>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              
+              <div className="mt-3 p-2 bg-blue-100 rounded-md">
+                <p className="text-xs text-blue-800 flex items-center">
+                  <span className="mr-1">💡</span>
+                  Le contenu de ces documents a été analysé pour générer cette réponse. Cliquez sur l'icône de téléchargement pour accéder aux documents originaux.
+                </p>
+              </div>
+            </div>
           )}
           
-          {/* Meta information for assistant messages */}
+          {/* Enhanced Image Files Display with Source Attribution - Horizontal Layout */}
+          {!isUser && message.imageFiles && message.imageFiles.length > 0 && (
+            <div className="mt-4 p-4 bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg shadow-sm">
+              <h4 className="text-sm font-semibold text-green-900 mb-3 flex items-center">
+                <span className="mr-2">🖼️</span>
+                Images analysées
+                <span className="ml-2 text-xs bg-green-200 text-green-900 px-2 py-1 rounded-full font-medium">
+                  {message.imageFiles.length} fichier{message.imageFiles.length > 1 ? 's' : ''}
+                </span>
+              </h4>
+              
+              {/* Horizontal scrollable container */}
+              <div className="overflow-x-auto pb-2">
+                <div className="flex space-x-3 min-w-max">
+                  {message.imageFiles.map((file, index) => (
+                    <div key={index} className="flex-shrink-0 w-64 bg-white border border-green-100 rounded-lg shadow-sm hover:shadow-md transition-shadow">
+                      <div className="p-3">
+                        <div className="flex items-start space-x-3">
+                          <div className="flex-shrink-0 w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center">
+                            <span className="text-sm">🖼️</span>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-gray-900 truncate" title={file.fileName}>
+                              {file.fileName}
+                            </p>
+                            <p className="text-xs text-gray-500 mt-1">
+                              Image analysée par OCR
+                              {file.fileSize && (
+                                <span className="block">{(file.fileSize / 1024).toFixed(1)} KB</span>
+                              )}
+                              {file.confidence && (
+                                <span className="block text-green-600">Confiance: {file.confidence.toFixed(1)}%</span>
+                              )}
+                            </p>
+                          </div>
+                        </div>
+                        
+                        {/* Download button with icon only */}
+                        {file.downloadUrl && (
+                          <div className="mt-3 flex justify-end">
+                            <a
+                              href={file.downloadUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center justify-center w-8 h-8 text-green-700 bg-green-100 hover:bg-green-200 rounded-md transition-colors"
+                              title="Télécharger l'image"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                              </svg>
+                            </a>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              
+              <div className="mt-3 p-2 bg-green-100 rounded-md">
+                <p className="text-xs text-green-800 flex items-center">
+                  <span className="mr-1">💡</span>
+                  Le contenu de ces images a été extrait par OCR et analysé pour générer cette réponse. Cliquez sur l'icône de téléchargement pour accéder aux images originales.
+                </p>
+              </div>
+            </div>
+          )}
+          
+          {/* Enhanced Meta information for assistant messages */}
           {!isUser && message.meta && (
             <div className="mt-3 pt-2 border-t border-gray-100">
               <div className="flex flex-wrap items-center gap-3 text-xs text-gray-500">
@@ -306,12 +725,59 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
                   </span>
                 )}
                 {message.meta.usedEntries && (
-                  <span>{message.meta.usedEntries} entrées</span>
+                  <span className="flex items-center space-x-1">
+                    <span className="w-1.5 h-1.5 bg-green-400 rounded-full"></span>
+                    <span>{message.meta.usedEntries} entrées</span>
+                  </span>
                 )}
                 {message.meta.users && (
-                  <span>{message.meta.users} employés</span>
+                  <span className="flex items-center space-x-1">
+                    <span className="w-1.5 h-1.5 bg-purple-400 rounded-full"></span>
+                    <span>{message.meta.users} employés</span>
+                  </span>
+                )}
+                {message.meta.forms && (
+                  <span className="flex items-center space-x-1">
+                    <span className="w-1.5 h-1.5 bg-orange-400 rounded-full"></span>
+                    <span>{message.meta.forms} formulaires</span>
+                  </span>
+                )}
+                {message.meta.tokensUsed && (
+                  <span className="flex items-center space-x-1">
+                    <span className="w-1.5 h-1.5 bg-yellow-400 rounded-full"></span>
+                    <span>{message.meta.tokensUsed} tokens</span>
+                  </span>
                 )}
               </div>
+              
+              {/* Additional context information */}
+              {((message.meta?.selectedFormTitles?.length ?? 0) > 0 || (message.meta?.selectedFormats?.length ?? 0) > 0) && (
+                <div className="mt-2 pt-2 border-t border-gray-100">
+                  <div className="flex flex-wrap items-center gap-2 text-xs">
+                    {(message.meta?.selectedFormats?.length ?? 0) > 0 && (
+                      <div className="flex items-center space-x-1">
+                        <span className="text-gray-400">Formats:</span>
+                        {message.meta?.selectedFormats?.map((format, index) => (
+                          <span key={index} className="px-2 py-1 bg-gray-100 text-gray-700 rounded-full">
+                            {format === 'stats' ? '📊 Stats' : 
+                             format === 'table' ? '📋 Tableau' : 
+                             format === 'pdf' ? '📄 PDF' : format}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    {(message.meta?.selectedFormTitles?.length ?? 0) > 0 && (
+                      <div className="flex items-center space-x-1">
+                        <span className="text-gray-400">Formulaires:</span>
+                        <span className="text-gray-600">
+                          {message.meta?.selectedFormTitles?.slice(0, 2).join(', ')}
+                          {(message.meta?.selectedFormTitles?.length ?? 0) > 2 && ` +${(message.meta?.selectedFormTitles?.length ?? 0) - 2} autres`}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -335,3 +801,5 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
     </div>
   );
 };
+
+export default MessageBubble;

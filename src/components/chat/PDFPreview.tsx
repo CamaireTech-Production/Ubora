@@ -1,13 +1,15 @@
 import React, { useState } from 'react';
 import { FileText, Download, Maximize2, Eye } from 'lucide-react';
 import { Button } from '../Button';
-import { PDFData } from '../../types';
+import { PDFData, GraphData } from '../../types';
 import { generatePDF, PDFGenerator } from '../../utils/PDFGenerator';
+import { GraphRenderer } from './GraphRenderer';
 
 interface TextPDFPreviewProps {
   content: string;
   title?: string;
   onExpand?: () => void;
+  message?: any; // Add message prop for chart data access
 }
 
 // Function to clean markdown from text
@@ -50,6 +52,67 @@ const cleanMarkdown = (text: string): string => {
   cleaned = cleaned.replace(/\s+/g, ' '); // Replace multiple spaces with single space
   
   return cleaned;
+};
+
+// Removed repairJsonString function - AI now returns correct format directly
+
+// Function to detect and parse JSON content in sections
+const parseJsonInContent = (content: string): GraphData | null => {
+  if (!content) return null;
+  
+  // 🔍 DEBUG: Log the content being parsed in PDF preview
+  
+  // Try to find JSON blocks in the content
+  const jsonMatch = content.match(/```json\s*([\s\S]*?)\s*```/);
+  if (jsonMatch) {
+    
+    try {
+      const jsonString = jsonMatch[1];
+      // console.log('🔍 FRONTEND DEBUG - PDFPreview raw JSON:', jsonString);
+      
+      const jsonData = JSON.parse(jsonString);
+      // console.log('🔍 FRONTEND DEBUG - PDFPreview parsed JSON:', jsonData);
+      
+      // Check if it's valid graph data
+      if (jsonData && typeof jsonData === 'object' && jsonData.type && jsonData.data) {
+        // console.log('✅ FRONTEND DEBUG - PDFPreview valid graph data found');
+        return jsonData as GraphData;
+      } else {
+        // console.log('❌ FRONTEND DEBUG - PDFPreview invalid graph data structure');
+      }
+    } catch (error) {
+      // console.error('❌ FRONTEND DEBUG - PDFPreview error parsing JSON:', error);
+    }
+  }
+  
+  // Try to find JSON object directly
+  const directJsonMatch = content.match(/\{\s*"type"\s*:\s*"[^"]*"\s*,[\s\S]*?\}/);
+  if (directJsonMatch) {
+    // console.log('🔍 FRONTEND DEBUG - PDFPreview found direct JSON');
+    // console.log('=====================================');
+    // console.log('Direct JSON String:', directJsonMatch[0]);
+    // console.log('=====================================');
+    
+    try {
+      const jsonString = directJsonMatch[0];
+      // console.log('🔍 FRONTEND DEBUG - PDFPreview direct JSON:', jsonString);
+      
+      const jsonData = JSON.parse(jsonString);
+      // console.log('🔍 FRONTEND DEBUG - PDFPreview parsed direct JSON:', jsonData);
+      
+      if (jsonData && typeof jsonData === 'object' && jsonData.type && jsonData.data) {
+        // console.log('✅ FRONTEND DEBUG - PDFPreview valid direct graph data found');
+        return jsonData as GraphData;
+      } else {
+        // console.log('❌ FRONTEND DEBUG - PDFPreview invalid direct graph data structure');
+      }
+    } catch (error) {
+      // console.error('❌ FRONTEND DEBUG - PDFPreview error parsing direct JSON:', error);
+    }
+  }
+  
+  // console.log('❌ FRONTEND DEBUG - PDFPreview no JSON found in content');
+  return null;
 };
 
 // Function to parse markdown table
@@ -135,6 +198,43 @@ const formatMarkdownContent = (content: string): React.ReactNode => {
     if (!trimmedLine) {
       elements.push(<br key={index} />);
       index++;
+      continue;
+    }
+    
+    // Check for JSON code blocks - preserve them completely
+    if (trimmedLine.startsWith('```json')) {
+      // Find the end of the JSON block
+      let jsonBlock = '';
+      let jsonIndex = index;
+      while (jsonIndex < lines.length) {
+        const currentLine = lines[jsonIndex];
+        jsonBlock += currentLine + '\n';
+        if (currentLine.trim() === '```') {
+          break;
+        }
+        jsonIndex++;
+      }
+      
+      // Parse and render the JSON as a graph
+      const graphData = parseJsonInContent(jsonBlock);
+      if (graphData) {
+        elements.push(
+          <div key={index} className="my-4">
+            <GraphRenderer data={graphData} />
+          </div>
+        );
+      } else {
+        // If parsing fails, show the raw JSON in a code block
+        elements.push(
+          <div key={index} className="my-4">
+            <pre className="bg-gray-100 p-4 rounded-lg text-sm overflow-x-auto">
+              <code>{jsonBlock}</code>
+            </pre>
+          </div>
+        );
+      }
+      
+      index = jsonIndex + 1;
       continue;
     }
     
@@ -341,9 +441,43 @@ const PDFModal: React.FC<PDFModalProps> = ({ data, isOpen, onClose }) => {
                           </tbody>
                         </table>
                       </div>
-                    ) : (
-                      <p className="whitespace-pre-wrap">{section.content}</p>
-                    )}
+                    ) : (() => {
+                      // Check if content contains JSON graph data
+                      const graphData = parseJsonInContent(section.content);
+                      if (graphData) {
+                        return (
+                          <div className="space-y-4">
+                            <GraphRenderer data={graphData} />
+                          </div>
+                        );
+                      }
+                      
+                      // Check if it's a markdown table
+                      if (section.isMarkdownTable) {
+                        const lines = section.content.split('\n');
+                        const { table } = parseMarkdownTable(lines, 0);
+                        if (table) {
+                          return table;
+                        }
+                      }
+                      
+                      // Clean content by removing JSON blocks before rendering
+                      let cleanContent = section.content;
+                      
+                      // Remove ```json blocks
+                      cleanContent = cleanContent.replace(/```json\s*[\s\S]*?\s*```/g, '');
+                      
+                      // Remove direct JSON objects
+                      cleanContent = cleanContent.replace(/\{\s*"type"\s*:\s*"[^"]*"\s*,[\s\S]*?\}/g, '');
+                      
+                      // Only render if there's content left after removing JSON
+                      if (cleanContent.trim()) {
+                        return <p className="whitespace-pre-wrap">{cleanContent}</p>;
+                      } else {
+                        // If no content left after removing JSON, don't render anything
+                        return null;
+                      }
+                    })()}
                   </div>
                 </div>
               ))}
@@ -353,12 +487,12 @@ const PDFModal: React.FC<PDFModalProps> = ({ data, isOpen, onClose }) => {
             {data.charts && data.charts.length > 0 && (
               <div className="space-y-4">
                 <h3 className="text-lg font-semibold text-gray-900">Graphiques inclus</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-6 overflow-x-auto">
                   {data.charts.map((chart, index) => (
-                    <div key={index} className="border border-gray-200 rounded-lg p-4">
-                      <h4 className="text-sm font-semibold text-gray-900 mb-2">{chart.title}</h4>
-                      <div className="text-xs text-gray-500">
-                        Type: {chart.type} | Points de données: {chart.data.length}
+                    <div key={index} className="border border-gray-200 rounded-lg p-4 min-w-fit">
+                      <h4 className="text-sm font-semibold text-gray-900 mb-3">{chart.title}</h4>
+                      <div className="overflow-x-auto">
+                        <GraphRenderer data={chart} />
                       </div>
                     </div>
                   ))}
@@ -372,8 +506,9 @@ const PDFModal: React.FC<PDFModalProps> = ({ data, isOpen, onClose }) => {
   );
 };
 
-export const TextPDFPreview: React.FC<TextPDFPreviewProps> = ({ content, title = 'Rapport Ubora', onExpand }) => {
+export const TextPDFPreview: React.FC<TextPDFPreviewProps> = ({ content, title = 'Rapport Ubora', onExpand, message }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
 
   const handleExpand = () => {
     if (onExpand) {
@@ -383,9 +518,64 @@ export const TextPDFPreview: React.FC<TextPDFPreviewProps> = ({ content, title =
     }
   };
 
-  const handleDownload = () => {
-    const generator = new PDFGenerator();
-    generator.generateReportFromText(content, title);
+  const handleDownload = async () => {
+    if (isDownloading) return; // Prevent multiple clicks
+    
+    setIsDownloading(true);
+    
+    try {
+      if (message) {
+        // Use the proper chart-to-PNG conversion flow
+        const { MultiFormatToPDF } = await import('../../utils/MultiFormatToPDF');
+        const { RechartsToPNG } = await import('../../utils/RechartsToPNG');
+        
+        const pdfData = MultiFormatToPDF.convertToPDFData(message);
+        
+        // If there are charts, convert them to PNG using recharts-to-png
+        if (pdfData.charts && pdfData.charts.length > 0) {
+          console.log('Converting charts to PNG:', pdfData.charts.length, 'charts found');
+          
+          const updatedPdfData = {
+            ...pdfData,
+            charts: await Promise.all(
+              pdfData.charts.map(async (chart: GraphData, index: number) => {
+                try {
+                  console.log(`Converting chart ${index + 1}:`, chart.title, chart.type);
+                  const chartImage = await RechartsToPNG.convertChartDataToPNG(chart, 800, 500);
+                  console.log(`Chart ${index + 1} converted successfully, image length:`, chartImage.length);
+                  return {
+                    ...chart,
+                    imageData: chartImage
+                  };
+                } catch (error) {
+                  console.error(`Error converting chart ${index + 1} to PNG:`, error);
+                  return chart;
+                }
+              })
+            )
+          };
+          
+          console.log('All charts converted, generating PDF...');
+          const generator = new PDFGenerator();
+          await generator.generateReport(updatedPdfData);
+        } else {
+          console.log('No charts found, generating PDF without charts');
+          const generator = new PDFGenerator();
+          await generator.generateReport(pdfData);
+        }
+      } else {
+        // Fallback to text-only PDF if no message data
+        const generator = new PDFGenerator();
+        generator.generateReportFromText(content, title);
+      }
+    } catch (error) {
+      console.error('Error generating PDF with charts:', error);
+      // Fallback to text-only PDF
+      const generator = new PDFGenerator();
+      generator.generateReportFromText(content, title);
+    } finally {
+      setIsDownloading(false);
+    }
   };
 
   return (
@@ -406,9 +596,14 @@ export const TextPDFPreview: React.FC<TextPDFPreviewProps> = ({ content, title =
               variant="secondary"
               size="sm"
               onClick={handleDownload}
+              disabled={isDownloading}
               className="p-1.5 rounded-lg hover:bg-gray-100"
             >
-              <Download className="h-3 w-3" />
+              {isDownloading ? (
+                <div className="w-3 h-3 border-2 border-gray-300 border-t-blue-600 rounded-full animate-spin" />
+              ) : (
+                <Download className="h-3 w-3" />
+              )}
             </Button>
             <Button
               variant="secondary"
@@ -454,10 +649,20 @@ export const TextPDFPreview: React.FC<TextPDFPreviewProps> = ({ content, title =
                   variant="secondary"
                   size="sm"
                   onClick={handleDownload}
+                  disabled={isDownloading}
                   className="flex items-center space-x-2"
                 >
-                  <Download className="h-4 w-4" />
-                  <span>Télécharger PDF</span>
+                  {isDownloading ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-gray-300 border-t-blue-600 rounded-full animate-spin" />
+                      <span>Génération...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Download className="h-4 w-4" />
+                      <span>Télécharger PDF</span>
+                    </>
+                  )}
                 </Button>
                 <Button
                   variant="secondary"
