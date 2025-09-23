@@ -352,6 +352,13 @@ RÉPONSE :
       console.log('📥 Response status:', response.status);
       console.log('📥 Response data:', JSON.stringify(data, null, 2));
       console.log('⏱️ Response time:', Date.now() - startTime, 'ms');
+      console.log('🔍 AI Response Analysis:', {
+        hasAnswer: !!data.answer,
+        answerLength: data.answer?.length || 0,
+        hasMeta: !!data.meta,
+        conversationId: data.conversationId,
+        responseFormat: data.meta?.responseFormat
+      });
 
       // Tokens are now deducted on the server side
       if (user && data.meta?.userTokensCharged) {
@@ -363,11 +370,28 @@ RÉPONSE :
         console.log('🔄 User token usage updated');
       }
 
-      // Server handles message creation and persistence
+      // Create assistant message for immediate display
+      const assistantMessage: ChatMessage = {
+        id: `assistant_${Date.now()}`,
+        type: 'assistant',
+        content: data.answer || '',
+        timestamp: new Date(),
+        responseTime: Date.now() - startTime,
+        contentType: data.meta?.responseFormat || 'text',
+        meta: data.meta
+      };
 
-      // Server handles all message persistence
-      // The AI response will be automatically added via the real-time listener
-      // No need to manually refresh the conversation
+      // Add assistant message to local state for immediate display
+      if (currentConversation) {
+        try {
+          addMessageToLocalState(assistantMessage);
+        } catch (error) {
+          console.error('Error adding assistant message to local state:', error);
+        }
+      }
+
+      // Server handles message persistence in Firebase
+      // The real-time listener will also pick up the message for consistency
 
     } catch (error) {
       console.error('Erreur lors de l\'envoi du message:', error);

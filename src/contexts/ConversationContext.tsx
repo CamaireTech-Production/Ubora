@@ -219,7 +219,20 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   };
 
   const addMessageToLocalState = (message: ChatMessage): void => {
+    console.log('🔍 Adding message to local state:', {
+      messageId: message.id,
+      messageType: message.type,
+      contentLength: message.content.length,
+      timestamp: message.timestamp.toISOString(),
+      contentType: message.contentType
+    });
+
     setMessages(prev => {
+      console.log('🔍 Current messages before adding:', {
+        currentCount: prev.length,
+        currentTypes: prev.map(m => ({ type: m.type, id: m.id, timestamp: m.timestamp.toISOString() }))
+      });
+
       // Check if message already exists to prevent duplicates
       const exists = prev.some(m => 
         m.content === message.content && 
@@ -228,13 +241,20 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       );
       
       if (exists) {
-        console.log('Preventing duplicate message:', message.content.substring(0, 50));
+        console.log('❌ Preventing duplicate message:', message.content.substring(0, 50));
         return prev;
       }
       
       // Add message and sort by timestamp to maintain order
       const newMessages = [...prev, message];
-      return newMessages.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+      const sortedMessages = newMessages.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+      
+      console.log('✅ Message added to local state:', {
+        newCount: sortedMessages.length,
+        newTypes: sortedMessages.map(m => ({ type: m.type, id: m.id, timestamp: m.timestamp.toISOString() }))
+      });
+      
+      return sortedMessages;
     });
   };
 
@@ -318,6 +338,12 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       );
 
       const unsubscribe = onSnapshot(messagesListenerQuery, (snapshot) => {
+        console.log('🔍 Real-time listener triggered:', {
+          snapshotSize: snapshot.docs.length,
+          conversationId: conversationId,
+          timestamp: new Date().toISOString()
+        });
+
         const allMessages = snapshot.docs.map(doc => {
           const data = doc.data();
           const message: ChatMessage = {
@@ -346,6 +372,11 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({ 
           return message;
         });
 
+        console.log('🔍 Messages from Firebase:', {
+          totalMessages: allMessages.length,
+          messageTypes: allMessages.map(m => ({ type: m.type, contentLength: m.content.length, timestamp: m.timestamp.toISOString() }))
+        });
+
         // Remove duplicates based on content and timestamp
         const uniqueMessages = allMessages.filter((message, index, array) => {
           return array.findIndex(m => 
@@ -353,6 +384,11 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({ 
             m.type === message.type && 
             Math.abs(m.timestamp.getTime() - message.timestamp.getTime()) < 5000 // Within 5 seconds
           ) === index;
+        });
+
+        console.log('🔍 Unique messages after deduplication:', {
+          uniqueCount: uniqueMessages.length,
+          removedDuplicates: allMessages.length - uniqueMessages.length
         });
 
         setMessages(uniqueMessages);
