@@ -379,25 +379,6 @@ export const GraphRenderer: React.FC<GraphRendererProps> = ({ data, isPreview = 
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   // 🔍 DEBUG: Log the received data in GraphRenderer
-  console.log('🔍 FRONTEND DEBUG - GraphRenderer received data:');
-  console.log('=====================================');
-  console.log('Raw data:', data);
-  console.log('Data type:', typeof data);
-  console.log('Has data property:', data && 'data' in data);
-  console.log('Data.data type:', data && data.data ? typeof data.data : 'N/A');
-  console.log('Data.data is array:', data && data.data ? Array.isArray(data.data) : 'N/A');
-  console.log('Data.data length:', data && data.data ? data.data.length : 'N/A');
-  console.log('Data.type:', data && data.type);
-  console.log('Data.title:', data && data.title);
-  console.log('Data.xAxisKey:', data && data.xAxisKey);
-  console.log('Data.yAxisKey:', data && data.yAxisKey);
-  console.log('Data.dataKey:', data && data.dataKey);
-  if (data && data.data && Array.isArray(data.data) && data.data.length > 0) {
-    console.log('First data item:', data.data[0]);
-    console.log('First data item keys:', data.data[0] ? Object.keys(data.data[0]) : 'N/A');
-    console.log('Sample data items:', data.data.slice(0, 3));
-  }
-  console.log('=====================================');
 
   // Transform data to ensure it's in the correct format
   const transformData = (rawData: any) => {
@@ -408,13 +389,11 @@ export const GraphRenderer: React.FC<GraphRendererProps> = ({ data, isPreview = 
     // Check if data is already in the correct format (x, y)
     const firstItem = rawData.data[0];
     if (firstItem && 'x' in firstItem && 'y' in firstItem) {
-      console.log('✅ FRONTEND DEBUG - Data already in correct format (x, y)');
       return rawData;
     }
 
     // Transform from old format (label, value) to new format (x, y)
     if (firstItem && 'label' in firstItem && 'value' in firstItem) {
-      console.log('🔧 FRONTEND DEBUG - Transforming data from old format (label, value) to new format (x, y)');
       const transformedData = {
         ...rawData,
         data: rawData.data.map((item: any) => ({
@@ -425,11 +404,9 @@ export const GraphRenderer: React.FC<GraphRendererProps> = ({ data, isPreview = 
         yAxisKey: 'y',
         dataKey: 'y'
       };
-      console.log('🔧 FRONTEND DEBUG - Transformed data:', transformedData);
       return transformedData;
     }
 
-    console.log('❌ FRONTEND DEBUG - Unknown data format, cannot transform');
     return null;
   };
 
@@ -437,7 +414,6 @@ export const GraphRenderer: React.FC<GraphRendererProps> = ({ data, isPreview = 
 
   // Validate data structure early
   if (!transformedData) {
-    console.log('❌ FRONTEND DEBUG - GraphRenderer validation failed - no valid data');
     return (
       <div className="bg-white border border-gray-200 rounded-lg p-3 shadow-sm">
         <div className="flex items-center justify-center h-24 text-gray-500 text-sm">

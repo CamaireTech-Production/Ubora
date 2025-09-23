@@ -26,50 +26,19 @@ const parseJsonInContent = (content: string, isStatsTableFormat: boolean = false
     
     try {
       const jsonString = jsonMatch[1].trim();
-      console.log('🔍 FRONTEND DEBUG - Raw JSON string:', jsonString);
-      console.log('🔍 FRONTEND DEBUG - JSON string length:', jsonString.length);
-      console.log('🔍 FRONTEND DEBUG - JSON string first 100 chars:', jsonString.substring(0, 100));
-      console.log('🔍 FRONTEND DEBUG - JSON string last 100 chars:', jsonString.substring(Math.max(0, jsonString.length - 100)));
       
       const jsonData = JSON.parse(jsonString);
-      console.log('🔍 FRONTEND DEBUG - Parsed JSON data:', jsonData);
-      console.log('JSON type:', typeof jsonData);
-      console.log('Has type property:', 'type' in jsonData);
-      console.log('Has data property:', 'data' in jsonData);
-      console.log('Data is array:', Array.isArray(jsonData.data));
-      console.log('Data length:', jsonData.data ? jsonData.data.length : 'N/A');
-      console.log('Data content:', jsonData.data);
-      console.log('Type value:', jsonData.type);
-      console.log('Title value:', jsonData.title);
-      console.log('xAxisKey value:', jsonData.xAxisKey);
-      console.log('yAxisKey value:', jsonData.yAxisKey);
-      console.log('dataKey value:', jsonData.dataKey);
       
       // Check if it's valid graph data
       if (jsonData && typeof jsonData === 'object' && jsonData.type && jsonData.data && Array.isArray(jsonData.data) && jsonData.data.length > 0) {
         if (isStatsTableFormat) {
-          console.log('✅ STATS+TABLE DEBUG - Valid graph data found');
-          console.log('📊 Graph type:', jsonData.type);
-          console.log('📊 Graph title:', jsonData.title);
-          console.log('📊 Data points:', jsonData.data.length);
-          console.log('✅ STATS+TABLE DEBUG - Returning valid graph data to GraphRenderer');
         } else {
-          console.log('✅ FRONTEND DEBUG - Valid graph data found');
-          console.log('✅ FRONTEND DEBUG - Returning valid graph data to GraphRenderer');
         }
         return jsonData;
       } else {
-        console.log('❌ FRONTEND DEBUG - Invalid graph data structure');
-        console.log('❌ FRONTEND DEBUG - Missing properties:', {
-          hasType: !!jsonData.type,
-          hasData: !!jsonData.data,
-          dataIsArray: Array.isArray(jsonData.data),
-          dataLength: jsonData.data ? jsonData.data.length : 0
-        });
         
         // Try to create a fallback with sample data if the structure is mostly correct
         if (jsonData && typeof jsonData === 'object' && jsonData.type) {
-          console.log('🔧 FRONTEND DEBUG - Attempting to create fallback graph data');
           const fallbackData = {
             type: jsonData.type,
             title: jsonData.title || 'Graphique',
@@ -86,14 +55,10 @@ const parseJsonInContent = (content: string, isStatsTableFormat: boolean = false
             insights: jsonData.insights || [],
             recommendations: jsonData.recommendations || []
           };
-          console.log('🔧 FRONTEND DEBUG - Created fallback data:', fallbackData);
           return fallbackData;
         }
       }
     } catch (error) {
-      console.error('❌ FRONTEND DEBUG - Error parsing JSON in content:', error);
-      console.error('❌ FRONTEND DEBUG - JSON string that failed:', jsonMatch[1]);
-      console.error('❌ FRONTEND DEBUG - Error details:', (error as Error).message);
       return null; // Return null instead of showing raw JSON
     }
   }
@@ -101,245 +66,20 @@ const parseJsonInContent = (content: string, isStatsTableFormat: boolean = false
   // Try to find JSON object directly (more robust pattern)
   const directJsonMatch = content.match(/\{\s*"type"\s*:\s*"[^"]*"\s*,[\s\S]*?\}(?=\s*(?:\n|$|\s*###|\s*##|\s*#|\s*\|))/);
   if (directJsonMatch) {
-    console.log('🔍 FRONTEND DEBUG - Found direct JSON in content');
-    console.log('=====================================');
-    console.log('Direct JSON String:', directJsonMatch[0]);
-    console.log('=====================================');
     
     try {
       const jsonString = directJsonMatch[0].trim();
-      console.log('🔍 FRONTEND DEBUG - Direct JSON string:', jsonString);
-      console.log('🔍 FRONTEND DEBUG - Direct JSON string length:', jsonString.length);
-      console.log('🔍 FRONTEND DEBUG - Direct JSON string first 100 chars:', jsonString.substring(0, 100));
-      console.log('🔍 FRONTEND DEBUG - Direct JSON string last 100 chars:', jsonString.substring(Math.max(0, jsonString.length - 100)));
       
       const jsonData = JSON.parse(jsonString);
-      console.log('🔍 FRONTEND DEBUG - Parsed direct JSON data:', jsonData);
-      
       if (jsonData && typeof jsonData === 'object' && jsonData.type && jsonData.data) {
-        console.log('✅ FRONTEND DEBUG - Valid direct graph data found');
         return jsonData;
-      } else {
-        console.log('❌ FRONTEND DEBUG - Invalid direct graph data structure');
       }
     } catch (error) {
-      console.error('❌ FRONTEND DEBUG - Error parsing direct JSON in content:', error);
-      console.error('❌ FRONTEND DEBUG - Direct JSON string that failed:', directJsonMatch[0]);
-      console.error('❌ FRONTEND DEBUG - Error details:', (error as Error).message);
       return null; // Return null instead of showing raw JSON
     }
   }
   
-  console.log('❌ FRONTEND DEBUG - No JSON found in content');
   return null;
-};
-
-// Function to format AI message content with markdown support
-const formatMessageContent = (content: string, messageMeta?: any): React.ReactNode => {
-  const lines = content.split('\n');
-  const elements: React.ReactNode[] = [];
-  let currentIndex = 0;
-
-  // Determine if this is a stats + table combination
-  const isStatsTableFormat = messageMeta?.selectedFormats?.includes('stats') && 
-                            messageMeta?.selectedFormats?.includes('table') &&
-                            messageMeta?.selectedFormats?.length === 2;
-
-  // 🔍 DEBUG: Enhanced logging for stats + table format
-  if (isStatsTableFormat) {
-    console.log('🎯 STATS+TABLE DEBUG - Processing stats and table combination:');
-    console.log('=====================================');
-    console.log('📊 Selected formats:', messageMeta?.selectedFormats);
-    console.log('📋 Content length:', content.length);
-    console.log('📄 Content preview:', content.substring(0, 300) + '...');
-    console.log('🔍 Looking for JSON blocks and markdown tables...');
-    console.log('=====================================');
-  } else {
-    console.log('🔍 FRONTEND DEBUG - MessageBubble processing content:');
-    console.log('=====================================');
-    console.log('Content length:', content.length);
-    console.log('Content preview:', content.substring(0, 200) + '...');
-    console.log('=====================================');
-  }
-  
-  while (currentIndex < lines.length) {
-    // Check for JSON blocks first
-    const jsonMatch = content.substring(currentIndex).match(/```json\s*([\s\S]*?)\s*```/);
-    const directJsonMatch = content.substring(currentIndex).match(/\{\s*"type"\s*:\s*"[^"]*"\s*,[\s\S]*?\}(?=\s*(?:\n|$|\s*###|\s*##|\s*#|\s*\|))/);
-    
-    // Enhanced logging for stats + table format
-    if (isStatsTableFormat) {
-      if (jsonMatch) {
-        console.log('🎯 STATS+TABLE DEBUG - Found JSON block at position:', currentIndex);
-        console.log('📊 JSON block length:', jsonMatch[0].length);
-      }
-      if (directJsonMatch) {
-        console.log('🎯 STATS+TABLE DEBUG - Found direct JSON at position:', currentIndex);
-        console.log('📊 Direct JSON length:', directJsonMatch[0].length);
-      }
-    }
-    
-    // Check for markdown tables
-    let tableStart = -1;
-    let tableEnd = -1;
-    
-    for (let i = currentIndex; i < lines.length; i++) {
-      const line = lines[i].trim();
-      if (line.includes('|') && line.split('|').length >= 3) {
-        if (tableStart === -1) {
-          tableStart = i;
-        }
-        tableEnd = i;
-      } else if (tableStart !== -1 && !line.includes('|')) {
-        break;
-      }
-    }
-    
-    // Enhanced logging for table detection
-    if (isStatsTableFormat && tableStart !== -1) {
-      console.log('🎯 STATS+TABLE DEBUG - Found markdown table at lines:', tableStart, 'to', tableEnd);
-      console.log('📋 Table lines count:', tableEnd - tableStart + 1);
-    }
-    
-    // Determine which comes first: JSON or table
-    let jsonIndex = -1;
-    let tableIndex = -1;
-    
-    if (jsonMatch) {
-      jsonIndex = currentIndex + content.substring(currentIndex).indexOf(jsonMatch[0]);
-    }
-    if (directJsonMatch) {
-      const directJsonIndex = currentIndex + content.substring(currentIndex).indexOf(directJsonMatch[0]);
-      if (jsonIndex === -1 || directJsonIndex < jsonIndex) {
-        jsonIndex = directJsonIndex;
-      }
-    }
-    if (tableStart !== -1) {
-      tableIndex = tableStart;
-    }
-    
-    // Process the element that comes first
-    if (jsonIndex !== -1 && (tableIndex === -1 || jsonIndex < tableIndex)) {
-      // Process JSON - show text before JSON but hide the JSON itself
-      const beforeJson = content.substring(currentIndex, jsonIndex).trim();
-      if (beforeJson) {
-        if (isStatsTableFormat) {
-          console.log('🎯 STATS+TABLE DEBUG - Processing text before JSON block');
-          console.log('📄 Text length:', beforeJson.length);
-        }
-        elements.push(<div key={`text-${currentIndex}`} className="mb-4">{formatTextContent(beforeJson)}</div>);
-      }
-      
-      if (isStatsTableFormat) {
-        console.log('🎯 STATS+TABLE DEBUG - Attempting to parse JSON for graph rendering');
-        console.log('📊 JSON content length:', content.substring(jsonIndex).length);
-      }
-      
-      const jsonData = parseJsonInContent(content.substring(jsonIndex), isStatsTableFormat);
-      if (jsonData) {
-        // Only show the graph, not the raw JSON
-        if (isStatsTableFormat) {
-          console.log('✅ STATS+TABLE DEBUG - Successfully parsed JSON, rendering graph');
-          console.log('📊 Graph type:', jsonData.type);
-          console.log('📊 Graph title:', jsonData.title);
-          console.log('📊 Data points count:', jsonData.data?.length || 0);
-        } else {
-          console.log('✅ FRONTEND DEBUG - Rendering graph from JSON');
-        }
-        elements.push(
-          <div key={`graph-${currentIndex}`} className="mb-4">
-            <GraphRenderer data={jsonData} />
-          </div>
-        );
-      } else {
-        // JSON parsing failed, show a user-friendly message instead of raw JSON
-        if (isStatsTableFormat) {
-          console.log('❌ STATS+TABLE DEBUG - JSON parsing failed for stats graph');
-          console.log('📊 JSON content that failed to parse:', content.substring(jsonIndex, jsonIndex + 500));
-        } else {
-          console.log('❌ FRONTEND DEBUG - JSON parsing failed, showing error message');
-          console.log('❌ FRONTEND DEBUG - JSON content that failed to parse:', content.substring(jsonIndex, jsonIndex + 500));
-        }
-        elements.push(
-          <div key={`error-${currentIndex}`} className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-            <div className="flex items-center">
-              <div className="text-yellow-600 mr-2">⚠️</div>
-              <div className="text-sm text-yellow-800">
-                Format de données invalide - Impossible d'afficher le graphique
-              </div>
-            </div>
-            <div className="text-xs text-yellow-600 mt-2">
-              Vérifiez la console pour plus de détails sur l'erreur
-            </div>
-          </div>
-        );
-      }
-      
-      // Move to after JSON - skip the JSON content completely
-      if (jsonMatch) {
-        currentIndex = jsonIndex + jsonMatch[0].length;
-      } else if (directJsonMatch) {
-        currentIndex = jsonIndex + directJsonMatch[0].length;
-      }
-    } else if (tableIndex !== -1) {
-      // Process table
-      const beforeTable = lines.slice(currentIndex, tableIndex).join('\n').trim();
-      if (beforeTable) {
-        if (isStatsTableFormat) {
-          console.log('🎯 STATS+TABLE DEBUG - Processing text before table');
-          console.log('📄 Text length:', beforeTable.length);
-        }
-        elements.push(<div key={`text-${currentIndex}`} className="mb-4">{formatTextContent(beforeTable)}</div>);
-      }
-      
-      const tableContent = lines.slice(tableStart, tableEnd + 1).join('\n');
-      if (isStatsTableFormat) {
-        console.log('✅ STATS+TABLE DEBUG - Rendering markdown table');
-        console.log('📋 Table content length:', tableContent.length);
-        console.log('📋 Table lines:', tableEnd - tableStart + 1);
-        console.log('📋 Table preview:', tableContent.substring(0, 200) + '...');
-      } else {
-        console.log('✅ FRONTEND DEBUG - Rendering table from markdown');
-      }
-      elements.push(
-        <div key={`table-${currentIndex}`} className="mb-4">
-          <TableRenderer markdownTable={tableContent} />
-        </div>
-      );
-      
-      currentIndex = tableEnd + 1;
-    } else {
-      // No more special content, process remaining as text
-      const remainingContent = lines.slice(currentIndex).join('\n').trim();
-      if (remainingContent) {
-        elements.push(<div key={`text-${currentIndex}`}>{formatTextContent(remainingContent)}</div>);
-      }
-      break;
-    }
-  }
-  
-  if (isStatsTableFormat) {
-    console.log('✅ STATS+TABLE DEBUG - Processing completed successfully');
-    console.log('📊 Total elements processed:', elements.length);
-    console.log('📋 Elements breakdown:');
-    elements.forEach((element, index) => {
-      const elementKey = (element as any)?.key || `element-${index}`;
-      if (elementKey.includes('graph')) {
-        console.log('  📊 Graph element:', elementKey);
-      } else if (elementKey.includes('table')) {
-        console.log('  📋 Table element:', elementKey);
-      } else if (elementKey.includes('text')) {
-        console.log('  📄 Text element:', elementKey);
-      } else if (elementKey.includes('error')) {
-        console.log('  ⚠️ Error element:', elementKey);
-      }
-    });
-    console.log('=====================================');
-  } else {
-    console.log('✅ FRONTEND DEBUG - MessageBubble processed', elements.length, 'elements');
-  }
-  
-  return elements.length > 0 ? <>{elements}</> : formatTextContent(content);
 };
 
 // Function to format text content (without tables and JSON)
@@ -411,7 +151,149 @@ const formatTextContent = (content: string): React.ReactNode => {
   });
 };
 
-export const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
+// Function to format AI message content with markdown support
+const formatMessageContent = (content: string, messageMeta?: any): React.ReactNode => {
+  const lines = content.split('\n');
+  const elements: React.ReactNode[] = [];
+  let currentIndex = 0;
+
+  // Determine if this is a stats + table combination
+  const isStatsTableFormat = messageMeta?.selectedFormats?.includes('stats') && 
+                            messageMeta?.selectedFormats?.includes('table') &&
+                            messageMeta?.selectedFormats?.length === 2;
+  
+  while (currentIndex < lines.length) {
+    // Check for JSON blocks first
+    const jsonMatch = content.substring(currentIndex).match(/```json\s*([\s\S]*?)\s*```/);
+    const directJsonMatch = content.substring(currentIndex).match(/\{\s*"type"\s*:\s*"[^"]*"\s*,[\s\S]*?\}(?=\s*(?:\n|$|\s*###|\s*##|\s*#|\s*\|))/);
+    
+    // Enhanced logging for stats + table format
+    if (isStatsTableFormat) {
+      if (jsonMatch) {
+      }
+      if (directJsonMatch) {
+      }
+    }
+    
+    // Check for markdown tables
+    let tableStart = -1;
+    let tableEnd = -1;
+    
+    for (let i = currentIndex; i < lines.length; i++) {
+      const line = lines[i].trim();
+      if (line.includes('|') && line.split('|').length >= 3) {
+        if (tableStart === -1) {
+          tableStart = i;
+        }
+        tableEnd = i;
+      } else if (tableStart !== -1 && !line.includes('|')) {
+        break;
+      }
+    }
+    
+    // Enhanced logging for table detection
+    if (isStatsTableFormat && tableStart !== -1) {
+    }
+    
+    // Determine which comes first: JSON or table
+    let jsonIndex = -1;
+    let tableIndex = -1;
+    
+    if (jsonMatch) {
+      jsonIndex = currentIndex + content.substring(currentIndex).indexOf(jsonMatch[0]);
+    }
+    if (directJsonMatch) {
+      const directJsonIndex = currentIndex + content.substring(currentIndex).indexOf(directJsonMatch[0]);
+      if (jsonIndex === -1 || directJsonIndex < jsonIndex) {
+        jsonIndex = directJsonIndex;
+      }
+    }
+    if (tableStart !== -1) {
+      tableIndex = tableStart;
+    }
+    
+    // Process the element that comes first
+    if (jsonIndex !== -1 && (tableIndex === -1 || jsonIndex < tableIndex)) {
+      // Process JSON - show text before JSON but hide the JSON itself
+      const beforeJson = content.substring(currentIndex, jsonIndex).trim();
+      if (beforeJson) {
+        if (isStatsTableFormat) {
+        }
+        elements.push(<div key={`text-${currentIndex}`} className="mb-4">{formatTextContent(beforeJson)}</div>);
+      }
+      
+      if (isStatsTableFormat) {
+      }
+      
+      const jsonData = parseJsonInContent(content.substring(jsonIndex), isStatsTableFormat);
+      if (jsonData) {
+        // Only show the graph, not the raw JSON
+        elements.push(
+          <div key={`graph-${currentIndex}`} className="mb-4">
+            <GraphRenderer data={jsonData} />
+          </div>
+        );
+      } else {
+        // JSON parsing failed, show a user-friendly message instead of raw JSON
+        elements.push(
+          <div key={`error-${currentIndex}`} className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+            <div className="flex items-center">
+              <div className="text-yellow-600 mr-2">⚠️</div>
+              <div className="text-sm text-yellow-800">
+                Format de données invalide - Impossible d'afficher le graphique
+              </div>
+            </div>
+            <div className="text-xs text-yellow-600 mt-2">
+              Vérifiez la console pour plus de détails sur l'erreur
+            </div>
+          </div>
+        );
+      }
+      
+      // Move to after JSON - skip the JSON content completely
+      if (jsonMatch) {
+        currentIndex = jsonIndex + jsonMatch[0].length;
+      } else if (directJsonMatch) {
+        currentIndex = jsonIndex + directJsonMatch[0].length;
+      }
+    } else if (tableIndex !== -1) {
+      // Process table
+      const beforeTable = lines.slice(currentIndex, tableIndex).join('\n').trim();
+      if (beforeTable) {
+        if (isStatsTableFormat) {
+        }
+        elements.push(<div key={`text-${currentIndex}`} className="mb-4">{formatTextContent(beforeTable)}</div>);
+      }
+      
+      const tableContent = lines.slice(tableStart, tableEnd + 1).join('\n');
+      if (isStatsTableFormat) {
+      }
+      elements.push(
+        <div key={`table-${currentIndex}`} className="mb-4">
+          <TableRenderer markdownTable={tableContent} />
+        </div>
+      );
+      
+      currentIndex = tableEnd + 1;
+    } else {
+      // No more special content, process remaining as text
+      const remainingContent = lines.slice(currentIndex).join('\n').trim();
+      if (remainingContent) {
+        elements.push(<div key={`text-${currentIndex}`}>{formatTextContent(remainingContent)}</div>);
+      }
+      break;
+    }
+  }
+  
+  if (isStatsTableFormat) {
+  } else {
+  }
+  
+  return elements.length > 0 ? <>{elements}</> : formatTextContent(content);
+};
+
+
+const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
   const isUser = message.type === 'user';
   
   return (
@@ -539,7 +421,6 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
                               const pdfData = MultiFormatToPDF.convertToPDFData(message);
                               await generatePDF(pdfData);
                             } catch (error) {
-                              console.error('Error generating PDF:', error);
                             }
                           }}
                           className="inline-flex items-center px-3 py-1.5 text-xs font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors duration-200"
@@ -649,7 +530,6 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
                               const pdfData = MultiFormatToPDF.convertToPDFData(message);
                               await generatePDF(pdfData);
                             } catch (error) {
-                              console.error('Error generating PDF:', error);
                             }
                           }}
                           className="inline-flex items-center px-3 py-1.5 text-xs font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors duration-200"
@@ -841,3 +721,5 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
     </div>
   );
 };
+
+export default MessageBubble;

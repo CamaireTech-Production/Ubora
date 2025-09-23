@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useApp } from '../contexts/AppContext';
 import { useConversation } from '../contexts/ConversationContext';
@@ -41,8 +41,6 @@ const AI_ENDPOINT = getAIEndpoint();
 
 if (!AI_ENDPOINT) {
   console.error("❌ Aucun endpoint IA configuré. ARCHA ne fonctionnera pas.");
-} else {
-  console.log("✅ AI_ENDPOINT configuré:", AI_ENDPOINT);
 }
 
 export const DirecteurChat: React.FC = () => {
@@ -78,6 +76,9 @@ export const DirecteurChat: React.FC = () => {
   const [panelOpen, setPanelOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'history' | 'forms' | 'employees' | 'entries' | null>(null);
   
+  // Track the last message count to detect new messages
+  const [lastMessageCount, setLastMessageCount] = useState(0);
+  
   // État pour le modal pay-as-you-go
   const [showPayAsYouGoModal, setShowPayAsYouGoModal] = useState(false);
   const [requiredTokens, setRequiredTokens] = useState(0);
@@ -103,13 +104,11 @@ export const DirecteurChat: React.FC = () => {
       
       const success = await PayAsYouGoService.purchaseTokens(user.id, tokenPackage);
       if (success) {
-        console.log(`✅ ${tokens} tokens achetés avec succès`);
         
         // Update user data locally without page reload
         if (user) {
           // Update the user context (you'll need to implement this in your auth context)
           // For now, we'll trigger a user refresh
-          console.log('🔄 User data updated locally');
         }
       } else {
         showError('Erreur lors de l\'achat des tokens');
@@ -120,6 +119,19 @@ export const DirecteurChat: React.FC = () => {
     }
   };
 
+  // Watch for new assistant messages to hide loading indicator
+  useEffect(() => {
+    if (isTyping && messages.length > lastMessageCount) {
+      // Check if the last message is from assistant
+      const lastMessage = messages[messages.length - 1];
+      if (lastMessage && lastMessage.type === 'assistant') {
+        // New assistant message appeared, hide loading indicator
+        setIsTyping(false);
+      }
+    }
+    setLastMessageCount(messages.length);
+  }, [messages, isTyping, lastMessageCount]);
+
   const handleSendMessage = async (message?: string) => {
     const messageToSend = message || inputMessage.trim();
     if (!messageToSend || isTyping) return;
@@ -129,14 +141,6 @@ export const DirecteurChat: React.FC = () => {
       const monthlyLimit = getMonthlyTokens();
       const isUnlimited = hasUnlimitedTokens();
       
-      console.log('🔍 User data debug:', {
-        userId: user.id,
-        package: user.package,
-        tokensUsedMonthly: user.tokensUsedMonthly,
-        payAsYouGoTokens: user.payAsYouGoTokens,
-        monthlyLimit,
-        isUnlimited
-      });
       
       if (!isUnlimited) {
         // Estimate tokens needed for this request
@@ -168,21 +172,6 @@ RÉPONSE :
         const payAsYouGoTokens = user.payAsYouGoTokens || 0;
         const totalAvailableTokens = monthlyLimit + payAsYouGoTokens;
         
-        console.log('🔍 Token validation debug:', {
-          messageToSend: messageToSend.substring(0, 50) + '...',
-          estimatedTokens,
-          userTokensToCharge,
-          currentTokensUsed,
-          payAsYouGoTokens,
-          monthlyLimit,
-          totalAvailableTokens,
-          remainingTokens: totalAvailableTokens - currentTokensUsed,
-          willShowModal: currentTokensUsed + userTokensToCharge > totalAvailableTokens,
-          systemPromptLength: estimatedSystemPrompt.length,
-          userPromptLength: messageToSend.length,
-          // Test with a simple message
-          simpleTest: TokenCounter.getTotalEstimatedTokens('Hello', 'Hi', 100)
-        });
         
         if (currentTokensUsed + userTokensToCharge > totalAvailableTokens) {
           // Show pay-as-you-go modal instead of error
@@ -238,8 +227,8 @@ RÉPONSE :
     // Add user message to local state for immediate display
     if (currentConversation) {
       try {
-        // Only add to local state for immediate display
-        // Persistence will be handled by the server response
+        // Add to local state for immediate display
+        // The backend will also save it to Firebase
         addMessageToLocalState(userMessage);
       } catch (error) {
         console.error('Error adding user message to local state:', error);
@@ -280,25 +269,36 @@ RÉPONSE :
         selectedResponseFormats: actualFormats,
         conversationId: conversationId
       };
+      
+      // 🔍 DEBUG: Log request data being sent
+      console.log('🚀 FRONTEND REQUEST - Sending request to backend:', {
+        conversationId: conversationId,
+        hasConversationId: !!conversationId,
+        questionLength: messageToSend.length,
+        selectedFormats: actualFormats,
+        timestamp: new Date().toISOString()
+      });
 
       // Timeout de 90 secondes pour laisser plus de temps au traitement IA
       const controller = new AbortController();
       const timeoutId = setTimeout(() => {
-        console.log('Request timeout after 90 seconds');
         controller.abort();
       }, 90000);
 
-      console.log('🤖 AI Request Details:');
-      console.log('🔗 Endpoint:', AI_ENDPOINT);
-      console.log('📤 Request data:', JSON.stringify(requestData, null, 2));
-      console.log('👤 User:', user?.name, user?.email);
-      console.log('🏢 Agency ID:', user?.agencyId);
       
       let response = await fetch(AI_ENDPOINT, {
         method: 'POST',
         headers: makeHeaders(token),
         body: JSON.stringify(requestData),
         signal: controller.signal
+      });
+      
+      // 🔍 DEBUG: Log response received
+      console.log('📥 FRONTEND RESPONSE - Received response from backend:', {
+        status: response.status,
+        statusText: response.statusText,
+        ok: response.ok,
+        timestamp: new Date().toISOString()
       });
 
       // If token has expired or is invalid, refresh once and retry
@@ -348,50 +348,16 @@ RÉPONSE :
 
       const data = await response.json();
 
-      console.log('🤖 AI Response Details:');
-      console.log('📥 Response status:', response.status);
-      console.log('📥 Response data:', JSON.stringify(data, null, 2));
-      console.log('⏱️ Response time:', Date.now() - startTime, 'ms');
-      console.log('🔍 AI Response Analysis:', {
-        hasAnswer: !!data.answer,
-        answerLength: data.answer?.length || 0,
-        hasMeta: !!data.meta,
-        conversationId: data.conversationId,
-        responseFormat: data.meta?.responseFormat
-      });
-
       // Tokens are now deducted on the server side
       if (user && data.meta?.userTokensCharged) {
-        const userTokensCharged = data.meta.userTokensCharged;
-        console.log(`✅ ${userTokensCharged} tokens facturés (déduits côté serveur)`);
-        console.log(`📊 Détail: ${data.meta.tokensUsed} tokens OpenAI × 1.5 = ${userTokensCharged} tokens utilisateur`);
-        
         // Update user data locally (you'll need to implement proper user context update)
-        console.log('🔄 User token usage updated');
-      }
-
-      // Create assistant message for immediate display
-      const assistantMessage: ChatMessage = {
-        id: `assistant_${Date.now()}`,
-        type: 'assistant',
-        content: data.answer || '',
-        timestamp: new Date(),
-        responseTime: Date.now() - startTime,
-        contentType: data.meta?.responseFormat || 'text',
-        meta: data.meta
-      };
-
-      // Add assistant message to local state for immediate display
-      if (currentConversation) {
-        try {
-          addMessageToLocalState(assistantMessage);
-        } catch (error) {
-          console.error('Error adding assistant message to local state:', error);
-        }
+        // const userTokensCharged = data.meta.userTokensCharged;
       }
 
       // Server handles message persistence in Firebase
-      // The real-time listener will also pick up the message for consistency
+      // The real-time listener will pick up the message from Firebase
+      // No need to add to local state as the listener will handle it
+      
 
     } catch (error) {
       console.error('Erreur lors de l\'envoi du message:', error);
@@ -431,7 +397,16 @@ RÉPONSE :
         }
       }
     } finally {
-      setIsTyping(false);
+      // Loading state is now managed by the useEffect that watches for new messages
+      // Only set to false here if there was an error and no new message appeared
+      if (isTyping) {
+        // Add a small delay to allow the useEffect to handle it first
+        setTimeout(() => {
+          if (isTyping) {
+            setIsTyping(false);
+          }
+        }, 100);
+      }
     }
   };
 
@@ -449,7 +424,6 @@ RÉPONSE :
   };
 
   const handleFormatChange = (format: string | null) => {
-    console.log('🔄 Single format changed:', format);
     setSelectedFormat(format);
     // Clear multi-format when using single format
     if (format) {
@@ -458,7 +432,6 @@ RÉPONSE :
   };
 
   const handleFormatsChange = (formats: string[]) => {
-    console.log('🔄 Multi-format changed:', formats);
     setSelectedFormats(formats);
     // Clear single format when using multi-format
     if (formats.length > 0) {

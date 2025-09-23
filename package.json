@@ -14,7 +14,9 @@
     "deploy:dev": "node scripts/deploy-dev.js",
     "deploy:prod": "node scripts/deploy-prod.js",
     "deploy:dev:local": "npm run deploy:dev && echo 'Development package ready for manual FTP upload'",
-    "deploy:prod:local": "npm run deploy:prod && echo 'Production package ready for manual FTP upload'"
+    "deploy:prod:local": "npm run deploy:prod && echo 'Production package ready for manual FTP upload'",
+    "fix-duplicates": "node scripts/fix-duplicate-messages.js",
+    "fix-duplicates:add-ids": "node scripts/fix-duplicate-messages.js --add-ids"
   },
   "dependencies": {
     "@types/react-router-dom": "^5.3.3",

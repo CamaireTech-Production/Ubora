@@ -127,13 +127,6 @@ async function loadAndAggregateData(
       fileAttachments: data.fileAttachments || [] // Include fileAttachments from Firestore
     };
     
-    // Log raw entry data for debugging
-    console.log(`🔍 RAW FIRESTORE ENTRY ${doc.id}:`, {
-      hasFileAttachments: !!data.fileAttachments,
-      fileAttachmentsLength: data.fileAttachments ? data.fileAttachments.length : 0,
-      fileAttachmentsType: typeof data.fileAttachments,
-      rawFileAttachments: data.fileAttachments
-    });
     
     return entry;
   });
@@ -281,13 +274,6 @@ async function loadAndAggregateData(
     };
     
     // Log detailed submission creation
-    console.log(`🔍 CREATING DETAILED SUBMISSION ${entry.id}:`, {
-      employeeName: result.employeeName,
-      formTitle: result.formTitle,
-      hasFileAttachments: !!entry.fileAttachments,
-      fileAttachmentsLength: entry.fileAttachments ? entry.fileAttachments.length : 0,
-      rawFileAttachments: entry.fileAttachments
-    });
     
     return result;
   });
@@ -1155,7 +1141,6 @@ TOP FORMULAIRES : ${data.formStats.slice(0, 3).map(f => `${f.title} (${f.count} 
             subscriptionStatus: 'expired',
             updatedAt: admin.firestore.FieldValue.serverTimestamp()
           });
-          console.log(`⏰ Subscription expired for user ${uid} - all tokens cleared`);
           return { tokensUsed: 0, payAsYouGoTokens: 0, subscriptionExpired: true };
         } catch (resetError) {
           console.error('Error clearing expired subscription tokens:', resetError);
@@ -1172,7 +1157,6 @@ TOP FORMULAIRES : ${data.formStats.slice(0, 3).map(f => `${f.title} (${f.count} 
               tokensResetDate: nextMonth,
               updatedAt: admin.firestore.FieldValue.serverTimestamp()
             });
-            console.log(`🔄 Monthly tokens reset for user ${uid}`);
             return { 
               tokensUsed: 0, 
               payAsYouGoTokens: userData.payAsYouGoTokens || 0, 
@@ -1254,14 +1238,6 @@ TOP FORMULAIRES : ${data.formStats.slice(0, 3).map(f => `${f.title} (${f.count} 
     // Now build the actual system prompt with hasPDFContent available
     const systemPrompt = buildSystemMessage();
     
-    // 🔍 DEBUG: Log system prompt information
-    console.log('🔍 AI BACKEND DEBUG - System Prompt:');
-    console.log('=====================================');
-    console.log('System prompt length:', systemPrompt.length);
-    console.log('Contains PDF instructions:', systemPrompt.includes('DONNÉES SUPPLÉMENTAIRES'));
-    console.log('PDF content detected:', hasPDFContent);
-    console.log('System prompt preview (first 500 chars):', systemPrompt.substring(0, 500) + '...');
-    console.log('=====================================');
 
 
     // Build simple submissions data
@@ -1282,32 +1258,14 @@ TOP FORMULAIRES : ${data.formStats.slice(0, 3).map(f => `${f.title} (${f.count} 
           );
           
           if (pdfFiles.length > 0) {
-            console.log(`🔍 Adding PDF content to submission ${index + 1}:`, {
-              employeeName: s.employeeName,
-              formTitle: s.formTitle,
-              pdfFilesCount: pdfFiles.length
-            });
             
             pdfFiles.forEach((file, fileIndex) => {
-              console.log(`  📄 Processing PDF ${fileIndex + 1}: ${file.fileName}`, {
-                originalTextLength: file.extractedText.length,
-                truncatedLength: Math.min(1500, file.extractedText.length)
-              });
               
-              console.log(`  📝 EXTRACTED TEXT BEING ADDED TO AI PROMPT:`);
-              console.log(`  "${file.extractedText.substring(0, 500)}${file.extractedText.length > 500 ? '...' : ''}"`);
               
               // Include extracted text as additional field data, not as separate section
               extractedTextSummary += ` | Document: ${file.fileName} (${file.extractedText.substring(0, 1500)}${file.extractedText.length > 1500 ? '...' : ''})`;
             });
           } else {
-            console.log(`🔍 No PDF files found for submission ${index + 1} (${s.employeeName} - ${s.formTitle})`);
-            console.log(`  Total file attachments: ${s.fileAttachments ? s.fileAttachments.length : 0}`);
-            if (s.fileAttachments && s.fileAttachments.length > 0) {
-              s.fileAttachments.forEach((att, attIndex) => {
-                console.log(`  File ${attIndex + 1}: ${att.fileName} (${att.fileType}) - hasExtractedText: ${!!att.extractedText}`);
-              });
-            }
           }
         }
         
@@ -1359,14 +1317,6 @@ OBLIGATOIRE : Référence le contenu des documents dans ton analyse quand c'est 
     // Use the complete user message for the AI call
     const userPromptForAI = buildUserMessage();
     
-    // 🔍 DEBUG: Log the complete user prompt being sent to AI
-    console.log('🔍 AI BACKEND DEBUG - Complete User Prompt:');
-    console.log('=====================================');
-    console.log('Prompt length:', userPromptForAI.length);
-    console.log('Contains PDF content:', userPromptForAI.includes('Document:'));
-    console.log('PDF content count:', (userPromptForAI.match(/Document:/g) || []).length);
-    console.log('Prompt preview (first 1000 chars):', userPromptForAI.substring(0, 1000) + '...');
-    console.log('=====================================');
 
 
     // 6. Appel OpenAI
@@ -1530,8 +1480,6 @@ Il serait pertinent de surveiller l'engagement des employés moins actifs et d'a
         }
       }
     }
-
-    // 7. Enhanced conversation context and memory system
     
     // Initialize conversationId to ensure it's always defined
       let conversationId = req.body.conversationId;
@@ -1572,25 +1520,51 @@ Il serait pertinent de surveiller l'engagement des employés moins actifs et d'a
         if (conversationDoc.exists) {
           conversationContext = conversationDoc.data();
           
-          // Update conversation with new context
-          await adminDb.collection('conversations').doc(conversationId).update({
-            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-            lastMessageAt: admin.firestore.FieldValue.serverTimestamp(),
-            messageCount: admin.firestore.FieldValue.increment(1),
-            context: {
-              lastAnalysisType: responseFormat || 'text',
-              lastFormats: selectedResponseFormats || [],
-              lastPeriod: filters?.period || 'all',
-              lastFormIds: selectedFormats || [],
-              dataInsights: {
-                totalEntries: data.totals.entries,
-                uniqueUsers: data.totals.uniqueUsers,
-                uniqueForms: data.totals.uniqueForms,
-                hasPDFContent: hasPDFContent
-              },
-              previousContext: conversationContext?.context || null
-            }
-          });
+          try {
+            // Safely extract previous context without circular references
+            const safePreviousContext = conversationContext?.context ? {
+              lastAnalysisType: conversationContext.context.lastAnalysisType || null,
+              lastFormats: conversationContext.context.lastFormats || [],
+              lastPeriod: conversationContext.context.lastPeriod || 'all',
+              lastFormIds: conversationContext.context.lastFormIds || []
+            } : null;
+
+            // Ensure data.totals exists and has the expected structure
+            const safeDataInsights = {
+              totalEntries: data?.totals?.entries || 0,
+              uniqueUsers: data?.totals?.uniqueUsers || 0,
+              uniqueForms: data?.totals?.uniqueForms || 0,
+              hasPDFContent: hasPDFContent || false
+            };
+
+            await adminDb.collection('conversations').doc(conversationId).update({
+              updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+              lastMessageAt: admin.firestore.FieldValue.serverTimestamp(),
+              messageCount: admin.firestore.FieldValue.increment(1),
+              context: {
+                lastAnalysisType: responseFormat || 'text',
+                lastFormats: selectedResponseFormats || [],
+                lastPeriod: filters?.period || 'all',
+                lastFormIds: selectedFormats || [],
+                dataInsights: safeDataInsights,
+                previousContext: safePreviousContext
+              }
+            });
+          } catch (updateError) {
+            console.error('❌ FIREBASE SAVE ERROR - Failed to update conversation context:', updateError);
+            console.error('❌ FIREBASE SAVE ERROR - Data being saved:', {
+              conversationId,
+              context: {
+                lastAnalysisType: responseFormat || 'text',
+                lastFormats: selectedResponseFormats || [],
+                lastPeriod: filters?.period || 'all',
+                lastFormIds: selectedFormats || [],
+                dataInsights: safeDataInsights,
+                previousContext: safePreviousContext
+              }
+            });
+            throw updateError;
+          }
         }
       }
 
@@ -1634,9 +1608,13 @@ Il serait pertinent de surveiller l'engagement des employés moins actifs et d'a
           userId: filters?.userId || null
         }
       };
-
-      // Add user message to conversation subcollection
-      await adminDb.collection('conversations').doc(conversationId).collection('messages').add(userMessage);
+      
+      try {
+        await adminDb.collection('conversations').doc(conversationId).collection('messages').add(userMessage);
+      } catch (saveError) {
+        console.error('❌ FIREBASE SAVE ERROR - Failed to save user message:', saveError);
+        throw saveError;
+      }
 
       // Store assistant response with enhanced context and memory
       const assistantMessage = {
@@ -1692,10 +1670,13 @@ Il serait pertinent de surveiller l'engagement des employés moins actifs et d'a
           }))
         ) : []
       };
-
-      // Add only assistant message to conversation subcollection
-      // User message is handled by client for immediate display
-      await adminDb.collection('conversations').doc(conversationId).collection('messages').add(assistantMessage);
+      
+      try {
+        await adminDb.collection('conversations').doc(conversationId).collection('messages').add(assistantMessage);
+      } catch (saveError) {
+        console.error('❌ FIREBASE SAVE ERROR - Failed to save assistant message:', saveError);
+        throw saveError;
+      }
 
       // Deduct tokens from user's account (only for limited packages)
       if (packageLimit !== -1 && finalUserTokens > 0) {
@@ -1734,13 +1715,17 @@ Il serait pertinent de surveiller l'engagement des employés moins actifs et d'a
           // Don't fail the request if token deduction fails
         }
       }
-
-      // Update conversation metadata
-      await adminDb.collection('conversations').doc(conversationId).update({
-        lastMessageAt: admin.firestore.FieldValue.serverTimestamp(),
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-        messageCount: admin.firestore.FieldValue.increment(2)
-      });
+      
+      try {
+        await adminDb.collection('conversations').doc(conversationId).update({
+          lastMessageAt: admin.firestore.FieldValue.serverTimestamp(),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          messageCount: admin.firestore.FieldValue.increment(2)
+        });
+      } catch (updateError) {
+        console.error('❌ FIREBASE SAVE ERROR - Failed to update conversation metadata:', updateError);
+        throw updateError;
+      }
 
     } catch (storeError) {
       console.error('Error storing conversation:', storeError);
@@ -1787,113 +1772,26 @@ Il serait pertinent de surveiller l'engagement des employés moins actifs et d'a
       }
     };
 
-    // 🔍 DEBUG: Log file attachments processing
-    console.log('🔍 AI BACKEND DEBUG - File Attachments Analysis:');
-    console.log('=====================================');
-    console.log('Total submissions:', data.submissions.length);
-    console.log('Has PDF content detected:', hasPDFContent);
-    console.log('Has file attachments detected:', hasFileAttachments);
-    console.log('Has complex data detected:', hasComplexData);
     
-    // Log detailed file attachment information
-    console.log('🔍 DETAILED FILE ATTACHMENT ANALYSIS:');
-    console.log('=====================================');
-    
-    data.submissions.forEach((submission, index) => {
-      console.log(`📎 Submission ${index + 1} (${submission.employeeName} - ${submission.formTitle}):`);
-      console.log(`  Submission ID: ${submission.id}`);
-      console.log(`  Submitted Date: ${submission.submittedDate}`);
-      console.log(`  Raw fileAttachments field:`, submission.fileAttachments);
-      console.log(`  fileAttachments type:`, typeof submission.fileAttachments);
-      console.log(`  fileAttachments is array:`, Array.isArray(submission.fileAttachments));
-      console.log(`  fileAttachments length:`, submission.fileAttachments ? submission.fileAttachments.length : 'null/undefined');
       
-      if (submission.fileAttachments && submission.fileAttachments.length > 0) {
-        console.log(`  ✅ HAS FILE ATTACHMENTS: ${submission.fileAttachments.length} files`);
-        
-        submission.fileAttachments.forEach((attachment, attIndex) => {
-          console.log(`  📄 File ${attIndex + 1} DETAILS:`);
-          console.log(`    - fileName: ${attachment.fileName}`);
-          console.log(`    - fileType: ${attachment.fileType}`);
-          console.log(`    - fieldId: ${attachment.fieldId}`);
-          console.log(`    - fileSize: ${attachment.fileSize}`);
-          console.log(`    - hasExtractedText: ${!!attachment.extractedText}`);
-          console.log(`    - extractedTextLength: ${attachment.extractedText ? attachment.extractedText.length : 0}`);
-          console.log(`    - extractionStatus: ${attachment.textExtractionStatus || 'unknown'}`);
-          console.log(`    - downloadUrl: ${attachment.downloadUrl ? 'present' : 'missing'}`);
-          console.log(`    - storagePath: ${attachment.storagePath || 'missing'}`);
-          
-          if (attachment.extractedText) {
-            console.log(`    📝 EXTRACTED TEXT PREVIEW (first 300 chars):`);
-            console.log(`    "${attachment.extractedText.substring(0, 300)}${attachment.extractedText.length > 300 ? '...' : ''}"`);
-            console.log(`    📝 EXTRACTED TEXT FULL LENGTH: ${attachment.extractedText.length} characters`);
-          } else {
-            console.log(`    ❌ NO EXTRACTED TEXT FOUND`);
-          }
-        });
-      } else {
-        console.log(`  ❌ NO FILE ATTACHMENTS FOUND`);
-        console.log(`  Raw submission data:`, JSON.stringify(submission, null, 2));
-      }
-      console.log('  ----------------------------------------');
-    });
     
     // Log submissions with PDF content specifically
     const submissionsWithPDF = data.submissions.filter(s => 
       s.fileAttachments?.some(att => att.fileType === 'application/pdf' && att.extractedText)
     );
-    console.log(`📄 Submissions with PDF content: ${submissionsWithPDF.length}`);
     
-    submissionsWithPDF.forEach((submission, index) => {
-      console.log(`  PDF Submission ${index + 1}:`, {
-        employeeName: submission.employeeName,
-        formTitle: submission.formTitle,
-        submittedDate: submission.submittedDate,
-        pdfFiles: submission.fileAttachments.filter(att => 
-          att.fileType === 'application/pdf' && att.extractedText
-        ).map(att => ({
-          fileName: att.fileName,
-          textLength: att.extractedText.length
-        }))
-      });
-    });
     
-    console.log('=====================================');
-    
-    // 🔍 DEBUG: Log processing summary
-    console.log('🔍 AI BACKEND DEBUG - Processing Summary:');
-    console.log('=====================================');
-    console.log('Total submissions processed:', data.submissions.length);
-    console.log('Submissions with file attachments:', data.submissions.filter(s => s.fileAttachments && s.fileAttachments.length > 0).length);
-    console.log('Submissions with PDF content:', submissionsWithPDF.length);
-    console.log('Total PDF files with extracted text:', data.submissions.reduce((total, s) => {
-      return total + (s.fileAttachments?.filter(att => att.fileType === 'application/pdf' && att.extractedText).length || 0);
-    }, 0));
-    console.log('System prompt includes PDF instructions:', systemPrompt.includes('DONNÉES SUPPLÉMENTAIRES'));
-    console.log('User prompt includes PDF content:', userPromptForAI.includes('Document:'));
-    console.log('=====================================');
-    
-    // 🔍 DEBUG: Log AI response analysis
-    console.log('🔍 AI BACKEND DEBUG - AI Response Analysis:');
-    console.log('=====================================');
-    console.log('Response length:', answer.length);
-    console.log('Response format:', responseFormat);
-    console.log('Selected formats:', selectedResponseFormats);
-    console.log('Response preview (first 500 chars):', answer.substring(0, 500) + '...');
     
     // Check if AI mentioned PDF content in response
     const mentionsPDF = answer.toLowerCase().includes('document') || 
                        answer.toLowerCase().includes('pdf') || 
                        answer.toLowerCase().includes('fichier');
-    console.log('AI mentions PDF/Document content:', mentionsPDF);
     
     // Check if AI analyzed the extracted text
     const analyzesContent = answer.toLowerCase().includes('contenu') || 
                            answer.toLowerCase().includes('texte') || 
                            answer.toLowerCase().includes('information');
-    console.log('AI analyzes document content:', analyzesContent);
     
-    console.log('=====================================');
     
     return res.status(200).json(response);
 

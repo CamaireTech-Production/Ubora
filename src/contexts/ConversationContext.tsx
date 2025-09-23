@@ -139,7 +139,15 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         messageCount: 0
       };
 
+      console.log('💾 FIREBASE SAVE - Creating new conversation:', {
+        title: conversationData.title,
+        directorId: conversationData.directorId,
+        agencyId: conversationData.agencyId,
+        messageCount: conversationData.messageCount
+      });
+      
       const docRef = await addDoc(collection(db, 'conversations'), conversationData);
+      console.log('✅ FIREBASE SAVE - New conversation created successfully:', docRef.id);
       
       // Create the conversation object
       const newConversation: Conversation = {
@@ -187,15 +195,40 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       };
       
       // Store message in Firestore subcollection
-      await addDoc(collection(db, 'conversations', currentConversation.id, 'messages'), cleanMessage);
+      console.log('💾 FIREBASE SAVE - Saving message to Firebase:', {
+        conversationId: currentConversation.id,
+        messageType: cleanMessage.type,
+        contentLength: cleanMessage.content.length,
+        timestamp: 'serverTimestamp',
+        contentType: cleanMessage.contentType
+      });
+      
+      try {
+        await addDoc(collection(db, 'conversations', currentConversation.id, 'messages'), cleanMessage);
+        console.log('✅ FIREBASE SAVE - Message saved successfully to Firebase');
+      } catch (error) {
+        console.error('❌ FIREBASE SAVE ERROR - Failed to save message:', error);
+        throw error;
+      }
 
       // Update conversation metadata in Firestore (but don't trigger conversations list reload)
-      const conversationRef = doc(db, 'conversations', currentConversation.id);
-      await updateDoc(conversationRef, {
-        updatedAt: serverTimestamp(),
-        lastMessageAt: serverTimestamp(),
-        messageCount: increment(1)
+      console.log('💾 FIREBASE SAVE - Updating conversation metadata:', {
+        conversationId: currentConversation.id,
+        messageCountIncrement: 1
       });
+      
+      try {
+        const conversationRef = doc(db, 'conversations', currentConversation.id);
+        await updateDoc(conversationRef, {
+          updatedAt: serverTimestamp(),
+          lastMessageAt: serverTimestamp(),
+          messageCount: increment(1)
+        });
+        console.log('✅ FIREBASE SAVE - Conversation metadata updated successfully');
+      } catch (error) {
+        console.error('❌ FIREBASE SAVE ERROR - Failed to update conversation metadata:', error);
+        throw error;
+      }
 
       // Add message to local state after successful Firebase operations
       setMessages(prev => [...prev, message]);
@@ -219,40 +252,21 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   };
 
   const addMessageToLocalState = (message: ChatMessage): void => {
-    console.log('🔍 Adding message to local state:', {
-      messageId: message.id,
-      messageType: message.type,
-      contentLength: message.content.length,
-      timestamp: message.timestamp.toISOString(),
-      contentType: message.contentType
-    });
-
     setMessages(prev => {
-      console.log('🔍 Current messages before adding:', {
-        currentCount: prev.length,
-        currentTypes: prev.map(m => ({ type: m.type, id: m.id, timestamp: m.timestamp.toISOString() }))
-      });
-
-      // Check if message already exists to prevent duplicates
+      // Check if message already exists to prevent duplicates (less aggressive)
       const exists = prev.some(m => 
         m.content === message.content && 
         m.type === message.type && 
-        Math.abs(m.timestamp.getTime() - message.timestamp.getTime()) < 10000 // Within 10 seconds
+        Math.abs(m.timestamp.getTime() - message.timestamp.getTime()) < 3000 // Within 3 seconds (less aggressive)
       );
       
       if (exists) {
-        console.log('❌ Preventing duplicate message:', message.content.substring(0, 50));
         return prev;
       }
       
       // Add message and sort by timestamp to maintain order
       const newMessages = [...prev, message];
       const sortedMessages = newMessages.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
-      
-      console.log('✅ Message added to local state:', {
-        newCount: sortedMessages.length,
-        newTypes: sortedMessages.map(m => ({ type: m.type, id: m.id, timestamp: m.timestamp.toISOString() }))
-      });
       
       return sortedMessages;
     });
@@ -271,9 +285,9 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       const conversation = conversations.find(c => c.id === conversationId);
       if (!conversation) {
         throw new Error('Conversation non trouvée');
-      }
-
+      }      
       setCurrentConversation(conversation);
+      
       
       // Clean up existing listener
       if (messagesListener) {
@@ -289,6 +303,13 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       );
 
       const messagesSnapshot = await getDocs(messagesQuery);
+      
+      console.log('📥 FIREBASE LOAD - Initial messages loaded from Firebase:', {
+        conversationId: conversationId,
+        snapshotSize: messagesSnapshot.docs.length,
+        timestamp: new Date().toISOString()
+      });
+      
       const messagesData = messagesSnapshot.docs.map(doc => {
         const data = doc.data();
         const message: ChatMessage = {
@@ -318,14 +339,24 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         return message;
       });
 
-      // Remove duplicates based on content and timestamp
-      const uniqueMessages = messagesData.filter((message, index, array) => {
-        return array.findIndex(m => 
-          m.content === message.content && 
-          m.type === message.type && 
-          Math.abs(m.timestamp.getTime() - message.timestamp.getTime()) < 5000 // Within 5 seconds
-        ) === index;
-      });
+        // Remove duplicates based on ID first, then content and timestamp
+        const uniqueMessages = messagesData.filter((message, index, array) => {
+          // First check for exact ID duplicates
+          const idDuplicate = array.findIndex(m => m.id === message.id);
+          if (idDuplicate !== index) {
+            return false;
+          }
+          
+          // Then check for content duplicates within a reasonable time window
+          const contentDuplicate = array.findIndex(m => 
+            m.id !== message.id && // Different ID
+            m.content === message.content && 
+            m.type === message.type && 
+            Math.abs(m.timestamp.getTime() - message.timestamp.getTime()) < 5000 // Within 5 seconds
+          );
+          
+          return contentDuplicate === -1;
+        });
 
       setMessages(uniqueMessages.reverse()); // Reverse to show oldest first
       setHasMoreMessages(messagesSnapshot.docs.length === 20);
@@ -336,13 +367,9 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         collection(db, 'conversations', conversationId, 'messages'),
         orderBy('timestamp', 'asc')
       );
+      
 
       const unsubscribe = onSnapshot(messagesListenerQuery, (snapshot) => {
-        console.log('🔍 Real-time listener triggered:', {
-          snapshotSize: snapshot.docs.length,
-          conversationId: conversationId,
-          timestamp: new Date().toISOString()
-        });
 
         const allMessages = snapshot.docs.map(doc => {
           const data = doc.data();
@@ -372,25 +399,26 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({ 
           return message;
         });
 
-        console.log('🔍 Messages from Firebase:', {
-          totalMessages: allMessages.length,
-          messageTypes: allMessages.map(m => ({ type: m.type, contentLength: m.content.length, timestamp: m.timestamp.toISOString() }))
-        });
 
-        // Remove duplicates based on content and timestamp
+        // Remove duplicates based on ID first, then content and timestamp
         const uniqueMessages = allMessages.filter((message, index, array) => {
-          return array.findIndex(m => 
+          // First check for exact ID duplicates
+          const idDuplicate = array.findIndex(m => m.id === message.id);
+          if (idDuplicate !== index) {
+            return false;
+          }
+          
+          // Then check for content duplicates within a reasonable time window
+          const contentDuplicate = array.findIndex(m => 
+            m.id !== message.id && // Different ID
             m.content === message.content && 
             m.type === message.type && 
             Math.abs(m.timestamp.getTime() - message.timestamp.getTime()) < 5000 // Within 5 seconds
-          ) === index;
+          );
+          
+          return contentDuplicate === -1;
         });
-
-        console.log('🔍 Unique messages after deduplication:', {
-          uniqueCount: uniqueMessages.length,
-          removedDuplicates: allMessages.length - uniqueMessages.length
-        });
-
+        
         setMessages(uniqueMessages);
       }, (err) => {
         console.error('Error in real-time messages listener:', err);
@@ -476,11 +504,22 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     try {
       setError(null);
       
-      const conversationRef = doc(db, 'conversations', conversationId);
-      await updateDoc(conversationRef, {
-        title: title.trim(),
-        updatedAt: serverTimestamp()
+      console.log('💾 FIREBASE SAVE - Updating conversation title:', {
+        conversationId: conversationId,
+        newTitle: title.trim()
       });
+      
+      try {
+        const conversationRef = doc(db, 'conversations', conversationId);
+        await updateDoc(conversationRef, {
+          title: title.trim(),
+          updatedAt: serverTimestamp()
+        });
+        console.log('✅ FIREBASE SAVE - Conversation title updated successfully');
+      } catch (error) {
+        console.error('❌ FIREBASE SAVE ERROR - Failed to update conversation title:', error);
+        throw error;
+      }
 
       // Update local state
       setConversations(prev => prev.map(conv => 

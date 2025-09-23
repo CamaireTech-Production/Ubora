@@ -60,66 +60,57 @@ const parseJsonInContent = (content: string): GraphData | null => {
   if (!content) return null;
   
   // 🔍 DEBUG: Log the content being parsed in PDF preview
-  console.log('🔍 FRONTEND DEBUG - PDFPreview parsing content:');
-  console.log('=====================================');
-  console.log('Content length:', content.length);
-  console.log('Content preview:', content.substring(0, 200) + '...');
-  console.log('=====================================');
   
   // Try to find JSON blocks in the content
   const jsonMatch = content.match(/```json\s*([\s\S]*?)\s*```/);
   if (jsonMatch) {
-    console.log('🔍 FRONTEND DEBUG - PDFPreview found JSON block');
-    console.log('=====================================');
-    console.log('JSON String:', jsonMatch[1]);
-    console.log('=====================================');
     
     try {
       const jsonString = jsonMatch[1];
-      console.log('🔍 FRONTEND DEBUG - PDFPreview raw JSON:', jsonString);
+      // console.log('🔍 FRONTEND DEBUG - PDFPreview raw JSON:', jsonString);
       
       const jsonData = JSON.parse(jsonString);
-      console.log('🔍 FRONTEND DEBUG - PDFPreview parsed JSON:', jsonData);
+      // console.log('🔍 FRONTEND DEBUG - PDFPreview parsed JSON:', jsonData);
       
       // Check if it's valid graph data
       if (jsonData && typeof jsonData === 'object' && jsonData.type && jsonData.data) {
-        console.log('✅ FRONTEND DEBUG - PDFPreview valid graph data found');
+        // console.log('✅ FRONTEND DEBUG - PDFPreview valid graph data found');
         return jsonData as GraphData;
       } else {
-        console.log('❌ FRONTEND DEBUG - PDFPreview invalid graph data structure');
+        // console.log('❌ FRONTEND DEBUG - PDFPreview invalid graph data structure');
       }
     } catch (error) {
-      console.error('❌ FRONTEND DEBUG - PDFPreview error parsing JSON:', error);
+      // console.error('❌ FRONTEND DEBUG - PDFPreview error parsing JSON:', error);
     }
   }
   
   // Try to find JSON object directly
   const directJsonMatch = content.match(/\{\s*"type"\s*:\s*"[^"]*"\s*,[\s\S]*?\}/);
   if (directJsonMatch) {
-    console.log('🔍 FRONTEND DEBUG - PDFPreview found direct JSON');
-    console.log('=====================================');
-    console.log('Direct JSON String:', directJsonMatch[0]);
-    console.log('=====================================');
+    // console.log('🔍 FRONTEND DEBUG - PDFPreview found direct JSON');
+    // console.log('=====================================');
+    // console.log('Direct JSON String:', directJsonMatch[0]);
+    // console.log('=====================================');
     
     try {
       const jsonString = directJsonMatch[0];
-      console.log('🔍 FRONTEND DEBUG - PDFPreview direct JSON:', jsonString);
+      // console.log('🔍 FRONTEND DEBUG - PDFPreview direct JSON:', jsonString);
       
       const jsonData = JSON.parse(jsonString);
-      console.log('🔍 FRONTEND DEBUG - PDFPreview parsed direct JSON:', jsonData);
+      // console.log('🔍 FRONTEND DEBUG - PDFPreview parsed direct JSON:', jsonData);
       
       if (jsonData && typeof jsonData === 'object' && jsonData.type && jsonData.data) {
-        console.log('✅ FRONTEND DEBUG - PDFPreview valid direct graph data found');
+        // console.log('✅ FRONTEND DEBUG - PDFPreview valid direct graph data found');
         return jsonData as GraphData;
       } else {
-        console.log('❌ FRONTEND DEBUG - PDFPreview invalid direct graph data structure');
+        // console.log('❌ FRONTEND DEBUG - PDFPreview invalid direct graph data structure');
       }
     } catch (error) {
-      console.error('❌ FRONTEND DEBUG - PDFPreview error parsing direct JSON:', error);
+      // console.error('❌ FRONTEND DEBUG - PDFPreview error parsing direct JSON:', error);
     }
   }
   
-  console.log('❌ FRONTEND DEBUG - PDFPreview no JSON found in content');
+  // console.log('❌ FRONTEND DEBUG - PDFPreview no JSON found in content');
   return null;
 };
 
