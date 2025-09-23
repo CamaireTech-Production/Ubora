@@ -39,6 +39,7 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // 5MB limit
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
@@ -106,9 +107,29 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     sourcemap: false,
+    chunkSizeWarningLimit: 1000, // Increase warning limit to 1MB
     rollupOptions: {
       output: {
-        manualChunks: undefined,
+        manualChunks: {
+          // Vendor chunks
+          'vendor-react': ['react', 'react-dom'],
+          'vendor-firebase': ['firebase/app', 'firebase/auth', 'firebase/firestore', 'firebase/storage', 'firebase/messaging'],
+          'vendor-charts': ['recharts', 'html2canvas', 'jspdf'],
+          'vendor-ui': ['lucide-react'],
+          'vendor-pdf': ['pdfjs-dist', 'react-to-print'],
+          'vendor-ai': ['openai', 'tesseract.js'],
+          // Feature chunks
+          'pdf-utils': [
+            './src/utils/PDFGenerator.ts',
+            './src/utils/RechartsToPNG.ts',
+            './src/utils/MultiFormatToPDF.ts'
+          ],
+          'chat-components': [
+            './src/components/chat/MessageBubble.tsx',
+            './src/components/chat/PDFPreview.tsx',
+            './src/components/chat/GraphRenderer.tsx'
+          ]
+        },
       },
     },
   },
