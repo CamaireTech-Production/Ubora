@@ -3,6 +3,7 @@ name: Deploy Backend to VPS (Development)
 on:
   push:
     branches: [ dev ]
+  workflow_dispatch:
 
 jobs:
   deploy-backend:
@@ -29,13 +30,13 @@ jobs:
         # Firebase Configuration
         FIREBASE_PROJECT_ID=${{ secrets.FIREBASE_PROJECT_ID }}
         FIREBASE_CLIENT_EMAIL=${{ secrets.FIREBASE_CLIENT_EMAIL }}
-        FIREBASE_PRIVATE_KEY="${{ secrets.FIREBASE_PRIVATE_KEY }}"
+        FIREBASE_PRIVATE_KEY=${{ secrets.FIREBASE_PRIVATE_KEY }}
         
         # OpenAI Configuration
         OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
         
         # Server Configuration
-        PORT=3000
+        PORT=3001
         NODE_ENV=development
         
         # CORS Configuration
@@ -71,12 +72,26 @@ jobs:
           FIREBASE_CLIENT_EMAIL=${{ secrets.FIREBASE_CLIENT_EMAIL }}
           FIREBASE_PRIVATE_KEY=${{ secrets.FIREBASE_PRIVATE_KEY }}
           OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
-          PORT=3000
+          PORT=3001
           NODE_ENV=development
           CORS_ORIGIN=https://dev.ubora-app.com
           EOF
           
-          # Start or restart with PM2
-          pm2 restart ubora-backend-dev || pm2 start server/production-server.js --name ubora-backend-dev
+          # Stop existing process
+          pm2 stop ubora-backend-dev || true
+          pm2 delete ubora-backend-dev || true
+          
+          # Start fresh with PM2
+          pm2 start server/production-server.js --name ubora-backend-dev
           pm2 save
+          
+          # Wait a moment for startup
+          sleep 3
+          
+          # Check if it's running
+          pm2 list
+          
+          # Test the endpoint
+          curl -f http://localhost:3001/health || echo "Health check failed"
+          
           echo "Development backend deployed successfully"
