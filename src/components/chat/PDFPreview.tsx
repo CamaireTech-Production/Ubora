@@ -9,6 +9,7 @@ interface TextPDFPreviewProps {
   content: string;
   title?: string;
   onExpand?: () => void;
+  message?: any; // Add message prop for chart data access
 }
 
 // Function to clean markdown from text
@@ -505,8 +506,9 @@ const PDFModal: React.FC<PDFModalProps> = ({ data, isOpen, onClose }) => {
   );
 };
 
-export const TextPDFPreview: React.FC<TextPDFPreviewProps> = ({ content, title = 'Rapport Ubora', onExpand }) => {
+export const TextPDFPreview: React.FC<TextPDFPreviewProps> = ({ content, title = 'Rapport Ubora', onExpand, message }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
 
   const handleExpand = () => {
     if (onExpand) {
@@ -516,9 +518,64 @@ export const TextPDFPreview: React.FC<TextPDFPreviewProps> = ({ content, title =
     }
   };
 
-  const handleDownload = () => {
-    const generator = new PDFGenerator();
-    generator.generateReportFromText(content, title);
+  const handleDownload = async () => {
+    if (isDownloading) return; // Prevent multiple clicks
+    
+    setIsDownloading(true);
+    
+    try {
+      if (message) {
+        // Use the proper chart-to-PNG conversion flow
+        const { MultiFormatToPDF } = await import('../../utils/MultiFormatToPDF');
+        const { RechartsToPNG } = await import('../../utils/RechartsToPNG');
+        
+        const pdfData = MultiFormatToPDF.convertToPDFData(message);
+        
+        // If there are charts, convert them to PNG using recharts-to-png
+        if (pdfData.charts && pdfData.charts.length > 0) {
+          console.log('Converting charts to PNG:', pdfData.charts.length, 'charts found');
+          
+          const updatedPdfData = {
+            ...pdfData,
+            charts: await Promise.all(
+              pdfData.charts.map(async (chart: GraphData, index: number) => {
+                try {
+                  console.log(`Converting chart ${index + 1}:`, chart.title, chart.type);
+                  const chartImage = await RechartsToPNG.convertChartDataToPNG(chart, 800, 500);
+                  console.log(`Chart ${index + 1} converted successfully, image length:`, chartImage.length);
+                  return {
+                    ...chart,
+                    imageData: chartImage
+                  };
+                } catch (error) {
+                  console.error(`Error converting chart ${index + 1} to PNG:`, error);
+                  return chart;
+                }
+              })
+            )
+          };
+          
+          console.log('All charts converted, generating PDF...');
+          const generator = new PDFGenerator();
+          await generator.generateReport(updatedPdfData);
+        } else {
+          console.log('No charts found, generating PDF without charts');
+          const generator = new PDFGenerator();
+          await generator.generateReport(pdfData);
+        }
+      } else {
+        // Fallback to text-only PDF if no message data
+        const generator = new PDFGenerator();
+        generator.generateReportFromText(content, title);
+      }
+    } catch (error) {
+      console.error('Error generating PDF with charts:', error);
+      // Fallback to text-only PDF
+      const generator = new PDFGenerator();
+      generator.generateReportFromText(content, title);
+    } finally {
+      setIsDownloading(false);
+    }
   };
 
   return (
@@ -539,9 +596,14 @@ export const TextPDFPreview: React.FC<TextPDFPreviewProps> = ({ content, title =
               variant="secondary"
               size="sm"
               onClick={handleDownload}
+              disabled={isDownloading}
               className="p-1.5 rounded-lg hover:bg-gray-100"
             >
-              <Download className="h-3 w-3" />
+              {isDownloading ? (
+                <div className="w-3 h-3 border-2 border-gray-300 border-t-blue-600 rounded-full animate-spin" />
+              ) : (
+                <Download className="h-3 w-3" />
+              )}
             </Button>
             <Button
               variant="secondary"
@@ -587,10 +649,20 @@ export const TextPDFPreview: React.FC<TextPDFPreviewProps> = ({ content, title =
                   variant="secondary"
                   size="sm"
                   onClick={handleDownload}
+                  disabled={isDownloading}
                   className="flex items-center space-x-2"
                 >
-                  <Download className="h-4 w-4" />
-                  <span>Télécharger PDF</span>
+                  {isDownloading ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-gray-300 border-t-blue-600 rounded-full animate-spin" />
+                      <span>Génération...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Download className="h-4 w-4" />
+                      <span>Télécharger PDF</span>
+                    </>
+                  )}
                 </Button>
                 <Button
                   variant="secondary"

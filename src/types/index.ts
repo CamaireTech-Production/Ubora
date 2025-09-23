@@ -116,6 +116,18 @@ export interface PDFFileReference {
   fieldId?: string;
 }
 
+export interface ImageFileReference {
+  fileName: string;
+  fileSize?: number;
+  fileType: string;
+  downloadUrl?: string;
+  storagePath?: string;
+  extractedText?: string;
+  confidence?: number;
+  submissionId?: string;
+  fieldId?: string;
+}
+
 export interface ChatMessage {
   id: string;
   type: 'user' | 'assistant';
@@ -127,6 +139,7 @@ export interface ChatMessage {
   pdfData?: PDFData;
   tableData?: string; // Markdown table content
   pdfFiles?: PDFFileReference[]; // PDF files referenced in the response
+  imageFiles?: ImageFileReference[]; // Image files referenced in the response
   meta?: {
     period?: string;
     usedEntries?: number;
@@ -200,6 +213,13 @@ export interface PDFSection {
   type?: 'text' | 'list' | 'table';
   data?: any[];
   isMarkdownTable?: boolean;
+  chartPositions?: ChartPosition[];
+}
+
+export interface ChartPosition {
+  chartIndex: number; // Index in the charts array
+  position: number; // Character position in the content where chart should be inserted
+  placeholder: string; // The text that was replaced (for reference)
 }
 
 export interface Conversation {

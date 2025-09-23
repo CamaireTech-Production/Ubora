@@ -8,6 +8,7 @@ import {
 import { storage } from '../firebaseConfig';
 import { FileAttachment } from '../types';
 import { PDFTextExtractionService } from './pdfTextExtractionService';
+import { ImageTextExtractionService } from './imageTextExtractionService';
 
 export interface UploadProgress {
   fieldId: string;
@@ -23,6 +24,15 @@ export interface PDFExtractionResult {
   extractionStatus: 'completed' | 'failed';
   error?: string;
   pages?: number;
+  fileSize: number;
+}
+
+export interface ImageExtractionResult {
+  fileName: string;
+  extractedText: string;
+  extractionStatus: 'completed' | 'failed';
+  error?: string;
+  confidence?: number;
   fileSize: number;
 }
 
@@ -56,7 +66,8 @@ export class FileUploadService {
     userId: string,
     agencyId: string,
     onProgress?: (progress: UploadProgress) => void,
-    onPDFExtraction?: (result: PDFExtractionResult) => void
+    onPDFExtraction?: (result: PDFExtractionResult) => void,
+    onImageExtraction?: (result: ImageExtractionResult) => void
   ): Promise<FileAttachment> {
     try {
       // Validate file
@@ -154,11 +165,65 @@ export class FileUploadService {
         }
       }
 
+      // Extract text if it's an image
+      if (ImageTextExtractionService.isImage(file)) {
+        try {
+          // Update progress - extracting (no percentage for image extraction)
+          onProgress?.({
+            fieldId,
+            fileName: file.name,
+            progress: 0, // No percentage shown for extraction
+            status: 'extracting'
+          });
+
+          const extractionResult = await ImageTextExtractionService.extractTextFromImage(file);
+          
+          if (extractionResult.success) {
+            fileAttachment.extractedText = ImageTextExtractionService.cleanExtractedText(extractionResult.text);
+            fileAttachment.textExtractionStatus = 'completed';
+
+            // Trigger debug modal callback
+            onImageExtraction?.({
+              fileName: file.name,
+              extractedText: fileAttachment.extractedText,
+              extractionStatus: 'completed',
+              confidence: extractionResult.confidence,
+              fileSize: file.size
+            });
+          } else {
+            // Extraction failed
+            fileAttachment.textExtractionStatus = 'failed';
+            console.error(`❌ Image text extraction failed for ${file.name}:`, extractionResult.error);
+
+            // Trigger debug modal callback with error
+            onImageExtraction?.({
+              fileName: file.name,
+              extractedText: extractionResult.text, // This will be the error message
+              extractionStatus: 'failed',
+              error: extractionResult.error,
+              fileSize: file.size
+            });
+          }
+        } catch (extractionError) {
+          console.error('Failed to extract image text:', extractionError);
+          fileAttachment.textExtractionStatus = 'failed';
+          
+          // Trigger debug modal callback with error
+          onImageExtraction?.({
+            fileName: file.name,
+            extractedText: '',
+            extractionStatus: 'failed',
+            error: extractionError instanceof Error ? extractionError.message : 'Unknown error',
+            fileSize: file.size
+          });
+        }
+      }
+
       // Update progress - completed
       onProgress?.({
         fieldId,
         fileName: file.name,
-        progress: PDFTextExtractionService.isPDF(file) ? 0 : 100, // No percentage for PDF extraction
+        progress: (PDFTextExtractionService.isPDF(file) || ImageTextExtractionService.isImage(file)) ? 0 : 100, // No percentage for PDF/image extraction
         status: 'completed'
       });
 
@@ -188,10 +253,11 @@ export class FileUploadService {
     userId: string,
     agencyId: string,
     onProgress?: (progress: UploadProgress) => void,
-    onPDFExtraction?: (result: PDFExtractionResult) => void
+    onPDFExtraction?: (result: PDFExtractionResult) => void,
+    onImageExtraction?: (result: ImageExtractionResult) => void
   ): Promise<FileAttachment[]> {
     const uploadPromises = files.map(({ file, fieldId }) =>
-      this.uploadFile(file, fieldId, formId, userId, agencyId, onProgress, onPDFExtraction)
+      this.uploadFile(file, fieldId, formId, userId, agencyId, onProgress, onPDFExtraction, onImageExtraction)
     );
 
     try {

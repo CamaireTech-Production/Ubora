@@ -1,4 +1,4 @@
-import { ChatMessage, GraphData, PDFData, PDFFileReference } from '../types';
+import { ChatMessage, GraphData, PDFData, PDFFileReference, ImageFileReference } from '../types';
 
 export interface ParsedResponse {
   contentType: 'text' | 'graph' | 'pdf' | 'text-pdf' | 'table' | 'mixed' | 'multi-format';
@@ -7,18 +7,22 @@ export interface ParsedResponse {
   pdfData?: PDFData;
   tableData?: string; // Markdown table content
   pdfFiles?: PDFFileReference[]; // PDF files referenced in the response
+  imageFiles?: ImageFileReference[]; // Image files referenced in the response
 }
 
 
 export class ResponseParser {
   static parseAIResponse(response: string, _userMessage?: string, selectedFormat?: string | null, selectedFormats?: string[]): ParsedResponse {
     
-    // Enhanced PDF file detection - always detect if files are mentioned
-    const shouldDetectPDFFiles = selectedFormat === 'pdf' || 
-                                 (selectedFormats && selectedFormats.includes('pdf')) ||
-                                 response.includes('[FICHIER:') ||
-                                 response.includes('[FICHIER PDF:');
-    const pdfFiles = shouldDetectPDFFiles ? this.detectPDFFileReferences(response) : [];
+    // Enhanced file detection - always detect if files are mentioned
+    const shouldDetectFiles = selectedFormat === 'pdf' || 
+                             (selectedFormats && selectedFormats.includes('pdf')) ||
+                             response.includes('[FICHIER:') ||
+                             response.includes('[FICHIER PDF:') ||
+                             response.includes('[IMAGE:') ||
+                             response.includes('[FICHIER IMAGE:');
+    const pdfFiles = shouldDetectFiles ? this.detectPDFFileReferences(response) : [];
+    const imageFiles = shouldDetectFiles ? this.detectImageFileReferences(response) : [];
     
     // Enhanced format detection with better reasoning
     const enhancedResult = this.parseEnhancedResponse(response, selectedFormat, selectedFormats);
@@ -29,7 +33,7 @@ export class ResponseParser {
     }
     
     
-    return { ...enhancedResult, pdfFiles };
+    return { ...enhancedResult, pdfFiles, imageFiles };
   }
 
   private static parseEnhancedResponse(response: string, selectedFormat?: string | null, selectedFormats?: string[]): ParsedResponse {
@@ -824,6 +828,156 @@ export class ResponseParser {
     
     
     return pdfFiles;
+  }
+
+  /**
+   * Detect image file references in AI responses
+   * Looks for patterns like [IMAGE: filename.png] or [FICHIER IMAGE: filename.jpg]
+   */
+  private static detectImageFileReferences(response: string): ImageFileReference[] {
+    const imageFiles: ImageFileReference[] = [];
+    
+    // Pattern 1: [FICHIER IMAGE: filename.ext]
+    const imagePattern1 = /\[FICHIER IMAGE:\s*([^\]]+\.(png|jpg|jpeg|gif|bmp|webp|tiff))\]/gi;
+    let match;
+    
+    while ((match = imagePattern1.exec(response)) !== null) {
+      const fileName = match[1].trim();
+      const fileExtension = fileName.split('.').pop()?.toLowerCase();
+      let fileType = 'image/png'; // default
+      if (fileExtension === 'jpg' || fileExtension === 'jpeg') fileType = 'image/jpeg';
+      else if (fileExtension === 'png') fileType = 'image/png';
+      else if (fileExtension === 'gif') fileType = 'image/gif';
+      else if (fileExtension === 'bmp') fileType = 'image/bmp';
+      else if (fileExtension === 'webp') fileType = 'image/webp';
+      else if (fileExtension === 'tiff') fileType = 'image/tiff';
+      
+      imageFiles.push({
+        fileName,
+        fileType,
+        fileSize: undefined,
+        downloadUrl: undefined,
+        storagePath: undefined,
+        extractedText: undefined,
+        confidence: undefined
+      });
+    }
+    
+    // Pattern 2: [IMAGE: filename.ext] [METADATA: {...}] (with metadata)
+    const imageWithMetadataPattern = /\[IMAGE:\s*([^\]]+\.(png|jpg|jpeg|gif|bmp|webp|tiff))\]\s*\[METADATA:\s*([^\]]+)\]/gi;
+    while ((match = imageWithMetadataPattern.exec(response)) !== null) {
+      const fileName = match[1].trim();
+      const metadataString = match[3].trim();
+      
+      try {
+        const metadata = JSON.parse(metadataString);
+        
+        // Only add if not already added
+        if (!imageFiles.some(img => img.fileName === fileName)) {
+          imageFiles.push({
+            fileName: metadata.fileName || fileName,
+            fileType: metadata.fileType || 'image/png',
+            fileSize: metadata.fileSize,
+            downloadUrl: metadata.downloadUrl,
+            storagePath: metadata.storagePath,
+            extractedText: metadata.extractedText,
+            confidence: metadata.confidence
+          });
+        }
+      } catch (error) {
+        console.warn('Failed to parse image metadata:', metadataString, error);
+        // Fallback to basic image detection
+        const fileExtension = fileName.split('.').pop()?.toLowerCase();
+        let fileType = 'image/png';
+        if (fileExtension === 'jpg' || fileExtension === 'jpeg') fileType = 'image/jpeg';
+        else if (fileExtension === 'png') fileType = 'image/png';
+        else if (fileExtension === 'gif') fileType = 'image/gif';
+        else if (fileExtension === 'bmp') fileType = 'image/bmp';
+        else if (fileExtension === 'webp') fileType = 'image/webp';
+        else if (fileExtension === 'tiff') fileType = 'image/tiff';
+        
+        if (!imageFiles.some(img => img.fileName === fileName)) {
+          imageFiles.push({
+            fileName,
+            fileType,
+            fileSize: undefined,
+            downloadUrl: undefined,
+            storagePath: undefined,
+            extractedText: undefined,
+            confidence: undefined
+          });
+        }
+      }
+    }
+    
+    // Pattern 3: [IMAGE: filename.ext] (without metadata - fallback)
+    const imagePattern = /\[IMAGE:\s*([^\]]+\.(png|jpg|jpeg|gif|bmp|webp|tiff))\](?!\s*\[METADATA:)/gi;
+    while ((match = imagePattern.exec(response)) !== null) {
+      const fileName = match[1].trim();
+      const fileExtension = fileName.split('.').pop()?.toLowerCase();
+      
+      // Determine file type based on extension
+      let fileType = 'image/png';
+      if (fileExtension === 'jpg' || fileExtension === 'jpeg') fileType = 'image/jpeg';
+      else if (fileExtension === 'png') fileType = 'image/png';
+      else if (fileExtension === 'gif') fileType = 'image/gif';
+      else if (fileExtension === 'bmp') fileType = 'image/bmp';
+      else if (fileExtension === 'webp') fileType = 'image/webp';
+      else if (fileExtension === 'tiff') fileType = 'image/tiff';
+      
+      // Only add if not already added by previous patterns
+      if (!imageFiles.some(img => img.fileName === fileName)) {
+        imageFiles.push({
+          fileName,
+          fileType,
+          fileSize: undefined,
+          downloadUrl: undefined,
+          storagePath: undefined,
+          extractedText: undefined,
+          confidence: undefined
+        });
+      }
+    }
+    
+    // Pattern 4: Look for image content sections with file size info
+    const imageContentPattern = /🖼️ CONTENU IMAGE "([^"]+\.(png|jpg|jpeg|gif|bmp|webp|tiff))" \(([^)]+)\):/gi;
+    while ((match = imageContentPattern.exec(response)) !== null) {
+      const fileName = match[1].trim();
+      const sizeInfo = match[3].trim();
+      
+      // Parse file size if available
+      let fileSize: number | undefined;
+      if (sizeInfo.includes('KB')) {
+        const sizeMatch = sizeInfo.match(/(\d+(?:\.\d+)?)\s*KB/);
+        if (sizeMatch) {
+          fileSize = parseFloat(sizeMatch[1]) * 1024; // Convert KB to bytes
+        }
+      }
+      
+      // Only add if not already added
+      if (!imageFiles.some(img => img.fileName === fileName)) {
+        const fileExtension = fileName.split('.').pop()?.toLowerCase();
+        let fileType = 'image/png';
+        if (fileExtension === 'jpg' || fileExtension === 'jpeg') fileType = 'image/jpeg';
+        else if (fileExtension === 'png') fileType = 'image/png';
+        else if (fileExtension === 'gif') fileType = 'image/gif';
+        else if (fileExtension === 'bmp') fileType = 'image/bmp';
+        else if (fileExtension === 'webp') fileType = 'image/webp';
+        else if (fileExtension === 'tiff') fileType = 'image/tiff';
+        
+        imageFiles.push({
+          fileName,
+          fileType,
+          fileSize,
+          downloadUrl: undefined,
+          storagePath: undefined,
+          extractedText: undefined,
+          confidence: undefined
+        });
+      }
+    }
+    
+    return imageFiles;
   }
 
   /**

@@ -473,7 +473,7 @@ OBJECTIF : Répondre clairement à la question du directeur avec des insights ba
 ${hasPDFContent ? `
 📄 DONNÉES SUPPLÉMENTAIRES IMPORTANTES :
 - Certaines soumissions incluent des documents PDF avec leur contenu textuel extrait
-- Ces documents sont marqués par "Document: [nom_fichier] (contenu_extraite)"
+- Ces documents sont marqués par "Document PDF: [nom_fichier] (contenu_extraite)"
 - OBLIGATOIRE : Analyse le contenu textuel de ces documents comme partie intégrante des données de soumission
 - OBLIGATOIRE : Utilise toutes les informations des documents PDF pour répondre précisément à la question
 - OBLIGATOIRE : Référence le contenu des documents dans ton analyse quand c'est pertinent
@@ -481,6 +481,18 @@ ${hasPDFContent ? `
 - OBLIGATOIRE : Utilise des phrases comme "Selon le document [nom_fichier]", "Dans le fichier [nom_fichier]", "D'après [nom_fichier]"
 - OBLIGATOIRE : Cite le nom exact du fichier PDF quand tu fais référence à son contenu
 - Le contenu des documents PDF fait partie des données de soumission et doit être traité comme tel` : ''}
+
+${hasImageContent ? `
+🖼️ DONNÉES SUPPLÉMENTAIRES IMPORTANTES :
+- Certaines soumissions incluent des images avec leur contenu textuel extrait par OCR
+- Ces images sont marquées par "Image: [nom_fichier] (contenu_extraite)"
+- OBLIGATOIRE : Analyse le contenu textuel de ces images comme partie intégrante des données de soumission
+- OBLIGATOIRE : Utilise toutes les informations des images pour répondre précisément à la question
+- OBLIGATOIRE : Référence le contenu des images dans ton analyse quand c'est pertinent
+- OBLIGATOIRE : MENTIONNE EXPLICITEMENT le nom des fichiers image que tu utilises comme référence dans ta réponse
+- OBLIGATOIRE : Utilise des phrases comme "Selon l'image [nom_fichier]", "Dans l'image [nom_fichier]", "D'après [nom_fichier]"
+- OBLIGATOIRE : Cite le nom exact du fichier image quand tu fais référence à son contenu
+- Le contenu des images fait partie des données de soumission et doit être traité comme tel` : ''}
 
 ${responseFormat === 'table' ? `
 EXEMPLE DE TABLEAU CORRECT :
@@ -1224,6 +1236,17 @@ TOP FORMULAIRES : ${data.formStats.slice(0, 3).map(f => `${f.title} (${f.count} 
       )
     );
 
+    const hasImageContent = data.submissions.some(s => 
+      s.fileAttachments?.some(att => 
+        att.fileType && att.fileType.startsWith('image/') && att.extractedText
+      )
+    ) || data.submissions.some(s => 
+      Object.values(s.answers).some(value => 
+        value && typeof value === 'object' && value.uploaded && value.fileName && value.extractedText && 
+        value.fileType && value.fileType.startsWith('image/')
+      )
+    );
+
     const hasFileAttachments = data.submissions.some(s => 
       s.fileAttachments && s.fileAttachments.length > 0
     ) || data.submissions.some(s => 
@@ -1260,15 +1283,22 @@ TOP FORMULAIRES : ${data.formStats.slice(0, 3).map(f => `${f.title} (${f.count} 
             att.fileType === 'application/pdf' && att.extractedText
           );
           
+          const imageFiles = s.fileAttachments.filter(att => 
+            att.fileType && att.fileType.startsWith('image/') && att.extractedText
+          );
+          
           if (pdfFiles.length > 0) {
-            
             pdfFiles.forEach((file, fileIndex) => {
-              
-              
               // Include extracted text as additional field data, not as separate section
-              extractedTextSummary += ` | Document: ${file.fileName} (${file.extractedText.substring(0, 1500)}${file.extractedText.length > 1500 ? '...' : ''})`;
+              extractedTextSummary += ` | Document PDF: ${file.fileName} (${file.extractedText.substring(0, 1500)}${file.extractedText.length > 1500 ? '...' : ''})`;
             });
-          } else {
+          }
+          
+          if (imageFiles.length > 0) {
+            imageFiles.forEach((file, fileIndex) => {
+              // Include extracted text from images
+              extractedTextSummary += ` | Image: ${file.fileName} (${file.extractedText.substring(0, 1500)}${file.extractedText.length > 1500 ? '...' : ''})`;
+            });
           }
         }
         
@@ -1309,7 +1339,7 @@ N'inclus PAS seulement les en-têtes - tu DOIS inclure des lignes de données r�
       const pdfContentReminder = hasPDFContent ? `
 
 IMPORTANT : Les soumissions ci-dessous contiennent des documents PDF avec du contenu textuel extrait.
-Ces documents sont marqués par "Document: [nom_fichier] (contenu_extraite)".
+Ces documents sont marqués par "Document PDF: [nom_fichier] (contenu_extraite)".
 OBLIGATOIRE : Analyse le contenu de ces documents comme partie intégrante des données de soumission.
 OBLIGATOIRE : Utilise toutes les informations des documents PDF pour répondre à la question.
 OBLIGATOIRE : Référence le contenu des documents dans ton analyse quand c'est pertinent.
@@ -1317,7 +1347,18 @@ OBLIGATOIRE : MENTIONNE EXPLICITEMENT le nom des fichiers PDF que tu utilises co
 OBLIGATOIRE : Utilise des phrases comme "Selon le document [nom_fichier]", "Dans le fichier [nom_fichier]", "D'après [nom_fichier]".
 OBLIGATOIRE : Cite le nom exact du fichier PDF quand tu fais référence à son contenu.` : '';
 
-      return `${questionText}\n\n${dataOverview}\n\n${submissions}${tableFormatReminder}${pdfContentReminder}`;
+      const imageContentReminder = hasImageContent ? `
+
+IMPORTANT : Les soumissions ci-dessous contiennent des images avec du contenu textuel extrait par OCR.
+Ces images sont marquées par "Image: [nom_fichier] (contenu_extraite)".
+OBLIGATOIRE : Analyse le contenu de ces images comme partie intégrante des données de soumission.
+OBLIGATOIRE : Utilise toutes les informations des images pour répondre à la question.
+OBLIGATOIRE : Référence le contenu des images dans ton analyse quand c'est pertinent.
+OBLIGATOIRE : MENTIONNE EXPLICITEMENT le nom des fichiers image que tu utilises comme référence.
+OBLIGATOIRE : Utilise des phrases comme "Selon l'image [nom_fichier]", "Dans l'image [nom_fichier]", "D'après [nom_fichier]".
+OBLIGATOIRE : Cite le nom exact du fichier image quand tu fais référence à son contenu.` : '';
+
+      return `${questionText}\n\n${dataOverview}\n\n${submissions}${tableFormatReminder}${pdfContentReminder}${imageContentReminder}`;
     };
 
     // Use the complete user message for the AI call
@@ -1622,19 +1663,19 @@ Il serait pertinent de surveiller l'engagement des employés moins actifs et d'a
         throw saveError;
       }
 
-      // Function to detect which PDF files are actually referenced in the AI response
-      const getReferencedPDFFiles = (aiResponse, allPDFFiles) => {
-        if (!aiResponse || !allPDFFiles || allPDFFiles.length === 0) {
+      // Function to detect which files (PDF and images) are actually referenced in the AI response
+      const getReferencedFiles = (aiResponse, allFiles) => {
+        if (!aiResponse || !allFiles || allFiles.length === 0) {
           return [];
         }
         
         const responseText = aiResponse.toLowerCase();
         const referencedFiles = [];
         
-        // Check each PDF file to see if it's mentioned in the response
-        allPDFFiles.forEach(pdfFile => {
-          const fileName = pdfFile.fileName.toLowerCase();
-          const cleanFileName = fileName.replace(/^[0-9-]+-/, '').replace(/\.pdf$/i, '');
+        // Check each file (PDF or image) to see if it's mentioned in the response
+        allFiles.forEach(file => {
+          const fileName = file.fileName.toLowerCase();
+          const cleanFileName = fileName.replace(/^[0-9-]+-/, '').replace(/\.(pdf|png|jpg|jpeg|gif|bmp|webp|tiff)$/i, '');
           
           // Check various ways the file might be referenced
           const isReferenced = 
@@ -1646,6 +1687,10 @@ Il serait pertinent de surveiller l'engagement des employés moins actifs et d'a
             responseText.includes(`selon le document ${cleanFileName}`) ||
             responseText.includes(`dans le fichier ${fileName}`) ||
             responseText.includes(`dans le fichier ${cleanFileName}`) ||
+            responseText.includes(`dans l'image ${fileName}`) ||
+            responseText.includes(`dans l'image ${cleanFileName}`) ||
+            responseText.includes(`selon l'image ${fileName}`) ||
+            responseText.includes(`selon l'image ${cleanFileName}`) ||
             responseText.includes(`d'après ${fileName}`) ||
             responseText.includes(`d'après ${cleanFileName}`) ||
             responseText.includes(`selon ${fileName}`) ||
@@ -1655,11 +1700,13 @@ Il serait pertinent de surveiller l'engagement des employés moins actifs et d'a
             responseText.includes(`"${cleanFileName}"`) ||
             responseText.includes(`[${fileName}]`) ||
             responseText.includes(`[${cleanFileName}]`) ||
-            // Check for citations with "le fichier" or "le document"
+            // Check for citations with "le fichier", "le document", or "l'image"
             responseText.includes(`le fichier ${fileName}`) ||
             responseText.includes(`le fichier ${cleanFileName}`) ||
             responseText.includes(`le document ${fileName}`) ||
             responseText.includes(`le document ${cleanFileName}`) ||
+            responseText.includes(`l'image ${fileName}`) ||
+            responseText.includes(`l'image ${cleanFileName}`) ||
             // Check for partial matches (common words in filename)
             cleanFileName.split(/[-_\s]+/).some(word => 
               word.length > 3 && responseText.includes(word)
@@ -1679,35 +1726,40 @@ Il serait pertinent de surveiller l'engagement des employés moins actifs et d'a
             (responseText.includes('dans le document') || responseText.includes('dans le fichier'));
           
           if (isReferenced) {
-            referencedFiles.push(pdfFile);
+            referencedFiles.push(file);
           }
         });
         
-        // If no specific files are referenced but AI mentions PDF content, 
-        // only include files if the response is very specific about PDF analysis
+        // If no specific files are referenced but AI mentions file content, 
+        // only include files if the response is very specific about file analysis
         if (referencedFiles.length === 0) {
-          const mentionsPDFContent = responseText.includes('document') || 
+          const mentionsFileContent = responseText.includes('document') || 
                                     responseText.includes('pdf') || 
                                     responseText.includes('fichier') ||
+                                    responseText.includes('image') ||
                                     responseText.includes('contenu') ||
                                     responseText.includes('texte extrait') ||
                                     responseText.includes('analyse du document') ||
                                     responseText.includes('dans le document') ||
-                                    responseText.includes('dans le fichier');
+                                    responseText.includes('dans le fichier') ||
+                                    responseText.includes('dans l\'image');
           
-          // Only show all files if AI explicitly mentions analyzing PDF content
+          // Only show all files if AI explicitly mentions analyzing file content
           // and the response is substantial (not just a brief mention)
-          if (mentionsPDFContent && (
+          if (mentionsFileContent && (
             responseText.includes('analyse') || 
             responseText.includes('extrait') ||
             responseText.includes('contenu du document') ||
             responseText.includes('dans le fichier') ||
             responseText.includes('dans le document') ||
+            responseText.includes('dans l\'image') ||
             responseText.includes('selon le document') ||
-            responseText.includes('d\'après le fichier')
+            responseText.includes('selon l\'image') ||
+            responseText.includes('d\'après le fichier') ||
+            responseText.includes('d\'après l\'image')
           )) {
             // Additional check: only show all files if the response is substantial
-            // (more than just a brief mention of documents)
+            // (more than just a brief mention of files)
             const substantialAnalysis = responseText.includes('contenu') ||
                                       responseText.includes('information') ||
                                       responseText.includes('données') ||
@@ -1715,7 +1767,7 @@ Il serait pertinent de surveiller l'engagement des employés moins actifs et d'a
                                       responseText.includes('analyse');
             
             if (substantialAnalysis) {
-              return allPDFFiles;
+              return allFiles;
             }
           }
         }
@@ -1723,37 +1775,43 @@ Il serait pertinent de surveiller l'engagement des employés moins actifs et d'a
         return referencedFiles;
       };
       
-      // Get all PDF files that were analyzed
-      const allAnalyzedPDFFiles = hasPDFContent ? data.submissions.flatMap(s => 
+      // Get all files (PDF and images) that were analyzed
+      const allAnalyzedFiles = (hasPDFContent || hasImageContent) ? data.submissions.flatMap(s => 
         (s.fileAttachments || []).filter(att => 
-          att.fileType === 'application/pdf' && att.extractedText
+          (att.fileType === 'application/pdf' || (att.fileType && att.fileType.startsWith('image/'))) && att.extractedText
         ).map(att => ({
           fileName: att.fileName,
           fileType: att.fileType,
           fileSize: att.fileSize,
           downloadUrl: att.downloadUrl,
-          fieldId: att.fieldId
+          fieldId: att.fieldId,
+          confidence: att.confidence // For images
         }))
       ) : [];
       
-      // Get only the PDF files that are actually referenced in the response
-      const referencedPDFFiles = getReferencedPDFFiles(answer, allAnalyzedPDFFiles);
+      // Get only the files that are actually referenced in the response
+      const referencedFiles = getReferencedFiles(answer, allAnalyzedFiles);
       
-      // Log PDF file detection for debugging
-      console.log(`📄 PDF FILE DETECTION: Found ${allAnalyzedPDFFiles.length} analyzed PDFs, ${referencedPDFFiles.length} referenced in response`);
-      if (allAnalyzedPDFFiles.length > 0) {
-        console.log('📄 All analyzed PDFs:', allAnalyzedPDFFiles.map(f => f.fileName));
-        console.log('📄 Referenced PDFs:', referencedPDFFiles.map(f => f.fileName));
-        if (referencedPDFFiles.length === 0 && allAnalyzedPDFFiles.length > 0) {
-          console.log('📄 No PDFs detected in response - checking for explicit citations...');
+      // Separate PDF and image files for display
+      const referencedPDFFiles = referencedFiles.filter(f => f.fileType === 'application/pdf');
+      const referencedImageFiles = referencedFiles.filter(f => f.fileType && f.fileType.startsWith('image/'));
+      
+      // Log file detection for debugging
+      console.log(`📄 FILE DETECTION: Found ${allAnalyzedFiles.length} analyzed files (${allAnalyzedFiles.filter(f => f.fileType === 'application/pdf').length} PDFs, ${allAnalyzedFiles.filter(f => f.fileType && f.fileType.startsWith('image/')).length} images), ${referencedFiles.length} referenced in response`);
+      if (allAnalyzedFiles.length > 0) {
+        console.log('📄 All analyzed files:', allAnalyzedFiles.map(f => f.fileName));
+        console.log('📄 Referenced files:', referencedFiles.map(f => f.fileName));
+        if (referencedFiles.length === 0 && allAnalyzedFiles.length > 0) {
+          console.log('📄 No files detected in response - checking for explicit citations...');
           const responseText = answer.toLowerCase();
-          allAnalyzedPDFFiles.forEach(pdfFile => {
-            const fileName = pdfFile.fileName.toLowerCase();
-            const cleanFileName = fileName.replace(/^[0-9-]+-/, '').replace(/\.pdf$/i, '');
+          allAnalyzedFiles.forEach(file => {
+            const fileName = file.fileName.toLowerCase();
+            const cleanFileName = fileName.replace(/^[0-9-]+-/, '').replace(/\.(pdf|png|jpg|jpeg|gif|bmp|webp|tiff)$/i, '');
             const hasExplicitCitation = responseText.includes(`selon le document ${fileName}`) ||
                                       responseText.includes(`dans le fichier ${fileName}`) ||
+                                      responseText.includes(`dans l'image ${fileName}`) ||
                                       responseText.includes(`d'après ${fileName}`);
-            console.log(`📄 ${pdfFile.fileName}: explicit citation = ${hasExplicitCitation}`);
+            console.log(`📄 ${file.fileName}: explicit citation = ${hasExplicitCitation}`);
           });
         }
       }
@@ -1799,8 +1857,9 @@ Il serait pertinent de surveiller l'engagement des employés moins actifs et d'a
             }
           }
         },
-        // Include only PDF files that are actually referenced in the response
-        pdfFiles: referencedPDFFiles
+        // Include only files that are actually referenced in the response
+        pdfFiles: referencedPDFFiles,
+        imageFiles: referencedImageFiles
       };
       
       try {
@@ -1872,6 +1931,8 @@ Il serait pertinent de surveiller l'engagement des employés moins actifs et d'a
     const response = {
       answer,
       conversationId: req.body.conversationId || conversationId,
+      pdfFiles: referencedPDFFiles,
+      imageFiles: referencedImageFiles,
       meta: {
         period: data.period.label,
         usedEntries: data.totals.entries,
@@ -1907,17 +1968,20 @@ Il serait pertinent de surveiller l'engagement des employés moins actifs et d'a
     
       
     
-    // Log submissions with PDF content specifically
-    const submissionsWithPDF = data.submissions.filter(s => 
-      s.fileAttachments?.some(att => att.fileType === 'application/pdf' && att.extractedText)
+    // Log submissions with file content specifically
+    const submissionsWithFiles = data.submissions.filter(s => 
+      s.fileAttachments?.some(att => 
+        (att.fileType === 'application/pdf' || (att.fileType && att.fileType.startsWith('image/'))) && att.extractedText
+      )
     );
     
     
     
-    // Check if AI mentioned PDF content in response
-    const mentionsPDF = answer.toLowerCase().includes('document') || 
-                       answer.toLowerCase().includes('pdf') || 
-                       answer.toLowerCase().includes('fichier');
+    // Check if AI mentioned file content in response
+    const mentionsFiles = answer.toLowerCase().includes('document') || 
+                         answer.toLowerCase().includes('pdf') || 
+                         answer.toLowerCase().includes('fichier') ||
+                         answer.toLowerCase().includes('image');
     
     // Check if AI analyzed the extracted text
     const analyzesContent = answer.toLowerCase().includes('contenu') || 

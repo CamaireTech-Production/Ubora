@@ -11,7 +11,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useApp } from '../contexts/AppContext';
 import { db, auth } from '../firebaseConfig';
 import { doc, getDoc } from 'firebase/firestore';
-import { Upload, CheckCircle, AlertCircle, X, Clock, AlertTriangle, Loader2, Calculator } from 'lucide-react';
+import { Upload, CheckCircle, AlertCircle, X, Clock, AlertTriangle, Loader2, Calculator, Trash2 } from 'lucide-react';
 import { useToast } from '../hooks/useToast';
 import { ExpressionCalculator } from '../utils/ExpressionCalculator';
 
@@ -221,6 +221,15 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
               showSuccess(`PDF "${pdfResult.fileName}" analysé avec succès (${pdfResult.extractedText.length} caractères extraits)`);
             } else {
               showError(`Échec de l'analyse du PDF "${pdfResult.fileName}": ${pdfResult.error || 'Erreur inconnue'}`);
+            }
+          },
+          (imageResult) => {
+            
+            // Show success message for image extraction
+            if (imageResult.extractionStatus === 'completed') {
+              showSuccess(`Image "${imageResult.fileName}" analysée avec succès (${imageResult.extractedText.length} caractères extraits, confiance: ${imageResult.confidence?.toFixed(1)}%)`);
+            } else {
+              showError(`Échec de l'analyse de l'image "${imageResult.fileName}": ${imageResult.error || 'Erreur inconnue'}`);
             }
           }
         );
@@ -474,8 +483,9 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
                     type="button"
                     onClick={() => handleFileRemove(field.id)}
                     className="text-red-600 hover:text-red-800"
+                    title="Supprimer le fichier"
                   >
-                    <X className="h-4 w-4" />
+                    <Trash2 className="h-4 w-4" />
                   </button>
                 </div>
               </div>
