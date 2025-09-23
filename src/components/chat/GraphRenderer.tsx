@@ -19,7 +19,8 @@ import {
   Legend, 
   ResponsiveContainer 
 } from 'recharts';
-import { Maximize2 } from 'lucide-react';
+import { useCurrentPng } from 'recharts-to-png';
+import { Maximize2, Download, Loader2 } from 'lucide-react';
 import { Button } from '../Button';
 import { GraphData } from '../../types';
 
@@ -38,6 +39,9 @@ interface GraphModalProps {
 const COLORS = ['#3B82F6', '#EF4444', '#10B981', '#F59E0B', '#8B5CF6', '#EC4899', '#06B6D4', '#84CC16'];
 
 const GraphModal: React.FC<GraphModalProps> = ({ data, isOpen, onClose }) => {
+  const [getPng, { ref, isLoading }] = useCurrentPng();
+  const [isDownloading, setIsDownloading] = useState(false);
+
   useEffect(() => {
     if (isOpen) {
       // Lock body scroll when modal is open
@@ -67,6 +71,27 @@ const GraphModal: React.FC<GraphModalProps> = ({ data, isOpen, onClose }) => {
       document.body.style.width = '';
     };
   }, [isOpen]);
+
+  const handleDownloadImage = async () => {
+    try {
+      setIsDownloading(true);
+      const png = await getPng();
+      
+      if (png) {
+        // Create a download link
+        const link = document.createElement('a');
+        link.href = png;
+        link.download = `${data.title.replace(/[^a-zA-Z0-9]/g, '_')}_graph.png`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      }
+    } catch (error) {
+      console.error('Error downloading chart image:', error);
+    } finally {
+      setIsDownloading(false);
+    }
+  };
 
   if (!isOpen) return null;
 
@@ -103,6 +128,22 @@ const GraphModal: React.FC<GraphModalProps> = ({ data, isOpen, onClose }) => {
               <Button
                 variant="secondary"
                 size="sm"
+                onClick={handleDownloadImage}
+                disabled={isDownloading || isLoading}
+                className="flex items-center space-x-2 bg-white hover:bg-gray-50 border border-gray-300 hover:border-gray-400"
+              >
+                {isDownloading || isLoading ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Download className="w-4 h-4" />
+                )}
+                <span className="hidden sm:inline">
+                  {isDownloading || isLoading ? 'Génération...' : 'Télécharger'}
+                </span>
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
                 onClick={onClose}
                 className="p-2 bg-white hover:bg-gray-50"
               >
@@ -115,7 +156,7 @@ const GraphModal: React.FC<GraphModalProps> = ({ data, isOpen, onClose }) => {
         {/* Modal Content */}
         <div className="p-6 overflow-auto max-h-[calc(95vh-120px)] bg-gray-50">
           <div className="bg-white rounded-lg p-4 shadow-sm">
-            <div className="w-full h-[700px] min-w-[800px]">
+            <div ref={ref} className="w-full h-[700px] min-w-[800px]">
               <ResponsiveContainer width="100%" height="100%">
                 {renderChart(data, false)}
               </ResponsiveContainer>

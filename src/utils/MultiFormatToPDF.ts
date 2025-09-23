@@ -13,22 +13,46 @@ export class MultiFormatToPDF {
 
     // Add main content as a section
     if (message.content) {
-      sections.push({
-        title: 'Analyse',
-        content: message.content
-      });
+      // Parse chart data from content if present
+      const chartData = this.parseChartDataFromContent(message.content);
+      if (chartData) {
+        console.log('MultiFormatToPDF: Found chart data in content:', chartData.title, chartData.type);
+        charts.push(chartData);
+        
+        // Remove the JSON chart data from the content to prevent it from appearing in the PDF
+        const cleanedContent = this.removeChartDataFromContent(message.content);
+        console.log('MultiFormatToPDF: Original content length:', message.content.length);
+        console.log('MultiFormatToPDF: Cleaned content length:', cleanedContent.length);
+        console.log('MultiFormatToPDF: Content cleaned, JSON removed');
+        
+        sections.push({
+          title: 'Analyse',
+          content: cleanedContent
+        });
+      } else {
+        console.log('MultiFormatToPDF: No chart data found in content');
+        sections.push({
+          title: 'Analyse',
+          content: message.content
+        });
+      }
     }
 
     // Add table data as a section if present
     if (message.tableData) {
+      // Clean and validate the markdown table
+      const cleanedTableData = this.cleanMarkdownTable(message.tableData);
+      console.log('MultiFormatToPDF: Processing table data, length:', cleanedTableData.length);
+      console.log('MultiFormatToPDF: Table preview:', cleanedTableData.substring(0, 200) + '...');
+      
       sections.push({
         title: 'Données tabulaires',
-        content: message.tableData, // Keep as markdown for proper table rendering
+        content: cleanedTableData,
         isMarkdownTable: true
       });
     }
 
-    // Add chart data to charts array
+    // Add chart data to charts array (from message.graphData if available)
     if (message.graphData) {
       charts.push(message.graphData);
     }
@@ -159,10 +183,180 @@ export class MultiFormatToPDF {
       parts.push('Graphique statistique');
     }
 
+    // Check if there's chart data in the content
+    if (message.content && this.parseChartDataFromContent(message.content)) {
+      parts.push('Graphique statistique');
+    }
+
     if (parts.length === 0) {
       return 'Aucun contenu à inclure dans le PDF';
     }
 
     return `Le PDF contiendra : ${parts.join(', ')}`;
+  }
+
+  /**
+   * Parse chart data from message content
+   */
+  private static parseChartDataFromContent(content: string): GraphData | null {
+    if (!content) {
+      return null;
+    }
+
+    // Try to find JSON blocks in the content
+    const jsonMatch = content.match(/```json\s*([\s\S]*?)\s*```/);
+    if (jsonMatch) {
+      try {
+        const jsonString = jsonMatch[1].trim();
+        const jsonData = JSON.parse(jsonString);
+
+        // Check if it's valid graph data
+        if (jsonData && typeof jsonData === 'object' && jsonData.type && jsonData.data && Array.isArray(jsonData.data) && jsonData.data.length > 0) {
+          return jsonData as GraphData;
+        }
+      } catch (error) {
+        console.error('Error parsing JSON chart data:', error);
+      }
+    }
+
+    // Try to find JSON object directly
+    const directJsonMatch = content.match(/\{\s*"type"\s*:\s*"[^"]*"\s*,[\s\S]*?\}/);
+    if (directJsonMatch) {
+      try {
+        const jsonString = directJsonMatch[0];
+        const jsonData = JSON.parse(jsonString);
+
+        if (jsonData && typeof jsonData === 'object' && jsonData.type && jsonData.data && Array.isArray(jsonData.data) && jsonData.data.length > 0) {
+          return jsonData as GraphData;
+        }
+      } catch (error) {
+        console.error('Error parsing direct JSON chart data:', error);
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Remove chart data JSON from content to prevent it from appearing in the PDF
+   */
+  private static removeChartDataFromContent(content: string): string {
+    if (!content) {
+      return content;
+    }
+
+    let cleanedContent = content;
+
+    // Remove JSON code blocks
+    cleanedContent = cleanedContent.replace(/```json\s*[\s\S]*?\s*```/g, '');
+    
+    // Remove standalone JSON objects that look like chart data
+    cleanedContent = cleanedContent.replace(/\{\s*"type"\s*:\s*"[^"]*"\s*,[\s\S]*?\}/g, '');
+    
+    // Clean up extra whitespace and empty lines
+    cleanedContent = cleanedContent.replace(/\n\s*\n\s*\n/g, '\n\n');
+    cleanedContent = cleanedContent.trim();
+
+    return cleanedContent;
+  }
+
+  /**
+   * Clean and validate markdown table data
+   */
+  private static cleanMarkdownTable(tableData: string): string {
+    if (!tableData) {
+      return '';
+    }
+
+    const lines = tableData.split('\n');
+    const cleanedLines: string[] = [];
+    let inTable = false;
+    let tableStartIndex = -1;
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim();
+      
+      // Check if this line looks like a table row
+      if (line.includes('|') && line.length > 0) {
+        if (!inTable) {
+          inTable = true;
+          tableStartIndex = i;
+        }
+        
+        // Clean the table row
+        const cleanedLine = this.cleanTableRow(line);
+        cleanedLines.push(cleanedLine);
+      } else if (inTable && line === '') {
+        // Empty line within table - keep it
+        cleanedLines.push('');
+      } else if (inTable && !line.includes('|')) {
+        // End of table
+        inTable = false;
+        break;
+      } else if (!inTable) {
+        // Non-table content before table starts
+        continue;
+      }
+    }
+
+    // Ensure we have a proper table structure
+    if (cleanedLines.length < 2) {
+      console.warn('MultiFormatToPDF: Table has insufficient rows, returning original data');
+      return tableData;
+    }
+
+    // Validate table structure
+    const headerRow = cleanedLines[0];
+    const headerCells = headerRow.split('|').map(cell => cell.trim()).filter(cell => cell);
+    
+    if (headerCells.length === 0) {
+      console.warn('MultiFormatToPDF: Table has no valid headers, returning original data');
+      return tableData;
+    }
+
+    // Check if we need to add a separator row
+    const hasSeparator = cleanedLines.length > 1 && 
+      cleanedLines[1].split('|').every(cell => /^[-:\s]+$/.test(cell.trim()));
+    
+    if (!hasSeparator && cleanedLines.length > 1) {
+      // Add separator row after header
+      const separatorRow = headerCells.map(() => '---').join(' | ');
+      cleanedLines.splice(1, 0, separatorRow);
+    }
+
+    const result = cleanedLines.join('\n');
+    console.log('MultiFormatToPDF: Cleaned table structure:');
+    console.log('MultiFormatToPDF: - Rows:', cleanedLines.length);
+    console.log('MultiFormatToPDF: - Columns:', headerCells.length);
+    console.log('MultiFormatToPDF: - Headers:', headerCells);
+    
+    return result;
+  }
+
+  /**
+   * Clean a single table row
+   */
+  private static cleanTableRow(row: string): string {
+    // Remove leading and trailing pipes if present
+    let cleaned = row.replace(/^\|+|\|+$/g, '');
+    
+    // Split by pipes and clean each cell
+    const cells = cleaned.split('|').map(cell => {
+      let cellContent = cell.trim();
+      
+      // Remove markdown formatting from cell content
+      cellContent = cellContent.replace(/\*\*(.*?)\*\*/g, '$1'); // Bold
+      cellContent = cellContent.replace(/\*(.*?)\*/g, '$1'); // Italic
+      cellContent = cellContent.replace(/`(.*?)`/g, '$1'); // Code
+      cellContent = cellContent.replace(/\[(.*?)\]\(.*?\)/g, '$1'); // Links
+      
+      // Clean up extra whitespace
+      cellContent = cellContent.replace(/\s+/g, ' ').trim();
+      
+      return cellContent;
+    });
+    
+    // Rejoin with proper pipe formatting
+    return '| ' + cells.join(' | ') + ' |';
   }
 }

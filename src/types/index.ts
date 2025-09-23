@@ -213,13 +213,6 @@ export interface PDFSection {
   type?: 'text' | 'list' | 'table';
   data?: any[];
   isMarkdownTable?: boolean;
-  chartPositions?: ChartPosition[];
-}
-
-export interface ChartPosition {
-  chartIndex: number; // Index in the charts array
-  position: number; // Character position in the content where chart should be inserted
-  placeholder: string; // The text that was replaced (for reference)
 }
 
 export interface Conversation {

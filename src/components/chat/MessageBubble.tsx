@@ -3,9 +3,11 @@ import { User, Clock } from 'lucide-react';
 import { GraphRenderer } from './GraphRenderer';
 import { PDFPreview, TextPDFPreview } from './PDFPreview';
 import { TableRenderer } from './TableRenderer';
+import { ImageFileDisplay } from './ImageFileDisplay';
 import { ChatMessage } from '../../types';
 import { MultiFormatToPDF } from '../../utils/MultiFormatToPDF';
 import { generatePDF } from '../../utils/PDFGenerator';
+import { MultiFormatPDFGenerator } from '../PDFGeneration/MultiFormatPDFGenerator';
 
 interface MessageBubbleProps {
   message: ChatMessage;
@@ -423,10 +425,10 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
                             } catch (error) {
                             }
                           }}
-                          className="inline-flex items-center px-3 py-1.5 text-xs font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors duration-200"
+                          className="inline-flex items-center px-3 py-1.5 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors duration-200"
                           title="Générer un PDF avec le graphique"
                         >
-                          📄 Générer PDF
+                          📄 Générer le PDF
                         </button>
                       </div>
                       {message.graphData.subtitle && (
@@ -489,24 +491,50 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
                 ) : message.contentType === 'text-pdf' && message.pdfData ? (
                   <PDFPreview data={message.pdfData} />
                 ) : message.contentType === 'text-pdf' ? (
-                  <TextPDFPreview content={message.content} title="Rapport Ubora" />
+                  <TextPDFPreview content={message.content} title="Rapport Ubora" message={message} />
                 ) : message.contentType === 'table' && message.tableData ? (
                   <div className="space-y-4">
-                    {/* PDF Generation Button for Table */}
+                    {/* Simple PDF Generation Button for Table */}
                     <div className="flex justify-end mb-2">
                       <button
                         onClick={async () => {
                           try {
                             const pdfData = MultiFormatToPDF.convertToPDFData(message);
-                            await generatePDF(pdfData);
+                            
+                            // If there are charts, convert them to PNG using recharts-to-png
+                            if (pdfData.charts && pdfData.charts.length > 0) {
+                              const { RechartsToPNG } = await import('../../utils/RechartsToPNG');
+                              
+                              const updatedPdfData = {
+                                ...pdfData,
+                                charts: await Promise.all(
+                                  pdfData.charts.map(async (chart: any) => {
+                                    try {
+                                      const chartImage = await RechartsToPNG.convertChartDataToPNG(chart, 800, 500);
+                                      return {
+                                        ...chart,
+                                        imageData: chartImage
+                                      };
+                                    } catch (error) {
+                                      console.error('Error converting chart to PNG:', error);
+                                      return chart;
+                                    }
+                                  })
+                                )
+                              };
+                              
+                              await generatePDF(updatedPdfData);
+                            } else {
+                              await generatePDF(pdfData);
+                            }
                           } catch (error) {
                             console.error('Error generating PDF:', error);
                           }
                         }}
-                        className="inline-flex items-center px-3 py-1.5 text-xs font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors duration-200"
+                        className="inline-flex items-center px-3 py-1.5 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors duration-200"
                         title="Générer un PDF avec le tableau"
                       >
-                        📄 Générer PDF
+                        📄 Générer le PDF
                       </button>
                     </div>
                     
@@ -521,24 +549,8 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
                   </div>
                 ) : message.contentType === 'mixed' || message.contentType === 'multi-format' ? (
                   <div className="space-y-4">
-                    {/* PDF Generation Button for Multi-format */}
-                    {MultiFormatToPDF.canConvertToPDF(message) && (
-                      <div className="flex justify-end mb-2">
-                        <button
-                          onClick={async () => {
-                            try {
-                              const pdfData = MultiFormatToPDF.convertToPDFData(message);
-                              await generatePDF(pdfData);
-                            } catch (error) {
-                            }
-                          }}
-                          className="inline-flex items-center px-3 py-1.5 text-xs font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors duration-200"
-                          title={MultiFormatToPDF.getPDFDescription(message)}
-                        >
-                          📄 Générer PDF
-                        </button>
-                      </div>
-                    )}
+                    {/* PDF Generation Component for Multi-format */}
+                    <MultiFormatPDFGenerator message={message} className="mb-4" />
                     
                     {/* Render text content */}
                     {message.content && (
@@ -629,6 +641,74 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
                 <p className="text-xs text-blue-800 flex items-center">
                   <span className="mr-1">💡</span>
                   Le contenu de ces documents a été analysé pour générer cette réponse. Cliquez sur l'icône de téléchargement pour accéder aux documents originaux.
+                </p>
+              </div>
+            </div>
+          )}
+          
+          {/* Enhanced Image Files Display with Source Attribution - Horizontal Layout */}
+          {!isUser && message.imageFiles && message.imageFiles.length > 0 && (
+            <div className="mt-4 p-4 bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg shadow-sm">
+              <h4 className="text-sm font-semibold text-green-900 mb-3 flex items-center">
+                <span className="mr-2">🖼️</span>
+                Images analysées
+                <span className="ml-2 text-xs bg-green-200 text-green-900 px-2 py-1 rounded-full font-medium">
+                  {message.imageFiles.length} fichier{message.imageFiles.length > 1 ? 's' : ''}
+                </span>
+              </h4>
+              
+              {/* Horizontal scrollable container */}
+              <div className="overflow-x-auto pb-2">
+                <div className="flex space-x-3 min-w-max">
+                  {message.imageFiles.map((file, index) => (
+                    <div key={index} className="flex-shrink-0 w-64 bg-white border border-green-100 rounded-lg shadow-sm hover:shadow-md transition-shadow">
+                      <div className="p-3">
+                        <div className="flex items-start space-x-3">
+                          <div className="flex-shrink-0 w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center">
+                            <span className="text-sm">🖼️</span>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-gray-900 truncate" title={file.fileName}>
+                              {file.fileName}
+                            </p>
+                            <p className="text-xs text-gray-500 mt-1">
+                              Image analysée par OCR
+                              {file.fileSize && (
+                                <span className="block">{(file.fileSize / 1024).toFixed(1)} KB</span>
+                              )}
+                              {file.confidence && (
+                                <span className="block text-green-600">Confiance: {file.confidence.toFixed(1)}%</span>
+                              )}
+                            </p>
+                          </div>
+                        </div>
+                        
+                        {/* Download button with icon only */}
+                        {file.downloadUrl && (
+                          <div className="mt-3 flex justify-end">
+                            <a
+                              href={file.downloadUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center justify-center w-8 h-8 text-green-700 bg-green-100 hover:bg-green-200 rounded-md transition-colors"
+                              title="Télécharger l'image"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                              </svg>
+                            </a>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              
+              <div className="mt-3 p-2 bg-green-100 rounded-md">
+                <p className="text-xs text-green-800 flex items-center">
+                  <span className="mr-1">💡</span>
+                  Le contenu de ces images a été extrait par OCR et analysé pour générer cette réponse. Cliquez sur l'icône de téléchargement pour accéder aux images originales.
                 </p>
               </div>
             </div>

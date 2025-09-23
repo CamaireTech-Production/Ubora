@@ -1,6 +1,6 @@
 import jsPDF from 'jspdf';
 import { PDFData, GraphData } from '../types';
-import { ChartToImage } from './ChartToImage';
+import { RechartsToPNG } from './RechartsToPNG';
 
 export class PDFGenerator {
   private doc: jsPDF;
@@ -505,24 +505,57 @@ export class PDFGenerator {
   }
 
   private addMarkdownTable(tableMarkdown: string): void {
+    console.log('PDFGenerator: Processing markdown table, length:', tableMarkdown.length);
+    console.log('PDFGenerator: Table preview:', tableMarkdown.substring(0, 200) + '...');
+    
+    // Add table title
+    this.doc.setFontSize(12);
+    this.doc.setFont('helvetica', 'bold');
+    this.doc.setTextColor(0, 0, 0);
+    this.doc.text('Données tabulaires', this.margin, this.currentY);
+    this.currentY += 8;
+    
     const lines = tableMarkdown.split('\n');
     const tableRows: string[][] = [];
     
     for (const line of lines) {
-      if (line.trim().startsWith('|') && line.trim().endsWith('|')) {
-        const cells = line.split('|').map(cell => cell.trim()).filter(cell => cell);
+      const trimmedLine = line.trim();
+      
+      // Check if this line contains table data (has pipes)
+      if (trimmedLine.includes('|')) {
+        // Clean the line and split by pipes
+        const cleanedLine = trimmedLine.replace(/^\|+|\|+$/g, ''); // Remove leading/trailing pipes
+        const cells = cleanedLine.split('|').map(cell => cell.trim());
         
-        // Skip separator rows (containing only dashes and spaces)
+        // Skip separator rows (containing only dashes, colons, and spaces)
         if (!cells.every(cell => /^[-:\s]+$/.test(cell))) {
-          tableRows.push(cells);
+          // Clean each cell content
+          const cleanedCells = cells.map(cell => {
+            // Remove any remaining markdown formatting
+            return cell.replace(/\*\*(.*?)\*\*/g, '$1') // Bold
+                      .replace(/\*(.*?)\*/g, '$1') // Italic
+                      .replace(/`(.*?)`/g, '$1') // Code
+                      .replace(/\[(.*?)\]\(.*?\)/g, '$1') // Links
+                      .trim();
+          });
+          
+          tableRows.push(cleanedCells);
         }
       }
     }
     
-    if (tableRows.length === 0) return;
+    console.log('PDFGenerator: Parsed table rows:', tableRows.length);
+    
+    if (tableRows.length === 0) {
+      console.warn('PDFGenerator: No valid table rows found');
+      return;
+    }
     
     const headers = tableRows[0];
     const dataRows = tableRows.slice(1);
+    
+    console.log('PDFGenerator: Table headers:', headers);
+    console.log('PDFGenerator: Data rows:', dataRows.length);
     
     // Calculate column widths based on content length
     const colWidths = this.calculateColumnWidths(headers, dataRows);
@@ -533,72 +566,118 @@ export class PDFGenerator {
     const scaleFactor = availableWidth / totalWidth;
     const scaledColWidths = colWidths.map(width => width * scaleFactor);
     
-    // Add table border
-    this.doc.setDrawColor(200, 200, 200);
-    this.doc.setLineWidth(0.5);
+    // Enhanced table styling
+    const headerHeight = 10;
+    const rowHeight = 8;
+    const cellPadding = 3;
     
-    // Add headers with background
-    this.doc.setFillColor(240, 240, 240);
-    this.doc.setFontSize(9);
+    // Draw outer table border
+    this.doc.setDrawColor(0, 0, 0);
+    this.doc.setLineWidth(1);
+    this.doc.rect(this.margin, this.currentY - headerHeight, totalWidth * scaleFactor, headerHeight + (dataRows.length * rowHeight), 'S');
+    
+    // Add headers with enhanced styling
+    this.doc.setFillColor(230, 230, 230);
+    this.doc.setFontSize(10);
     this.doc.setFont('helvetica', 'bold');
+    this.doc.setTextColor(0, 0, 0);
     
     let currentX = this.margin;
     headers.forEach((header, index) => {
       const cellWidth = scaledColWidths[index];
-      const cellHeight = 8;
       
       // Draw header background
-      this.doc.rect(currentX, this.currentY - 6, cellWidth, cellHeight, 'F');
-      this.doc.rect(currentX, this.currentY - 6, cellWidth, cellHeight, 'S');
+      this.doc.rect(currentX, this.currentY - headerHeight, cellWidth, headerHeight, 'F');
       
-      // Add header text with word wrapping
-      this.addWrappedText(header, currentX + 2, this.currentY - 1, cellWidth - 4, 6);
+      // Draw header border
+      this.doc.setDrawColor(100, 100, 100);
+      this.doc.setLineWidth(0.5);
+      this.doc.rect(currentX, this.currentY - headerHeight, cellWidth, headerHeight, 'S');
+      
+      // Add header text (centered)
+      const textWidth = this.doc.getTextWidth(header);
+      const textX = currentX + (cellWidth - textWidth) / 2;
+      const textY = this.currentY - (headerHeight / 2) + 2;
+      this.doc.text(header, textX, textY);
+      
       currentX += cellWidth;
     });
-    this.currentY += 8;
+    this.currentY += 2; // Small spacing after header
     
-    // Add data rows
+    // Add data rows with enhanced styling
     this.doc.setFont('helvetica', 'normal');
-    this.doc.setFontSize(8);
-    dataRows.slice(0, 20).forEach((row) => { // Limit to 20 rows
+    this.doc.setFontSize(9);
+    this.doc.setTextColor(50, 50, 50);
+    
+    dataRows.slice(0, 20).forEach((row, rowIndex) => { // Limit to 20 rows
       if (this.currentY > this.pageHeight - 30) {
         this.addPageBreak();
+      }
+      
+      // Alternate row background color
+      if (rowIndex % 2 === 0) {
+        this.doc.setFillColor(250, 250, 250);
+      } else {
+        this.doc.setFillColor(255, 255, 255);
       }
       
       currentX = this.margin;
       row.forEach((cell, index) => {
         const cellWidth = scaledColWidths[index];
-        const cellHeight = 6;
+        
+        // Draw cell background
+        this.doc.rect(currentX, this.currentY - rowHeight, cellWidth, rowHeight, 'F');
         
         // Draw cell border
-        this.doc.rect(currentX, this.currentY - 4, cellWidth, cellHeight, 'S');
+        this.doc.setDrawColor(180, 180, 180);
+        this.doc.setLineWidth(0.3);
+        this.doc.rect(currentX, this.currentY - rowHeight, cellWidth, rowHeight, 'S');
         
-        // Add cell text with word wrapping
-        this.addWrappedText(cell, currentX + 2, this.currentY - 1, cellWidth - 4, 4);
+        // Add cell text with proper padding
+        const textX = currentX + cellPadding;
+        const textY = this.currentY - (rowHeight / 2) + 2;
+        
+        // Truncate text if too long
+        let displayText = cell;
+        const maxTextWidth = cellWidth - (cellPadding * 2);
+        while (this.doc.getTextWidth(displayText) > maxTextWidth && displayText.length > 0) {
+          displayText = displayText.slice(0, -1);
+        }
+        if (displayText !== cell && cell.length > 0) {
+          displayText = displayText.slice(0, -3) + '...';
+        }
+        
+        this.doc.text(displayText, textX, textY);
         currentX += cellWidth;
       });
-      this.currentY += 6;
+      this.currentY += rowHeight;
     });
+    
+    // Add final spacing after table
+    this.currentY += 5;
   }
   
   private calculateColumnWidths(headers: string[], dataRows: string[][]): number[] {
     const colCount = headers.length;
     const colWidths = new Array(colCount).fill(0);
     
-    // Calculate width based on header text
+    // Calculate width based on header text (more generous for headers)
     headers.forEach((header, index) => {
-      colWidths[index] = Math.max(colWidths[index], header.length * 1.2);
+      colWidths[index] = Math.max(colWidths[index], header.length * 1.5);
     });
     
     // Calculate width based on data text
     dataRows.forEach(row => {
       row.forEach((cell, index) => {
-        colWidths[index] = Math.max(colWidths[index], cell.length * 1.1);
+        colWidths[index] = Math.max(colWidths[index], cell.length * 1.2);
       });
     });
     
-    // Set minimum and maximum widths
-    return colWidths.map(width => Math.max(15, Math.min(width, 50)));
+    // Set minimum and maximum widths with better proportions
+    const minWidth = 20;
+    const maxWidth = 60;
+    
+    return colWidths.map(width => Math.max(minWidth, Math.min(width, maxWidth)));
   }
   
   private addWrappedText(text: string, x: number, y: number, maxWidth: number, lineHeight: number): void {
@@ -625,12 +704,16 @@ export class PDFGenerator {
   }
 
   private async addChartsSection(charts: GraphData[]): Promise<void> {
+    console.log('PDFGenerator: Adding charts section with', charts.length, 'charts');
+    
     this.doc.setFontSize(16);
     this.doc.setFont('helvetica', 'bold');
     this.doc.text('Graphiques', this.margin, this.currentY);
     this.currentY += 15;
 
     for (const chart of charts) {
+      console.log('PDFGenerator: Processing chart:', chart.title, chart.type, 'with', chart.data.length, 'data points');
+      
       if (this.currentY > this.pageHeight - 100) {
         this.addPageBreak();
       }
@@ -642,8 +725,18 @@ export class PDFGenerator {
       this.currentY += 8;
       
       try {
-        // Convert chart to high-resolution image with better dimensions
-        const chartImage = await ChartToImage.chartToBase64(chart, 800, 500);
+        let chartImage: string;
+        
+        // Check if chart already has image data (pre-converted)
+        if ((chart as any).imageData) {
+          chartImage = (chart as any).imageData;
+          console.log('PDFGenerator: Using pre-converted image data, length:', chartImage.length);
+        } else {
+          // Convert chart to high-resolution image using recharts-to-png
+          console.log('PDFGenerator: Converting chart to PNG...');
+          chartImage = await RechartsToPNG.convertChartDataToPNG(chart, 800, 500);
+          console.log('PDFGenerator: Chart converted, image length:', chartImage.length);
+        }
         
         // Add chart image to PDF with proper scaling and centering
         const imgWidth = 170; // PDF width
@@ -656,7 +749,23 @@ export class PDFGenerator {
           this.addPageBreak();
         }
         
-        this.doc.addImage(chartImage, 'PNG', x, y, imgWidth, imgHeight);
+        console.log('PDFGenerator: Adding image to PDF at position:', x, y, 'size:', imgWidth, imgHeight);
+        console.log('PDFGenerator: Image data preview:', chartImage.substring(0, 100) + '...');
+        
+        // Ensure the base64 string is properly formatted
+        if (!chartImage.startsWith('data:image/')) {
+          console.log('PDFGenerator: Fixing base64 format...');
+          chartImage = 'data:image/png;base64,' + chartImage.replace(/^data:image\/[a-z]+;base64,/, '');
+        }
+        
+        console.log('PDFGenerator: Final image data preview:', chartImage.substring(0, 100) + '...');
+        
+        // Determine image format for jsPDF
+        const imageFormat = chartImage.includes('data:image/jpeg') ? 'JPEG' : 'PNG';
+        console.log('PDFGenerator: Using image format:', imageFormat);
+        
+        this.doc.addImage(chartImage, imageFormat, x, y, imgWidth, imgHeight);
+        console.log('PDFGenerator: Image added successfully to PDF');
         this.currentY += imgHeight + 15;
         
         // Add chart info with better formatting
@@ -668,7 +777,14 @@ export class PDFGenerator {
         this.doc.setTextColor(0, 0, 0);
         
       } catch (error) {
-        console.error('Error rendering chart to image:', error);
+        console.error('PDFGenerator: Error rendering chart to image:', error);
+        console.error('PDFGenerator: Error details:', {
+          message: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : undefined,
+          chartTitle: chart.title,
+          chartType: chart.type,
+          hasImageData: !!(chart as any).imageData
+        });
         
         // Fallback to placeholder if image generation fails
         this.doc.setFontSize(10);
