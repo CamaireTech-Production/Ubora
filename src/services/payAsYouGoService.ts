@@ -62,26 +62,20 @@ export class PayAsYouGoService {
   static getTokenPackages(): TokenPackage[] {
     return [
       {
-        tokens: 5000,
-        price: 5000, // 5000 FCFA
-        popular: false,
-        description: 'Pour quelques questions supplémentaires'
+        tokens: 10000,
+        price: 2500, // 2500 FCFA
+        popular: true,
+        description: 'Pour conversations et analyses supplémentaires'
       },
       {
-        tokens: 15000,
-        price: 12000, // 12000 FCFA (20% discount)
-        popular: true,
+        tokens: 25000,
+        price: 5000, // 5000 FCFA
+        popular: false,
         description: 'Idéal pour un usage intensif'
       },
       {
-        tokens: 30000,
-        price: 20000, // 20000 FCFA (33% discount)
-        popular: false,
-        description: 'Pour une utilisation professionnelle'
-      },
-      {
-        tokens: 50000,
-        price: 30000, // 30000 FCFA (40% discount)
+        tokens: 40000,
+        price: 8500, // 8500 FCFA
         popular: false,
         description: 'Pour une équipe active'
       }
@@ -116,12 +110,12 @@ export class PayAsYouGoService {
     
     // If user has used more than 80% of their monthly limit, recommend a larger package
     if (currentTokensUsed / monthlyLimit > 0.8) {
-      return packages.find(pkg => pkg.tokens >= 15000) || packages[1];
+      return packages.find(pkg => pkg.tokens >= 25000) || packages[1];
     }
     
     // If user has used more than 50% of their monthly limit, recommend a medium package
     if (currentTokensUsed / monthlyLimit > 0.5) {
-      return packages.find(pkg => pkg.tokens >= 10000) || packages[1];
+      return packages.find(pkg => pkg.tokens >= 10000) || packages[0];
     }
     
     // Otherwise, recommend the smallest package

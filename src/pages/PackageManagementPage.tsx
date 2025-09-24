@@ -492,7 +492,7 @@ export const PackageManagementPage: React.FC = () => {
                     Achetez des tokens supplémentaires pour continuer à utiliser l'IA
                   </p>
                   <div className="text-lg font-bold text-blue-600 mb-3">
-                    5 000 FCFA/mois
+                    À partir de 2 500 FCFA
                   </div>
                   <Button
                     onClick={() => openPaymentModal('tokens', 0)}

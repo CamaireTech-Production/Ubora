@@ -1127,17 +1127,17 @@ TOP FORMULAIRES : ${data.formStats.slice(0, 3).map(f => `${f.title} (${f.count} 
     const basicSystemPrompt = `Tu es ARCHA, assistant IA expert en analyse de données d'entreprise.`;
     const userPromptForEstimation = buildUserMessageForEstimation();
     const estimatedTokens = TokenCounter.getTotalEstimatedTokens(basicSystemPrompt, userPromptForEstimation, 2000);
-    const userTokensToCharge = TokenCounter.getUserTokensToCharge(estimatedTokens, 1.5);
+    const userTokensToCharge = TokenCounter.getUserTokensToCharge(estimatedTokens, 2.5);
     
     // Calculate package limit based on user's package type
     const getPackageLimit = (packageType) => {
       const limits = {
-        starter: 10000,
-        standard: 30000,
-        premium: 100000,
+        starter: 60000,
+        standard: 120000,
+        premium: 300000,
         custom: -1 // unlimited
       };
-      return limits[packageType] || 0;
+      return limits[packageType] || 60000;
     };
 
     // Check subscription status and reset tokens if subscription has ended
@@ -1457,7 +1457,7 @@ Il serait pertinent de surveiller l'engagement des employés moins actifs et d'a
         tokensUsed = completion.usage && completion.usage.total_tokens ? completion.usage.total_tokens : 0;
         
         // Calculate final user tokens to charge based on actual usage
-        finalUserTokens = TokenCounter.getUserTokensToCharge(tokensUsed, 1.5);
+        finalUserTokens = TokenCounter.getUserTokensToCharge(tokensUsed, 2.5);
       } catch (openaiError) {
         console.error('OpenAI error:', openaiError);
         // Fallback en cas d'erreur OpenAI

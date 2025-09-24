@@ -1,7 +1,5 @@
 ---
-description: General Rules
-globs:
-alwaysApply: true
+alwaysApply: false
 ---
 - dp not try to run the start command for the project because the project is always started
 - Always use clean code for implementation and react js good practice

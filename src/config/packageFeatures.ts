@@ -53,21 +53,21 @@ export const PACKAGE_LIMITS: Record<PackageType, PackageLimits> = {
     maxForms: 4,
     maxDashboards: 1,
     maxUsers: 3,
-    monthlyTokens: 10000,
+    monthlyTokens: 60000,
     additionalUserCost: 10000
   },
   standard: {
     maxForms: -1, // illimité
     maxDashboards: -1, // illimité
     maxUsers: 7,
-    monthlyTokens: 30000,
+    monthlyTokens: 120000,
     additionalUserCost: 7000
   },
   premium: {
     maxForms: -1, // illimité
     maxDashboards: -1, // illimité
     maxUsers: 20,
-    monthlyTokens: 100000,
+    monthlyTokens: 300000,
     additionalUserCost: 7000
   },
   custom: {

@@ -39,27 +39,27 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       case 'tokens':
         return [
           {
-            id: 'tokens-5k',
-            name: '5 000 Tokens Archa',
+            id: 'tokens-10k',
+            name: '10 000 Tokens Archa',
             description: 'Pour conversations et analyses supplémentaires',
-            price: 5000,
+            price: 2500,
             unit: 'FCFA',
             icon: <Brain className="h-5 w-5" />,
             popular: true
           },
           {
-            id: 'tokens-10k',
-            name: '10 000 Tokens Archa',
+            id: 'tokens-25k',
+            name: '25 000 Tokens Archa',
             description: 'Idéal pour usage intensif',
-            price: 9000,
+            price: 5000,
             unit: 'FCFA',
             icon: <Brain className="h-5 w-5" />
           },
           {
-            id: 'tokens-25k',
-            name: '25 000 Tokens Archa',
+            id: 'tokens-40k',
+            name: '40 000 Tokens Archa',
             description: 'Pour équipes importantes',
-            price: 20000,
+            price: 8500,
             unit: 'FCFA',
             icon: <Brain className="h-5 w-5" />
           }

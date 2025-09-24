@@ -15,26 +15,20 @@ interface PayAsYouGoModalProps {
 
 const TOKEN_PACKAGES = [
   {
-    tokens: 5000,
-    price: 5000, // 5000 FCFA
-    popular: false,
-    description: 'Pour quelques questions supplémentaires'
+    tokens: 10000,
+    price: 2500, // 2500 FCFA
+    popular: true,
+    description: 'Pour conversations et analyses supplémentaires'
   },
   {
-    tokens: 15000,
-    price: 12000, // 12000 FCFA (20% discount)
-    popular: true,
+    tokens: 25000,
+    price: 5000, // 5000 FCFA
+    popular: false,
     description: 'Idéal pour un usage intensif'
   },
   {
-    tokens: 30000,
-    price: 20000, // 20000 FCFA (33% discount)
-    popular: false,
-    description: 'Pour une utilisation professionnelle'
-  },
-  {
-    tokens: 50000,
-    price: 30000, // 30000 FCFA (40% discount)
+    tokens: 40000,
+    price: 8500, // 8500 FCFA
     popular: false,
     description: 'Pour une équipe active'
   }
