@@ -11,6 +11,25 @@ Une application de gestion multi-agences avec Firebase Auth et Firestore utilisa
 - **Dashboard interactif** : Statistiques en temps réel
 - **Export de données** : PDF des rapports
 - **Interface responsive** : Optimisée mobile-first
+- **OCR avancé** : Extraction de texte d'images avec OpenAI Vision API (excellent pour le texte manuscrit et les images de faible qualité)
+
+## 🔍 Configuration OCR (Automatique)
+
+L'application utilise **OpenAI Vision API** pour l'extraction de texte depuis les images. Cette solution offre :
+
+- **Précision exceptionnelle** pour le texte manuscrit
+- **Support des images de faible qualité**
+- **Reconnaissance multilingue** (français et anglais)
+- **Utilise votre clé OpenAI existante** - aucune configuration supplémentaire
+- **Fallback automatique** vers Tesseract.js si nécessaire
+- **Traitement rapide** et fiable
+
+### Fonctionnement
+1. **OpenAI Vision API** : Service principal avec GPT-4o pour une précision maximale
+2. **Tesseract.js** : Fallback automatique dans le navigateur
+3. **Message informatif** : Si les deux méthodes échouent
+
+Aucune configuration supplémentaire n'est nécessaire - l'OCR utilise automatiquement votre clé OpenAI lors de l'upload d'images.
 
 ## 🛠️ Configuration Firebase
 

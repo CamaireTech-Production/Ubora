@@ -14,6 +14,7 @@ import { doc, getDoc } from 'firebase/firestore';
 import { Upload, CheckCircle, AlertCircle, X, Clock, AlertTriangle, Loader2, Calculator, Trash2 } from 'lucide-react';
 import { useToast } from '../hooks/useToast';
 import { ExpressionCalculator } from '../utils/ExpressionCalculator';
+import { TextExtractionModal } from './modals/TextExtractionModal';
 
 interface DynamicFormProps {
   form: Form;
@@ -44,6 +45,26 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
   const [fileAttachments, setFileAttachments] = useState<FileAttachment[]>(initialFileAttachments);
   const [uploadProgress, setUploadProgress] = useState<Record<string, UploadProgress>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // Text extraction modal state
+  const [textExtractionModal, setTextExtractionModal] = useState<{
+    isOpen: boolean;
+    fileName: string;
+    extractedText: string;
+    extractionStatus: 'completed' | 'failed';
+    confidence?: number;
+    error?: string;
+    fileSize: number;
+    engine?: string;
+    pendingSubmission?: boolean; // Track if we're waiting for user to proceed
+  }>({
+    isOpen: false,
+    fileName: '',
+    extractedText: '',
+    extractionStatus: 'failed',
+    fileSize: 0,
+    pendingSubmission: false
+  });
   
 
   const formatTimeRestrictions = (restrictions?: {
@@ -224,13 +245,20 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
             }
           },
           (imageResult) => {
-            
-            // Show success message for image extraction
-            if (imageResult.extractionStatus === 'completed') {
-              showSuccess(`Image "${imageResult.fileName}" analysée avec succès (${imageResult.extractedText.length} caractères extraits, confiance: ${imageResult.confidence?.toFixed(1)}%)`);
-            } else {
-              showError(`Échec de l'analyse de l'image "${imageResult.fileName}": ${imageResult.error || 'Erreur inconnue'}`);
-            }
+            console.log('🔍 Image extraction callback received:', imageResult);
+            // Show text extraction modal as part of form submission flow
+            setTextExtractionModal({
+              isOpen: true,
+              fileName: imageResult.fileName,
+              extractedText: imageResult.extractedText,
+              extractionStatus: imageResult.extractionStatus,
+              confidence: imageResult.confidence,
+              error: imageResult.error,
+              fileSize: imageResult.fileSize,
+              engine: imageResult.engine,
+              pendingSubmission: true // Mark as part of submission flow
+            });
+            console.log('✅ Text extraction modal state updated');
           }
         );
 
@@ -361,6 +389,18 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
       } finally {
         setIsSubmitting(false);
       }
+    }
+  };
+
+  const handleProceedWithSubmission = () => {
+    // Close the modal and proceed with form submission
+    setTextExtractionModal(prev => ({ ...prev, isOpen: false, pendingSubmission: false }));
+    
+    // Trigger form submission
+    const formElement = document.querySelector('form');
+    if (formElement) {
+      const submitEvent = new Event('submit', { bubbles: true, cancelable: true });
+      formElement.dispatchEvent(submitEvent);
     }
   };
 
@@ -702,6 +742,19 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
         </form>
       </Card>
       
+      {/* Text Extraction Modal */}
+      <TextExtractionModal
+        isOpen={textExtractionModal.isOpen}
+        onClose={() => setTextExtractionModal(prev => ({ ...prev, isOpen: false }))}
+        onProceed={handleProceedWithSubmission}
+        fileName={textExtractionModal.fileName}
+        extractedText={textExtractionModal.extractedText}
+        extractionStatus={textExtractionModal.extractionStatus}
+        confidence={textExtractionModal.confidence}
+        error={textExtractionModal.error}
+        fileSize={textExtractionModal.fileSize}
+        engine={textExtractionModal.engine}
+      />
       
     </div>
   );

@@ -34,6 +34,7 @@ export interface ImageExtractionResult {
   error?: string;
   confidence?: number;
   fileSize: number;
+  engine?: string;
 }
 
 export class FileUploadService {
@@ -177,18 +178,21 @@ export class FileUploadService {
           });
 
           const extractionResult = await ImageTextExtractionService.extractTextFromImage(file);
+          console.log('🔍 Extraction result in file upload service:', extractionResult);
           
           if (extractionResult.success) {
             fileAttachment.extractedText = ImageTextExtractionService.cleanExtractedText(extractionResult.text);
             fileAttachment.textExtractionStatus = 'completed';
 
+            console.log('✅ Triggering debug modal callback for successful extraction');
             // Trigger debug modal callback
             onImageExtraction?.({
               fileName: file.name,
               extractedText: fileAttachment.extractedText,
               extractionStatus: 'completed',
               confidence: extractionResult.confidence,
-              fileSize: file.size
+              fileSize: file.size,
+              engine: extractionResult.engine
             });
           } else {
             // Extraction failed
@@ -201,7 +205,8 @@ export class FileUploadService {
               extractedText: extractionResult.text, // This will be the error message
               extractionStatus: 'failed',
               error: extractionResult.error,
-              fileSize: file.size
+              fileSize: file.size,
+              engine: extractionResult.engine
             });
           }
         } catch (extractionError) {
