@@ -1532,6 +1532,10 @@ Il serait pertinent de surveiller l'engagement des employés moins actifs et d'a
       let conversationId = req.body.conversationId;
     let conversationContext = null;
     
+    // Initialize file variables to prevent ReferenceError
+    let referencedPDFFiles = [];
+    let referencedImageFiles = [];
+    
     try {
       // Get or create conversation with enhanced context
       
@@ -1785,7 +1789,7 @@ Il serait pertinent de surveiller l'engagement des employés moins actifs et d'a
           fileSize: att.fileSize,
           downloadUrl: att.downloadUrl,
           fieldId: att.fieldId,
-          confidence: att.confidence // For images
+          confidence: att.confidence || null // Fix: ensure confidence is never undefined
         }))
       ) : [];
       
@@ -1793,8 +1797,8 @@ Il serait pertinent de surveiller l'engagement des employés moins actifs et d'a
       const referencedFiles = getReferencedFiles(answer, allAnalyzedFiles);
       
       // Separate PDF and image files for display
-      const referencedPDFFiles = referencedFiles.filter(f => f.fileType === 'application/pdf');
-      const referencedImageFiles = referencedFiles.filter(f => f.fileType && f.fileType.startsWith('image/'));
+      referencedPDFFiles = referencedFiles.filter(f => f.fileType === 'application/pdf');
+      referencedImageFiles = referencedFiles.filter(f => f.fileType && f.fileType.startsWith('image/'));
       
       // Log file detection for debugging
       console.log(`📄 FILE DETECTION: Found ${allAnalyzedFiles.length} analyzed files (${allAnalyzedFiles.filter(f => f.fileType === 'application/pdf').length} PDFs, ${allAnalyzedFiles.filter(f => f.fileType && f.fileType.startsWith('image/')).length} images), ${referencedFiles.length} referenced in response`);
