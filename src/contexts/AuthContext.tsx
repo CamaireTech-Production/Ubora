@@ -8,9 +8,10 @@ import {
   GoogleAuthProvider,
   User as FirebaseUser
 } from 'firebase/auth';
-import { doc, getDoc, setDoc, serverTimestamp, onSnapshot } from 'firebase/firestore';
+import { doc, getDoc, setDoc, serverTimestamp, onSnapshot, collection, query, where, getDocs } from 'firebase/firestore';
 import { auth, db } from '../firebaseConfig';
 import { User } from '../types';
+import { getPackageLimit, isUnlimited, PackageType } from '../config/packageFeatures';
 
 interface AuthContextType {
   user: User | null;
@@ -31,6 +32,79 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Fonction pour vérifier les limites d'utilisateurs d'une agence
+  const checkAgencyUserLimit = async (agencyId: string): Promise<{ canAddUser: boolean; error?: string }> => {
+    try {
+      // Récupérer le directeur de l'agence pour connaître son package
+      const directorsQuery = query(
+        collection(db, 'users'),
+        where('agencyId', '==', agencyId),
+        where('role', '==', 'directeur')
+      );
+      
+      const directorsSnapshot = await getDocs(directorsQuery);
+      
+      if (directorsSnapshot.empty) {
+        return { canAddUser: false, error: 'Aucun directeur trouvé pour cette agence' };
+      }
+      
+      const director = directorsSnapshot.docs[0].data() as User;
+      const packageType = director.package as PackageType;
+      
+      if (!packageType) {
+        return { canAddUser: false, error: 'Le directeur n\'a pas sélectionné de package' };
+      }
+      
+      // Vérifier si le package a des utilisateurs illimités
+      if (isUnlimited(packageType, 'maxUsers')) {
+        return { canAddUser: true };
+      }
+      
+      // Récupérer le nombre d'employés actuels (approuvés)
+      const employeesQuery = query(
+        collection(db, 'users'),
+        where('agencyId', '==', agencyId),
+        where('role', '==', 'employe'),
+        where('isApproved', '!=', false) // Inclut les employés approuvés (true) et ceux en attente (undefined)
+      );
+      
+      const employeesSnapshot = await getDocs(employeesQuery);
+      const currentEmployeeCount = employeesSnapshot.size;
+      
+      // Récupérer la limite du package
+      const maxUsers = getPackageLimit(packageType, 'maxUsers');
+      
+      // Vérifier les ressources pay-as-you-go
+      const payAsYouGoUsers = director.payAsYouGoResources?.users || 0;
+      const totalCapacity = maxUsers + payAsYouGoUsers;
+      
+      if (currentEmployeeCount >= totalCapacity) {
+        return { 
+          canAddUser: false, 
+          error: 'Limite d\'utilisateurs atteinte. Contactez votre directeur pour mettre à niveau le package ou acheter des utilisateurs supplémentaires.' 
+        };
+      }
+      
+      return { canAddUser: true };
+    } catch (error: any) {
+      console.error('Erreur lors de la vérification des limites:', error);
+      
+      // Handle specific Firebase permission errors
+      if (error.code === 'permission-denied' || error.message?.includes('permissions')) {
+        return { 
+          canAddUser: false, 
+          error: 'Limite d\'utilisateurs atteinte. Contactez votre directeur pour mettre à niveau le package ou acheter des utilisateurs supplémentaires.' 
+        };
+      }
+      
+      // For other errors, show a user-friendly message
+      return { 
+        canAddUser: false, 
+        error: 'Limite d\'utilisateurs atteinte. Contactez votre directeur pour mettre à niveau le package ou acheter des utilisateurs supplémentaires.' 
+      };
+    }
+  };
 
   // Fonction pour créer ou mettre à jour le document utilisateur
   const createOrUpdateUserDoc = async (firebaseUser: FirebaseUser, additionalData?: Partial<User>) => {
@@ -269,6 +343,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       setError(null);
       setIsLoading(true);
+      
+      // Vérifier les limites d'utilisateurs pour les employés
+      if (role === 'employe') {
+        try {
+          const limitCheck = await checkAgencyUserLimit(agencyId);
+          if (!limitCheck.canAddUser) {
+            setError(limitCheck.error || 'Limite d\'utilisateurs atteinte');
+            return false;
+          }
+        } catch (error) {
+          // Si on ne peut pas vérifier les limites (permissions, etc.), on bloque par sécurité
+          setError('Limite d\'utilisateurs atteinte. Contactez votre directeur pour mettre à niveau le package ou acheter des utilisateurs supplémentaires.');
+          return false;
+        }
+      }
       
       // Créer le compte Firebase Auth
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
