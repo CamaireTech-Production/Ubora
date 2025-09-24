@@ -13,6 +13,10 @@ import {
   PACKAGE_FEATURES,
   PackageType 
 } from '../config/packageFeatures';
+import { SubscriptionSessionService } from '../services/subscriptionSessionService';
+import { PackageTransitionService } from '../services/packageTransitionService';
+import { SubscriptionHistoryModal } from '../components/SubscriptionHistoryModal';
+import { PackageTransitionModal } from '../components/PackageTransitionModal';
 import { 
   Check, 
   X, 
@@ -26,6 +30,7 @@ import {
   BarChart3,
   Brain,
   Plus,
+  Calendar,
   AlertTriangle
 } from 'lucide-react';
 import { useToast } from '../hooks/useToast';
@@ -42,6 +47,9 @@ export const PackageManagementPage: React.FC = () => {
   const { toast, showSuccess, showError } = useToast();
   const [selectedPackage, setSelectedPackage] = useState<PackageType | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [showTransitionPreview, setShowTransitionPreview] = useState(false);
+  const [transitionPreview, setTransitionPreview] = useState<any>(null);
   const [paymentModal, setPaymentModal] = useState<{
     isOpen: boolean;
     type: 'tokens' | 'forms' | 'dashboards' | 'users';
@@ -91,28 +99,46 @@ export const PackageManagementPage: React.FC = () => {
       return;
     }
 
-    setSelectedPackage(pkg);
+    // Show transition preview first
+    const preview = PackageTransitionService.getTransitionPreview(user, pkg);
+    if (preview) {
+      setTransitionPreview(preview);
+      setShowTransitionPreview(true);
+    } else {
+      showError('Impossible de calculer la transition. Veuillez réessayer.');
+    }
+  };
+
+  const confirmTransition = async () => {
+    if (!selectedPackage || !user) return;
+
     setIsProcessing(true);
+    setShowTransitionPreview(false);
 
     try {
       // Simulation de paiement
       await new Promise(resolve => setTimeout(resolve, 2000));
       
-      // Mettre à jour le package dans Firestore
-      const userRef = doc(db, 'users', user.id);
-      const activationDate = new Date();
-      await updateDoc(userRef, {
-        package: pkg,
-        subscriptionStartDate: activationDate, // Set activation date to current date
-        updatedAt: new Date()
-      });
+      // Execute transition using the new service
+      const success = await PackageTransitionService.executeTransition(
+        user.id,
+        selectedPackage,
+        {
+          preserveUnusedPayAsYouGo: true
+        },
+        'simulation' // Payment method
+      );
       
-      showSuccess(`Package ${getPackageDisplayName(pkg)} activé avec succès !`);
-      
-      // Navigate back to the previous page instead of reloading
-      setTimeout(() => {
-        navigate(-1); // Go back to the previous page
-      }, 1500);
+      if (success) {
+        showSuccess(`Package ${getPackageDisplayName(selectedPackage)} activé avec succès !`);
+        
+        // Navigate back to the previous page instead of reloading
+        setTimeout(() => {
+          navigate(-1); // Go back to the previous page
+        }, 1500);
+      } else {
+        showError('Erreur lors de l\'activation du package. Veuillez réessayer.');
+      }
       
     } catch (error) {
       console.error('Erreur lors du changement de package:', error);
@@ -120,6 +146,7 @@ export const PackageManagementPage: React.FC = () => {
     } finally {
       setIsProcessing(false);
       setSelectedPackage(null);
+      setTransitionPreview(null);
     }
   };
 
@@ -206,59 +233,87 @@ export const PackageManagementPage: React.FC = () => {
     setPaymentModal({ isOpen: true, type, currentLimit });
   };
 
-  // Calculate subscription days remaining
-  const subscriptionStartDate = user?.subscriptionStartDate || user?.createdAt;
+  // Get current subscription session information
+  const currentSession = user ? SubscriptionSessionService.getCurrentSession(user) : null;
+  const subscriptionHistory = user ? SubscriptionSessionService.getSubscriptionHistorySummary(user) : null;
+  
+  // Calculate subscription days remaining using new session system
+  const daysRemaining = currentSession ? SubscriptionSessionService.getDaysUntilExpiration(user!) : -1;
+  const isNearRenewal = daysRemaining <= 7 && daysRemaining > 0;
+  
+  // Get subscription start date from current session or fallback to legacy
+  const subscriptionStartDate = currentSession?.startDate || user?.subscriptionStartDate || user?.createdAt;
   let startDate: Date;
   
   try {
     if (subscriptionStartDate) {
       startDate = subscriptionStartDate instanceof Date ? subscriptionStartDate : new Date(subscriptionStartDate);
-      // Check if the date is valid
       if (isNaN(startDate.getTime())) {
-        startDate = new Date(); // Fallback to current date
+        startDate = new Date();
       }
     } else {
-      startDate = new Date(); // Fallback to current date
+      startDate = new Date();
     }
   } catch (error) {
-    startDate = new Date(); // Fallback to current date
+    startDate = new Date();
   }
   
-  // Calculate days since activation and days remaining
   const now = new Date();
-  const daysSinceActivation = Math.floor((now.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
   
-  // Calculate the next renewal date (30 days from activation, then every 30 days)
-  const nextRenewalDate = new Date(startDate);
-  const cyclesPassed = Math.floor(daysSinceActivation / 30);
-  nextRenewalDate.setDate(startDate.getDate() + (cyclesPassed + 1) * 30);
-  
-  // Calculate days remaining until next renewal
-  const daysRemaining = Math.max(1, Math.ceil((nextRenewalDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
-  const isNearRenewal = daysRemaining <= 7;
+  // Calculate next renewal date
+  let nextRenewalDate: Date;
+  if (currentSession) {
+    // Convert Firestore Timestamp to Date if needed
+    const endDate = currentSession.endDate as any;
+    if (endDate instanceof Date) {
+      nextRenewalDate = endDate;
+    } else if (endDate && typeof endDate.toDate === 'function') {
+      nextRenewalDate = endDate.toDate();
+    } else {
+      nextRenewalDate = new Date(endDate);
+    }
+  } else {
+    // Default 30 days from now if no current session
+    nextRenewalDate = new Date(now.getTime() + (30 * 24 * 60 * 60 * 1000));
+  }
 
   return (
     <Layout title="Gestion des Packages">
       <div className="max-w-6xl mx-auto space-y-8 px-4">
         {/* Header with back button */}
-        <div className="flex items-center space-x-4">
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => navigate('/directeur/dashboard')}
-            className="flex items-center space-x-1"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            <span>Retour</span>
-          </Button>
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">
-              Gestion des Packages
-            </h1>
-            <p className="text-gray-600">
-              Gérez votre abonnement et vos ressources supplémentaires
-            </p>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-4">
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => navigate('/directeur/dashboard')}
+              className="flex items-center space-x-1"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              <span>Retour</span>
+            </Button>
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">
+                Gestion des Packages
+              </h1>
+              <p className="text-gray-600">
+                Gérez votre abonnement et vos ressources supplémentaires
+              </p>
+            </div>
           </div>
+          
+          {/* Subscription History Button */}
+          {user && subscriptionHistory && subscriptionHistory.totalSessions > 0 && (
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => setShowHistoryModal(true)}
+              className="flex items-center space-x-2"
+            >
+              <Calendar className="h-4 w-4" />
+              <span>Historique</span>
+            </Button>
+          )}
         </div>
 
         {/* Current Package Status */}
@@ -594,6 +649,28 @@ export const PackageManagementPage: React.FC = () => {
         type={paymentModal.type}
         currentLimit={paymentModal.currentLimit}
         onPurchase={handlePurchaseResource}
+      />
+
+      {/* Subscription History Modal */}
+      {user && (
+        <SubscriptionHistoryModal
+          isOpen={showHistoryModal}
+          onClose={() => setShowHistoryModal(false)}
+          sessions={subscriptionHistory?.totalSessions ? SubscriptionSessionService.getAllSessions(user) : []}
+          currentSession={currentSession}
+        />
+      )}
+
+      {/* Package Transition Modal */}
+      <PackageTransitionModal
+        isOpen={showTransitionPreview}
+        onClose={() => {
+          setShowTransitionPreview(false);
+          setTransitionPreview(null);
+        }}
+        onConfirm={confirmTransition}
+        preview={transitionPreview}
+        isProcessing={isProcessing}
       />
 
       <Toast {...toast} />

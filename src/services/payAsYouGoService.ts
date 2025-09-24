@@ -1,5 +1,6 @@
 import { doc, updateDoc, getDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
+import { SubscriptionSessionService } from './subscriptionSessionService';
 
 export interface TokenPackage {
   tokens: number;
@@ -10,45 +11,27 @@ export interface TokenPackage {
 
 export class PayAsYouGoService {
   /**
-   * Purchase tokens for a user
+   * Purchase tokens for a user using the new session system
    * @param userId - ID de l'utilisateur
    * @param tokenPackage - Package de tokens à acheter
+   * @param paymentMethod - Méthode de paiement
    * @returns Promise<boolean> - true si l'achat a réussi
    */
-  static async purchaseTokens(userId: string, tokenPackage: TokenPackage): Promise<boolean> {
+  static async purchaseTokens(userId: string, tokenPackage: TokenPackage, paymentMethod?: string): Promise<boolean> {
     try {
-      const userDocRef = doc(db, 'users', userId);
-      const userDoc = await getDoc(userDocRef);
+      // Create a new pay-as-you-go session
+      const success = await SubscriptionSessionService.createPayAsYouGoSession(
+        userId,
+        tokenPackage.tokens,
+        tokenPackage.price,
+        paymentMethod
+      );
       
-      if (!userDoc.exists()) {
-        console.error('Utilisateur non trouvé:', userId);
-        return false;
+      if (success) {
+        console.log(`✅ Purchase successful: ${tokenPackage.tokens} tokens for ${tokenPackage.price} FCFA`);
       }
       
-      const userData = userDoc.data();
-      const currentPayAsYouGoTokens = userData.payAsYouGoTokens || 0;
-      const newPayAsYouGoTokens = currentPayAsYouGoTokens + tokenPackage.tokens;
-      
-      // Calculate subscription extension based on token package
-      // Each token package extends subscription by 30 days
-      const now = new Date();
-      const currentSubscriptionEnd = userData.subscriptionEndDate ? userData.subscriptionEndDate.toDate() : now;
-      const subscriptionExtensionDays = 30; // Extend by 30 days
-      const newSubscriptionEnd = new Date(Math.max(now.getTime(), currentSubscriptionEnd.getTime()) + (subscriptionExtensionDays * 24 * 60 * 60 * 1000));
-      
-      // Mettre à jour le document utilisateur
-      await updateDoc(userDocRef, {
-        payAsYouGoTokens: newPayAsYouGoTokens,
-        subscriptionEndDate: newSubscriptionEnd,
-        subscriptionStatus: 'active',
-        updatedAt: serverTimestamp()
-      });
-      
-      // Log the purchase (you might want to store this in a separate collection for analytics)
-      console.log(`Purchase successful: ${tokenPackage.tokens} tokens for ${tokenPackage.price} FCFA`);
-      console.log(`Subscription extended until: ${newSubscriptionEnd.toISOString()}`);
-      
-      return true;
+      return success;
       
     } catch (error) {
       console.error('Erreur lors de l\'achat de tokens:', error);

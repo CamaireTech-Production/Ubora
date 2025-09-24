@@ -1,13 +1,37 @@
 // Types pour l'application multi-agences avec formulaires dynamiques
+// Subscription Session Types
+export interface SubscriptionSession {
+  id: string; // Unique session ID
+  packageType: 'starter' | 'standard' | 'premium' | 'custom';
+  sessionType: 'subscription' | 'pay_as_you_go' | 'upgrade' | 'downgrade' | 'renewal';
+  startDate: Date;
+  endDate: Date;
+  amountPaid: number; // Amount paid in FCFA
+  durationDays: number; // Duration in days
+  tokensIncluded: number; // Tokens included in this session
+  tokensUsed: number; // Tokens used during this session
+  isActive: boolean; // Whether this session is currently active
+  paymentMethod?: string; // Payment method used
+  notes?: string; // Additional notes
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 export interface User {
   id: string;
   name: string;
   email: string;
   role: 'directeur' | 'employe';
   agencyId: string;
-  package?: 'starter' | 'standard' | 'premium' | 'custom'; // Optional for new directors
+  package?: 'starter' | 'standard' | 'premium' | 'custom'; // Current active package
   needsPackageSelection?: boolean; // Flag to indicate if director needs to select a package
   packageFeatures?: string[]; // Fonctionnalités activées pour les packages custom
+  
+  // New subscription sessions system
+  subscriptionSessions?: SubscriptionSession[]; // Array of all subscription sessions
+  currentSessionId?: string; // ID of the currently active session
+  
+  // Legacy fields (kept for backward compatibility during migration)
   subscriptionStartDate?: Date; // Date de début d'abonnement pour le calcul des cycles mensuels
   subscriptionEndDate?: Date; // Date de fin d'abonnement
   subscriptionStatus?: 'active' | 'expired' | 'cancelled'; // Statut de l'abonnement
@@ -15,6 +39,7 @@ export interface User {
   payAsYouGoTokens?: number; // Tokens pay-as-you-go achetés
   tokensUsedMonthly?: number; // Tokens utilisés ce mois
   tokensResetDate?: Date; // Date du dernier reset des tokens mensuels
+  
   isApproved?: boolean; // Status d'approbation pour les employés
   approvedBy?: string; // ID du directeur qui a approuvé
   approvedAt?: any; // Timestamp d'approbation
