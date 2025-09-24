@@ -141,6 +141,8 @@ jobs:
         password: ${{ secrets.PROD_FTP_PASSWORD }}
         port: 21
         protocol: ftp
+        timeout: 300000
+        log-level: minimal
         local-dir: ./deploy-package/
         server-dir: /
         exclude: |
