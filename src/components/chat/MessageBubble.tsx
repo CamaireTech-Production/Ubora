@@ -297,6 +297,7 @@ const formatMessageContent = (content: string, messageMeta?: any): React.ReactNo
 
 const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
   const isUser = message.type === 'user';
+  const [showDocuments, setShowDocuments] = React.useState(false);
   
   return (
     <div className={`mobile-message-container ${isUser ? 'user-message' : 'ai-message'}`}>
@@ -584,65 +585,85 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
           {/* Enhanced PDF Files Display with Source Attribution - Horizontal Layout */}
           {!isUser && message.pdfFiles && message.pdfFiles.length > 0 && (
             <div className="mt-4 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg shadow-sm">
-              <h4 className="text-sm font-semibold text-blue-900 mb-3 flex items-center">
-                <span className="mr-2">📄</span>
-                Documents analysés
-                <span className="ml-2 text-xs bg-blue-200 text-blue-900 px-2 py-1 rounded-full font-medium">
-                  {message.pdfFiles.length} fichier{message.pdfFiles.length > 1 ? 's' : ''}
-                </span>
+              <h4 className="text-sm font-semibold text-blue-900 mb-3 flex items-center justify-between">
+                <div className="flex items-center">
+                  <span className="mr-2">📄</span>
+                  Documents analysés
+                  <span className="ml-2 text-xs bg-blue-200 text-blue-900 px-2 py-1 rounded-full font-medium">
+                    {message.pdfFiles.length} fichier{message.pdfFiles.length > 1 ? 's' : ''}
+                  </span>
+                </div>
+                <button
+                  onClick={() => setShowDocuments(!showDocuments)}
+                  className="ml-2 p-1 text-blue-700 hover:text-blue-900 hover:bg-blue-100 rounded-md transition-colors"
+                  title={showDocuments ? "Masquer les documents" : "Afficher les documents"}
+                >
+                  <svg 
+                    className={`w-4 h-4 transition-transform duration-200 ${showDocuments ? 'rotate-180' : ''}`} 
+                    fill="none" 
+                    stroke="currentColor" 
+                    viewBox="0 0 24 24"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
               </h4>
               
-              {/* Horizontal scrollable container */}
-              <div className="overflow-x-auto pb-2">
-                <div className="flex space-x-3 min-w-max">
-                  {message.pdfFiles.map((file, index) => (
-                    <div key={index} className="flex-shrink-0 w-64 bg-white border border-blue-100 rounded-lg shadow-sm hover:shadow-md transition-shadow">
-                      <div className="p-3">
-                        <div className="flex items-start space-x-3">
-                          <div className="flex-shrink-0 w-8 h-8 bg-red-100 rounded-lg flex items-center justify-center">
-                            <span className="text-sm">📄</span>
+              {/* Horizontal scrollable container - conditionally rendered */}
+              {showDocuments && (
+                <div className="overflow-x-auto pb-2 animate-in slide-in-from-top-2 duration-300">
+                  <div className="flex space-x-3 min-w-max">
+                    {message.pdfFiles.map((file, index) => (
+                      <div key={index} className="flex-shrink-0 w-64 bg-white border border-blue-100 rounded-lg shadow-sm hover:shadow-md transition-shadow">
+                        <div className="p-3">
+                          <div className="flex items-start space-x-3">
+                            <div className="flex-shrink-0 w-8 h-8 bg-red-100 rounded-lg flex items-center justify-center">
+                              <span className="text-sm">📄</span>
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium text-gray-900 truncate" title={file.fileName}>
+                                {file.fileName}
+                              </p>
+                              <p className="text-xs text-gray-500 mt-1">
+                                Document PDF analysé
+                                {file.fileSize && (
+                                  <span className="block">{(file.fileSize / 1024).toFixed(1)} KB</span>
+                                )}
+                              </p>
+                            </div>
                           </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-gray-900 truncate" title={file.fileName}>
-                              {file.fileName}
-                            </p>
-                            <p className="text-xs text-gray-500 mt-1">
-                              Document PDF analysé
-                              {file.fileSize && (
-                                <span className="block">{(file.fileSize / 1024).toFixed(1)} KB</span>
-                              )}
-                            </p>
-                          </div>
+                          
+                          {/* Download button with icon only */}
+                          {file.downloadUrl && (
+                            <div className="mt-3 flex justify-end">
+                              <a
+                                href={file.downloadUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center justify-center w-8 h-8 text-blue-700 bg-blue-100 hover:bg-blue-200 rounded-md transition-colors"
+                                title="Télécharger le document"
+                              >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                </svg>
+                              </a>
+                            </div>
+                          )}
                         </div>
-                        
-                        {/* Download button with icon only */}
-                        {file.downloadUrl && (
-                          <div className="mt-3 flex justify-end">
-                            <a
-                              href={file.downloadUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="inline-flex items-center justify-center w-8 h-8 text-blue-700 bg-blue-100 hover:bg-blue-200 rounded-md transition-colors"
-                              title="Télécharger le document"
-                            >
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                              </svg>
-                            </a>
-                          </div>
-                        )}
                       </div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
               
-              <div className="mt-3 p-2 bg-blue-100 rounded-md">
-                <p className="text-xs text-blue-800 flex items-center">
-                  <span className="mr-1">💡</span>
-                  Le contenu de ces documents a été analysé pour générer cette réponse. Cliquez sur l'icône de téléchargement pour accéder aux documents originaux.
-                </p>
-              </div>
+              {showDocuments && (
+                <div className="mt-3 p-2 bg-blue-100 rounded-md animate-in slide-in-from-top-2 duration-300">
+                  <p className="text-xs text-blue-800 flex items-center">
+                    <span className="mr-1">💡</span>
+                    Le contenu de ces documents a été analysé pour générer cette réponse. Cliquez sur l'icône de téléchargement pour accéder aux documents originaux.
+                  </p>
+                </div>
+              )}
             </div>
           )}
           
