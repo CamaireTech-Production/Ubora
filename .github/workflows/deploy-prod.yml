@@ -133,7 +133,8 @@ jobs:
         RewriteRule ^favicon\.ico$ /favicon.ico [L]
         EOF
          
-    - name: Deploy to Hostinger via FTP
+    - name: Deploy to Hostinger via FTP (FTPS)
+      id: deploy-ftps
       uses: SamKirkland/FTP-Deploy-Action@v4.3.4
       with:
         server: ${{ secrets.PROD_FTP_HOST }}
@@ -141,8 +142,30 @@ jobs:
         password: ${{ secrets.PROD_FTP_PASSWORD }}
         port: 21
         protocol: ftps
-        secure: true
-        secure-options: "SSL_CTRL_DATA TLSv1.2"
+        security: loose
+        timeout: 300000
+        log-level: verbose
+        local-dir: ./deploy-package/
+        server-dir: /
+        exclude: |
+          **/.git*
+          **/.git*/**
+          **/node_modules/**
+          **/.env*
+          **/README.md
+          **/.github/**
+      continue-on-error: true
+      
+    - name: Deploy to Hostinger via FTP (Fallback)
+      if: steps.deploy-ftps.outcome == 'failure'
+      uses: SamKirkland/FTP-Deploy-Action@v4.3.4
+      with:
+        server: ${{ secrets.PROD_FTP_HOST }}
+        username: ${{ secrets.PROD_FTP_USERNAME }}
+        password: ${{ secrets.PROD_FTP_PASSWORD }}
+        port: 21
+        protocol: ftp
+        security: loose
         timeout: 300000
         log-level: verbose
         local-dir: ./deploy-package/
