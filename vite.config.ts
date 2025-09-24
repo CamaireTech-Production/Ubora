@@ -84,7 +84,10 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['fav-icons/favicon.ico', 'fav-icons/apple-icon.png'],
-      manifest: getPWAConfig(),
+      manifest: {
+        ...getPWAConfig(),
+        filename: 'manifest.json'
+      },
       strategies: 'generateSW',
       injectRegister: 'auto',
       selfDestroying: false,

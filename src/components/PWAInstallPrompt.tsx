@@ -70,25 +70,25 @@ export const PWAInstallPrompt: React.FC = () => {
     // Check if user has previously dismissed the prompt (admin-specific storage)
     const storageKey = pwaConfig.isAdmin ? 'pwa-admin-install-dismissed' : 'pwa-install-dismissed';
     const dismissed = localStorage.getItem(storageKey);
-    if (dismissed) {
-      const dismissedTime = parseInt(dismissed);
-      const daysSinceDismissed = (Date.now() - dismissedTime) / (1000 * 60 * 60 * 24);
-      
+     if (dismissed) {
+       const dismissedTime = parseInt(dismissed);
+       const daysSinceDismissed = (Date.now() - dismissedTime) / (1000 * 60 * 60 * 24);
+       
       // Show prompt again after 1 day
-      if (daysSinceDismissed > 1) {
+       if (daysSinceDismissed > 1) {
         localStorage.removeItem(storageKey);
-      } else {
-        setShowInstallPrompt(false);
-      }
-    }
+       } else {
+         setShowInstallPrompt(false);
+       }
+     }
 
 
     // Show prompt by default after a delay (this was the working behavior)
     if (!isInstalled) {
-      setTimeout(() => {
-        setShowInstallPrompt(true);
-      }, 3000); // Show after 3 seconds
-    }
+       setTimeout(() => {
+         setShowInstallPrompt(true);
+       }, 3000); // Show after 3 seconds
+     }
 
     return () => {
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
@@ -98,26 +98,153 @@ export const PWAInstallPrompt: React.FC = () => {
   }, []);
 
   const handleInstallClick = async () => {
-    if (!deferredPrompt) return;
+    console.log('🚀 Install button clicked');
+    
+    // First try the native prompt if available
+    if (deferredPrompt) {
+      try {
+        console.log('✅ Using native deferred prompt');
+        await deferredPrompt.prompt();
+        const { outcome } = await deferredPrompt.userChoice;
+        
+        if (outcome === 'accepted') {
+          console.log('✅ User accepted the install prompt');
+          setDeferredPrompt(null);
+          setShowInstallPrompt(false);
+          return;
+        } else {
+          console.log('❌ User dismissed the install prompt');
+          setDeferredPrompt(null);
+          setShowInstallPrompt(false);
+          return;
+        }
+      } catch (error) {
+        console.error('❌ Error with native prompt:', error);
+      }
+    }
+    
+    // If no native prompt, create user engagement to trigger it
+    console.log('🔄 No native prompt - creating user engagement...');
+    await createUserEngagement();
+  };
 
+
+
+  const tryBrowserInstallButton = async () => {
+    console.log('🔍 Looking for browser install button...');
+    
+    // Wait a moment for browser to potentially show install button
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    // Try to find and click the browser's install button
+    const installSelectors = [
+      '[aria-label*="Install"]',
+      '[aria-label*="install"]',
+      '[title*="Install"]',
+      '[title*="install"]',
+      'button[data-testid*="install"]',
+      '.install-button',
+      '#install-button',
+      '[data-testid="install-button"]',
+      '[aria-label="Install this app"]',
+      '[aria-label="Install app"]',
+      'button[aria-label*="Add to Home screen"]',
+      'button[aria-label*="Install app"]'
+    ];
+    
+    for (const selector of installSelectors) {
+      const button = document.querySelector(selector) as HTMLButtonElement;
+      if (button) {
+        console.log('✅ Found browser install button:', selector);
+        button.click();
+        return;
+      }
+    }
+    
+    console.log('❌ No browser install button found');
+  };
+
+  const createUserEngagement = async () => {
+    console.log('👆 Creating user engagement to trigger installability...');
+    
+    // Method 1: Access PWA APIs to show engagement (no event dispatching)
+    try {
+      if ('serviceWorker' in navigator) {
+        await navigator.serviceWorker.ready;
+        console.log('✅ Service worker ready');
+      }
+      if ('storage' in navigator && 'estimate' in navigator.storage) {
+        await navigator.storage.estimate();
+        console.log('✅ Storage API accessed');
+      }
+      if ('permissions' in navigator) {
+        await navigator.permissions.query({ name: 'notifications' as PermissionName });
+        console.log('✅ Permissions API accessed');
+      }
+    } catch (error) {
+      console.log('PWA API access error:', error);
+    }
+
+    // Method 2: Create real DOM interactions (not synthetic events)
+    const tempElement = document.createElement('div');
+    tempElement.style.position = 'absolute';
+    tempElement.style.top = '-1000px';
+    tempElement.style.left = '-1000px';
+    tempElement.tabIndex = 0;
+    document.body.appendChild(tempElement);
+    
+    // Real focus and click (not synthetic events)
+    tempElement.focus();
+    tempElement.click();
+    
+    // Clean up
+    document.body.removeChild(tempElement);
+    console.log('✅ Real DOM interactions created');
+
+    // Method 3: Try to access manifest and icons
+    try {
+      const manifestLink = document.querySelector('link[rel="manifest"]');
+      if (manifestLink) {
+        const manifestUrl = manifestLink.getAttribute('href');
+        if (manifestUrl) {
+          const response = await fetch(manifestUrl);
+          const manifest = await response.json();
+          console.log('✅ Manifest accessed:', manifest.name);
+        }
+      }
+    } catch (error) {
+      console.log('Manifest access failed:', error);
+    }
+    
+    // Wait a moment for browser to process
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    
+    // Check if deferredPrompt is now available
+    if (deferredPrompt) {
+      console.log('✅ Deferred prompt now available after user engagement!');
     try {
       await deferredPrompt.prompt();
       const { outcome } = await deferredPrompt.userChoice;
       
       if (outcome === 'accepted') {
-        console.log('User accepted the install prompt');
+          console.log('✅ User accepted the install prompt');
+          setDeferredPrompt(null);
+          setShowInstallPrompt(false);
       } else {
-        console.log('User dismissed the install prompt');
-      }
-      
+          console.log('❌ User dismissed the install prompt');
       setDeferredPrompt(null);
       setShowInstallPrompt(false);
+        }
     } catch (error) {
-      console.error('Error during installation:', error);
+        console.error('❌ Error during installation:', error);
+      }
+    } else {
+      console.log('❌ Still no deferred prompt available after user engagement');
+      
+      // Try to find and click the browser's install button directly
+      await tryBrowserInstallButton();
     }
   };
-
-
 
   const handleDismiss = () => {
     setShowInstallPrompt(false);
@@ -150,7 +277,7 @@ export const PWAInstallPrompt: React.FC = () => {
                 {pwaConfig.isAdmin ? (
                   <Shield className="h-5 w-5" />
                 ) : (
-                  <Download className="h-5 w-5" />
+                <Download className="h-5 w-5" />
                 )}
               </div>
               <div>
@@ -203,8 +330,8 @@ export const PWAInstallPrompt: React.FC = () => {
                   : 'Installez l\'application pour une expérience optimale'
                 }
               </p>
-                     <button
-                       onClick={handleInstallClick}
+               <button
+                 onClick={handleInstallClick}
                        className={`w-full bg-white font-medium py-2 px-4 rounded-lg transition-all duration-200 flex items-center justify-center space-x-2 ${
                          pwaConfig.isAdmin 
                            ? 'text-red-600 hover:bg-red-50' 
@@ -214,10 +341,10 @@ export const PWAInstallPrompt: React.FC = () => {
                 {pwaConfig.isAdmin ? (
                   <Shield className="h-4 w-4" />
                 ) : (
-                  <Download className="h-4 w-4" />
+                 <Download className="h-4 w-4" />
                 )}
-                <span>Installer maintenant</span>
-              </button>
+                 <span>Installer maintenant</span>
+               </button>
             </div>
           )}
 
