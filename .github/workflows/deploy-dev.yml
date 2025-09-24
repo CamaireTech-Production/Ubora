@@ -130,15 +130,14 @@ jobs:
         RewriteRule ^favicon\.ico$ /favicon.ico [L]
         EOF
          
-    - name: Deploy to Hostinger via SFTP
-      uses: wlixcc/SFTP-Deploy-Action@v1.2.4
+    - name: Deploy to Hostinger via FTP
+      uses: SamKirkland/FTP-Deploy-Action@v4.3.4
       with:
         server: ${{ secrets.DEV_FTP_HOST }}
         username: ${{ secrets.DEV_FTP_USERNAME }}
         password: ${{ secrets.DEV_FTP_PASSWORD }}
-        port: 22
-        local_path: './deploy-package/*'
-        remote_path: '/'
+        local-dir: ./deploy-package/
+        server-dir: /
         exclude: |
           **/.git*
           **/.git*/**
