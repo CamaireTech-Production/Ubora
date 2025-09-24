@@ -56,6 +56,10 @@ jobs:
         VITE_FIREBASE_APP_ID=${{ secrets.FIREBASE_APP_ID }}
         VITE_FIREBASE_MEASUREMENT_ID=${{ secrets.FIREBASE_MEASUREMENT_ID }}
         VITE_FIREBASE_VAPID_KEY=${{ secrets.FIREBASE_VAPID_KEY }}
+        
+        # PWA Configuration for Development
+        VITE_APP_ENV=dev
+        NODE_ENV=production
         EOF
         
     - name: Build application

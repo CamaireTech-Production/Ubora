@@ -48,7 +48,7 @@ jobs:
         # Server Configuration
         PORT=3000
         
-            # Production URLs - VPS Backend (HTTP temporarily)
+        # Production URLs - VPS Backend (HTTP temporarily)
         VITE_API_URL=http://api.ubora-app.com/api/ai/ask
         VITE_AI_ENDPOINT=http://api.ubora-app.com/api/ai/ask
         VITE_FIREBASE_API_KEY=${{ secrets.FIREBASE_API_KEY }}
@@ -59,6 +59,10 @@ jobs:
         VITE_FIREBASE_APP_ID=${{ secrets.FIREBASE_APP_ID }}
         VITE_FIREBASE_MEASUREMENT_ID=${{ secrets.FIREBASE_MEASUREMENT_ID }}
         VITE_FIREBASE_VAPID_KEY=${{ secrets.FIREBASE_VAPID_KEY }}
+        
+        # PWA Configuration for Production
+        VITE_APP_ENV=prod
+        NODE_ENV=production
         EOF
         
     - name: Build application for production

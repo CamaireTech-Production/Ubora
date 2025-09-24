@@ -4,6 +4,7 @@ import { getAuth } from "firebase/auth";
 import { getFirestore, connectFirestoreEmulator } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 import { getMessaging, isSupported } from "firebase/messaging";
+import { getAnalytics, isSupported as isAnalyticsSupported } from "firebase/analytics";
 
 // Configuration Firebase avec vos vraies clés
 const firebaseConfig = {
@@ -59,3 +60,16 @@ export const messaging = isSupported().then((supported) => {
     return null;
   }
 });
+
+// Initialisation de Firebase Analytics (seulement si supporté)
+export const analytics = isAnalyticsSupported().then((supported) => {
+  if (supported) {
+    return getAnalytics(app);
+  } else {
+    console.warn('📊 [Firebase] Analytics non supporté sur ce navigateur');
+    return null;
+  }
+});
+
+// Export de l'app pour les services
+export { app };

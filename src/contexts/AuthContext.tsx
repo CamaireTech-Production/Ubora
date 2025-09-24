@@ -18,7 +18,7 @@ interface AuthContextType {
   firebaseUser: FirebaseUser | null;
   login: (email: string, password: string) => Promise<boolean>;
   loginWithGoogle: () => Promise<boolean>;
-  register: (email: string, password: string, name: string, role: 'directeur' | 'employe', agencyId: string) => Promise<boolean>;
+  register: (email: string, password: string, name: string, role: 'admin' | 'directeur' | 'employe', agencyId: string) => Promise<boolean>;
   logout: () => Promise<void>;
   refreshUserData: () => Promise<void>;
   isLoading: boolean;
@@ -337,7 +337,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     email: string, 
     password: string, 
     name: string, 
-    role: 'directeur' | 'employe',
+    role: 'admin' | 'directeur' | 'employe',
     agencyId: string
   ): Promise<boolean> => {
     try {
@@ -368,6 +368,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         email: email.trim().toLowerCase(),
         role,
         agencyId: agencyId.trim(),
+        ...(role === 'admin' && {
+          isSuperAdmin: true,
+          adminPermissions: [
+            'user_management',
+            'system_monitoring',
+            'analytics_access',
+            'settings_management',
+            'backup_restore',
+            'log_access'
+          ],
+          isActive: true
+        }),
         ...(role === 'directeur' && {
           needsPackageSelection: true, // New directors need to select a package
           tokensUsedMonthly: 0,
@@ -377,7 +389,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           accessLevels: [],
           hasDirectorDashboardAccess: false
         }),
-        isApproved: role === 'directeur' ? true : false, // Les directeurs sont automatiquement approuvés
+        isApproved: role === 'directeur' || role === 'admin' ? true : false, // Les directeurs et admins sont automatiquement approuvés
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       };

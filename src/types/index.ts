@@ -21,7 +21,7 @@ export interface User {
   id: string;
   name: string;
   email: string;
-  role: 'directeur' | 'employe';
+  role: 'admin' | 'directeur' | 'employe';
   agencyId: string;
   package?: 'starter' | 'standard' | 'premium' | 'custom'; // Current active package
   needsPackageSelection?: boolean; // Flag to indicate if director needs to select a package
@@ -48,6 +48,10 @@ export interface User {
   hasDirectorDashboardAccess?: boolean; // Accès au dashboard directeur
   directorDashboardAccessGrantedBy?: string; // ID du directeur qui a accordé l'accès
   directorDashboardAccessGrantedAt?: any; // Timestamp d'octroi d'accès
+  // Admin specific fields
+  isSuperAdmin?: boolean; // Super admin flag
+  adminPermissions?: string[]; // Specific admin permissions
+  createdByAdmin?: string; // ID of admin who created this user
   createdAt?: any; // Timestamp Firestore
   updatedAt?: any; // Timestamp Firestore
 }
@@ -294,5 +298,262 @@ export interface AppState {
   forms: Form[];
   formEntries: FormEntry[];
   dashboards: Dashboard[];
+}
+
+// Admin dashboard types
+export interface AdminDashboardStats {
+  totalUsers: number;
+  totalAgencies: number;
+  totalForms: number;
+  totalSubmissions: number;
+  totalTokensUsed: number;
+  totalRevenue: number;
+  activeUsers: number;
+  newUsersToday: number;
+  newUsersThisWeek: number;
+  newUsersThisMonth: number;
+  systemHealth: 'healthy' | 'warning' | 'critical';
+  lastBackup: Date;
+  uptime: number;
+}
+
+export interface AdminUser {
+  id: string;
+  name: string;
+  email: string;
+  role: 'admin' | 'directeur' | 'employe';
+  agencyId?: string;
+  agencyName?: string;
+  isActive: boolean;
+  lastLogin?: Date;
+  createdAt: Date;
+  package?: string;
+  subscriptionStatus?: string;
+  tokensUsed?: number;
+  totalSubmissions?: number;
+  // Enhanced subscription info
+  subscriptionStartDate?: Date;
+  subscriptionEndDate?: Date;
+  nextPaymentDate?: Date;
+  packageFeatures?: string[];
+  // Activity tracking
+  totalLoginCount?: number;
+  lastActivityDate?: Date;
+  // App usage
+  totalAppUsageTime?: number; // in minutes
+  averageSessionDuration?: number; // in minutes
+  // Push notifications
+  pushNotificationsSent?: number;
+  pushNotificationsClicked?: number;
+}
+
+export interface UserDetail {
+  id: string;
+  name: string;
+  email: string;
+  role: 'admin' | 'directeur' | 'employe';
+  agencyId?: string;
+  agencyName?: string;
+  isActive: boolean;
+  lastLogin?: Date;
+  createdAt: Date;
+  // Subscription details
+  package?: 'starter' | 'standard' | 'premium' | 'custom';
+  subscriptionStatus?: 'active' | 'expired' | 'cancelled';
+  subscriptionStartDate?: Date;
+  subscriptionEndDate?: Date;
+  nextPaymentDate?: Date;
+  packageFeatures?: string[];
+  tokensUsedMonthly?: number;
+  tokensResetDate?: Date;
+  // Activity summary
+  totalLoginCount: number;
+  lastActivityDate?: Date;
+  totalFormSubmissions: number;
+  totalChatInteractions: number;
+  // App usage
+  totalAppUsageTime: number; // in minutes
+  averageSessionDuration: number; // in minutes
+  longestSession: number; // in minutes
+  // Push notifications
+  pushNotificationsSent: number;
+  pushNotificationsClicked: number;
+  pushNotificationClickRate: number; // percentage
+  // Recent activities
+  recentActivities: ActivityLog[];
+  // Subscription sessions
+  subscriptionSessions: SubscriptionSession[];
+  // Purchase history
+  purchaseHistory: PurchaseHistory[];
+  // App usage sessions
+  appUsageSessions: AppUsageSession[];
+  // Push notifications
+  pushNotifications: PushNotificationLog[];
+}
+
+export interface PushNotificationLog {
+  id?: string;
+  userId: string;
+  userEmail: string;
+  userName: string;
+  title: string;
+  body: string;
+  type: 'form_reminder' | 'package_expiry' | 'system_announcement' | 'chat_notification' | 'general';
+  sentAt: Date;
+  clickedAt?: Date;
+  isClicked: boolean;
+  clickRate?: number;
+  metadata?: {
+    formId?: string;
+    packageType?: string;
+    agencyId?: string;
+    [key: string]: any;
+  };
+}
+
+export interface AppUsageSession {
+  id?: string;
+  userId: string;
+  userEmail: string;
+  userName: string;
+  sessionStart: Date;
+  sessionEnd?: Date;
+  duration?: number; // in minutes
+  isActive: boolean;
+  pagesVisited: string[];
+  actionsPerformed: number;
+  metadata?: {
+    userAgent?: string;
+    ipAddress?: string;
+    deviceType?: string;
+    [key: string]: any;
+  };
+}
+
+export interface SubscriptionSession {
+  id?: string;
+  userId: string;
+  userEmail: string;
+  userName: string;
+  packageType: 'starter' | 'standard' | 'premium' | 'custom';
+  startDate: Date;
+  endDate: Date;
+  status: 'active' | 'expired' | 'cancelled' | 'suspended';
+  amount: number;
+  currency: string;
+  paymentMethod: string;
+  autoRenew: boolean;
+  features: string[];
+  tokensIncluded: number;
+  tokensUsed: number;
+  createdAt: Date;
+  updatedAt: Date;
+  metadata?: {
+    paymentId?: string;
+    invoiceNumber?: string;
+    notes?: string;
+    [key: string]: any;
+  };
+}
+
+export interface PurchaseHistory {
+  id?: string;
+  userId: string;
+  userEmail: string;
+  userName: string;
+  type: 'subscription' | 'tokens' | 'feature' | 'upgrade';
+  itemName: string;
+  description: string;
+  amount: number;
+  currency: string;
+  quantity?: number;
+  paymentMethod: string;
+  status: 'completed' | 'pending' | 'failed' | 'refunded';
+  transactionId: string;
+  purchaseDate: Date;
+  metadata?: {
+    packageType?: string;
+    tokenAmount?: number;
+    featureName?: string;
+    [key: string]: any;
+  };
+}
+
+export interface AdminActivitySummary {
+  type: string;
+  count: number;
+  lastActivity: Date;
+  trend: 'up' | 'down' | 'stable';
+  percentage: number;
+}
+
+// Activity logging types
+export type ActivityType = 
+  | 'user_registration'
+  | 'user_login'
+  | 'user_logout'
+  | 'user_approval'
+  | 'user_rejection'
+  | 'form_creation'
+  | 'form_update'
+  | 'form_deletion'
+  | 'form_submission'
+  | 'dashboard_creation'
+  | 'dashboard_update'
+  | 'dashboard_deletion'
+  | 'dashboard_crud'
+  | 'package_selection'
+  | 'package_change'
+  | 'package_renewal'
+  | 'token_purchase'
+  | 'token_usage'
+  | 'chat_activity'
+  | 'notification_sent'
+  | 'notification_read'
+  | 'file_upload'
+  | 'file_download'
+  | 'admin_login'
+  | 'admin_user_creation'
+  | 'admin_user_update'
+  | 'admin_user_deletion'
+  | 'admin_settings_change'
+  | 'link_sharing'
+  | 'access_granted'
+  | 'access_revoked'
+  | 'system_error'
+  | 'api_call'
+  | 'data_export'
+  | 'data_import';
+
+export interface ActivityLog {
+  id?: string;
+  type: ActivityType;
+  userId: string;
+  userEmail: string;
+  userName: string;
+  userRole: 'admin' | 'directeur' | 'employe';
+  agencyId?: string;
+  agencyName?: string;
+  description: string;
+  metadata?: {
+    formId?: string;
+    formTitle?: string;
+    dashboardId?: string;
+    dashboardName?: string;
+    packageType?: string;
+    tokensUsed?: number;
+    tokensPurchased?: number;
+    fileSize?: number;
+    fileName?: string;
+    errorMessage?: string;
+    ipAddress?: string;
+    userAgent?: string;
+    sessionId?: string;
+    duration?: number;
+    [key: string]: any;
+  };
+  timestamp: any; // Firestore timestamp
+  severity: 'low' | 'medium' | 'high' | 'critical';
+  category: 'authentication' | 'user_management' | 'form_management' | 'dashboard' | 'package' | 'chat' | 'file' | 'notification' | 'system' | 'admin';
 }
 

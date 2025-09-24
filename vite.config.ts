@@ -2,41 +2,92 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 
+// Environment-based PWA configuration
+const getPWAConfig = () => {
+  const isDev = process.env.NODE_ENV === 'development' || process.env.VITE_APP_ENV === 'dev';
+  const isAdmin = process.env.VITE_PWA_MODE === 'admin';
+  
+  let appName, shortName, description, startUrl, scope;
+  
+  if (isAdmin) {
+    appName = isDev ? 'Ubora Admin Dev' : 'Ubora Admin';
+    shortName = isDev ? 'Ubora Admin Dev' : 'Ubora Admin';
+    description = 'Panel d\'administration Ubora pour la gestion des utilisateurs et du système';
+    startUrl = '/admin/login';
+    scope = '/admin';
+  } else {
+    appName = isDev ? 'Ubora Dev' : 'Ubora';
+    shortName = isDev ? 'Ubora Dev' : 'Ubora';
+    description = 'Application de gestion des formulaires pour entreprises multi-agences';
+    startUrl = '/';
+    scope = '/';
+  }
+
+  return {
+    name: appName,
+    short_name: shortName,
+    description,
+    theme_color: '#3b82f6',
+    background_color: '#ffffff',
+    display: 'standalone' as const,
+    orientation: 'portrait-primary' as const,
+    scope,
+    start_url: startUrl,
+    id: isAdmin ? '/admin' : '/',
+    categories: ['productivity', 'business'],
+    lang: 'fr',
+    dir: 'ltr' as const,
+    icons: [
+      {
+        src: 'fav-icons/android-icon-192x192.png',
+        sizes: '192x192',
+        type: 'image/png',
+        purpose: 'any'
+      },
+      {
+        src: 'fav-icons/android-icon-144x144.png',
+        sizes: '144x144',
+        type: 'image/png',
+        purpose: 'any'
+      },
+      {
+        src: 'fav-icons/android-icon-96x96.png',
+        sizes: '96x96',
+        type: 'image/png',
+        purpose: 'any'
+      },
+      {
+        src: 'fav-icons/android-icon-72x72.png',
+        sizes: '72x72',
+        type: 'image/png',
+        purpose: 'any'
+      },
+      {
+        src: 'fav-icons/android-icon-48x48.png',
+        sizes: '48x48',
+        type: 'image/png',
+        purpose: 'any'
+      },
+      {
+        src: 'fav-icons/android-icon-36x36.png',
+        sizes: '36x36',
+        type: 'image/png',
+        purpose: 'any'
+      }
+    ]
+  };
+};
+
 export default defineConfig({
   plugins: [
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg'],
-      manifest: {
-        name: 'Ubora - Gestion des Formulaires',
-        short_name: 'Ubora',
-        description: 'Application de gestion des formulaires pour entreprises multi-agences',
-        theme_color: '#3b82f6',
-        background_color: '#ffffff',
-        display: 'standalone',
-        orientation: 'portrait-primary',
-        scope: '/',
-        start_url: '/',
-        icons: [
-          {
-            src: 'pwa-192x192.png',
-            sizes: '192x192',
-            type: 'image/png'
-          },
-          {
-            src: 'pwa-512x512.png',
-            sizes: '512x512',
-            type: 'image/png'
-          },
-          {
-            src: 'pwa-512x512.png',
-            sizes: '512x512',
-            type: 'image/png',
-            purpose: 'any maskable'
-          }
-        ]
-      },
+      includeAssets: ['fav-icons/favicon.ico', 'fav-icons/apple-icon.png'],
+      manifest: getPWAConfig(),
+      strategies: 'generateSW',
+      injectRegister: 'auto',
+      selfDestroying: false,
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // 5MB limit
