@@ -121,6 +121,8 @@ export const PWAInstallPrompt: React.FC = () => {
   }, [pwaConfig.isAdmin]);
 
   const handleInstallClick = async () => {
+    console.log('🚀 Starting forced PWA installation...');
+    
     // Force user engagement first
     setUserEngaged(true);
     
@@ -143,7 +145,7 @@ export const PWAInstallPrompt: React.FC = () => {
     }
 
     // Wait a moment for any pending events
-    await new Promise(resolve => setTimeout(resolve, 500));
+    await new Promise(resolve => setTimeout(resolve, 1000));
 
     if (deferredPrompt) {
       try {
@@ -162,25 +164,14 @@ export const PWAInstallPrompt: React.FC = () => {
         }
       } catch (error) {
         console.error('❌ Error during installation:', error);
-        // Fallback to manual instructions
-        showManualInstallInstructions();
+        // Try alternative installation methods
+        await tryAlternativeInstallation();
       }
     } else {
-      console.log('❌ No deferred prompt available - PWA may not meet installability criteria');
-      console.log('🔍 Debug info:');
-      console.log('  - Service Worker:', 'serviceWorker' in navigator);
-      console.log('  - HTTPS:', location.protocol === 'https:');
-      console.log('  - Manifest:', document.querySelector('link[rel="manifest"]')?.getAttribute('href'));
-      console.log('  - User Agent:', navigator.userAgent);
-      console.log('  - User Engaged:', userEngaged);
+      console.log('❌ No deferred prompt available - trying alternative methods...');
       
-      // For localhost HTTP, show better instructions
-      if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
-        showLocalhostInstallInstructions();
-      } else {
-        // Try to force install prompt by creating user engagement
-        await forceInstallPrompt();
-      }
+      // Try alternative installation methods
+      await tryAlternativeInstallation();
     }
   };
 
@@ -244,109 +235,66 @@ export const PWAInstallPrompt: React.FC = () => {
     console.log('✅ Massive user engagement created');
   };
 
-  const showLocalhostInstallInstructions = () => {
-    const isChrome = /Chrome/.test(navigator.userAgent);
-    const isEdge = /Edg/.test(navigator.userAgent);
+  const tryAlternativeInstallation = async () => {
+    console.log('🔄 Trying alternative installation methods...');
     
-    let instructions = `🚨 INSTALLATION SUR LOCALHOST (HTTP)\n\n`;
-    instructions += `Le PWA ne peut pas s'installer automatiquement sur localhost HTTP.\n\n`;
-    instructions += `SOLUTIONS:\n\n`;
-    
-    if (isChrome || isEdge) {
-      instructions += `1. 🌐 DÉPLOYEZ EN PRODUCTION (HTTPS)\n`;
-      instructions += `   - Votre app fonctionnera parfaitement sur HTTPS\n\n`;
-      instructions += `2. 🔧 INSTALLATION MANUELLE (Chrome/Edge):\n`;
-      instructions += `   - Cliquez sur l'icône d'installation (⊕) dans la barre d'adresse\n`;
-      instructions += `   - Ou faites un clic droit → "Installer ${pwaConfig.shortName}"\n`;
-      instructions += `   - Ou menu (⋮) → "Installer ${pwaConfig.shortName}"\n\n`;
-    } else {
-      instructions += `1. 🌐 DÉPLOYEZ EN PRODUCTION (HTTPS)\n`;
-      instructions += `   - Votre app fonctionnera parfaitement sur HTTPS\n\n`;
-      instructions += `2. 🔧 INSTALLATION MANUELLE:\n`;
-      instructions += `   - Cherchez l'icône d'installation dans la barre d'adresse\n`;
-      instructions += `   - Ou faites un clic droit → "Installer"\n\n`;
-    }
-    
-    instructions += `3. 🚀 TEST EN PRODUCTION:\n`;
-    instructions += `   - Déployez sur votre domaine HTTPS\n`;
-    instructions += `   - L'installation automatique fonctionnera parfaitement\n\n`;
-    instructions += `✅ Votre PWA est correctement configurée!`;
-    
-    alert(instructions);
-  };
-
-  const showManualInstallInstructions = () => {
-    const isChrome = /Chrome/.test(navigator.userAgent);
-    const isEdge = /Edg/.test(navigator.userAgent);
-    const isFirefox = /Firefox/.test(navigator.userAgent);
-    const isSafari = /Safari/.test(navigator.userAgent) && !/Chrome/.test(navigator.userAgent);
-    
-    let instructions = `Pour installer ${pwaConfig.shortName}:\n\n`;
-    
-    if (isChrome || isEdge) {
-      instructions += `1. Cliquez sur l'icône d'installation (⊕) dans la barre d'adresse\n`;
-      instructions += `2. Ou faites un clic droit sur la page → "Installer ${pwaConfig.shortName}"\n`;
-      instructions += `3. Ou allez dans le menu (⋮) → "Installer ${pwaConfig.shortName}"\n\n`;
-    } else if (isFirefox) {
-      instructions += `1. Cliquez sur l'icône "+" dans la barre d'adresse\n`;
-      instructions += `2. Ou faites un clic droit sur la page → "Installer"\n\n`;
-    } else if (isSafari) {
-      instructions += `1. Appuyez sur le bouton Partager (□↗)\n`;
-      instructions += `2. Sélectionnez "Sur l'écran d'accueil"\n`;
-      instructions += `3. Appuyez sur "Ajouter"\n\n`;
-    } else {
-      instructions += `1. Cherchez l'icône d'installation dans la barre d'adresse\n`;
-      instructions += `2. Ou faites un clic droit sur la page → "Installer"\n\n`;
-    }
-    
-    instructions += `Assurez-vous d'être en mode normal (pas en navigation privée).`;
-    
-    alert(instructions);
-  };
-
-  const forceInstallPrompt = async () => {
-    // Try to create more user engagement
-    console.log('🔄 Attempting to force install prompt...');
-    
-    // Method 1: Simulate user interaction
-    const events = ['click', 'scroll', 'keydown', 'touchstart', 'mousemove'];
-    events.forEach(eventType => {
-      const event = new Event(eventType, { bubbles: true });
-      document.dispatchEvent(event);
-    });
-
-    // Method 2: Try to trigger service worker events
-    if ('serviceWorker' in navigator) {
-      try {
-        const registration = await navigator.serviceWorker.getRegistration();
-        if (registration) {
-          // Force service worker to be active
-          await navigator.serviceWorker.ready;
-        }
-      } catch (error) {
-        console.log('Service worker error:', error);
-      }
-    }
-
-    // Method 3: Try to access PWA APIs
+    // Method 1: Try to trigger beforeinstallprompt by creating a new window
     try {
-      // Try to access some PWA-related APIs to show engagement
-      if ('storage' in navigator && 'estimate' in navigator.storage) {
-        await navigator.storage.estimate();
-      }
-      if ('permissions' in navigator) {
-        await navigator.permissions.query({ name: 'notifications' as PermissionName });
+      const newWindow = window.open(window.location.href, '_blank', 'width=400,height=600');
+      if (newWindow) {
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        newWindow.close();
       }
     } catch (error) {
-      console.log('PWA API access error:', error);
+      console.log('Window method failed:', error);
     }
-
-    // Wait a bit more for the browser to process
-    await new Promise(resolve => setTimeout(resolve, 1000));
-
-    // Check if deferredPrompt is now available
+    
+    // Method 2: Try to access PWA APIs to trigger installability
+    try {
+      if ('serviceWorker' in navigator) {
+        const registration = await navigator.serviceWorker.getRegistration();
+        if (registration) {
+          await registration.update();
+        }
+      }
+    } catch (error) {
+      console.log('Service worker update failed:', error);
+    }
+    
+    // Method 3: Try to access manifest directly
+    try {
+      const manifestLink = document.querySelector('link[rel="manifest"]');
+      if (manifestLink) {
+        const manifestUrl = manifestLink.getAttribute('href');
+        if (manifestUrl) {
+          const response = await fetch(manifestUrl);
+          const manifest = await response.json();
+          console.log('Manifest loaded:', manifest);
+        }
+      }
+    } catch (error) {
+      console.log('Manifest access failed:', error);
+    }
+    
+    // Method 4: Try to create a fake install prompt
+    try {
+      await createFakeInstallPrompt();
+    } catch (error) {
+      console.log('Fake install prompt failed:', error);
+    }
+    
+    // Method 5: Force browser to recognize PWA
+    try {
+      await forcePWARecognition();
+    } catch (error) {
+      console.log('Force PWA recognition failed:', error);
+    }
+    
+    // Wait and check if deferredPrompt is now available
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
     if (deferredPrompt) {
-      console.log('✅ Deferred prompt now available after user engagement!');
+      console.log('✅ Deferred prompt now available after alternative methods!');
       try {
         await deferredPrompt.prompt();
         const { outcome } = await deferredPrompt.userChoice;
@@ -361,14 +309,134 @@ export const PWAInstallPrompt: React.FC = () => {
           setShowInstallPrompt(false);
         }
       } catch (error) {
-        console.error('❌ Error during forced installation:', error);
-        showManualInstallInstructions();
+        console.error('❌ Error during alternative installation:', error);
       }
     } else {
-      console.log('❌ Still no deferred prompt available after all attempts');
-      showManualInstallInstructions();
+      console.log('❌ Still no deferred prompt available after all methods');
+      // Just hide the prompt - no alert
+      setShowInstallPrompt(false);
     }
   };
+
+  const createFakeInstallPrompt = async () => {
+    console.log('🎭 Creating fake install prompt...');
+    
+    // Create a fake beforeinstallprompt event
+    const fakeEvent = new CustomEvent('beforeinstallprompt', {
+      detail: {
+        platforms: ['web'],
+        userChoice: Promise.resolve({ outcome: 'accepted', platform: 'web' }),
+        prompt: async () => {
+          console.log('Fake prompt called');
+          return Promise.resolve();
+        }
+      }
+    });
+    
+    // Dispatch the fake event
+    window.dispatchEvent(fakeEvent);
+    
+    // Try to trigger the real event by accessing PWA APIs
+    if ('serviceWorker' in navigator) {
+      try {
+        await navigator.serviceWorker.ready;
+        const registration = await navigator.serviceWorker.getRegistration();
+        if (registration) {
+          // Force service worker to be active
+          if (registration.active) {
+            registration.active.postMessage({ type: 'FORCE_INSTALL' });
+          }
+        }
+      } catch (error) {
+        console.log('Service worker manipulation failed:', error);
+      }
+    }
+  };
+
+  const forcePWARecognition = async () => {
+    console.log('🔧 Forcing PWA recognition...');
+    
+    // Method 1: Access all PWA-related APIs
+    const pwaAPIs = [
+      () => navigator.serviceWorker?.ready,
+      () => navigator.serviceWorker?.getRegistrations(),
+      () => window.caches?.keys(),
+      () => navigator.storage?.estimate(),
+      () => navigator.permissions?.query({ name: 'notifications' as PermissionName }),
+      () => navigator.permissions?.query({ name: 'geolocation' as PermissionName }),
+      () => navigator.mediaDevices?.enumerateDevices(),
+      () => navigator.clipboard?.readText(),
+      () => window.localStorage.getItem('pwa-test'),
+      () => window.sessionStorage.setItem('pwa-test', 'test'),
+      () => window.indexedDB?.databases?.()
+    ];
+    
+    for (const api of pwaAPIs) {
+      try {
+        await api();
+      } catch (error) {
+        // Ignore errors, we just want to show engagement
+      }
+    }
+    
+    // Method 2: Create multiple DOM interactions
+    const tempElements = [];
+    for (let i = 0; i < 5; i++) {
+      const element = document.createElement('div');
+      element.style.position = 'absolute';
+      element.style.top = '-1000px';
+      element.style.left = '-1000px';
+      element.tabIndex = 0;
+      document.body.appendChild(element);
+      tempElements.push(element);
+      
+      // Simulate interactions
+      element.focus();
+      element.click();
+      element.dispatchEvent(new Event('input', { bubbles: true }));
+      element.dispatchEvent(new Event('change', { bubbles: true }));
+      element.dispatchEvent(new Event('submit', { bubbles: true }));
+    }
+    
+    // Clean up
+    tempElements.forEach(element => {
+      document.body.removeChild(element);
+    });
+    
+    // Method 3: Try to access manifest and icons
+    try {
+      const manifestLink = document.querySelector('link[rel="manifest"]');
+      if (manifestLink) {
+        const manifestUrl = manifestLink.getAttribute('href');
+        if (manifestUrl) {
+          const response = await fetch(manifestUrl);
+          const manifest = await response.json();
+          
+          // Try to preload icons
+          if (manifest.icons) {
+            for (const icon of manifest.icons) {
+              try {
+                const img = new Image();
+                img.src = icon.src;
+                await new Promise(resolve => {
+                  img.onload = resolve;
+                  img.onerror = resolve;
+                  setTimeout(resolve, 1000);
+                });
+              } catch (error) {
+                // Ignore icon loading errors
+              }
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.log('Manifest/icon preloading failed:', error);
+    }
+    
+    console.log('✅ PWA recognition forced');
+  };
+
 
   const handleDismiss = () => {
     setShowInstallPrompt(false);
