@@ -140,7 +140,11 @@ jobs:
         username: ${{ secrets.PROD_FTP_USERNAME }}
         password: ${{ secrets.PROD_FTP_PASSWORD }}
         port: 21
-        protocol: ftp
+        protocol: ftps
+        secure: true
+        secure-options: "SSL_CTRL_DATA TLSv1.2"
+        timeout: 300000
+        log-level: verbose
         local-dir: ./deploy-package/
         server-dir: /
         exclude: |

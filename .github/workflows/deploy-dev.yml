@@ -136,6 +136,12 @@ jobs:
         server: ${{ secrets.DEV_FTP_HOST }}
         username: ${{ secrets.DEV_FTP_USERNAME }}
         password: ${{ secrets.DEV_FTP_PASSWORD }}
+        port: 21
+        protocol: ftps
+        secure: true
+        secure-options: "SSL_CTRL_DATA TLSv1.2"
+        timeout: 300000
+        log-level: verbose
         local-dir: ./deploy-package/
         server-dir: /
         exclude: |
