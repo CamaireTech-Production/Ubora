@@ -131,17 +131,39 @@ jobs:
         EOF
          
     - name: Deploy to Hostinger via FTP
+      id: ftp-deploy
       uses: SamKirkland/FTP-Deploy-Action@v4.3.4
       with:
         server: ${{ secrets.DEV_FTP_HOST }}
         username: ${{ secrets.DEV_FTP_USERNAME }}
         password: ${{ secrets.DEV_FTP_PASSWORD }}
         port: 21
-        protocol: ftp
-        timeout: 300000
+        protocol: ftps
+        timeout: 600000
         log-level: minimal
+        passive: true
+        secure: true
         local-dir: ./deploy-package/
         server-dir: /
+        exclude: |
+          **/.git*
+          **/.git*/**
+          **/node_modules/**
+          **/.env*
+          **/README.md
+          **/.github/**
+      continue-on-error: true
+      
+    - name: Alternative Deploy via SFTP (if FTP fails)
+      if: steps.ftp-deploy.outcome == 'failure'
+      uses: wlixcc/SFTP-Deploy-Action@v1.2.4
+      with:
+        server: ${{ secrets.DEV_FTP_HOST }}
+        username: ${{ secrets.DEV_FTP_USERNAME }}
+        password: ${{ secrets.DEV_FTP_PASSWORD }}
+        port: 22
+        local_path: './deploy-package/*'
+        remote_path: '/'
         exclude: |
           **/.git*
           **/.git*/**
