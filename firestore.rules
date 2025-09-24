@@ -27,6 +27,11 @@ service cloud.firestore {
       return isAuthenticated() && getCurrentUser().data.role == 'employe';
     }
     
+    // Fonction pour vérifier si l'utilisateur actuel est un admin
+    function isAdmin() {
+      return isAuthenticated() && getCurrentUser().data.role == 'admin';
+    }
+    
     // Fonction pour vérifier si l'utilisateur appartient à la même agence
     function isSameAgency(agencyId) {
       return isAuthenticated() && getCurrentUser().data.agencyId == agencyId;
@@ -72,25 +77,28 @@ service cloud.firestore {
       allow read: if isAuthenticated() && (
         request.auth.uid == userId ||
         (isDirecteur() && isSameAgency(resource.data.agencyId)) ||
-        (hasDirectorDashboardAccess() && isSameAgency(resource.data.agencyId))
+        (hasDirectorDashboardAccess() && isSameAgency(resource.data.agencyId)) ||
+        isAdmin()
       );
       
       // CRÉATION d'un utilisateur
       allow create: if isAuthenticated() && 
                    request.auth.uid == userId &&
                    request.resource.data.keys().hasAll(['name', 'email', 'role', 'agencyId']) &&
-                   request.resource.data.role in ['directeur', 'employe'];
+                   (request.resource.data.role in ['directeur', 'employe', 'admin']);
       
       // MODIFICATION d'un utilisateur
       allow update: if isAuthenticated() && (
         request.auth.uid == userId ||
-        (isDirecteur() && isSameAgency(resource.data.agencyId))
+        (isDirecteur() && isSameAgency(resource.data.agencyId)) ||
+        isAdmin()
       );
       
       // SUPPRESSION d'un utilisateur
-      allow delete: if isDirecteur() && 
-                   isSameAgency(resource.data.agencyId) &&
-                   request.auth.uid != userId;
+      allow delete: if (isDirecteur() && 
+                       isSameAgency(resource.data.agencyId) &&
+                       request.auth.uid != userId) ||
+                     isAdmin();
     }
 
     // =============================================================================
@@ -103,16 +111,17 @@ service cloud.firestore {
     
     match /forms/{formId} {
       // LECTURE des formulaires
-      allow read: if isAuthenticated() && isSameAgency(resource.data.agencyId);
+      allow read: if isAuthenticated() && (isAdmin() || isSameAgency(resource.data.agencyId));
       
       // CRÉATION des formulaires
-      allow create: if canCreateForms() && 
-                   isSameAgency(request.resource.data.agencyId) &&
+      allow create: if (isAdmin() || canCreateForms()) && 
+                   (isAdmin() || isSameAgency(request.resource.data.agencyId)) &&
                    request.resource.data.createdBy == request.auth.uid &&
-                   request.resource.data.createdByRole in ['directeur', 'employe'];
+                   (isAdmin() || request.resource.data.createdByRole in ['directeur', 'employe']);
       
       // MODIFICATION des formulaires
-      allow update: if isAuthenticated() && isSameAgency(resource.data.agencyId) && (
+      allow update: if isAuthenticated() && (isAdmin() || isSameAgency(resource.data.agencyId)) && (
+        isAdmin() ||
         isDirecteur() ||
         (isEmploye() && (
           resource.data.createdByEmployeeId == request.auth.uid ||
@@ -121,7 +130,8 @@ service cloud.firestore {
       );
       
       // SUPPRESSION des formulaires
-      allow delete: if isAuthenticated() && isSameAgency(resource.data.agencyId) && (
+      allow delete: if isAuthenticated() && (isAdmin() || isSameAgency(resource.data.agencyId)) && (
+        isAdmin() ||
         isDirecteur() ||
         (isEmploye() && resource.data.createdByEmployeeId == request.auth.uid)
       );
@@ -138,6 +148,7 @@ service cloud.firestore {
     match /formEntries/{entryId} {
       // LECTURE des entrées de formulaire
       allow read: if isAuthenticated() && (
+        isAdmin() ||
         (isDirecteur() && isSameAgency(resource.data.agencyId)) ||
         (hasDirectorDashboardAccess() && isSameAgency(resource.data.agencyId)) ||
         (isEmploye() && isOwner(resource.data.userId) && isSameAgency(resource.data.agencyId))
@@ -146,17 +157,18 @@ service cloud.firestore {
       // CRÉATION des entrées de formulaire
       allow create: if isAuthenticated() && 
                    request.resource.data.userId == request.auth.uid &&
-                   isSameAgency(request.resource.data.agencyId) &&
+                   (isAdmin() || isSameAgency(request.resource.data.agencyId)) &&
                    request.resource.data.keys().hasAll(['formId', 'userId', 'agencyId', 'answers']);
       
       // MODIFICATION des entrées de formulaire
       allow update: if isAuthenticated() && (
+        isAdmin() ||
         (isDirecteur() && isSameAgency(resource.data.agencyId)) ||
         (isEmploye() && isOwner(resource.data.userId) && isSameAgency(resource.data.agencyId))
       );
       
       // SUPPRESSION des entrées de formulaire
-      allow delete: if isDirecteur() && isSameAgency(resource.data.agencyId);
+      allow delete: if isAdmin() || (isDirecteur() && isSameAgency(resource.data.agencyId));
     }
 
     // =============================================================================
@@ -205,29 +217,134 @@ service cloud.firestore {
     
     match /dashboards/{dashboardId} {
       // LECTURE des tableaux de bord
-      allow read: if hasDirectorDashboardAccess() && 
-                  isSameAgency(resource.data.agencyId);
+      allow read: if isAdmin() || (hasDirectorDashboardAccess() && 
+                  isSameAgency(resource.data.agencyId));
       
       // CRÉATION des tableaux de bord
-      allow create: if canCreateDashboards() && 
+      allow create: if isAdmin() || (canCreateDashboards() && 
                    isSameAgency(request.resource.data.agencyId) &&
                    request.resource.data.createdBy == request.auth.uid &&
                    request.resource.data.createdByRole in ['directeur', 'employe'] &&
-                   request.resource.data.keys().hasAll(['name', 'metrics', 'createdBy', 'agencyId']);
+                   request.resource.data.keys().hasAll(['name', 'metrics', 'createdBy', 'agencyId']));
       
       // MODIFICATION des tableaux de bord
-      allow update: if hasDirectorDashboardAccess() && 
+      allow update: if isAdmin() || (hasDirectorDashboardAccess() && 
                    isSameAgency(resource.data.agencyId) && (
         isDirecteur() ||
         (isEmploye() && resource.data.createdByEmployeeId == request.auth.uid)
-      );
+      ));
       
       // SUPPRESSION des tableaux de bord
-      allow delete: if hasDirectorDashboardAccess() && 
+      allow delete: if isAdmin() || (hasDirectorDashboardAccess() && 
                    isSameAgency(resource.data.agencyId) && (
         isDirecteur() ||
         (isEmploye() && resource.data.createdByEmployeeId == request.auth.uid)
-      );
+      ));
+    }
+
+    // =============================================================================
+    // COLLECTION ACTIVITY LOGS
+    // Règles pour les logs d'activité :
+    // - Seuls les admins peuvent lire tous les logs
+    // - Tous les utilisateurs authentifiés peuvent créer des logs
+    // =============================================================================
+    
+    match /activityLogs/{logId} {
+      // LECTURE des logs d'activité
+      allow read: if isAdmin();
+      
+      // CRÉATION de logs d'activité
+      allow create: if isAuthenticated();
+      
+      // MODIFICATION des logs d'activité (seuls les admins)
+      allow update: if isAdmin();
+      
+      // SUPPRESSION des logs d'activité (seuls les admins)
+      allow delete: if isAdmin();
+    }
+
+    // =============================================================================
+    // COLLECTION PUSH NOTIFICATIONS
+    // Règles pour les notifications push :
+    // - Seuls les admins peuvent lire tous les logs
+    // - Tous les utilisateurs authentifiés peuvent créer des logs
+    // =============================================================================
+    
+    match /pushNotifications/{notificationId} {
+      // LECTURE des notifications push
+      allow read: if isAdmin();
+      
+      // CRÉATION de notifications push
+      allow create: if isAuthenticated();
+      
+      // MODIFICATION des notifications push (seuls les admins)
+      allow update: if isAdmin();
+      
+      // SUPPRESSION des notifications push (seuls les admins)
+      allow delete: if isAdmin();
+    }
+
+    // =============================================================================
+    // COLLECTION APP USAGE SESSIONS
+    // Règles pour les sessions d'utilisation :
+    // - Seuls les admins peuvent lire tous les logs
+    // - Tous les utilisateurs authentifiés peuvent créer des logs
+    // =============================================================================
+    
+    match /appUsageSessions/{sessionId} {
+      // LECTURE des sessions d'utilisation
+      allow read: if isAdmin();
+      
+      // CRÉATION de sessions d'utilisation
+      allow create: if isAuthenticated();
+      
+      // MODIFICATION des sessions d'utilisation (seuls les admins)
+      allow update: if isAdmin();
+      
+      // SUPPRESSION des sessions d'utilisation (seuls les admins)
+      allow delete: if isAdmin();
+    }
+
+    // =============================================================================
+    // COLLECTION SUBSCRIPTION SESSIONS
+    // Règles pour les sessions d'abonnement :
+    // - Seuls les admins peuvent lire tous les logs
+    // - Tous les utilisateurs authentifiés peuvent créer des logs
+    // =============================================================================
+    
+    match /subscriptionSessions/{sessionId} {
+      // LECTURE des sessions d'abonnement
+      allow read: if isAdmin();
+      
+      // CRÉATION de sessions d'abonnement
+      allow create: if isAuthenticated();
+      
+      // MODIFICATION des sessions d'abonnement (seuls les admins)
+      allow update: if isAdmin();
+      
+      // SUPPRESSION des sessions d'abonnement (seuls les admins)
+      allow delete: if isAdmin();
+    }
+
+    // =============================================================================
+    // COLLECTION PURCHASE HISTORY
+    // Règles pour l'historique des achats :
+    // - Seuls les admins peuvent lire tous les logs
+    // - Tous les utilisateurs authentifiés peuvent créer des logs
+    // =============================================================================
+    
+    match /purchaseHistory/{purchaseId} {
+      // LECTURE de l'historique des achats
+      allow read: if isAdmin();
+      
+      // CRÉATION d'historique d'achat
+      allow create: if isAuthenticated();
+      
+      // MODIFICATION de l'historique des achats (seuls les admins)
+      allow update: if isAdmin();
+      
+      // SUPPRESSION de l'historique des achats (seuls les admins)
+      allow delete: if isAdmin();
     }
 
     // =============================================================================

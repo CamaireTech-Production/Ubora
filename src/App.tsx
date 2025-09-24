@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import { useAuth } from './contexts/AuthContext';
@@ -17,12 +17,22 @@ import { PackageManagementPage } from './pages/PackageManagementPage';
 import { PackageSelectionPage } from './pages/PackageSelectionPage';
 import { DirectorSettingsPage } from './pages/DirectorSettingsPage';
 import { NotificationsPage } from './pages/NotificationsPage';
+import { AdminLoginPage } from './admin/pages/AdminLoginPage';
+import { AdminPage } from './admin';
+import { UserDetailPage } from './admin/pages/UserDetailPage';
 import { PWAInstallPrompt } from './components/PWAInstallPrompt';
+import { PWAManager } from './components/PWAManager';
 import { EmployeeManagement } from './components/EmployeeManagement';
 import { Layout } from './components/Layout';
+import { initializePWAConfig } from './utils/pwaConfig';
 // import { PWAUpdateNotification } from './components/PWAUpdateNotification';
 
 function App() {
+  // Initialize PWA configuration on app load
+  useEffect(() => {
+    initializePWAConfig();
+  }, []);
+
   return (
     <AuthProvider>
       <AppProvider>
@@ -31,6 +41,29 @@ function App() {
           <Routes>
             {/* Page de connexion */}
             <Route path="/login" element={<LoginPage />} />
+            
+            {/* Admin Login */}
+            <Route path="/admin/login" element={<AdminLoginPage />} />
+            
+            {/* Admin Dashboard */}
+            <Route 
+              path="/admin/dashboard" 
+              element={
+                <ProtectedRoute allowedRoles={['admin']}>
+                  <AdminPage />
+                </ProtectedRoute>
+              } 
+            />
+            
+            {/* Admin User Detail */}
+            <Route 
+              path="/admin/users/:userId" 
+              element={
+                <ProtectedRoute allowedRoles={['admin']}>
+                  <UserDetailPage />
+                </ProtectedRoute>
+              } 
+            />
             
             {/* Page non autorisée */}
             <Route path="/unauthorized" element={<UnauthorizedPage />} />
@@ -156,11 +189,11 @@ function App() {
             {/* Page 404 */}
             <Route path="*" element={<Navigate to="/login" replace />} />
           </Routes>
-          </Router>
           
-          {/* PWA Components */}
-          <PWAInstallPrompt />
+          {/* PWA Components - Inside Router context */}
+          <PWAManager />
           {/* <PWAUpdateNotification /> */}
+          </Router>
         </ConversationProvider>
       </AppProvider>
     </AuthProvider>
@@ -181,6 +214,11 @@ const RoleBasedRedirect: React.FC = () => {
 
   if (!user) {
     return <Navigate to="/login" replace />;
+  }
+
+  // Admin → Redirect to admin dashboard
+  if (user.role === 'admin') {
+    return <Navigate to="/admin/dashboard" replace />;
   }
 
   // Directeur → Vérifier si un package doit être sélectionné
