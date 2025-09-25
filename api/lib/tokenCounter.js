@@ -56,7 +56,8 @@ class TokenCounter {
    * Apply division for user billing (divide by 1000 for profitability)
    */
   static getUserTokensToCharge(actualTokens, divisor = 1000) {
-    return Math.ceil(actualTokens / divisor);
+    const userTokens = Math.ceil(actualTokens / divisor);
+    return userTokens;
   }
 
   /**

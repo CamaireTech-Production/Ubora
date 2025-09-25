@@ -20,7 +20,7 @@ import { NotificationsPage } from './pages/NotificationsPage';
 import { AdminLoginPage } from './admin/pages/AdminLoginPage';
 import { AdminPage } from './admin';
 import { UserDetailPage } from './admin/pages/UserDetailPage';
-import { PWAManager } from './components/PWAManager';
+import { HybridPWAManager } from './components/HybridPWAManager';
 import { EmployeeManagement } from './components/EmployeeManagement';
 import { Layout } from './components/Layout';
 import { initializePWAConfig } from './utils/pwaConfig';
@@ -190,7 +190,7 @@ function App() {
           </Routes>
           
           {/* PWA Components - Inside Router context */}
-          <PWAManager />
+          <HybridPWAManager />
           {/* <PWAUpdateNotification /> */}
           </Router>
         </ConversationProvider>

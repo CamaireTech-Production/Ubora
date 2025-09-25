@@ -8,6 +8,35 @@ export interface PackageTransitionOptions {
   preserveUnusedPayAsYouGo?: boolean; // Whether to preserve unused pay-as-you-go tokens (default: true)
 }
 
+export interface UserNeeds {
+  forms?: number;
+  dashboards?: number;
+  users?: number;
+  tokens?: number;
+}
+
+export interface PayAsYouGoItem {
+  feature: string;
+  currentLimit: number;
+  requestedAmount: number;
+  costPerUnit: number;
+  totalCost: number;
+}
+
+export interface FeatureUpgrade {
+  feature: string;
+  fromLimit: number | 'unlimited';
+  toLimit: number | 'unlimited';
+  isUnlimited: boolean;
+}
+
+export interface FeatureDowngrade {
+  feature: string;
+  fromLimit: number | 'unlimited';
+  toLimit: number | 'unlimited';
+  isUnlimited: boolean;
+}
+
 export interface TransitionCalculation {
   currentSession: SubscriptionSession;
   newPackageType: 'starter' | 'standard' | 'premium' | 'custom';
@@ -17,6 +46,42 @@ export interface TransitionCalculation {
   totalAmount: number;
   newPackageTokens: number;
   preservedPayAsYouGoTokens: number;
+}
+
+export interface EnhancedTransitionCalculation {
+  currentSession: SubscriptionSession;
+  newPackageType: 'starter' | 'standard' | 'premium' | 'custom';
+  daysRemaining: number;
+  
+  // Cost calculations
+  currentPackageRemainingValue: number;
+  newPackageFullCost: number;
+  finalAmountToPay: number;
+  
+  // Token handling
+  unusedPackageTokens: number;
+  unusedPayAsYouGoTokens: number;
+  newPackageTokens: number;
+  preservedPayAsYouGoTokens: number;
+  
+  // Pay-as-you-go analysis
+  payAsYouGoRequired: boolean;
+  payAsYouGoItems: PayAsYouGoItem[];
+  payAsYouGoTotalCost: number;
+  
+  // Feature analysis
+  featureUpgrades: FeatureUpgrade[];
+  featureDowngrades: FeatureDowngrade[];
+  
+  // Price breakdown for UI
+  priceBreakdown: {
+    currentPackagePrice: number;
+    currentPackageRemainingValue: number;
+    newPackagePrice: number;
+    payAsYouGoCost: number;
+    finalAmount: number;
+    savings: number;
+  };
 }
 
 export class PackageTransitionService {
@@ -174,13 +239,17 @@ export class PackageTransitionService {
   ): Promise<boolean> {
     const sessionType = calculation.totalAmount >= 0 ? 'upgrade' : 'downgrade';
     
+    // Preserve the original session dates instead of resetting to today
+    const originalStartDate = this.convertToDate(calculation.currentSession.startDate);
+    const originalEndDate = this.convertToDate(calculation.currentSession.endDate);
+    
     return SubscriptionSessionService.createSession(userId, {
       packageType: calculation.newPackageType,
       sessionType,
-      startDate: new Date(),
-      endDate: new Date(Date.now() + (30 * 24 * 60 * 60 * 1000)), // 30 days
+      startDate: originalStartDate, // Keep original start date
+      endDate: originalEndDate, // Keep original end date
       amountPaid: Math.abs(calculation.totalAmount),
-      durationDays: 30,
+      durationDays: calculation.daysRemaining + Math.ceil((originalEndDate.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)),
       tokensIncluded: calculation.newPackageTokens, // Always reset to new package limit
       tokensUsed: 0, // Start fresh with new package
       isActive: true,
@@ -323,5 +392,256 @@ export class PackageTransitionService {
     
     const currentPackageTokens = currentSession.tokensIncluded - currentSession.tokensUsed;
     return currentPackageTokens + unusedPayAsYouGoTokens;
+  }
+
+  /**
+   * Calculate cost reduction based on days remaining in current package
+   */
+  private static calculateCostReduction(
+    currentPackagePrice: number,
+    daysRemaining: number
+  ): number {
+    const totalDaysInCycle = 30;
+    const remainingValue = (currentPackagePrice * daysRemaining) / totalDaysInCycle;
+    return Math.round(remainingValue);
+  }
+
+  /**
+   * Get pay-as-you-go pricing for different features
+   */
+  private static getPayAsYouGoPrice(feature: string): number {
+    const prices: Record<string, number> = {
+      forms: 5000, // 5,000 FCFA per form
+      dashboards: 10000, // 10,000 FCFA per dashboard
+      users: 7000, // 7,000 FCFA per user
+      tokens: 0.0085 // 8.5 FCFA per 1000 tokens
+    };
+    return prices[feature] || 0;
+  }
+
+  /**
+   * Analyze pay-as-you-go requirements
+   */
+  private static analyzePayAsYouGo(
+    currentPackage: 'starter' | 'standard' | 'premium' | 'custom',
+    newPackage: 'starter' | 'standard' | 'premium' | 'custom',
+    userNeeds: UserNeeds = {}
+  ): PayAsYouGoItem[] {
+    const payAsYouGoItems: PayAsYouGoItem[] = [];
+    
+    // Check each feature that might need pay-as-you-go
+    const featuresToCheck = ['forms', 'dashboards', 'users'] as const;
+    
+    featuresToCheck.forEach(feature => {
+      const newPackageLimit = PACKAGE_LIMITS[newPackage][feature];
+      const userRequestedAmount = userNeeds[feature] || 0;
+      
+      // Only apply pay-as-you-go if new package doesn't have unlimited access
+      if (newPackageLimit !== -1 && userRequestedAmount > newPackageLimit) {
+        const extraNeeded = userRequestedAmount - newPackageLimit;
+        const costPerUnit = this.getPayAsYouGoPrice(feature);
+        
+        payAsYouGoItems.push({
+          feature,
+          currentLimit: newPackageLimit,
+          requestedAmount: userRequestedAmount,
+          costPerUnit,
+          totalCost: extraNeeded * costPerUnit
+        });
+      }
+    });
+    
+    return payAsYouGoItems;
+  }
+
+  /**
+   * Analyze feature upgrades
+   */
+  private static analyzeFeatureUpgrades(
+    currentPackage: 'starter' | 'standard' | 'premium' | 'custom',
+    newPackage: 'starter' | 'standard' | 'premium' | 'custom'
+  ): FeatureUpgrade[] {
+    const upgrades: FeatureUpgrade[] = [];
+    const features = ['maxForms', 'maxDashboards', 'maxUsers', 'monthlyTokens'] as const;
+    
+    features.forEach(feature => {
+      const currentLimit = PACKAGE_LIMITS[currentPackage][feature];
+      const newLimit = PACKAGE_LIMITS[newPackage][feature];
+      
+      if (newLimit > currentLimit || (currentLimit !== -1 && newLimit === -1)) {
+        upgrades.push({
+          feature,
+          fromLimit: currentLimit === -1 ? 'unlimited' : currentLimit,
+          toLimit: newLimit === -1 ? 'unlimited' : newLimit,
+          isUnlimited: newLimit === -1
+        });
+      }
+    });
+    
+    return upgrades;
+  }
+
+  /**
+   * Analyze feature downgrades
+   */
+  private static analyzeFeatureDowngrades(
+    currentPackage: 'starter' | 'standard' | 'premium' | 'custom',
+    newPackage: 'starter' | 'standard' | 'premium' | 'custom'
+  ): FeatureDowngrade[] {
+    const downgrades: FeatureDowngrade[] = [];
+    const features = ['maxForms', 'maxDashboards', 'maxUsers', 'monthlyTokens'] as const;
+    
+    features.forEach(feature => {
+      const currentLimit = PACKAGE_LIMITS[currentPackage][feature];
+      const newLimit = PACKAGE_LIMITS[newPackage][feature];
+      
+      if (newLimit < currentLimit || (currentLimit === -1 && newLimit !== -1)) {
+        downgrades.push({
+          feature,
+          fromLimit: currentLimit === -1 ? 'unlimited' : currentLimit,
+          toLimit: newLimit === -1 ? 'unlimited' : newLimit,
+          isUnlimited: newLimit === -1
+        });
+      }
+    });
+    
+    return downgrades;
+  }
+
+  /**
+   * Enhanced transition calculation with cost reduction and pay-as-you-go logic
+   */
+  static calculateEnhancedTransition(
+    userData: User,
+    newPackageType: 'starter' | 'standard' | 'premium' | 'custom',
+    userNeeds: UserNeeds = {},
+    options: PackageTransitionOptions = {}
+  ): EnhancedTransitionCalculation | null {
+    const currentSession = SubscriptionSessionService.getCurrentSession(userData);
+    if (!currentSession) return null;
+
+    const now = new Date();
+    const endDate = this.convertToDate(currentSession.endDate);
+    const daysRemaining = Math.max(0, Math.ceil((endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
+    
+    // Get package prices
+    const currentPackagePrice = this.getPackagePrice(currentSession.packageType);
+    const newPackagePrice = this.getPackagePrice(newPackageType);
+    
+    // Calculate cost reduction based on days remaining
+    const currentPackageRemainingValue = this.calculateCostReduction(currentPackagePrice, daysRemaining);
+    
+    // Analyze pay-as-you-go requirements
+    const payAsYouGoItems = this.analyzePayAsYouGo(currentSession.packageType, newPackageType, userNeeds);
+    const payAsYouGoTotalCost = payAsYouGoItems.reduce((sum, item) => sum + item.totalCost, 0);
+    
+    // Calculate final amount to pay
+    const finalAmountToPay = Math.max(0, newPackagePrice - currentPackageRemainingValue + payAsYouGoTotalCost);
+    
+    // Token handling (existing logic)
+    const unusedPackageTokens = Math.max(0, currentSession.tokensIncluded - currentSession.tokensUsed);
+    const unusedPayAsYouGoTokens = this.getUnusedPayAsYouGoTokens(userData);
+    const newPackageTokens = PACKAGE_LIMITS[newPackageType].monthlyTokens;
+    const preservedPayAsYouGoTokens = (options.preserveUnusedPayAsYouGo !== false) ? unusedPayAsYouGoTokens : 0;
+    
+    // Feature analysis
+    const featureUpgrades = this.analyzeFeatureUpgrades(currentSession.packageType, newPackageType);
+    const featureDowngrades = this.analyzeFeatureDowngrades(currentSession.packageType, newPackageType);
+    
+    // Calculate savings
+    const savings = Math.max(0, currentPackageRemainingValue - payAsYouGoTotalCost);
+    
+    return {
+      currentSession,
+      newPackageType,
+      daysRemaining,
+      currentPackageRemainingValue,
+      newPackageFullCost: newPackagePrice,
+      finalAmountToPay,
+      unusedPackageTokens,
+      unusedPayAsYouGoTokens,
+      newPackageTokens,
+      preservedPayAsYouGoTokens,
+      payAsYouGoRequired: payAsYouGoItems.length > 0,
+      payAsYouGoItems,
+      payAsYouGoTotalCost,
+      featureUpgrades,
+      featureDowngrades,
+      priceBreakdown: {
+        currentPackagePrice,
+        currentPackageRemainingValue,
+        newPackagePrice,
+        payAsYouGoCost: payAsYouGoTotalCost,
+        finalAmount: finalAmountToPay,
+        savings
+      }
+    };
+  }
+
+  /**
+   * Get enhanced transition preview for UI
+   */
+  static getEnhancedTransitionPreview(
+    userData: User,
+    newPackageType: 'starter' | 'standard' | 'premium' | 'custom',
+    userNeeds: UserNeeds = {},
+    options: PackageTransitionOptions = {}
+  ) {
+    const calculation = this.calculateEnhancedTransition(userData, newPackageType, userNeeds, options);
+    
+    if (!calculation) return null;
+
+    return {
+      currentPackage: calculation.currentSession.packageType,
+      newPackage: newPackageType,
+      daysRemaining: calculation.daysRemaining,
+      priceBreakdown: calculation.priceBreakdown,
+      payAsYouGoItems: calculation.payAsYouGoItems,
+      featureUpgrades: calculation.featureUpgrades,
+      featureDowngrades: calculation.featureDowngrades,
+      tokenInfo: {
+        unusedPackageTokens: calculation.unusedPackageTokens,
+        unusedPayAsYouGoTokens: calculation.unusedPayAsYouGoTokens,
+        newPackageTokens: calculation.newPackageTokens,
+        preservedPayAsYouGoTokens: calculation.preservedPayAsYouGoTokens
+      },
+      summary: this.generateEnhancedTransitionSummary(calculation, options)
+    };
+  }
+
+  /**
+   * Generate enhanced human-readable transition summary
+   */
+  private static generateEnhancedTransitionSummary(
+    calculation: EnhancedTransitionCalculation,
+    options: PackageTransitionOptions
+  ): string {
+    const parts = [];
+    
+    // Cost info with breakdown
+    if (calculation.daysRemaining > 0) {
+      parts.push(`Économie: ${calculation.priceBreakdown.savings.toLocaleString()} FCFA (${calculation.daysRemaining} jours restants)`);
+    }
+    parts.push(`Montant final: ${calculation.finalAmountToPay.toLocaleString()} FCFA`);
+    
+    // Pay-as-you-go info
+    if (calculation.payAsYouGoRequired) {
+      parts.push(`Pay-as-you-go: ${calculation.payAsYouGoTotalCost.toLocaleString()} FCFA`);
+    }
+    
+    // Token info
+    parts.push(`Nouveaux tokens: ${calculation.newPackageTokens.toLocaleString()}`);
+    
+    // Pay-as-you-go preservation
+    if (calculation.preservedPayAsYouGoTokens > 0) {
+      parts.push(`Pay-as-you-go préservé: ${calculation.preservedPayAsYouGoTokens.toLocaleString()} tokens`);
+    }
+    
+    // Unused package tokens warning
+    if (calculation.unusedPackageTokens > 0) {
+      parts.push(`⚠️ ${calculation.unusedPackageTokens.toLocaleString()} tokens package seront perdus`);
+    }
+    
+    return parts.join(' • ');
   }
 }

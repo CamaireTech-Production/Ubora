@@ -1,4 +1,5 @@
 import { useAuth } from '../contexts/AuthContext';
+import { SubscriptionSessionService } from '../services/subscriptionSessionService';
 import { 
   hasPackageFeature, 
   getPackageLimit, 
@@ -12,26 +13,42 @@ import {
 export const usePackageAccess = () => {
   const { user } = useAuth();
 
+  // Get current active session package type
+  const getCurrentPackageType = (): PackageType | null => {
+    if (!user) return null;
+    
+    // First try to get from current active session
+    const currentSession = SubscriptionSessionService.getCurrentSession(user);
+    if (currentSession) {
+      return currentSession.packageType;
+    }
+    
+    // Fallback to legacy package field
+    return user.package || null;
+  };
+
+  const currentPackageType = getCurrentPackageType();
+
   // Vérifier si l'utilisateur a accès à une fonctionnalité spécifique
   const hasFeature = (feature: keyof PackageFeatures): boolean => {
-    if (!user?.package) return false;
+    if (!currentPackageType) return false;
     
     // Pour les packages custom, vérifier les fonctionnalités personnalisées
-    if (user.package === 'custom' && user.packageFeatures) {
+    if (currentPackageType === 'custom' && user?.packageFeatures) {
       return user.packageFeatures.includes(feature);
     }
     
-    return hasPackageFeature(user.package, feature);
+    return hasPackageFeature(currentPackageType, feature);
   };
 
   // Vérifier si l'utilisateur respecte une limite spécifique (incluant pay-as-you-go)
   const checkLimit = (limit: keyof PackageLimits, currentValue: number): boolean => {
-    if (!user?.package) return false;
+    if (!currentPackageType) return false;
     
-    const limitValue = getPackageLimit(user.package, limit);
+    const limitValue = getPackageLimit(currentPackageType, limit);
     
     // Si la limite est illimitée (-1), toujours autoriser
-    if (isUnlimited(user.package, limit)) {
+    if (isUnlimited(currentPackageType, limit)) {
       return true;
     }
     
@@ -44,19 +61,19 @@ export const usePackageAccess = () => {
 
   // Obtenir la valeur d'une limite
   const getLimit = (limit: keyof PackageLimits): number => {
-    if (!user?.package) return 0;
-    return getPackageLimit(user.package, limit);
+    if (!currentPackageType) return 0;
+    return getPackageLimit(currentPackageType, limit);
   };
 
   // Vérifier si une limite est illimitée
   const isLimitUnlimited = (limit: keyof PackageLimits): boolean => {
-    if (!user?.package) return false;
-    return isUnlimited(user.package, limit);
+    if (!currentPackageType) return false;
+    return isUnlimited(currentPackageType, limit);
   };
 
   // Obtenir le type de package de l'utilisateur
   const getPackageType = (): PackageType | null => {
-    return user?.package || null;
+    return currentPackageType;
   };
 
   // Vérifier si l'utilisateur peut créer un nouveau formulaire
@@ -64,7 +81,7 @@ export const usePackageAccess = () => {
     const result = checkLimit('maxForms', currentFormCount);
     console.log('🔍 canCreateForm Debug:', {
       currentFormCount,
-      userPackage: user?.package,
+      currentPackageType,
       packageLimit: getLimit('maxForms'),
       payAsYouGoCapacity: getPayAsYouGoCapacity('maxForms'),
       totalCapacity: getTotalLimit('maxForms'),
@@ -180,7 +197,7 @@ export const usePackageAccess = () => {
     
     // Informations sur l'utilisateur
     user,
-    packageType: user?.package || null
+    packageType: currentPackageType
   };
 };
 

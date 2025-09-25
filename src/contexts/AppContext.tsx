@@ -58,6 +58,44 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, firebaseUser } = useAuth();
   const { canCreateForm, canCreateDashboard } = usePackageAccess();
+  
+  // Guard: Ensure we have the required context data before rendering children
+  if (!user || !firebaseUser) {
+    return (
+      <AppContext.Provider value={{
+        forms: [],
+        formEntries: [],
+        employees: [],
+        dashboards: [],
+        createForm: async () => {},
+        updateForm: async () => {},
+        submitFormEntry: async () => {},
+        updateFormEntry: async () => {},
+        submitMultipleFormEntries: async () => {},
+        deleteForm: async () => {},
+        getFormsForEmployee: () => [],
+        getEntriesForForm: () => [],
+        getEntriesForEmployee: () => [],
+        getEmployeesForAgency: () => [],
+        getPendingEmployees: () => [],
+        refreshData: () => {},
+        createDashboard: async () => {},
+        updateDashboard: async () => {},
+        deleteDashboard: async () => {},
+        getDashboardsForDirector: () => [],
+        getDraftsForForm: () => [],
+        saveDraft: () => {},
+        deleteDraft: () => {},
+        deleteDraftsForForm: () => {},
+        createDraft: () => ({ id: '', formId: '', userId: '', agencyId: '', answers: {}, fileAttachments: [], isDraft: true, createdAt: new Date(), updatedAt: new Date() }),
+        isLoading: true,
+        error: null
+      }}>
+        {children}
+      </AppContext.Provider>
+    );
+  }
+  
   const [forms, setForms] = useState<Form[]>([]);
   const [formEntries, setFormEntries] = useState<FormEntry[]>([]);
   const [employees, setEmployees] = useState<User[]>([]);

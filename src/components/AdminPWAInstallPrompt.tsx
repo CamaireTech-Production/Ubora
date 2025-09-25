@@ -1,15 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { Card } from './Card';
-import { Download, X, Smartphone, Monitor, Shield } from 'lucide-react';
+import { Shield, X, Smartphone, Monitor, Download } from 'lucide-react';
 import { getPWAConfig, updateManifestLink } from '../utils/pwaConfig';
 import { getDeferredPrompt, getIsInstallable, clearDeferredPrompt } from '../utils/pwaRegistration';
 
-export const PWAInstallPrompt: React.FC = () => {
+export const AdminPWAInstallPrompt: React.FC = () => {
   const [showInstallPrompt, setShowInstallPrompt] = useState(false);
   const [isInstalled, setIsInstalled] = useState(false);
   const [pwaConfig, setPwaConfig] = useState(getPWAConfig());
   const [isInstalling, setIsInstalling] = useState(false);
-
+  const [adminDeferredPrompt, setAdminDeferredPrompt] = useState<any>(null);
 
   useEffect(() => {
     // Update PWA config when route changes
@@ -46,7 +46,7 @@ export const PWAInstallPrompt: React.FC = () => {
 
     // Listen for the appinstalled event
     const handleAppInstalled = () => {
-      console.log('✅ App installed successfully');
+      console.log('✅ Admin app installed successfully');
       setIsInstalled(true);
       setShowInstallPrompt(false);
     };
@@ -57,8 +57,10 @@ export const PWAInstallPrompt: React.FC = () => {
     };
 
     // Listen for beforeinstallprompt event
-    const handleBeforeInstallPrompt = () => {
-      console.log('🔔 [PWA] beforeinstallprompt event fired - showing install prompt');
+    const handleBeforeInstallPrompt = (e: Event) => {
+      console.log('🔔 [Admin PWA] beforeinstallprompt event fired - storing admin deferred prompt');
+      e.preventDefault(); // Prevent the default browser install prompt
+      setAdminDeferredPrompt(e); // Store the prompt locally for admin use
       if (!isInstalled) {
         setShowInstallPrompt(true);
       }
@@ -67,7 +69,7 @@ export const PWAInstallPrompt: React.FC = () => {
     window.addEventListener('appinstalled', handleAppInstalled);
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
     window.matchMedia('(display-mode: standalone)').addEventListener('change', handleDisplayModeChange);
-
+    
     // Listen for route changes to update config
     const handleRouteChange = () => {
       updateConfig();
@@ -78,13 +80,19 @@ export const PWAInstallPrompt: React.FC = () => {
     const checkShouldShowPrompt = () => {
       // Don't show if already installed
       if (isInstalled) {
-        console.log('🔍 [PWA] Not showing prompt - app already installed');
+        console.log('🔍 [Admin PWA] Not showing prompt - app already installed');
         return false;
       }
       
-      // Check if we have a deferred prompt (most reliable)
+      // Check if we have a local admin deferred prompt (most reliable)
+      if (adminDeferredPrompt) {
+        console.log('🔍 [Admin PWA] Showing prompt - local admin deferred prompt available');
+        return true;
+      }
+      
+      // Check if we have a global deferred prompt
       if (getIsInstallable()) {
-        console.log('🔍 [PWA] Showing prompt - deferred prompt available');
+        console.log('🔍 [Admin PWA] Showing prompt - global deferred prompt available');
         return true;
       }
       
@@ -93,11 +101,12 @@ export const PWAInstallPrompt: React.FC = () => {
       const hasManifest = document.querySelector('link[rel="manifest"]') !== null;
       const isHTTPS = location.protocol === 'https:' || location.hostname === 'localhost';
       
-      console.log('🔍 [PWA] PWA criteria check:', {
+      console.log('🔍 [Admin PWA] PWA criteria check:', {
         hasServiceWorker,
         hasManifest,
         isHTTPS,
-        isInstallable: getIsInstallable()
+        isInstallable: getIsInstallable(),
+        hasAdminDeferredPrompt: !!adminDeferredPrompt
       });
       
       // Show if basic PWA criteria are met
@@ -108,7 +117,7 @@ export const PWAInstallPrompt: React.FC = () => {
     if (checkShouldShowPrompt()) {
       setTimeout(() => {
         setShowInstallPrompt(true);
-      }, 3000); // Show after 3 seconds
+      }, 2000); // Show after 2 seconds for admin (faster than regular app)
     }
 
     return () => {
@@ -120,24 +129,42 @@ export const PWAInstallPrompt: React.FC = () => {
   }, [pwaConfig.isAdmin]);
 
   const handleInstallClick = async () => {
-    console.log('🚀 Install button clicked');
+    console.log('🚀 Admin install button clicked');
     setIsInstalling(true);
 
     try {
-      const deferredPrompt = getDeferredPrompt();
-      
-      // First try the native prompt if available (Android/Desktop)
-      if (deferredPrompt) {
-        console.log('✅ Using native deferred prompt');
-        await deferredPrompt.prompt();
-        const { outcome } = await deferredPrompt.userChoice;
+      // First try the local admin deferred prompt
+      if (adminDeferredPrompt) {
+        console.log('✅ Using local admin deferred prompt');
+        await adminDeferredPrompt.prompt();
+        const { outcome } = await adminDeferredPrompt.userChoice;
         
         if (outcome === 'accepted') {
-          console.log('✅ User accepted the install prompt');
+          console.log('✅ User accepted the admin install prompt');
+          setAdminDeferredPrompt(null);
+          setShowInstallPrompt(false);
+        } else {
+          console.log('❌ User dismissed the admin install prompt');
+          setAdminDeferredPrompt(null);
+          setShowInstallPrompt(false);
+        }
+        setIsInstalling(false);
+        return;
+      }
+
+      // Fallback to global deferred prompt
+      const globalDeferredPrompt = getDeferredPrompt();
+      if (globalDeferredPrompt) {
+        console.log('✅ Using global deferred prompt for admin');
+        await globalDeferredPrompt.prompt();
+        const { outcome } = await globalDeferredPrompt.userChoice;
+        
+        if (outcome === 'accepted') {
+          console.log('✅ User accepted the admin install prompt');
           clearDeferredPrompt();
           setShowInstallPrompt(false);
         } else {
-          console.log('❌ User dismissed the install prompt');
+          console.log('❌ User dismissed the admin install prompt');
           clearDeferredPrompt();
           setShowInstallPrompt(false);
         }
@@ -145,32 +172,59 @@ export const PWAInstallPrompt: React.FC = () => {
         return;
       }
 
-      // For iOS or when no deferred prompt is available
-      console.log('📱 No native prompt available');
+      // If no deferred prompt, try to trigger the browser's install prompt
+      console.log('📱 No deferred prompt available, trying alternative methods');
       
       // Check if it's iOS
       const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
       if (isIOS) {
         // For iOS, we can't programmatically install, so we show instructions
-        console.log('🍎 iOS detected - showing manual install instructions');
+        console.log('🍎 iOS detected - showing manual install instructions for admin');
         setIsInstalling(false);
         return;
       }
 
-      // For other browsers, show manual instructions
-      console.log('🔄 Showing manual install instructions');
-      alert('Pour installer cette application:\n\n1. Cliquez sur le menu de votre navigateur (⋮)\n2. Sélectionnez "Installer l\'application" ou "Ajouter à l\'écran d\'accueil"\n3. Suivez les instructions à l\'écran');
-      setIsInstalling(false);
+      // For other browsers, try to trigger the install prompt by checking if the app is installable
+      // Sometimes the browser needs a user gesture to show the install prompt
+      console.log('🔄 Attempting to trigger browser install prompt');
+      
+      // Check if the app meets PWA criteria and try to show install prompt
+      if ('serviceWorker' in navigator && 'PushManager' in window) {
+        // Try to trigger the beforeinstallprompt event by creating a small delay
+        // This sometimes helps the browser recognize the app as installable
+        setTimeout(() => {
+          // Check again for deferred prompt after a short delay
+          const newDeferredPrompt = getDeferredPrompt();
+          if (newDeferredPrompt) {
+            console.log('✅ Deferred prompt became available after delay');
+            newDeferredPrompt.prompt();
+            const { outcome } = newDeferredPrompt.userChoice;
+            if (outcome === 'accepted') {
+              clearDeferredPrompt();
+              setShowInstallPrompt(false);
+            }
+            setIsInstalling(false);
+          } else {
+            // Still no prompt available, show manual instructions
+            console.log('🔄 Still no prompt available, showing manual instructions');
+            alert('Pour installer le panel d\'administration Ubora:\n\n1. Cliquez sur le menu de votre navigateur (⋮)\n2. Sélectionnez "Installer l\'application" ou "Ajouter à l\'écran d\'accueil"\n3. Suivez les instructions à l\'écran\n\nL\'application s\'ouvrira directement sur le panel d\'administration.');
+            setIsInstalling(false);
+          }
+        }, 100);
+      } else {
+        // Browser doesn't support PWA installation
+        alert('Votre navigateur ne supporte pas l\'installation d\'applications. Veuillez utiliser Chrome, Edge, ou Firefox.');
+        setIsInstalling(false);
+      }
       
     } catch (error) {
-      console.error('❌ Error during installation:', error);
+      console.error('❌ Error during admin installation:', error);
       setIsInstalling(false);
     }
   };
 
-
   const handleDismiss = () => {
-    console.log('🚫 PWA install prompt dismissed');
+    console.log('🚫 Admin PWA install prompt dismissed');
     setShowInstallPrompt(false);
     // Modal will show again on page reload
   };
@@ -183,7 +237,6 @@ export const PWAInstallPrompt: React.FC = () => {
     return null;
   }
 
-
   // Don't show if prompt is dismissed
   if (!showInstallPrompt) {
     return null;
@@ -191,30 +244,19 @@ export const PWAInstallPrompt: React.FC = () => {
 
   return (
     <div className="fixed bottom-4 left-4 right-4 z-50 max-w-md mx-auto">
-      <Card className={`bg-gradient-to-r text-white border-0 shadow-lg ${
-        pwaConfig.isAdmin 
-          ? 'from-red-600 to-red-700' 
-          : 'from-blue-600 to-blue-700'
-      }`}>
+      <Card className="bg-gradient-to-r from-red-600 to-red-700 text-white border-0 shadow-lg">
         <div className="p-4">
           <div className="flex items-start justify-between mb-3">
             <div className="flex items-center space-x-2">
               <div className="p-2 bg-white/20 rounded-lg">
-                {pwaConfig.isAdmin ? (
-                  <Shield className="h-5 w-5" />
-                ) : (
-                  <Download className="h-5 w-5" />
-                )}
+                <Shield className="h-5 w-5" />
               </div>
               <div>
                 <h3 className="font-semibold text-white">
                   Installer {pwaConfig.shortName}
                 </h3>
-                <p className="text-blue-100 text-sm">
-                  {pwaConfig.isAdmin 
-                    ? 'Accédez au panel d\'administration'
-                    : 'Accédez plus rapidement à votre application'
-                  }
+                <p className="text-red-100 text-sm">
+                  Accédez au panel d'administration
                 </p>
               </div>
             </div>
@@ -228,23 +270,23 @@ export const PWAInstallPrompt: React.FC = () => {
 
           {isIOS ? (
             <div className="space-y-3">
-              <p className="text-blue-100 text-sm">
-                Pour installer cette application sur votre iPhone/iPad :
+              <p className="text-red-100 text-sm">
+                Pour installer le panel d'administration sur votre iPhone/iPad :
               </p>
-              <ol className="text-blue-100 text-sm space-y-1 list-decimal list-inside">
+              <ol className="text-red-100 text-sm space-y-1 list-decimal list-inside">
                 <li>Appuyez sur le bouton Partager <span className="text-white">⎋</span></li>
                 <li>Faites défiler et sélectionnez "Sur l'écran d'accueil"</li>
                 <li>Appuyez sur "Ajouter"</li>
               </ol>
               <div className="mt-3 p-2 bg-white/10 rounded-lg">
-                <p className="text-blue-200 text-xs">
-                  💡 Astuce: L'icône de partage se trouve en bas de l'écran
+                <p className="text-red-200 text-xs">
+                  💡 Le panel d'administration s'ouvrira directement
                 </p>
               </div>
             </div>
           ) : (
             <div className="space-y-3">
-              <div className="flex items-center space-x-4 text-blue-100 text-sm">
+              <div className="flex items-center space-x-4 text-red-100 text-sm">
                 <div className="flex items-center space-x-1">
                   <Smartphone className="h-4 w-4" />
                   <span>Mobile</span>
@@ -255,21 +297,14 @@ export const PWAInstallPrompt: React.FC = () => {
                 </div>
               </div>
               
-              <p className="text-blue-100 text-sm">
-                {pwaConfig.isAdmin 
-                  ? 'Installez le panel d\'administration pour un accès rapide'
-                  : 'Installez l\'application pour une expérience optimale'
-                }
+              <p className="text-red-100 text-sm">
+                Installez le panel d'administration pour un accès rapide et sécurisé
               </p>
               
               <button
                 onClick={handleInstallClick}
                 disabled={isInstalling}
-                className={`w-full bg-white font-medium py-2 px-4 rounded-lg transition-all duration-200 flex items-center justify-center space-x-2 disabled:opacity-50 ${
-                  pwaConfig.isAdmin 
-                    ? 'text-red-600 hover:bg-red-50' 
-                    : 'text-blue-600 hover:bg-blue-50'
-                }`}
+                className="w-full bg-white font-medium py-2 px-4 rounded-lg transition-all duration-200 flex items-center justify-center space-x-2 disabled:opacity-50 text-red-600 hover:bg-red-50"
               >
                 {isInstalling ? (
                   <>
@@ -278,21 +313,17 @@ export const PWAInstallPrompt: React.FC = () => {
                   </>
                 ) : (
                   <>
-                    {pwaConfig.isAdmin ? (
-                      <Shield className="h-4 w-4" />
-                    ) : (
-                      <Download className="h-4 w-4" />
-                    )}
-                    <span>Installer maintenant</span>
+                    <Shield className="h-4 w-4" />
+                    <span>Installer l'Admin</span>
                   </>
                 )}
               </button>
             </div>
           )}
 
-          <div className="mt-3 pt-3 border-t border-blue-500/30">
-            <p className="text-blue-200 text-xs">
-              ✓ Fonctionne hors ligne • ✓ Notifications • ✓ Accès rapide
+          <div className="mt-3 pt-3 border-t border-red-500/30">
+            <p className="text-red-200 text-xs">
+              ✓ Accès sécurisé • ✓ Gestion des utilisateurs • ✓ Monitoring système
             </p>
           </div>
         </div>

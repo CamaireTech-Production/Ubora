@@ -59,7 +59,7 @@ jobs:
         
         # PWA Configuration for Development
         VITE_APP_ENV=dev
-        NODE_ENV=production
+        NODE_ENV=development
         EOF
         
     - name: Build application

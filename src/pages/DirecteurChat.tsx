@@ -166,7 +166,9 @@ RÉPONSE :
 - Référence les données sources`;
 
         const estimatedTokens = TokenCounter.getTotalEstimatedTokens(estimatedSystemPrompt, messageToSend, 800);
-        const userTokensToCharge = Math.min(TokenCounter.getUserTokensToCharge(estimatedTokens, 1.5), 3000); // Cap at 3000 tokens
+        // Use same formula as backend: (estimatedTokens * 2.5) / 100
+        const userTokensToCharge = Math.min(Math.ceil((estimatedTokens * 2.5) / 100), 3000); // Cap at 3000 tokens
+        
         
         // Check if user has enough tokens (including pay-as-you-go tokens)
         const currentTokensUsed = user.tokensUsedMonthly || 0;
@@ -271,14 +273,6 @@ RÉPONSE :
         conversationId: conversationId
       };
       
-      // 🔍 DEBUG: Log request data being sent
-      console.log('🚀 FRONTEND REQUEST - Sending request to backend:', {
-        conversationId: conversationId,
-        hasConversationId: !!conversationId,
-        questionLength: messageToSend.length,
-        selectedFormats: actualFormats,
-        timestamp: new Date().toISOString()
-      });
 
       // Timeout de 90 secondes pour laisser plus de temps au traitement IA
       const controller = new AbortController();
@@ -294,13 +288,6 @@ RÉPONSE :
         signal: controller.signal
       });
       
-      // 🔍 DEBUG: Log response received
-      console.log('📥 FRONTEND RESPONSE - Received response from backend:', {
-        status: response.status,
-        statusText: response.statusText,
-        ok: response.ok,
-        timestamp: new Date().toISOString()
-      });
 
       // If token has expired or is invalid, refresh once and retry
       if (response.status === 401) {
@@ -351,6 +338,7 @@ RÉPONSE :
 
       // Tokens are now deducted on the server side
       if (user && data.meta?.userTokensCharged) {
+        
         // Update user data locally (you'll need to implement proper user context update)
         // const userTokensCharged = data.meta.userTokensCharged;
         
@@ -370,6 +358,8 @@ RÉPONSE :
       // The real-time listener will pick up the message from Firebase
       // No need to add to local state as the listener will handle it
       
+      // Successfully received response, stop loading
+      setIsTyping(false);
 
     } catch (error) {
       console.error('Erreur lors de l\'envoi du message:', error);
@@ -409,10 +399,10 @@ RÉPONSE :
         }
       }
     } finally {
-      // Loading state is now managed by the useEffect that watches for new messages
-      // Only set to false here if there was an error and no new message appeared
+      // Ensure loading state is always cleared, even if there was an error
+      // The useEffect will handle the success case, but we need to handle error cases here
       if (isTyping) {
-        // Add a small delay to allow the useEffect to handle it first
+        // Add a small delay to allow the useEffect to handle success cases first
         setTimeout(() => {
           if (isTyping) {
             setIsTyping(false);

@@ -14,9 +14,12 @@ import {
   PackageType 
 } from '../config/packageFeatures';
 import { SubscriptionSessionService } from '../services/subscriptionSessionService';
-import { PackageTransitionService } from '../services/packageTransitionService';
+import { PackageTransitionService, UserNeeds } from '../services/packageTransitionService';
 import { SubscriptionHistoryModal } from '../components/SubscriptionHistoryModal';
 import { PackageTransitionModal } from '../components/PackageTransitionModal';
+import { PackageTransitionPriceExplanation } from '../components/PackageTransitionPriceExplanation';
+import { PackageTransitionUserNeeds } from '../components/PackageTransitionUserNeeds';
+import { SessionConsumptionDisplay } from '../components/SessionConsumptionDisplay';
 import { 
   Check, 
   X, 
@@ -50,6 +53,8 @@ export const PackageManagementPage: React.FC = () => {
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [showTransitionPreview, setShowTransitionPreview] = useState(false);
   const [transitionPreview, setTransitionPreview] = useState<any>(null);
+  const [userNeeds, setUserNeeds] = useState<UserNeeds>({});
+  const [showUserNeedsInput, setShowUserNeedsInput] = useState(false);
   const [paymentModal, setPaymentModal] = useState<{
     isOpen: boolean;
     type: 'tokens' | 'forms' | 'dashboards' | 'users';
@@ -99,10 +104,25 @@ export const PackageManagementPage: React.FC = () => {
       return;
     }
 
-    // Show transition preview first
-    const preview = PackageTransitionService.getTransitionPreview(user, pkg);
+    setSelectedPackage(pkg);
+    setUserNeeds({});
+    setShowUserNeedsInput(true);
+  };
+
+  const handleUserNeedsComplete = (needs: UserNeeds) => {
+    if (!user || !selectedPackage) return;
+
+    // Get enhanced transition preview with user needs
+    const preview = PackageTransitionService.getEnhancedTransitionPreview(
+      user, 
+      selectedPackage, 
+      needs
+    );
+    
     if (preview) {
       setTransitionPreview(preview);
+      setUserNeeds(needs);
+      setShowUserNeedsInput(false);
       setShowTransitionPreview(true);
     } else {
       showError('Impossible de calculer la transition. Veuillez réessayer.');
@@ -119,7 +139,7 @@ export const PackageManagementPage: React.FC = () => {
       // Simulation de paiement
       await new Promise(resolve => setTimeout(resolve, 2000));
       
-      // Execute transition using the new service
+      // Execute transition using the enhanced service
       const success = await PackageTransitionService.executeTransition(
         user.id,
         selectedPackage,
@@ -147,7 +167,13 @@ export const PackageManagementPage: React.FC = () => {
       setIsProcessing(false);
       setSelectedPackage(null);
       setTransitionPreview(null);
+      setUserNeeds({});
     }
+  };
+
+  const handleBackToUserNeeds = () => {
+    setShowTransitionPreview(false);
+    setShowUserNeedsInput(true);
   };
 
 
@@ -386,6 +412,15 @@ export const PackageManagementPage: React.FC = () => {
               </div>
             </div>
           </Card>
+        )}
+
+        {/* Session Consumption Display */}
+        {user && (
+          <SessionConsumptionDisplay 
+            user={user} 
+            showAllSessions={false}
+            className="mb-8"
+          />
         )}
 
         {/* Package Comparison Grid */}
@@ -661,17 +696,163 @@ export const PackageManagementPage: React.FC = () => {
         />
       )}
 
-      {/* Package Transition Modal */}
-      <PackageTransitionModal
-        isOpen={showTransitionPreview}
-        onClose={() => {
-          setShowTransitionPreview(false);
-          setTransitionPreview(null);
-        }}
-        onConfirm={confirmTransition}
-        preview={transitionPreview}
-        isProcessing={isProcessing}
-      />
+      {/* User Needs Input Modal */}
+      {selectedPackage && (
+        <div className={`fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 ${showUserNeedsInput ? 'block' : 'hidden'}`}>
+          <div className="bg-white rounded-lg max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl font-semibold text-gray-900">
+                  Configuration de votre transition vers {getPackageDisplayName(selectedPackage)}
+                </h2>
+                <button
+                  onClick={() => {
+                    setShowUserNeedsInput(false);
+                    setSelectedPackage(null);
+                  }}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <X className="h-6 w-6" />
+                </button>
+              </div>
+              
+              <PackageTransitionUserNeeds
+                currentPackage={packageType}
+                newPackage={selectedPackage}
+                onNeedsChange={setUserNeeds}
+                className="mb-6"
+              />
+              
+              <div className="flex justify-end gap-3">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setShowUserNeedsInput(false);
+                    setSelectedPackage(null);
+                  }}
+                >
+                  Annuler
+                </Button>
+                <Button
+                  onClick={() => handleUserNeedsComplete(userNeeds)}
+                  disabled={!userNeeds}
+                >
+                  Continuer vers le calcul
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Enhanced Package Transition Modal */}
+      {transitionPreview && (
+        <div className={`fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 ${showTransitionPreview ? 'block' : 'hidden'}`}>
+          <div className="bg-white rounded-lg max-w-6xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl font-semibold text-gray-900">
+                  Confirmation de transition vers {getPackageDisplayName(selectedPackage!)}
+                </h2>
+                <button
+                  onClick={() => {
+                    setShowTransitionPreview(false);
+                    setTransitionPreview(null);
+                    setSelectedPackage(null);
+                  }}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <X className="h-6 w-6" />
+                </button>
+              </div>
+              
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                <PackageTransitionPriceExplanation
+                  calculation={PackageTransitionService.calculateEnhancedTransition(
+                    user!,
+                    selectedPackage!,
+                    userNeeds
+                  )!}
+                />
+                
+                <div className="bg-white rounded-lg border border-gray-200 p-6">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Résumé de la transition</h3>
+                  
+                  <div className="space-y-4">
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-600">Package actuel</span>
+                      <span className="font-medium">{getPackageDisplayName(transitionPreview.currentPackage)}</span>
+                    </div>
+                    
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-600">Nouveau package</span>
+                      <span className="font-medium text-blue-600">{getPackageDisplayName(transitionPreview.newPackage)}</span>
+                    </div>
+                    
+                    {transitionPreview.daysRemaining > 0 && (
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-600">Jours restants</span>
+                        <span className="font-medium">{transitionPreview.daysRemaining} jours</span>
+                      </div>
+                    )}
+                    
+                    <div className="border-t border-gray-200 pt-4">
+                      <div className="flex justify-between items-center text-lg">
+                        <span className="font-semibold">Montant à payer</span>
+                        <span className="font-bold text-green-600">
+                          {transitionPreview.priceBreakdown.finalAmount.toLocaleString('fr-FR')} FCFA
+                        </span>
+                      </div>
+                      
+                      {transitionPreview.priceBreakdown.savings > 0 && (
+                        <div className="flex justify-between items-center text-sm text-green-600 mt-2">
+                          <span>Économie réalisée</span>
+                          <span>-{transitionPreview.priceBreakdown.savings.toLocaleString('fr-FR')} FCFA</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  
+                  <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                    <p className="text-sm text-blue-700">
+                      <strong>Note:</strong> {transitionPreview.summary}
+                    </p>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="flex justify-between gap-3">
+                <Button
+                  variant="outline"
+                  onClick={handleBackToUserNeeds}
+                >
+                  Modifier les besoins
+                </Button>
+                
+                <div className="flex gap-3">
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setShowTransitionPreview(false);
+                      setTransitionPreview(null);
+                      setSelectedPackage(null);
+                    }}
+                  >
+                    Annuler
+                  </Button>
+                  <Button
+                    onClick={confirmTransition}
+                    disabled={isProcessing}
+                    className="bg-green-600 hover:bg-green-700"
+                  >
+                    {isProcessing ? 'Traitement...' : 'Confirmer et payer'}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <Toast {...toast} />
     </Layout>

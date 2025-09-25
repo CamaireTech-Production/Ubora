@@ -15,6 +15,18 @@ export interface SubscriptionSession {
   notes?: string; // Additional notes
   createdAt: Date;
   updatedAt: Date;
+  
+  // Comprehensive consumption tracking per session
+  consumption?: {
+    formsCreated: number;
+    dashboardsCreated: number;
+    usersAdded: number;
+    tokensConsumed: number;
+    lastFormCreated?: Date;
+    lastDashboardCreated?: Date;
+    lastUserAdded?: Date;
+    lastTokenUsed?: Date;
+  };
 }
 
 export interface User {

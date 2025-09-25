@@ -50,12 +50,18 @@ export class SubscriptionSessionService {
       // Generate unique session ID
       const sessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       
-      // Create new session
+      // Create new session with consumption tracking
       const newSession: SubscriptionSession = {
         ...sessionData,
         id: sessionId,
         createdAt: now,
-        updatedAt: now
+        updatedAt: now,
+        consumption: {
+          formsCreated: 0,
+          dashboardsCreated: 0,
+          usersAdded: 0,
+          tokensConsumed: 0
+        }
       };
       
       // Deactivate current session if exists
@@ -173,6 +179,7 @@ export class SubscriptionSessionService {
    * @returns Promise<boolean> - true si la consommation a réussi
    */
   static async consumeTokens(userId: string, tokensToConsume: number): Promise<boolean> {
+    
     try {
       const userDocRef = doc(db, 'users', userId);
       const userDoc = await getDoc(userDocRef);
@@ -184,6 +191,7 @@ export class SubscriptionSessionService {
       
       const userData = userDoc.data() as User;
       const currentSession = this.getCurrentSession(userData);
+      
       
       if (!currentSession) {
         console.error('Aucune session active trouvée');
@@ -198,9 +206,11 @@ export class SubscriptionSessionService {
       // Update session tokens used
       const updatedSessions = userData.subscriptionSessions!.map(session => {
         if (session.id === currentSession.id) {
+          const newTokensUsed = session.tokensUsed + tokensToConsume;
+          
           return {
             ...session,
-            tokensUsed: session.tokensUsed + tokensToConsume,
+            tokensUsed: newTokensUsed,
             updatedAt: new Date()
           };
         }

@@ -1129,6 +1129,7 @@ TOP FORMULAIRES : ${data.formStats.slice(0, 3).map(f => `${f.title} (${f.count} 
     const estimatedTokens = TokenCounter.getTotalEstimatedTokens(basicSystemPrompt, userPromptForEstimation, 2000);
     const userTokensToCharge = TokenCounter.getUserTokensToCharge(estimatedTokens, 2.5);
     
+    
     // Calculate package limit based on user's package type
     const getPackageLimit = (packageType) => {
       const limits = {
@@ -1457,7 +1458,9 @@ Il serait pertinent de surveiller l'engagement des employés moins actifs et d'a
         tokensUsed = completion.usage && completion.usage.total_tokens ? completion.usage.total_tokens : 0;
         
         // Calculate final user tokens to charge based on actual usage
-        finalUserTokens = TokenCounter.getUserTokensToCharge(tokensUsed, 1000);
+        // Formula: (actualTokens * 2.5) / 100
+        finalUserTokens = Math.ceil((tokensUsed * 2.5) / 100);
+        
       } catch (openaiError) {
         console.error('OpenAI error:', openaiError);
         // Fallback en cas d'erreur OpenAI
@@ -1875,6 +1878,7 @@ Il serait pertinent de surveiller l'engagement des employés moins actifs et d'a
 
       // Deduct tokens from user's account (only for limited packages)
       if (packageLimit !== -1 && finalUserTokens > 0) {
+        
         try {
           // Get fresh user data to ensure we have the latest token counts
           const freshUserDoc = await adminDb.collection('users').doc(uid).get();
@@ -1888,6 +1892,7 @@ Il serait pertinent de surveiller l'engagement des employés moins actifs et d'a
           // Calculate how many tokens to deduct from package vs pay-as-you-go
           const packageTokensRemaining = packageLimit - freshTokensUsed;
           
+          
           if (finalUserTokens <= packageTokensRemaining) {
             // All tokens can be deducted from package
             newTokensUsed = freshTokensUsed + finalUserTokens;
@@ -1898,6 +1903,7 @@ Il serait pertinent de surveiller l'engagement des employés moins actifs et d'a
             
             newTokensUsed = freshTokensUsed + packageTokensToDeduct;
             newPayAsYouGoTokens = Math.max(0, freshPayAsYouGoTokens - payAsYouGoTokensToDeduct);
+            
           }
           
           await adminDb.collection('users').doc(uid).update({
