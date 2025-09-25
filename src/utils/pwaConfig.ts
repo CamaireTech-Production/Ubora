@@ -20,7 +20,7 @@ export const isDevelopment = (): boolean => {
   // Check for dev subdomain
   if (typeof window !== 'undefined') {
     const hostname = window.location.hostname;
-    if (hostname.includes('dev.') || hostname.includes('localhost')) {
+    if (hostname.includes('dev.') || hostname.includes('localhost') || hostname.includes('127.0.0.1')) {
       return true;
     }
   }
@@ -116,10 +116,27 @@ export const getManifestUrl = (): string => {
 };
 
 /**
+ * Update the manifest link in the document head
+ */
+export const updateManifestLink = (config: PWAConfig): void => {
+  if (typeof document === 'undefined') return;
+
+  const manifestLink = document.querySelector('link[rel="manifest"]') as HTMLLinkElement;
+  if (manifestLink) {
+    const newManifestUrl = config.isAdmin ? '/manifest-admin.json' : '/manifest.json';
+    if (manifestLink.href !== newManifestUrl) {
+      manifestLink.href = newManifestUrl;
+      console.log(`📱 [PWA] Updated manifest to: ${newManifestUrl}`);
+    }
+  }
+};
+
+/**
  * Initialize PWA configuration on app load
  */
 export const initializePWAConfig = (): PWAConfig => {
   const config = getPWAConfig();
   updateMetaTags(config);
+  updateManifestLink(config);
   return config;
 };

@@ -2,18 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { Card } from './Card';
 import { Download, X, Smartphone, Monitor, Shield } from 'lucide-react';
 import { getPWAConfig } from '../utils/pwaConfig';
-
-interface BeforeInstallPromptEvent extends Event {
-  readonly platforms: string[];
-  readonly userChoice: Promise<{
-    outcome: 'accepted' | 'dismissed';
-    platform: string;
-  }>;
-  prompt(): Promise<void>;
-}
+import { getDeferredPrompt, getIsInstallable, clearDeferredPrompt } from '../utils/pwaRegistration';
 
 export const PWAInstallPrompt: React.FC = () => {
-  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [showInstallPrompt, setShowInstallPrompt] = useState(false);
   const [isInstalled, setIsInstalled] = useState(false);
   const [pwaConfig, setPwaConfig] = useState(getPWAConfig());
@@ -52,12 +43,11 @@ export const PWAInstallPrompt: React.FC = () => {
     updateConfig();
     checkIfInstalled();
 
-    // Listen for the beforeinstallprompt event (Android/Desktop)
-    const handleBeforeInstallPrompt = (e: Event) => {
-      console.log('🔔 beforeinstallprompt event fired - PWA is installable!');
-      e.preventDefault();
-      setDeferredPrompt(e as BeforeInstallPromptEvent);
-      setShowInstallPrompt(true);
+    // Check if app is installable
+    const checkInstallability = () => {
+      if (getIsInstallable()) {
+        setShowInstallPrompt(true);
+      }
     };
 
     // Listen for the appinstalled event
@@ -65,7 +55,6 @@ export const PWAInstallPrompt: React.FC = () => {
       console.log('✅ App installed successfully');
       setIsInstalled(true);
       setShowInstallPrompt(false);
-      setDeferredPrompt(null);
     };
 
     // Listen for display mode changes
@@ -73,9 +62,12 @@ export const PWAInstallPrompt: React.FC = () => {
       checkIfInstalled();
     };
 
-    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
     window.addEventListener('appinstalled', handleAppInstalled);
     window.matchMedia('(display-mode: standalone)').addEventListener('change', handleDisplayModeChange);
+    
+    // Check installability periodically
+    checkInstallability();
+    const installabilityInterval = setInterval(checkInstallability, 1000);
 
     // Listen for route changes to update config
     const handleRouteChange = () => {
@@ -107,10 +99,10 @@ export const PWAInstallPrompt: React.FC = () => {
     }
 
     return () => {
-      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
       window.removeEventListener('appinstalled', handleAppInstalled);
       window.removeEventListener('popstate', handleRouteChange);
       window.matchMedia('(display-mode: standalone)').removeEventListener('change', handleDisplayModeChange);
+      clearInterval(installabilityInterval);
     };
   }, [pwaConfig.isAdmin]);
 
@@ -119,6 +111,8 @@ export const PWAInstallPrompt: React.FC = () => {
     setIsInstalling(true);
 
     try {
+      const deferredPrompt = getDeferredPrompt();
+      
       // First try the native prompt if available (Android/Desktop)
       if (deferredPrompt) {
         console.log('✅ Using native deferred prompt');
@@ -127,21 +121,19 @@ export const PWAInstallPrompt: React.FC = () => {
         
         if (outcome === 'accepted') {
           console.log('✅ User accepted the install prompt');
-          setDeferredPrompt(null);
+          clearDeferredPrompt();
           setShowInstallPrompt(false);
-          setIsInstalling(false);
-          return;
         } else {
           console.log('❌ User dismissed the install prompt');
-          setDeferredPrompt(null);
+          clearDeferredPrompt();
           setShowInstallPrompt(false);
-          setIsInstalling(false);
-          return;
         }
+        setIsInstalling(false);
+        return;
       }
 
       // For iOS or when no deferred prompt is available
-      console.log('📱 No native prompt available - showing iOS instructions or fallback');
+      console.log('📱 No native prompt available');
       
       // Check if it's iOS
       const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
@@ -152,9 +144,10 @@ export const PWAInstallPrompt: React.FC = () => {
         return;
       }
 
-      // For other browsers, try to trigger installability
-      console.log('🔄 Attempting to trigger installability...');
-      await triggerInstallability();
+      // For other browsers, show manual instructions
+      console.log('🔄 Showing manual install instructions');
+      alert('Pour installer cette application:\n\n1. Cliquez sur le menu de votre navigateur (⋮)\n2. Sélectionnez "Installer l\'application" ou "Ajouter à l\'écran d\'accueil"\n3. Suivez les instructions à l\'écran');
+      setIsInstalling(false);
       
     } catch (error) {
       console.error('❌ Error during installation:', error);
@@ -162,88 +155,6 @@ export const PWAInstallPrompt: React.FC = () => {
     }
   };
 
-  const triggerInstallability = async () => {
-    try {
-      // Access PWA-related APIs to show user engagement
-      if ('serviceWorker' in navigator) {
-        await navigator.serviceWorker.ready;
-        console.log('✅ Service worker ready');
-      }
-
-      // Access storage API
-      if ('storage' in navigator && 'estimate' in navigator.storage) {
-        await navigator.storage.estimate();
-        console.log('✅ Storage API accessed');
-      }
-
-      // Access permissions API
-      if ('permissions' in navigator) {
-        try {
-          await navigator.permissions.query({ name: 'notifications' as PermissionName });
-          console.log('✅ Permissions API accessed');
-        } catch (e) {
-          console.log('Permissions API not available');
-        }
-      }
-
-      // Try to access manifest
-      const manifestLink = document.querySelector('link[rel="manifest"]');
-      if (manifestLink) {
-        const manifestUrl = manifestLink.getAttribute('href');
-        if (manifestUrl) {
-          try {
-            const response = await fetch(manifestUrl);
-            if (response.ok) {
-              const manifest = await response.json();
-              console.log('✅ Manifest accessed:', manifest.name);
-            } else {
-              console.log('⚠️ Manifest not accessible:', response.status);
-            }
-          } catch (error) {
-            console.log('⚠️ Manifest fetch error:', error);
-          }
-        }
-      }
-
-      // Wait a moment for browser to process
-      await new Promise(resolve => setTimeout(resolve, 1000));
-
-      // Check if deferredPrompt is now available
-      if (deferredPrompt) {
-        console.log('✅ Deferred prompt now available after user engagement!');
-        await deferredPrompt.prompt();
-        const { outcome } = await deferredPrompt.userChoice;
-        
-        if (outcome === 'accepted') {
-          console.log('✅ User accepted the install prompt');
-          setDeferredPrompt(null);
-          setShowInstallPrompt(false);
-        } else {
-          console.log('❌ User dismissed the install prompt');
-          setDeferredPrompt(null);
-          setShowInstallPrompt(false);
-        }
-      } else {
-        console.log('❌ Still no deferred prompt available');
-        
-        // Check if we're on localhost
-        const isLocalhost = window.location.hostname === 'localhost' || 
-                           window.location.hostname === '127.0.0.1' ||
-                           window.location.hostname.includes('192.168.');
-        
-        if (isLocalhost) {
-          alert('Pour tester l\'installation PWA sur localhost, vous devez:\n\n1. Construire l\'application: npm run build\n2. Servir avec HTTPS: npm run preview\n\nOu utilisez le menu de votre navigateur (⋮) et sélectionnez "Installer l\'application".');
-        } else {
-          alert('Pour installer cette application, utilisez le menu de votre navigateur et sélectionnez "Installer l\'application" ou "Ajouter à l\'écran d\'accueil".');
-        }
-      }
-
-    } catch (error) {
-      console.error('Error triggering installability:', error);
-    } finally {
-      setIsInstalling(false);
-    }
-  };
 
   const handleDismiss = () => {
     setShowInstallPrompt(false);

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
-import { getPWAConfig, updateMetaTags } from '../utils/pwaConfig';
+import { getPWAConfig, updateMetaTags, updateManifestLink } from '../utils/pwaConfig';
 
 /**
  * Hook to detect route changes and update PWA configuration accordingly
@@ -14,15 +14,7 @@ export const usePWARouteDetection = () => {
     const newConfig = getPWAConfig();
     setPwaConfig(newConfig);
     updateMetaTags(newConfig);
-
-    // Update manifest link if needed
-    const manifestLink = document.querySelector('link[rel="manifest"]') as HTMLLinkElement;
-    if (manifestLink) {
-      const newManifestUrl = newConfig.isAdmin ? '/manifest-admin.json' : '/manifest.json';
-      if (manifestLink.href !== newManifestUrl) {
-        manifestLink.href = newManifestUrl;
-      }
-    }
+    updateManifestLink(newConfig);
   }, [location.pathname]);
 
   return pwaConfig;
@@ -40,21 +32,14 @@ export const usePWARouteDetectionFallback = () => {
     const newConfig = getPWAConfig();
     setPwaConfig(newConfig);
     updateMetaTags(newConfig);
-
-    // Update manifest link if needed
-    const manifestLink = document.querySelector('link[rel="manifest"]') as HTMLLinkElement;
-    if (manifestLink) {
-      const newManifestUrl = newConfig.isAdmin ? '/manifest-admin.json' : '/manifest.json';
-      if (manifestLink.href !== newManifestUrl) {
-        manifestLink.href = newManifestUrl;
-      }
-    }
+    updateManifestLink(newConfig);
 
     // Listen for route changes using popstate
     const handleRouteChange = () => {
       const updatedConfig = getPWAConfig();
       setPwaConfig(updatedConfig);
       updateMetaTags(updatedConfig);
+      updateManifestLink(updatedConfig);
     };
 
     window.addEventListener('popstate', handleRouteChange);

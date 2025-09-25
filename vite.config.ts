@@ -104,7 +104,7 @@ export default defineConfig({
       includeAssets: ['fav-icons/favicon.ico', 'fav-icons/apple-icon.png'],
       manifest: getPWAConfig(),
       strategies: 'generateSW',
-      injectRegister: false, // We'll handle registration manually
+      injectRegister: false, // We'll handle registration manually for dynamic manifests
       selfDestroying: false,
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
