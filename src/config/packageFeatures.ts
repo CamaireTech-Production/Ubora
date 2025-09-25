@@ -53,21 +53,21 @@ export const PACKAGE_LIMITS: Record<PackageType, PackageLimits> = {
     maxForms: 4,
     maxDashboards: 1,
     maxUsers: 3,
-    monthlyTokens: 60000,
+    monthlyTokens: 300000, // 300k tokens (300 actual OpenAI tokens = ~10 requests/day)
     additionalUserCost: 10000
   },
   standard: {
     maxForms: -1, // illimité
     maxDashboards: -1, // illimité
     maxUsers: 7,
-    monthlyTokens: 120000,
+    monthlyTokens: 600000, // 600k tokens (600 actual OpenAI tokens = ~20 requests/day)
     additionalUserCost: 7000
   },
   premium: {
     maxForms: -1, // illimité
     maxDashboards: -1, // illimité
     maxUsers: 20,
-    monthlyTokens: 300000,
+    monthlyTokens: 1500000, // 1.5M tokens (1,500 actual OpenAI tokens = ~50 requests/day)
     additionalUserCost: 7000
   },
   custom: {

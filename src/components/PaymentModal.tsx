@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, CreditCard, Plus, Users, BarChart3, Brain, Check } from 'lucide-react';
+import { X, CreditCard, Users, BarChart3, Brain, Check } from 'lucide-react';
 import { Button } from './Button';
 import { useToast } from '../hooks/useToast';
 
@@ -39,8 +39,8 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       case 'tokens':
         return [
           {
-            id: 'tokens-10k',
-            name: '10 000 Tokens Archa',
+            id: 'tokens-80k',
+            name: '80 000 Tokens Archa',
             description: 'Pour conversations et analyses supplémentaires',
             price: 2500,
             unit: 'FCFA',
@@ -48,16 +48,16 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
             popular: true
           },
           {
-            id: 'tokens-25k',
-            name: '25 000 Tokens Archa',
+            id: 'tokens-120k',
+            name: '120 000 Tokens Archa',
             description: 'Idéal pour usage intensif',
             price: 5000,
             unit: 'FCFA',
             icon: <Brain className="h-5 w-5" />
           },
           {
-            id: 'tokens-40k',
-            name: '40 000 Tokens Archa',
+            id: 'tokens-240k',
+            name: '240 000 Tokens Archa',
             description: 'Pour équipes importantes',
             price: 8500,
             unit: 'FCFA',
@@ -282,7 +282,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
           
           <div className="flex space-x-3">
             <Button
-              variant="outline"
+              variant="secondary"
               onClick={onClose}
               disabled={isProcessing}
             >

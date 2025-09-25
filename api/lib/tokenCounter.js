@@ -53,24 +53,24 @@ class TokenCounter {
   }
 
   /**
-   * Apply multiplier for user billing (2.5x for profitability)
+   * Apply division for user billing (divide by 1000 for profitability)
    */
-  static getUserTokensToCharge(actualTokens, multiplier = 2.5) {
-    return Math.ceil(actualTokens * multiplier);
+  static getUserTokensToCharge(actualTokens, divisor = 1000) {
+    return Math.ceil(actualTokens / divisor);
   }
 
   /**
    * Get token cost breakdown for display
    */
-  static getTokenCostBreakdown(actualTokens, multiplier = 2.5) {
-    const userTokens = this.getUserTokensToCharge(actualTokens, multiplier);
+  static getTokenCostBreakdown(actualTokens, divisor = 1000) {
+    const userTokens = this.getUserTokensToCharge(actualTokens, divisor);
     const openAICost = actualTokens * 0.000003; // Approximate OpenAI cost per token
     const userCost = userTokens * 0.0000058; // Approximate user cost per token (based on package pricing)
     
     return {
       actualTokens,
       userTokens,
-      multiplier,
+      divisor,
       openAICost,
       userCost,
       profitMargin: ((userCost - openAICost) / openAICost) * 100

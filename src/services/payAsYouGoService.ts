@@ -45,19 +45,19 @@ export class PayAsYouGoService {
   static getTokenPackages(): TokenPackage[] {
     return [
       {
-        tokens: 10000,
+        tokens: 80000, // 80k tokens (80 actual OpenAI tokens = ~2-3 requests)
         price: 2500, // 2500 FCFA
         popular: true,
         description: 'Pour conversations et analyses supplémentaires'
       },
       {
-        tokens: 25000,
+        tokens: 120000, // 120k tokens (120 actual OpenAI tokens = ~4 requests)
         price: 5000, // 5000 FCFA
         popular: false,
         description: 'Idéal pour un usage intensif'
       },
       {
-        tokens: 40000,
+        tokens: 240000, // 240k tokens (240 actual OpenAI tokens = ~8 requests)
         price: 8500, // 8500 FCFA
         popular: false,
         description: 'Pour une équipe active'
@@ -89,16 +89,15 @@ export class PayAsYouGoService {
    */
   static getRecommendedPackage(currentTokensUsed: number, monthlyLimit: number): TokenPackage {
     const packages = this.getTokenPackages();
-    const remainingTokens = monthlyLimit - currentTokensUsed;
     
     // If user has used more than 80% of their monthly limit, recommend a larger package
     if (currentTokensUsed / monthlyLimit > 0.8) {
-      return packages.find(pkg => pkg.tokens >= 25000) || packages[1];
+      return packages.find(pkg => pkg.tokens >= 120000) || packages[1];
     }
     
     // If user has used more than 50% of their monthly limit, recommend a medium package
     if (currentTokensUsed / monthlyLimit > 0.5) {
-      return packages.find(pkg => pkg.tokens >= 10000) || packages[0];
+      return packages.find(pkg => pkg.tokens >= 80000) || packages[0];
     }
     
     // Otherwise, recommend the smallest package

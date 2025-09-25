@@ -15,19 +15,19 @@ interface PayAsYouGoModalProps {
 
 const TOKEN_PACKAGES = [
   {
-    tokens: 10000,
+    tokens: 80000, // 80k tokens (80 actual OpenAI tokens = ~2-3 requests)
     price: 2500, // 2500 FCFA
     popular: true,
     description: 'Pour conversations et analyses supplémentaires'
   },
   {
-    tokens: 25000,
+    tokens: 120000, // 120k tokens (120 actual OpenAI tokens = ~4 requests)
     price: 5000, // 5000 FCFA
     popular: false,
     description: 'Idéal pour un usage intensif'
   },
   {
-    tokens: 40000,
+    tokens: 240000, // 240k tokens (240 actual OpenAI tokens = ~8 requests)
     price: 8500, // 8500 FCFA
     popular: false,
     description: 'Pour une équipe active'

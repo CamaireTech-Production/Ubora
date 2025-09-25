@@ -65,9 +65,9 @@ Les tokens sont inclus dans chaque abonnement (quota mensuel).
 
 ### Quotas de tokens mensuels :
 
-- **Starter** : 60 000 tokens / mois
-- **Standard** : 120 000 tokens / mois
-- **Premium** : 300 000 tokens / mois
+- **Starter** : 300 000 tokens / mois (≈ 10 requêtes/jour)
+- **Standard** : 600 000 tokens / mois (≈ 20 requêtes/jour)
+- **Premium** : 1 500 000 tokens / mois (≈ 50 requêtes/jour)
 - **Sur mesure** : tokens à négocier
 
 > Possibilité d'acheter des tokens additionnels si le quota est dépassé.
@@ -76,7 +76,7 @@ Les tokens sont inclus dans chaque abonnement (quota mensuel).
 
 Si vous atteignez les limites de votre package, vous pouvez acheter des ressources supplémentaires :
 
-- **Tokens Archa** : 10 000 tokens (2 500 FCFA), 25 000 tokens (5 000 FCFA), 40 000 tokens (8 500 FCFA)
+- **Tokens Archa** : 80 000 tokens (2 500 FCFA), 120 000 tokens (5 000 FCFA), 240 000 tokens (8 500 FCFA)
 - **Formulaires** : 5 formulaires (15 000 FCFA), 10 formulaires (25 000 FCFA), illimités (50 000 FCFA)
 - **Tableaux de bord** : 3 tableaux (20 000 FCFA), 5 tableaux (30 000 FCFA), illimités (60 000 FCFA)
 - **Utilisateurs** : 3 utilisateurs (21 000 FCFA), 5 utilisateurs (35 000 FCFA), 10 utilisateurs (70 000 FCFA)
@@ -92,7 +92,7 @@ Si vous atteignez les limites de votre package, vous pouvez acheter des ressourc
 | **Tableaux de bord** | 1 | Illimités | Illimités | Illimités |
 | **Utilisateurs inclus** | 3 | 7 | 20 | Illimités |
 | **Coût utilisateur supp.** | +10 000 FCFA | +7 000 FCFA | +7 000 FCFA | Négociable |
-| **Tokens IA/mois** | 60 000 | 120 000 | 300 000 | Négociable |
+| **Tokens IA/mois** | 300 000 | 600 000 | 1 500 000 | Négociable |
 | **Chat IA** | Basique | Avancé | Archa + prédictif | Avancé + intégrations |
 | **Branding** | Non | Non | Oui | Oui |
 | **Support** | Standard | Standard | WhatsApp prioritaire | Sur site |

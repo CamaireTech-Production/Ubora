@@ -1457,7 +1457,7 @@ Il serait pertinent de surveiller l'engagement des employés moins actifs et d'a
         tokensUsed = completion.usage && completion.usage.total_tokens ? completion.usage.total_tokens : 0;
         
         // Calculate final user tokens to charge based on actual usage
-        finalUserTokens = TokenCounter.getUserTokensToCharge(tokensUsed, 2.5);
+        finalUserTokens = TokenCounter.getUserTokensToCharge(tokensUsed, 1000);
       } catch (openaiError) {
         console.error('OpenAI error:', openaiError);
         // Fallback en cas d'erreur OpenAI

@@ -27,10 +27,10 @@ const db = admin.firestore();
 
 // Package limits for calculating tokens
 const PACKAGE_LIMITS = {
-  starter: { monthlyTokens: 60000 },
-  standard: { monthlyTokens: 120000 },
-  premium: { monthlyTokens: 300000 },
-  custom: { monthlyTokens: 300000 } // Default for custom
+  starter: { monthlyTokens: 300000 }, // 300k tokens
+  standard: { monthlyTokens: 600000 }, // 600k tokens
+  premium: { monthlyTokens: 1500000 }, // 1.5M tokens
+  custom: { monthlyTokens: 1500000 } // Default for custom
 };
 
 // Package prices in FCFA
