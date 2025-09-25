@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { Card } from './Card';
-import { Play, X, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Play, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Video } from '../data/videoData';
+import { VideoModal } from './VideoModal';
 
 interface VideoSectionProps {
   title?: string;
@@ -131,52 +132,7 @@ export const VideoSection: React.FC<VideoSectionProps> = ({
       </Card>
 
       {/* Video Modal */}
-      {selectedVideo && (
-        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
-            {/* Header */}
-            <div className="flex items-center justify-between p-4 border-b border-gray-200">
-              <h2 className="text-lg font-semibold text-gray-900 line-clamp-2">
-                {selectedVideo.title}
-              </h2>
-              <button
-                onClick={closeVideo}
-                className="text-gray-400 hover:text-gray-600 transition-colors"
-              >
-                <X className="h-6 w-6" />
-              </button>
-            </div>
-
-            {/* Video Content */}
-            <div className="p-4">
-              <div className="relative w-full" style={{ paddingBottom: '56.25%' }}>
-                <iframe
-                  src={getEmbedUrl(selectedVideo.youtubeId)}
-                  title={selectedVideo.title}
-                  className="absolute top-0 left-0 w-full h-full rounded-lg"
-                  frameBorder="0"
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                  allowFullScreen
-                />
-              </div>
-
-              {/* Video Description */}
-              <div className="mt-4">
-                <p className="text-sm text-gray-600">
-                  {selectedVideo.description}
-                </p>
-                {selectedVideo.category && (
-                  <div className="mt-2">
-                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                      {selectedVideo.category}
-                    </span>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <VideoModal video={selectedVideo} onClose={closeVideo} />
     </>
   );
 };
