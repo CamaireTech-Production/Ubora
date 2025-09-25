@@ -45,6 +45,24 @@ const getPWAConfig = () => {
         purpose: 'any'
       },
       {
+        src: 'fav-icons/android-icon-192x192.png',
+        sizes: '192x192',
+        type: 'image/png',
+        purpose: 'maskable'
+      },
+      {
+        src: 'fav-icons/android-icon-512x512.png',
+        sizes: '512x512',
+        type: 'image/png',
+        purpose: 'any'
+      },
+      {
+        src: 'fav-icons/android-icon-512x512.png',
+        sizes: '512x512',
+        type: 'image/png',
+        purpose: 'maskable'
+      },
+      {
         src: 'fav-icons/android-icon-144x144.png',
         sizes: '144x144',
         type: 'image/png',
@@ -84,10 +102,7 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['fav-icons/favicon.ico', 'fav-icons/apple-icon.png'],
-      manifest: {
-        ...getPWAConfig(),
-        filename: 'manifest.json'
-      },
+      manifest: getPWAConfig(),
       strategies: 'generateSW',
       injectRegister: 'auto',
       selfDestroying: false,
@@ -96,6 +111,8 @@ export default defineConfig({
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // 5MB limit
         skipWaiting: true,
         clientsClaim: true,
+        navigateFallback: '/index.html',
+        navigateFallbackDenylist: [/^\/api\//],
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
