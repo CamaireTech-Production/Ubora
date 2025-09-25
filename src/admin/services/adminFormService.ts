@@ -13,7 +13,59 @@ import {
   serverTimestamp 
 } from 'firebase/firestore';
 import { db } from '../../firebaseConfig';
-import { AdminForm, AdminFormSubmission, AdminFormActivity } from '../../types';
+// Define the missing types locally
+interface AdminForm {
+  id: string;
+  title: string;
+  description?: string;
+  agencyId: string;
+  agencyName?: string;
+  createdBy: string;
+  createdByName: string;
+  createdAt: Date;
+  updatedAt: Date;
+  isActive: boolean;
+  submissionsCount: number;
+  lastSubmissionDate?: Date;
+  fields: any[];
+  settings: {
+    allowMultipleSubmissions: boolean;
+    requireAuthentication: boolean;
+    isPublic: boolean;
+    expirationDate?: Date;
+  };
+}
+
+interface AdminFormSubmission {
+  id: string;
+  formId: string;
+  formTitle: string;
+  userId: string;
+  userName: string;
+  userEmail: string;
+  agencyId: string;
+  submittedAt: Date;
+  data: any;
+  status: string;
+  reviewedBy?: string;
+  reviewedAt?: Date;
+  reviewNotes?: string;
+}
+
+interface AdminFormActivity {
+  id: string;
+  formId: string;
+  formTitle: string;
+  userId: string;
+  userName: string;
+  userEmail: string;
+  agencyId: string;
+  type: string;
+  description: string;
+  timestamp: Date;
+  metadata?: any;
+}
+import { AnalyticsService } from '../../services/analyticsService';
 import { ActivityLogService } from '../../services/activityLogService';
 
 export class AdminFormService {
@@ -52,7 +104,7 @@ export class AdminFormService {
           isActive: data.isActive !== false,
           submissionsCount,
           lastSubmissionDate: lastSubmission?.submittedAt ? 
-            (lastSubmission.submittedAt.toDate ? lastSubmission.submittedAt.toDate() : new Date(lastSubmission.submittedAt)) : 
+            (lastSubmission.submittedAt instanceof Date ? lastSubmission.submittedAt : new Date(lastSubmission.submittedAt)) : 
             undefined,
           fields: data.fields || [],
           settings: {
@@ -103,7 +155,7 @@ export class AdminFormService {
         isActive: data.isActive !== false,
         submissionsCount,
         lastSubmissionDate: lastSubmission?.submittedAt ? 
-          (lastSubmission.submittedAt.toDate ? lastSubmission.submittedAt.toDate() : new Date(lastSubmission.submittedAt)) : 
+          (lastSubmission.submittedAt instanceof Date ? lastSubmission.submittedAt : new Date(lastSubmission.submittedAt)) : 
           undefined,
         fields: data.fields || [],
         settings: {
@@ -143,7 +195,7 @@ export class AdminFormService {
         userEmail: doc.data().userEmail,
         agencyId: doc.data().agencyId,
         submittedAt: doc.data().submittedAt ? 
-          (doc.data().submittedAt.toDate ? doc.data().submittedAt.toDate() : new Date(doc.data().submittedAt)) : 
+          (doc.data().submittedAt instanceof Date ? doc.data().submittedAt : new Date(doc.data().submittedAt)) : 
           new Date(),
         data: doc.data().data || {},
         status: doc.data().status || 'pending',
@@ -212,13 +264,20 @@ export class AdminFormService {
         userRole: 'admin',
         description: `Admin created form: ${formData.title}`,
         severity: 'medium',
-        category: 'form',
+        category: 'form_management',
         metadata: {
           formId: formRef.id,
           formTitle: formData.title,
           agencyId: formData.agencyId
         }
       });
+
+      // Track form creation analytics
+      try {
+        await AnalyticsService.logFormCreation(adminId, formRef.id, formData.title || 'Untitled Form', formData.agencyId);
+      } catch (analyticsError) {
+        console.warn('Failed to track form creation analytics:', analyticsError);
+      }
 
       return true;
     } catch (error) {
@@ -246,7 +305,7 @@ export class AdminFormService {
         userRole: 'admin',
         description: `Admin updated form: ${updates.title}`,
         severity: 'medium',
-        category: 'form',
+        category: 'form_management',
         metadata: {
           formId,
           formTitle: updates.title
@@ -276,7 +335,7 @@ export class AdminFormService {
         userRole: 'admin',
         description: `Admin deleted form: ${formId}`,
         severity: 'high',
-        category: 'form',
+        category: 'form_management',
         metadata: {
           formId
         }
@@ -331,7 +390,7 @@ export class AdminFormService {
         userEmail: doc.data().userEmail,
         agencyId: doc.data().agencyId,
         submittedAt: doc.data().submittedAt ? 
-          (doc.data().submittedAt.toDate ? doc.data().submittedAt.toDate() : new Date(doc.data().submittedAt)) : 
+          (doc.data().submittedAt instanceof Date ? doc.data().submittedAt : new Date(doc.data().submittedAt)) : 
           new Date(),
         data: doc.data().data || {},
         status: doc.data().status || 'pending',
@@ -409,7 +468,7 @@ export class AdminFormService {
         userEmail: doc.data().userEmail,
         agencyId: doc.data().agencyId,
         submittedAt: doc.data().submittedAt ? 
-          (doc.data().submittedAt.toDate ? doc.data().submittedAt.toDate() : new Date(doc.data().submittedAt)) : 
+          (doc.data().submittedAt instanceof Date ? doc.data().submittedAt : new Date(doc.data().submittedAt)) : 
           new Date(),
         data: doc.data().data || {},
         status: doc.data().status || 'pending',

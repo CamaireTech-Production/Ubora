@@ -15,6 +15,7 @@ import { usePackageAccess } from '../hooks/usePackageAccess';
 import { TokenCounter } from '../services/tokenCounter';
 import { PayAsYouGoModal } from '../components/PayAsYouGoModal';
 import { PayAsYouGoService } from '../services/payAsYouGoService';
+import { AnalyticsService } from '../services/analyticsService';
 
 // Remove the old Message interface since we're using ChatMessage from types
 
@@ -352,6 +353,17 @@ RÉPONSE :
       if (user && data.meta?.userTokensCharged) {
         // Update user data locally (you'll need to implement proper user context update)
         // const userTokensCharged = data.meta.userTokensCharged;
+        
+        // Track chat activity analytics
+        try {
+          await AnalyticsService.logChatActivity(
+            user.id, 
+            data.meta.userTokensCharged, 
+            user.agencyId
+          );
+        } catch (analyticsError) {
+          console.warn('Failed to track chat activity analytics:', analyticsError);
+        }
       }
 
       // Server handles message persistence in Firebase

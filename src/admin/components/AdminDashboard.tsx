@@ -36,12 +36,13 @@ import { ActivitiesTab } from './tabs/ActivitiesTab';
 import { NotificationsTab } from './tabs/NotificationsTab';
 import { UsageTab } from './tabs/UsageTab';
 import { SystemTab } from './tabs/SystemTab';
+import { AnalyticsTab } from './tabs/AnalyticsTab';
 
 export const AdminDashboard: React.FC = () => {
   const { user, logout } = useAuth();
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'forms' | 'dashboards' | 'activities' | 'notifications' | 'usage' | 'system'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'forms' | 'dashboards' | 'activities' | 'notifications' | 'usage' | 'analytics' | 'system'>('overview');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   useEffect(() => {
@@ -188,6 +189,7 @@ export const AdminDashboard: React.FC = () => {
               { id: 'activities', label: 'Activités', icon: Activity },
               { id: 'notifications', label: 'Notifications', icon: Bell },
               { id: 'usage', label: 'Utilisation', icon: Clock },
+              { id: 'analytics', label: 'Analytics', icon: TrendingUp },
               { id: 'system', label: 'Système', icon: Settings }
             ].map((tab) => {
               const Icon = tab.icon;
@@ -219,6 +221,7 @@ export const AdminDashboard: React.FC = () => {
         {activeTab === 'activities' && <ActivitiesTab onRefresh={loadDashboardData} />}
         {activeTab === 'notifications' && <NotificationsTab onRefresh={loadDashboardData} />}
         {activeTab === 'usage' && <UsageTab onRefresh={loadDashboardData} />}
+        {activeTab === 'analytics' && <AnalyticsTab onRefresh={loadDashboardData} />}
         {activeTab === 'system' && <SystemTab onRefresh={loadDashboardData} />}
       </div>
     </div>

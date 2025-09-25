@@ -9,6 +9,7 @@ import {
   deleteDoc,
   updateDoc,
   doc,
+  getDoc,
   serverTimestamp,
   writeBatch
 } from 'firebase/firestore';
@@ -18,6 +19,7 @@ import { DraftService } from '../services/draftService';
 import { useAuth } from './AuthContext';
 import { usePackageAccess } from '../hooks/usePackageAccess';
 import { PermissionManager } from '../utils/PermissionManager';
+import { AnalyticsService } from '../services/analyticsService';
 
 interface AppContextType {
   forms: Form[];
@@ -364,7 +366,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         submittedAt: serverTimestamp() // Forcer serverTimestamp
       };
 
-      await addDoc(collection(db, 'formEntries'), docData);
+      const docRef = await addDoc(collection(db, 'formEntries'), docData);
+      
+      // Track form submission analytics
+      try {
+        // Get form data to get the form title
+        const formDoc = await getDoc(doc(db, 'forms', entryData.formId));
+        const formTitle = formDoc.exists() ? formDoc.data().title : 'Unknown Form';
+        
+        await AnalyticsService.logFormSubmission(
+          firebaseUser.uid, 
+          entryData.formId, 
+          formTitle, 
+          user.agencyId
+        );
+      } catch (analyticsError) {
+        console.warn('Failed to track form submission analytics:', analyticsError);
+      }
     } catch (err) {
       console.error('Erreur lors de la soumission du formulaire:', err);
       if (err instanceof Error) {

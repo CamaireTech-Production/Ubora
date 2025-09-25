@@ -27,6 +27,7 @@ import { useToast } from '../hooks/useToast';
 import { Toast } from '../components/Toast';
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
+import { AnalyticsService } from '../services/analyticsService';
 
 export const PackageSelectionPage: React.FC = () => {
   const navigate = useNavigate();
@@ -82,6 +83,13 @@ export const PackageSelectionPage: React.FC = () => {
         tokensResetDate: serverTimestamp(),
         updatedAt: serverTimestamp()
       });
+
+      // Track package selection analytics
+      try {
+        await AnalyticsService.logPackageSelection(user.id, pkg, user.agencyId);
+      } catch (analyticsError) {
+        console.warn('Failed to track package selection analytics:', analyticsError);
+      }
 
       showSuccess(`Package ${getPackageDisplayName(pkg)} sélectionné avec succès !`);
       

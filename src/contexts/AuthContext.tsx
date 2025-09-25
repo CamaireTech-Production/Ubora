@@ -12,6 +12,7 @@ import { doc, getDoc, setDoc, serverTimestamp, onSnapshot, collection, query, wh
 import { auth, db } from '../firebaseConfig';
 import { User } from '../types';
 import { getPackageLimit, isUnlimited, PackageType } from '../config/packageFeatures';
+import { AnalyticsService } from '../services/analyticsService';
 
 interface AuthContextType {
   user: User | null;
@@ -106,49 +107,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // Fonction pour créer ou mettre à jour le document utilisateur
-  const createOrUpdateUserDoc = async (firebaseUser: FirebaseUser, additionalData?: Partial<User>) => {
-    try {
-      const userDocRef = doc(db, 'users', firebaseUser.uid);
-      const userDoc = await getDoc(userDocRef);
-      
-      if (!userDoc.exists()) {
-        // Si le document n'existe pas et qu'on n'a pas de données additionnelles, on ne peut pas le créer
-        if (!additionalData) {
-          throw new Error('Données utilisateur manquantes pour la création du profil');
-        }
-        
-        // Créer le document utilisateur avec tous les champs requis
-        const userData: Omit<User, 'id'> = {
-          name: additionalData.name || firebaseUser.displayName || '',
-          email: firebaseUser.email || '',
-          role: additionalData.role || 'employe',
-          agencyId: additionalData.agencyId || '',
-          ...(additionalData.role === 'directeur' && {
-            needsPackageSelection: !additionalData.package, // Need package selection if no package provided
-            package: additionalData.package, // Package seulement pour les directeurs
-            tokensUsedMonthly: 0,
-            tokensResetDate: serverTimestamp()
-          }),
-          ...(additionalData.role === 'employe' && {
-            accessLevels: [],
-            hasDirectorDashboardAccess: false
-          }),
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp()
-        };
-        
-        await setDoc(userDocRef, userData);
-        return userData;
-      } else {
-        // Le document existe, le retourner
-        return userDoc.data() as Omit<User, 'id'>;
-      }
-    } catch (err) {
-      console.error('Erreur lors de la création/mise à jour du document utilisateur:', err);
-      throw err;
-    }
-  };
 
   // Écouter les changements d'authentification Firebase
   useEffect(() => {
@@ -383,7 +341,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         ...(role === 'directeur' && {
           needsPackageSelection: true, // New directors need to select a package
           tokensUsedMonthly: 0,
-          tokensResetDate: serverTimestamp()
+          tokensResetDate: new Date()
         }),
         ...(role === 'employe' && {
           accessLevels: [],
@@ -395,6 +353,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       };
       
       await setDoc(doc(db, 'users', userCredential.user.uid), userData);
+      
+      // Track registration analytics
+      try {
+        await AnalyticsService.logUserRegistration(userCredential.user.uid, role, agencyId);
+      } catch (analyticsError) {
+        console.warn('Failed to track registration analytics:', analyticsError);
+      }
       
       // Marquer pour afficher l'écran de bienvenue juste après l'inscription
       try { sessionStorage.setItem('show_welcome_after_login', 'true'); } catch {}
