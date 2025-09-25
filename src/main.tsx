@@ -3,15 +3,24 @@ import { createRoot } from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
 
-// Register Firebase messaging service worker
+// Register service workers
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/firebase-messaging-sw.js')
-    .then((registration) => {
-      console.log('🔔 [SW] Firebase messaging service worker registered:', registration);
-    })
-    .catch((error) => {
-      console.error('🔔 [SW] Firebase messaging service worker registration failed:', error);
-    });
+  window.addEventListener('load', () => {
+    // Register main service worker first
+    navigator.serviceWorker.register('/sw.js', { scope: '/' })
+      .then((registration) => {
+        console.log('🔔 [SW] Main service worker registered:', registration);
+        
+        // Then register Firebase messaging service worker
+        return navigator.serviceWorker.register('/firebase-messaging-sw.js', { scope: '/' });
+      })
+      .then((registration) => {
+        console.log('🔔 [SW] Firebase messaging service worker registered:', registration);
+      })
+      .catch((error) => {
+        console.error('🔔 [SW] Service worker registration failed:', error);
+      });
+  });
 }
 
 createRoot(document.getElementById('root')!).render(

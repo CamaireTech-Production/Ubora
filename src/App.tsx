@@ -20,7 +20,6 @@ import { NotificationsPage } from './pages/NotificationsPage';
 import { AdminLoginPage } from './admin/pages/AdminLoginPage';
 import { AdminPage } from './admin';
 import { UserDetailPage } from './admin/pages/UserDetailPage';
-import { PWAInstallPrompt } from './components/PWAInstallPrompt';
 import { PWAManager } from './components/PWAManager';
 import { EmployeeManagement } from './components/EmployeeManagement';
 import { Layout } from './components/Layout';

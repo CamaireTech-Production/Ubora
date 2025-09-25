@@ -5,7 +5,7 @@ import { usePermissions } from '../hooks/usePermissions';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
-  allowedRoles?: ('directeur' | 'employe')[];
+  allowedRoles?: ('admin' | 'directeur' | 'employe')[];
   requireDirectorDashboardAccess?: boolean; // Nouvelle prop pour l'accès au dashboard directeur
 }
 
