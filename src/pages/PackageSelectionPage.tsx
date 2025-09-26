@@ -127,7 +127,7 @@ export const PackageSelectionPage: React.FC = () => {
         icon: <Users className="h-4 w-4" />
       },
       {
-        name: 'Tokens IA mensuels',
+        name: 'Tokens ARCHA mensuels',
         value: limits.monthlyTokens === -1 ? 'Illimités' : `${limits.monthlyTokens.toLocaleString()} tokens`,
         icon: <Brain className="h-4 w-4" />
       },

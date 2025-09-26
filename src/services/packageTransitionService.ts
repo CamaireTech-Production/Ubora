@@ -233,28 +233,29 @@ export class PackageTransitionService {
    */
   private static async createTransitionSession(
     userId: string,
-    calculation: TransitionCalculation,
+    calculation: EnhancedTransitionCalculation,
     options: PackageTransitionOptions,
     paymentMethod?: string
   ): Promise<boolean> {
-    const sessionType = calculation.totalAmount >= 0 ? 'upgrade' : 'downgrade';
+    const sessionType = calculation.finalAmountToPay >= 0 ? 'upgrade' : 'downgrade';
     
-    // Preserve the original session dates instead of resetting to today
-    const originalStartDate = this.convertToDate(calculation.currentSession.startDate);
-    const originalEndDate = this.convertToDate(calculation.currentSession.endDate);
+    // Create new session dates starting from today (transition date)
+    const transitionDate = new Date();
+    const newEndDate = new Date(transitionDate);
+    newEndDate.setDate(newEndDate.getDate() + 30); // 30 days from transition date
     
     return SubscriptionSessionService.createSession(userId, {
       packageType: calculation.newPackageType,
       sessionType,
-      startDate: originalStartDate, // Keep original start date
-      endDate: originalEndDate, // Keep original end date
-      amountPaid: Math.abs(calculation.totalAmount),
-      durationDays: calculation.daysRemaining + Math.ceil((originalEndDate.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)),
+      startDate: transitionDate, // Start from transition date
+      endDate: newEndDate, // End 30 days from transition date
+      amountPaid: Math.abs(calculation.finalAmountToPay), // Use the calculated amount (package price - remaining value)
+      durationDays: 30, // Always 30 days for new session
       tokensIncluded: calculation.newPackageTokens, // Always reset to new package limit
       tokensUsed: 0, // Start fresh with new package
       isActive: true,
       paymentMethod,
-      notes: this.generateTransitionNotes(calculation, options)
+      notes: this.generateEnhancedTransitionNotes(calculation, options)
     });
   }
 
@@ -263,7 +264,7 @@ export class PackageTransitionService {
    */
   private static async handlePayAsYouGoPreservation(
     userId: string,
-    calculation: TransitionCalculation,
+    calculation: EnhancedTransitionCalculation,
     options: PackageTransitionOptions
   ): Promise<void> {
     if (!options.preserveUnusedPayAsYouGo || calculation.preservedPayAsYouGoTokens === 0) {
@@ -293,8 +294,8 @@ export class PackageTransitionService {
   /**
    * Generate transition notes
    */
-  private static generateTransitionNotes(
-    calculation: TransitionCalculation,
+  private static generateEnhancedTransitionNotes(
+    calculation: EnhancedTransitionCalculation,
     options: PackageTransitionOptions
   ): string {
     const notes = [];
@@ -468,14 +469,28 @@ export class PackageTransitionService {
       const currentLimit = PACKAGE_LIMITS[currentPackage][feature];
       const newLimit = PACKAGE_LIMITS[newPackage][feature];
       
-      if (newLimit > currentLimit || (currentLimit !== -1 && newLimit === -1)) {
+      // Only add to upgrades if it's actually an improvement
+      // -1 means unlimited, so going from limited to unlimited is an upgrade
+      // Going from unlimited to limited is NOT an upgrade (it's a downgrade)
+      // Going from unlimited to unlimited is not a change
+      if (currentLimit !== -1 && newLimit === -1) {
+        // Going from limited to unlimited is an upgrade
         upgrades.push({
           feature,
-          fromLimit: currentLimit === -1 ? 'unlimited' : currentLimit,
-          toLimit: newLimit === -1 ? 'unlimited' : newLimit,
-          isUnlimited: newLimit === -1
+          fromLimit: currentLimit,
+          toLimit: 'unlimited',
+          isUnlimited: true
+        });
+      } else if (currentLimit !== -1 && newLimit !== -1 && newLimit > currentLimit) {
+        // Going from limited to higher limited is an upgrade
+        upgrades.push({
+          feature,
+          fromLimit: currentLimit,
+          toLimit: newLimit,
+          isUnlimited: false
         });
       }
+      // Note: Going from unlimited to limited is handled in downgrades
     });
     
     return upgrades;
@@ -495,7 +510,11 @@ export class PackageTransitionService {
       const currentLimit = PACKAGE_LIMITS[currentPackage][feature];
       const newLimit = PACKAGE_LIMITS[newPackage][feature];
       
-      if (newLimit < currentLimit || (currentLimit === -1 && newLimit !== -1)) {
+      // Only add to downgrades if it's actually a reduction
+      // -1 means unlimited, so going from unlimited to limited is a downgrade
+      // Going from limited to limited with lower value is a downgrade
+      // Going from unlimited to unlimited is not a change
+      if ((currentLimit === -1 && newLimit !== -1) || (currentLimit !== -1 && newLimit !== -1 && newLimit < currentLimit)) {
         downgrades.push({
           feature,
           fromLimit: currentLimit === -1 ? 'unlimited' : currentLimit,
@@ -535,8 +554,17 @@ export class PackageTransitionService {
     const payAsYouGoItems = this.analyzePayAsYouGo(currentSession.packageType, newPackageType, userNeeds);
     const payAsYouGoTotalCost = payAsYouGoItems.reduce((sum, item) => sum + item.totalCost, 0);
     
-    // Calculate final amount to pay
-    const finalAmountToPay = Math.max(0, newPackagePrice - currentPackageRemainingValue + payAsYouGoTotalCost);
+    // Calculate final amount to pay based on transition type
+    let finalAmountToPay: number;
+    
+    if (newPackagePrice > currentPackagePrice) {
+      // UPGRADE: Pay the difference, get immediate access
+      finalAmountToPay = Math.max(0, newPackagePrice - currentPackageRemainingValue);
+    } else {
+      // DOWNGRADE: Industry best practice - no immediate refund, takes effect at next billing cycle
+      // For now, we'll allow immediate downgrade but with no immediate payment
+      finalAmountToPay = 0; // No immediate payment for downgrades
+    }
     
     // Token handling (existing logic)
     const unusedPackageTokens = Math.max(0, currentSession.tokensIncluded - currentSession.tokensUsed);
@@ -548,8 +576,16 @@ export class PackageTransitionService {
     const featureUpgrades = this.analyzeFeatureUpgrades(currentSession.packageType, newPackageType);
     const featureDowngrades = this.analyzeFeatureDowngrades(currentSession.packageType, newPackageType);
     
-    // Calculate savings
-    const savings = Math.max(0, currentPackageRemainingValue - payAsYouGoTotalCost);
+    // Calculate savings based on transition type
+    let savings: number;
+    
+    if (newPackagePrice > currentPackagePrice) {
+      // UPGRADE: Show remaining value as savings
+      savings = Math.max(0, currentPackageRemainingValue);
+    } else {
+      // DOWNGRADE: Show remaining value as "lost value" (negative savings)
+      savings = -currentPackageRemainingValue;
+    }
     
     return {
       currentSession,

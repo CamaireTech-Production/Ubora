@@ -3,13 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { usePackageAccess } from '../hooks/usePackageAccess';
 import { useApp } from '../contexts/AppContext';
-import { TokenService } from '../services/tokenService';
 import { Card } from './Card';
 import { Button } from './Button';
 import { 
   getPackageDisplayName, 
-  getPackagePrice, 
-  PACKAGE_LIMITS 
+  getPackagePrice
 } from '../config/packageFeatures';
 import { 
   Crown, 
@@ -27,7 +25,8 @@ import {
 import { PaymentModal } from './PaymentModal';
 import { useToast } from '../hooks/useToast';
 import { PayAsYouGoService } from '../services/payAsYouGoService';
-import { doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { SubscriptionSessionService } from '../services/subscriptionSessionService';
+import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 
 interface DirectorPackageOverviewProps {
@@ -41,16 +40,16 @@ export const DirectorPackageOverview: React.FC<DirectorPackageOverviewProps> = (
   const { user } = useAuth();
   const { 
     packageType, 
+    packageInfo,
     getLimit, 
     isLimitUnlimited, 
     getMonthlyTokens,
     hasUnlimitedTokens,
-    getAdditionalUserCost,
     getPayAsYouGoCapacity,
     getTotalLimit
   } = usePackageAccess();
   const { forms, dashboards, employees } = useApp();
-  const { toast, showSuccess, showError } = useToast();
+  const { showSuccess, showError } = useToast();
   
   const [paymentModal, setPaymentModal] = useState<{
     isOpen: boolean;
@@ -69,7 +68,6 @@ export const DirectorPackageOverview: React.FC<DirectorPackageOverviewProps> = (
   const displayName = getPackageDisplayName(packageType);
   const price = getPackagePrice(packageType);
   const monthlyTokens = getMonthlyTokens();
-  const additionalUserCost = getAdditionalUserCost();
   
   // Calculate consumption levels
   const currentForms = forms.length;
@@ -89,38 +87,17 @@ export const DirectorPackageOverview: React.FC<DirectorPackageOverviewProps> = (
   const totalDashboards = getTotalLimit('maxDashboards');
   const totalUsers = getTotalLimit('maxUsers');
   
-  // Calculate token consumption
-  const remainingTokens = TokenService.getRemainingTokensWithPayAsYouGo(user, monthlyTokens);
-  const totalAvailableTokens = TokenService.getTotalAvailableTokens(user, monthlyTokens);
-  const usedTokens = totalAvailableTokens - remainingTokens;
-  const tokenUsagePercentage = hasUnlimitedTokens() ? 0 : (usedTokens / totalAvailableTokens) * 100;
+  // Calculate token consumption using session data
+  const remainingTokens = packageInfo?.tokensRemaining || 0;
+  const totalAvailableTokens = packageInfo?.totalTokens || 0;
+  const usedTokens = packageInfo?.tokensUsed || 0;
+  const tokenUsagePercentage = hasUnlimitedTokens() ? 0 : (totalAvailableTokens > 0 ? (usedTokens / totalAvailableTokens) * 100 : 0);
   
-  // Calculate subscription days remaining (assuming 30-day cycles)
-  const subscriptionStartDate = user.subscriptionStartDate || user.createdAt;
-  let startDate: Date;
-  
-  try {
-    startDate = subscriptionStartDate instanceof Date ? subscriptionStartDate : new Date(subscriptionStartDate);
-    // Check if the date is valid
-    if (isNaN(startDate.getTime())) {
-      startDate = new Date(); // Fallback to current date
-    }
-  } catch (error) {
-    startDate = new Date(); // Fallback to current date
-  }
-  
-  // Calculate days since activation and days remaining
-  const now = new Date();
-  const daysSinceActivation = Math.floor((now.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
-  
-  // Calculate the next renewal date (30 days from activation, then every 30 days)
-  const nextRenewalDate = new Date(startDate);
-  const cyclesPassed = Math.floor(daysSinceActivation / 30);
-  nextRenewalDate.setDate(startDate.getDate() + (cyclesPassed + 1) * 30);
-  
-  // Calculate days remaining until next renewal
-  const daysRemaining = Math.max(1, Math.ceil((nextRenewalDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
-  const isNearRenewal = daysRemaining <= 7;
+  // Get subscription dates from session data
+  const startDate = packageInfo?.subscriptionStartDate || new Date();
+  const endDate = packageInfo?.subscriptionEndDate || new Date();
+  const daysRemaining = packageInfo?.daysRemaining || 0;
+  const isNearRenewal = daysRemaining <= 7 && daysRemaining > 0;
   
   // Check if any limits are reached (only show warnings for actual limits, not pay-as-you-go)
   const formsLimitReached = !isLimitUnlimited('maxForms') && currentForms >= maxForms && payAsYouGoForms === 0;
@@ -181,8 +158,7 @@ export const DirectorPackageOverview: React.FC<DirectorPackageOverviewProps> = (
         throw new Error('Utilisateur non trouvé');
       }
       
-      const userData = userDoc.data();
-      const currentPayAsYouGoResources = userData.payAsYouGoResources || {};
+      // No need to get user data since we're using SubscriptionSessionService
       
       if (option.id.startsWith('tokens-')) {
         // Handle token purchases using PayAsYouGoService
@@ -198,8 +174,8 @@ export const DirectorPackageOverview: React.FC<DirectorPackageOverviewProps> = (
           throw new Error('Erreur lors de l\'achat des tokens');
         }
       } else {
-        // Handle other resource purchases
-        let resourceType: string;
+        // Handle other resource purchases using SubscriptionSessionService
+        let resourceType: 'forms' | 'dashboards' | 'users';
         let quantity: number;
         
         if (option.id.startsWith('forms-')) {
@@ -223,17 +199,23 @@ export const DirectorPackageOverview: React.FC<DirectorPackageOverviewProps> = (
           throw new Error('Type de ressource non reconnu');
         }
         
-        // Add the new resource to the user's pay-as-you-go resources
-        if (!currentPayAsYouGoResources[resourceType]) {
-          currentPayAsYouGoResources[resourceType] = 0;
-        }
-        currentPayAsYouGoResources[resourceType] += quantity;
+        // Use SubscriptionSessionService to add pay-as-you-go resources to the active session
+        const purchase = {
+          itemType: resourceType,
+          quantity: quantity,
+          amountPaid: option.price,
+          purchaseDate: new Date(),
+          paymentMethod: 'card'
+        };
         
-        // Update the user document in Firebase
-        await updateDoc(userRef, {
-          payAsYouGoResources: currentPayAsYouGoResources,
-          updatedAt: serverTimestamp()
-        });
+        const success = await SubscriptionSessionService.addPayAsYouGoResources(
+          user.id,
+          purchase
+        );
+        
+        if (!success) {
+          throw new Error('Erreur lors de l\'ajout de la ressource');
+        }
       }
       
       showSuccess(`${option.name} acheté avec succès !`);
@@ -306,7 +288,7 @@ export const DirectorPackageOverview: React.FC<DirectorPackageOverviewProps> = (
                 <span className="text-sm font-medium text-gray-700">Prochain renouvellement</span>
               </div>
               <div className="text-sm font-semibold text-gray-900">
-                {nextRenewalDate.toLocaleDateString('fr-FR')}
+                {endDate.toLocaleDateString('fr-FR')}
               </div>
             </div>
           </div>
@@ -318,6 +300,7 @@ export const DirectorPackageOverview: React.FC<DirectorPackageOverviewProps> = (
             </div>
           )}
         </div>
+
 
         {/* Consumption Levels */}
         <div className="space-y-3">
@@ -331,11 +314,6 @@ export const DirectorPackageOverview: React.FC<DirectorPackageOverviewProps> = (
               <div className="flex items-center space-x-2">
                 <span className="text-sm font-medium">
                   {currentForms}/{isLimitUnlimited('maxForms') ? 'Illimité' : totalForms}
-                  {payAsYouGoForms > 0 && (
-                    <span className="text-xs text-green-600 ml-1">
-                      (+{payAsYouGoForms} pay-as-you-go)
-                    </span>
-                  )}
                 </span>
                 {formsLimitReached && (
                   <AlertTriangle className="h-4 w-4 text-orange-500" />
@@ -352,11 +330,6 @@ export const DirectorPackageOverview: React.FC<DirectorPackageOverviewProps> = (
               <div className="flex items-center space-x-2">
                 <span className="text-sm font-medium">
                   {currentDashboards}/{isLimitUnlimited('maxDashboards') ? 'Illimité' : totalDashboards}
-                  {payAsYouGoDashboards > 0 && (
-                    <span className="text-xs text-green-600 ml-1">
-                      (+{payAsYouGoDashboards} pay-as-you-go)
-                    </span>
-                  )}
                 </span>
                 {dashboardsLimitReached && (
                   <AlertTriangle className="h-4 w-4 text-orange-500" />
@@ -373,11 +346,6 @@ export const DirectorPackageOverview: React.FC<DirectorPackageOverviewProps> = (
               <div className="flex items-center space-x-2">
                 <span className="text-sm font-medium">
                   {currentUsers}/{isLimitUnlimited('maxUsers') ? 'Illimité' : totalUsers}
-                  {payAsYouGoUsers > 0 && (
-                    <span className="text-xs text-green-600 ml-1">
-                      (+{payAsYouGoUsers} pay-as-you-go)
-                    </span>
-                  )}
                 </span>
                 {usersLimitReached && (
                   <AlertTriangle className="h-4 w-4 text-orange-500" />
@@ -403,6 +371,76 @@ export const DirectorPackageOverview: React.FC<DirectorPackageOverviewProps> = (
           </div>
         </div>
       </Card>
+
+      {/* Pay-as-you-go Resources Section */}
+      {(packageInfo?.payAsYouGoTokens || 0) > 0 || 
+       (packageInfo?.payAsYouGoForms || 0) > 0 || 
+       (packageInfo?.payAsYouGoDashboards || 0) > 0 || 
+       (packageInfo?.payAsYouGoUsers || 0) > 0 ? (
+        <Card className="p-4 bg-green-50 border-green-200">
+          <div className="flex items-center space-x-2 mb-3">
+            <Plus className="h-5 w-5 text-green-600" />
+            <h4 className="font-semibold text-green-800">Ressources Pay-as-you-go</h4>
+          </div>
+          <p className="text-sm text-green-700 mb-4">
+            Ressources supplémentaires achetées en plus de votre package
+          </p>
+          
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {/* Pay-as-you-go Tokens */}
+            {(packageInfo?.payAsYouGoTokens || 0) > 0 && (
+              <div className="flex items-center justify-between p-2 bg-white rounded-lg border border-green-200">
+                <div className="flex items-center space-x-2">
+                  <Brain className="h-4 w-4 text-green-600" />
+                  <span className="text-sm text-green-700">Tokens</span>
+                </div>
+                <span className="text-sm font-medium text-green-800">
+                  +{packageInfo?.payAsYouGoTokens?.toLocaleString() || '0'}
+                </span>
+              </div>
+            )}
+
+            {/* Pay-as-you-go Forms */}
+            {(packageInfo?.payAsYouGoForms || 0) > 0 && (
+              <div className="flex items-center justify-between p-2 bg-white rounded-lg border border-green-200">
+                <div className="flex items-center space-x-2">
+                  <FileText className="h-4 w-4 text-green-600" />
+                  <span className="text-sm text-green-700">Formulaires</span>
+                </div>
+                <span className="text-sm font-medium text-green-800">
+                  +{packageInfo?.payAsYouGoForms || 0}
+                </span>
+              </div>
+            )}
+
+            {/* Pay-as-you-go Dashboards */}
+            {(packageInfo?.payAsYouGoDashboards || 0) > 0 && (
+              <div className="flex items-center justify-between p-2 bg-white rounded-lg border border-green-200">
+                <div className="flex items-center space-x-2">
+                  <BarChart3 className="h-4 w-4 text-green-600" />
+                  <span className="text-sm text-green-700">Tableaux</span>
+                </div>
+                <span className="text-sm font-medium text-green-800">
+                  +{packageInfo?.payAsYouGoDashboards || 0}
+                </span>
+              </div>
+            )}
+
+            {/* Pay-as-you-go Users */}
+            {(packageInfo?.payAsYouGoUsers || 0) > 0 && (
+              <div className="flex items-center justify-between p-2 bg-white rounded-lg border border-green-200">
+                <div className="flex items-center space-x-2">
+                  <Users className="h-4 w-4 text-green-600" />
+                  <span className="text-sm text-green-700">Utilisateurs</span>
+                </div>
+                <span className="text-sm font-medium text-green-800">
+                  +{packageInfo?.payAsYouGoUsers || 0}
+                </span>
+              </div>
+            )}
+          </div>
+        </Card>
+      ) : null}
 
       {/* Pay-as-you-go Options - Only show when limits are reached */}
       {hasAnyLimitReached && (

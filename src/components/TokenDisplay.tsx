@@ -1,7 +1,7 @@
 import React from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { usePackageAccess } from '../hooks/usePackageAccess';
-import { TokenService } from '../services/tokenService';
+import { UserSessionService } from '../services/userSessionService';
 import { Brain, Zap } from 'lucide-react';
 
 interface TokenDisplayProps {
@@ -16,15 +16,15 @@ export const TokenDisplay: React.FC<TokenDisplayProps> = ({
   compact = false 
 }) => {
   const { user } = useAuth();
-  const { getMonthlyTokens, hasUnlimitedTokens } = usePackageAccess();
+  const { packageInfo } = usePackageAccess();
 
-  if (!user || !user.package) return null;
+  if (!user || !packageInfo?.packageType) return null;
 
-  const monthlyLimit = getMonthlyTokens();
-  const isUnlimited = hasUnlimitedTokens();
-  const remainingTokens = TokenService.getRemainingTokensWithPayAsYouGo(user, monthlyLimit);
-  const usagePercentage = TokenService.getTokenUsagePercentage(user, monthlyLimit);
-  const tokensUsed = user.tokensUsedMonthly || 0;
+  const isUnlimited = packageInfo.totalTokens === -1;
+  const remainingTokens = packageInfo.tokensRemaining;
+  const tokensUsed = packageInfo.tokensUsed;
+  const totalTokens = packageInfo.totalTokens;
+  const usagePercentage = totalTokens > 0 ? (tokensUsed / totalTokens) * 100 : 0;
 
   if (compact) {
     return (
@@ -36,7 +36,7 @@ export const TokenDisplay: React.FC<TokenDisplayProps> = ({
           ) : (
             <span>
               <span className="font-medium text-gray-900">{tokensUsed.toLocaleString()}</span>
-              <span className="text-gray-500">/{TokenService.getTotalAvailableTokens(user, monthlyLimit).toLocaleString()}</span>
+              <span className="text-gray-500">/{totalTokens.toLocaleString()}</span>
             </span>
           )}
         </span>
@@ -68,7 +68,7 @@ export const TokenDisplay: React.FC<TokenDisplayProps> = ({
               {remainingTokens.toLocaleString()} tokens restants
             </span>
             <span className="text-gray-500">
-              {tokensUsed.toLocaleString()}/{TokenService.getTotalAvailableTokens(user, monthlyLimit).toLocaleString()} utilisés
+              {tokensUsed.toLocaleString()}/{totalTokens.toLocaleString()} utilisés
             </span>
           </div>
           

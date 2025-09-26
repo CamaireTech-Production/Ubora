@@ -5,7 +5,7 @@ import { FormatSelector } from './FormatSelector';
 import { ComprehensiveFilter } from './ComprehensiveFilter';
 import { useAuth } from '../../contexts/AuthContext';
 import { usePackageAccess } from '../../hooks/usePackageAccess';
-import { TokenService } from '../../services/tokenService';
+import { UserSessionService } from '../../services/userSessionService';
 
 interface Form {
   id: string;
@@ -76,9 +76,9 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
   const [rows, setRows] = useState(1);
 
   // Calculer les tokens restants
-  const monthlyLimit = getMonthlyTokens();
-  const isUnlimited = hasUnlimitedTokens();
-  const remainingTokens = user && user.package ? TokenService.getRemainingTokensWithPayAsYouGo(user, monthlyLimit) : 0;
+  const { packageInfo } = usePackageAccess();
+  const isUnlimited = packageInfo?.totalTokens === -1;
+  const remainingTokens = packageInfo?.tokensRemaining || 0;
 
   // Auto-resize textarea
   useEffect(() => {
@@ -201,7 +201,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
         </div>
         
         {/* Affichage des tokens restants */}
-        {user && user.package && (
+        {user && packageInfo && (
           <div className="flex items-center justify-center space-x-1 text-xs text-gray-500 mt-2">
             <Brain className="h-3 w-3 text-blue-500" />
             <span>

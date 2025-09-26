@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { usePermissions } from '../hooks/usePermissions';
@@ -6,12 +6,19 @@ import { Layout } from '../components/Layout';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { DirectorPackageOverview } from '../components/DirectorPackageOverview';
-import { ArrowLeft, Settings, User, Bell, Shield } from 'lucide-react';
+import { SubscriptionHistoryModal } from '../components/SubscriptionHistoryModal';
+import { SubscriptionSessionService } from '../services/subscriptionSessionService';
+import { UserSessionService } from '../services/userSessionService';
+import { ArrowLeft, Settings, User, Bell, Shield, Calendar } from 'lucide-react';
 
 export const DirectorSettingsPage: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { hasDirectorDashboardAccess } = usePermissions();
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+
+  // Get subscription history data
+  const subscriptionHistory = user ? UserSessionService.getSubscriptionHistory(user) : null;
 
   if (!user || user.role !== 'directeur') {
     return (
@@ -30,24 +37,39 @@ export const DirectorSettingsPage: React.FC = () => {
     <Layout title="Paramètres">
       <div className="max-w-4xl mx-auto space-y-6 px-4">
         {/* Header with back button */}
-        <div className="flex items-center space-x-4">
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => navigate('/directeur/dashboard')}
-            className="flex items-center space-x-1"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            <span>Retour</span>
-          </Button>
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">
-              Paramètres
-            </h1>
-            <p className="text-gray-600">
-              Gérez vos paramètres de compte et votre abonnement
-            </p>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-4">
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => navigate('/directeur/dashboard')}
+              className="flex items-center space-x-1"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              <span>Retour</span>
+            </Button>
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">
+                Paramètres
+              </h1>
+              <p className="text-gray-600">
+                Gérez vos paramètres de compte et votre abonnement
+              </p>
+            </div>
           </div>
+          
+          {/* Subscription History Button */}
+          {user && subscriptionHistory && subscriptionHistory.totalSessions > 0 && (
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => setShowHistoryModal(true)}
+              className="flex items-center space-x-2"
+            >
+              <Calendar className="h-4 w-4" />
+              <span>Historique</span>
+            </Button>
+          )}
         </div>
 
         {/* Package Overview Section */}
@@ -125,7 +147,23 @@ export const DirectorSettingsPage: React.FC = () => {
                     Membre depuis
                   </label>
                   <div className="text-sm text-gray-900 bg-gray-50 px-3 py-2 rounded-md">
-                    {user.createdAt ? new Date(user.createdAt).toLocaleDateString('fr-FR') : 'Non spécifié'}
+                    {(() => {
+                      if (!user.createdAt) return 'Non spécifié';
+                      
+                      // Handle Firestore timestamp conversion
+                      let date: Date;
+                      if (user.createdAt && typeof user.createdAt.toDate === 'function') {
+                        date = user.createdAt.toDate();
+                      } else if (user.createdAt instanceof Date) {
+                        date = user.createdAt;
+                      } else if (typeof user.createdAt === 'string' || typeof user.createdAt === 'number') {
+                        date = new Date(user.createdAt);
+                      } else {
+                        return 'Non spécifié';
+                      }
+                      
+                      return date.toLocaleDateString('fr-FR');
+                    })()}
                   </div>
                 </div>
                 
@@ -134,7 +172,25 @@ export const DirectorSettingsPage: React.FC = () => {
                     Package activé le
                   </label>
                   <div className="text-sm text-gray-900 bg-gray-50 px-3 py-2 rounded-md">
-                    {user.subscriptionStartDate ? new Date(user.subscriptionStartDate).toLocaleDateString('fr-FR') : 'Non spécifié'}
+                    {(() => {
+                      // Get current active session start date
+                      const currentSession = user.subscriptionSessions?.find(session => session.isActive);
+                      if (!currentSession?.startDate) return 'Non spécifié';
+                      
+                      // Handle Firestore timestamp conversion
+                      let date: Date;
+                      if (currentSession.startDate && typeof currentSession.startDate.toDate === 'function') {
+                        date = currentSession.startDate.toDate();
+                      } else if (currentSession.startDate instanceof Date) {
+                        date = currentSession.startDate;
+                      } else if (typeof currentSession.startDate === 'string' || typeof currentSession.startDate === 'number') {
+                        date = new Date(currentSession.startDate);
+                      } else {
+                        return 'Non spécifié';
+                      }
+                      
+                      return date.toLocaleDateString('fr-FR');
+                    })()}
                   </div>
                 </div>
               </div>
@@ -181,6 +237,16 @@ export const DirectorSettingsPage: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Subscription History Modal */}
+      {user && (
+        <SubscriptionHistoryModal
+          isOpen={showHistoryModal}
+          onClose={() => setShowHistoryModal(false)}
+          sessions={subscriptionHistory?.totalSessions ? SubscriptionSessionService.getAllSessions(user) : []}
+          currentSession={subscriptionHistory?.currentSession}
+        />
+      )}
     </Layout>
   );
 };

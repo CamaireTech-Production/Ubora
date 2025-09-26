@@ -25,21 +25,22 @@ export class SessionConsumptionService {
         return false;
       }
       
-      // Update the current session's consumption
+      // Update the current session's usage
       const updatedSessions = userData.subscriptionSessions?.map(session => {
         if (session.id === currentSession.id) {
+          const currentUsage = session.usage || {
+            tokensUsed: 0,
+            formsCreated: 0,
+            dashboardsCreated: 0,
+            usersAdded: 0
+          };
+          
           return {
             ...session,
-            consumption: {
-              formsCreated: (session.consumption?.formsCreated || 0) + 1,
-              dashboardsCreated: session.consumption?.dashboardsCreated || 0,
-              usersAdded: session.consumption?.usersAdded || 0,
-              tokensConsumed: session.consumption?.tokensConsumed || 0,
-              lastFormCreated: new Date(),
-              lastDashboardCreated: session.consumption?.lastDashboardCreated,
-              lastUserAdded: session.consumption?.lastUserAdded,
-              lastTokenUsed: session.consumption?.lastTokenUsed,
-              ...session.consumption
+            usage: {
+              ...currentUsage,
+              formsCreated: currentUsage.formsCreated + 1,
+              lastFormCreated: new Date()
             },
             updatedAt: new Date()
           };
@@ -82,21 +83,22 @@ export class SessionConsumptionService {
         return false;
       }
       
-      // Update the current session's consumption
+      // Update the current session's usage
       const updatedSessions = userData.subscriptionSessions?.map(session => {
         if (session.id === currentSession.id) {
+          const currentUsage = session.usage || {
+            tokensUsed: 0,
+            formsCreated: 0,
+            dashboardsCreated: 0,
+            usersAdded: 0
+          };
+          
           return {
             ...session,
-            consumption: {
-              formsCreated: session.consumption?.formsCreated || 0,
-              dashboardsCreated: (session.consumption?.dashboardsCreated || 0) + 1,
-              usersAdded: session.consumption?.usersAdded || 0,
-              tokensConsumed: session.consumption?.tokensConsumed || 0,
-              lastFormCreated: session.consumption?.lastFormCreated,
-              lastDashboardCreated: new Date(),
-              lastUserAdded: session.consumption?.lastUserAdded,
-              lastTokenUsed: session.consumption?.lastTokenUsed,
-              ...session.consumption
+            usage: {
+              ...currentUsage,
+              dashboardsCreated: currentUsage.dashboardsCreated + 1,
+              lastDashboardCreated: new Date()
             },
             updatedAt: new Date()
           };
@@ -139,21 +141,22 @@ export class SessionConsumptionService {
         return false;
       }
       
-      // Update the current session's consumption
+      // Update the current session's usage
       const updatedSessions = userData.subscriptionSessions?.map(session => {
         if (session.id === currentSession.id) {
+          const currentUsage = session.usage || {
+            tokensUsed: 0,
+            formsCreated: 0,
+            dashboardsCreated: 0,
+            usersAdded: 0
+          };
+          
           return {
             ...session,
-            consumption: {
-              formsCreated: session.consumption?.formsCreated || 0,
-              dashboardsCreated: session.consumption?.dashboardsCreated || 0,
-              usersAdded: (session.consumption?.usersAdded || 0) + 1,
-              tokensConsumed: session.consumption?.tokensConsumed || 0,
-              lastFormCreated: session.consumption?.lastFormCreated,
-              lastDashboardCreated: session.consumption?.lastDashboardCreated,
-              lastUserAdded: new Date(),
-              lastTokenUsed: session.consumption?.lastTokenUsed,
-              ...session.consumption
+            usage: {
+              ...currentUsage,
+              usersAdded: currentUsage.usersAdded + 1,
+              lastUserAdded: new Date()
             },
             updatedAt: new Date()
           };
@@ -196,21 +199,22 @@ export class SessionConsumptionService {
         return false;
       }
       
-      // Update the current session's consumption
+      // Update the current session's usage
       const updatedSessions = userData.subscriptionSessions?.map(session => {
         if (session.id === currentSession.id) {
+          const currentUsage = session.usage || {
+            tokensUsed: 0,
+            formsCreated: 0,
+            dashboardsCreated: 0,
+            usersAdded: 0
+          };
+          
           return {
             ...session,
-            consumption: {
-              formsCreated: session.consumption?.formsCreated || 0,
-              dashboardsCreated: session.consumption?.dashboardsCreated || 0,
-              usersAdded: session.consumption?.usersAdded || 0,
-              tokensConsumed: (session.consumption?.tokensConsumed || 0) + tokensConsumed,
-              lastFormCreated: session.consumption?.lastFormCreated,
-              lastDashboardCreated: session.consumption?.lastDashboardCreated,
-              lastUserAdded: session.consumption?.lastUserAdded,
-              lastTokenUsed: new Date(),
-              ...session.consumption
+            usage: {
+              ...currentUsage,
+              tokensUsed: currentUsage.tokensUsed + tokensConsumed,
+              lastTokenUsed: new Date()
             },
             updatedAt: new Date()
           };
@@ -258,11 +262,11 @@ export class SessionConsumptionService {
       };
     }
     
-    const consumption = currentSession.consumption || {
+    const usage = currentSession.usage || {
       formsCreated: 0,
       dashboardsCreated: 0,
       usersAdded: 0,
-      tokensConsumed: 0
+      tokensUsed: 0
     };
     
     const now = new Date();
@@ -270,10 +274,10 @@ export class SessionConsumptionService {
     const daysRemaining = Math.max(0, Math.ceil((endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
     
     return {
-      formsCreated: consumption.formsCreated,
-      dashboardsCreated: consumption.dashboardsCreated,
-      usersAdded: consumption.usersAdded,
-      tokensConsumed: consumption.tokensConsumed,
+      formsCreated: usage.formsCreated,
+      dashboardsCreated: usage.dashboardsCreated,
+      usersAdded: usage.usersAdded,
+      tokensConsumed: usage.tokensUsed,
       sessionStartDate: currentSession.startDate instanceof Date ? currentSession.startDate : new Date(currentSession.startDate),
       sessionEndDate: endDate,
       daysRemaining
@@ -302,18 +306,18 @@ export class SessionConsumptionService {
     const sessions = userData.subscriptionSessions || [];
     
     const summary = sessions.reduce((acc, session) => {
-      const consumption = session.consumption || {
+      const usage = session.usage || {
         formsCreated: 0,
         dashboardsCreated: 0,
         usersAdded: 0,
-        tokensConsumed: 0
+        tokensUsed: 0
       };
       
       return {
-        totalFormsCreated: acc.totalFormsCreated + consumption.formsCreated,
-        totalDashboardsCreated: acc.totalDashboardsCreated + consumption.dashboardsCreated,
-        totalUsersAdded: acc.totalUsersAdded + consumption.usersAdded,
-        totalTokensConsumed: acc.totalTokensConsumed + consumption.tokensConsumed,
+        totalFormsCreated: acc.totalFormsCreated + usage.formsCreated,
+        totalDashboardsCreated: acc.totalDashboardsCreated + usage.dashboardsCreated,
+        totalUsersAdded: acc.totalUsersAdded + usage.usersAdded,
+        totalTokensConsumed: acc.totalTokensConsumed + usage.tokensUsed,
         totalAmountPaid: acc.totalAmountPaid + session.amountPaid,
         sessions: [
           ...acc.sessions,
@@ -323,7 +327,12 @@ export class SessionConsumptionService {
             sessionType: session.sessionType,
             startDate: session.startDate instanceof Date ? session.startDate : new Date(session.startDate),
             endDate: session.endDate instanceof Date ? session.endDate : new Date(session.endDate),
-            consumption,
+            consumption: {
+              formsCreated: usage.formsCreated,
+              dashboardsCreated: usage.dashboardsCreated,
+              usersAdded: usage.usersAdded,
+              tokensConsumed: usage.tokensUsed
+            },
             amountPaid: session.amountPaid
           }
         ]
@@ -336,6 +345,9 @@ export class SessionConsumptionService {
       totalAmountPaid: 0,
       sessions: [] as any[]
     });
+    
+    // Sort sessions from most recent to least recent
+    summary.sessions.sort((a, b) => b.startDate.getTime() - a.startDate.getTime());
     
     return summary;
   }

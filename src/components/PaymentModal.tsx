@@ -165,7 +165,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
 
   const getTypeDescription = () => {
     switch (type) {
-      case 'tokens': return 'Vous avez atteint votre limite de tokens Archa. Achetez des tokens supplémentaires pour continuer à utiliser l\'IA.';
+      case 'tokens': return 'Vous avez atteint votre limite de tokens ARCHA. Achetez des tokens supplémentaires pour continuer à utiliser ARCHA.';
       case 'forms': return `Vous avez atteint votre limite de ${currentLimit} formulaires. Achetez des formulaires supplémentaires.`;
       case 'dashboards': return `Vous avez atteint votre limite de ${currentLimit} tableaux de bord. Achetez des tableaux de bord supplémentaires.`;
       case 'users': return `Vous avez atteint votre limite de ${currentLimit} utilisateurs. Achetez des utilisateurs supplémentaires.`;

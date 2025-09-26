@@ -328,7 +328,12 @@ export const UsersTable: React.FC<UsersTableProps> = ({ users, onRefresh }) => {
                 <td className="px-6 py-4 whitespace-nowrap">
                   <div className="flex items-center">
                     <Package className="h-4 w-4 text-gray-400 mr-2" />
-                    <span className="text-sm text-gray-900">{user.package || 'N/A'}</span>
+                    <span className="text-sm text-gray-900">
+                      {user.subscriptionSessions && user.subscriptionSessions.length > 0 
+                        ? user.subscriptionSessions.find(s => s.isActive)?.packageType || 'N/A'
+                        : 'N/A'
+                      }
+                    </span>
                   </div>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">

@@ -1,5 +1,5 @@
 import { useAuth } from '../contexts/AuthContext';
-import { SubscriptionSessionService } from '../services/subscriptionSessionService';
+import { UserSessionService } from '../services/userSessionService';
 import { 
   hasPackageFeature, 
   getPackageLimit, 
@@ -13,62 +13,48 @@ import {
 export const usePackageAccess = () => {
   const { user } = useAuth();
 
-  // Get current active session package type
-  const getCurrentPackageType = (): PackageType | null => {
+  // Get current package info from active session
+  const getCurrentPackageInfo = () => {
     if (!user) return null;
-    
-    // First try to get from current active session
-    const currentSession = SubscriptionSessionService.getCurrentSession(user);
-    if (currentSession) {
-      return currentSession.packageType;
-    }
-    
-    // Fallback to legacy package field
-    return user.package || null;
+    return UserSessionService.getUserPackageInfo(user);
   };
 
-  const currentPackageType = getCurrentPackageType();
+  const packageInfo = getCurrentPackageInfo();
+  const currentPackageType = packageInfo?.packageType || null;
 
   // Vérifier si l'utilisateur a accès à une fonctionnalité spécifique
   const hasFeature = (feature: keyof PackageFeatures): boolean => {
-    if (!currentPackageType) return false;
-    
-    // Pour les packages custom, vérifier les fonctionnalités personnalisées
-    if (currentPackageType === 'custom' && user?.packageFeatures) {
-      return user.packageFeatures.includes(feature);
-    }
-    
-    return hasPackageFeature(currentPackageType, feature);
+    if (!user) return false;
+    return UserSessionService.hasFeature(user, feature);
   };
 
   // Vérifier si l'utilisateur respecte une limite spécifique (incluant pay-as-you-go)
   const checkLimit = (limit: keyof PackageLimits, currentValue: number): boolean => {
-    if (!currentPackageType) return false;
+    if (!user) return false;
     
-    const limitValue = getPackageLimit(currentPackageType, limit);
+    const limits = UserSessionService.getPackageLimits(user);
+    const limitValue = limits[limit];
     
     // Si la limite est illimitée (-1), toujours autoriser
-    if (isUnlimited(currentPackageType, limit)) {
+    if (limitValue === -1) {
       return true;
     }
     
-    // Ajouter la capacité pay-as-you-go
-    const payAsYouGoCapacity = getPayAsYouGoCapacity(limit);
-    const totalCapacity = limitValue + payAsYouGoCapacity;
-    
-    return currentValue < totalCapacity;
+    return currentValue < limitValue;
   };
 
   // Obtenir la valeur d'une limite
   const getLimit = (limit: keyof PackageLimits): number => {
-    if (!currentPackageType) return 0;
-    return getPackageLimit(currentPackageType, limit);
+    if (!user) return 0;
+    const limits = UserSessionService.getPackageLimits(user);
+    return limits[limit];
   };
 
   // Vérifier si une limite est illimitée
   const isLimitUnlimited = (limit: keyof PackageLimits): boolean => {
-    if (!currentPackageType) return false;
-    return isUnlimited(currentPackageType, limit);
+    if (!user) return false;
+    const limits = UserSessionService.getPackageLimits(user);
+    return limits[limit] === -1;
   };
 
   // Obtenir le type de package de l'utilisateur
@@ -78,37 +64,34 @@ export const usePackageAccess = () => {
 
   // Vérifier si l'utilisateur peut créer un nouveau formulaire
   const canCreateForm = (currentFormCount: number): boolean => {
-    const result = checkLimit('maxForms', currentFormCount);
-    console.log('🔍 canCreateForm Debug:', {
-      currentFormCount,
-      currentPackageType,
-      packageLimit: getLimit('maxForms'),
-      payAsYouGoCapacity: getPayAsYouGoCapacity('maxForms'),
-      totalCapacity: getTotalLimit('maxForms'),
-      payAsYouGoResources: user?.payAsYouGoResources,
-      result
-    });
-    return result;
+    if (!user) return false;
+    return UserSessionService.canPerformAction(user, 'createForm', currentFormCount);
   };
 
   // Vérifier si l'utilisateur peut créer un nouveau tableau de bord
   const canCreateDashboard = (currentDashboardCount: number): boolean => {
-    return checkLimit('maxDashboards', currentDashboardCount);
+    if (!user) return false;
+    return UserSessionService.canPerformAction(user, 'createDashboard', currentDashboardCount);
   };
 
   // Vérifier si l'utilisateur peut ajouter un nouvel utilisateur
   const canAddUser = (currentUserCount: number): boolean => {
-    return checkLimit('maxUsers', currentUserCount);
+    if (!user) return false;
+    return UserSessionService.canPerformAction(user, 'addUser', currentUserCount);
   };
 
   // Obtenir le nombre de tokens mensuels disponibles
   const getMonthlyTokens = (): number => {
-    return getLimit('monthlyTokens');
+    if (!user) return 0;
+    const limits = UserSessionService.getPackageLimits(user);
+    return limits.monthlyTokens;
   };
 
   // Vérifier si l'utilisateur a des tokens illimités
   const hasUnlimitedTokens = (): boolean => {
-    return isLimitUnlimited('monthlyTokens');
+    if (!user) return false;
+    const limits = UserSessionService.getPackageLimits(user);
+    return limits.monthlyTokens === -1;
   };
 
   // Vérifier si l'utilisateur peut utiliser une fonctionnalité IA avancée
@@ -133,28 +116,15 @@ export const usePackageAccess = () => {
 
   // Obtenir la capacité pay-as-you-go pour un type de limite
   const getPayAsYouGoCapacity = (limit: keyof PackageLimits): number => {
-    if (!user?.payAsYouGoResources) return 0;
+    if (!user) return 0;
     
-    let resourceType: 'forms' | 'dashboards' | 'users' | 'tokens';
-    switch (limit) {
-      case 'maxForms':
-        resourceType = 'forms';
-        break;
-      case 'maxDashboards':
-        resourceType = 'dashboards';
-        break;
-      case 'maxUsers':
-        resourceType = 'users';
-        break;
-      case 'monthlyTokens':
-        resourceType = 'tokens';
-        break;
-      default:
-        return 0;
+    // For tokens, get from pay-as-you-go sessions
+    if (limit === 'monthlyTokens') {
+      return UserSessionService.getTotalPayAsYouGoTokens(user);
     }
     
-    // Get the additional capacity from pay-as-you-go resources
-    return user.payAsYouGoResources[resourceType] || 0;
+    // For other limits, we don't have pay-as-you-go capacity in the new system
+    return 0;
   };
 
   // Obtenir la limite totale (package + pay-as-you-go)
@@ -197,7 +167,8 @@ export const usePackageAccess = () => {
     
     // Informations sur l'utilisateur
     user,
-    packageType: currentPackageType
+    packageType: currentPackageType,
+    packageInfo: packageInfo
   };
 };
 

@@ -13,6 +13,7 @@ import { auth, db } from '../firebaseConfig';
 import { User } from '../types';
 import { getPackageLimit, isUnlimited, PackageType } from '../config/packageFeatures';
 import { AnalyticsService } from '../services/analyticsService';
+import { SubscriptionSessionService } from '../services/subscriptionSessionService';
 
 interface AuthContextType {
   user: User | null;
@@ -353,6 +354,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       };
       
       await setDoc(doc(db, 'users', userCredential.user.uid), userData);
+      
+      // Track user addition in subscription session (only for employees added by directors)
+      if (role === 'employe') {
+        try {
+          // Find the director of this agency to track the user addition
+          const directorsQuery = query(
+            collection(db, 'users'),
+            where('agencyId', '==', agencyId),
+            where('role', '==', 'directeur')
+          );
+          const directorsSnapshot = await getDocs(directorsQuery);
+          
+          if (!directorsSnapshot.empty) {
+            const director = directorsSnapshot.docs[0];
+            await SubscriptionSessionService.updateUsage(director.id, 'users', 1);
+          }
+        } catch (trackingError) {
+          console.warn('Failed to track user addition:', trackingError);
+        }
+      }
       
       // Track registration analytics
       try {

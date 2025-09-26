@@ -46,8 +46,20 @@ export interface SubscriptionSession {
   payAsYouGoResources?: PayAsYouGoResources;
   
   // Usage tracking per session
-  usage: {
+  usage?: {
     tokensUsed: number; // Total tokens used in this session
+    formsCreated: number; // Total forms created in this session
+    dashboardsCreated: number; // Total dashboards created in this session
+    usersAdded: number; // Total users added in this session
+    lastFormCreated?: Date;
+    lastDashboardCreated?: Date;
+    lastUserAdded?: Date;
+    lastTokenUsed?: Date;
+  };
+  
+  // Alternative consumption tracking (for backward compatibility)
+  consumption?: {
+    tokensConsumed: number; // Total tokens consumed in this session
     formsCreated: number; // Total forms created in this session
     dashboardsCreated: number; // Total dashboards created in this session
     usersAdded: number; // Total users added in this session
@@ -84,6 +96,21 @@ export interface User {
   isSuperAdmin?: boolean; // Super admin flag
   adminPermissions?: string[]; // Specific admin permissions
   createdByAdmin?: string; // ID of admin who created this user
+  
+  // Legacy package properties (for backward compatibility)
+  package?: 'starter' | 'standard' | 'premium' | 'custom';
+  tokensUsedMonthly?: number;
+  tokensResetDate?: Date;
+  payAsYouGoTokens?: number;
+  payAsYouGoForms?: number;
+  payAsYouGoDashboards?: number;
+  payAsYouGoUsers?: number;
+  payAsYouGoResources?: {
+    tokens: number;
+    forms: number;
+    dashboards: number;
+    users: number;
+  };
   
   // Timestamps
   createdAt?: any; // Timestamp Firestore

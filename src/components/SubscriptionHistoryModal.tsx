@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, Calendar, CreditCard, Zap, Package, TrendingUp, TrendingDown } from 'lucide-react';
+import { X, Calendar, CreditCard, Zap, Package, TrendingUp, TrendingDown, FileText, BarChart3, Users } from 'lucide-react';
 import { SubscriptionSession } from '../types';
 import { getPackageDisplayName } from '../config/packageFeatures';
 
@@ -18,18 +18,40 @@ export const SubscriptionHistoryModal: React.FC<SubscriptionHistoryModalProps> =
 }) => {
   if (!isOpen) return null;
 
-  const formatDate = (date: Date) => {
+  // Helper function to convert Firestore timestamps to Date objects
+  const convertToDate = (date: any): Date => {
+    if (date instanceof Date) {
+      return date;
+    }
+    if (date && typeof date.toDate === 'function') {
+      return date.toDate();
+    }
+    if (date && typeof date === 'string') {
+      return new Date(date);
+    }
+    if (date && typeof date === 'number') {
+      return new Date(date);
+    }
+    return new Date();
+  };
+
+  const formatDate = (date: any) => {
+    const jsDate = convertToDate(date);
     return new Intl.DateTimeFormat('fr-FR', {
       year: 'numeric',
       month: 'short',
       day: 'numeric',
       hour: '2-digit',
       minute: '2-digit'
-    }).format(date);
+    }).format(jsDate);
   };
 
   const formatAmount = (amount: number) => {
     return new Intl.NumberFormat('fr-FR').format(amount) + ' FCFA';
+  };
+
+  const formatLimit = (limit: number) => {
+    return limit === -1 ? 'Illimité' : limit.toLocaleString();
   };
 
   const getSessionTypeIcon = (sessionType: string) => {
@@ -70,7 +92,7 @@ export const SubscriptionHistoryModal: React.FC<SubscriptionHistoryModalProps> =
     if (session.isActive) {
       return 'bg-green-100 text-green-800 border-green-200';
     }
-    if (new Date() > session.endDate) {
+    if (new Date() > convertToDate(session.endDate)) {
       return 'bg-red-100 text-red-800 border-red-200';
     }
     return 'bg-gray-100 text-gray-800 border-gray-200';
@@ -80,7 +102,7 @@ export const SubscriptionHistoryModal: React.FC<SubscriptionHistoryModalProps> =
     if (session.isActive) {
       return 'Actif';
     }
-    if (new Date() > session.endDate) {
+    if (new Date() > convertToDate(session.endDate)) {
       return 'Expiré';
     }
     return 'Inactif';
@@ -89,8 +111,59 @@ export const SubscriptionHistoryModal: React.FC<SubscriptionHistoryModalProps> =
   // Calculate summary statistics
   const totalSessions = sessions.length;
   const totalAmountPaid = sessions.reduce((sum, session) => sum + session.amountPaid, 0);
-  const totalTokensPurchased = sessions.reduce((sum, session) => sum + session.tokensIncluded, 0);
-  const totalTokensUsed = sessions.reduce((sum, session) => sum + session.tokensUsed, 0);
+  
+  // Helper function to get usage data (fallback to consumption if usage is not available)
+  const getUsageData = (session: any) => {
+    // Try usage field first, then fallback to consumption field
+    const usage = session.usage || session.consumption || {};
+    return {
+      tokensUsed: usage.tokensUsed || usage.tokensConsumed || 0,
+      formsCreated: usage.formsCreated || 0,
+      dashboardsCreated: usage.dashboardsCreated || 0,
+      usersAdded: usage.usersAdded || 0
+    };
+  };
+
+  // Calculate totals for all package aspects
+  const totalTokensPurchased = sessions.reduce((sum, session) => {
+    const packageTokens = session.packageResources?.tokensIncluded || 0;
+    const payAsYouGoTokens = session.payAsYouGoResources?.tokens || 0;
+    return sum + packageTokens + payAsYouGoTokens;
+  }, 0);
+  const totalTokensUsed = sessions.reduce((sum, session) => {
+    const usage = getUsageData(session);
+    return sum + usage.tokensUsed;
+  }, 0);
+  
+  const totalFormsPurchased = sessions.reduce((sum, session) => {
+    const packageForms = session.packageResources?.formsIncluded || 0;
+    const payAsYouGoForms = session.payAsYouGoResources?.forms || 0;
+    return sum + packageForms + payAsYouGoForms;
+  }, 0);
+  const totalFormsUsed = sessions.reduce((sum, session) => {
+    const usage = getUsageData(session);
+    return sum + usage.formsCreated;
+  }, 0);
+  
+  const totalDashboardsPurchased = sessions.reduce((sum, session) => {
+    const packageDashboards = session.packageResources?.dashboardsIncluded || 0;
+    const payAsYouGoDashboards = session.payAsYouGoResources?.dashboards || 0;
+    return sum + packageDashboards + payAsYouGoDashboards;
+  }, 0);
+  const totalDashboardsUsed = sessions.reduce((sum, session) => {
+    const usage = getUsageData(session);
+    return sum + usage.dashboardsCreated;
+  }, 0);
+  
+  const totalUsersPurchased = sessions.reduce((sum, session) => {
+    const packageUsers = session.packageResources?.usersIncluded || 0;
+    const payAsYouGoUsers = session.payAsYouGoResources?.users || 0;
+    return sum + packageUsers + payAsYouGoUsers;
+  }, 0);
+  const totalUsersUsed = sessions.reduce((sum, session) => {
+    const usage = getUsageData(session);
+    return sum + usage.usersAdded;
+  }, 0);
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -108,7 +181,7 @@ export const SubscriptionHistoryModal: React.FC<SubscriptionHistoryModalProps> =
 
         {/* Summary Stats */}
         <div className="p-6 bg-gray-50 border-b">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
             <div className="text-center">
               <div className="text-2xl font-bold text-blue-600">{totalSessions}</div>
               <div className="text-sm text-gray-600">Sessions</div>
@@ -126,6 +199,22 @@ export const SubscriptionHistoryModal: React.FC<SubscriptionHistoryModalProps> =
               <div className="text-sm text-gray-600">Tokens Utilisés</div>
             </div>
           </div>
+          
+          {/* Additional Package Resources Summary */}
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4 pt-4 border-t border-gray-200">
+            <div className="text-center">
+              <div className="text-lg font-bold text-blue-600">{totalFormsUsed.toLocaleString()} / {totalFormsPurchased.toLocaleString()}</div>
+              <div className="text-sm text-gray-600">Formulaires</div>
+            </div>
+            <div className="text-center">
+              <div className="text-lg font-bold text-green-600">{totalDashboardsUsed.toLocaleString()} / {totalDashboardsPurchased.toLocaleString()}</div>
+              <div className="text-sm text-gray-600">Tableaux de bord</div>
+            </div>
+            <div className="text-center">
+              <div className="text-lg font-bold text-purple-600">{totalUsersUsed.toLocaleString()} / {totalUsersPurchased.toLocaleString()}</div>
+              <div className="text-sm text-gray-600">Utilisateurs</div>
+            </div>
+          </div>
         </div>
 
         {/* Sessions List */}
@@ -138,7 +227,7 @@ export const SubscriptionHistoryModal: React.FC<SubscriptionHistoryModalProps> =
           ) : (
             <div className="divide-y divide-gray-200">
               {sessions
-                .sort((a, b) => b.startDate.getTime() - a.startDate.getTime())
+                .sort((a, b) => convertToDate(b.startDate).getTime() - convertToDate(a.startDate).getTime())
                 .map((session) => (
                   <div
                     key={session.id}
@@ -168,6 +257,8 @@ export const SubscriptionHistoryModal: React.FC<SubscriptionHistoryModalProps> =
                             </span>
                           </div>
                           
+                          <div className="space-y-3">
+                            {/* Date and Amount */}
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-gray-600">
                             <div className="flex items-center space-x-2">
                               <Calendar className="h-4 w-4" />
@@ -179,13 +270,82 @@ export const SubscriptionHistoryModal: React.FC<SubscriptionHistoryModalProps> =
                             <div className="flex items-center space-x-2">
                               <CreditCard className="h-4 w-4" />
                               <span>{formatAmount(session.amountPaid)}</span>
+                              </div>
                             </div>
                             
+                            {/* Package Resources Usage */}
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                              {/* Tokens */}
                             <div className="flex items-center space-x-2">
-                              <Zap className="h-4 w-4" />
-                              <span>
-                                {session.tokensUsed.toLocaleString()} / {session.tokensIncluded.toLocaleString()} tokens
-                              </span>
+                                <Zap className="h-4 w-4 text-yellow-500" />
+                                <div>
+                                  <div className="font-medium text-gray-900">
+                                    {getUsageData(session).tokensUsed.toLocaleString()} / {
+                                  (session.packageResources?.tokensIncluded || 0) + (session.payAsYouGoResources?.tokens || 0)
+                                    }
+                                  </div>
+                                  <div className="text-xs text-gray-500">Tokens</div>
+                                {(session.payAsYouGoResources?.tokens || 0) > 0 && (
+                                    <div className="text-xs text-green-600">
+                                    (+{session.payAsYouGoResources.tokens} pay-as-you-go)
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* Forms */}
+                              <div className="flex items-center space-x-2">
+                                <FileText className="h-4 w-4 text-blue-500" />
+                                <div>
+                                  <div className="font-medium text-gray-900">
+                                    {getUsageData(session).formsCreated.toLocaleString()} / {
+                                      formatLimit((session.packageResources?.formsIncluded || 0) + (session.payAsYouGoResources?.forms || 0))
+                                    }
+                                  </div>
+                                  <div className="text-xs text-gray-500">Formulaires</div>
+                                  {(session.payAsYouGoResources?.forms || 0) > 0 && (
+                                    <div className="text-xs text-green-600">
+                                      (+{session.payAsYouGoResources.forms} pay-as-you-go)
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* Dashboards */}
+                              <div className="flex items-center space-x-2">
+                                <BarChart3 className="h-4 w-4 text-green-500" />
+                                <div>
+                                  <div className="font-medium text-gray-900">
+                                    {getUsageData(session).dashboardsCreated.toLocaleString()} / {
+                                      formatLimit((session.packageResources?.dashboardsIncluded || 0) + (session.payAsYouGoResources?.dashboards || 0))
+                                    }
+                                  </div>
+                                  <div className="text-xs text-gray-500">Tableaux de bord</div>
+                                  {(session.payAsYouGoResources?.dashboards || 0) > 0 && (
+                                    <div className="text-xs text-green-600">
+                                      (+{session.payAsYouGoResources.dashboards} pay-as-you-go)
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* Users */}
+                              <div className="flex items-center space-x-2">
+                                <Users className="h-4 w-4 text-purple-500" />
+                                <div>
+                                  <div className="font-medium text-gray-900">
+                                    {getUsageData(session).usersAdded.toLocaleString()} / {
+                                      formatLimit((session.packageResources?.usersIncluded || 0) + (session.payAsYouGoResources?.users || 0))
+                                    }
+                                  </div>
+                                  <div className="text-xs text-gray-500">Utilisateurs</div>
+                                  {(session.payAsYouGoResources?.users || 0) > 0 && (
+                                    <div className="text-xs text-green-600">
+                                      (+{session.payAsYouGoResources.users} pay-as-you-go)
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
                             </div>
                             
                             <div className="text-xs text-gray-500">

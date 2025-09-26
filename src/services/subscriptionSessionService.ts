@@ -1,6 +1,6 @@
 import { doc, updateDoc, getDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
-import { SubscriptionSession, User } from '../types';
+import { SubscriptionSession, User, PayAsYouGoPurchase } from '../types';
 import { PACKAGE_LIMITS } from '../config/packageFeatures';
 
 export class SubscriptionSessionService {
@@ -50,23 +50,44 @@ export class SubscriptionSessionService {
       // Generate unique session ID
       const sessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       
-      // Create new session with consumption tracking
+      // Get package limits for the selected package
+      const packageLimits = PACKAGE_LIMITS[sessionData.packageType];
+      
+      // Create new session with proper structure
       const newSession: SubscriptionSession = {
         ...sessionData,
         id: sessionId,
         createdAt: now,
         updatedAt: now,
-        consumption: {
+        
+        // Package resources from the selected package
+        packageResources: {
+          tokensIncluded: packageLimits.monthlyTokens,
+          formsIncluded: packageLimits.maxForms,
+          dashboardsIncluded: packageLimits.maxDashboards,
+          usersIncluded: packageLimits.maxUsers
+        },
+        
+        // Initialize pay-as-you-go resources (empty by default)
+        payAsYouGoResources: {
+          tokens: 0,
+          forms: 0,
+          dashboards: 0,
+          users: 0,
+          purchases: []
+        },
+        
+        // Initialize usage tracking
+        usage: {
+          tokensUsed: 0,
           formsCreated: 0,
           dashboardsCreated: 0,
-          usersAdded: 0,
-          tokensConsumed: 0
+          usersAdded: 0
         }
       };
       
-      // Deactivate current session if exists
-      const currentSessions = userData.subscriptionSessions || [];
-      const updatedSessions = currentSessions.map(session => ({
+      // Deactivate all existing sessions
+      const updatedSessions = (userData.subscriptionSessions || []).map(session => ({
         ...session,
         isActive: false,
         updatedAt: now
@@ -75,14 +96,10 @@ export class SubscriptionSessionService {
       // Add new session
       updatedSessions.push(newSession);
       
-      // Update user document
+      // Update user document with new session
       await updateDoc(userDocRef, {
         subscriptionSessions: updatedSessions,
         currentSessionId: sessionId,
-        package: sessionData.packageType,
-        subscriptionStartDate: sessionData.startDate,
-        subscriptionEndDate: sessionData.endDate,
-        subscriptionStatus: 'active',
         updatedAt: serverTimestamp()
       });
       
@@ -111,75 +128,15 @@ export class SubscriptionSessionService {
   }
   
   /**
-   * Get all sessions for a user
-   * @param userData - Données utilisateur
-   * @returns SubscriptionSession[]
-   */
-  static getAllSessions(userData: User): SubscriptionSession[] {
-    return userData.subscriptionSessions || [];
-  }
-  
-  /**
-   * Get sessions by type
-   * @param userData - Données utilisateur
-   * @param sessionType - Type de session
-   * @returns SubscriptionSession[]
-   */
-  static getSessionsByType(userData: User, sessionType: SubscriptionSession['sessionType']): SubscriptionSession[] {
-    return (userData.subscriptionSessions || []).filter(session => session.sessionType === sessionType);
-  }
-  
-  /**
-   * Check if user has active subscription
-   * @param userData - Données utilisateur
-   * @returns boolean
-   */
-  static isSubscriptionActive(userData: User): boolean {
-    const currentSession = this.getCurrentSession(userData);
-    if (!currentSession) return false;
-    
-    const now = new Date();
-    const endDate = this.convertToDate(currentSession.endDate);
-    
-    return now <= endDate;
-  }
-  
-  /**
-   * Get days until subscription expires
-   * @param userData - Données utilisateur
-   * @returns number - Nombre de jours restants (-1 si pas d'abonnement)
-   */
-  static getDaysUntilExpiration(userData: User): number {
-    const currentSession = this.getCurrentSession(userData);
-    if (!currentSession) return -1;
-    
-    const now = new Date();
-    const endDate = this.convertToDate(currentSession.endDate);
-    
-    const timeDiff = endDate.getTime() - now.getTime();
-    return Math.ceil(timeDiff / (1000 * 60 * 60 * 24));
-  }
-  
-  /**
-   * Get total tokens available for current session
-   * @param userData - Données utilisateur
-   * @returns number
-   */
-  static getAvailableTokens(userData: User): number {
-    const currentSession = this.getCurrentSession(userData);
-    if (!currentSession) return 0;
-    
-    return currentSession.tokensIncluded - currentSession.tokensUsed;
-  }
-  
-  /**
-   * Consume tokens for current session
+   * Add pay-as-you-go resources to current session
    * @param userId - ID de l'utilisateur
-   * @param tokensToConsume - Nombre de tokens à consommer
-   * @returns Promise<boolean> - true si la consommation a réussi
+   * @param purchase - Pay-as-you-go purchase details
+   * @returns Promise<boolean> - true si l'ajout a réussi
    */
-  static async consumeTokens(userId: string, tokensToConsume: number): Promise<boolean> {
-    
+  static async addPayAsYouGoResources(
+    userId: string,
+    purchase: Omit<PayAsYouGoPurchase, 'id'>
+  ): Promise<boolean> {
     try {
       const userDocRef = doc(db, 'users', userId);
       const userDoc = await getDoc(userDocRef);
@@ -192,179 +149,207 @@ export class SubscriptionSessionService {
       const userData = userDoc.data() as User;
       const currentSession = this.getCurrentSession(userData);
       
-      
       if (!currentSession) {
-        console.error('Aucune session active trouvée');
+        console.error('Aucune session active trouvée pour l\'utilisateur:', userId);
         return false;
       }
       
-      if (currentSession.tokensUsed + tokensToConsume > currentSession.tokensIncluded) {
-        console.error('Pas assez de tokens disponibles');
-        return false;
-      }
+      const now = new Date();
+      const purchaseId = `pay_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       
-      // Update session tokens used
-      const updatedSessions = userData.subscriptionSessions!.map(session => {
+      // Create purchase record
+      const newPurchase: PayAsYouGoPurchase = {
+        ...purchase,
+        id: purchaseId,
+        purchaseDate: now
+      };
+      
+      // Update current session with new pay-as-you-go resources
+      const updatedSessions = userData.subscriptionSessions.map(session => {
         if (session.id === currentSession.id) {
-          const newTokensUsed = session.tokensUsed + tokensToConsume;
+          const currentPayAsYouGo = session.payAsYouGoResources || {
+            tokens: 0,
+            forms: 0,
+            dashboards: 0,
+            users: 0,
+            purchases: []
+          };
           
           return {
             ...session,
-            tokensUsed: newTokensUsed,
-            updatedAt: new Date()
+            payAsYouGoResources: {
+              tokens: currentPayAsYouGo.tokens + (purchase.itemType === 'tokens' ? purchase.quantity : 0),
+              forms: currentPayAsYouGo.forms + (purchase.itemType === 'forms' ? purchase.quantity : 0),
+              dashboards: currentPayAsYouGo.dashboards + (purchase.itemType === 'dashboards' ? purchase.quantity : 0),
+              users: currentPayAsYouGo.users + (purchase.itemType === 'users' ? purchase.quantity : 0),
+              purchases: [...currentPayAsYouGo.purchases, newPurchase]
+            },
+            updatedAt: now
           };
         }
         return session;
       });
       
+      // Update user document
       await updateDoc(userDocRef, {
         subscriptionSessions: updatedSessions,
         updatedAt: serverTimestamp()
       });
       
-      console.log(`✅ ${tokensToConsume} tokens consumed for user ${userId}`);
+      console.log(`✅ Pay-as-you-go resources added for user ${userId}: ${purchase.quantity} ${purchase.itemType} for ${purchase.amountPaid} FCFA`);
       return true;
       
     } catch (error) {
-      console.error('Erreur lors de la consommation de tokens:', error);
+      console.error('Erreur lors de l\'ajout des ressources pay-as-you-go:', error);
       return false;
     }
   }
   
   /**
-   * Create a subscription session (monthly package)
+   * Update usage in current session
    * @param userId - ID de l'utilisateur
-   * @param packageType - Type de package
-   * @param durationMonths - Durée en mois
-   * @param amountPaid - Montant payé en FCFA
-   * @param paymentMethod - Méthode de paiement
-   * @returns Promise<boolean>
+   * @param usageType - Type d'usage ('tokens' | 'forms' | 'dashboards' | 'users')
+   * @param quantity - Quantité utilisée
+   * @returns Promise<boolean> - true si la mise à jour a réussi
    */
-  static async createSubscriptionSession(
+  static async updateUsage(
     userId: string,
-    packageType: 'starter' | 'standard' | 'premium' | 'custom',
-    durationMonths: number = 1,
-    amountPaid: number,
-    paymentMethod?: string
+    usageType: 'tokens' | 'forms' | 'dashboards' | 'users',
+    quantity: number = 1
   ): Promise<boolean> {
-    const now = new Date();
-    const endDate = new Date(now.getTime() + (durationMonths * 30 * 24 * 60 * 60 * 1000));
-    const tokensIncluded = PACKAGE_LIMITS[packageType].monthlyTokens * durationMonths;
-    
-    return this.createSession(userId, {
-      packageType,
-      sessionType: 'subscription',
-      startDate: now,
-      endDate,
-      amountPaid,
-      durationDays: durationMonths * 30,
-      tokensIncluded,
-      tokensUsed: 0,
-      isActive: true,
-      paymentMethod,
-      notes: `Abonnement ${packageType} pour ${durationMonths} mois`
-    });
+    try {
+      const userDocRef = doc(db, 'users', userId);
+      const userDoc = await getDoc(userDocRef);
+      
+      if (!userDoc.exists()) {
+        console.error('Utilisateur non trouvé:', userId);
+        return false;
+      }
+      
+      const userData = userDoc.data() as User;
+      const currentSession = this.getCurrentSession(userData);
+      
+      if (!currentSession) {
+        console.error('Aucune session active trouvée pour l\'utilisateur:', userId);
+        return false;
+      }
+      
+      const now = new Date();
+      
+      // Update current session usage
+      const updatedSessions = userData.subscriptionSessions.map(session => {
+        if (session.id === currentSession.id) {
+          const currentUsage = session.usage || {
+            tokensUsed: 0,
+            formsCreated: 0,
+            dashboardsCreated: 0,
+            usersAdded: 0
+          };
+          
+          return {
+            ...session,
+            usage: {
+              ...currentUsage,
+              tokensUsed: currentUsage.tokensUsed + (usageType === 'tokens' ? quantity : 0),
+              formsCreated: currentUsage.formsCreated + (usageType === 'forms' ? quantity : 0),
+              dashboardsCreated: currentUsage.dashboardsCreated + (usageType === 'dashboards' ? quantity : 0),
+              usersAdded: currentUsage.usersAdded + (usageType === 'users' ? quantity : 0),
+              lastTokenUsed: usageType === 'tokens' ? now : currentUsage.lastTokenUsed,
+              lastFormCreated: usageType === 'forms' ? now : currentUsage.lastFormCreated,
+              lastDashboardCreated: usageType === 'dashboards' ? now : currentUsage.lastDashboardCreated,
+              lastUserAdded: usageType === 'users' ? now : currentUsage.lastUserAdded
+            },
+            updatedAt: now
+          };
+        }
+        return session;
+      });
+      
+      // Update user document
+      await updateDoc(userDocRef, {
+        subscriptionSessions: updatedSessions,
+        updatedAt: serverTimestamp()
+      });
+      
+      console.log(`✅ Usage updated for user ${userId}: ${quantity} ${usageType}`);
+      return true;
+      
+    } catch (error) {
+      console.error('Erreur lors de la mise à jour de l\'usage:', error);
+      return false;
+    }
   }
   
   /**
-   * Create a pay-as-you-go session (token purchase)
-   * @param userId - ID de l'utilisateur
-   * @param tokensPurchased - Nombre de tokens achetés
-   * @param amountPaid - Montant payé en FCFA
-   * @param paymentMethod - Méthode de paiement
-   * @returns Promise<boolean>
-   */
-  static async createPayAsYouGoSession(
-    userId: string,
-    tokensPurchased: number,
-    amountPaid: number,
-    paymentMethod?: string
-  ): Promise<boolean> {
-    const now = new Date();
-    const endDate = new Date(now.getTime() + (30 * 24 * 60 * 60 * 1000)); // 30 days extension
-    
-    return this.createSession(userId, {
-      packageType: 'starter', // Pay-as-you-go uses starter package features
-      sessionType: 'pay_as_you_go',
-      startDate: now,
-      endDate,
-      amountPaid,
-      durationDays: 30,
-      tokensIncluded: tokensPurchased,
-      tokensUsed: 0,
-      isActive: true,
-      paymentMethod,
-      notes: `Achat de ${tokensPurchased} tokens pay-as-you-go`
-    });
-  }
-  
-  /**
-   * Create an upgrade/downgrade session (DEPRECATED - Use PackageTransitionService)
-   * @param userId - ID de l'utilisateur
-   * @param newPackageType - Nouveau type de package
-   * @param amountPaid - Montant payé en FCFA (peut être négatif pour downgrade)
-   * @param paymentMethod - Méthode de paiement
-   * @returns Promise<boolean>
-   * @deprecated Use PackageTransitionService.executeTransition() instead
-   */
-  static async createUpgradeDowngradeSession(
-    userId: string,
-    newPackageType: 'starter' | 'standard' | 'premium' | 'custom',
-    amountPaid: number,
-    paymentMethod?: string
-  ): Promise<boolean> {
-    console.warn('⚠️ createUpgradeDowngradeSession is deprecated. Use PackageTransitionService.executeTransition() instead.');
-    
-    const now = new Date();
-    const endDate = new Date(now.getTime() + (30 * 24 * 60 * 60 * 1000)); // 30 days
-    const tokensIncluded = PACKAGE_LIMITS[newPackageType].monthlyTokens;
-    
-    return this.createSession(userId, {
-      packageType: newPackageType,
-      sessionType: amountPaid >= 0 ? 'upgrade' : 'downgrade',
-      startDate: now,
-      endDate,
-      amountPaid: Math.abs(amountPaid),
-      durationDays: 30,
-      tokensIncluded,
-      tokensUsed: 0,
-      isActive: true,
-      paymentMethod,
-      notes: `${amountPaid >= 0 ? 'Upgrade' : 'Downgrade'} vers ${newPackageType} (méthode dépréciée)`
-    });
-  }
-  
-  /**
-   * Get subscription history summary
+   * Get all sessions for a user
    * @param userData - Données utilisateur
-   * @returns Object with summary statistics
+   * @returns SubscriptionSession[]
    */
-  static getSubscriptionHistorySummary(userData: User) {
-    const sessions = this.getAllSessions(userData);
-    
-    const totalSessions = sessions.length;
-    const totalAmountPaid = sessions.reduce((sum, session) => sum + session.amountPaid, 0);
-    const totalTokensPurchased = sessions.reduce((sum, session) => sum + session.tokensIncluded, 0);
-    const totalTokensUsed = sessions.reduce((sum, session) => sum + session.tokensUsed, 0);
-    
-    const sessionsByType = sessions.reduce((acc, session) => {
-      acc[session.sessionType] = (acc[session.sessionType] || 0) + 1;
-      return acc;
-    }, {} as Record<string, number>);
-    
-    const sessionsByPackage = sessions.reduce((acc, session) => {
-      acc[session.packageType] = (acc[session.packageType] || 0) + 1;
-      return acc;
-    }, {} as Record<string, number>);
-    
-    return {
-      totalSessions,
-      totalAmountPaid,
-      totalTokensPurchased,
-      totalTokensUsed,
-      sessionsByType,
-      sessionsByPackage,
-      currentSession: this.getCurrentSession(userData)
-    };
+  static getAllSessions(userData: User): SubscriptionSession[] {
+    return userData.subscriptionSessions || [];
+  }
+  
+  /**
+   * Get session by ID
+   * @param userData - Données utilisateur
+   * @param sessionId - ID de la session
+   * @returns SubscriptionSession | null
+   */
+  static getSessionById(userData: User, sessionId: string): SubscriptionSession | null {
+    const sessions = userData.subscriptionSessions || [];
+    return sessions.find(session => session.id === sessionId) || null;
+  }
+  
+  /**
+   * Deactivate current session
+   * @param userId - ID de l'utilisateur
+   * @returns Promise<boolean> - true si la désactivation a réussi
+   */
+  static async deactivateCurrentSession(userId: string): Promise<boolean> {
+    try {
+      const userDocRef = doc(db, 'users', userId);
+      const userDoc = await getDoc(userDocRef);
+      
+      if (!userDoc.exists()) {
+        console.error('Utilisateur non trouvé:', userId);
+        return false;
+      }
+      
+      const userData = userDoc.data() as User;
+      const currentSession = this.getCurrentSession(userData);
+      
+      if (!currentSession) {
+        console.error('Aucune session active trouvée pour l\'utilisateur:', userId);
+        return false;
+      }
+      
+      const now = new Date();
+      
+      // Deactivate current session
+      const updatedSessions = userData.subscriptionSessions.map(session => {
+        if (session.id === currentSession.id) {
+          return {
+            ...session,
+            isActive: false,
+            updatedAt: now
+          };
+        }
+        return session;
+      });
+      
+      // Update user document
+      await updateDoc(userDocRef, {
+        subscriptionSessions: updatedSessions,
+        currentSessionId: null,
+        updatedAt: serverTimestamp()
+      });
+      
+      console.log(`✅ Session deactivated for user ${userId}: ${currentSession.id}`);
+      return true;
+      
+    } catch (error) {
+      console.error('Erreur lors de la désactivation de la session:', error);
+      return false;
+    }
   }
 }

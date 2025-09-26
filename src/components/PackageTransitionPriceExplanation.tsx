@@ -46,7 +46,7 @@ export const PackageTransitionPriceExplanation: React.FC<PackageTransitionPriceE
       case 'maxForms': return 'Formulaires';
       case 'maxDashboards': return 'Tableaux de bord';
       case 'maxUsers': return 'Utilisateurs';
-      case 'monthlyTokens': return 'Tokens IA';
+      case 'monthlyTokens': return 'Tokens ARCHA';
       default: return feature;
     }
   };
@@ -100,15 +100,6 @@ export const PackageTransitionPriceExplanation: React.FC<PackageTransitionPriceE
             </span>
           </div>
           
-          {/* Pay-as-you-go Cost */}
-          {priceBreakdown.payAsYouGoCost > 0 && (
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-gray-600">Coût pay-as-you-go</span>
-              <span className="text-sm font-medium text-orange-600">
-                +{formatPrice(priceBreakdown.payAsYouGoCost)}
-              </span>
-            </div>
-          )}
           
           {/* Divider */}
           <div className="border-t border-gray-200"></div>
@@ -210,21 +201,6 @@ export const PackageTransitionPriceExplanation: React.FC<PackageTransitionPriceE
         </div>
       )}
 
-      {/* Calculation Formula */}
-      <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-        <h4 className="font-medium text-gray-900 mb-2">Formule de calcul</h4>
-        <div className="text-sm text-gray-600 space-y-1">
-          <p><strong>Montant à payer =</strong> Prix du nouveau package - Valeur restante du package actuel + Coût pay-as-you-go</p>
-          <p><strong>Valeur restante =</strong> (Prix du package actuel × Jours restants) ÷ 30 jours</p>
-          {daysRemaining > 0 && (
-            <p className="text-xs text-gray-500 mt-2">
-              Dans votre cas: {formatPrice(priceBreakdown.newPackagePrice)} - {formatPrice(priceBreakdown.currentPackageRemainingValue)}
-              {priceBreakdown.payAsYouGoCost > 0 && ` + ${formatPrice(priceBreakdown.payAsYouGoCost)}`}
-              {' = '}{formatPrice(priceBreakdown.finalAmount)}
-            </p>
-          )}
-        </div>
-      </div>
     </div>
   );
 };

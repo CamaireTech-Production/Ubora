@@ -20,6 +20,7 @@ import { useAuth } from './AuthContext';
 import { usePackageAccess } from '../hooks/usePackageAccess';
 import { PermissionManager } from '../utils/PermissionManager';
 import { AnalyticsService } from '../services/analyticsService';
+import { SubscriptionSessionService } from '../services/subscriptionSessionService';
 
 interface AppContextType {
   forms: Form[];
@@ -56,45 +57,60 @@ interface AppContextType {
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { user, firebaseUser } = useAuth();
-  const { canCreateForm, canCreateDashboard } = usePackageAccess();
+  // Safely get auth context
+  let user, firebaseUser;
+  try {
+    const authContext = useAuth();
+    user = authContext.user;
+    firebaseUser = authContext.firebaseUser;
+  } catch (error) {
+    // If useAuth fails (context not ready), provide default values
+    user = null;
+    firebaseUser = null;
+  }
   
-  // Guard: Ensure we have the required context data before rendering children
+  // Always provide a context value, but with different behavior based on auth state
+  const defaultContextValue = {
+    forms: [],
+    formEntries: [],
+    employees: [],
+    dashboards: [],
+    createForm: async () => {},
+    updateForm: async () => {},
+    submitFormEntry: async () => {},
+    updateFormEntry: async () => {},
+    submitMultipleFormEntries: async () => {},
+    deleteForm: async () => {},
+    getFormsForEmployee: () => [],
+    getEntriesForForm: () => [],
+    getEntriesForEmployee: () => [],
+    getEmployeesForAgency: () => [],
+    getPendingEmployees: () => [],
+    refreshData: () => {},
+    createDashboard: async () => {},
+    updateDashboard: async () => {},
+    deleteDashboard: async () => {},
+    getDashboardsForDirector: () => [],
+    getDraftsForForm: () => [],
+    saveDraft: () => {},
+    deleteDraft: () => {},
+    deleteDraftsForForm: () => {},
+    createDraft: () => ({ id: '', formId: '', userId: '', agencyId: '', answers: {}, fileAttachments: [], isDraft: true as const, createdAt: new Date(), updatedAt: new Date() }),
+    isLoading: true,
+    error: null
+  };
+  
+  // Guard: If not authenticated, provide default context
   if (!user || !firebaseUser) {
     return (
-      <AppContext.Provider value={{
-        forms: [],
-        formEntries: [],
-        employees: [],
-        dashboards: [],
-        createForm: async () => {},
-        updateForm: async () => {},
-        submitFormEntry: async () => {},
-        updateFormEntry: async () => {},
-        submitMultipleFormEntries: async () => {},
-        deleteForm: async () => {},
-        getFormsForEmployee: () => [],
-        getEntriesForForm: () => [],
-        getEntriesForEmployee: () => [],
-        getEmployeesForAgency: () => [],
-        getPendingEmployees: () => [],
-        refreshData: () => {},
-        createDashboard: async () => {},
-        updateDashboard: async () => {},
-        deleteDashboard: async () => {},
-        getDashboardsForDirector: () => [],
-        getDraftsForForm: () => [],
-        saveDraft: () => {},
-        deleteDraft: () => {},
-        deleteDraftsForForm: () => {},
-        createDraft: () => ({ id: '', formId: '', userId: '', agencyId: '', answers: {}, fileAttachments: [], isDraft: true, createdAt: new Date(), updatedAt: new Date() }),
-        isLoading: true,
-        error: null
-      }}>
+      <AppContext.Provider value={defaultContextValue}>
         {children}
       </AppContext.Provider>
     );
   }
+
+  // Now we can safely use package access since user is authenticated
+  const { canCreateForm, canCreateDashboard } = usePackageAccess();
   
   const [forms, setForms] = useState<Form[]>([]);
   const [formEntries, setFormEntries] = useState<FormEntry[]>([]);
@@ -341,6 +357,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
 
       await addDoc(collection(db, 'forms'), docData);
+      
+      // Track form creation in subscription session (only for directors)
+      if (user.role === 'directeur' && firebaseUser) {
+        try {
+          await SubscriptionSessionService.updateUsage(firebaseUser.uid, 'forms', 1);
+        } catch (trackingError) {
+          console.warn('Failed to track form creation:', trackingError);
+        }
+      }
     } catch (err) {
       console.error('Erreur lors de la création du formulaire:', err);
       setError('Erreur lors de la création du formulaire');
@@ -593,6 +618,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
 
       await addDoc(collection(db, 'dashboards'), docData);
+      
+      // Track dashboard creation in subscription session (only for directors)
+      if (user.role === 'directeur' && firebaseUser) {
+        try {
+          await SubscriptionSessionService.updateUsage(firebaseUser.uid, 'dashboards', 1);
+        } catch (trackingError) {
+          console.warn('Failed to track dashboard creation:', trackingError);
+        }
+      }
     } catch (err) {
       console.error('Erreur lors de la création du tableau de bord:', err);
       setError('Erreur lors de la création du tableau de bord');
@@ -711,7 +745,36 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 export const useApp = () => {
   const context = useContext(AppContext);
   if (context === undefined) {
-    throw new Error('useApp must be used within an AppProvider');
+    // During initialization, return default values instead of throwing
+    return {
+      forms: [],
+      formEntries: [],
+      employees: [],
+      dashboards: [],
+      createForm: async () => {},
+      updateForm: async () => {},
+      submitFormEntry: async () => {},
+      updateFormEntry: async () => {},
+      submitMultipleFormEntries: async () => {},
+      deleteForm: async () => {},
+      getFormsForEmployee: () => [],
+      getEntriesForForm: () => [],
+      getEntriesForEmployee: () => [],
+      getEmployeesForAgency: () => [],
+      getPendingEmployees: () => [],
+      refreshData: () => {},
+      createDashboard: async () => {},
+      updateDashboard: async () => {},
+      deleteDashboard: async () => {},
+      getDashboardsForDirector: () => [],
+      getDraftsForForm: () => [],
+      saveDraft: () => {},
+      deleteDraft: () => {},
+      deleteDraftsForForm: () => {},
+      createDraft: () => ({ id: '', formId: '', userId: '', agencyId: '', answers: {}, fileAttachments: [], isDraft: true as const, createdAt: new Date(), updatedAt: new Date() }),
+      isLoading: true,
+      error: null
+    };
   }
   return context;
 };

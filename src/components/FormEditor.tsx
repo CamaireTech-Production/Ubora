@@ -599,7 +599,7 @@ export const FormEditor: React.FC<FormEditorProps> = ({
                           </div>
                           
                           <FormulaInput
-                            value={field.calculationFormula || ''}
+                                value={field.calculationFormula || ''}
                             onChange={(formula, fieldIds) => {
                               updateField(field.id, { 
                                 calculationFormula: formula,
@@ -617,14 +617,14 @@ export const FormEditor: React.FC<FormEditorProps> = ({
                               <p className="text-sm font-medium text-gray-700 mb-2">Champs utilisés dans la formule :</p>
                               <div className="flex flex-wrap gap-2">
                                 {field.dependsOn.map(fieldId => {
-                                  const dependentField = fields.find(f => f.id === fieldId);
-                                  return dependentField ? (
+                                    const dependentField = fields.find(f => f.id === fieldId);
+                                    return dependentField ? (
                                     <div key={fieldId} className="flex items-center space-x-1 px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs">
                                       <span>{dependentField.label}</span>
                                       <span className="text-blue-600">({dependentField.type})</span>
-                                    </div>
-                                  ) : null;
-                                })}
+                                      </div>
+                                    ) : null;
+                                  })}
                               </div>
                             </div>
                           )}

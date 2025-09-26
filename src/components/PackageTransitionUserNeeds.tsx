@@ -74,10 +74,10 @@ export const PackageTransitionUserNeeds: React.FC<PackageTransitionUserNeedsProp
       case 'tokens':
         return {
           icon: <Zap className="h-4 w-4" />,
-          name: 'Tokens IA',
+          name: 'Tokens ARCHA',
           currentLimit: PACKAGE_LIMITS[currentPackage].monthlyTokens,
           newLimit: PACKAGE_LIMITS[newPackage].monthlyTokens,
-          description: 'Tokens IA supplémentaires nécessaires'
+          description: 'Tokens ARCHA supplémentaires nécessaires'
         };
       default:
         return {
