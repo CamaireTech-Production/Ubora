@@ -1,27 +1,56 @@
 // Types pour l'application multi-agences avec formulaires dynamiques
+// Pay-as-you-go purchase tracking
+export interface PayAsYouGoPurchase {
+  id: string; // Unique purchase ID
+  purchaseDate: Date;
+  itemType: 'tokens' | 'forms' | 'dashboards' | 'users';
+  quantity: number; // Number of items purchased
+  amountPaid: number; // Amount paid in FCFA
+  paymentMethod?: string;
+  notes?: string;
+}
+
+// Pay-as-you-go resources available in session
+export interface PayAsYouGoResources {
+  tokens: number; // Additional tokens purchased
+  forms: number; // Additional forms purchased
+  dashboards: number; // Additional dashboards purchased
+  users: number; // Additional users purchased
+  purchases: PayAsYouGoPurchase[]; // Historical purchases
+}
+
 // Subscription Session Types
 export interface SubscriptionSession {
   id: string; // Unique session ID
   packageType: 'starter' | 'standard' | 'premium' | 'custom';
-  sessionType: 'subscription' | 'pay_as_you_go' | 'upgrade' | 'downgrade' | 'renewal';
+  sessionType: 'subscription' | 'upgrade' | 'downgrade' | 'renewal';
   startDate: Date;
   endDate: Date;
-  amountPaid: number; // Amount paid in FCFA
+  amountPaid: number; // Amount paid for the package in FCFA
   durationDays: number; // Duration in days
-  tokensIncluded: number; // Tokens included in this session
-  tokensUsed: number; // Tokens used during this session
   isActive: boolean; // Whether this session is currently active
   paymentMethod?: string; // Payment method used
   notes?: string; // Additional notes
   createdAt: Date;
   updatedAt: Date;
   
-  // Comprehensive consumption tracking per session
-  consumption?: {
-    formsCreated: number;
-    dashboardsCreated: number;
-    usersAdded: number;
-    tokensConsumed: number;
+  // Package resources (from the selected package)
+  packageResources: {
+    tokensIncluded: number; // Tokens included in the package
+    formsIncluded: number; // Forms included in the package
+    dashboardsIncluded: number; // Dashboards included in the package
+    usersIncluded: number; // Users included in the package
+  };
+  
+  // Pay-as-you-go resources (additional purchases)
+  payAsYouGoResources?: PayAsYouGoResources;
+  
+  // Usage tracking per session
+  usage: {
+    tokensUsed: number; // Total tokens used in this session
+    formsCreated: number; // Total forms created in this session
+    dashboardsCreated: number; // Total dashboards created in this session
+    usersAdded: number; // Total users added in this session
     lastFormCreated?: Date;
     lastDashboardCreated?: Date;
     lastUserAdded?: Date;
@@ -35,23 +64,13 @@ export interface User {
   email: string;
   role: 'admin' | 'directeur' | 'employe';
   agencyId: string;
-  package?: 'starter' | 'standard' | 'premium' | 'custom'; // Current active package
   needsPackageSelection?: boolean; // Flag to indicate if director needs to select a package
-  packageFeatures?: string[]; // Fonctionnalités activées pour les packages custom
   
-  // New subscription sessions system
+  // Subscription sessions system - Single source of truth
   subscriptionSessions?: SubscriptionSession[]; // Array of all subscription sessions
   currentSessionId?: string; // ID of the currently active session
   
-  // Legacy fields (kept for backward compatibility during migration)
-  subscriptionStartDate?: Date; // Date de début d'abonnement pour le calcul des cycles mensuels
-  subscriptionEndDate?: Date; // Date de fin d'abonnement
-  subscriptionStatus?: 'active' | 'expired' | 'cancelled'; // Statut de l'abonnement
-  payAsYouGoResources?: any; // Ressources pay-as-you-go achetées
-  payAsYouGoTokens?: number; // Tokens pay-as-you-go achetés
-  tokensUsedMonthly?: number; // Tokens utilisés ce mois
-  tokensResetDate?: Date; // Date du dernier reset des tokens mensuels
-  
+  // Employee specific fields
   isApproved?: boolean; // Status d'approbation pour les employés
   approvedBy?: string; // ID du directeur qui a approuvé
   approvedAt?: any; // Timestamp d'approbation
@@ -60,10 +79,13 @@ export interface User {
   hasDirectorDashboardAccess?: boolean; // Accès au dashboard directeur
   directorDashboardAccessGrantedBy?: string; // ID du directeur qui a accordé l'accès
   directorDashboardAccessGrantedAt?: any; // Timestamp d'octroi d'accès
+  
   // Admin specific fields
   isSuperAdmin?: boolean; // Super admin flag
   adminPermissions?: string[]; // Specific admin permissions
   createdByAdmin?: string; // ID of admin who created this user
+  
+  // Timestamps
   createdAt?: any; // Timestamp Firestore
   updatedAt?: any; // Timestamp Firestore
 }
@@ -87,7 +109,8 @@ export interface FormField {
   options?: string[]; // Pour les champs select
   acceptedTypes?: string[]; // Pour les champs file (ex: [".pdf", ".doc", ".docx"])
   // Calculated field properties
-  calculationFormula?: string; // Ex: "field1 + field2 * 0.2" or "SUM(field1, field2) * 0.1"
+  calculationFormula?: string; // Ex: "field1 + field2 * 0.2" or "SUM(field1, field2) * 0.1" (stored with field IDs)
+  userFormula?: string; // User-friendly formula with field names (ex: "prix * quantité + frais")
   dependsOn?: string[]; // IDs of fields this field depends on
   calculationType?: 'simple' | 'percentage' | 'average' | 'sum' | 'multiply' | 'custom';
   constantValue?: number; // For percentage calculations or custom constants
@@ -442,31 +465,6 @@ export interface AppUsageSession {
   };
 }
 
-export interface SubscriptionSession {
-  id?: string;
-  userId: string;
-  userEmail: string;
-  userName: string;
-  packageType: 'starter' | 'standard' | 'premium' | 'custom';
-  startDate: Date;
-  endDate: Date;
-  status: 'active' | 'expired' | 'cancelled' | 'suspended';
-  amount: number;
-  currency: string;
-  paymentMethod: string;
-  autoRenew: boolean;
-  features: string[];
-  tokensIncluded: number;
-  tokensUsed: number;
-  createdAt: Date;
-  updatedAt: Date;
-  metadata?: {
-    paymentId?: string;
-    invoiceNumber?: string;
-    notes?: string;
-    [key: string]: any;
-  };
-}
 
 export interface PurchaseHistory {
   id?: string;
