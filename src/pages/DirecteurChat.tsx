@@ -45,7 +45,7 @@ if (!AI_ENDPOINT) {
 }
 
 export const DirecteurChat: React.FC = () => {
-  const { user, firebaseUser, isLoading, logout } = useAuth();
+  const { user, firebaseUser, isLoading, logout, refreshUserData } = useAuth();
   const { forms, formEntries, employees, isLoading: appLoading } = useApp();
   const { getMonthlyTokens, hasUnlimitedTokens } = usePackageAccess();
   const { 
@@ -338,9 +338,23 @@ RÉPONSE :
 
       // Tokens are now deducted on the server side
       if (user && data.meta?.userTokensCharged) {
+        console.log('🔄 FRONTEND: Processing token deduction response:', {
+          tokensCharged: data.meta.userTokensCharged,
+          remainingTokens: data.meta.remainingTokens,
+          userId: user.id
+        });
         
-        // Update user data locally (you'll need to implement proper user context update)
-        // const userTokensCharged = data.meta.userTokensCharged;
+        // Update user data locally to reflect new token counts
+        try {
+          console.log('🔄 FRONTEND: Calling refreshUserData...');
+          await refreshUserData();
+          console.log('✅ FRONTEND: User data refreshed after token deduction:', {
+            tokensCharged: data.meta.userTokensCharged,
+            remainingTokens: data.meta.remainingTokens
+          });
+        } catch (refreshError) {
+          console.error('❌ FRONTEND: Failed to refresh user data after token deduction:', refreshError);
+        }
         
         // Track chat activity analytics
         try {
@@ -352,6 +366,13 @@ RÉPONSE :
         } catch (analyticsError) {
           console.warn('Failed to track chat activity analytics:', analyticsError);
         }
+      } else {
+        console.log('⚠️ FRONTEND: No token deduction data in response:', {
+          hasUser: !!user,
+          hasMeta: !!data.meta,
+          hasUserTokensCharged: !!data.meta?.userTokensCharged,
+          metaKeys: data.meta ? Object.keys(data.meta) : 'no meta'
+        });
       }
 
       // Server handles message persistence in Firebase

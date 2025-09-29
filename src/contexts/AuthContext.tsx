@@ -405,14 +405,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const refreshUserData = async (): Promise<void> => {
-    if (!firebaseUser) return;
+    if (!firebaseUser) {
+      console.log('⚠️ AUTH: refreshUserData called but no firebaseUser');
+      return;
+    }
 
     try {
+      console.log('🔄 AUTH: Refreshing user data for:', firebaseUser.uid);
       const userDocRef = doc(db, 'users', firebaseUser.uid);
       const userDoc = await getDoc(userDocRef);
       
       if (userDoc.exists()) {
         const userData = userDoc.data() as Omit<User, 'id'>;
+        console.log('📥 AUTH: Fresh user data retrieved:', {
+          tokensUsedMonthly: userData.tokensUsedMonthly,
+          payAsYouGoTokens: userData.payAsYouGoTokens,
+          role: userData.role
+        });
         
         // Vérifier l'approbation pour les employés
         if (userData.role === 'employe' && userData.isApproved === false) {
@@ -428,9 +437,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           id: firebaseUser.uid,
           ...userData
         });
+        console.log('✅ AUTH: User data updated in context');
+      } else {
+        console.log('⚠️ AUTH: User document not found');
       }
     } catch (err) {
-      console.error('Erreur lors du rafraîchissement des données utilisateur:', err);
+      console.error('❌ AUTH: Erreur lors du rafraîchissement des données utilisateur:', err);
     }
   };
 

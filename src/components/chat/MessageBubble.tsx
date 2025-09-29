@@ -763,10 +763,10 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
                     <span>{message.meta.forms} formulaires</span>
                   </span>
                 )}
-                {message.meta.tokensUsed && (
+                {message.meta.userTokensCharged && (
                   <span className="flex items-center space-x-1">
                     <span className="w-1.5 h-1.5 bg-yellow-400 rounded-full"></span>
-                    <span>{message.meta.tokensUsed} tokens</span>
+                    <span>{message.meta.userTokensCharged} tokens</span>
                   </span>
                 )}
               </div>

@@ -96,6 +96,102 @@ const safeToDate = (dateValue) => {
   return null;
 };
 
+// Function to generate conversation summary using OpenAI
+async function generateConversationSummary(conversationId, messages) {
+  try {
+    console.log('🔄 Generating conversation summary for:', conversationId);
+    
+    // Get last 15-20 messages for summary generation
+    const recentMessages = messages.slice(-20);
+    
+    const summaryPrompt = `Analyse cette conversation entre un directeur et son assistant IA pour l'analyse de données d'entreprise.
+
+MESSAGES RÉCENTS:
+${recentMessages.map(msg => `${msg.type === 'user' ? 'Directeur' : 'ARCHA'}: ${msg.content}`).join('\n')}
+
+Génère un résumé concis qui capture:
+1. Les sujets principaux discutés (analyses de données, rapports, tendances)
+2. Les préférences du directeur (formats de réponse préférés, périodes d'analyse fréquentes, formulaires souvent utilisés)
+3. Les analyses récurrentes demandées
+4. Le contexte métier spécifique et les besoins du directeur
+
+Format de réponse attendu:
+RÉSUMÉ: [Résumé concis de 200-300 mots]
+PRÉFÉRENCES: [Formats préférés, périodes fréquentes, formulaires utilisés]
+SUJETS CLÉS: [Liste des sujets principaux abordés]
+
+Résumé:`;
+
+    const summaryResponse = await openai.chat.completions.create({
+      model: 'gpt-4.1',
+      messages: [{ role: 'user', content: summaryPrompt }],
+      max_tokens: 500,
+      temperature: 0.3
+    });
+
+    const summaryContent = summaryResponse.choices[0].message.content;
+    console.log('✅ Generated conversation summary:', summaryContent.substring(0, 100) + '...');
+    
+    return summaryContent;
+  } catch (error) {
+    console.error('❌ Failed to generate conversation summary:', error);
+    throw error;
+  }
+}
+
+// Function to retrieve conversation context (summary + recent messages)
+async function getConversationContext(conversationId) {
+  try {
+    if (!conversationId) return null;
+    
+    console.log('📥 Retrieving conversation context for:', conversationId);
+    
+    // Get conversation document
+    const conversationDoc = await adminDb.collection('conversations').doc(conversationId).get();
+    if (!conversationDoc.exists) {
+      console.log('⚠️ Conversation not found:', conversationId);
+      return null;
+    }
+    
+    const conversation = conversationDoc.data();
+    
+    // Get last 10 messages
+    const messagesSnapshot = await adminDb
+      .collection('conversations')
+      .doc(conversationId)
+      .collection('messages')
+      .orderBy('timestamp', 'desc')
+      .limit(10)
+      .get();
+    
+    const recentMessages = messagesSnapshot.docs.map(doc => {
+      const data = doc.data();
+      return {
+        type: data.type,
+        content: data.content,
+        timestamp: safeToDate(data.timestamp)
+      };
+    }).reverse(); // Reverse to get chronological order
+    
+    const context = {
+      summary: conversation.summary,
+      recentMessages: recentMessages,
+      messageCount: conversation.messageCount || 0
+    };
+    
+    console.log('✅ Retrieved conversation context:', {
+      hasSummary: !!context.summary,
+      recentMessagesCount: context.recentMessages.length,
+      messageCount: context.messageCount
+    });
+    
+    return context;
+  } catch (error) {
+    console.error('❌ Failed to retrieve conversation context:', error);
+    return null;
+  }
+}
+
 // Fonction pour charger et agréger les données
 async function loadAndAggregateData(
   agencyId,
@@ -389,6 +485,31 @@ module.exports = async function handler(req, res) {
       });
     }
     
+    // Initialize conversationId and retrieve conversation context early
+    let conversationId = req.body.conversationId;
+    let conversationContext = null;
+    if (conversationId) {
+      try {
+        conversationContext = await getConversationContext(conversationId);
+        console.log('📋 Conversation context retrieved:', {
+          hasSummary: !!conversationContext?.summary,
+          recentMessagesCount: conversationContext?.recentMessages?.length || 0,
+          messageCount: conversationContext?.messageCount || 0
+        });
+      } catch (contextError) {
+        console.error('❌ Failed to retrieve conversation context:', contextError);
+        // Continue without context rather than failing the entire request
+        conversationContext = null;
+      }
+    }
+    
+    // Initialize systemPrompt early to prevent ReferenceError
+    let systemPrompt = '';
+    
+    // Initialize token tracking variables
+    let updatedTokensUsed = userData.tokensUsedMonthly || 0;
+    let updatedPayAsYouGoTokens = userData.payAsYouGoTokens || 0;
+    
     if (userData.role !== 'directeur') {
       return res.status(403).json({ 
         error: 'Accès réservé aux directeurs',
@@ -434,7 +555,7 @@ module.exports = async function handler(req, res) {
     // 4.5. Vérification des tokens disponibles
     
     // Build the actual system prompt first (we'll use this for both estimation and AI call)
-    const buildSystemMessage = () => {
+    const buildSystemMessage = (conversationContext) => {
       const baseRole = `Tu es ARCHA, assistant IA expert en analyse de données d'entreprise.`;
       
       const coreRules = `
@@ -459,6 +580,26 @@ VALIDATION JSON OBLIGATOIRE :
 - Si tu génères du JSON, il DOIT être valide et fonctionnel
 - OBLIGATOIRE : Utilise SEULEMENT {"x": "nom", "y": nombre} pour les données - PAS de "label" ou "value"
 - OBLIGATOIRE : Vérifie que chaque point de données a exactement les clés "x" et "y"` : '';
+
+      // ADD: Conversation context section
+      const conversationContextSection = conversationContext ? `
+CONTEXTE DE LA CONVERSATION :
+${conversationContext.summary ? `
+📋 RÉSUMÉ DE LA CONVERSATION :
+${conversationContext.summary.content}
+
+Préférences du directeur identifiées :
+- Formats préférés : ${conversationContext.summary.directorPreferences?.preferredFormats?.join(', ') || 'Non spécifiés'}
+- Périodes fréquentes : ${conversationContext.summary.directorPreferences?.commonPeriods?.join(', ') || 'Non spécifiées'}
+- Formulaires fréquents : ${conversationContext.summary.directorPreferences?.frequentForms?.join(', ') || 'Non spécifiés'}
+` : ''}
+
+📝 MESSAGES RÉCENTS (${conversationContext.recentMessages?.length || 0} derniers) :
+${(conversationContext.recentMessages || []).map(msg => 
+  `${msg.type === 'user' ? '👤 Directeur' : '🤖 ARCHA'}: ${(msg.content || '').substring(0, 200)}${(msg.content || '').length > 200 ? '...' : ''}`
+).join('\n')}
+
+IMPORTANT : Utilise ce contexte pour éviter de répéter les mêmes explications et pour adapter tes réponses aux préférences du directeur.` : '';
       
       const contextInfo = `
 CONTEXTE MÉTIER :
@@ -503,7 +644,7 @@ EXEMPLE DE TABLEAU CORRECT :
 
 IMPORTANT : Le tableau DOIT contenir des lignes de données réelles, pas seulement les en-têtes !` : ''}`;
 
-      return `${baseRole}${coreRules}${formatInstructions}${jsonValidationInstructions}${contextInfo}`;
+      return `${baseRole}${coreRules}${formatInstructions}${jsonValidationInstructions}${conversationContextSection}${contextInfo}`;
     };
 
     // Format-specific instructions
@@ -1191,13 +1332,45 @@ TOP FORMULAIRES : ${data.formStats.slice(0, 3).map(f => `${f.title} (${f.count} 
       };
     };
     
-    const packageLimit = getPackageLimit(userData.package);
+    // Get session-based package limits and token usage
+    const currentSessionId = userData.currentSessionId;
+    const subscriptionSessions = userData.subscriptionSessions || [];
+    const currentSession = subscriptionSessions.find(session => 
+      session.id === currentSessionId && session.isActive
+    );
     
-    // Check subscription status and reset tokens if needed
-    const tokenStatus = await checkSubscriptionAndResetTokens(userData, uid);
-    const currentTokensUsed = tokenStatus.tokensUsed;
-    const payAsYouGoTokens = tokenStatus.payAsYouGoTokens;
-    const subscriptionExpired = tokenStatus.subscriptionExpired;
+    let packageLimit, currentTokensUsed, payAsYouGoTokens, subscriptionExpired;
+    
+    if (currentSession) {
+      // Use session-based data
+      packageLimit = currentSession.packageResources?.tokensIncluded || 0;
+      currentTokensUsed = currentSession.usage?.tokensUsed || 0;
+      payAsYouGoTokens = currentSession.payAsYouGoResources?.tokensPurchased || 0;
+      subscriptionExpired = new Date() > new Date(currentSession.endDate);
+      
+      console.log('📊 SESSION-BASED TOKEN CHECK:', {
+        sessionId: currentSession.id,
+        packageType: currentSession.packageType,
+        packageLimit,
+        currentTokensUsed,
+        payAsYouGoTokens,
+        subscriptionExpired
+      });
+    } else {
+      // Fallback to user-based data
+      packageLimit = getPackageLimit(userData.package);
+      const tokenStatus = await checkSubscriptionAndResetTokens(userData, uid);
+      currentTokensUsed = tokenStatus.tokensUsed;
+      payAsYouGoTokens = tokenStatus.payAsYouGoTokens;
+      subscriptionExpired = tokenStatus.subscriptionExpired;
+      
+      console.log('📊 USER-BASED TOKEN CHECK (FALLBACK):', {
+        packageLimit,
+        currentTokensUsed,
+        payAsYouGoTokens,
+        subscriptionExpired
+      });
+    }
     
     // If subscription has expired, return error
     if (subscriptionExpired) {
@@ -1262,8 +1435,7 @@ TOP FORMULAIRES : ${data.formStats.slice(0, 3).map(f => `${f.title} (${f.count} 
       )
     );
 
-    // Now build the actual system prompt with hasPDFContent available
-    const systemPrompt = buildSystemMessage();
+
     
 
 
@@ -1372,6 +1544,12 @@ OBLIGATOIRE : Cite le nom exact du fichier image quand tu fais référence à so
     let tokensUsed = 0;
     let finalUserTokens = 0;
     
+    // Initialize token calculation function
+    const calculateUserTokens = (actualTokens) => {
+      // Formula: (actualTokens * 2.5) / 100
+      return Math.ceil((actualTokens * 2.5) / 100);
+    };
+    
     if (!process.env.OPENAI_API_KEY) {
       // Fallback si OpenAI n'est pas configuré
       if (selectedResponseFormats && selectedResponseFormats.length > 1) {
@@ -1437,9 +1615,30 @@ L'employé le plus actif est ${data.userStats[0]?.name || 'N/A'} avec ${data.use
 Il serait pertinent de surveiller l'engagement des employés moins actifs et d'analyser les formulaires peu utilisés pour identifier des opportunités d'amélioration. Maintenir la performance des employés les plus productifs est également important.
 
 *Note: Réponse générée sans IA (OpenAI non disponible)*`;
-      }
+      
+      // Build system prompt for fallback response (needed for token calculation)
+      systemPrompt = buildSystemMessage(conversationContext);
+      
+      // Calculate estimated tokens for fallback response
+      const estimatedTokens = Math.ceil((systemPrompt.length + userPromptForAI.length + answer.length) / 4);
+      tokensUsed = estimatedTokens;
+      finalUserTokens = calculateUserTokens(estimatedTokens);
+      
+      console.log('📊 FALLBACK TOKEN CALCULATION:', {
+        estimatedTokens,
+        finalUserTokens,
+        systemPromptLength: systemPrompt.length,
+        userPromptLength: userPromptForAI.length,
+        answerLength: answer.length,
+        calculationFormula: `(${systemPrompt.length} + ${userPromptForAI.length} + ${answer.length}) / 4 = ${estimatedTokens}`,
+        userTokensFormula: `(${estimatedTokens} * 2.5) / 100 = ${finalUserTokens}`
+      });
+    }
     } else {
       try {
+        // Build the system prompt with conversation context (now properly initialized)
+        systemPrompt = buildSystemMessage(conversationContext);
+        
     const completion = await openai.chat.completions.create({
           model: 'gpt-4.1', // Use the specialized GPT-4.1 model
       messages: [
@@ -1460,6 +1659,15 @@ Il serait pertinent de surveiller l'engagement des employés moins actifs et d'a
         // Calculate final user tokens to charge based on actual usage
         // Formula: (actualTokens * 2.5) / 100
         finalUserTokens = Math.ceil((tokensUsed * 2.5) / 100);
+        
+        console.log('📊 OPENAI TOKEN CALCULATION:', {
+          actualTokens: tokensUsed,
+          finalUserTokens,
+          systemPromptLength: systemPrompt.length,
+          userPromptLength: userPromptForAI.length,
+          answerLength: answer.length,
+          userTokensFormula: `(${tokensUsed} * 2.5) / 100 = ${finalUserTokens}`
+        });
         
       } catch (openaiError) {
         console.error('OpenAI error:', openaiError);
@@ -1528,16 +1736,33 @@ Il serait pertinent de surveiller l'engagement des employés moins actifs et d'a
 
 *Note: Réponse générée sans IA (OpenAI non disponible)*`;
         }
+        
+        // Build system prompt for error fallback response (needed for token calculation)
+        systemPrompt = buildSystemMessage(conversationContext);
+        
+        // Calculate estimated tokens for error fallback response
+        const estimatedTokens = Math.ceil((systemPrompt.length + userPromptForAI.length + answer.length) / 4);
+        tokensUsed = estimatedTokens;
+        finalUserTokens = calculateUserTokens(estimatedTokens);
+        
+        console.log('📊 ERROR FALLBACK TOKEN CALCULATION:', {
+          estimatedTokens,
+          finalUserTokens,
+          systemPromptLength: systemPrompt.length,
+          userPromptLength: userPromptForAI.length,
+          answerLength: answer.length,
+          calculationFormula: `(${systemPrompt.length} + ${userPromptForAI.length} + ${answer.length}) / 4 = ${estimatedTokens}`,
+          userTokensFormula: `(${estimatedTokens} * 2.5) / 100 = ${finalUserTokens}`
+        });
       }
     }
     
-    // Initialize conversationId to ensure it's always defined
-      let conversationId = req.body.conversationId;
-    let conversationContext = null;
+    // conversationId and conversationContext are already initialized above
     
     // Initialize file variables to prevent ReferenceError
     let referencedPDFFiles = [];
     let referencedImageFiles = [];
+    // systemPrompt is already initialized above
     
     try {
       // Get or create conversation with enhanced context
@@ -1572,15 +1797,15 @@ Il serait pertinent de surveiller l'engagement des employés moins actifs et d'a
         // Load existing conversation context for continuity
         const conversationDoc = await adminDb.collection('conversations').doc(conversationId).get();
         if (conversationDoc.exists) {
-          conversationContext = conversationDoc.data();
+          existingConversationContext = conversationDoc.data();
           
           try {
             // Safely extract previous context without circular references
-            const safePreviousContext = conversationContext?.context ? {
-              lastAnalysisType: conversationContext.context.lastAnalysisType || null,
-              lastFormats: conversationContext.context.lastFormats || [],
-              lastPeriod: conversationContext.context.lastPeriod || 'all',
-              lastFormIds: conversationContext.context.lastFormIds || []
+            const safePreviousContext = existingConversationContext?.context ? {
+              lastAnalysisType: existingConversationContext.context.lastAnalysisType || null,
+              lastFormats: existingConversationContext.context.lastFormats || [],
+              lastPeriod: existingConversationContext.context.lastPeriod || 'all',
+              lastFormIds: existingConversationContext.context.lastFormIds || []
             } : null;
 
             // Ensure data.totals exists and has the expected structure
@@ -1604,6 +1829,50 @@ Il serait pertinent de surveiller l'engagement des employés moins actifs et d'a
                 previousContext: safePreviousContext
               }
             });
+
+            // Check if we need to generate/update summary (every 12 messages)
+            const currentMessageCount = (existingConversationContext?.messageCount || 0) + 1;
+            const shouldGenerateSummary = !existingConversationContext?.summary || 
+              currentMessageCount % 12 === 0;
+
+            if (shouldGenerateSummary && conversationId) {
+              try {
+                console.log('🔄 Triggering summary generation for conversation:', conversationId);
+                
+                // Get recent messages for summary
+                const messagesSnapshot = await adminDb
+                  .collection('conversations')
+                  .doc(conversationId)
+                  .collection('messages')
+                  .orderBy('timestamp', 'desc')
+                  .limit(20)
+                  .get();
+                
+                const messages = messagesSnapshot.docs.map(doc => {
+                  const data = doc.data();
+                  return {
+                    type: data.type,
+                    content: data.content,
+                    timestamp: safeToDate(data.timestamp)
+                  };
+                }).reverse();
+                
+                // Generate summary
+                const summaryContent = await generateConversationSummary(conversationId, messages);
+                
+                // Update conversation with summary
+                await adminDb.collection('conversations').doc(conversationId).update({
+                  'summary.content': summaryContent,
+                  'summary.lastUpdated': admin.firestore.FieldValue.serverTimestamp(),
+                  'summary.messageCountAtSummary': currentMessageCount
+                });
+                
+                console.log('✅ Generated conversation summary for:', conversationId);
+              } catch (summaryError) {
+                console.error('❌ Failed to generate summary:', summaryError);
+                // Don't fail the main request if summary generation fails
+              }
+            }
           } catch (updateError) {
             console.error('❌ FIREBASE SAVE ERROR - Failed to update conversation context:', updateError);
             console.error('❌ FIREBASE SAVE ERROR - Data being saved:', {
@@ -1799,15 +2068,20 @@ Il serait pertinent de surveiller l'engagement des employés moins actifs et d'a
       // Get only the files that are actually referenced in the response
       const referencedFiles = getReferencedFiles(answer, allAnalyzedFiles);
       
+      // If no files are explicitly referenced but we have analyzed files, include all of them
+      // This ensures that all analyzed files are shown to the user
+      const finalReferencedFiles = referencedFiles.length > 0 ? referencedFiles : allAnalyzedFiles;
+      
       // Separate PDF and image files for display
-      referencedPDFFiles = referencedFiles.filter(f => f.fileType === 'application/pdf');
-      referencedImageFiles = referencedFiles.filter(f => f.fileType && f.fileType.startsWith('image/'));
+      referencedPDFFiles = finalReferencedFiles.filter(f => f.fileType === 'application/pdf');
+      referencedImageFiles = finalReferencedFiles.filter(f => f.fileType && f.fileType.startsWith('image/'));
       
       // Log file detection for debugging
-      console.log(`📄 FILE DETECTION: Found ${allAnalyzedFiles.length} analyzed files (${allAnalyzedFiles.filter(f => f.fileType === 'application/pdf').length} PDFs, ${allAnalyzedFiles.filter(f => f.fileType && f.fileType.startsWith('image/')).length} images), ${referencedFiles.length} referenced in response`);
+      console.log(`📄 FILE DETECTION: Found ${allAnalyzedFiles.length} analyzed files (${allAnalyzedFiles.filter(f => f.fileType === 'application/pdf').length} PDFs, ${allAnalyzedFiles.filter(f => f.fileType && f.fileType.startsWith('image/')).length} images), ${referencedFiles.length} explicitly referenced, ${finalReferencedFiles.length} total displayed`);
       if (allAnalyzedFiles.length > 0) {
         console.log('📄 All analyzed files:', allAnalyzedFiles.map(f => f.fileName));
-        console.log('📄 Referenced files:', referencedFiles.map(f => f.fileName));
+        console.log('📄 Explicitly referenced files:', referencedFiles.map(f => f.fileName));
+        console.log('📄 Final displayed files:', finalReferencedFiles.map(f => f.fileName));
         if (referencedFiles.length === 0 && allAnalyzedFiles.length > 0) {
           console.log('📄 No files detected in response - checking for explicit citations...');
           const responseText = answer.toLowerCase();
@@ -1851,16 +2125,17 @@ Il serait pertinent de surveiller l'engagement des employés moins actifs et d'a
           },
           tokensUsed: tokensUsed || 0,
           userTokensCharged: finalUserTokens,
+          remainingTokens: packageLimit === -1 ? -1 : Math.max(0, (packageLimit + updatedPayAsYouGoTokens) - updatedTokensUsed),
           model: 'gpt-4.1',
           responseFormat: responseFormat || 'text',
           conversationContext: {
             conversationId: conversationId,
-            messageSequence: conversationContext?.messageCount || 2,
-            previousAnalysis: conversationContext?.context?.lastAnalysisType || null,
+            messageSequence: existingConversationContext?.messageCount || 2,
+            previousAnalysis: existingConversationContext?.context?.lastAnalysisType || null,
             dataEvolution: {
-              previousEntries: conversationContext?.context?.dataInsights?.totalEntries || 0,
+              previousEntries: existingConversationContext?.context?.dataInsights?.totalEntries || 0,
               currentEntries: data.totals?.entries || 0,
-              entriesChange: (data.totals?.entries || 0) - (conversationContext?.context?.dataInsights?.totalEntries || 0)
+              entriesChange: (data.totals?.entries || 0) - (existingConversationContext?.context?.dataInsights?.totalEntries || 0)
             }
           }
         },
@@ -1876,45 +2151,131 @@ Il serait pertinent de surveiller l'engagement des employés moins actifs et d'a
         throw saveError;
       }
 
-      // Deduct tokens from user's account (only for limited packages)
+      // Debug: Log package information
+      console.log('🔍 PACKAGE DEBUG:', {
+        packageLimit,
+        finalUserTokens,
+        uid,
+        userPackageType: userData.packageType,
+        isUnlimited: packageLimit === -1
+      });
+      
+      // Track token consumption in active session (only for limited packages)
       if (packageLimit !== -1 && finalUserTokens > 0) {
+        console.log('💰 SESSION TOKEN TRACKING START:', {
+          packageLimit,
+          finalUserTokens,
+          uid
+        });
         
         try {
-          // Get fresh user data to ensure we have the latest token counts
+          // Get fresh user data to ensure we have the latest session data
           const freshUserDoc = await adminDb.collection('users').doc(uid).get();
           const freshUserData = freshUserDoc.data();
-          const freshTokensUsed = freshUserData.tokensUsedMonthly || 0;
-          const freshPayAsYouGoTokens = freshUserData.payAsYouGoTokens || 0;
           
-          let newTokensUsed = freshTokensUsed;
-          let newPayAsYouGoTokens = freshPayAsYouGoTokens;
+          // Get current active session
+          const currentSessionId = freshUserData.currentSessionId;
+          const subscriptionSessions = freshUserData.subscriptionSessions || [];
+          const currentSession = subscriptionSessions.find(session => 
+            session.id === currentSessionId && session.isActive
+          );
           
-          // Calculate how many tokens to deduct from package vs pay-as-you-go
-          const packageTokensRemaining = packageLimit - freshTokensUsed;
-          
-          
-          if (finalUserTokens <= packageTokensRemaining) {
-            // All tokens can be deducted from package
-            newTokensUsed = freshTokensUsed + finalUserTokens;
+          if (!currentSession) {
+            console.error('❌ No active session found for user:', uid);
+            // Fallback to user object tracking if no session
+            const freshTokensUsed = freshUserData.tokensUsedMonthly || 0;
+            const freshPayAsYouGoTokens = freshUserData.payAsYouGoTokens || 0;
+            
+            let newTokensUsed = freshTokensUsed;
+            let newPayAsYouGoTokens = freshPayAsYouGoTokens;
+            
+            const packageTokensRemaining = packageLimit - freshTokensUsed;
+            
+            if (finalUserTokens <= packageTokensRemaining) {
+              newTokensUsed = freshTokensUsed + finalUserTokens;
+            } else {
+              const packageTokensToDeduct = Math.max(0, packageTokensRemaining);
+              const payAsYouGoTokensToDeduct = finalUserTokens - packageTokensToDeduct;
+              newTokensUsed = freshTokensUsed + packageTokensToDeduct;
+              newPayAsYouGoTokens = Math.max(0, freshPayAsYouGoTokens - payAsYouGoTokensToDeduct);
+            }
+            
+            await adminDb.collection('users').doc(uid).update({
+              tokensUsedMonthly: newTokensUsed,
+              payAsYouGoTokens: newPayAsYouGoTokens,
+              updatedAt: admin.firestore.FieldValue.serverTimestamp()
+            });
+            
+            updatedTokensUsed = newTokensUsed;
+            updatedPayAsYouGoTokens = newPayAsYouGoTokens;
+            
+            console.log('✅ FALLBACK TOKEN DEDUCTION SUCCESS:', {
+              finalUserTokens,
+              newTokensUsed,
+              newPayAsYouGoTokens
+            });
           } else {
-            // Deduct remaining package tokens first, then from pay-as-you-go
-            const packageTokensToDeduct = Math.max(0, packageTokensRemaining);
-            const payAsYouGoTokensToDeduct = finalUserTokens - packageTokensToDeduct;
+            console.log('💰 SESSION TOKEN TRACKING - ACTIVE SESSION FOUND:', {
+              sessionId: currentSession.id,
+              packageType: currentSession.packageType,
+              currentTokensUsed: currentSession.usage?.tokensUsed || 0
+            });
             
-            newTokensUsed = freshTokensUsed + packageTokensToDeduct;
-            newPayAsYouGoTokens = Math.max(0, freshPayAsYouGoTokens - payAsYouGoTokensToDeduct);
+            // Update the current session's token usage
+            const updatedSessions = subscriptionSessions.map(session => {
+              if (session.id === currentSessionId) {
+                const currentUsage = session.usage || {
+                  tokensUsed: 0,
+                  formsCreated: 0,
+                  dashboardsCreated: 0,
+                  usersAdded: 0
+                };
+                
+                return {
+                  ...session,
+                  usage: {
+                    ...currentUsage,
+                    tokensUsed: currentUsage.tokensUsed + finalUserTokens,
+                    lastTokenUsed: new Date()
+                  },
+                  updatedAt: new Date()
+                };
+              }
+              return session;
+            });
             
+            // Update user document with updated sessions
+            await adminDb.collection('users').doc(uid).update({
+              subscriptionSessions: updatedSessions,
+              updatedAt: admin.firestore.FieldValue.serverTimestamp()
+            });
+            
+            // Calculate remaining tokens for response
+            const sessionTokensUsed = (currentSession.usage?.tokensUsed || 0) + finalUserTokens;
+            const sessionPackageLimit = currentSession.packageResources?.tokensIncluded || 0;
+            const sessionPayAsYouGoTokens = currentSession.payAsYouGoResources?.tokensPurchased || 0;
+            
+            updatedTokensUsed = sessionTokensUsed;
+            updatedPayAsYouGoTokens = sessionPayAsYouGoTokens;
+            
+            console.log('✅ SESSION TOKEN TRACKING SUCCESS:', {
+              finalUserTokens,
+              sessionTokensUsed,
+              sessionPackageLimit,
+              sessionPayAsYouGoTokens,
+              remainingTokens: sessionPackageLimit === -1 ? -1 : Math.max(0, (sessionPackageLimit + sessionPayAsYouGoTokens) - sessionTokensUsed)
+            });
           }
-          
-          await adminDb.collection('users').doc(uid).update({
-            tokensUsedMonthly: newTokensUsed,
-            payAsYouGoTokens: newPayAsYouGoTokens,
-            updatedAt: admin.firestore.FieldValue.serverTimestamp()
-          });
         } catch (tokenError) {
-          console.error('❌ Error deducting tokens:', tokenError);
-          // Don't fail the request if token deduction fails
+          console.error('❌ SESSION TOKEN TRACKING ERROR:', tokenError);
+          // Don't fail the request if token tracking fails
         }
+      } else {
+        console.log('💰 SESSION TOKEN TRACKING SKIPPED:', {
+          packageLimit,
+          finalUserTokens,
+          reason: packageLimit === -1 ? 'unlimited_package' : 'no_tokens_to_deduct'
+        });
       }
       
       try {
@@ -1956,6 +2317,7 @@ Il serait pertinent de surveiller l'engagement des employés moins actifs et d'a
         },
         tokensUsed,
         userTokensCharged: finalUserTokens,
+        remainingTokens: packageLimit === -1 ? -1 : Math.max(0, (packageLimit + updatedPayAsYouGoTokens) - updatedTokensUsed),
         model: 'gpt-4.1',
         responseFormat: responseFormat || 'text',
         selectedFormats: selectedResponseFormats || [],

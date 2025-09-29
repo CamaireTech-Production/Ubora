@@ -316,6 +316,17 @@ export interface Conversation {
   updatedAt: Date;
   lastMessageAt: Date;
   messageCount: number;
+  summary?: {
+    content: string;           // Generated summary text
+    lastUpdated: Date;         // When summary was last generated
+    messageCountAtSummary: number; // Message count when summary was created
+    keyTopics: string[];       // Extracted key topics
+    directorPreferences: {     // Learned preferences
+      preferredFormats: string[];
+      commonPeriods: string[];
+      frequentForms: string[];
+    };
+  };
 }
 
 // Types pour les tableaux de bord et métriques

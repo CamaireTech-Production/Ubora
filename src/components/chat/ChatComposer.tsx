@@ -79,6 +79,16 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
   const { packageInfo } = usePackageAccess();
   const isUnlimited = packageInfo?.totalTokens === -1;
   const remainingTokens = packageInfo?.tokensRemaining || 0;
+  
+  // Debug token data (safe logging)
+  if (packageInfo) {
+    console.log('🔍 CHAT COMPOSER: Token data:', {
+      remainingTokens,
+      totalTokens: packageInfo.totalTokens,
+      tokensUsed: packageInfo.tokensUsed,
+      isUnlimited
+    });
+  }
 
   // Auto-resize textarea
   useEffect(() => {
