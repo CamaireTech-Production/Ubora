@@ -56,6 +56,14 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
     error?: string;
     fileSize: number;
     engine?: string;
+    pages?: number; // For PDF files
+    fileType?: 'image' | 'pdf'; // To distinguish between image and PDF
+    extractionStats?: {
+      totalCharacters: number;
+      totalWords: number;
+      averageWordsPerPage: number;
+      extractionTime: number;
+    };
     pendingSubmission?: boolean; // Track if we're waiting for user to proceed
   }>({
     isOpen: false,
@@ -236,13 +244,21 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
             }));
           },
           (pdfResult) => {
-            
-            // Show success message for PDF extraction
-            if (pdfResult.extractionStatus === 'completed') {
-              showSuccess(`PDF "${pdfResult.fileName}" analysé avec succès (${pdfResult.extractedText.length} caractères extraits)`);
-            } else {
-              showError(`Échec de l'analyse du PDF "${pdfResult.fileName}": ${pdfResult.error || 'Erreur inconnue'}`);
-            }
+            console.log('🔍 PDF extraction callback received:', pdfResult);
+            // Show text extraction modal for PDFs as well
+            setTextExtractionModal({
+              isOpen: true,
+              fileName: pdfResult.fileName,
+              extractedText: pdfResult.extractedText,
+              extractionStatus: pdfResult.extractionStatus,
+              error: pdfResult.error,
+              fileSize: pdfResult.fileSize,
+              pages: pdfResult.pages,
+              fileType: 'pdf',
+              extractionStats: pdfResult.extractionStats,
+              pendingSubmission: true // Mark as part of submission flow
+            });
+            console.log('✅ PDF text extraction modal state updated');
           },
           (imageResult) => {
             console.log('🔍 Image extraction callback received:', imageResult);
@@ -256,6 +272,7 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
               error: imageResult.error,
               fileSize: imageResult.fileSize,
               engine: imageResult.engine,
+              fileType: 'image',
               pendingSubmission: true // Mark as part of submission flow
             });
             console.log('✅ Text extraction modal state updated');
@@ -393,15 +410,11 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
   };
 
   const handleProceedWithSubmission = () => {
-    // Close the modal and proceed with form submission
+    // Close the modal and allow user to continue filling the form
     setTextExtractionModal(prev => ({ ...prev, isOpen: false, pendingSubmission: false }));
     
-    // Trigger form submission
-    const formElement = document.querySelector('form');
-    if (formElement) {
-      const submitEvent = new Event('submit', { bubbles: true, cancelable: true });
-      formElement.dispatchEvent(submitEvent);
-    }
+    // Show a success message to inform user they can continue
+    showSuccess('Texte extrait avec succès ! Vous pouvez continuer à remplir le formulaire.');
   };
 
   const renderField = (field: FormField) => {
@@ -754,6 +767,9 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
         error={textExtractionModal.error}
         fileSize={textExtractionModal.fileSize}
         engine={textExtractionModal.engine}
+        pages={textExtractionModal.pages}
+        fileType={textExtractionModal.fileType}
+        extractionStats={textExtractionModal.extractionStats}
       />
       
     </div>

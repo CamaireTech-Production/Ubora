@@ -25,6 +25,12 @@ export interface PDFExtractionResult {
   error?: string;
   pages?: number;
   fileSize: number;
+  extractionStats?: {
+    totalCharacters: number;
+    totalWords: number;
+    averageWordsPerPage: number;
+    extractionTime: number;
+  };
 }
 
 export interface ImageExtractionResult {
@@ -135,7 +141,8 @@ export class FileUploadService {
               extractedText: fileAttachment.extractedText,
               extractionStatus: 'completed',
               pages: extractionResult.pages,
-              fileSize: file.size
+              fileSize: file.size,
+              extractionStats: extractionResult.extractionStats
             });
           } else {
             // Extraction failed

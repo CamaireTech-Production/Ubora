@@ -12,6 +12,14 @@ interface TextExtractionModalProps {
   error?: string;
   fileSize: number;
   engine?: string;
+  pages?: number; // For PDF files
+  fileType?: 'image' | 'pdf'; // To distinguish between image and PDF
+  extractionStats?: {
+    totalCharacters: number;
+    totalWords: number;
+    averageWordsPerPage: number;
+    extractionTime: number;
+  };
 }
 
 export const TextExtractionModal: React.FC<TextExtractionModalProps> = ({
@@ -24,7 +32,10 @@ export const TextExtractionModal: React.FC<TextExtractionModalProps> = ({
   confidence,
   error,
   fileSize,
-  engine
+  engine,
+  pages,
+  fileType = 'image',
+  extractionStats
 }) => {
   if (!isOpen) return null;
 
@@ -68,9 +79,15 @@ export const TextExtractionModal: React.FC<TextExtractionModalProps> = ({
               <h3 className="text-lg font-semibold text-gray-900">
                 Extraction de texte - {fileName}
               </h3>
-              <p className="text-sm text-gray-500">
-                Taille du fichier: {formatFileSize(fileSize)}
-              </p>
+              <div className="text-sm text-gray-500 space-y-1">
+                <p>Taille du fichier: {formatFileSize(fileSize)}</p>
+                {fileType === 'pdf' && pages && (
+                  <p>Pages: {pages}</p>
+                )}
+                {fileType === 'image' && engine && (
+                  <p>Moteur: {engine}</p>
+                )}
+              </div>
             </div>
           </div>
           <button
@@ -84,16 +101,23 @@ export const TextExtractionModal: React.FC<TextExtractionModalProps> = ({
         {/* Content */}
         <div className="flex-1 overflow-auto p-6">
           <div className="space-y-6">
-            {/* Image Quality Warning */}
+            {/* Quality Warning */}
             <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg">
               <div className="flex items-start gap-3">
                 <Lightbulb className="w-5 h-5 text-amber-500 mt-0.5" />
                 <div className="text-sm text-amber-800">
                   <p className="font-medium mb-1">💡 Pour de meilleurs résultats</p>
-                  <p className="text-amber-700">
-                    Pour une extraction de texte optimale, veuillez uploader des images avec une bonne luminosité, 
-                    un contraste élevé et une résolution claire. Les images manuscrites doivent être nettes et lisibles.
-                  </p>
+                  {fileType === 'image' ? (
+                    <p className="text-amber-700">
+                      Pour une extraction de texte optimale, veuillez uploader des images avec une bonne luminosité, 
+                      un contraste élevé et une résolution claire. Les images manuscrites doivent être nettes et lisibles.
+                    </p>
+                  ) : (
+                    <p className="text-amber-700">
+                      Pour une extraction de texte optimale, veuillez uploader des PDFs avec du texte sélectionnable. 
+                      Les PDFs scannés ou protégés peuvent ne pas être analysés correctement.
+                    </p>
+                  )}
                 </div>
               </div>
             </div>
@@ -105,6 +129,13 @@ export const TextExtractionModal: React.FC<TextExtractionModalProps> = ({
                 <h4 className={`font-medium ${getStatusColor()}`}>
                   {getStatusText()}
                 </h4>
+                {extractionStats && fileType === 'pdf' && (
+                  <div className="text-sm text-gray-600 mt-1">
+                    <span className="inline-block mr-4">📊 {extractionStats.totalWords} mots</span>
+                    <span className="inline-block mr-4">⏱️ {extractionStats.extractionTime}ms</span>
+                    <span className="inline-block">📄 {extractionStats.averageWordsPerPage} mots/page</span>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -128,6 +159,7 @@ export const TextExtractionModal: React.FC<TextExtractionModalProps> = ({
                 <h4 className="font-medium text-gray-900">Texte extrait</h4>
                 <span className="text-sm text-gray-500">
                   ({extractedText.length} caractères)
+                  {fileType === 'pdf' && pages && ` • ${pages} page${pages > 1 ? 's' : ''}`}
                 </span>
               </div>
               
@@ -173,7 +205,7 @@ export const TextExtractionModal: React.FC<TextExtractionModalProps> = ({
               onClick={handleProceed}
               className="px-6 py-2 text-white bg-blue-500 hover:bg-blue-600 rounded-lg transition-colors flex items-center gap-2"
             >
-              Continuer la soumission
+              Continuer le formulaire
               <ArrowRight className="w-4 h-4" />
             </button>
           </div>

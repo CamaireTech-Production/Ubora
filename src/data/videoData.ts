@@ -11,15 +11,6 @@ export interface Video {
 export const employeeVideos: Video[] = [
   {
     id: '1',
-    title: 'Comment remplir les formulaires efficacement',
-    description: 'Apprenez les meilleures pratiques pour remplir vos formulaires de manière efficace et éviter les erreurs courantes.',
-    thumbnail: 'https://img.youtube.com/vi/dQw4w9WgXcQ/maxresdefault.jpg',
-    youtubeId: 'dQw4w9WgXcQ', // Replace with actual YouTube video ID
-    duration: '5:30',
-    category: 'Formation'
-  },
-  {
-    id: '2',
     title: 'Ubora-Archa',
     description: 'Comment l’application UBORA vous aide a analyser vos rapports.',
     thumbnail: 'https://img.youtube.com/vi/elmDZt12ees/maxresdefault.jpg',
@@ -31,7 +22,7 @@ export const employeeVideos: Video[] = [
 
 export const directorVideos: Video[] = [
   {
-    id: '2',
+    id: '1',
     title: 'Ubora-Archa',
     description: 'Comment l’application UBORA vous aide a analyser vos rapports.',
     thumbnail: 'https://img.youtube.com/vi/elmDZt12ees/maxresdefault.jpg',
