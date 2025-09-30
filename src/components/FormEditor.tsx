@@ -9,10 +9,10 @@ import { FileTypeSelector } from './FileTypeSelector';
 import { FieldCSVImport } from './FieldCSVImport';
 import { Toast } from './Toast';
 import { useToast } from '../hooks/useToast';
-import { Plus, Trash2, ArrowLeft, CheckSquare, Square, Loader2, Calculator, Copy, Check, AlertCircle } from 'lucide-react';
-import { ExpressionCalculator } from '../utils/ExpressionCalculator';
+import { Plus, Trash2, ArrowLeft, CheckSquare, Square, Loader2, Calculator } from 'lucide-react';
 import { FormulaInput } from './FormulaInput';
 import { FormulaParser } from '../utils/FormulaParser';
+import { ConditionalLogicBuilder } from './ConditionalLogicBuilder';
 
 interface FormEditorProps {
   form?: Form; // If provided, we're editing an existing form
@@ -41,8 +41,6 @@ export const FormEditor: React.FC<FormEditorProps> = ({
   const [description, setDescription] = useState(form?.description || '');
   const [assignedTo, setAssignedTo] = useState<string[]>(form?.assignedTo || []);
   const [fields, setFields] = useState<FormField[]>(form?.fields || []);
-  const [copiedFieldId, setCopiedFieldId] = useState<string | null>(null);
-  const [formulaValidation, setFormulaValidation] = useState<Record<string, { isValid: boolean; error?: string }>>({});
   const [timeRestrictions, setTimeRestrictions] = useState<{
     startTime?: string;
     endTime?: string;
@@ -169,41 +167,6 @@ export const FormEditor: React.FC<FormEditorProps> = ({
     showSuccess('Options importées avec succès');
   };
 
-  const copyFieldId = async (fieldId: string) => {
-    try {
-      await navigator.clipboard.writeText(fieldId);
-      setCopiedFieldId(fieldId);
-      setTimeout(() => setCopiedFieldId(null), 2000);
-    } catch (err) {
-      console.error('Failed to copy field ID:', err);
-    }
-  };
-
-  const generateFormula = (calculationType: string, dependsOn: string[]) => {
-    if (!dependsOn || dependsOn.length === 0) return '';
-    
-    switch (calculationType) {
-      case 'sum':
-        return dependsOn.join(' + ');
-      case 'average':
-        return `(${dependsOn.join(' + ')}) / ${dependsOn.length}`;
-      case 'multiply':
-        return dependsOn.join(' * ');
-      case 'percentage':
-        return dependsOn.length > 0 ? `${dependsOn[0]} * 0.1` : '';
-      default:
-        return '';
-    }
-  };
-
-  const validateFormula = (fieldId: string, formula: string) => {
-    const validation = ExpressionCalculator.validateFormula(formula, fields);
-    setFormulaValidation(prev => ({
-      ...prev,
-      [fieldId]: validation
-    }));
-    return validation;
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -640,6 +603,15 @@ export const FormEditor: React.FC<FormEditorProps> = ({
                         />
                         <span className="text-sm text-gray-700">Champ obligatoire</span>
                       </label>
+
+                      {/* Conditional Logic Section */}
+                      <div className="border-t pt-4">
+                        <ConditionalLogicBuilder
+                          field={field}
+                          allFields={fields}
+                          onUpdate={(conditionalLogic) => updateField(field.id, { conditionalLogic })}
+                        />
+                      </div>
                     </div>
                   </Card>
                 ))}

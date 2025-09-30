@@ -141,6 +141,21 @@ export interface FormField {
   dependsOn?: string[]; // IDs of fields this field depends on
   calculationType?: 'simple' | 'percentage' | 'average' | 'sum' | 'multiply' | 'custom';
   constantValue?: number; // For percentage calculations or custom constants
+  // Conditional logic properties
+  conditionalLogic?: {
+    isEnabled: boolean;
+    action: 'show' | 'hide'; // Action to take when conditions are met
+    operator: 'and' | 'or'; // How to combine multiple conditions
+    conditions: ConditionalRule[];
+  };
+}
+
+export interface ConditionalRule {
+  id: string;
+  fieldId: string; // ID of the field to check
+  operator: 'equals' | 'not_equals' | 'contains' | 'not_contains' | 'greater_than' | 'less_than' | 'greater_equal' | 'less_equal' | 'is_empty' | 'is_not_empty';
+  value?: string | number | boolean; // Value to compare against (not needed for is_empty/is_not_empty)
+  fieldType?: 'text' | 'number' | 'email' | 'textarea' | 'select' | 'checkbox' | 'date'; // Type of the field being checked
 }
 
 export interface Form {
@@ -158,6 +173,15 @@ export interface Form {
     startTime?: string; // Format: "HH:MM" (24h format)
     endTime?: string; // Format: "HH:MM" (24h format)
     allowedDays?: number[]; // Array of day numbers (0=Sunday, 1=Monday, etc.)
+  };
+  deadline?: {
+    date: string; // ISO date string
+    time: string; // HH:MM format
+    timezone?: string; // Default to user timezone
+  };
+  notificationSettings?: {
+    reminderIntervals: number[]; // [60, 30, 15] minutes before deadline
+    enabled: boolean;
   };
 }
 
@@ -193,6 +217,21 @@ export interface DraftResponse {
   createdAt: Date;
   updatedAt: Date;
   isDraft: true;
+}
+
+export interface ScheduledNotification {
+  id: string;
+  type: 'form_reminder' | 'form_assignment' | 'daily_report';
+  userId: string;
+  formId?: string;
+  scheduledFor: Date;
+  title: string;
+  body: string;
+  data?: Record<string, any>;
+  status: 'pending' | 'sent' | 'failed' | 'cancelled';
+  attempts: number;
+  createdAt: Date;
+  sentAt?: Date;
 }
 
 // Types pour les conversations IA

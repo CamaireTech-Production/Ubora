@@ -7,10 +7,10 @@ import { Textarea } from './Textarea';
 import { Card } from './Card';
 import { FileTypeSelector } from './FileTypeSelector';
 import { FieldCSVImport } from './FieldCSVImport';
-import { Plus, Trash2, ArrowLeft, AlertCircle, Calculator, Copy, Check } from 'lucide-react';
-import { ExpressionCalculator } from '../utils/ExpressionCalculator';
+import { Plus, Trash2, ArrowLeft, AlertCircle, Calculator } from 'lucide-react';
 import { FormulaInput } from './FormulaInput';
 import { FormulaParser } from '../utils/FormulaParser';
+import { ConditionalLogicBuilder } from './ConditionalLogicBuilder';
 
 interface FormBuilderProps {
   onSave: (form: {
@@ -19,10 +19,19 @@ interface FormBuilderProps {
     description: string;
     fields: FormField[];
     assignedTo: string[];
+    deadline?: {
+      date: string;
+      time: string;
+      timezone?: string;
+    };
+    notificationSettings?: {
+      reminderIntervals: number[];
+      enabled: boolean;
+    };
   }) => void;
   onCancel: () => void;
   employees: Array<{ id: string; name: string; email: string }>;
-  initialForm?: Pick<Form, 'id' | 'title' | 'description' | 'fields' | 'assignedTo'>;
+  initialForm?: Pick<Form, 'id' | 'title' | 'description' | 'fields' | 'assignedTo' | 'deadline' | 'notificationSettings'>;
   isLoading?: boolean;
 }
 
@@ -39,8 +48,17 @@ export const FormBuilder: React.FC<FormBuilderProps> = ({
   const [assignedTo, setAssignedTo] = useState<string[]>(initialForm?.assignedTo || []);
   const [fields, setFields] = useState<FormField[]>(initialForm?.fields || []);
   const [errors, setErrors] = useState<string[]>([]);
-  const [copiedFieldId, setCopiedFieldId] = useState<string | null>(null);
-  const [formulaValidation, setFormulaValidation] = useState<Record<string, { isValid: boolean; error?: string }>>({});
+  
+  // Deadline and notification settings
+  const [deadline, setDeadline] = useState({
+    date: initialForm?.deadline?.date || '',
+    time: initialForm?.deadline?.time || '18:00',
+    timezone: initialForm?.deadline?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone
+  });
+  const [notificationSettings, setNotificationSettings] = useState({
+    enabled: initialForm?.notificationSettings?.enabled || false,
+    reminderIntervals: initialForm?.notificationSettings?.reminderIntervals || [60, 30, 15]
+  });
 
   // Déterminer le mode (création ou édition)
   const isEditMode = !!initialForm;
@@ -103,41 +121,6 @@ export const FormBuilder: React.FC<FormBuilderProps> = ({
     updateField(fieldId, { options: newOptions });
   };
 
-  const copyFieldId = async (fieldId: string) => {
-    try {
-      await navigator.clipboard.writeText(fieldId);
-      setCopiedFieldId(fieldId);
-      setTimeout(() => setCopiedFieldId(null), 2000);
-    } catch (err) {
-      console.error('Failed to copy field ID:', err);
-    }
-  };
-
-  const generateFormula = (calculationType: string, dependsOn: string[]) => {
-    if (!dependsOn || dependsOn.length === 0) return '';
-    
-    switch (calculationType) {
-      case 'sum':
-        return dependsOn.join(' + ');
-      case 'average':
-        return `(${dependsOn.join(' + ')}) / ${dependsOn.length}`;
-      case 'multiply':
-        return dependsOn.join(' * ');
-      case 'percentage':
-        return dependsOn.length > 0 ? `${dependsOn[0]} * 0.1` : '';
-      default:
-        return '';
-    }
-  };
-
-  const validateFormula = (fieldId: string, formula: string) => {
-    const validation = ExpressionCalculator.validateFormula(formula, fields);
-    setFormulaValidation(prev => ({
-      ...prev,
-      [fieldId]: validation
-    }));
-    return validation;
-  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -194,6 +177,19 @@ export const FormBuilder: React.FC<FormBuilderProps> = ({
       description,
       fields,
       assignedTo,
+      ...(deadline.date && {
+        deadline: {
+          date: deadline.date,
+          time: deadline.time,
+          timezone: deadline.timezone
+        }
+      }),
+      ...(notificationSettings.enabled && {
+        notificationSettings: {
+          enabled: notificationSettings.enabled,
+          reminderIntervals: notificationSettings.reminderIntervals
+        }
+      })
     };
 
     onSave(formData);
@@ -288,6 +284,103 @@ export const FormBuilder: React.FC<FormBuilderProps> = ({
               </p>
             )}
           </div>
+
+          {/* Deadline and Notification Settings */}
+          <Card>
+            <h3 className="text-base sm:text-lg font-medium text-gray-900 mb-4">
+              ⏰ Échéance et Notifications
+            </h3>
+            
+            <div className="space-y-4">
+              {/* Deadline Date */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Date d'échéance
+                </label>
+                <input
+                  type="date"
+                  value={deadline.date}
+                  onChange={(e) => setDeadline(prev => ({ ...prev, date: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  min={new Date().toISOString().split('T')[0]}
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  La date d'échéance est optionnelle. Si définie, des rappels seront envoyés aux employés.
+                </p>
+              </div>
+
+              {/* Deadline Time */}
+              {deadline.date && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Heure d'échéance
+                  </label>
+                  <input
+                    type="time"
+                    value={deadline.time}
+                    onChange={(e) => setDeadline(prev => ({ ...prev, time: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+              )}
+
+              {/* Notification Settings */}
+              {deadline.date && (
+                <div>
+                  <div className="flex items-center space-x-3 mb-3">
+                    <input
+                      type="checkbox"
+                      id="notificationsEnabled"
+                      checked={notificationSettings.enabled}
+                      onChange={(e) => setNotificationSettings(prev => ({ ...prev, enabled: e.target.checked }))}
+                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    />
+                    <label htmlFor="notificationsEnabled" className="text-sm font-medium text-gray-700">
+                      Activer les notifications de rappel
+                    </label>
+                  </div>
+
+                  {notificationSettings.enabled && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Intervalles de rappel (en minutes avant l'échéance)
+                      </label>
+                      <div className="flex flex-wrap gap-2">
+                        {[15, 30, 60, 120].map((interval) => (
+                          <label key={interval} className="flex items-center space-x-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={notificationSettings.reminderIntervals.includes(interval)}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setNotificationSettings(prev => ({
+                                    ...prev,
+                                    reminderIntervals: [...prev.reminderIntervals, interval].sort((a, b) => b - a)
+                                  }));
+                                } else {
+                                  setNotificationSettings(prev => ({
+                                    ...prev,
+                                    reminderIntervals: prev.reminderIntervals.filter(i => i !== interval)
+                                  }));
+                                }
+                              }}
+                              className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                            />
+                            <span className="text-sm text-gray-700">
+                              {interval < 60 ? `${interval}min` : `${interval / 60}h`}
+                            </span>
+                          </label>
+                        ))}
+                      </div>
+                      <p className="text-xs text-gray-500 mt-1">
+                        Les employés recevront des notifications aux intervalles sélectionnés avant l'échéance.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </Card>
 
           <div>
             <div className="flex items-center justify-between mb-4">
@@ -474,6 +567,15 @@ export const FormBuilder: React.FC<FormBuilderProps> = ({
                         />
                         <span className="text-sm text-gray-700">Champ obligatoire</span>
                       </label>
+
+                      {/* Conditional Logic Section */}
+                      <div className="border-t pt-4">
+                        <ConditionalLogicBuilder
+                          field={field}
+                          allFields={fields}
+                          onUpdate={(conditionalLogic) => updateField(field.id, { conditionalLogic })}
+                        />
+                      </div>
                     </div>
                   </Card>
                 ))}
