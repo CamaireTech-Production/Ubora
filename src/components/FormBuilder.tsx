@@ -11,6 +11,7 @@ import { Plus, Trash2, ArrowLeft, AlertCircle, Calculator } from 'lucide-react';
 import { FormulaInput } from './FormulaInput';
 import { FormulaParser } from '../utils/FormulaParser';
 import { ConditionalLogicBuilder } from './ConditionalLogicBuilder';
+import { DesktopRecommendationInfo } from './DesktopRecommendationInfo';
 
 interface FormBuilderProps {
   onSave: (form: {
@@ -397,6 +398,11 @@ export const FormBuilder: React.FC<FormBuilderProps> = ({
                 <span className="sm:hidden">Ajouter</span>
               </Button>
             </div>
+
+            {/* Desktop Recommendation - Show when any field has conditional logic enabled */}
+            {fields.some(field => field.conditionalLogic?.isEnabled) && (
+              <DesktopRecommendationInfo className="mb-4" />
+            )}
 
             {fields.length === 0 ? (
               <p className="text-gray-500 text-center py-6 sm:py-8 bg-gray-50 rounded-lg text-sm sm:text-base">
