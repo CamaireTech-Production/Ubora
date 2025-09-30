@@ -84,21 +84,28 @@ export const ScrollButtons: React.FC<ScrollButtonsProps> = ({
   }
 
   return (
-    <div className={`fixed right-4 z-30 flex flex-col gap-2 ${className}`} style={{ bottom: '140px' }}>
+    <div 
+      className={`fixed right-2 sm:right-4 z-30 flex flex-col gap-2 ${className}`} 
+      style={{ 
+        // Ensure buttons are always visible above the composer
+        bottom: 'max(140px, calc(140px + env(safe-area-inset-bottom, 0px)))'
+      }}
+    >
       {/* Scroll to Top Button */}
       {showTopButton && (
         <button
           onClick={scrollToTop}
           className={`
-            w-10 h-10 rounded-full bg-white border border-gray-200 shadow-lg
+            w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-white border border-gray-200 shadow-lg
             flex items-center justify-center text-gray-600 hover:text-gray-900
             hover:bg-gray-50 hover:shadow-xl transition-all duration-200
             ${isScrolling ? 'opacity-80' : 'opacity-100'}
+            touch-manipulation
           `}
           title="Aller en haut"
           aria-label="Aller en haut de la conversation"
         >
-          <ChevronUp className="w-5 h-5" />
+          <ChevronUp className="w-4 h-4 sm:w-5 sm:h-5" />
         </button>
       )}
 
@@ -107,15 +114,16 @@ export const ScrollButtons: React.FC<ScrollButtonsProps> = ({
         <button
           onClick={scrollToBottom}
           className={`
-            w-10 h-10 rounded-full bg-white border border-gray-200 shadow-lg
+            w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-white border border-gray-200 shadow-lg
             flex items-center justify-center text-gray-600 hover:text-gray-900
             hover:bg-gray-50 hover:shadow-xl transition-all duration-200
             ${isScrolling ? 'opacity-80' : 'opacity-100'}
+            touch-manipulation
           `}
           title="Aller en bas"
           aria-label="Aller en bas de la conversation"
         >
-          <ChevronDown className="w-5 h-5" />
+          <ChevronDown className="w-4 h-4 sm:w-5 sm:h-5" />
         </button>
       )}
     </div>

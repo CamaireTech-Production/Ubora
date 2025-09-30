@@ -5,7 +5,6 @@ import { FormatSelector } from './FormatSelector';
 import { ComprehensiveFilter } from './ComprehensiveFilter';
 import { useAuth } from '../../contexts/AuthContext';
 import { usePackageAccess } from '../../hooks/usePackageAccess';
-import { UserSessionService } from '../../services/userSessionService';
 
 interface Form {
   id: string;
@@ -71,9 +70,9 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
   allowMultipleFormats = false
 }) => {
   const { user } = useAuth();
-  const { getMonthlyTokens, hasUnlimitedTokens } = usePackageAccess();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [rows, setRows] = useState(1);
+  const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
 
   // Calculer les tokens restants
   const { packageInfo } = usePackageAccess();
@@ -109,6 +108,34 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
     }
   }, [value]);
 
+  // Detect mobile keyboard open/close
+  useEffect(() => {
+    const handleResize = () => {
+      const initialViewportHeight = window.visualViewport?.height || window.innerHeight;
+      const currentViewportHeight = window.visualViewport?.height || window.innerHeight;
+      
+      // If viewport height decreased significantly, keyboard is likely open
+      const heightDifference = initialViewportHeight - currentViewportHeight;
+      setIsKeyboardOpen(heightDifference > 150); // Threshold for keyboard detection
+    };
+
+    // Listen for viewport changes (better for mobile keyboard detection)
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', handleResize);
+    } else {
+      // Fallback to window resize
+      window.addEventListener('resize', handleResize);
+    }
+
+    return () => {
+      if (window.visualViewport) {
+        window.visualViewport.removeEventListener('resize', handleResize);
+      } else {
+        window.removeEventListener('resize', handleResize);
+      }
+    };
+  }, []);
+
   const handleKeyPress = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
@@ -119,13 +146,33 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
     onKeyPress?.(e);
   };
 
+  const handleFocus = () => {
+    // On mobile, ensure the input is visible when focused
+    if (textareaRef.current) {
+      setTimeout(() => {
+        textareaRef.current?.scrollIntoView({ 
+          behavior: 'smooth', 
+          block: 'center' 
+        });
+      }, 300); // Delay to allow keyboard to open
+    }
+  };
+
   const canSend = !disabled && value.trim().length > 0;
   const isNearLimit = value.length > maxLength * 0.8;
 
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-10 bg-gradient-to-t from-white via-white to-transparent pt-4">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-4" style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
+    <div 
+      className={`fixed left-0 right-0 z-10 bg-gradient-to-t from-white via-white to-transparent pt-4 transition-all duration-300 ${
+        isKeyboardOpen ? 'pb-2' : 'pb-4'
+      }`}
+      style={{ 
+        paddingBottom: isKeyboardOpen ? '0.5rem' : 'max(1rem, env(safe-area-inset-bottom))',
+        bottom: isKeyboardOpen ? '0' : '0'
+      }}
+    >
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         
         {/* Common background container for filters and input */}
         <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-visible">
@@ -179,6 +226,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
                   value={value}
                   onChange={(e) => onChange(e.target.value)}
                   onKeyPress={handleKeyPress}
+                  onFocus={handleFocus}
                   placeholder={placeholder}
                   disabled={disabled}
                   maxLength={maxLength}

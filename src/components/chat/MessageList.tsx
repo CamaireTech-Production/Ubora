@@ -34,10 +34,26 @@ export const MessageList: React.FC<MessageListProps> = ({
   const [lastMessageCount, setLastMessageCount] = useState(messages.length);
   const [isAtTop, setIsAtTop] = useState(false);
   const [autoScrollDisabled, setAutoScrollDisabled] = useState(false);
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
 
   // Auto-scroll to bottom when new messages arrive (only if auto-scroll is not disabled)
   useEffect(() => {
     const hasNewMessages = messages.length > lastMessageCount;
+    
+    // On initial load, always scroll to bottom
+    if (isInitialLoad && messages.length > 0) {
+      setTimeout(() => {
+        if (containerRef.current) {
+          containerRef.current.scrollTo({
+            top: containerRef.current.scrollHeight,
+            behavior: 'smooth'
+          });
+        }
+        setIsInitialLoad(false);
+      }, 200); // Slightly longer delay to ensure DOM is ready
+      setLastMessageCount(messages.length);
+      return;
+    }
     
     // Only auto-scroll if:
     // 1. Auto-scroll is not disabled
@@ -47,12 +63,15 @@ export const MessageList: React.FC<MessageListProps> = ({
                             (hasNewMessages || isTyping) && 
                             !isAtTop;
     
-    if (shouldAutoScroll && messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    if (shouldAutoScroll && containerRef.current) {
+      containerRef.current.scrollTo({
+        top: containerRef.current.scrollHeight,
+        behavior: 'smooth'
+      });
     }
     
     setLastMessageCount(messages.length);
-  }, [messages.length, isTyping, autoScrollDisabled, isAtTop, lastMessageCount]);
+  }, [messages.length, isTyping, autoScrollDisabled, isAtTop, lastMessageCount, isInitialLoad]);
 
   // Handle scroll to load more messages and track user scrolling
   const handleScroll = () => {
@@ -92,7 +111,9 @@ export const MessageList: React.FC<MessageListProps> = ({
         onScroll={handleScroll}
         style={{ 
           maxHeight: 'calc(100vh - 140px)',
-          scrollBehavior: 'smooth'
+          scrollBehavior: 'smooth',
+          // Ensure proper spacing on mobile
+          paddingBottom: 'max(12rem, calc(12rem + env(safe-area-inset-bottom)))'
         }}
       >
       {/* Load more button */}
