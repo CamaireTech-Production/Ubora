@@ -30,6 +30,7 @@ export interface PDFExtractionResult {
     totalWords: number;
     averageWordsPerPage: number;
     extractionTime: number;
+    tablesDetected: number;
   };
 }
 
@@ -133,7 +134,6 @@ export class FileUploadService {
           if (extractionResult.success) {
             fileAttachment.extractedText = PDFTextExtractionService.cleanExtractedText(extractionResult.text);
             fileAttachment.textExtractionStatus = 'completed';
-
 
             // Trigger debug modal callback
             onPDFExtraction?.({
@@ -255,6 +255,7 @@ export class FileUploadService {
       throw new Error(`Failed to process file: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
+
 
   /**
    * Upload multiple files

@@ -19,6 +19,7 @@ interface TextExtractionModalProps {
     totalWords: number;
     averageWordsPerPage: number;
     extractionTime: number;
+    tablesDetected: number;
   };
 }
 
@@ -29,7 +30,6 @@ export const TextExtractionModal: React.FC<TextExtractionModalProps> = ({
   fileName,
   extractedText,
   extractionStatus,
-  confidence,
   error,
   fileSize,
   engine,
@@ -47,96 +47,67 @@ export const TextExtractionModal: React.FC<TextExtractionModalProps> = ({
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
-  const getStatusIcon = () => {
-    if (extractionStatus === 'completed') {
-      return <CheckCircle className="w-6 h-6 text-green-500" />;
-    } else {
-      return <AlertCircle className="w-6 h-6 text-red-500" />;
-    }
-  };
-
-  const getStatusColor = () => {
-    return extractionStatus === 'completed' ? 'text-green-600' : 'text-red-600';
-  };
-
-  const getStatusText = () => {
-    return extractionStatus === 'completed' ? 'Extraction réussie' : 'Extraction échouée';
-  };
-
   const handleProceed = () => {
     onProceed();
-    onClose();
   };
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg max-w-4xl max-h-[90vh] w-full flex flex-col">
+      <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b">
           <div className="flex items-center gap-3">
-            <FileText className="w-6 h-6 text-blue-500" />
+            <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+              <FileText className="w-5 h-5 text-blue-600" />
+            </div>
             <div>
               <h3 className="text-lg font-semibold text-gray-900">
                 Extraction de texte - {fileName}
               </h3>
-              <div className="text-sm text-gray-500 space-y-1">
-                <p>Taille du fichier: {formatFileSize(fileSize)}</p>
-                {fileType === 'pdf' && pages && (
-                  <p>Pages: {pages}</p>
-                )}
-                {fileType === 'image' && engine && (
-                  <p>Moteur: {engine}</p>
-                )}
-              </div>
+              <p className="text-sm text-gray-500">
+                {formatFileSize(fileSize)} • {fileType.toUpperCase()}
+              </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors"
+            className="text-gray-400 hover:text-gray-600 transition-colors"
           >
-            <X className="w-5 h-5" />
+            <X className="w-6 h-6" />
           </button>
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-auto p-6">
+        <div className="flex-1 overflow-y-auto p-6">
           <div className="space-y-6">
-            {/* Quality Warning */}
-            <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg">
-              <div className="flex items-start gap-3">
-                <Lightbulb className="w-5 h-5 text-amber-500 mt-0.5" />
-                <div className="text-sm text-amber-800">
-                  <p className="font-medium mb-1">💡 Pour de meilleurs résultats</p>
-                  {fileType === 'image' ? (
-                    <p className="text-amber-700">
-                      Pour une extraction de texte optimale, veuillez uploader des images avec une bonne luminosité, 
-                      un contraste élevé et une résolution claire. Les images manuscrites doivent être nettes et lisibles.
-                    </p>
-                  ) : (
-                    <p className="text-amber-700">
-                      Pour une extraction de texte optimale, veuillez uploader des PDFs avec du texte sélectionnable. 
-                      Les PDFs scannés ou protégés peuvent ne pas être analysés correctement.
-                    </p>
-                  )}
-                </div>
-              </div>
-            </div>
-
             {/* Status Section */}
-            <div className="flex items-center gap-3 p-4 bg-gray-50 rounded-lg">
-              {getStatusIcon()}
-              <div className="flex-1">
-                <h4 className={`font-medium ${getStatusColor()}`}>
-                  {getStatusText()}
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                {extractionStatus === 'completed' ? (
+                  <CheckCircle className="w-5 h-5 text-green-500" />
+                ) : (
+                  <AlertCircle className="w-5 h-5 text-red-500" />
+                )}
+                <h4 className="font-medium text-gray-900">
+                  {extractionStatus === 'completed' ? 'Extraction réussie' : 'Extraction échouée'}
                 </h4>
-                {extractionStats && fileType === 'pdf' && (
-                  <div className="text-sm text-gray-600 mt-1">
-                    <span className="inline-block mr-4">📊 {extractionStats.totalWords} mots</span>
-                    <span className="inline-block mr-4">⏱️ {extractionStats.extractionTime}ms</span>
-                    <span className="inline-block">📄 {extractionStats.averageWordsPerPage} mots/page</span>
-                  </div>
+                {engine && (
+                  <span className="text-sm text-gray-500">
+                    (Moteur: {engine})
+                  </span>
                 )}
               </div>
+
+              {extractionStats && fileType === 'pdf' && (
+                <div className="text-sm text-gray-600 mt-1">
+                  <span className="inline-block mr-4">📊 {extractionStats.totalWords} mots</span>
+                  <span className="inline-block mr-4">⏱️ {extractionStats.extractionTime}ms</span>
+                  <span className="inline-block mr-4">📄 {extractionStats.averageWordsPerPage} mots/page</span>
+                  {extractionStats.tablesDetected > 0 && (
+                    <span className="inline-block">📋 {extractionStats.tablesDetected} tableau{extractionStats.tablesDetected > 1 ? 'x' : ''}</span>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Error Section */}
@@ -151,6 +122,63 @@ export const TextExtractionModal: React.FC<TextExtractionModalProps> = ({
                 </div>
               </div>
             )}
+
+            {/* Quality Warning Section */}
+            {extractionStatus === 'completed' && (
+              <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                <div className="flex items-start gap-3">
+                  <Lightbulb className="w-5 h-5 text-yellow-500 mt-0.5" />
+                  <div>
+                    <h4 className="font-medium text-yellow-800">
+                      {fileType === 'pdf' ? 'Conseils pour améliorer l\'extraction PDF' : 'Conseils pour améliorer l\'extraction'}
+                    </h4>
+                    <ul className="text-sm text-yellow-700 mt-2 space-y-1">
+                      {fileType === 'pdf' ? (
+                        <>
+                          <li>• Assurez-vous que le PDF contient du texte (pas seulement des images)</li>
+                          <li>• Utilisez des PDFs avec des tableaux bien structurés</li>
+                          <li>• Évitez les PDFs scannés de mauvaise qualité</li>
+                          <li>• Les tableaux avec des bordures sont mieux extraits</li>
+                        </>
+                      ) : (
+                        <>
+                          <li>• Assurez-vous que l'image est nette et bien éclairée</li>
+                          <li>• Évitez les reflets et les ombres sur le document</li>
+                          <li>• Utilisez une résolution d'au moins 300 DPI</li>
+                          <li>• Gardez le texte horizontal et lisible</li>
+                        </>
+                      )}
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Tables Detected Section */}
+            {extractionStats && fileType === 'pdf' && extractionStats.tablesDetected > 0 && (
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-5 h-5 text-green-500">📋</div>
+                  <h4 className="font-medium text-gray-900">Tableaux détectés</h4>
+                  <span className="text-sm text-gray-500">
+                    ({extractionStats.tablesDetected} tableau{extractionStats.tablesDetected > 1 ? 'x' : ''} formaté{extractionStats.tablesDetected > 1 ? 's' : ''} en Markdown)
+                  </span>
+                </div>
+                <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                  <div className="flex items-start gap-3">
+                    <div className="w-5 h-5 text-green-500 mt-0.5">✅</div>
+                    <div className="text-sm text-green-800">
+                      <p className="font-medium mb-1">🎯 Tableaux formatés en Markdown</p>
+                      <p className="text-green-700">
+                        Les tableaux ont été détectés et convertis au format Markdown pour une meilleure analyse. 
+                        Ils sont maintenant structurés et peuvent être facilement traités par les systèmes d'analyse.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
 
             {/* Extracted Text Section */}
             <div className="space-y-3">
