@@ -48,13 +48,14 @@ export interface UserPackageInfo {
 export class UserSessionService {
   /**
    * Get complete package information from active session
-   * Note: Only directors have subscription sessions
+   * Note: Only directors and employees with director access have subscription sessions
    */
   static getUserPackageInfo(user: User): UserPackageInfo {
-    // Only directors have subscription sessions
-    if (user.role !== 'directeur') {
+    // Only directors and employees with director access have subscription sessions
+    if (user.role !== 'directeur' && !(user.role === 'employe' && user.hasDirectorDashboardAccess)) {
       return this.getDefaultPackageInfo();
     }
+
 
     const currentSession = SubscriptionSessionService.getCurrentSession(user);
     
@@ -186,12 +187,50 @@ export class UserSessionService {
     return featureList;
   }
 
+
+  /**
+   * Get director's package information for an employee with director access (async version)
+   * This method finds the director of the employee's agency and returns their package info
+   */
+  static async getDirectorPackageInfoForEmployeeAsync(employee: User): Promise<UserPackageInfo> {
+    try {
+      // Import Firebase functions dynamically to avoid circular dependencies
+      const { db } = await import('../firebaseConfig');
+      const { collection, query, where, getDocs } = await import('firebase/firestore');
+      
+      // Find the director of the employee's agency
+      const directorsQuery = query(
+        collection(db, 'users'),
+        where('agencyId', '==', employee.agencyId),
+        where('role', '==', 'directeur')
+      );
+      
+      const directorsSnapshot = await getDocs(directorsQuery);
+      
+      if (directorsSnapshot.empty) {
+        console.warn(`No director found for agency ${employee.agencyId}`);
+        return this.getDefaultPackageInfo();
+      }
+      
+      const directorData = directorsSnapshot.docs[0].data() as User;
+      const directorId = directorsSnapshot.docs[0].id;
+      
+      // Get the director's package info
+      return this.getUserPackageInfo(directorData);
+      
+    } catch (error) {
+      console.error('Error getting director package info for employee:', error);
+      return this.getDefaultPackageInfo();
+    }
+  }
+
   /**
    * Get package limits from active session
-   * Note: Only directors have subscription sessions
+   * Note: Only directors and employees with director access have subscription sessions
    */
   static getPackageLimits(user: User) {
-    if (user.role !== 'directeur') {
+    // Only directors and employees with director access can have package limits
+    if (user.role !== 'directeur' && !(user.role === 'employe' && user.hasDirectorDashboardAccess)) {
       return {
         maxForms: 0,
         maxDashboards: 0,
@@ -199,6 +238,7 @@ export class UserSessionService {
         maxTokens: 0
       };
     }
+
 
     const currentSession = SubscriptionSessionService.getCurrentSession(user);
     
@@ -229,10 +269,11 @@ export class UserSessionService {
 
   /**
    * Check if user has a specific feature
-   * Note: Only directors have subscription sessions
+   * Note: Only directors and employees with director access have subscription sessions
    */
   static hasFeature(user: User, feature: string): boolean {
-    if (user.role !== 'directeur') {
+    // Only directors and employees with director access can have package features
+    if (user.role !== 'directeur' && !(user.role === 'employe' && user.hasDirectorDashboardAccess)) {
       return false;
     }
 
@@ -243,15 +284,16 @@ export class UserSessionService {
     }
 
     const packageFeatures = PACKAGE_FEATURES[currentSession.packageType];
-    return packageFeatures[feature] === true;
+    return (packageFeatures as any)[feature] === true;
   }
 
   /**
    * Check if user can perform an action based on limits
-   * Note: Only directors have subscription sessions
+   * Note: Only directors and employees with director access have subscription sessions
    */
   static canPerformAction(user: User, action: 'createForm' | 'createDashboard' | 'addUser' | 'useTokens', currentCount: number): boolean {
-    if (user.role !== 'directeur') {
+    // Allow directors and employees with director access
+    if (user.role !== 'directeur' && !(user.role === 'employe' && user.hasDirectorDashboardAccess)) {
       return false;
     }
 
@@ -265,13 +307,17 @@ export class UserSessionService {
     
     switch (action) {
       case 'createForm':
-        return currentCount < limits.maxForms;
+        // Handle unlimited case (-1)
+        return limits.maxForms === -1 || currentCount < limits.maxForms;
       case 'createDashboard':
-        return currentCount < limits.maxDashboards;
+        // Handle unlimited case (-1)
+        return limits.maxDashboards === -1 || currentCount < limits.maxDashboards;
       case 'addUser':
-        return currentCount < limits.maxUsers;
+        // Handle unlimited case (-1)
+        return limits.maxUsers === -1 || currentCount < limits.maxUsers;
       case 'useTokens':
-        return currentCount < limits.maxTokens;
+        // Handle unlimited case (-1)
+        return limits.maxTokens === -1 || currentCount < limits.maxTokens;
       default:
         return false;
     }
@@ -279,10 +325,11 @@ export class UserSessionService {
 
   /**
    * Get total pay-as-you-go tokens from active session
-   * Note: Only directors have subscription sessions
+   * Note: Only directors and employees with director access have subscription sessions
    */
   static getTotalPayAsYouGoTokens(user: User): number {
-    if (user.role !== 'directeur') {
+    // Only directors and employees with director access have subscription sessions
+    if (user.role !== 'directeur' && !(user.role === 'employe' && user.hasDirectorDashboardAccess)) {
       return 0;
     }
 
@@ -297,10 +344,11 @@ export class UserSessionService {
 
   /**
    * Get total available tokens (package + pay-as-you-go)
-   * Note: Only directors have subscription sessions
+   * Note: Only directors and employees with director access have subscription sessions
    */
   static getTotalAvailableTokens(user: User): number {
-    if (user.role !== 'directeur') {
+    // Only directors and employees with director access have subscription sessions
+    if (user.role !== 'directeur' && !(user.role === 'employe' && user.hasDirectorDashboardAccess)) {
       return 0;
     }
 
@@ -318,10 +366,11 @@ export class UserSessionService {
 
   /**
    * Get subscription history
-   * Note: Only directors have subscription sessions
+   * Note: Only directors and employees with director access have subscription sessions
    */
   static getSubscriptionHistory(user: User) {
-    if (user.role !== 'directeur') {
+    // Only directors and employees with director access have subscription sessions
+    if (user.role !== 'directeur' && !(user.role === 'employe' && user.hasDirectorDashboardAccess)) {
       return {
         currentSession: null,
         allSessions: [],
@@ -341,10 +390,11 @@ export class UserSessionService {
 
   /**
    * Check if user needs to select a package
-   * Note: Only directors have subscription sessions
+   * Note: Only directors and employees with director access have subscription sessions
    */
   static needsPackageSelection(user: User): boolean {
-    if (user.role !== 'directeur') {
+    // Only directors and employees with director access have subscription sessions
+    if (user.role !== 'directeur' && !(user.role === 'employe' && user.hasDirectorDashboardAccess)) {
       return false;
     }
 

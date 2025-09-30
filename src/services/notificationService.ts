@@ -5,7 +5,7 @@ export interface NotificationData {
   id?: string;
   title: string;
   body: string;
-  type: 'form_submission' | 'director_message' | 'system_alert' | 'reminder';
+  type: 'form_submission' | 'director_message' | 'system_alert' | 'reminder' | 'form_assignment' | 'form_created';
   recipientId?: string;
   recipientRole?: 'directeur' | 'employe';
   data?: Record<string, any>;
@@ -19,11 +19,12 @@ class NotificationService {
   /**
    * Send notification to specific user
    */
-  async sendToUser(userId: string, notification: Omit<NotificationData, 'id' | 'read' | 'createdAt'>): Promise<void> {
+  async sendToUser(userId: string, notification: Omit<NotificationData, 'id' | 'read' | 'createdAt'>, agencyId?: string): Promise<void> {
     try {
       await addDoc(collection(db, this.collectionName), {
         ...notification,
         recipientId: userId,
+        agencyId: agencyId,
         read: false,
         createdAt: serverTimestamp(),
       });
@@ -39,11 +40,12 @@ class NotificationService {
   /**
    * Send notification to all users with specific role
    */
-  async sendToRole(role: 'directeur' | 'employe', notification: Omit<NotificationData, 'id' | 'read' | 'createdAt'>): Promise<void> {
+  async sendToRole(role: 'directeur' | 'employe', notification: Omit<NotificationData, 'id' | 'read' | 'createdAt'>, agencyId?: string): Promise<void> {
     try {
       await addDoc(collection(db, this.collectionName), {
         ...notification,
         recipientRole: role,
+        agencyId: agencyId,
         read: false,
         createdAt: serverTimestamp(),
       });
@@ -57,7 +59,8 @@ class NotificationService {
   }
 
   /**
-   * Send push notification via API
+   * Send push notification using FCM directly
+   * Note: FCM from frontend can only send to current user, so we rely on Firestore real-time updates
    */
   private async sendPushNotification(
     userIds: string[] | null,
@@ -67,26 +70,17 @@ class NotificationService {
     role?: 'directeur' | 'employe'
   ): Promise<void> {
     try {
-      const response = await fetch('/api/notifications/send', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          userIds,
-          title,
-          body,
-          data,
-          role,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`Push notification failed: ${response.statusText}`);
-      }
-
-      const result = await response.json();
-      console.log('🔔 [NotificationService] Push notification sent:', result);
+      // Since FCM from frontend can only send to current user,
+      // we rely on Firestore real-time updates to trigger notifications
+      // The service worker will handle background notifications
+      
+      console.log('🔔 [NotificationService] Notification saved to Firestore, real-time updates will handle delivery');
+      
+      // The notification will be delivered through:
+      // 1. Firestore real-time listeners (for in-app notifications)
+      // 2. Service worker (for background notifications)
+      // 3. FCM will automatically handle push notifications when the app is in background
+      
     } catch (error) {
       console.error('🔔 [NotificationService] Push notification error:', error);
       // Don't throw here - we still want to save the notification to Firestore
@@ -196,6 +190,95 @@ class NotificationService {
         type: 'system_alert',
         data: { message },
       });
+    }
+  }
+
+  /**
+   * Notify employees when a form is assigned to them
+   */
+  async notifyFormAssignment(formId: string, formTitle: string, employeeIds: string[], directorName: string, agencyId?: string): Promise<void> {
+    const notifications = employeeIds.map(employeeId => 
+      this.sendToUser(employeeId, {
+        title: 'Nouveau formulaire assigné',
+        body: `${directorName} vous a assigné le formulaire "${formTitle}"`,
+        type: 'form_assignment',
+        data: { 
+          formId, 
+          formTitle, 
+          directorName,
+          action: 'form_assigned'
+        },
+      }, agencyId)
+    );
+
+    await Promise.all(notifications);
+  }
+
+  /**
+   * Notify employees when a form is created and assigned to them
+   */
+  async notifyFormCreated(formId: string, formTitle: string, employeeIds: string[], directorName: string, agencyId?: string): Promise<void> {
+    const notifications = employeeIds.map(employeeId => 
+      this.sendToUser(employeeId, {
+        title: 'Nouveau formulaire créé',
+        body: `${directorName} a créé et vous a assigné le formulaire "${formTitle}"`,
+        type: 'form_created',
+        data: { 
+          formId, 
+          formTitle, 
+          directorName,
+          action: 'form_created'
+        },
+      }, agencyId)
+    );
+
+    await Promise.all(notifications);
+  }
+
+  /**
+   * Notify employees when form assignment is updated
+   */
+  async notifyFormAssignmentUpdate(formId: string, formTitle: string, newEmployeeIds: string[], removedEmployeeIds: string[], directorName: string, agencyId?: string): Promise<void> {
+    const notifications = [];
+
+    // Notify newly assigned employees
+    if (newEmployeeIds.length > 0) {
+      const newAssignmentNotifications = newEmployeeIds.map(employeeId => 
+        this.sendToUser(employeeId, {
+          title: 'Formulaire assigné',
+          body: `${directorName} vous a assigné le formulaire "${formTitle}"`,
+          type: 'form_assignment',
+          data: { 
+            formId, 
+            formTitle, 
+            directorName,
+            action: 'form_assigned'
+          },
+        }, agencyId)
+      );
+      notifications.push(...newAssignmentNotifications);
+    }
+
+    // Notify removed employees
+    if (removedEmployeeIds.length > 0) {
+      const removedAssignmentNotifications = removedEmployeeIds.map(employeeId => 
+        this.sendToUser(employeeId, {
+          title: 'Formulaire désassigné',
+          body: `Vous n'êtes plus assigné au formulaire "${formTitle}"`,
+          type: 'form_assignment',
+          data: { 
+            formId, 
+            formTitle, 
+            directorName,
+            action: 'form_unassigned'
+          },
+        }, agencyId)
+      );
+      notifications.push(...removedAssignmentNotifications);
+    }
+
+    if (notifications.length > 0) {
+      await Promise.all(notifications);
     }
   }
 }

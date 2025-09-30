@@ -133,6 +133,7 @@ service cloud.firestore {
       allow delete: if isAuthenticated() && (isAdmin() || isSameAgency(resource.data.agencyId)) && (
         isAdmin() ||
         isDirecteur() ||
+        hasDirectorDashboardAccess() ||
         (isEmploye() && resource.data.createdByEmployeeId == request.auth.uid)
       );
     }
@@ -163,12 +164,12 @@ service cloud.firestore {
       // MODIFICATION des entrées de formulaire
       allow update: if isAuthenticated() && (
         isAdmin() ||
-        (isDirecteur() && isSameAgency(resource.data.agencyId)) ||
+        (hasDirectorDashboardAccess() && isSameAgency(resource.data.agencyId)) ||
         (isEmploye() && isOwner(resource.data.userId) && isSameAgency(resource.data.agencyId))
       );
       
       // SUPPRESSION des entrées de formulaire
-      allow delete: if isAdmin() || (isDirecteur() && isSameAgency(resource.data.agencyId));
+      allow delete: if isAdmin() || (hasDirectorDashboardAccess() && isSameAgency(resource.data.agencyId));
     }
 
     // =============================================================================
@@ -229,17 +230,11 @@ service cloud.firestore {
       
       // MODIFICATION des tableaux de bord
       allow update: if isAdmin() || (hasDirectorDashboardAccess() && 
-                   isSameAgency(resource.data.agencyId) && (
-        isDirecteur() ||
-        (isEmploye() && resource.data.createdByEmployeeId == request.auth.uid)
-      ));
+                   isSameAgency(resource.data.agencyId));
       
       // SUPPRESSION des tableaux de bord
       allow delete: if isAdmin() || (hasDirectorDashboardAccess() && 
-                   isSameAgency(resource.data.agencyId) && (
-        isDirecteur() ||
-        (isEmploye() && resource.data.createdByEmployeeId == request.auth.uid)
-      ));
+                   isSameAgency(resource.data.agencyId));
     }
 
     // =============================================================================
@@ -281,6 +276,38 @@ service cloud.firestore {
       allow update: if isAdmin();
       
       // SUPPRESSION des notifications push (seuls les admins)
+      allow delete: if isAdmin();
+    }
+
+    // =============================================================================
+    // COLLECTION NOTIFICATIONS
+    // Règles pour les notifications :
+    // - Les utilisateurs peuvent lire leurs propres notifications
+    // - Les directeurs et employés avec accès directeur peuvent créer des notifications
+    // - Les notifications sont isolées par agence
+    // =============================================================================
+    
+    match /notifications/{notificationId} {
+      // LECTURE des notifications
+      allow read: if isAuthenticated() && (
+        isAdmin() ||
+        (hasDirectorDashboardAccess() && isSameAgency(resource.data.agencyId)) ||
+        (isEmploye() && resource.data.recipientId == request.auth.uid)
+      );
+      
+      // CRÉATION de notifications
+      allow create: if isAuthenticated() && (
+        isAdmin() ||
+        hasDirectorDashboardAccess()
+      );
+      
+      // MODIFICATION des notifications (seuls les admins et les destinataires)
+      allow update: if isAuthenticated() && (
+        isAdmin() ||
+        (isEmploye() && resource.data.recipientId == request.auth.uid)
+      );
+      
+      // SUPPRESSION des notifications (seuls les admins)
       allow delete: if isAdmin();
     }
 

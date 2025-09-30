@@ -8,16 +8,60 @@ import {
   PackageFeatures, 
   PackageLimits 
 } from '../config/packageFeatures';
+import { useState, useEffect } from 'react';
+import { db } from '../firebaseConfig';
+import { collection, query, where, getDocs } from 'firebase/firestore';
 
 // Hook principal pour vérifier l'accès aux fonctionnalités
 export const usePackageAccess = () => {
   const { user } = useAuth();
+  const [directorPackageInfo, setDirectorPackageInfo] = useState<any>(null);
+  const [isLoadingDirectorInfo, setIsLoadingDirectorInfo] = useState(false);
 
   // Get current package info from active session
   const getCurrentPackageInfo = () => {
     if (!user) return null;
+    
+    // For employees with director access, use the director's package info if available
+    if (user.role === 'employe' && user.hasDirectorDashboardAccess && directorPackageInfo) {
+      return directorPackageInfo;
+    }
+    
     return UserSessionService.getUserPackageInfo(user);
   };
+
+  // Fetch director's package info for employees with director access
+  useEffect(() => {
+    const fetchDirectorPackageInfo = async () => {
+      if (!user || user.role !== 'employe' || !user.hasDirectorDashboardAccess) {
+        return;
+      }
+
+      setIsLoadingDirectorInfo(true);
+      try {
+        // Find the director of the employee's agency
+        const directorsQuery = query(
+          collection(db, 'users'),
+          where('agencyId', '==', user.agencyId),
+          where('role', '==', 'directeur')
+        );
+        
+        const directorsSnapshot = await getDocs(directorsQuery);
+        
+        if (!directorsSnapshot.empty) {
+          const directorData = directorsSnapshot.docs[0].data();
+          const directorPackageInfo = UserSessionService.getUserPackageInfo(directorData);
+          setDirectorPackageInfo(directorPackageInfo);
+        }
+      } catch (error) {
+        console.error('Error fetching director package info:', error);
+      } finally {
+        setIsLoadingDirectorInfo(false);
+      }
+    };
+
+    fetchDirectorPackageInfo();
+  }, [user]);
 
   const packageInfo = getCurrentPackageInfo();
   const currentPackageType = packageInfo?.packageType || null;
@@ -32,8 +76,16 @@ export const usePackageAccess = () => {
   const checkLimit = (limit: keyof PackageLimits, currentValue: number): boolean => {
     if (!user) return false;
     
-    const limits = UserSessionService.getPackageLimits(user);
-    const limitValue = limits[limit];
+    let limitValue: number;
+    
+    // For employees with director access, use director's package limits if available
+    if (user.role === 'employe' && user.hasDirectorDashboardAccess && directorPackageInfo) {
+      const packageLimits = directorPackageInfo.packageLimits || {};
+      limitValue = packageLimits[limit] || 0;
+    } else {
+      const limits = UserSessionService.getPackageLimits(user);
+      limitValue = limits[limit];
+    }
     
     // Si la limite est illimitée (-1), toujours autoriser
     if (limitValue === -1) {
@@ -46,6 +98,14 @@ export const usePackageAccess = () => {
   // Obtenir la valeur d'une limite
   const getLimit = (limit: keyof PackageLimits): number => {
     if (!user) return 0;
+    
+    // For employees with director access, use director's package limits if available
+    if (user.role === 'employe' && user.hasDirectorDashboardAccess && directorPackageInfo) {
+      // Get the director's package limits from the package info
+      const packageLimits = directorPackageInfo.packageLimits || {};
+      return packageLimits[limit] || 0;
+    }
+    
     const limits = UserSessionService.getPackageLimits(user);
     return limits[limit];
   };
@@ -53,6 +113,13 @@ export const usePackageAccess = () => {
   // Vérifier si une limite est illimitée
   const isLimitUnlimited = (limit: keyof PackageLimits): boolean => {
     if (!user) return false;
+    
+    // For employees with director access, use director's package limits if available
+    if (user.role === 'employe' && user.hasDirectorDashboardAccess && directorPackageInfo) {
+      const packageLimits = directorPackageInfo.packageLimits || {};
+      return packageLimits[limit] === -1;
+    }
+    
     const limits = UserSessionService.getPackageLimits(user);
     return limits[limit] === -1;
   };
@@ -65,18 +132,75 @@ export const usePackageAccess = () => {
   // Vérifier si l'utilisateur peut créer un nouveau formulaire
   const canCreateForm = (currentFormCount: number): boolean => {
     if (!user) return false;
+    
+    // For employees with director access, use director's package limits if available
+    if (user.role === 'employe' && user.hasDirectorDashboardAccess) {
+      // If still loading director info, allow creation (will be validated later)
+      if (isLoadingDirectorInfo) {
+        return true;
+      }
+      
+      if (directorPackageInfo) {
+        const packageLimits = directorPackageInfo.packageLimits || {};
+        const maxForms = packageLimits.maxForms || 0;
+        return maxForms === -1 || currentFormCount < maxForms;
+      }
+      
+      // If we have director access but no package info yet, allow creation
+      // This prevents the modal from showing while the director's info is being fetched
+      return true;
+    }
+    
     return UserSessionService.canPerformAction(user, 'createForm', currentFormCount);
   };
 
   // Vérifier si l'utilisateur peut créer un nouveau tableau de bord
   const canCreateDashboard = (currentDashboardCount: number): boolean => {
     if (!user) return false;
+    
+    // For employees with director access, use director's package limits if available
+    if (user.role === 'employe' && user.hasDirectorDashboardAccess) {
+      // If still loading director info, allow creation (will be validated later)
+      if (isLoadingDirectorInfo) {
+        return true;
+      }
+      
+      if (directorPackageInfo) {
+        const packageLimits = directorPackageInfo.packageLimits || {};
+        const maxDashboards = packageLimits.maxDashboards || 0;
+        return maxDashboards === -1 || currentDashboardCount < maxDashboards;
+      }
+      
+      // If we have director access but no package info yet, allow creation
+      // This prevents the modal from showing while the director's info is being fetched
+      return true;
+    }
+    
     return UserSessionService.canPerformAction(user, 'createDashboard', currentDashboardCount);
   };
 
   // Vérifier si l'utilisateur peut ajouter un nouvel utilisateur
   const canAddUser = (currentUserCount: number): boolean => {
     if (!user) return false;
+    
+    // For employees with director access, use director's package limits if available
+    if (user.role === 'employe' && user.hasDirectorDashboardAccess) {
+      // If still loading director info, allow creation (will be validated later)
+      if (isLoadingDirectorInfo) {
+        return true;
+      }
+      
+      if (directorPackageInfo) {
+        const packageLimits = directorPackageInfo.packageLimits || {};
+        const maxUsers = packageLimits.maxUsers || 0;
+        return maxUsers === -1 || currentUserCount < maxUsers;
+      }
+      
+      // If we have director access but no package info yet, allow creation
+      // This prevents the modal from showing while the director's info is being fetched
+      return true;
+    }
+    
     return UserSessionService.canPerformAction(user, 'addUser', currentUserCount);
   };
 
@@ -143,6 +267,9 @@ export const usePackageAccess = () => {
     getLimit,
     isLimitUnlimited,
     getPackageType,
+    
+    // Loading state for director info
+    isLoadingDirectorInfo,
     
     // Fonctions spécifiques aux formulaires
     canCreateForm,

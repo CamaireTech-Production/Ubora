@@ -59,6 +59,18 @@ export const PushNotificationsTab: React.FC<PushNotificationsTabProps> = ({ onRe
         return <Bell className="h-4 w-4 text-purple-600" />;
       case 'chat_notification':
         return <Bell className="h-4 w-4 text-green-600" />;
+      case 'form_assignment':
+        return <CheckCircle className="h-4 w-4 text-purple-600" />;
+      case 'form_created':
+        return <CheckCircle className="h-4 w-4 text-indigo-600" />;
+      case 'form_submission':
+        return <CheckCircle className="h-4 w-4 text-green-600" />;
+      case 'director_message':
+        return <Bell className="h-4 w-4 text-blue-600" />;
+      case 'system_alert':
+        return <AlertCircle className="h-4 w-4 text-red-600" />;
+      case 'reminder':
+        return <Clock className="h-4 w-4 text-yellow-600" />;
       default:
         return <Bell className="h-4 w-4 text-gray-600" />;
     }
@@ -74,6 +86,18 @@ export const PushNotificationsTab: React.FC<PushNotificationsTabProps> = ({ onRe
         return 'bg-purple-100 text-purple-800';
       case 'chat_notification':
         return 'bg-green-100 text-green-800';
+      case 'form_assignment':
+        return 'bg-purple-100 text-purple-800';
+      case 'form_created':
+        return 'bg-indigo-100 text-indigo-800';
+      case 'form_submission':
+        return 'bg-green-100 text-green-800';
+      case 'director_message':
+        return 'bg-blue-100 text-blue-800';
+      case 'system_alert':
+        return 'bg-red-100 text-red-800';
+      case 'reminder':
+        return 'bg-yellow-100 text-yellow-800';
       default:
         return 'bg-gray-100 text-gray-800';
     }

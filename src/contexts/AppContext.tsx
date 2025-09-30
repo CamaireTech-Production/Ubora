@@ -21,6 +21,7 @@ import { usePackageAccess } from '../hooks/usePackageAccess';
 import { PermissionManager } from '../utils/PermissionManager';
 import { AnalyticsService } from '../services/analyticsService';
 import { SubscriptionSessionService } from '../services/subscriptionSessionService';
+import { notificationService } from '../services/notificationService';
 
 interface AppContextType {
   forms: Form[];
@@ -326,8 +327,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       throw new Error('Seuls les directeurs et employés autorisés peuvent créer des formulaires');
     }
 
-    // Vérifier les limites du package (seulement pour les directeurs)
-    if (user.role === 'directeur' && !canCreateForm(forms.length)) {
+    // Vérifier les limites du package (pour les directeurs et employés avec accès directeur)
+    if ((user.role === 'directeur' || (user.role === 'employe' && user.hasDirectorDashboardAccess)) && !canCreateForm(forms.length)) {
       throw new Error('Limite de formulaires atteinte pour votre package. Veuillez mettre à niveau votre abonnement.');
     }
 
@@ -356,7 +357,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         docData.timeRestrictions = formData.timeRestrictions;
       }
 
-      await addDoc(collection(db, 'forms'), docData);
+      const formRef = await addDoc(collection(db, 'forms'), docData);
       
       // Track form creation in subscription session (only for directors)
       if (user.role === 'directeur' && firebaseUser) {
@@ -364,6 +365,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           await SubscriptionSessionService.updateUsage(firebaseUser.uid, 'forms', 1);
         } catch (trackingError) {
           console.warn('Failed to track form creation:', trackingError);
+        }
+      }
+
+      // Send notifications to assigned employees
+      if (formData.assignedTo && formData.assignedTo.length > 0) {
+        try {
+          await notificationService.notifyFormCreated(
+            formRef.id,
+            formData.title,
+            formData.assignedTo,
+            user.name || user.email
+          );
+          console.log('🔔 [Form] Notifications sent to assigned employees');
+        } catch (notificationError) {
+          console.warn('Failed to send form creation notifications:', notificationError);
+          // Don't throw here - form creation should succeed even if notifications fail
         }
       }
     } catch (err) {
@@ -374,12 +391,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const updateForm = async (formId: string, formData: Partial<Omit<Form, 'id' | 'createdAt' | 'createdBy' | 'agencyId'>>) => {
-    if (!user || user.role !== 'directeur' || !user.agencyId) {
+    if (!user || !user.agencyId || !PermissionManager.canUpdateForms(user)) {
       throw new Error('Seuls les directeurs peuvent modifier des formulaires');
     }
 
     try {
       setError(null);
+      
+      // Get current form data to compare assignments
+      const currentFormDoc = await getDoc(doc(db, 'forms', formId));
+      const currentForm = currentFormDoc.data() as Form;
+      const currentAssignedTo = currentForm?.assignedTo || [];
+      const newAssignedTo = formData.assignedTo || [];
       
       // Préparer les données à mettre à jour
       const updateData: Record<string, any> = {
@@ -403,6 +426,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
 
       await updateDoc(doc(db, 'forms', formId), updateData);
+
+      // Send notifications for assignment changes
+      if (formData.assignedTo !== undefined) {
+        const newlyAssigned = newAssignedTo.filter(id => !currentAssignedTo.includes(id));
+        const removedAssigned = currentAssignedTo.filter(id => !newAssignedTo.includes(id));
+        
+        if (newlyAssigned.length > 0 || removedAssigned.length > 0) {
+          try {
+            await notificationService.notifyFormAssignmentUpdate(
+              formId,
+              formData.title || currentForm.title,
+              newlyAssigned,
+              removedAssigned,
+              user.name || user.email,
+              user.agencyId
+            );
+            console.log('🔔 [Form] Assignment change notifications sent');
+          } catch (notificationError) {
+            console.warn('Failed to send assignment change notifications:', notificationError);
+            // Don't throw here - form update should succeed even if notifications fail
+          }
+        }
+      }
     } catch (err) {
       console.error('Erreur lors de la mise à jour du formulaire:', err);
       setError('Erreur lors de la mise à jour du formulaire');
@@ -497,7 +543,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const deleteForm = async (formId: string) => {
-    if (!user || user.role !== 'directeur') {
+    if (!user || !PermissionManager.canDeleteForms(user)) {
       throw new Error('Seuls les directeurs peuvent supprimer des formulaires');
     }
 
@@ -590,8 +636,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       throw new Error('Seuls les directeurs et employés autorisés peuvent créer des tableaux de bord');
     }
 
-    // Vérifier les limites du package (seulement pour les directeurs)
-    if (user.role === 'directeur' && !canCreateDashboard(dashboards.length)) {
+    // Vérifier les limites du package (pour les directeurs et employés avec accès directeur)
+    if ((user.role === 'directeur' || (user.role === 'employe' && user.hasDirectorDashboardAccess)) && !canCreateDashboard(dashboards.length)) {
       throw new Error('Limite de tableaux de bord atteinte pour votre package. Veuillez mettre à niveau votre abonnement.');
     }
 
@@ -635,7 +681,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const updateDashboard = async (dashboardId: string, dashboardData: Partial<Omit<Dashboard, 'id' | 'createdAt' | 'createdBy' | 'agencyId'>>) => {
-    if (!user || user.role !== 'directeur' || !user.agencyId) {
+    if (!user || !user.agencyId || !PermissionManager.canUpdateDashboards(user)) {
       throw new Error('Seuls les directeurs peuvent modifier des tableaux de bord');
     }
 
@@ -660,7 +706,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const deleteDashboard = async (dashboardId: string) => {
-    if (!user || user.role !== 'directeur') {
+    if (!user || !PermissionManager.canDeleteDashboards(user)) {
       throw new Error('Seuls les directeurs peuvent supprimer des tableaux de bord');
     }
 

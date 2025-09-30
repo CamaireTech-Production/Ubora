@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { AppProvider } from './contexts/AppContext';
 import { ConversationProvider } from './contexts/ConversationContext';
@@ -23,8 +23,36 @@ import { UserDetailPage } from './admin/pages/UserDetailPage';
 import { HybridPWAManager } from './components/HybridPWAManager';
 import { EmployeeManagement } from './components/EmployeeManagement';
 import { Layout } from './components/Layout';
+import { NotificationListener } from './components/NotificationListener';
 import { initializePWAConfig } from './utils/pwaConfig';
 // import { PWAUpdateNotification } from './components/PWAUpdateNotification';
+
+// Component to handle service worker messages
+const ServiceWorkerMessageHandler: React.FC = () => {
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const handleServiceWorkerMessage = (event: MessageEvent) => {
+      if (event.data && event.data.type === 'NOTIFICATION_CLICK') {
+        console.log('🔔 [App] Received notification click message:', event.data);
+        
+        // Navigate to the specified URL
+        if (event.data.url) {
+          navigate(event.data.url);
+        }
+      }
+    };
+
+    // Listen for messages from service worker
+    navigator.serviceWorker?.addEventListener('message', handleServiceWorkerMessage);
+
+    return () => {
+      navigator.serviceWorker?.removeEventListener('message', handleServiceWorkerMessage);
+    };
+  }, [navigate]);
+
+  return null;
+};
 
 function App() {
   // Initialize PWA configuration on app load
@@ -38,6 +66,8 @@ function App() {
         <AppProvider>
           <ConversationProvider>
             <Router>
+              <ServiceWorkerMessageHandler />
+              <NotificationListener />
             <Routes>
             {/* Page de connexion */}
             <Route path="/login" element={<LoginPage />} />

@@ -167,6 +167,48 @@ export class PermissionManager {
   }
 
   /**
+   * Vérifie si un utilisateur peut modifier des formulaires
+   */
+  static canUpdateForms(user: User): boolean {
+    return PermissionManager.hasDirectorDashboardAccess(user);
+  }
+
+  /**
+   * Vérifie si un utilisateur peut supprimer des formulaires
+   */
+  static canDeleteForms(user: User): boolean {
+    return PermissionManager.hasDirectorDashboardAccess(user);
+  }
+
+  /**
+   * Vérifie si un utilisateur peut modifier des tableaux de bord
+   */
+  static canUpdateDashboards(user: User): boolean {
+    return PermissionManager.hasDirectorDashboardAccess(user);
+  }
+
+  /**
+   * Vérifie si un utilisateur peut supprimer des tableaux de bord
+   */
+  static canDeleteDashboards(user: User): boolean {
+    return PermissionManager.hasDirectorDashboardAccess(user);
+  }
+
+  /**
+   * Vérifie si un utilisateur peut créer des conversations
+   */
+  static canCreateConversations(user: User): boolean {
+    return PermissionManager.hasDirectorDashboardAccess(user);
+  }
+
+  /**
+   * Vérifie si un utilisateur peut charger des conversations
+   */
+  static canLoadConversations(user: User): boolean {
+    return PermissionManager.hasDirectorDashboardAccess(user);
+  }
+
+  /**
    * Vérifie si un utilisateur peut valider des formulaires
    */
   static canValidateForms(user: User): boolean {

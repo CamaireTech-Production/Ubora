@@ -17,6 +17,7 @@ import {
 import { db } from '../firebaseConfig';
 import { Conversation, ChatMessage } from '../types';
 import { useAuth } from './AuthContext';
+import { PermissionManager } from '../utils/PermissionManager';
 
 interface ConversationContextType {
   currentConversation: Conversation | null;
@@ -121,7 +122,7 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   }, [messagesListener]);
 
   const createConversation = async (title: string): Promise<string> => {
-    if (!user || user.role !== 'directeur' || !user.agencyId) {
+    if (!user || !user.agencyId || !PermissionManager.canCreateConversations(user)) {
       throw new Error('Seuls les directeurs peuvent créer des conversations');
     }
 
@@ -274,7 +275,7 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
 
   const loadConversation = async (conversationId: string): Promise<void> => {
-    if (!user || user.role !== 'directeur') {
+    if (!user || !PermissionManager.canLoadConversations(user)) {
       throw new Error('Seuls les directeurs peuvent charger des conversations');
     }
 
