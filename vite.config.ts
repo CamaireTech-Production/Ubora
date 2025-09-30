@@ -184,25 +184,46 @@ export default defineConfig({
     chunkSizeWarningLimit: 1000, // Increase warning limit to 1MB
     rollupOptions: {
       output: {
-        manualChunks: {
+        manualChunks: (id) => {
+          // Keep core app logic together
+          if (id.includes('src/contexts/AuthContext') || 
+              id.includes('src/contexts/AppContext') ||
+              id.includes('src/App.tsx') ||
+              id.includes('src/main.tsx')) {
+            return 'app-core';
+          }
+          
           // Vendor chunks
-          'vendor-react': ['react', 'react-dom'],
-          'vendor-firebase': ['firebase/app', 'firebase/auth', 'firebase/firestore', 'firebase/storage', 'firebase/messaging'],
-          'vendor-charts': ['recharts', 'html2canvas', 'jspdf'],
-          'vendor-ui': ['lucide-react'],
-          'vendor-pdf': ['pdfjs-dist', 'react-to-print'],
-          'vendor-ai': ['openai', 'tesseract.js'],
+          if (id.includes('node_modules/react') || id.includes('node_modules/react-dom')) {
+            return 'vendor-react';
+          }
+          if (id.includes('node_modules/firebase')) {
+            return 'vendor-firebase';
+          }
+          if (id.includes('node_modules/recharts') || id.includes('node_modules/html2canvas') || id.includes('node_modules/jspdf')) {
+            return 'vendor-charts';
+          }
+          if (id.includes('node_modules/lucide-react')) {
+            return 'vendor-ui';
+          }
+          if (id.includes('node_modules/pdfjs-dist') || id.includes('node_modules/react-to-print')) {
+            return 'vendor-pdf';
+          }
+          if (id.includes('node_modules/openai') || id.includes('node_modules/tesseract.js')) {
+            return 'vendor-ai';
+          }
+          
           // Feature chunks
-          'pdf-utils': [
-            './src/utils/PDFGenerator.ts',
-            './src/utils/RechartsToPNG.ts',
-            './src/utils/MultiFormatToPDF.ts'
-          ],
-          'chat-components': [
-            './src/components/chat/MessageBubble.tsx',
-            './src/components/chat/PDFPreview.tsx',
-            './src/components/chat/GraphRenderer.tsx'
-          ]
+          if (id.includes('src/utils/PDFGenerator') || 
+              id.includes('src/utils/RechartsToPNG') || 
+              id.includes('src/utils/MultiFormatToPDF')) {
+            return 'pdf-utils';
+          }
+          if (id.includes('src/components/chat/MessageBubble') || 
+              id.includes('src/components/chat/PDFPreview') || 
+              id.includes('src/components/chat/GraphRenderer')) {
+            return 'chat-components';
+          }
         },
       },
     },

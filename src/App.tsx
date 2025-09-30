@@ -1,9 +1,10 @@
 import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider } from './contexts/AuthContext';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { AppProvider } from './contexts/AppContext';
 import { ConversationProvider } from './contexts/ConversationContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { LoginPage } from './pages/LoginPage';
 import { DirecteurDashboard } from './pages/DirecteurDashboard';
 import { DirecteurChat } from './pages/DirecteurChat';
@@ -32,11 +33,12 @@ function App() {
   }, []);
 
   return (
-    <AuthProvider>
-      <AppProvider>
-        <ConversationProvider>
-          <Router>
-          <Routes>
+    <ErrorBoundary>
+      <AuthProvider>
+        <AppProvider>
+          <ConversationProvider>
+            <Router>
+            <Routes>
             {/* Page de connexion */}
             <Route path="/login" element={<LoginPage />} />
             
@@ -182,7 +184,11 @@ function App() {
             />
             
             {/* Redirections par défaut selon le rôle */}
-            <Route path="/" element={<RoleBasedRedirect />} />
+            <Route path="/" element={
+              <ErrorBoundary fallback={<Navigate to="/login" replace />}>
+                <RoleBasedRedirect />
+              </ErrorBoundary>
+            } />
             
             {/* Page 404 */}
             <Route path="*" element={<Navigate to="/login" replace />} />
@@ -191,52 +197,59 @@ function App() {
           {/* PWA Components - Inside Router context */}
           <HybridPWAManager />
           {/* <PWAUpdateNotification /> */}
-          </Router>
-        </ConversationProvider>
-      </AppProvider>
-    </AuthProvider>
+            </Router>
+          </ConversationProvider>
+        </AppProvider>
+      </AuthProvider>
+    </ErrorBoundary>
   );
 }
 
 // Composant pour rediriger selon le rôle
 const RoleBasedRedirect: React.FC = () => {
-  const { user, isLoading } = useAuth();
+  try {
+    const { user, isLoading } = useAuth();
 
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-      </div>
-    );
-  }
+    if (isLoading) {
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-gray-50">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        </div>
+      );
+    }
 
-  if (!user) {
+    if (!user) {
+      return <Navigate to="/login" replace />;
+    }
+
+    // Admin → Redirect to admin dashboard
+    if (user.role === 'admin') {
+      return <Navigate to="/admin/dashboard" replace />;
+    }
+
+    // Directeur → Vérifier si un package doit être sélectionné
+    if (user.role === 'directeur') {
+      if (user.needsPackageSelection) {
+        return <Navigate to="/packages" replace />;
+      }
+      return <Navigate to="/directeur/dashboard" replace />;
+    }
+
+    // Employé → Vérifier l'approbation
+    if (user.role === 'employe') {
+      if (user.isApproved === false && !user.hasDirectorDashboardAccess) {
+        return <Navigate to="/pending-approval" replace />;
+      }
+      return <Navigate to="/employe/dashboard" replace />;
+    }
+
+    // Fallback vers login si rôle inconnu
+    return <Navigate to="/login" replace />;
+  } catch (error) {
+    console.error('Error in RoleBasedRedirect:', error);
+    // If useAuth fails, redirect to login
     return <Navigate to="/login" replace />;
   }
-
-  // Admin → Redirect to admin dashboard
-  if (user.role === 'admin') {
-    return <Navigate to="/admin/dashboard" replace />;
-  }
-
-  // Directeur → Vérifier si un package doit être sélectionné
-  if (user.role === 'directeur') {
-    if (user.needsPackageSelection) {
-      return <Navigate to="/packages" replace />;
-    }
-    return <Navigate to="/directeur/dashboard" replace />;
-  }
-
-  // Employé → Vérifier l'approbation
-  if (user.role === 'employe') {
-    if (user.isApproved === false && !user.hasDirectorDashboardAccess) {
-      return <Navigate to="/pending-approval" replace />;
-    }
-    return <Navigate to="/employe/dashboard" replace />;
-  }
-
-  // Fallback vers login si rôle inconnu
-  return <Navigate to="/login" replace />;
 };
 
 export default App;
