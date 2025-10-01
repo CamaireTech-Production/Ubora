@@ -30,6 +30,7 @@ const healthHandler = require('../api/ai/health.js');
 
 // OCR handlers
 const ocrExtractHandler = require('../api/ocr/extractText.js');
+const ocrPdfExtractHandler = require('../api/ocr/extractPdfText.js');
 const ocrHealthHandler = require('../api/ocr/health.js');
 
 // API Routes
@@ -38,6 +39,7 @@ app.get('/api/ai/health', healthHandler);
 
 // OCR routes
 app.post('/api/ocr/extract', ocrExtractHandler);
+app.post('/api/ocr/extractPdfText', ocrPdfExtractHandler);
 app.get('/api/ocr/health', ocrHealthHandler);
 
 // Health check endpoint
@@ -71,6 +73,7 @@ app.get('*', (req, res) => {
       'POST /api/ai/ask',
       'GET /api/ai/health',
       'POST /api/ocr/extract',
+      'POST /api/ocr/extractPdfText',
       'GET /api/ocr/health',
       'GET /health'
     ]
@@ -85,6 +88,7 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(`   - GET  /api/ai/health`);
   console.log(`📡 OCR endpoints available at:`);
   console.log(`   - POST /api/ocr/extract`);
+  console.log(`   - POST /api/ocr/extractPdfText`);
   console.log(`   - GET  /api/ocr/health`);
   console.log(`   - GET  /health`);
   console.log(`   - GET  /test`);

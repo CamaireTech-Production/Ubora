@@ -15,83 +15,72 @@ export interface TextExtractionResult {
 
 export class PDFTextExtractionService {
   /**
-   * Extract text from a PDF file using browser-compatible PDF.js library
-   * Simple version with basic table detection
+   * Extract text from a PDF file using OpenAI Vision API
+   * Provides excellent extraction for complex structures like tables, lists, and multi-column layouts
    */
   static async extractTextFromPDF(file: File): Promise<TextExtractionResult> {
     const startTime = Date.now();
     
     try {
-      console.log('🔍 Starting PDF text extraction for:', file.name);
+      console.log('🔍 Starting PDF text extraction using OpenAI Vision for:', file.name);
       
-      // Use PDF.js for browser-based PDF text extraction
-      const pdfjsLib = await import('pdfjs-dist');
+      // Convert PDF to base64 for OpenAI Vision API
+      const base64Pdf = await this.fileToBase64(file);
       
-      // Set worker source to use local worker file
-      pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.js';
+      // Get the API endpoint
+      const apiEndpoint = this.getAPIEndpoint();
       
-      // Convert File to ArrayBuffer
-      const arrayBuffer = await file.arrayBuffer();
+      // Prepare the request payload
+      const payload = {
+        pdfData: `data:${file.type};base64,${base64Pdf}`,
+        model: "gpt-4o",
+        fileName: file.name
+      };
       
-      // Load PDF document
-      const loadingTask = pdfjsLib.getDocument({
-        data: arrayBuffer,
-        disableFontFace: false,
-        disableRange: false,
-        disableStream: false
+      // Make API request to the dedicated PDF extraction endpoint
+      const response = await fetch(`${apiEndpoint}/api/ocr/extractPdfText`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload)
       });
       
-      const pdf = await loadingTask.promise;
-      const numPages = pdf.numPages;
-      
-      console.log('📊 PDF loaded successfully. Pages:', numPages);
-      
-      let fullText = '';
-      let totalWords = 0;
-      let tablesDetected = 0;
-      
-      // Extract text from each page
-      for (let pageNum = 1; pageNum <= numPages; pageNum++) {
-        try {
-          console.log(`📄 Processing page ${pageNum}/${numPages}...`);
-          
-          const page = await pdf.getPage(pageNum);
-          const textContent = await page.getTextContent();
-          
-          // Extract text with basic table detection
-          const pageResult = this.extractTextWithBasicTableDetection(textContent.items);
-          const pageWords = pageResult.text.split(/\s+/).filter(word => word.length > 0).length;
-          
-          fullText += pageResult.text + '\n\n'; // Double newline between pages
-          totalWords += pageWords;
-          tablesDetected += pageResult.tablesDetected;
-          
-          console.log(`✅ Page ${pageNum} extracted: ${pageWords} words`);
-          
-        } catch (pageError) {
-          console.warn(`⚠️ Error extracting page ${pageNum}:`, pageError);
-          // Continue with other pages even if one fails
-          fullText += `[Page ${pageNum} extraction failed]\n\n`;
-        }
+      if (!response.ok) {
+        throw new Error(`PDF extraction API error: ${response.status} ${response.statusText}`);
       }
       
-      // Clean the extracted text
-      const cleanedText = this.cleanExtractedText(fullText);
-      const extractionTime = Date.now() - startTime;
+      const result = await response.json();
+      console.log('🔍 PDF extraction API response:', result);
       
-      console.log('✅ PDF text extraction completed!');
+      if (!result.success) {
+        throw new Error(result.error || 'PDF text extraction failed');
+      }
+      
+      // Extract text from the response
+      const extractedText = result.text || result.extractedText || '';
+      
+      // Clean and format the extracted text
+      const cleanedText = this.cleanExtractedText(extractedText);
+      
+      const extractionTime = Date.now() - startTime;
+      const totalWords = cleanedText.split(/\s+/).filter(word => word.length > 0).length;
+      const tablesDetected = this.countTablesInMarkdown(cleanedText);
+      
+      console.log('✅ PDF text extraction completed using OpenAI Vision!');
       console.log('📊 Total text length:', cleanedText.length);
       console.log('📝 Total words:', totalWords);
       console.log('📋 Tables detected:', tablesDetected);
+      console.log('⏱️ Extraction time:', extractionTime + 'ms');
       
       return {
         text: cleanedText,
-        pages: numPages,
+        pages: 1, // OpenAI Vision processes the entire PDF as one image
         success: true,
         extractionStats: {
           totalCharacters: cleanedText.length,
           totalWords: totalWords,
-          averageWordsPerPage: Math.round(totalWords / numPages),
+          averageWordsPerPage: totalWords, // Since we process as one page
           extractionTime: extractionTime,
           tablesDetected: tablesDetected
         }
@@ -109,220 +98,87 @@ export class PDFTextExtractionService {
   }
 
   /**
-   * Extract text with basic table detection
+   * Get the API endpoint URL
    */
-  private static extractTextWithBasicTableDetection(items: any[]): { text: string; tablesDetected: number } {
-    if (!items || items.length === 0) {
-      return { text: '', tablesDetected: 0 };
+  private static getAPIEndpoint(): string {
+    if (import.meta.env.VITE_AI_ENDPOINT) {
+      // Extract base URL from AI endpoint (remove /api/ai/ask)
+      return import.meta.env.VITE_AI_ENDPOINT.replace('/api/ai/ask', '');
     }
+    
+    if (import.meta.env.DEV) {
+      return 'http://localhost:3000';
+    }
+    
+    // Fallback for production
+    return 'https://api.ubora-app.com';
+  }
 
-    // Convert items to text with positioning
-    const textItems = items.map((item: any) => ({
-      text: item.str,
-      x: item.transform[4],
-      y: item.transform[5],
-      width: item.width,
-      height: item.height
-    }));
-
-    // Sort items by position (top to bottom, left to right)
-    textItems.sort((a, b) => {
-      if (Math.abs(a.y - b.y) < 5) { // Same row
-        return a.x - b.x;
-      }
-      return b.y - a.y; // Top to bottom
+  /**
+   * Convert File to base64 string
+   */
+  private static fileToBase64(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const result = reader.result as string;
+        // Remove data URL prefix to get just the base64 string
+        const base64 = result.split(',')[1];
+        resolve(base64);
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
     });
+  }
 
-    // Try to detect tables by looking for aligned columns
-    const tables = this.detectBasicTables(textItems);
-    let tablesDetected = 0;
-
-    // Process text and format tables
-    let result = '';
-    let currentTable: any = null;
-
-    for (let i = 0; i < textItems.length; i++) {
-      const item = textItems[i];
+  /**
+   * Count tables in markdown text
+   */
+  private static countTablesInMarkdown(text: string): number {
+    if (!text) return 0;
+    
+    // Count markdown tables (lines that start with | and contain |)
+    const tableLines = text.split('\n').filter(line => 
+      line.trim().startsWith('|') && line.includes('|') && !line.includes('---')
+    );
+    
+    // Group consecutive table lines to count actual tables
+    let tableCount = 0;
+    let inTable = false;
+    
+    for (const line of text.split('\n')) {
+      const isTableLine = line.trim().startsWith('|') && line.includes('|');
+      const isSeparatorLine = line.trim().startsWith('|') && line.includes('---');
       
-      // Check if this item is part of a table
-      const table = tables.find(t => 
-        item.x >= t.startX && item.x <= t.endX && 
-        item.y >= t.startY && item.y <= t.endY
-      );
-
-      if (table) {
-        if (!currentTable || currentTable !== table) {
-          // Start of a new table
-          if (currentTable) {
-            result += this.formatTableAsMarkdown(currentTable.items);
-            tablesDetected++;
-          }
-          currentTable = table;
-        }
-        // Skip individual table items, we'll process them as a group
-        continue;
-      } else {
-        // Not part of a table, add as regular text
-        if (currentTable) {
-          result += this.formatTableAsMarkdown(currentTable.items);
-          tablesDetected++;
-          currentTable = null;
-        }
-        result += item.text + ' ';
+      if (isTableLine && !isSeparatorLine && !inTable) {
+        tableCount++;
+        inTable = true;
+      } else if (!isTableLine && !isSeparatorLine) {
+        inTable = false;
       }
-    }
-
-    // Handle last table if exists
-    if (currentTable) {
-      result += this.formatTableAsMarkdown(currentTable.items);
-      tablesDetected++;
-    }
-
-    return { text: result.trim(), tablesDetected };
-  }
-
-  /**
-   * Detect basic tables by looking for aligned columns
-   */
-  private static detectBasicTables(textItems: any[]): any[] {
-    const tables: any[] = [];
-
-    // Group items by similar Y positions (rows)
-    const rows: any[][] = [];
-    let currentRow: any[] = [];
-    let currentY = textItems[0]?.y;
-
-    for (const item of textItems) {
-      if (Math.abs(item.y - currentY) < 10) { // Same row
-        currentRow.push(item);
-      } else {
-        if (currentRow.length > 0) {
-          rows.push(currentRow);
-        }
-        currentRow = [item];
-        currentY = item.y;
-      }
-    }
-    if (currentRow.length > 0) {
-      rows.push(currentRow);
-    }
-
-    // Look for rows with similar column structure
-    for (let i = 0; i < rows.length - 1; i++) {
-      const row1 = rows[i];
-      const row2 = rows[i + 1];
-
-      // Check if rows have similar column structure
-      if (this.hasSimilarColumnStructure(row1, row2)) {
-        // Find all consecutive rows with similar structure
-        const tableRows = [row1, row2];
-        let j = i + 2;
-        
-        while (j < rows.length && this.hasSimilarColumnStructure(tableRows[tableRows.length - 1], rows[j])) {
-          tableRows.push(rows[j]);
-          j++;
-        }
-
-        if (tableRows.length >= 2) { // At least 2 rows
-          const table = {
-            items: tableRows.flat(),
-            startX: Math.min(...tableRows.flat().map(item => item.x)),
-            endX: Math.max(...tableRows.flat().map(item => item.x + item.width)),
-            startY: Math.min(...tableRows.flat().map(item => item.y)),
-            endY: Math.max(...tableRows.flat().map(item => item.y + item.height)),
-            rows: tableRows
-          };
-          tables.push(table);
-          i = j - 1; // Skip processed rows
-        }
-      }
-    }
-
-    return tables;
-  }
-
-  /**
-   * Check if two rows have similar column structure
-   */
-  private static hasSimilarColumnStructure(row1: any[], row2: any[]): boolean {
-    if (row1.length !== row2.length) return false;
-    if (row1.length < 2) return false; // Need at least 2 columns
-
-    // Check if items are roughly aligned
-    for (let i = 0; i < row1.length; i++) {
-      const item1 = row1[i];
-      const item2 = row2[i];
-      
-      // Allow some tolerance in alignment
-      if (Math.abs(item1.x - item2.x) > 20) {
-        return false;
-      }
-    }
-
-    return true;
-  }
-
-  /**
-   * Format table items as Markdown
-   */
-  private static formatTableAsMarkdown(tableItems: any[]): string {
-    // Group items by rows
-    const rows: any[][] = [];
-    let currentRow: any[] = [];
-    let currentY = tableItems[0]?.y;
-
-    for (const item of tableItems) {
-      if (Math.abs(item.y - currentY) < 10) { // Same row
-        currentRow.push(item);
-      } else {
-        if (currentRow.length > 0) {
-          rows.push(currentRow);
-        }
-        currentRow = [item];
-        currentY = item.y;
-      }
-    }
-    if (currentRow.length > 0) {
-      rows.push(currentRow);
-    }
-
-    if (rows.length === 0) return '';
-
-    // Sort each row by X position
-    rows.forEach(row => row.sort((a, b) => a.x - b.x));
-
-    // Create Markdown table
-    let markdown = '\n\n## 📊 Tableau détecté\n\n';
-    
-    // Header row
-    const headerRow = rows[0];
-    markdown += '| ' + headerRow.map(item => item.text.trim()).join(' | ') + ' |\n';
-    markdown += '| ' + headerRow.map(() => '---').join(' | ') + ' |\n';
-    
-    // Data rows
-    for (let i = 1; i < rows.length; i++) {
-      const row = rows[i];
-      markdown += '| ' + row.map(item => item.text.trim()).join(' | ') + ' |\n';
     }
     
-    markdown += '\n';
-    return markdown;
+    return tableCount;
   }
 
   /**
-   * Clean extracted text
+   * Clean extracted text while preserving markdown structure
    */
   static cleanExtractedText(text: string): string {
     if (!text) return '';
 
     return text
-      // Remove excessive whitespace
-      .replace(/\s+/g, ' ')
-      // Remove excessive newlines
-      .replace(/\n\s*\n\s*\n/g, '\n\n')
+      // Remove excessive whitespace but preserve markdown structure
+      .replace(/[ \t]+/g, ' ') // Normalize spaces and tabs
+      // Remove excessive newlines but preserve markdown structure
+      .replace(/\n{4,}/g, '\n\n\n') // Max 3 consecutive newlines
       // Clean up common PDF artifacts
       .replace(/\f/g, '\n') // Form feed to newline
       .replace(/\r/g, '') // Remove carriage returns
+      // Ensure proper spacing around markdown elements
+      .replace(/\n\s*\n\s*#/g, '\n\n#') // Ensure headers have proper spacing
+      .replace(/\n\s*\n\s*\*/g, '\n\n*') // Ensure list items have proper spacing
+      .replace(/\n\s*\n\s*\d+\./g, '\n\n1.') // Ensure numbered lists have proper spacing
       // Trim whitespace
       .trim();
   }

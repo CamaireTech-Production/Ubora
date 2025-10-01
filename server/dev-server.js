@@ -34,6 +34,7 @@ const healthHandler = require('../api/ai/health.js');
 
 // OCR handlers
 const ocrExtractHandler = require('../api/ocr/extractText.js');
+const ocrPdfExtractHandler = require('../api/ocr/extractPdfText.js');
 const ocrHealthHandler = require('../api/ocr/health.js');
 
 // Routes
@@ -42,6 +43,7 @@ app.get('/api/ai/health', healthHandler);
 
 // OCR routes
 app.post('/api/ocr/extract', ocrExtractHandler);
+app.post('/api/ocr/extractPdfText', ocrPdfExtractHandler);
 app.get('/api/ocr/health', ocrHealthHandler);
 
 // Health check endpoint
@@ -72,6 +74,7 @@ app.listen(PORT, () => {
   console.log(`   - GET  http://localhost:${PORT}/api/ai/health`);
   console.log(`📡 OCR endpoints available at:`);
   console.log(`   - POST http://localhost:${PORT}/api/ocr/extract`);
+  console.log(`   - POST http://localhost:${PORT}/api/ocr/extractPdfText`);
   console.log(`   - GET  http://localhost:${PORT}/api/ocr/health`);
   console.log(`\n💡 To start both frontend and backend:`);
   console.log(`   npm run dev:full`);
