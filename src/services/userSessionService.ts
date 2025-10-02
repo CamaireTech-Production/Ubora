@@ -176,6 +176,13 @@ export class UserSessionService {
    */
   private static getPackageFeatures(packageType: PackageType): string[] {
     const features = PACKAGE_FEATURES[packageType];
+    
+    // Safety check: if package type doesn't exist, return empty array
+    if (!features) {
+      console.warn(`⚠️ Package type '${packageType}' not found in PACKAGE_FEATURES. Available types: ${Object.keys(PACKAGE_FEATURES).join(', ')}`);
+      return [];
+    }
+    
     const featureList: string[] = [];
     
     Object.entries(features).forEach(([key, value]) => {
@@ -253,6 +260,17 @@ export class UserSessionService {
 
     const packageLimits = PACKAGE_LIMITS[currentSession.packageType];
     
+    // Safety check: if package type doesn't exist, return default limits
+    if (!packageLimits) {
+      console.warn(`⚠️ Package type '${currentSession.packageType}' not found in PACKAGE_LIMITS. Available types: ${Object.keys(PACKAGE_LIMITS).join(', ')}`);
+      return {
+        maxForms: 0,
+        maxDashboards: 0,
+        maxUsers: 0,
+        maxTokens: 0
+      };
+    }
+    
     // Add pay-as-you-go resources to limits
     const payAsYouGoTokens = currentSession.payAsYouGoResources?.tokens || 0;
     const payAsYouGoForms = currentSession.payAsYouGoResources?.forms || 0;
@@ -284,6 +302,13 @@ export class UserSessionService {
     }
 
     const packageFeatures = PACKAGE_FEATURES[currentSession.packageType];
+    
+    // Safety check: if package type doesn't exist, return false
+    if (!packageFeatures) {
+      console.warn(`⚠️ Package type '${currentSession.packageType}' not found in PACKAGE_FEATURES. Available types: ${Object.keys(PACKAGE_FEATURES).join(', ')}`);
+      return false;
+    }
+    
     return (packageFeatures as any)[feature] === true;
   }
 

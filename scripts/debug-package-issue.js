@@ -21,6 +21,8 @@ const VALID_PACKAGE_TYPES = ['starter', 'standard', 'premium'];
 
 async function debugPackageIssue() {
   console.log('🔍 Starting package issue debug...\n');
+  console.log('📁 Service account path:', serviceAccountPath);
+  console.log('🔧 Firebase initialized:', admin.apps.length > 0);
 
   try {
     // Get all users
@@ -203,8 +205,6 @@ async function main() {
 }
 
 // Run the script
-if (import.meta.url === `file://${process.argv[1]}`) {
-  main();
-}
+main();
 
 export { debugPackageIssue, fixPackageIssues };

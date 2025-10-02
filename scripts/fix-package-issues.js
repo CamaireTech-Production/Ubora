@@ -79,7 +79,7 @@ async function fixPackageIssues() {
 
           // Update the session
           sessions[issue.sessionIndex].packageType = newPackageType;
-          sessions[issue.sessionIndex].updatedAt = admin.firestore.FieldValue.serverTimestamp();
+          sessions[issue.sessionIndex].updatedAt = new Date();
 
           // Also update package resources if they exist
           if (sessions[issue.sessionIndex].packageResources) {
@@ -92,7 +92,7 @@ async function fixPackageIssues() {
           // Update the user document
           await userRef.update({
             subscriptionSessions: sessions,
-            lastUpdated: admin.firestore.FieldValue.serverTimestamp()
+            lastUpdated: new Date()
           });
 
           console.log(`   ✅ Successfully fixed package type: ${oldPackageType} → ${newPackageType}`);
@@ -172,8 +172,6 @@ async function main() {
 }
 
 // Run the script
-if (import.meta.url === `file://${process.argv[1]}`) {
-  main();
-}
+main();
 
 export { fixPackageIssues };
