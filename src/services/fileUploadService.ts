@@ -65,14 +65,12 @@ export class FileUploadService {
   ];
 
   /**
-   * Upload file to Firebase Storage with PDF text extraction
+   * Process file locally (extract text) without uploading to Firebase Storage
+   * Firebase upload happens only when form is submitted
    */
-  static async uploadFile(
+  static async processFile(
     file: File,
     fieldId: string,
-    formId: string,
-    userId: string,
-    agencyId: string,
     onProgress?: (progress: UploadProgress) => void,
     onPDFExtraction?: (result: PDFExtractionResult) => void,
     onImageExtraction?: (result: ImageExtractionResult) => void
@@ -81,38 +79,14 @@ export class FileUploadService {
       // Validate file
       this.validateFile(file);
 
-      // Generate unique file path
-      const timestamp = Date.now();
-      const fileExtension = file.name.split('.').pop() || '';
-      const fileName = `${fieldId}_${timestamp}.${fileExtension}`;
-      const storagePath = `form-uploads/${agencyId}/${formId}/${userId}/${fileName}`;
-
-      // Create storage reference
-      const storageRef = ref(storage, storagePath);
-
-      // Update progress - uploading
-      onProgress?.({
-        fieldId,
-        fileName: file.name,
-        progress: 0,
-        status: 'uploading'
-      });
-
-      // Upload file to Firebase Storage
-      const uploadResult: UploadResult = await uploadBytes(storageRef, file);
-
-      // Get download URL
-      const downloadUrl = await getDownloadURL(uploadResult.ref);
-
-
-      // Create file attachment
+      // Create file attachment (without Firebase Storage info)
       const fileAttachment: FileAttachment = {
         fieldId,
         fileName: file.name,
         fileSize: file.size,
         fileType: file.type,
-        downloadUrl,
-        storagePath,
+        downloadUrl: '', // Will be set when uploaded to Firebase
+        storagePath: '', // Will be set when uploaded to Firebase
         uploadedAt: new Date(),
         textExtractionStatus: 'pending'
       };
@@ -121,11 +95,11 @@ export class FileUploadService {
       // Extract text if it's a PDF
       if (PDFTextExtractionService.isPDF(file)) {
         try {
-          // Update progress - extracting (no percentage for PDF extraction)
+          // Update progress - extracting
           onProgress?.({
             fieldId,
             fileName: file.name,
-            progress: 0, // No percentage shown for extraction
+            progress: 0,
             status: 'extracting'
           });
 
@@ -152,7 +126,7 @@ export class FileUploadService {
             // Trigger debug modal callback with error
             onPDFExtraction?.({
               fileName: file.name,
-              extractedText: extractionResult.text, // This will be the error message
+              extractedText: extractionResult.text,
               extractionStatus: 'failed',
               error: extractionResult.error,
               fileSize: file.size
@@ -176,11 +150,11 @@ export class FileUploadService {
       // Extract text if it's an image
       if (ImageTextExtractionService.isImage(file)) {
         try {
-          // Update progress - extracting (no percentage for image extraction)
+          // Update progress - extracting
           onProgress?.({
             fieldId,
             fileName: file.name,
-            progress: 0, // No percentage shown for extraction
+            progress: 0,
             status: 'extracting'
           });
 
@@ -209,7 +183,7 @@ export class FileUploadService {
             // Trigger debug modal callback with error
             onImageExtraction?.({
               fileName: file.name,
-              extractedText: extractionResult.text, // This will be the error message
+              extractedText: extractionResult.text,
               extractionStatus: 'failed',
               error: extractionResult.error,
               fileSize: file.size,
@@ -235,7 +209,7 @@ export class FileUploadService {
       onProgress?.({
         fieldId,
         fileName: file.name,
-        progress: (PDFTextExtractionService.isPDF(file) || ImageTextExtractionService.isImage(file)) ? 0 : 100, // No percentage for PDF/image extraction
+        progress: 100,
         status: 'completed'
       });
 
@@ -256,28 +230,109 @@ export class FileUploadService {
     }
   }
 
-
   /**
-   * Upload multiple files
+   * Upload file to Firebase Storage (called when form is submitted)
    */
-  static async uploadFiles(
-    files: { file: File; fieldId: string }[],
+  static async uploadFileToFirebase(
+    file: File,
+    fieldId: string,
     formId: string,
     userId: string,
     agencyId: string,
+    onProgress?: (progress: UploadProgress) => void
+  ): Promise<{ downloadUrl: string; storagePath: string }> {
+    try {
+      // Generate unique file path
+      const timestamp = Date.now();
+      const fileExtension = file.name.split('.').pop() || '';
+      const fileName = `${fieldId}_${timestamp}.${fileExtension}`;
+      const storagePath = `form-uploads/${agencyId}/${formId}/${userId}/${fileName}`;
+
+      // Create storage reference
+      const storageRef = ref(storage, storagePath);
+
+      // Update progress - uploading
+      onProgress?.({
+        fieldId,
+        fileName: file.name,
+        progress: 0,
+        status: 'uploading'
+      });
+
+      // Upload file to Firebase Storage
+      const uploadResult: UploadResult = await uploadBytes(storageRef, file);
+
+      // Get download URL
+      const downloadUrl = await getDownloadURL(uploadResult.ref);
+
+      // Update progress - completed
+      onProgress?.({
+        fieldId,
+        fileName: file.name,
+        progress: 100,
+        status: 'completed'
+      });
+
+      return { downloadUrl, storagePath };
+
+    } catch (error) {
+      console.error('Error uploading file to Firebase:', error);
+      
+      onProgress?.({
+        fieldId,
+        fileName: file.name,
+        progress: 0,
+        status: 'error',
+        error: error instanceof Error ? error.message : 'Upload failed'
+      });
+
+      throw new Error(`Failed to upload file: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+
+  /**
+   * Process multiple files (extract text without uploading to Firebase)
+   */
+  static async processFiles(
+    files: { file: File; fieldId: string }[],
     onProgress?: (progress: UploadProgress) => void,
     onPDFExtraction?: (result: PDFExtractionResult) => void,
     onImageExtraction?: (result: ImageExtractionResult) => void
   ): Promise<FileAttachment[]> {
-    const uploadPromises = files.map(({ file, fieldId }) =>
-      this.uploadFile(file, fieldId, formId, userId, agencyId, onProgress, onPDFExtraction, onImageExtraction)
+    const processPromises = files.map(({ file, fieldId }) =>
+      this.processFile(file, fieldId, onProgress, onPDFExtraction, onImageExtraction)
     );
+
+    try {
+      const results = await Promise.all(processPromises);
+      return results;
+    } catch (error) {
+      console.error('Error processing files:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Upload multiple files to Firebase Storage (called when form is submitted)
+   */
+  static async uploadFilesToFirebase(
+    files: { file: File; fieldId: string }[],
+    formId: string,
+    userId: string,
+    agencyId: string,
+    onProgress?: (progress: UploadProgress) => void
+  ): Promise<{ fieldId: string; downloadUrl: string; storagePath: string }[]> {
+    const uploadPromises = files.map(async ({ file, fieldId }) => {
+      const result = await this.uploadFileToFirebase(file, fieldId, formId, userId, agencyId, onProgress);
+      return { fieldId, ...result };
+    });
 
     try {
       const results = await Promise.all(uploadPromises);
       return results;
     } catch (error) {
-      console.error('Error uploading files:', error);
+      console.error('Error uploading files to Firebase:', error);
       throw error;
     }
   }

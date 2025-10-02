@@ -44,6 +44,7 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
   const [answers, setAnswers] = useState<Record<string, unknown>>(initialAnswers);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [fileAttachments, setFileAttachments] = useState<FileAttachment[]>(initialFileAttachments);
+  const [originalFiles, setOriginalFiles] = useState<Map<string, File>>(new Map());
   const [uploadProgress, setUploadProgress] = useState<Record<string, UploadProgress>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [visibleFields, setVisibleFields] = useState<string[]>(form.fields.map((f: FormField) => f.id));
@@ -261,13 +262,13 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
         }
       }));
 
+      // Store original file for later Firebase upload
+      setOriginalFiles(prev => new Map(prev).set(fieldId, file));
+
       // Process file locally (extract text, no Firebase upload yet)
-        const attachment = await FileUploadService.uploadFile(
+        const attachment = await FileUploadService.processFile(
           file,
           fieldId,
-          form.id,
-          user?.id || '',
-          user?.agencyId || '',
           (progress) => {
             setUploadProgress(prev => ({
               ...prev,
@@ -355,6 +356,13 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
   const handleFileRemove = (fieldId: string) => {
     // Remove from attachments
     setFileAttachments(prev => prev.filter(att => att.fieldId !== fieldId));
+    
+    // Remove from original files
+    setOriginalFiles(prev => {
+      const newFiles = new Map(prev);
+      newFiles.delete(fieldId);
+      return newFiles;
+    });
     
     // Clear answer
     setAnswers(prev => ({
@@ -457,13 +465,61 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
           if (!userDoc.exists()) {
             throw new Error('User data not found');
           }
-          // const userData = userDoc.data();
+          const userData = userDoc.data();
+
+          // Upload files to Firebase Storage if there are any
+          let updatedFileAttachments = fileAttachments;
+          if (fileAttachments.length > 0) {
+            console.log('📤 Uploading files to Firebase Storage...');
+            
+            // Get files that need to be uploaded (those without downloadUrl)
+            const filesToUpload = fileAttachments
+              .filter(attachment => !attachment.downloadUrl)
+              .map(attachment => {
+                const originalFile = originalFiles.get(attachment.fieldId);
+                if (!originalFile) {
+                  throw new Error(`Original file not found for field ${attachment.fieldId}`);
+                }
+                return {
+                  file: originalFile,
+                  fieldId: attachment.fieldId
+                };
+              });
+
+            if (filesToUpload.length > 0) {
+              // Upload files to Firebase Storage
+              const uploadResults = await FileUploadService.uploadFilesToFirebase(
+                filesToUpload,
+                form.id,
+                currentUser.uid,
+                userData.agencyId,
+                (progress) => {
+                  console.log(`📤 Upload progress for ${progress.fieldId}: ${progress.progress}%`);
+                }
+              );
+
+              // Update file attachments with Firebase Storage URLs
+              updatedFileAttachments = fileAttachments.map(attachment => {
+                const uploadResult = uploadResults.find(result => result.fieldId === attachment.fieldId);
+                if (uploadResult) {
+                  return {
+                    ...attachment,
+                    downloadUrl: uploadResult.downloadUrl,
+                    storagePath: uploadResult.storagePath
+                  };
+                }
+                return attachment;
+              });
+
+              console.log('✅ Files uploaded to Firebase Storage successfully');
+            }
+          }
 
           // Submit to Firebase via AppContext
           const formEntryData = {
             formId: form.id,
             answers: answers,
-            fileAttachments: fileAttachments
+            fileAttachments: updatedFileAttachments
           };
 
           // Submit to Firebase via AppContext
