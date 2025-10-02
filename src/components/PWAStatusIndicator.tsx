@@ -1,6 +1,6 @@
 import React from 'react';
 import { usePWA } from '../hooks/usePWA';
-import { Wifi, WifiOff, Download, CheckCircle, Smartphone } from 'lucide-react';
+import { WifiOff, Download, Smartphone } from 'lucide-react';
 
 export const PWAStatusIndicator: React.FC = () => {
   const { isInstalled, isOnline, isUpdateAvailable } = usePWA();

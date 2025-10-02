@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import { Card } from './Card';
 import { Button } from './Button';
-import { User, CheckCircle, XCircle, Clock, Mail, Building2 } from 'lucide-react';
+import { User as UserIcon, CheckCircle, XCircle, Clock, Mail, Building2 } from 'lucide-react';
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 import { useToast } from '../hooks/useToast';
+import { User } from '../types';
 
 interface PendingApprovalsProps {
   pendingEmployees: User[];
@@ -71,7 +72,7 @@ export const PendingApprovals: React.FC<PendingApprovalsProps> = ({
               <div className="flex items-start justify-between">
                 <div className="flex-1">
                   <div className="flex items-center space-x-3 mb-2">
-                    <User className="h-5 w-5 text-gray-400" />
+                    <UserIcon className="h-5 w-5 text-gray-400" />
                     <h3 className="font-semibold text-gray-900">{employee.name}</h3>
                     <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
                       <Clock className="h-3 w-3 mr-1" />

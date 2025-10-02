@@ -8,7 +8,6 @@ import {
   TrendingUp, 
   Eye, 
   MousePointer, 
-  Calendar,
   Filter,
   RefreshCw,
   Download,
@@ -21,7 +20,7 @@ interface PushNotificationsTabProps {
   onRefresh?: () => void;
 }
 
-export const PushNotificationsTab: React.FC<PushNotificationsTabProps> = ({ onRefresh }) => {
+export const PushNotificationsTab: React.FC<PushNotificationsTabProps> = ({ onRefresh: _onRefresh }) => {
   const [notifications, setNotifications] = useState<PushNotificationLog[]>([]);
   const [stats, setStats] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -252,7 +251,7 @@ export const PushNotificationsTab: React.FC<PushNotificationsTabProps> = ({ onRe
           <div className="flex items-center space-x-2">
             <Button
               onClick={loadNotifications}
-              variant="outline"
+              variant="secondary"
               size="sm"
               className="flex items-center space-x-2"
             >
@@ -260,7 +259,7 @@ export const PushNotificationsTab: React.FC<PushNotificationsTabProps> = ({ onRe
               <span>Actualiser</span>
             </Button>
             <Button
-              variant="outline"
+              variant="secondary"
               size="sm"
               className="flex items-center space-x-2"
             >

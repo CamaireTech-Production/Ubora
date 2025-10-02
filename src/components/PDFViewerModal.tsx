@@ -117,7 +117,7 @@ export const PDFViewerModal: React.FC<PDFViewerModalProps> = ({
               <span className="text-sm text-gray-500 whitespace-nowrap">({zoom}%)</span>
             </div>
             <Button
-              variant="ghost"
+              variant="secondary"
               size="sm"
               onClick={onClose}
               className="flex items-center space-x-1 ml-2 flex-shrink-0"
@@ -133,7 +133,7 @@ export const PDFViewerModal: React.FC<PDFViewerModalProps> = ({
             <div className="flex items-center space-x-2 flex-wrap">
               <div className="flex items-center space-x-1 border border-gray-300 rounded">
                 <Button
-                  variant="ghost"
+                  variant="secondary"
                   size="sm"
                   onClick={handleZoomOut}
                   disabled={zoom <= 50}
@@ -145,7 +145,7 @@ export const PDFViewerModal: React.FC<PDFViewerModalProps> = ({
                   {zoom}%
                 </span>
                 <Button
-                  variant="ghost"
+                  variant="secondary"
                   size="sm"
                   onClick={handleZoomIn}
                   disabled={zoom >= 300}
@@ -156,7 +156,7 @@ export const PDFViewerModal: React.FC<PDFViewerModalProps> = ({
               </div>
               
               <Button
-                variant="ghost"
+                variant="secondary"
                 size="sm"
                 onClick={handleRotate}
                 className="px-2 py-1"
@@ -165,7 +165,7 @@ export const PDFViewerModal: React.FC<PDFViewerModalProps> = ({
               </Button>
               
               <Button
-                variant="ghost"
+                variant="secondary"
                 size="sm"
                 onClick={handleToggleFullscreen}
                 className="px-2 py-1"

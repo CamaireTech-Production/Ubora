@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Card } from './Card';
-import { Shield, X, Smartphone, Monitor, Download } from 'lucide-react';
+import { Shield, X, Smartphone, Monitor } from 'lucide-react';
 import { getPWAConfig, updateManifestLink } from '../utils/pwaConfig';
 import { getDeferredPrompt, getIsInstallable, clearDeferredPrompt } from '../utils/pwaRegistration';
 
@@ -96,6 +96,8 @@ export const AdminPWAInstallPrompt: React.FC = () => {
       const hasManifest = document.querySelector('link[rel="manifest"]') !== null;
       const isHTTPS = location.protocol === 'https:' || location.hostname === 'localhost';
       
+      // Debug logging for PWA criteria
+      console.log('PWA Installability Check:', {
         hasServiceWorker,
         hasManifest,
         isHTTPS,

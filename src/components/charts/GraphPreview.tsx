@@ -44,6 +44,7 @@ export const GraphPreview: React.FC<GraphPreviewProps> = ({
   const relevantEntries = formEntries.filter(entry => entry.formId === metric.formId);
   
   // Debug logging
+  console.log('Graph Preview Debug:', {
     totalFormEntries: formEntries.length,
     metricFormId: metric.formId,
     relevantEntriesCount: relevantEntries.length,
@@ -88,6 +89,7 @@ export const GraphPreview: React.FC<GraphPreviewProps> = ({
   const chartData = prepareChartData(relevantEntries, form, graphConfig, metric);
   
   // Debug chart data
+  console.log('Chart Data Debug:', {
     chartDataLength: chartData.length,
     chartData: chartData,
     graphConfig: graphConfig
@@ -242,6 +244,8 @@ export const GraphPreview: React.FC<GraphPreviewProps> = ({
 function prepareChartData(entries: FormEntry[], form: Form, graphConfig: NonNullable<DashboardMetric['graphConfig']>, metric: DashboardMetric) {
   const data: Array<{ x: string | number; y: number }> = [];
 
+  // Debug logging for chart data preparation
+  console.log('Chart Data Preparation Debug:', {
     entriesCount: entries.length,
     xAxisType: graphConfig.xAxisType,
     yAxisType: graphConfig.yAxisType,

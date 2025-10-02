@@ -35,7 +35,7 @@ export const PushNotificationSettings: React.FC = () => {
   const handleRequestPermission = async () => {
     setIsLoading(true);
     try {
-      const granted = await requestPermission();
+      await requestPermission();
     } catch (error) {
       console.error('🔔 [Push] Error requesting permission:', error);
     } finally {

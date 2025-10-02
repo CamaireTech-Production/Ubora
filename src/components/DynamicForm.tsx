@@ -52,10 +52,14 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
   // Function to update visible fields based on conditional logic
   const updateVisibleFields = useCallback((currentAnswers: Record<string, unknown>) => {
     const visible = ConditionalLogicEvaluator.getVisibleFields(form.fields, currentAnswers);
+    
+    // Debug logging for conditional logic evaluation
+    console.log('Conditional Logic Evaluation:', {
       currentAnswers,
       visibleFields: visible,
       formFields: form.fields.map((f: FormField) => ({ id: f.id, label: f.label, conditionalLogic: f.conditionalLogic }))
     });
+    
     setVisibleFields(visible);
   }, [form.fields]);
 
@@ -488,6 +492,8 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
                 currentUser.uid,
                 userData.agencyId,
                 (progress) => {
+                  // Progress callback - could be used for progress indicators in the future
+                  console.log('Upload progress:', progress);
                 }
               );
 
@@ -863,10 +869,14 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
 
           {(() => {
             const visibleFieldsToRender = form.fields.filter((field: FormField) => visibleFields.includes(field.id));
+            
+            // Debug logging for field rendering
+            console.log('Field Rendering Debug:', {
               allFields: form.fields.map((f: FormField) => ({ id: f.id, label: f.label })),
               visibleFields,
               visibleFieldsToRender: visibleFieldsToRender.map((f: FormField) => ({ id: f.id, label: f.label }))
             });
+            
             return visibleFieldsToRender.map((field: FormField) => renderField(field));
           })()}
 
