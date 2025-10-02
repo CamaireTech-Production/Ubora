@@ -28,7 +28,7 @@ export const ReminderServiceInitializer: React.FC = () => {
         reminderNotificationService.stopCronjob();
       }
     };
-  }, [user, forms]);
+  }, [user?.id, forms]); // Use user?.id instead of user to prevent unnecessary re-renders
 
   // This component doesn't render anything
   return null;

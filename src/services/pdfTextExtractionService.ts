@@ -103,6 +103,11 @@ export class PDFTextExtractionService {
       return 'http://localhost:3000';
     }
     
+    // Check if we're in dev environment (dev.ubora-app.com)
+    if (typeof window !== 'undefined' && window.location.hostname === 'dev.ubora-app.com') {
+      return 'https://apidev.ubora-app.com';
+    }
+    
     // Fallback for production
     return 'https://api.ubora-app.com';
   }
@@ -131,6 +136,7 @@ export class PDFTextExtractionService {
     if (!text) return 0;
     
     // Count markdown tables (lines that start with | and contain |)
+    // Count table lines for statistics
     const tableLines = text.split('\n').filter(line => 
       line.trim().startsWith('|') && line.includes('|') && !line.includes('---')
     );

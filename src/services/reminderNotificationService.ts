@@ -160,6 +160,11 @@ class ReminderNotificationService {
       // Check if the notification was created today
       return notificationDateString === today;
     } catch (error) {
+      // Handle permission errors gracefully
+      if (error instanceof Error && error.message.includes('permission-denied')) {
+        console.warn('🔔 [ReminderService] Permission denied for checking reminders - this is normal for employees');
+        return false; // Allow sending to be safe
+      }
       console.error('🔔 [ReminderService] Error checking existing reminders:', error);
       return false; // If error, allow sending to be safe
     }
@@ -390,6 +395,11 @@ class ReminderNotificationService {
       console.log(`🔔 [ReminderService] Cleaned up ${duplicatesRemoved} duplicate reminders`);
       
     } catch (error) {
+      // Handle permission errors gracefully
+      if (error instanceof Error && error.message.includes('permission-denied')) {
+        console.warn('🔔 [ReminderService] Permission denied for cleanup - this is normal for employees');
+        return;
+      }
       console.error('🔔 [ReminderService] Error during cleanup:', error);
     }
   }

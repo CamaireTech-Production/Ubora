@@ -240,9 +240,15 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
   useEffect(() => {
     if (Object.keys(answers).length > 0) {
       const recalculatedAnswers = recalculateAllCalculatedFields(answers);
-      setAnswers(recalculatedAnswers);
+      // Only update if there are actual changes to prevent infinite loops
+      const hasChanges = Object.keys(recalculatedAnswers).some(key => 
+        recalculatedAnswers[key] !== answers[key]
+      );
+      if (hasChanges) {
+        setAnswers(recalculatedAnswers);
+      }
     }
-  }, [form.fields, answers, recalculateAllCalculatedFields]); // Recalculate when form fields or answers change
+  }, [form.fields, recalculateAllCalculatedFields]); // Remove answers from dependencies to prevent infinite loop
 
   const handleFileUpload = async (fieldId: string, file: File | null) => {
     if (!file || !user) return;
@@ -485,7 +491,7 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
                 form.id,
                 currentUser.uid,
                 userData.agencyId,
-                (progress) => {
+                () => {
                   // Progress callback - could be used for progress indicators in the future
                 }
               );
