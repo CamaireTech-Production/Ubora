@@ -140,7 +140,6 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         messageCount: 0
       };
 
-      console.log('💾 FIREBASE SAVE - Creating new conversation:', {
         title: conversationData.title,
         directorId: conversationData.directorId,
         agencyId: conversationData.agencyId,
@@ -148,7 +147,6 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       });
       
       const docRef = await addDoc(collection(db, 'conversations'), conversationData);
-      console.log('✅ FIREBASE SAVE - New conversation created successfully:', docRef.id);
       
       // Create the conversation object
       const newConversation: Conversation = {
@@ -196,7 +194,6 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       };
       
       // Store message in Firestore subcollection
-      console.log('💾 FIREBASE SAVE - Saving message to Firebase:', {
         conversationId: currentConversation.id,
         messageType: cleanMessage.type,
         contentLength: cleanMessage.content.length,
@@ -206,14 +203,12 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       
       try {
         await addDoc(collection(db, 'conversations', currentConversation.id, 'messages'), cleanMessage);
-        console.log('✅ FIREBASE SAVE - Message saved successfully to Firebase');
       } catch (error) {
         console.error('❌ FIREBASE SAVE ERROR - Failed to save message:', error);
         throw error;
       }
 
       // Update conversation metadata in Firestore (but don't trigger conversations list reload)
-      console.log('💾 FIREBASE SAVE - Updating conversation metadata:', {
         conversationId: currentConversation.id,
         messageCountIncrement: 1
       });
@@ -225,7 +220,6 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({ 
           lastMessageAt: serverTimestamp(),
           messageCount: increment(1)
         });
-        console.log('✅ FIREBASE SAVE - Conversation metadata updated successfully');
       } catch (error) {
         console.error('❌ FIREBASE SAVE ERROR - Failed to update conversation metadata:', error);
         throw error;
@@ -305,7 +299,6 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
       const messagesSnapshot = await getDocs(messagesQuery);
       
-      console.log('📥 FIREBASE LOAD - Initial messages loaded from Firebase:', {
         conversationId: conversationId,
         snapshotSize: messagesSnapshot.docs.length,
         timestamp: new Date().toISOString()
@@ -332,7 +325,6 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({ 
             message.graphData = data.graphData;
           } else {
             // Remove invalid graph data
-            console.warn('Removing invalid graph data from message:', doc.id);
             message.contentType = message.contentType === 'graph' ? 'text' : message.contentType;
           }
         }
@@ -392,7 +384,6 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({ 
             if (data.graphData.data && Array.isArray(data.graphData.data) && data.graphData.data.length > 0) {
               message.graphData = data.graphData;
             } else {
-              console.warn('Removing invalid graph data from message:', doc.id);
               message.contentType = message.contentType === 'graph' ? 'text' : message.contentType;
             }
           }
@@ -472,7 +463,6 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({ 
             message.graphData = data.graphData;
           } else {
             // Remove invalid graph data
-            console.warn('Removing invalid graph data from message:', doc.id);
             message.contentType = message.contentType === 'graph' ? 'text' : message.contentType;
           }
         }
@@ -505,7 +495,6 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     try {
       setError(null);
       
-      console.log('💾 FIREBASE SAVE - Updating conversation title:', {
         conversationId: conversationId,
         newTitle: title.trim()
       });
@@ -516,7 +505,6 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({ 
           title: title.trim(),
           updatedAt: serverTimestamp()
         });
-        console.log('✅ FIREBASE SAVE - Conversation title updated successfully');
       } catch (error) {
         console.error('❌ FIREBASE SAVE ERROR - Failed to update conversation title:', error);
         throw error;

@@ -10,15 +10,12 @@ export const ReminderServiceInitializer: React.FC = () => {
   useEffect(() => {
     // Only start the reminder service for authenticated users
     if (user) {
-      console.log('🔔 [ReminderServiceInitializer] Starting reminder service for user:', user.id);
-      console.log('🔔 [ReminderServiceInitializer] User agencyId:', user.agencyId);
       
       // Clean up any existing duplicate notifications on startup
       reminderNotificationService.cleanupDuplicateReminders();
       
       // Create a forms provider function that gets current forms from context
       const formsProvider = () => {
-        console.log('🔔 [ReminderServiceInitializer] Getting current forms:', forms.length);
         return forms;
       };
       
@@ -28,7 +25,6 @@ export const ReminderServiceInitializer: React.FC = () => {
     // Cleanup function to stop the service when component unmounts
     return () => {
       if (user) {
-        console.log('🔔 [ReminderServiceInitializer] Stopping reminder service');
         reminderNotificationService.stopCronjob();
       }
     };

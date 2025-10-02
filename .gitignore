@@ -11,6 +11,7 @@ dist/
 dev-dist/
 build/
 out/oulant
+scripts/
 
 # Vite
 .vite/

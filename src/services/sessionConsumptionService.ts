@@ -53,7 +53,6 @@ export class SessionConsumptionService {
         updatedAt: serverTimestamp()
       });
       
-      console.log(`✅ Form creation tracked for session ${currentSession.id}`);
       return true;
       
     } catch (error) {
@@ -111,7 +110,6 @@ export class SessionConsumptionService {
         updatedAt: serverTimestamp()
       });
       
-      console.log(`✅ Dashboard creation tracked for session ${currentSession.id}`);
       return true;
       
     } catch (error) {
@@ -169,7 +167,6 @@ export class SessionConsumptionService {
         updatedAt: serverTimestamp()
       });
       
-      console.log(`✅ User addition tracked for session ${currentSession.id}`);
       return true;
       
     } catch (error) {
@@ -227,7 +224,6 @@ export class SessionConsumptionService {
         updatedAt: serverTimestamp()
       });
       
-      console.log(`✅ Token consumption tracked for session ${currentSession.id}: ${tokensConsumed} tokens`);
       return true;
       
     } catch (error) {

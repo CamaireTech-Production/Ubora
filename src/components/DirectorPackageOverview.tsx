@@ -106,17 +106,7 @@ export const DirectorPackageOverview: React.FC<DirectorPackageOverviewProps> = (
   const tokensLimitReached = !hasUnlimitedTokens() && remainingTokens <= 500; // Only show warning when critically low
   
   // Debug logging for token limits
-  console.log('🔍 Token limit debug:', {
-    hasUnlimitedTokens: hasUnlimitedTokens(),
-    remainingTokens,
-    tokenUsagePercentage: tokenUsagePercentage.toFixed(1) + '%',
-    tokensLimitReached,
-    totalAvailableTokens,
-    usedTokens,
-    monthlyTokens,
-    userTokensUsedMonthly: user.tokensUsedMonthly,
-    userPayAsYouGoTokens: user.payAsYouGoTokens
-  });
+  // Token limit data available for debugging if needed
   
   const hasAnyLimitReached = formsLimitReached || dashboardsLimitReached || usersLimitReached || tokensLimitReached;
 

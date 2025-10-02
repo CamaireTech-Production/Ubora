@@ -159,13 +159,11 @@ export class FileUploadService {
           });
 
           const extractionResult = await ImageTextExtractionService.extractTextFromImage(file);
-          console.log('🔍 Extraction result in file upload service:', extractionResult);
           
           if (extractionResult.success) {
             fileAttachment.extractedText = ImageTextExtractionService.cleanExtractedText(extractionResult.text);
             fileAttachment.textExtractionStatus = 'completed';
 
-            console.log('✅ Triggering debug modal callback for successful extraction');
             // Trigger debug modal callback
             onImageExtraction?.({
               fileName: file.name,

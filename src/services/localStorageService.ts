@@ -24,7 +24,6 @@ export class LocalStorageService {
       
       localStorage.setItem(this.STORAGE_KEY, JSON.stringify(updatedResponses));
       
-      console.log('✅ Form response stored in localStorage:', {
         responseId: response.id,
         formId: response.formId,
         fileCount: response.fileAttachments.length,
@@ -88,7 +87,6 @@ export class LocalStorageService {
       allResponses[responseIndex] = { ...allResponses[responseIndex], ...updates };
       localStorage.setItem(this.STORAGE_KEY, JSON.stringify(allResponses));
       
-      console.log('✅ Form response updated in localStorage:', {
         responseId,
         updates: Object.keys(updates)
       });
@@ -108,7 +106,6 @@ export class LocalStorageService {
       
       localStorage.setItem(this.STORAGE_KEY, JSON.stringify(filteredResponses));
       
-      console.log('✅ Form response removed from localStorage:', {
         responseId,
         remainingResponses: filteredResponses.length
       });
@@ -124,7 +121,6 @@ export class LocalStorageService {
   static clearAllFormResponses(): void {
     try {
       localStorage.removeItem(this.STORAGE_KEY);
-      console.log('✅ All form responses cleared from localStorage');
     } catch (error) {
       console.error('❌ Error clearing form responses from localStorage:', error);
       throw error;

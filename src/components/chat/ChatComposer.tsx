@@ -81,12 +81,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
   
   // Debug token data (safe logging)
   if (packageInfo) {
-    console.log('🔍 CHAT COMPOSER: Token data:', {
-      remainingTokens,
-      totalTokens: packageInfo.totalTokens,
-      tokensUsed: packageInfo.tokensUsed,
-      isUnlimited
-    });
+    // Token data available for debugging if needed
   }
 
   // Auto-resize textarea

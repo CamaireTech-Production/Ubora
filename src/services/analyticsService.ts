@@ -108,7 +108,6 @@ export class AnalyticsService {
       if (typeof window !== 'undefined') {
         this.analytics = await analytics;
         if (this.analytics) {
-          console.log('✅ Firebase Analytics initialized');
         }
       }
     } catch (error) {
@@ -126,7 +125,6 @@ export class AnalyticsService {
       await this.initialize();
       if (this.analytics) {
         await logEvent(this.analytics, eventName, parameters);
-        console.log(`📊 Analytics event logged: ${eventName}`, parameters);
       }
     } catch (error) {
       console.error('❌ Error logging analytics event:', error);
@@ -141,7 +139,6 @@ export class AnalyticsService {
         if (properties) {
           await setUserProperties(this.analytics, properties);
         }
-        console.log(`👤 Analytics user set: ${userId}`, properties);
       }
     } catch (error) {
       console.error('❌ Error setting analytics user:', error);

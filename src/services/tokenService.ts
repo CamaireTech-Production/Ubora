@@ -36,11 +36,9 @@ export class TokenService {
         try {
           await SubscriptionSessionService.updateUsage(userId, 'tokens', tokensToSubtract);
         } catch (trackingError) {
-          console.warn('Failed to track token consumption:', trackingError);
         }
       }
       
-      console.log(`Tokens soustraits: ${tokensToSubtract}, Total utilisé: ${newTokensUsed}`);
       return true;
       
     } catch (error) {
@@ -99,7 +97,6 @@ export class TokenService {
         updatedAt: serverTimestamp()
       });
       
-      console.log(`Tokens resetés pour l'utilisateur: ${userId}`);
       return true;
       
     } catch (error) {
@@ -153,7 +150,6 @@ export class TokenService {
         updatedAt: serverTimestamp()
       });
       
-      console.log(`Tokens pay-as-you-go ajoutés: ${tokensToAdd}, Total: ${newPayAsYouGoTokens}`);
       return true;
       
     } catch (error) {

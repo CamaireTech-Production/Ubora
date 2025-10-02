@@ -140,7 +140,6 @@ export class AdminService {
 
       await AnalyticsService.logAdminActivity(adminId, 'create_user', 'new-user-id');
       
-      console.log('✅ Admin user creation logged');
       return true;
     } catch (error) {
       console.error('❌ Error creating admin user:', error);

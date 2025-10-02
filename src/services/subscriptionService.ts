@@ -34,7 +34,6 @@ export class SubscriptionService {
       );
       
       if (success) {
-        console.log(`✅ Subscription renewed for user ${userId}: ${packageType} for ${durationMonths} months`);
       }
       
       return success;

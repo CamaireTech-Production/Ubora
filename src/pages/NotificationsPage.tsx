@@ -17,7 +17,6 @@ export const NotificationsPage: React.FC = () => {
   useEffect(() => {
     if (!user) return;
 
-    console.log('🔔 [NotificationsPage] Setting up real-time listener for user:', user.id);
     setIsLoading(true);
 
     // Create query based on user role
@@ -43,7 +42,6 @@ export const NotificationsPage: React.FC = () => {
 
     // Set up real-time listener
     const unsubscribe = onSnapshot(notificationsQuery, (snapshot) => {
-      console.log('🔔 [NotificationsPage] Received notification update:', snapshot.docs.length, 'notifications');
       
       const userNotifications: NotificationData[] = snapshot.docs.map(doc => ({
         id: doc.id,
@@ -59,7 +57,6 @@ export const NotificationsPage: React.FC = () => {
 
     // Cleanup listener on unmount or user change
     return () => {
-      console.log('🔔 [NotificationsPage] Cleaning up notification listener');
       unsubscribe();
     };
   }, [user]);
@@ -108,7 +105,6 @@ export const NotificationsPage: React.FC = () => {
       });
       
       await batch.commit();
-      console.log('✅ All notifications deleted successfully');
     } catch (error) {
       console.error('Error deleting all notifications:', error);
       alert('Erreur lors de la suppression des notifications');

@@ -23,7 +23,6 @@ export default function usePWAInstallPrompt() {
     };
 
     const saveInstallState = () => {
-      console.log("PWA was installed 🎉");
       window.localStorage?.setItem("wasInstalled", "true");
       setInstallationCompleted(true);
     };

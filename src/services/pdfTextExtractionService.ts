@@ -22,7 +22,6 @@ export class PDFTextExtractionService {
     const startTime = Date.now();
     
     try {
-      console.log('🔍 Starting PDF text extraction using OpenAI Vision for:', file.name);
       
       // Convert PDF to base64 for OpenAI Vision API
       const base64Pdf = await this.fileToBase64(file);
@@ -51,7 +50,6 @@ export class PDFTextExtractionService {
       }
       
       const result = await response.json();
-      console.log('🔍 PDF extraction API response:', result);
       
       if (!result.success) {
         throw new Error(result.error || 'PDF text extraction failed');
@@ -67,11 +65,6 @@ export class PDFTextExtractionService {
       const totalWords = cleanedText.split(/\s+/).filter(word => word.length > 0).length;
       const tablesDetected = this.countTablesInMarkdown(cleanedText);
       
-      console.log('✅ PDF text extraction completed using OpenAI Vision!');
-      console.log('📊 Total text length:', cleanedText.length);
-      console.log('📝 Total words:', totalWords);
-      console.log('📋 Tables detected:', tablesDetected);
-      console.log('⏱️ Extraction time:', extractionTime + 'ms');
       
       return {
         text: cleanedText,

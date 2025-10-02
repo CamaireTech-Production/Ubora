@@ -35,7 +35,6 @@ const ServiceWorkerMessageHandler: React.FC = () => {
   useEffect(() => {
     const handleServiceWorkerMessage = (event: MessageEvent) => {
       if (event.data && event.data.type === 'NOTIFICATION_CLICK') {
-        console.log('🔔 [App] Received notification click message:', event.data);
         
         // Navigate to the specified URL
         if (event.data.url) {

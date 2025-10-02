@@ -44,7 +44,6 @@ export const GraphPreview: React.FC<GraphPreviewProps> = ({
   const relevantEntries = formEntries.filter(entry => entry.formId === metric.formId);
   
   // Debug logging
-  console.log('🔍 GraphPreview Debug:', {
     totalFormEntries: formEntries.length,
     metricFormId: metric.formId,
     relevantEntriesCount: relevantEntries.length,
@@ -89,7 +88,6 @@ export const GraphPreview: React.FC<GraphPreviewProps> = ({
   const chartData = prepareChartData(relevantEntries, form, graphConfig, metric);
   
   // Debug chart data
-  console.log('📊 Chart Data Debug:', {
     chartDataLength: chartData.length,
     chartData: chartData,
     graphConfig: graphConfig
@@ -244,7 +242,6 @@ export const GraphPreview: React.FC<GraphPreviewProps> = ({
 function prepareChartData(entries: FormEntry[], form: Form, graphConfig: NonNullable<DashboardMetric['graphConfig']>, metric: DashboardMetric) {
   const data: Array<{ x: string | number; y: number }> = [];
 
-  console.log('🔧 prepareChartData called with:', {
     entriesCount: entries.length,
     xAxisType: graphConfig.xAxisType,
     yAxisType: graphConfig.yAxisType,
@@ -258,13 +255,11 @@ function prepareChartData(entries: FormEntry[], form: Form, graphConfig: NonNull
     entries.forEach(entry => {
       // Validate submittedAt
       if (!entry.submittedAt) {
-        console.warn('⚠️ Entry missing submittedAt:', entry.id);
         return;
       }
       
       const date = new Date(entry.submittedAt);
       if (isNaN(date.getTime())) {
-        console.warn('⚠️ Invalid date in entry:', entry.id, entry.submittedAt);
         return;
       }
       

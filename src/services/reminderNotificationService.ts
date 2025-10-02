@@ -23,19 +23,16 @@ class ReminderNotificationService {
   async checkAndSendReminders(forms: Form[], agencyId?: string): Promise<void> {
     // Prevent multiple instances from running simultaneously
     if (this.isRunning) {
-      console.log('🔔 [ReminderService] ⏭️ Reminder check already running, skipping...');
       return;
     }
     
     this.isRunning = true;
-    console.log('🔔 [ReminderService] Starting reminder check...');
     
     try {
       const now = new Date();
       const currentTime = now.toTimeString().slice(0, 5); // HH:MM format
       const currentDay = now.getDay(); // 0=Sunday, 1=Monday, etc.
       
-      console.log(`🔔 [ReminderService] Current time: ${currentTime}, Day: ${currentDay}`);
       
       // Clean up old localStorage entries (run once per day)
       if (now.getHours() === 0 && now.getMinutes() === 0) {
@@ -44,14 +41,11 @@ class ReminderNotificationService {
       
       // Filter forms with time restrictions
       const formsWithRestrictions = this.getFormsWithTimeRestrictions(forms);
-      console.log(`🔔 [ReminderService] Found ${formsWithRestrictions.length} forms with time restrictions`);
       
       for (const form of formsWithRestrictions) {
-        console.log(`🔔 [ReminderService] Processing form: ${form.title} (ID: ${form.id})`);
         await this.processFormReminders(form, currentTime, currentDay, now, agencyId);
       }
       
-      console.log('🔔 [ReminderService] Reminder check completed');
     } catch (error) {
       console.error('🔔 [ReminderService] Error in reminder check:', error);
     } finally {
@@ -90,7 +84,6 @@ class ReminderNotificationService {
       return; // No start time defined
     }
     
-    console.log(`🔔 [ReminderService] Processing form "${form.title}" with start time ${formStartTime}`);
     
     // Check each reminder interval
     for (const intervalMinutes of this.reminderIntervals) {
@@ -179,12 +172,9 @@ class ReminderNotificationService {
     const reminderType = this.getReminderType(intervalMinutes);
     const today = now.toDateString();
     
-    console.log(`🔔 [ReminderService] 📤 Sending ${reminderType} reminders for form "${form.title}"`);
-    console.log(`🔔 [ReminderService] 👥 Assigned employees: ${employeeIds.length}`);
     
     // Get employee details
     const employees = await this.getEmployeeDetails(employeeIds);
-    console.log(`🔔 [ReminderService] 📋 Employee details retrieved: ${employees.length}`);
     
     for (const employee of employees) {
       try {
@@ -201,12 +191,9 @@ class ReminderNotificationService {
         const firestoreCheck = await this.reminderAlreadyExists(employee.id, form.id, reminderType, today);
         
         if (inMemoryCheck || localStorageCheck || firestoreCheck) {
-          console.log(`🔔 [ReminderService] ⏭️ Reminder already sent to ${employee.name} for form ${form.id} at ${reminderTime} today`);
-          console.log(`🔔 [ReminderService] 🔍 Duplicate check: inMemory=${inMemoryCheck}, localStorage=${!!localStorageCheck}, firestore=${firestoreCheck}`);
           continue;
         }
         
-        console.log(`🔔 [ReminderService] ✅ Sending ${reminderType} reminder to ${employee.name} for form "${form.title}" at ${reminderTime}`);
         
         // Send push notification using the same method as form assignments
         await this.sendPushNotification(form, employee, reminderType, agencyId);
@@ -215,7 +202,6 @@ class ReminderNotificationService {
         this.sentReminders.add(reminderKey);
         localStorage.setItem(reminderKey, 'sent');
         
-        console.log(`🔔 [ReminderService] 🎉 Reminder sent successfully to ${employee.name} for form "${form.title}"`);
         
       } catch (error) {
         console.error(`🔔 [ReminderService] ❌ Error sending reminder to ${employee.name}:`, error);
@@ -260,16 +246,11 @@ class ReminderNotificationService {
     const title = 'Rappel de formulaire';
     const body = `Le formulaire "${form.title}" sera disponible dans ${timeText}`;
     
-    console.log(`🔔 [ReminderService] 📱 Sending push notification to ${employee.name}:`);
-    console.log(`🔔 [ReminderService] 📱 Title: "${title}"`);
-    console.log(`🔔 [ReminderService] 📱 Body: "${body}"`);
-    console.log(`🔔 [ReminderService] 📱 Data:`, {
       formId: form.id,
       formTitle: form.title,
       reminderType,
       action: 'form_reminder'
     });
-    console.log(`🔔 [ReminderService] 📱 AgencyId: ${agencyId || 'undefined'}`);
     
     await notificationService.sendToUser(employee.id, {
       title,
@@ -283,7 +264,6 @@ class ReminderNotificationService {
       }
     }, agencyId);
     
-    console.log(`🔔 [ReminderService] 📱 Push notification sent successfully to ${employee.name}`);
   }
 
   /**
@@ -316,7 +296,6 @@ class ReminderNotificationService {
    * Start the cronjob (call this from your app initialization)
    */
   startCronjob(formsProvider: () => Form[], agencyId?: string): void {
-    console.log('🔔 [ReminderService] Starting reminder cronjob...');
     
     // Store the forms provider function
     this.formsProvider = formsProvider;
@@ -327,22 +306,18 @@ class ReminderNotificationService {
     
     // Then run every minute for better precision
     this.intervalId = setInterval(() => {
-      console.log('🔔 [ReminderService] ⏰ Cronjob triggered - checking for reminders...');
       if (this.formsProvider) {
         const currentForms = this.formsProvider();
         this.checkAndSendReminders(currentForms, agencyId);
       }
     }, 60 * 1000); // 1 minute in milliseconds
     
-    console.log('🔔 [ReminderService] ✅ Reminder cronjob started (runs every minute)');
-    console.log('🔔 [ReminderService] 📅 Next check will be in 1 minute');
   }
 
   /**
    * Stop the cronjob
    */
   stopCronjob(): void {
-    console.log('🔔 [ReminderService] Stopping reminder cronjob...');
     if (this.intervalId) {
       clearInterval(this.intervalId);
       this.intervalId = null;
@@ -380,7 +355,6 @@ class ReminderNotificationService {
     });
     
     if (keysToRemove.length > 0) {
-      console.log(`🔔 [ReminderService] 🧹 Cleaned up ${keysToRemove.length} old reminder entries`);
     }
   }
 
@@ -388,7 +362,6 @@ class ReminderNotificationService {
    * Manually trigger reminder check (for testing purposes)
    */
   async triggerReminderCheck(forms: Form[], agencyId?: string): Promise<void> {
-    console.log('🔔 [ReminderService] Manual reminder check triggered');
     await this.checkAndSendReminders(forms, agencyId);
   }
 
@@ -397,7 +370,6 @@ class ReminderNotificationService {
    */
   async cleanupDuplicateReminders(): Promise<void> {
     try {
-      console.log('🔔 [ReminderService] 🧹 Starting cleanup of duplicate reminder notifications...');
       
       const notificationsQuery = query(
         collection(db, 'notifications'),
@@ -426,7 +398,6 @@ class ReminderNotificationService {
       let duplicatesRemoved = 0;
       for (const [key, notificationGroup] of groupedNotifications) {
         if (notificationGroup.length > 1) {
-          console.log(`🔔 [ReminderService] Found ${notificationGroup.length} duplicate notifications for key: ${key}`);
           
           // Keep the first notification, remove the rest
           const toRemove = notificationGroup.slice(1);
@@ -434,7 +405,6 @@ class ReminderNotificationService {
             try {
               await deleteDoc(doc(db, 'notifications', duplicate.id));
               duplicatesRemoved++;
-              console.log(`🔔 [ReminderService] Removed duplicate notification: ${duplicate.id}`);
             } catch (error) {
               console.error(`🔔 [ReminderService] Error removing duplicate ${duplicate.id}:`, error);
             }
@@ -442,7 +412,6 @@ class ReminderNotificationService {
         }
       }
       
-      console.log(`🔔 [ReminderService] 🎉 Cleanup completed. Removed ${duplicatesRemoved} duplicate notifications.`);
     } catch (error) {
       console.error('🔔 [ReminderService] Error during cleanup:', error);
     }

@@ -205,7 +205,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         );
       }
     } catch (orderByError) {
-      console.warn('⚠️ OrderBy failed, using simple query:', orderByError);
       if (user.role === 'directeur') {
         entriesQuery = query(
           collection(db, 'formEntries'),
@@ -364,7 +363,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         try {
           await SubscriptionSessionService.updateUsage(firebaseUser.uid, 'forms', 1);
         } catch (trackingError) {
-          console.warn('Failed to track form creation:', trackingError);
         }
       }
 
@@ -377,9 +375,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             formData.assignedTo,
             user.name || user.email
           );
-          console.log('🔔 [Form] Notifications sent to assigned employees');
         } catch (notificationError) {
-          console.warn('Failed to send form creation notifications:', notificationError);
           // Don't throw here - form creation should succeed even if notifications fail
         }
       }
@@ -442,9 +438,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               user.name || user.email,
               user.agencyId
             );
-            console.log('🔔 [Form] Assignment change notifications sent');
           } catch (notificationError) {
-            console.warn('Failed to send assignment change notifications:', notificationError);
             // Don't throw here - form update should succeed even if notifications fail
           }
         }
@@ -490,7 +484,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           user.agencyId
         );
       } catch (analyticsError) {
-        console.warn('Failed to track form submission analytics:', analyticsError);
       }
     } catch (err) {
       console.error('Erreur lors de la soumission du formulaire:', err);
@@ -670,7 +663,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         try {
           await SubscriptionSessionService.updateUsage(firebaseUser.uid, 'dashboards', 1);
         } catch (trackingError) {
-          console.warn('Failed to track dashboard creation:', trackingError);
         }
       }
     } catch (err) {

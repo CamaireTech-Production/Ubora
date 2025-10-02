@@ -17,7 +17,6 @@ export class ActivityLogService {
 
       await addDoc(collection(db, this.COLLECTION_NAME), activityData);
       
-      console.log(`✅ Activity logged: ${activity.type} - ${activity.description}`);
       return true;
     } catch (error) {
       console.error('❌ Error logging activity:', error);

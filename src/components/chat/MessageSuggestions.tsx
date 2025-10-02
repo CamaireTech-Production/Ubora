@@ -68,7 +68,6 @@ export const MessageSuggestions: React.FC<MessageSuggestionsProps> = ({
 
   const handleTooltipToggle = (suggestionId: string, event: React.MouseEvent) => {
     event.stopPropagation();
-    // console.log('Tooltip toggle clicked for:', suggestionId, 'Current active:', activeTooltip);
     
     if (activeTooltip === suggestionId) {
       setActiveTooltip(null);

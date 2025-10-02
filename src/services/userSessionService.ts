@@ -1,4 +1,4 @@
-import { User, SubscriptionSession } from '../types';
+import { User } from '../types';
 import { SubscriptionSessionService } from './subscriptionSessionService';
 import { PACKAGE_LIMITS, PACKAGE_FEATURES, PackageType } from '../config/packageFeatures';
 
@@ -179,7 +179,6 @@ export class UserSessionService {
     
     // Safety check: if package type doesn't exist, return empty array
     if (!features) {
-      console.warn(`⚠️ Package type '${packageType}' not found in PACKAGE_FEATURES. Available types: ${Object.keys(PACKAGE_FEATURES).join(', ')}`);
       return [];
     }
     
@@ -215,12 +214,10 @@ export class UserSessionService {
       const directorsSnapshot = await getDocs(directorsQuery);
       
       if (directorsSnapshot.empty) {
-        console.warn(`No director found for agency ${employee.agencyId}`);
         return this.getDefaultPackageInfo();
       }
       
       const directorData = directorsSnapshot.docs[0].data() as User;
-      const directorId = directorsSnapshot.docs[0].id;
       
       // Get the director's package info
       return this.getUserPackageInfo(directorData);
@@ -262,7 +259,6 @@ export class UserSessionService {
     
     // Safety check: if package type doesn't exist, return default limits
     if (!packageLimits) {
-      console.warn(`⚠️ Package type '${currentSession.packageType}' not found in PACKAGE_LIMITS. Available types: ${Object.keys(PACKAGE_LIMITS).join(', ')}`);
       return {
         maxForms: 0,
         maxDashboards: 0,
@@ -305,7 +301,6 @@ export class UserSessionService {
     
     // Safety check: if package type doesn't exist, return false
     if (!packageFeatures) {
-      console.warn(`⚠️ Package type '${currentSession.packageType}' not found in PACKAGE_FEATURES. Available types: ${Object.keys(PACKAGE_FEATURES).join(', ')}`);
       return false;
     }
     

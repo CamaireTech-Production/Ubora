@@ -32,13 +32,7 @@ export const MetricChart: React.FC<MetricChartProps> = ({ metric, formEntries, f
   const relevantEntries = formEntries.filter(entry => entry.formId === metric.formId);
   
   // Debug logging
-  console.log('🔍 MetricChart Debug:', {
-    totalFormEntries: formEntries.length,
-    metricFormId: metric.formId,
-    relevantEntriesCount: relevantEntries.length,
-    graphConfig: metric.graphConfig,
-    sampleEntry: relevantEntries[0]
-  });
+  // Metric chart data available for debugging if needed
   
   if (relevantEntries.length === 0) {
     return (

@@ -88,7 +88,6 @@ export const PackageSelectionPage: React.FC = () => {
       try {
         await AnalyticsService.logPackageSelection(user.id, pkg, user.agencyId);
       } catch (analyticsError) {
-        console.warn('Failed to track package selection analytics:', analyticsError);
       }
 
       showSuccess(`Package ${getPackageDisplayName(pkg)} sélectionné avec succès !`);

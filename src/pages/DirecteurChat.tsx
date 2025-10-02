@@ -338,7 +338,6 @@ RÉPONSE :
 
       // Tokens are now deducted on the server side
       if (user && data.meta?.userTokensCharged) {
-        console.log('🔄 FRONTEND: Processing token deduction response:', {
           tokensCharged: data.meta.userTokensCharged,
           remainingTokens: data.meta.remainingTokens,
           userId: user.id
@@ -346,9 +345,7 @@ RÉPONSE :
         
         // Update user data locally to reflect new token counts
         try {
-          console.log('🔄 FRONTEND: Calling refreshUserData...');
           await refreshUserData();
-          console.log('✅ FRONTEND: User data refreshed after token deduction:', {
             tokensCharged: data.meta.userTokensCharged,
             remainingTokens: data.meta.remainingTokens
           });
@@ -364,10 +361,8 @@ RÉPONSE :
             user.agencyId
           );
         } catch (analyticsError) {
-          console.warn('Failed to track chat activity analytics:', analyticsError);
         }
       } else {
-        console.log('⚠️ FRONTEND: No token deduction data in response:', {
           hasUser: !!user,
           hasMeta: !!data.meta,
           hasUserTokensCharged: !!data.meta?.userTokensCharged,

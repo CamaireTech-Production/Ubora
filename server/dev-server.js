@@ -4,15 +4,19 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 
-// Load environment variables from .env.local
-dotenv.config({ path: '.env.local' });
+// Load environment variables from .env.local (if it exists)
+try {
+  dotenv.config({ path: '.env.local' });
+  console.log('✅ Loaded .env.local file');
+} catch (error) {
+  console.log('ℹ️  No .env.local file found, using system environment variables');
+}
 
 // Debug: Show which environment variables are loaded
-console.log('🔧 Environment variables loaded:');
-console.log('FIREBASE_PROJECT_ID:', process.env.FIREBASE_PROJECT_ID ? '✅ Set' : '❌ Missing');
-console.log('FIREBASE_CLIENT_EMAIL:', process.env.FIREBASE_CLIENT_EMAIL ? '✅ Set' : '❌ Missing');
-console.log('FIREBASE_PRIVATE_KEY:', process.env.FIREBASE_PRIVATE_KEY ? '✅ Set' : '❌ Missing');
-console.log('OPENAI_API_KEY:', process.env.OPENAI_API_KEY ? '✅ Set' : '❌ Missing');
+console.log('🔧 Environment variables:');
+console.log(`   CORS_ORIGIN: ${process.env.CORS_ORIGIN || 'Not set'}`);
+console.log(`   FIREBASE_PROJECT_ID: ${process.env.FIREBASE_PROJECT_ID ? 'Set' : 'Not set'}`);
+console.log(`   OPENAI_API_KEY: ${process.env.OPENAI_API_KEY ? 'Set' : 'Not set'}`);
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -20,12 +24,53 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = 3000;
 
-// Middleware
-const corsOrigins = process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',') : ['*'];
+// Middleware - CORS configuration for development
+const corsOrigins = [
+  'http://localhost:5173',      // Vite dev server
+  'http://localhost:3000',      // Alternative local port
+  'http://localhost:4173',      // Vite preview
+  'https://dev.ubora.com',      // Development domain
+  'https://my.ubora.com',       // Production domain
+  'http://dev.ubora.com',       // HTTP version of dev domain
+  'http://my.ubora.com',        // HTTP version of prod domain
+  'https://localhost:5173',     // HTTPS localhost
+  'https://localhost:3000',     // HTTPS localhost alternative
+  ...(process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',') : [])
+];
+
 app.use(cors({
-  origin: corsOrigins,
-  credentials: true
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    // Check if origin is in our allowed list
+    if (corsOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    
+    // For development, be more permissive with localhost variations
+    if (origin.includes('localhost') || origin.includes('127.0.0.1')) {
+      return callback(null, true);
+    }
+    
+    // Log blocked origins for debugging
+    console.log(`🚫 CORS blocked origin: ${origin}`);
+    callback(new Error('Not allowed by CORS'));
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
 }));
+
+// Handle preflight requests
+app.options('*', (req, res) => {
+  res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.sendStatus(200);
+});
+
 app.use(express.json({ limit: '50mb' })); // Increase payload limit for large images
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
@@ -66,6 +111,28 @@ app.get('/test', (req, res) => {
     env: {
       firebaseProjectId: process.env.FIREBASE_PROJECT_ID ? 'Set' : 'Missing',
       openaiKey: process.env.OPENAI_API_KEY ? 'Set' : 'Missing'
+    },
+    cors: {
+      origin: req.headers.origin || 'No origin header',
+      allowedOrigins: corsOrigins
+    }
+  });
+});
+
+// CORS debugging endpoint
+app.get('/cors-debug', (req, res) => {
+  res.json({
+    message: 'CORS Debug Info',
+    request: {
+      origin: req.headers.origin || 'No origin header',
+      host: req.headers.host,
+      userAgent: req.headers['user-agent'],
+      referer: req.headers.referer || 'No referer'
+    },
+    cors: {
+      allowedOrigins: corsOrigins,
+      isOriginAllowed: corsOrigins.includes(req.headers.origin) || 
+                      (req.headers.origin && (req.headers.origin.includes('localhost') || req.headers.origin.includes('127.0.0.1')))
     }
   });
 });
@@ -80,6 +147,9 @@ app.listen(PORT, () => {
   console.log(`   - POST http://localhost:${PORT}/api/ocr/extract`);
   console.log(`   - POST http://localhost:${PORT}/api/ocr/extractPdfText`);
   console.log(`   - GET  http://localhost:${PORT}/api/ocr/health`);
+  console.log(`\n🌐 CORS Configuration:`);
+  console.log(`   Allowed origins: ${corsOrigins.join(', ')}`);
+  console.log(`   Plus any localhost/127.0.0.1 variations`);
   console.log(`\n💡 To start both frontend and backend:`);
   console.log(`   npm run dev:full`);
 });

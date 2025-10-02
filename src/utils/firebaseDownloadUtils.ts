@@ -12,7 +12,6 @@ export const forceDownloadFromFirebase = async (
   onError?: (error: string) => void
 ): Promise<void> => {
   try {
-    console.log('🔍 Force downloading from Firebase Storage:', { storagePath, fileName });
 
     // Method 1: Try to modify the URL to force download
     try {
@@ -20,7 +19,6 @@ export const forceDownloadFromFirebase = async (
       const baseUrl = storagePath.split('?')[0];
       const downloadUrl = `${baseUrl}?alt=media&download=${encodeURIComponent(fileName)}`;
       
-      console.log('🔄 Trying modified URL:', downloadUrl);
       
       const response = await fetch(downloadUrl, {
         method: 'GET',
@@ -37,7 +35,6 @@ export const forceDownloadFromFirebase = async (
       }
 
       const blob = await response.blob();
-      console.log('📦 Blob created:', { size: blob.size, type: blob.type });
       
       // Create object URL from blob
       const blobUrl = window.URL.createObjectURL(blob);
@@ -62,16 +59,13 @@ export const forceDownloadFromFirebase = async (
         window.URL.revokeObjectURL(blobUrl);
       }, 1000);
 
-      console.log('✅ Firebase force download completed');
       onSuccess?.();
       return;
     } catch (fetchError) {
-      console.warn('Firebase force download failed:', fetchError);
     }
 
     // Method 2: Try with original URL but force download headers
     try {
-      console.log('🔄 Trying with original URL and download headers...');
       
       const response = await fetch(storagePath, {
         method: 'GET',
@@ -88,7 +82,6 @@ export const forceDownloadFromFirebase = async (
       }
 
       const blob = await response.blob();
-      console.log('📦 Blob created from original URL:', { size: blob.size, type: blob.type });
       
       // Create object URL from blob
       const blobUrl = window.URL.createObjectURL(blob);
@@ -113,16 +106,13 @@ export const forceDownloadFromFirebase = async (
         window.URL.revokeObjectURL(blobUrl);
       }, 1000);
 
-      console.log('✅ Original URL download completed');
       onSuccess?.();
       return;
     } catch (originalError) {
-      console.warn('Original URL download failed:', originalError);
     }
 
     // Method 3: Create a form with POST method to force download
     try {
-      console.log('🔄 Trying form POST method...');
       
       const form = document.createElement('form');
       form.method = 'GET';
@@ -152,16 +142,13 @@ export const forceDownloadFromFirebase = async (
         document.body.removeChild(form);
       }, 1000);
       
-      console.log('✅ Form POST download initiated');
       onSuccess?.();
       return;
     } catch (formError) {
-      console.warn('Form POST method failed:', formError);
     }
 
     // Method 4: Try to create a blob URL with proper MIME type
     try {
-      console.log('🔄 Trying blob URL with proper MIME type...');
       
       const response = await fetch(storagePath, {
         method: 'GET',
@@ -202,11 +189,9 @@ export const forceDownloadFromFirebase = async (
         window.URL.revokeObjectURL(blobUrl);
       }, 1000);
 
-      console.log('✅ Blob URL download completed');
       onSuccess?.();
       return;
     } catch (blobError) {
-      console.warn('Blob URL method failed:', blobError);
     }
 
     // All methods failed
@@ -231,7 +216,6 @@ export const checkFirebaseUrlAccessibility = async (url: string): Promise<boolea
     });
     return true;
   } catch (error) {
-    console.warn('Firebase URL accessibility check failed:', error);
     return false;
   }
 };

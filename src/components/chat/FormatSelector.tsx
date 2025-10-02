@@ -69,10 +69,6 @@ export const FormatSelector: React.FC<FormatSelectorProps> = ({
   const handleFormatSelect = (formatId: string) => {
     if (disabled) return;
     
-    // console.log('🎯 FormatSelector - Format clicked:', formatId);
-    // console.log('🎯 FormatSelector - allowMultiple:', allowMultiple);
-    // console.log('🎯 FormatSelector - selectedFormat:', selectedFormat);
-    // console.log('🎯 FormatSelector - selectedFormats:', selectedFormats);
     
     if (allowMultiple && onFormatsChange) {
       // Multi-format selection
@@ -80,12 +76,10 @@ export const FormatSelector: React.FC<FormatSelectorProps> = ({
       const newFormats = isSelected 
         ? selectedFormats.filter(f => f !== formatId)
         : [...selectedFormats, formatId];
-      // console.log('🎯 FormatSelector - Multi-format newFormats:', newFormats);
       onFormatsChange(newFormats);
     } else {
       // Single format selection
       const newFormat = selectedFormat === formatId ? null : formatId;
-      // console.log('🎯 FormatSelector - Single format newFormat:', newFormat);
       onFormatChange(newFormat);
       setIsOpen(false);
     }

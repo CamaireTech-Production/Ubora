@@ -46,12 +46,10 @@ export const TestChartToPNG: React.FC = () => {
     setResult(null);
 
     try {
-      console.log('Testing chart to PNG conversion...');
       const pngData = await RechartsToPNG.convertChartDataToPNG(testChartData, 800, 500);
       
       if (pngData) {
         setResult('Chart successfully converted to PNG!');
-        console.log('PNG data length:', pngData.length);
         
         // Create a download link for testing
         const link = document.createElement('a');

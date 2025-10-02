@@ -46,7 +46,6 @@ export const PWAInstallPrompt: React.FC = () => {
 
     // Listen for the appinstalled event
     const handleAppInstalled = () => {
-      console.log('✅ App installed successfully');
       setIsInstalled(true);
       setShowInstallPrompt(false);
     };
@@ -58,7 +57,6 @@ export const PWAInstallPrompt: React.FC = () => {
 
     // Listen for beforeinstallprompt event
     const handleBeforeInstallPrompt = () => {
-      console.log('🔔 [PWA] beforeinstallprompt event fired - showing install prompt');
       if (!isInstalled) {
         setShowInstallPrompt(true);
       }
@@ -78,13 +76,11 @@ export const PWAInstallPrompt: React.FC = () => {
     const checkShouldShowPrompt = () => {
       // Don't show if already installed
       if (isInstalled) {
-        console.log('🔍 [PWA] Not showing prompt - app already installed');
         return false;
       }
       
       // Check if we have a deferred prompt (most reliable)
       if (getIsInstallable()) {
-        console.log('🔍 [PWA] Showing prompt - deferred prompt available');
         return true;
       }
       
@@ -93,7 +89,6 @@ export const PWAInstallPrompt: React.FC = () => {
       const hasManifest = document.querySelector('link[rel="manifest"]') !== null;
       const isHTTPS = location.protocol === 'https:' || location.hostname === 'localhost';
       
-      console.log('🔍 [PWA] PWA criteria check:', {
         hasServiceWorker,
         hasManifest,
         isHTTPS,
@@ -120,7 +115,6 @@ export const PWAInstallPrompt: React.FC = () => {
   }, [pwaConfig.isAdmin]);
 
   const handleInstallClick = async () => {
-    console.log('🚀 Install button clicked');
     setIsInstalling(true);
 
     try {
@@ -128,16 +122,13 @@ export const PWAInstallPrompt: React.FC = () => {
       
       // First try the native prompt if available (Android/Desktop)
       if (deferredPrompt) {
-        console.log('✅ Using native deferred prompt');
         await deferredPrompt.prompt();
         const { outcome } = await deferredPrompt.userChoice;
         
         if (outcome === 'accepted') {
-          console.log('✅ User accepted the install prompt');
           clearDeferredPrompt();
           setShowInstallPrompt(false);
         } else {
-          console.log('❌ User dismissed the install prompt');
           clearDeferredPrompt();
           setShowInstallPrompt(false);
         }
@@ -146,19 +137,16 @@ export const PWAInstallPrompt: React.FC = () => {
       }
 
       // For iOS or when no deferred prompt is available
-      console.log('📱 No native prompt available');
       
       // Check if it's iOS
       const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
       if (isIOS) {
         // For iOS, we can't programmatically install, so we show instructions
-        console.log('🍎 iOS detected - showing manual install instructions');
         setIsInstalling(false);
         return;
       }
 
       // For other browsers, show manual instructions
-      console.log('🔄 Showing manual install instructions');
       alert('Pour installer cette application:\n\n1. Cliquez sur le menu de votre navigateur (⋮)\n2. Sélectionnez "Installer l\'application" ou "Ajouter à l\'écran d\'accueil"\n3. Suivez les instructions à l\'écran');
       setIsInstalling(false);
       
@@ -170,7 +158,6 @@ export const PWAInstallPrompt: React.FC = () => {
 
 
   const handleDismiss = () => {
-    console.log('🚫 PWA install prompt dismissed');
     setShowInstallPrompt(false);
     // Modal will show again on page reload
   };

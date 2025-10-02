@@ -196,10 +196,6 @@ export class PackageTransitionService {
       // Handle pay-as-you-go token preservation
       await this.handlePayAsYouGoPreservation(userId, calculation, options);
 
-      console.log(`✅ Package transition completed: ${calculation.currentSession.packageType} → ${newPackageType}`);
-      console.log(`🔄 New package tokens: ${calculation.newPackageTokens}`);
-      console.log(`💰 Preserved unused pay-as-you-go: ${calculation.preservedPayAsYouGoTokens}`);
-      console.log(`❌ Lost unused package tokens: ${calculation.unusedPackageTokens}`);
       
       return true;
 

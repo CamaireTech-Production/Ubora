@@ -189,7 +189,6 @@ export const updateManifestLink = (config: PWAConfig): void => {
     
     if (manifestLink.href !== newManifestUrl) {
       manifestLink.href = newManifestUrl;
-      console.log(`📱 [PWA] Updated manifest to: ${newManifestUrl} (${config.appName})`);
     }
   }
 };
@@ -289,7 +288,6 @@ export const updateManifestContent = (config: PWAConfig): void => {
   const manifestUrl = URL.createObjectURL(manifestBlob);
   
   manifestLink.href = manifestUrl;
-  console.log(`📱 [PWA] Updated dynamic manifest with name: ${config.appName}`);
 };
 
 /**

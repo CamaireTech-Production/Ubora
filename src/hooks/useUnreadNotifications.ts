@@ -13,7 +13,6 @@ export const useUnreadNotifications = () => {
       return;
     }
 
-    console.log('🔔 [useUnreadNotifications] Setting up listener for user:', user.id);
 
     // Create query based on user role
     let notificationsQuery;
@@ -36,7 +35,6 @@ export const useUnreadNotifications = () => {
 
     // Set up real-time listener
     const unsubscribe = onSnapshot(notificationsQuery, (snapshot) => {
-      console.log('🔔 [useUnreadNotifications] Unread count update:', snapshot.docs.length);
       setUnreadCount(snapshot.docs.length);
     }, (error) => {
       console.error('🔔 [useUnreadNotifications] Error listening to unread notifications:', error);
@@ -45,7 +43,6 @@ export const useUnreadNotifications = () => {
 
     // Cleanup listener on unmount or user change
     return () => {
-      console.log('🔔 [useUnreadNotifications] Cleaning up unread notifications listener');
       unsubscribe();
     };
   }, [user]);

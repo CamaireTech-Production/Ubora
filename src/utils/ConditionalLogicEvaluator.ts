@@ -15,7 +15,6 @@ export class ConditionalLogicEvaluator {
   ): boolean {
     // If no conditional logic is defined, field is always visible
     if (!field.conditionalLogic || !field.conditionalLogic.isEnabled) {
-      console.log(`✅ Field "${field.label}" (${field.id}) - No conditional logic, always visible`);
       return true;
     }
 
@@ -23,11 +22,9 @@ export class ConditionalLogicEvaluator {
 
     // If no conditions, field is always visible
     if (!conditions || conditions.length === 0) {
-      console.log(`✅ Field "${field.label}" (${field.id}) - No conditions, always visible`);
       return true;
     }
 
-    console.log(`🔍 Evaluating field "${field.label}" (${field.id}):`, {
       conditions,
       operator,
       action,
@@ -39,7 +36,6 @@ export class ConditionalLogicEvaluator {
       this.evaluateCondition(condition, formValues, allFields)
     );
 
-    console.log(`📊 Condition results for "${field.label}":`, conditionResults);
 
     // Combine results based on operator
     let combinedResult: boolean;
@@ -51,7 +47,6 @@ export class ConditionalLogicEvaluator {
 
     // Return visibility based on action
     const finalResult = action === 'show' ? combinedResult : !combinedResult;
-    console.log(`🎯 Final result for "${field.label}": ${finalResult} (action: ${action}, combined: ${combinedResult})`);
     
     return finalResult;
   }
@@ -71,14 +66,12 @@ export class ConditionalLogicEvaluator {
     const fieldValue = formValues[condition.fieldId];
     const field = allFields.find(f => f.id === condition.fieldId);
 
-    console.log(`🔍 Evaluating condition:`, {
       condition,
       fieldValue,
       field: field ? { id: field.id, label: field.label, type: field.type } : null
     });
 
     if (!field) {
-      console.warn(`Field with ID ${condition.fieldId} not found`);
       return false;
     }
 
@@ -93,7 +86,6 @@ export class ConditionalLogicEvaluator {
 
     // For other operators, we need a value to compare against
     if (condition.value === undefined || condition.value === null) {
-      console.warn(`Condition value is undefined for operator ${condition.operator}`);
       return false;
     }
 
@@ -127,7 +119,6 @@ export class ConditionalLogicEvaluator {
         return this.compareValues(convertedFieldValue, convertedConditionValue, 'less_equal');
       
       default:
-        console.warn(`Unknown operator: ${condition.operator}`);
         return false;
     }
   }
@@ -175,7 +166,6 @@ export class ConditionalLogicEvaluator {
    * Compares two values based on the operator
    */
   private static compareValues(fieldValue: unknown, conditionValue: unknown, operator: string): boolean {
-    console.log(`🔍 Comparing values:`, {
       fieldValue,
       conditionValue,
       operator,
@@ -186,13 +176,11 @@ export class ConditionalLogicEvaluator {
     // Handle null/undefined values
     if (fieldValue === null || fieldValue === undefined) {
       const result = operator === 'equals' ? conditionValue === null : false;
-      console.log(`📊 Null/undefined fieldValue result: ${result}`);
       return result;
     }
 
     if (conditionValue === null || conditionValue === undefined) {
       const result = operator === 'equals' ? fieldValue === null : false;
-      console.log(`📊 Null/undefined conditionValue result: ${result}`);
       return result;
     }
 
@@ -234,7 +222,6 @@ export class ConditionalLogicEvaluator {
         result = false;
     }
 
-    console.log(`📊 Comparison result: ${result}`);
     return result;
   }
 

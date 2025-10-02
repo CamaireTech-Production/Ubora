@@ -40,8 +40,6 @@ if (firebaseConfig.appId && !firebaseConfig.appId.includes(':web:')) {
 let app: any;
 try {
   app = initializeApp(firebaseConfig);
-  console.log('✅ [Firebase] App initialisée avec succès');
-  console.log('📊 [Firebase] Projet:', firebaseConfig.projectId);
 } catch (error) {
   console.error('🔥 [Firebase] Erreur lors de l\'initialisation:', error);
   throw new Error('Configuration Firebase invalide. Vérifiez vos clés dans .env.local');
@@ -57,7 +55,6 @@ export const messaging = isSupported().then((supported) => {
   if (supported) {
     return getMessaging(app);
   } else {
-    console.warn('🔔 [Firebase] Messaging non supporté sur ce navigateur');
     return null;
   }
 });
@@ -67,7 +64,6 @@ export const analytics = isAnalyticsSupported().then((supported) => {
   if (supported) {
     return getAnalytics(app);
   } else {
-    console.warn('📊 [Firebase] Analytics non supporté sur ce navigateur');
     return null;
   }
 });

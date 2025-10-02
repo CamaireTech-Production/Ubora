@@ -10,7 +10,6 @@ let isInstallable = false;
 
 // Listen for the beforeinstallprompt event
 window.addEventListener('beforeinstallprompt', (e) => {
-  console.log('🔔 [PWA] beforeinstallprompt event fired');
   e.preventDefault();
   deferredPrompt = e;
   isInstallable = true;
@@ -18,7 +17,6 @@ window.addEventListener('beforeinstallprompt', (e) => {
 
 // Listen for the appinstalled event
 window.addEventListener('appinstalled', () => {
-  console.log('✅ [PWA] App installed successfully');
   deferredPrompt = null;
   isInstallable = false;
 });
@@ -30,7 +28,6 @@ export const registerServiceWorker = async () => {
         scope: '/'
       });
       
-      console.log('🔔 [PWA] Service worker registered:', registration);
       
       // Update manifest based on current route
       const config = getPWAConfig();

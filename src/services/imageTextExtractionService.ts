@@ -35,32 +35,21 @@ export class ImageTextExtractionService {
    */
   static async extractTextFromImage(file: File): Promise<ImageTextExtractionResult> {
     try {
-      console.log('🔍 Starting image text extraction for:', file.name);
       
       // Try OpenAI Vision API for excellent handwritten text recognition
       const openaiResult = await this.tryOpenAIVision(file);
       if (openaiResult.success) {
-        console.log('✅ OpenAI Vision extraction successful!');
-        console.log('🎯 Engine used:', openaiResult.engine);
-        console.log('📊 Confidence score:', openaiResult.confidence);
         return openaiResult;
       }
       
       // If OpenAI Vision fails, try Tesseract.js as fallback
-      console.log('⚠️ OpenAI Vision failed, trying Tesseract.js fallback...');
       const tesseractResult = await this.tryTesseractJS(file);
       if (tesseractResult.success) {
-        console.log('✅ Tesseract.js extraction successful!');
-        console.log('🎯 Engine used:', tesseractResult.engine);
-        console.log('📊 Confidence score:', tesseractResult.confidence);
         return tesseractResult;
       }
       
       // If both fail, return fallback text
-      console.log('⚠️ Both OCR methods failed, using fallback text...');
       const fallbackResult = this.getFallbackText(file);
-      console.log('📝 Fallback text prepared for debugging modal');
-      console.log('🔍 Fallback result:', fallbackResult);
       return fallbackResult;
       
     } catch (error) {
@@ -73,7 +62,6 @@ export class ImageTextExtractionService {
       });
       
       // Fallback to error message if extraction fails
-      console.log('🔄 Falling back to error message...');
       return this.getFallbackText(file);
     }
   }
@@ -83,7 +71,6 @@ export class ImageTextExtractionService {
    */
   private static async tryOpenAIVision(file: File): Promise<ImageTextExtractionResult> {
     try {
-      console.log('🔍 Trying OpenAI Vision API...');
       
       // Convert file to base64
       const base64Image = await this.fileToBase64(file);
@@ -128,7 +115,6 @@ export class ImageTextExtractionService {
       }
       
       const result = await response.json();
-      console.log('🔍 OpenAI Vision API response:', result);
       
       if (!result.success) {
         throw new Error(result.error || 'OCR extraction failed');
@@ -162,7 +148,6 @@ export class ImageTextExtractionService {
       }
       
     } catch (error) {
-      console.warn('⚠️ OpenAI Vision API failed:', error);
       return {
         text: '',
         confidence: 0,
@@ -178,7 +163,6 @@ export class ImageTextExtractionService {
    */
   private static async tryTesseractJS(file: File): Promise<ImageTextExtractionResult> {
     try {
-      console.log('🔍 Trying Tesseract.js OCR...');
       
       // Import Tesseract.js dynamically
       const Tesseract = await import('tesseract.js');
@@ -193,7 +177,6 @@ export class ImageTextExtractionService {
         {
           logger: (m) => {
             if (m.status === 'recognizing text') {
-              console.log(`Tesseract.js OCR Progress: ${Math.round(m.progress * 100)}%`);
             }
           }
         }
@@ -224,7 +207,6 @@ export class ImageTextExtractionService {
       }
       
     } catch (error) {
-      console.warn('⚠️ Tesseract.js OCR failed:', error);
       return {
         text: '',
         confidence: 0,

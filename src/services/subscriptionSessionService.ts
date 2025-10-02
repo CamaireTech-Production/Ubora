@@ -103,7 +103,6 @@ export class SubscriptionSessionService {
         updatedAt: serverTimestamp()
       });
       
-      console.log(`✅ New subscription session created for user ${userId}: ${sessionData.packageType} from ${sessionData.startDate.toISOString()} to ${sessionData.endDate.toISOString()}`);
       return true;
       
     } catch (error) {
@@ -196,7 +195,6 @@ export class SubscriptionSessionService {
         updatedAt: serverTimestamp()
       });
       
-      console.log(`✅ Pay-as-you-go resources added for user ${userId}: ${purchase.quantity} ${purchase.itemType} for ${purchase.amountPaid} FCFA`);
       return true;
       
     } catch (error) {
@@ -271,7 +269,6 @@ export class SubscriptionSessionService {
         updatedAt: serverTimestamp()
       });
       
-      console.log(`✅ Usage updated for user ${userId}: ${quantity} ${usageType}`);
       return true;
       
     } catch (error) {
@@ -344,7 +341,6 @@ export class SubscriptionSessionService {
         updatedAt: serverTimestamp()
       });
       
-      console.log(`✅ Session deactivated for user ${userId}: ${currentSession.id}`);
       return true;
       
     } catch (error) {

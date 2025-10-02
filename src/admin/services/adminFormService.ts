@@ -276,7 +276,6 @@ export class AdminFormService {
       try {
         await AnalyticsService.logFormCreation(adminId, formRef.id, formData.title || 'Untitled Form', formData.agencyId);
       } catch (analyticsError) {
-        console.warn('Failed to track form creation analytics:', analyticsError);
       }
 
       return true;

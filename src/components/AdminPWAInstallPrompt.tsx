@@ -46,7 +46,6 @@ export const AdminPWAInstallPrompt: React.FC = () => {
 
     // Listen for the appinstalled event
     const handleAppInstalled = () => {
-      console.log('✅ Admin app installed successfully');
       setIsInstalled(true);
       setShowInstallPrompt(false);
     };
@@ -58,7 +57,6 @@ export const AdminPWAInstallPrompt: React.FC = () => {
 
     // Listen for beforeinstallprompt event
     const handleBeforeInstallPrompt = (e: Event) => {
-      console.log('🔔 [Admin PWA] beforeinstallprompt event fired - storing admin deferred prompt');
       e.preventDefault(); // Prevent the default browser install prompt
       setAdminDeferredPrompt(e); // Store the prompt locally for admin use
       if (!isInstalled) {
@@ -80,19 +78,16 @@ export const AdminPWAInstallPrompt: React.FC = () => {
     const checkShouldShowPrompt = () => {
       // Don't show if already installed
       if (isInstalled) {
-        console.log('🔍 [Admin PWA] Not showing prompt - app already installed');
         return false;
       }
       
       // Check if we have a local admin deferred prompt (most reliable)
       if (adminDeferredPrompt) {
-        console.log('🔍 [Admin PWA] Showing prompt - local admin deferred prompt available');
         return true;
       }
       
       // Check if we have a global deferred prompt
       if (getIsInstallable()) {
-        console.log('🔍 [Admin PWA] Showing prompt - global deferred prompt available');
         return true;
       }
       
@@ -101,7 +96,6 @@ export const AdminPWAInstallPrompt: React.FC = () => {
       const hasManifest = document.querySelector('link[rel="manifest"]') !== null;
       const isHTTPS = location.protocol === 'https:' || location.hostname === 'localhost';
       
-      console.log('🔍 [Admin PWA] PWA criteria check:', {
         hasServiceWorker,
         hasManifest,
         isHTTPS,
@@ -129,22 +123,18 @@ export const AdminPWAInstallPrompt: React.FC = () => {
   }, [pwaConfig.isAdmin]);
 
   const handleInstallClick = async () => {
-    console.log('🚀 Admin install button clicked');
     setIsInstalling(true);
 
     try {
       // First try the local admin deferred prompt
       if (adminDeferredPrompt) {
-        console.log('✅ Using local admin deferred prompt');
         await adminDeferredPrompt.prompt();
         const { outcome } = await adminDeferredPrompt.userChoice;
         
         if (outcome === 'accepted') {
-          console.log('✅ User accepted the admin install prompt');
           setAdminDeferredPrompt(null);
           setShowInstallPrompt(false);
         } else {
-          console.log('❌ User dismissed the admin install prompt');
           setAdminDeferredPrompt(null);
           setShowInstallPrompt(false);
         }
@@ -155,16 +145,13 @@ export const AdminPWAInstallPrompt: React.FC = () => {
       // Fallback to global deferred prompt
       const globalDeferredPrompt = getDeferredPrompt();
       if (globalDeferredPrompt) {
-        console.log('✅ Using global deferred prompt for admin');
         await globalDeferredPrompt.prompt();
         const { outcome } = await globalDeferredPrompt.userChoice;
         
         if (outcome === 'accepted') {
-          console.log('✅ User accepted the admin install prompt');
           clearDeferredPrompt();
           setShowInstallPrompt(false);
         } else {
-          console.log('❌ User dismissed the admin install prompt');
           clearDeferredPrompt();
           setShowInstallPrompt(false);
         }
@@ -173,20 +160,17 @@ export const AdminPWAInstallPrompt: React.FC = () => {
       }
 
       // If no deferred prompt, try to trigger the browser's install prompt
-      console.log('📱 No deferred prompt available, trying alternative methods');
       
       // Check if it's iOS
       const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
       if (isIOS) {
         // For iOS, we can't programmatically install, so we show instructions
-        console.log('🍎 iOS detected - showing manual install instructions for admin');
         setIsInstalling(false);
         return;
       }
 
       // For other browsers, try to trigger the install prompt by checking if the app is installable
       // Sometimes the browser needs a user gesture to show the install prompt
-      console.log('🔄 Attempting to trigger browser install prompt');
       
       // Check if the app meets PWA criteria and try to show install prompt
       if ('serviceWorker' in navigator && 'PushManager' in window) {
@@ -196,7 +180,6 @@ export const AdminPWAInstallPrompt: React.FC = () => {
           // Check again for deferred prompt after a short delay
           const newDeferredPrompt = getDeferredPrompt();
           if (newDeferredPrompt) {
-            console.log('✅ Deferred prompt became available after delay');
             newDeferredPrompt.prompt();
             const { outcome } = newDeferredPrompt.userChoice;
             if (outcome === 'accepted') {
@@ -206,7 +189,6 @@ export const AdminPWAInstallPrompt: React.FC = () => {
             setIsInstalling(false);
           } else {
             // Still no prompt available, show manual instructions
-            console.log('🔄 Still no prompt available, showing manual instructions');
             alert('Pour installer le panel d\'administration Ubora:\n\n1. Cliquez sur le menu de votre navigateur (⋮)\n2. Sélectionnez "Installer l\'application" ou "Ajouter à l\'écran d\'accueil"\n3. Suivez les instructions à l\'écran\n\nL\'application s\'ouvrira directement sur le panel d\'administration.');
             setIsInstalling(false);
           }
@@ -224,7 +206,6 @@ export const AdminPWAInstallPrompt: React.FC = () => {
   };
 
   const handleDismiss = () => {
-    console.log('🚫 Admin PWA install prompt dismissed');
     setShowInstallPrompt(false);
     // Modal will show again on page reload
   };

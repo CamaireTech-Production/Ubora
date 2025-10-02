@@ -12,13 +12,11 @@ export const NotificationListener: React.FC = () => {
 
   useEffect(() => {
     if (user?.id) {
-      console.log('🔔 [NotificationListener] Starting notification listener for user:', user.id);
       notificationListenerService.startListening(user.id);
     }
 
     // Cleanup when component unmounts or user changes
     return () => {
-      console.log('🔔 [NotificationListener] Stopping notification listener');
       notificationListenerService.stopListening();
     };
   }, [user?.id]);

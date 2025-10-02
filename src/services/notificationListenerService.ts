@@ -18,7 +18,6 @@ class NotificationListenerService {
       this.unsubscribe();
     }
 
-    console.log('🔔 [NotificationListener] Starting to listen for notifications for user:', userId);
 
     // Request notification permission first
     this.requestNotificationPermission();
@@ -32,14 +31,12 @@ class NotificationListenerService {
     );
 
     this.unsubscribe = onSnapshot(notificationsQuery, (snapshot) => {
-      console.log('🔔 [NotificationListener] Received snapshot with', snapshot.docChanges().length, 'changes');
       
       snapshot.docChanges().forEach((change) => {
         if (change.type === 'added') {
           const notification = change.doc.data();
           const notificationTime = notification.createdAt?.toDate() || new Date();
           
-          console.log('🔔 [NotificationListener] New notification detected:', {
             title: notification.title,
             time: notificationTime,
             lastTime: this.lastNotificationTime
@@ -47,11 +44,9 @@ class NotificationListenerService {
           
           // Only show notification if it's new (not from initial load)
           if (!this.lastNotificationTime || notificationTime > this.lastNotificationTime) {
-            console.log('🔔 [NotificationListener] Showing notification for:', notification.title);
             this.showNotification(notification);
             this.lastNotificationTime = notificationTime;
           } else {
-            console.log('🔔 [NotificationListener] Skipping notification (not new):', notification.title);
           }
         }
       });
@@ -68,7 +63,6 @@ class NotificationListenerService {
       this.unsubscribe();
       this.unsubscribe = null;
     }
-    console.log('🔔 [NotificationListener] Stopped listening for notifications');
   }
 
   /**
@@ -76,23 +70,19 @@ class NotificationListenerService {
    */
   private async requestNotificationPermission(): Promise<boolean> {
     if (!('Notification' in window)) {
-      console.log('🔔 [NotificationListener] This browser does not support notifications');
       return false;
     }
 
     if (Notification.permission === 'granted') {
-      console.log('🔔 [NotificationListener] Notification permission already granted');
       return true;
     }
 
     if (Notification.permission === 'denied') {
-      console.log('🔔 [NotificationListener] Notification permission denied');
       return false;
     }
 
     try {
       const permission = await Notification.requestPermission();
-      console.log('🔔 [NotificationListener] Notification permission result:', permission);
       return permission === 'granted';
     } catch (error) {
       console.error('🔔 [NotificationListener] Error requesting notification permission:', error);
@@ -106,17 +96,14 @@ class NotificationListenerService {
   private showNotification(notification: any) {
     // Check if notifications are supported and permission is granted
     if (!('Notification' in window)) {
-      console.log('🔔 [NotificationListener] This browser does not support notifications');
       return;
     }
 
     if (Notification.permission === 'denied') {
-      console.log('🔔 [NotificationListener] Notification permission denied');
       return;
     }
 
     if (Notification.permission === 'default') {
-      console.log('🔔 [NotificationListener] Requesting notification permission');
       Notification.requestPermission().then((permission) => {
         if (permission === 'granted') {
           this.createNotification(notification);
@@ -151,7 +138,6 @@ class NotificationListenerService {
 
       // Handle notification click
       browserNotification.onclick = () => {
-        console.log('🔔 [NotificationListener] Notification clicked:', notification.title);
         window.focus();
         browserNotification.close();
         
@@ -175,7 +161,6 @@ class NotificationListenerService {
 
       // Handle notification close
       browserNotification.onclose = () => {
-        console.log('🔔 [NotificationListener] Notification closed:', notification.title);
       };
 
       // Handle notification error
@@ -188,7 +173,6 @@ class NotificationListenerService {
         browserNotification.close();
       }, 8000);
 
-      console.log('🔔 [NotificationListener] Notification shown successfully:', notification.title);
     } catch (error) {
       console.error('🔔 [NotificationListener] Error creating notification:', error);
     }
@@ -198,7 +182,6 @@ class NotificationListenerService {
    * Test function to show a notification (for debugging)
    */
   testNotification() {
-    console.log('🔔 [NotificationListener] Testing notification...');
     this.showNotification({
       title: 'Test Notification',
       body: 'This is a test notification to verify the system is working',

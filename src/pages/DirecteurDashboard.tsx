@@ -112,7 +112,6 @@ export const DirecteurDashboard: React.FC = () => {
   };
 
   const handleFormButtonClick = () => {
-    console.log('🔍 Form button clicked:', {
       formsLength: forms.length,
       canCreateForm: canCreateForm(forms.length),
       userPayAsYouGoResources: user?.payAsYouGoResources
@@ -912,7 +911,6 @@ export const DirecteurDashboard: React.FC = () => {
               throw new Error('Erreur lors de l\'ajout de la ressource');
             }
             
-            console.log('💾 Pay-as-you-go purchase saved to active session:', {
               type,
               quantity,
               price: selectedOption.price

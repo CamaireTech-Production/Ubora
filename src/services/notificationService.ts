@@ -74,7 +74,6 @@ class NotificationService {
       // we rely on Firestore real-time updates to trigger notifications
       // The service worker will handle background notifications
       
-      console.log('🔔 [NotificationService] Notification saved to Firestore, real-time updates will handle delivery');
       
       // The notification will be delivered through:
       // 1. Firestore real-time listeners (for in-app notifications)

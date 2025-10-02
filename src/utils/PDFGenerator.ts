@@ -505,8 +505,6 @@ export class PDFGenerator {
   }
 
   private addMarkdownTable(tableMarkdown: string): void {
-    console.log('PDFGenerator: Processing markdown table, length:', tableMarkdown.length);
-    console.log('PDFGenerator: Table preview:', tableMarkdown.substring(0, 200) + '...');
     
     // Add table title
     this.doc.setFontSize(12);
@@ -544,18 +542,14 @@ export class PDFGenerator {
       }
     }
     
-    console.log('PDFGenerator: Parsed table rows:', tableRows.length);
     
     if (tableRows.length === 0) {
-      console.warn('PDFGenerator: No valid table rows found');
       return;
     }
     
     const headers = tableRows[0];
     const dataRows = tableRows.slice(1);
     
-    console.log('PDFGenerator: Table headers:', headers);
-    console.log('PDFGenerator: Data rows:', dataRows.length);
     
     // Calculate column widths based on content length
     const colWidths = this.calculateColumnWidths(headers, dataRows);
@@ -704,7 +698,6 @@ export class PDFGenerator {
   }
 
   private async addChartsSection(charts: GraphData[]): Promise<void> {
-    console.log('PDFGenerator: Adding charts section with', charts.length, 'charts');
     
     this.doc.setFontSize(16);
     this.doc.setFont('helvetica', 'bold');
@@ -712,7 +705,6 @@ export class PDFGenerator {
     this.currentY += 15;
 
     for (const chart of charts) {
-      console.log('PDFGenerator: Processing chart:', chart.title, chart.type, 'with', chart.data.length, 'data points');
       
       if (this.currentY > this.pageHeight - 100) {
         this.addPageBreak();
@@ -730,12 +722,9 @@ export class PDFGenerator {
         // Check if chart already has image data (pre-converted)
         if ((chart as any).imageData) {
           chartImage = (chart as any).imageData;
-          console.log('PDFGenerator: Using pre-converted image data, length:', chartImage.length);
         } else {
           // Convert chart to high-resolution image using recharts-to-png
-          console.log('PDFGenerator: Converting chart to PNG...');
           chartImage = await RechartsToPNG.convertChartDataToPNG(chart, 800, 500);
-          console.log('PDFGenerator: Chart converted, image length:', chartImage.length);
         }
         
         // Add chart image to PDF with proper scaling and centering
@@ -749,23 +738,17 @@ export class PDFGenerator {
           this.addPageBreak();
         }
         
-        console.log('PDFGenerator: Adding image to PDF at position:', x, y, 'size:', imgWidth, imgHeight);
-        console.log('PDFGenerator: Image data preview:', chartImage.substring(0, 100) + '...');
         
         // Ensure the base64 string is properly formatted
         if (!chartImage.startsWith('data:image/')) {
-          console.log('PDFGenerator: Fixing base64 format...');
           chartImage = 'data:image/png;base64,' + chartImage.replace(/^data:image\/[a-z]+;base64,/, '');
         }
         
-        console.log('PDFGenerator: Final image data preview:', chartImage.substring(0, 100) + '...');
         
         // Determine image format for jsPDF
         const imageFormat = chartImage.includes('data:image/jpeg') ? 'JPEG' : 'PNG';
-        console.log('PDFGenerator: Using image format:', imageFormat);
         
         this.doc.addImage(chartImage, imageFormat, x, y, imgWidth, imgHeight);
-        console.log('PDFGenerator: Image added successfully to PDF');
         this.currentY += imgHeight + 15;
         
         // Add chart info with better formatting

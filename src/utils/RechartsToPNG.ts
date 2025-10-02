@@ -70,8 +70,6 @@ export class RechartsToPNG {
   ): Promise<string> {
     return new Promise(async (resolve, reject) => {
       try {
-        console.log('RechartsToPNG: Starting conversion for chart:', chartData.title, chartData.type);
-        console.log('RechartsToPNG: Chart data:', chartData.data?.length, 'data points');
         
         // Use html2canvas approach with a temporary chart
         const { default: html2canvas } = await import('html2canvas');
@@ -116,7 +114,6 @@ export class RechartsToPNG {
                   });
                   
                   const base64 = canvas.toDataURL('image/png', 0.9);
-                  console.log('RechartsToPNG: html2canvas conversion successful, length:', base64.length);
                   resolve(base64);
                 } catch (error) {
                   console.error('RechartsToPNG: html2canvas conversion failed:', error);
@@ -140,7 +137,6 @@ export class RechartsToPNG {
 
       } catch (error) {
         console.error('RechartsToPNG: Error in convertChartDataToPNG:', error);
-        console.log('RechartsToPNG: Falling back to enhanced canvas approach...');
         
         // Fallback to enhanced canvas approach
         try {
@@ -190,7 +186,6 @@ export class RechartsToPNG {
           }
 
           const base64 = canvas.toDataURL('image/png', 0.8);
-          console.log('RechartsToPNG: Enhanced canvas image generated, length:', base64.length);
           resolve(base64);
         } catch (fallbackError) {
           console.error('RechartsToPNG: Fallback also failed:', fallbackError);

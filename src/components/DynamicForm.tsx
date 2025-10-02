@@ -52,7 +52,6 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
   // Function to update visible fields based on conditional logic
   const updateVisibleFields = useCallback((currentAnswers: Record<string, unknown>) => {
     const visible = ConditionalLogicEvaluator.getVisibleFields(form.fields, currentAnswers);
-    console.log('🔍 Updating visible fields:', {
       currentAnswers,
       visibleFields: visible,
       formFields: form.fields.map((f: FormField) => ({ id: f.id, label: f.label, conditionalLogic: f.conditionalLogic }))
@@ -276,7 +275,6 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
             }));
           },
           (pdfResult) => {
-            console.log('🔍 PDF extraction callback received:', pdfResult);
             // Show text extraction modal for PDFs as well
             setTextExtractionModal({
               isOpen: true,
@@ -290,10 +288,8 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
               extractionStats: pdfResult.extractionStats,
               pendingSubmission: true // Mark as part of submission flow
             });
-            console.log('✅ PDF text extraction modal state updated');
           },
           (imageResult) => {
-            console.log('🔍 Image extraction callback received:', imageResult);
             // Show text extraction modal as part of form submission flow
             setTextExtractionModal({
               isOpen: true,
@@ -307,7 +303,6 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
               fileType: 'image',
               pendingSubmission: true // Mark as part of submission flow
             });
-            console.log('✅ Text extraction modal state updated');
           }
         );
 
@@ -470,7 +465,6 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
           // Upload files to Firebase Storage if there are any
           let updatedFileAttachments = fileAttachments;
           if (fileAttachments.length > 0) {
-            console.log('📤 Uploading files to Firebase Storage...');
             
             // Get files that need to be uploaded (those without downloadUrl)
             const filesToUpload = fileAttachments
@@ -494,7 +488,6 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
                 currentUser.uid,
                 userData.agencyId,
                 (progress) => {
-                  console.log(`📤 Upload progress for ${progress.fieldId}: ${progress.progress}%`);
                 }
               );
 
@@ -511,7 +504,6 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
                 return attachment;
               });
 
-              console.log('✅ Files uploaded to Firebase Storage successfully');
             }
           }
 
@@ -871,7 +863,6 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
 
           {(() => {
             const visibleFieldsToRender = form.fields.filter((field: FormField) => visibleFields.includes(field.id));
-            console.log('🎨 Rendering fields:', {
               allFields: form.fields.map((f: FormField) => ({ id: f.id, label: f.label })),
               visibleFields,
               visibleFieldsToRender: visibleFieldsToRender.map((f: FormField) => ({ id: f.id, label: f.label }))

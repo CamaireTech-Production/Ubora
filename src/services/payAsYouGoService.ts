@@ -28,7 +28,6 @@ export class PayAsYouGoService {
       );
       
       if (success) {
-        console.log(`✅ Purchase successful: ${tokenPackage.tokens} tokens for ${tokenPackage.price} FCFA`);
       }
       
       return success;

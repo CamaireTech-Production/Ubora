@@ -65,14 +65,12 @@ export const GraphModal: React.FC<GraphModalProps> = ({
           setChartHeight(Math.min(window.innerHeight * 0.5, 500));
         }
       }).catch(err => {
-        console.log('Error attempting to enable fullscreen:', err);
       });
     } else {
       document.exitFullscreen().then(() => {
         setIsFullscreen(false);
         setChartHeight(384); // Reset to default
       }).catch(err => {
-        console.log('Error attempting to exit fullscreen:', err);
       });
     }
   };

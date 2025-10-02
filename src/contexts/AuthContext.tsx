@@ -133,7 +133,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             
             // Vérifier l'approbation pour les employés
             if (userData.role === 'employe' && userData.isApproved === false) {
-              console.log('Employee not approved yet');
               // Ne pas déconnecter, laisser l'utilisateur voir la page d'attente
               setUser({
                 id: firebaseUser.uid,
@@ -150,7 +149,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             setFirebaseUser(firebaseUser);
           } else {
             // Document utilisateur manquant, déconnecter
-            console.warn('Document utilisateur manquant pour UID:', firebaseUser.uid);
             await signOut(auth);
             setError('Profil utilisateur non trouvé. Veuillez vous réinscrire.');
           }
@@ -192,16 +190,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (userDoc.exists()) {
         const userData = userDoc.data() as Omit<User, 'id'>;
         
-        console.log('🔄 AuthContext: User document updated:', {
-          userId: firebaseUser.uid,
-          package: userData.package,
-          payAsYouGoResources: userData.payAsYouGoResources,
-          updatedAt: userData.updatedAt
-        });
-        
+
         // Vérifier l'approbation pour les employés
         if (userData.role === 'employe' && userData.isApproved === false) {
-          console.log('Employee not approved yet');
           setUser({
             id: firebaseUser.uid,
             ...userData
@@ -371,7 +362,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             await SubscriptionSessionService.updateUsage(director.id, 'users', 1);
           }
         } catch (trackingError) {
-          console.warn('Failed to track user addition:', trackingError);
         }
       }
       
@@ -379,7 +369,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       try {
         await AnalyticsService.logUserRegistration(userCredential.user.uid, role, agencyId);
       } catch (analyticsError) {
-        console.warn('Failed to track registration analytics:', analyticsError);
       }
       
       // Marquer pour afficher l'écran de bienvenue juste après l'inscription
@@ -406,26 +395,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const refreshUserData = async (): Promise<void> => {
     if (!firebaseUser) {
-      console.log('⚠️ AUTH: refreshUserData called but no firebaseUser');
       return;
     }
 
     try {
-      console.log('🔄 AUTH: Refreshing user data for:', firebaseUser.uid);
       const userDocRef = doc(db, 'users', firebaseUser.uid);
       const userDoc = await getDoc(userDocRef);
       
       if (userDoc.exists()) {
         const userData = userDoc.data() as Omit<User, 'id'>;
-        console.log('📥 AUTH: Fresh user data retrieved:', {
-          tokensUsedMonthly: userData.tokensUsedMonthly,
-          payAsYouGoTokens: userData.payAsYouGoTokens,
-          role: userData.role
-        });
         
         // Vérifier l'approbation pour les employés
         if (userData.role === 'employe' && userData.isApproved === false) {
-          console.log('Employee not approved yet');
           setUser({
             id: firebaseUser.uid,
             ...userData
@@ -437,9 +418,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           id: firebaseUser.uid,
           ...userData
         });
-        console.log('✅ AUTH: User data updated in context');
       } else {
-        console.log('⚠️ AUTH: User document not found');
+        console.error('❌ AUTH: User document not found');
       }
     } catch (err) {
       console.error('❌ AUTH: Erreur lors du rafraîchissement des données utilisateur:', err);
