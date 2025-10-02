@@ -63,8 +63,11 @@ jobs:
             git pull origin dev
           fi
           
-          # Install dependencies
+          # Install dependencies from root package.json
           npm install
+          
+          # Install API dependencies (pdf-parse, etc.)
+          cd api && npm install && cd ..
           
           # Create/update .env file
           cat > .env << 'EOF'
