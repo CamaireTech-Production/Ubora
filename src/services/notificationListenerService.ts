@@ -161,11 +161,15 @@ class NotificationListenerService {
             window.location.href = '/forms';
           } else if (notification.data.action === 'form_submission') {
             window.location.href = '/dashboard';
+          } else if (notification.data.action === 'form_reminder') {
+            window.location.href = '/forms';
           }
         } else if (notification.type === 'director_message') {
           window.location.href = '/notifications';
         } else if (notification.type === 'system_alert') {
           window.location.href = '/dashboard';
+        } else if (notification.type === 'reminder') {
+          window.location.href = '/forms';
         }
       };
 

@@ -67,6 +67,8 @@ self.addEventListener('notificationclick', (event) => {
         urlToOpen = '/forms'; // Navigate to forms page
       } else if (notificationData.action === 'form_submission') {
         urlToOpen = '/dashboard'; // Navigate to dashboard for form submissions
+      } else if (notificationData.action === 'form_reminder') {
+        urlToOpen = '/forms'; // Navigate to forms page for reminders
       }
     }
     
@@ -75,6 +77,8 @@ self.addEventListener('notificationclick', (event) => {
       urlToOpen = '/notifications';
     } else if (notificationData.type === 'system_alert') {
       urlToOpen = '/dashboard';
+    } else if (notificationData.type === 'reminder') {
+      urlToOpen = '/forms';
     }
   }
 

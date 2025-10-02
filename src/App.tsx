@@ -24,6 +24,7 @@ import { HybridPWAManager } from './components/HybridPWAManager';
 import { EmployeeManagement } from './components/EmployeeManagement';
 import { Layout } from './components/Layout';
 import { NotificationListener } from './components/NotificationListener';
+import { ReminderServiceInitializer } from './components/ReminderServiceInitializer';
 import { initializePWAConfig } from './utils/pwaConfig';
 // import { PWAUpdateNotification } from './components/PWAUpdateNotification';
 
@@ -68,6 +69,7 @@ function App() {
             <Router>
               <ServiceWorkerMessageHandler />
               <NotificationListener />
+              <ReminderServiceInitializer />
             <Routes>
             {/* Page de connexion */}
             <Route path="/login" element={<LoginPage />} />

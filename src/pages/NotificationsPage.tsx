@@ -3,10 +3,10 @@ import { Layout } from '../components/Layout';
 import { PushNotificationSettings } from '../components/PushNotificationSettings';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
-import { Bell, CheckCircle, XCircle, Clock } from 'lucide-react';
+import { Bell, CheckCircle, XCircle, Clock, Trash2 } from 'lucide-react';
 import { notificationService, NotificationData } from '../services/notificationService';
 import { useAuth } from '../contexts/AuthContext';
-import { doc, updateDoc, collection, query, where, orderBy, limit, onSnapshot } from 'firebase/firestore';
+import { doc, updateDoc, collection, query, where, orderBy, limit, onSnapshot, writeBatch } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 
 export const NotificationsPage: React.FC = () => {
@@ -87,6 +87,34 @@ export const NotificationsPage: React.FC = () => {
     }
   };
 
+  const deleteAllNotifications = async () => {
+    if (!user || notifications.length === 0) return;
+    
+    if (!confirm('Êtes-vous sûr de vouloir supprimer toutes les notifications ? Cette action est irréversible.')) {
+      return;
+    }
+
+    try {
+      const batch = writeBatch(db);
+      
+      // Delete all notifications in batches (Firestore batch limit is 500)
+      const notificationsToDelete = notifications.slice(0, 500);
+      
+      notificationsToDelete.forEach(notification => {
+        if (notification.id) {
+          const notificationRef = doc(db, 'notifications', notification.id);
+          batch.delete(notificationRef);
+        }
+      });
+      
+      await batch.commit();
+      console.log('✅ All notifications deleted successfully');
+    } catch (error) {
+      console.error('Error deleting all notifications:', error);
+      alert('Erreur lors de la suppression des notifications');
+    }
+  };
+
   const getNotificationIcon = (type: string) => {
     switch (type) {
       case 'form_submission':
@@ -140,15 +168,28 @@ export const NotificationsPage: React.FC = () => {
               )}
             </div>
             
-            {unreadCount > 0 && (
-              <Button
-                onClick={markAllAsRead}
-                variant="secondary"
-                size="sm"
-              >
-                Tout marquer comme lu
-              </Button>
-            )}
+            <div className="flex items-center gap-2">
+              {notifications.length > 0 && (
+                <Button
+                  onClick={deleteAllNotifications}
+                  variant="danger"
+                  size="sm"
+                  className="flex items-center gap-2"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  Supprimer tout
+                </Button>
+              )}
+              {unreadCount > 0 && (
+                <Button
+                  onClick={markAllAsRead}
+                  variant="secondary"
+                  size="sm"
+                >
+                  Tout marquer comme lu
+                </Button>
+              )}
+            </div>
           </div>
 
           {isLoading ? (
@@ -162,7 +203,13 @@ export const NotificationsPage: React.FC = () => {
               <p className="text-gray-500">Aucune notification pour le moment</p>
             </div>
           ) : (
-            <div className="space-y-3">
+            <div 
+              className="max-h-96 overflow-y-auto space-y-3 pr-2"
+              style={{
+                scrollbarWidth: 'thin',
+                scrollbarColor: '#CBD5E0 #F7FAFC'
+              }}
+            >
               {notifications.map((notification) => (
                 <div
                   key={notification.id}
