@@ -63,10 +63,7 @@ export const ResponseDetailPage: React.FC = () => {
   React.useEffect(() => {
     if (allResponses.length > 0) {
       allResponses.forEach((response, index) => {
-          id: response.id,
-          fileAttachments: response.fileAttachments,
-          answers: response.answers
-        });
+        // Process response data
       });
     }
   }, [allResponses]);
@@ -614,14 +611,6 @@ export const ResponseDetailPage: React.FC = () => {
                               // Handle file fields specially
                               if (field?.type === 'file' && value && typeof value === 'object' && 'uploaded' in value && value.uploaded) {
                                 const fileAttachment = findFileAttachment(response, fieldId);
-                                  fieldId,
-                                  fieldLabel,
-                                  isDirector,
-                                  fileAttachment,
-                                  hasDownloadUrl: fileAttachment?.downloadUrl,
-                                  hasStoragePath: fileAttachment?.storagePath,
-                                  value
-                                });
                                 return (
                                   <div key={fieldId} className="border-b border-gray-100 pb-3 last:border-b-0">
                                     <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">

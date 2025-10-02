@@ -25,12 +25,6 @@ export class ConditionalLogicEvaluator {
       return true;
     }
 
-      conditions,
-      operator,
-      action,
-      formValues
-    });
-
     // Evaluate all conditions
     const conditionResults = conditions.map(condition => 
       this.evaluateCondition(condition, formValues, allFields)
@@ -65,11 +59,6 @@ export class ConditionalLogicEvaluator {
   ): boolean {
     const fieldValue = formValues[condition.fieldId];
     const field = allFields.find(f => f.id === condition.fieldId);
-
-      condition,
-      fieldValue,
-      field: field ? { id: field.id, label: field.label, type: field.type } : null
-    });
 
     if (!field) {
       return false;
@@ -166,12 +155,6 @@ export class ConditionalLogicEvaluator {
    * Compares two values based on the operator
    */
   private static compareValues(fieldValue: unknown, conditionValue: unknown, operator: string): boolean {
-      fieldValue,
-      conditionValue,
-      operator,
-      fieldValueType: typeof fieldValue,
-      conditionValueType: typeof conditionValue
-    });
 
     // Handle null/undefined values
     if (fieldValue === null || fieldValue === undefined) {

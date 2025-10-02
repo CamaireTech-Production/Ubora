@@ -16,7 +16,7 @@ export const useChartToPNG = () => {
   const convertToPNG = useCallback(async (): Promise<string | null> => {
     try {
       const png = await getPng();
-      return png;
+      return png || null;
     } catch (error) {
       console.error('Error converting chart to PNG:', error);
       return null;
@@ -56,7 +56,7 @@ export const useChartToPNG = () => {
  * This hook provides methods to convert charts to PNG for PDF embedding
  */
 export const useChartForPDF = () => {
-  const { convertToPNG, convertChartDataToPNG, isLoading } = useChartToPNG();
+  const { convertChartDataToPNG, isLoading } = useChartToPNG();
 
   /**
    * Convert chart to PNG for PDF embedding

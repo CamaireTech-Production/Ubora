@@ -338,17 +338,9 @@ RÉPONSE :
 
       // Tokens are now deducted on the server side
       if (user && data.meta?.userTokensCharged) {
-          tokensCharged: data.meta.userTokensCharged,
-          remainingTokens: data.meta.remainingTokens,
-          userId: user.id
-        });
-        
         // Update user data locally to reflect new token counts
         try {
           await refreshUserData();
-            tokensCharged: data.meta.userTokensCharged,
-            remainingTokens: data.meta.remainingTokens
-          });
         } catch (refreshError) {
           console.error('❌ FRONTEND: Failed to refresh user data after token deduction:', refreshError);
         }
@@ -361,13 +353,8 @@ RÉPONSE :
             user.agencyId
           );
         } catch (analyticsError) {
+          console.error('❌ FRONTEND: Failed to log chat activity:', analyticsError);
         }
-      } else {
-          hasUser: !!user,
-          hasMeta: !!data.meta,
-          hasUserTokensCharged: !!data.meta?.userTokensCharged,
-          metaKeys: data.meta ? Object.keys(data.meta) : 'no meta'
-        });
       }
 
       // Server handles message persistence in Firebase

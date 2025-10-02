@@ -1,5 +1,5 @@
-import { doc, updateDoc, getDoc, serverTimestamp } from 'firebase/firestore';
-import { db } from '../firebaseConfig';
+// import { doc, updateDoc, getDoc, serverTimestamp } from 'firebase/firestore';
+// import { db } from '../firebaseConfig'; // Unused for now
 import { SubscriptionSessionService } from './subscriptionSessionService';
 
 export interface TokenPackage {
@@ -20,14 +20,51 @@ export class PayAsYouGoService {
   static async purchaseTokens(userId: string, tokenPackage: TokenPackage, paymentMethod?: string): Promise<boolean> {
     try {
       // Create a new pay-as-you-go session
-      const success = await SubscriptionSessionService.createPayAsYouGoSession(
-        userId,
-        tokenPackage.tokens,
-        tokenPackage.price,
-        paymentMethod
-      );
+      const now = new Date();
+      const endDate = new Date(now);
+      endDate.setDate(endDate.getDate() + 30); // 30 days validity
+      
+      const success = await SubscriptionSessionService.createSession(userId, {
+        packageType: 'starter', // Pay-as-you-go uses starter as base
+        sessionType: 'subscription',
+        startDate: now,
+        endDate: endDate,
+        amountPaid: tokenPackage.price,
+        durationDays: 30,
+        packageResources: {
+          tokensIncluded: 0, // No package tokens for pay-as-you-go
+          formsIncluded: 0,
+          dashboardsIncluded: 0,
+          usersIncluded: 0
+        },
+        payAsYouGoResources: {
+          tokens: tokenPackage.tokens,
+          forms: 0,
+          dashboards: 0,
+          users: 0,
+          purchases: [{
+            id: `paygo-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            purchaseDate: now,
+            itemType: 'tokens',
+            quantity: tokenPackage.tokens,
+            amountPaid: tokenPackage.price,
+            paymentMethod,
+            notes: `Pay-as-you-go: ${tokenPackage.tokens.toLocaleString()} tokens`
+          }]
+        },
+        usage: {
+          tokensUsed: 0,
+          formsCreated: 0,
+          dashboardsCreated: 0,
+          usersAdded: 0
+        },
+        isActive: true,
+        paymentMethod,
+        notes: `Pay-as-you-go: ${tokenPackage.tokens.toLocaleString()} tokens achetés`
+      });
       
       if (success) {
+        console.log(`✅ ${tokenPackage.tokens.toLocaleString()} tokens achetés avec succès pour ${tokenPackage.price.toLocaleString()} FCFA`);
       }
       
       return success;

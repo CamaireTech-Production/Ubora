@@ -4,26 +4,6 @@ import { SubscriptionSession, User, PayAsYouGoPurchase } from '../types';
 import { PACKAGE_LIMITS } from '../config/packageFeatures';
 
 export class SubscriptionSessionService {
-  /**
-   * Convert Firestore Timestamp to JavaScript Date
-   * @param date - Date from Firestore (could be Timestamp or Date)
-   * @returns Date object
-   */
-  private static convertToDate(date: any): Date {
-    if (date instanceof Date) {
-      return date;
-    }
-    if (date && typeof date.toDate === 'function') {
-      return date.toDate();
-    }
-    if (date && typeof date === 'string') {
-      return new Date(date);
-    }
-    if (date && typeof date === 'number') {
-      return new Date(date);
-    }
-    return new Date();
-  }
 
   /**
    * Create a new subscription session
@@ -164,7 +144,7 @@ export class SubscriptionSessionService {
       };
       
       // Update current session with new pay-as-you-go resources
-      const updatedSessions = userData.subscriptionSessions.map(session => {
+      const updatedSessions = (userData.subscriptionSessions || []).map(session => {
         if (session.id === currentSession.id) {
           const currentPayAsYouGo = session.payAsYouGoResources || {
             tokens: 0,
@@ -235,7 +215,7 @@ export class SubscriptionSessionService {
       const now = new Date();
       
       // Update current session usage
-      const updatedSessions = userData.subscriptionSessions.map(session => {
+      const updatedSessions = (userData.subscriptionSessions || []).map(session => {
         if (session.id === currentSession.id) {
           const currentUsage = session.usage || {
             tokensUsed: 0,
@@ -323,7 +303,7 @@ export class SubscriptionSessionService {
       const now = new Date();
       
       // Deactivate current session
-      const updatedSessions = userData.subscriptionSessions.map(session => {
+      const updatedSessions = (userData.subscriptionSessions || []).map(session => {
         if (session.id === currentSession.id) {
           return {
             ...session,

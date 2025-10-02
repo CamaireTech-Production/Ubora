@@ -117,7 +117,7 @@ export class TokenService {
     }
     
     // Use UserSessionService to get current session data
-    const sessionInfo = UserSessionService.getCurrentSessionInfo(user);
+    const sessionInfo = UserSessionService.getUserPackageInfo(user);
     const currentTokensUsed = sessionInfo.tokensUsed;
     const totalAvailableTokens = sessionInfo.totalTokens;
     
@@ -170,7 +170,7 @@ export class TokenService {
     }
     
     // Use UserSessionService to get current session data
-    const sessionInfo = UserSessionService.getCurrentSessionInfo(user);
+    const sessionInfo = UserSessionService.getUserPackageInfo(user);
     return sessionInfo.totalTokens;
   }
 
@@ -188,7 +188,7 @@ export class TokenService {
     }
     
     // Use UserSessionService to get current session data
-    const sessionInfo = UserSessionService.getCurrentSessionInfo(user);
+    const sessionInfo = UserSessionService.getUserPackageInfo(user);
     const currentTokensUsed = sessionInfo.tokensUsed;
     const totalAvailableTokens = sessionInfo.totalTokens;
     
@@ -208,7 +208,7 @@ export class TokenService {
     }
     
     // Use UserSessionService to get current session data
-    const sessionInfo = UserSessionService.getCurrentSessionInfo(user);
+    const sessionInfo = UserSessionService.getUserPackageInfo(user);
     return sessionInfo.tokensRemaining;
   }
 }

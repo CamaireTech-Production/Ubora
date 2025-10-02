@@ -575,7 +575,7 @@ export const EmployeDashboard: React.FC = () => {
           () => {
             showSuccess('Téléchargement démarré');
           },
-          (error) => {
+          () => {
             // Fallback to regular download
             handleDownloadFallback(fileAttachment);
           }

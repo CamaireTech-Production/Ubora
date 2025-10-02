@@ -16,12 +16,13 @@ import { DashboardEditModal } from '../components/DashboardEditModal';
 import { MetricEditModal } from '../components/MetricEditModal';
 import { GraphPreview } from '../components/charts/GraphPreview';
 import { GraphModal } from '../components/charts/GraphModal';
-import { getValidYAxisFields, validateYAxisField, getFieldValidationErrorMessage } from '../utils/GraphFieldValidator';
+import { getValidYAxisFields, validateYAxisField } from '../utils/GraphFieldValidator';
 import { 
   ArrowLeft, 
   BarChart3, 
   TrendingUp, 
-  TrendingDown, 
+  TrendingDown,
+  AlertTriangle, 
   Minus, 
   Hash, 
   Type, 
@@ -965,8 +966,8 @@ export const DashboardDetailPage: React.FC = () => {
                           </select>
                           
                           {/* Field validation error message */}
-                          {newMetric.graphConfig.yAxisFieldId && (() => {
-                            const selectedField = selectedForm.fields.find(f => f.id === newMetric.graphConfig.yAxisFieldId);
+                          {newMetric.graphConfig?.yAxisFieldId && (() => {
+                            const selectedField = selectedForm.fields.find(f => f.id === newMetric.graphConfig?.yAxisFieldId);
                             if (selectedField) {
                               const validation = validateYAxisField(selectedField, newMetric.calculationType, 'field');
                               if (!validation.isValid) {

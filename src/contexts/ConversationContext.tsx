@@ -139,12 +139,6 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         lastMessageAt: serverTimestamp(),
         messageCount: 0
       };
-
-        title: conversationData.title,
-        directorId: conversationData.directorId,
-        agencyId: conversationData.agencyId,
-        messageCount: conversationData.messageCount
-      });
       
       const docRef = await addDoc(collection(db, 'conversations'), conversationData);
       
@@ -194,12 +188,6 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       };
       
       // Store message in Firestore subcollection
-        conversationId: currentConversation.id,
-        messageType: cleanMessage.type,
-        contentLength: cleanMessage.content.length,
-        timestamp: 'serverTimestamp',
-        contentType: cleanMessage.contentType
-      });
       
       try {
         await addDoc(collection(db, 'conversations', currentConversation.id, 'messages'), cleanMessage);
@@ -209,9 +197,6 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       }
 
       // Update conversation metadata in Firestore (but don't trigger conversations list reload)
-        conversationId: currentConversation.id,
-        messageCountIncrement: 1
-      });
       
       try {
         const conversationRef = doc(db, 'conversations', currentConversation.id);
@@ -299,10 +284,6 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
       const messagesSnapshot = await getDocs(messagesQuery);
       
-        conversationId: conversationId,
-        snapshotSize: messagesSnapshot.docs.length,
-        timestamp: new Date().toISOString()
-      });
       
       const messagesData = messagesSnapshot.docs.map(doc => {
         const data = doc.data();
@@ -332,24 +313,24 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         return message;
       });
 
-        // Remove duplicates based on ID first, then content and timestamp
-        const uniqueMessages = messagesData.filter((message, index, array) => {
-          // First check for exact ID duplicates
-          const idDuplicate = array.findIndex(m => m.id === message.id);
-          if (idDuplicate !== index) {
-            return false;
-          }
-          
-          // Then check for content duplicates within a reasonable time window
-          const contentDuplicate = array.findIndex(m => 
-            m.id !== message.id && // Different ID
-            m.content === message.content && 
-            m.type === message.type && 
-            Math.abs(m.timestamp.getTime() - message.timestamp.getTime()) < 5000 // Within 5 seconds
-          );
-          
-          return contentDuplicate === -1;
-        });
+      // Remove duplicates based on ID first, then content and timestamp
+      const uniqueMessages = messagesData.filter((message, index, array) => {
+        // First check for exact ID duplicates
+        const idDuplicate = array.findIndex(m => m.id === message.id);
+        if (idDuplicate !== index) {
+          return false;
+        }
+        
+        // Then check for content duplicates within a reasonable time window
+        const contentDuplicate = array.findIndex(m => 
+          m.id !== message.id && // Different ID
+          m.content === message.content && 
+          m.type === message.type && 
+          Math.abs(m.timestamp.getTime() - message.timestamp.getTime()) < 5000 // Within 5 seconds
+        );
+        
+        return contentDuplicate === -1;
+      });
 
       setMessages(uniqueMessages.reverse()); // Reverse to show oldest first
       setHasMoreMessages(messagesSnapshot.docs.length === 20);
@@ -495,9 +476,6 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     try {
       setError(null);
       
-        conversationId: conversationId,
-        newTitle: title.trim()
-      });
       
       try {
         const conversationRef = doc(db, 'conversations', conversationId);

@@ -469,7 +469,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         submittedAt: serverTimestamp() // Forcer serverTimestamp
       };
 
-      const docRef = await addDoc(collection(db, 'formEntries'), docData);
+      await addDoc(collection(db, 'formEntries'), docData);
       
       // Track form submission analytics
       try {

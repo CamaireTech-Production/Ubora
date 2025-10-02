@@ -2,7 +2,7 @@ import { doc, updateDoc, getDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 import { SubscriptionSession, User } from '../types';
 import { SubscriptionSessionService } from './subscriptionSessionService';
-import { PACKAGE_LIMITS, getPackagePrice } from '../config/packageFeatures';
+import { PACKAGE_LIMITS, getPackagePrice, PackageLimits } from '../config/packageFeatures';
 
 export interface PackageTransitionOptions {
   preserveUnusedPayAsYouGo?: boolean; // Whether to preserve unused pay-as-you-go tokens (default: true)
@@ -39,7 +39,7 @@ export interface FeatureDowngrade {
 
 export interface TransitionCalculation {
   currentSession: SubscriptionSession;
-  newPackageType: 'starter' | 'standard' | 'premium' /* | 'custom' */;
+  newPackageType: 'starter' | 'standard' | 'premium';
   daysRemaining: number;
   unusedPackageTokens: number;
   unusedPayAsYouGoTokens: number;
@@ -50,7 +50,7 @@ export interface TransitionCalculation {
 
 export interface EnhancedTransitionCalculation {
   currentSession: SubscriptionSession;
-  newPackageType: 'starter' | 'standard' | 'premium' /* | 'custom' */;
+  newPackageType: 'starter' | 'standard' | 'premium';
   daysRemaining: number;
   
   // Cost calculations
@@ -128,7 +128,7 @@ export class PackageTransitionService {
     const daysRemaining = Math.max(0, Math.ceil((endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
     
     // Calculate unused tokens from current package session (will be lost)
-    const unusedPackageTokens = Math.max(0, currentSession.tokensIncluded - currentSession.tokensUsed);
+    const unusedPackageTokens = Math.max(0, (currentSession.packageResources?.tokensIncluded || 0) - (currentSession.usage?.tokensUsed || 0));
     
     // Get UNUSED pay-as-you-go tokens from all sessions
     const unusedPayAsYouGoTokens = this.getUnusedPayAsYouGoTokens(userData);
@@ -174,6 +174,12 @@ export class PackageTransitionService {
       }
 
       const userData = userDoc.data() as User;
+      // Ensure newPackageType is valid (exclude 'custom' for now)
+      if (newPackageType === 'custom') {
+        console.error('Custom package type not yet supported');
+        return false;
+      }
+      
       const calculation = this.calculateTransition(userData, newPackageType, options);
       
       if (!calculation) {
@@ -184,7 +190,7 @@ export class PackageTransitionService {
       // Create transition session
       const transitionSession = await this.createTransitionSession(
         userId,
-        calculation,
+        calculation as any,
         options,
         paymentMethod
       );
@@ -194,7 +200,7 @@ export class PackageTransitionService {
       }
 
       // Handle pay-as-you-go token preservation
-      await this.handlePayAsYouGoPreservation(userId, calculation, options);
+      await this.handlePayAsYouGoPreservation(userId, calculation as any, options);
 
       
       return true;
@@ -211,8 +217,8 @@ export class PackageTransitionService {
   private static getUnusedPayAsYouGoTokens(userData: User): number {
     const sessions = userData.subscriptionSessions || [];
     return sessions
-      .filter(session => session.sessionType === 'pay_as_you_go' && session.isActive)
-      .reduce((total, session) => total + (session.tokensIncluded - session.tokensUsed), 0);
+      .filter(session => session.isActive)
+      .reduce((total, session) => total + ((session.packageResources?.tokensIncluded || 0) - (session.usage?.tokensUsed || 0)), 0);
   }
 
 
@@ -240,6 +246,8 @@ export class PackageTransitionService {
     const newEndDate = new Date(transitionDate);
     newEndDate.setDate(newEndDate.getDate() + 30); // 30 days from transition date
     
+    const newPackageLimits = PACKAGE_LIMITS[calculation.newPackageType];
+    
     return SubscriptionSessionService.createSession(userId, {
       packageType: calculation.newPackageType,
       sessionType,
@@ -247,11 +255,21 @@ export class PackageTransitionService {
       endDate: newEndDate, // End 30 days from transition date
       amountPaid: Math.abs(calculation.finalAmountToPay), // Use the calculated amount (package price - remaining value)
       durationDays: 30, // Always 30 days for new session
-      tokensIncluded: calculation.newPackageTokens, // Always reset to new package limit
-      tokensUsed: 0, // Start fresh with new package
+      packageResources: {
+        tokensIncluded: calculation.newPackageTokens,
+        formsIncluded: newPackageLimits.maxForms,
+        dashboardsIncluded: newPackageLimits.maxDashboards,
+        usersIncluded: newPackageLimits.maxUsers
+      },
+      usage: {
+        tokensUsed: 0,
+        formsCreated: 0,
+        dashboardsCreated: 0,
+        usersAdded: 0
+      },
       isActive: true,
       paymentMethod,
-      notes: this.generateEnhancedTransitionNotes(calculation, options)
+      notes: this.generateEnhancedTransitionNotes(calculation as any, options)
     });
   }
 
@@ -345,7 +363,7 @@ export class PackageTransitionService {
    */
   private static generateTransitionSummary(
     calculation: TransitionCalculation,
-    options: PackageTransitionOptions
+    _options: PackageTransitionOptions
   ): string {
     const parts = [];
     
@@ -387,7 +405,7 @@ export class PackageTransitionService {
     
     if (!currentSession) return unusedPayAsYouGoTokens;
     
-    const currentPackageTokens = currentSession.tokensIncluded - currentSession.tokensUsed;
+    const currentPackageTokens = (currentSession.packageResources?.tokensIncluded || 0) - (currentSession.usage?.tokensUsed || 0);
     return currentPackageTokens + unusedPayAsYouGoTokens;
   }
 
@@ -420,26 +438,30 @@ export class PackageTransitionService {
    * Analyze pay-as-you-go requirements
    */
   private static analyzePayAsYouGo(
-    currentPackage: 'starter' | 'standard' | 'premium' /* | 'custom' */,
+    _currentPackage: 'starter' | 'standard' | 'premium' /* | 'custom' */,
     newPackage: 'starter' | 'standard' | 'premium' /* | 'custom' */,
     userNeeds: UserNeeds = {}
   ): PayAsYouGoItem[] {
     const payAsYouGoItems: PayAsYouGoItem[] = [];
     
     // Check each feature that might need pay-as-you-go
-    const featuresToCheck = ['forms', 'dashboards', 'users'] as const;
+    const featuresToCheck = [
+      { key: 'forms' as keyof UserNeeds, limitKey: 'maxForms' as keyof PackageLimits },
+      { key: 'dashboards' as keyof UserNeeds, limitKey: 'maxDashboards' as keyof PackageLimits },
+      { key: 'users' as keyof UserNeeds, limitKey: 'maxUsers' as keyof PackageLimits }
+    ];
     
-    featuresToCheck.forEach(feature => {
-      const newPackageLimit = PACKAGE_LIMITS[newPackage][feature];
-      const userRequestedAmount = userNeeds[feature] || 0;
+    featuresToCheck.forEach(({ key, limitKey }) => {
+      const newPackageLimit = PACKAGE_LIMITS[newPackage as keyof typeof PACKAGE_LIMITS][limitKey];
+      const userRequestedAmount = userNeeds[key] || 0;
       
       // Only apply pay-as-you-go if new package doesn't have unlimited access
       if (newPackageLimit !== -1 && userRequestedAmount > newPackageLimit) {
         const extraNeeded = userRequestedAmount - newPackageLimit;
-        const costPerUnit = this.getPayAsYouGoPrice(feature);
+        const costPerUnit = this.getPayAsYouGoPrice(key);
         
         payAsYouGoItems.push({
-          feature,
+          feature: key,
           currentLimit: newPackageLimit,
           requestedAmount: userRequestedAmount,
           costPerUnit,
@@ -563,7 +585,7 @@ export class PackageTransitionService {
     }
     
     // Token handling (existing logic)
-    const unusedPackageTokens = Math.max(0, currentSession.tokensIncluded - currentSession.tokensUsed);
+    const unusedPackageTokens = Math.max(0, (currentSession.packageResources?.tokensIncluded || 0) - (currentSession.usage?.tokensUsed || 0));
     const unusedPayAsYouGoTokens = this.getUnusedPayAsYouGoTokens(userData);
     const newPackageTokens = PACKAGE_LIMITS[newPackageType].monthlyTokens;
     const preservedPayAsYouGoTokens = (options.preserveUnusedPayAsYouGo !== false) ? unusedPayAsYouGoTokens : 0;
@@ -646,7 +668,7 @@ export class PackageTransitionService {
    */
   private static generateEnhancedTransitionSummary(
     calculation: EnhancedTransitionCalculation,
-    options: PackageTransitionOptions
+    _options: PackageTransitionOptions
   ): string {
     const parts = [];
     

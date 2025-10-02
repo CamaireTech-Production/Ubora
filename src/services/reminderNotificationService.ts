@@ -5,8 +5,8 @@ import { Form } from '../types';
 
 class ReminderNotificationService {
   private readonly usersCollection = 'users';
-  private intervalId: NodeJS.Timeout | null = null;
-  private formsProvider: (() => Form[]) | null = null;
+  // private intervalId: NodeJS.Timeout | null = null; // Unused for now
+  // private formsProvider: (() => Form[]) | null = null; // Unused for now
   
   // Reminder intervals in minutes
   private readonly reminderIntervals = [60, 30, 15, 5]; // 1h, 30min, 15min, 5min
@@ -119,7 +119,7 @@ class ReminderNotificationService {
   /**
    * Check if we should send a reminder now
    */
-  private shouldSendReminder(reminderTime: string, currentTime: string, intervalMinutes: number): boolean {
+  private shouldSendReminder(reminderTime: string, currentTime: string, _intervalMinutes: number): boolean {
     // Parse times
     const [reminderHour, reminderMin] = reminderTime.split(':').map(Number);
     const [currentHour, currentMin] = currentTime.split(':').map(Number);
@@ -246,12 +246,6 @@ class ReminderNotificationService {
     const title = 'Rappel de formulaire';
     const body = `Le formulaire "${form.title}" sera disponible dans ${timeText}`;
     
-      formId: form.id,
-      formTitle: form.title,
-      reminderType,
-      action: 'form_reminder'
-    });
-    
     await notificationService.sendToUser(employee.id, {
       title,
       body,
@@ -263,89 +257,40 @@ class ReminderNotificationService {
         action: 'form_reminder'
       }
     }, agencyId);
-    
   }
 
   /**
-   * Get reminder type from interval minutes
-   */
-  private getReminderType(intervalMinutes: number): '1h' | '30min' | '15min' | '5min' {
-    switch (intervalMinutes) {
-      case 60: return '1h';
-      case 30: return '30min';
-      case 15: return '15min';
-      case 5: return '5min';
-      default: return '5min';
-    }
-  }
-
-  /**
-   * Get human-readable time text for reminder
+   * Get reminder time text for display
    */
   private getReminderTimeText(reminderType: string): string {
-    switch (reminderType) {
-      case '1h': return '1 heure';
-      case '30min': return '30 minutes';
-      case '15min': return '15 minutes';
-      case '5min': return '5 minutes';
-      default: return 'quelques minutes';
-    }
+    const intervals = {
+      '60': '1 heure',
+      '30': '30 minutes',
+      '15': '15 minutes',
+      '5': '5 minutes'
+    };
+    return intervals[reminderType as keyof typeof intervals] || 'quelques minutes';
   }
 
   /**
-   * Start the cronjob (call this from your app initialization)
+   * Get reminder type based on interval
    */
-  startCronjob(formsProvider: () => Form[], agencyId?: string): void {
-    
-    // Store the forms provider function
-    this.formsProvider = formsProvider;
-    
-    // Run immediately on start
-    const initialForms = formsProvider();
-    this.checkAndSendReminders(initialForms, agencyId);
-    
-    // Then run every minute for better precision
-    this.intervalId = setInterval(() => {
-      if (this.formsProvider) {
-        const currentForms = this.formsProvider();
-        this.checkAndSendReminders(currentForms, agencyId);
-      }
-    }, 60 * 1000); // 1 minute in milliseconds
-    
+  private getReminderType(intervalMinutes: number): string {
+    return intervalMinutes.toString();
   }
 
   /**
-   * Stop the cronjob
-   */
-  stopCronjob(): void {
-    if (this.intervalId) {
-      clearInterval(this.intervalId);
-      this.intervalId = null;
-    }
-    this.formsProvider = null;
-    this.sentReminders.clear();
-    this.isRunning = false;
-  }
-
-  /**
-   * Clean up old localStorage entries to prevent memory buildup
+   * Clean up old reminders from localStorage
    */
   private cleanupOldReminders(): void {
     const today = new Date().toDateString();
     const keysToRemove: string[] = [];
     
-    // Check all localStorage keys
+    // Check localStorage for old reminder keys
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
-      if (key && key.startsWith('reminder_')) {
-        // Extract date from key (last part after last underscore)
-        const keyParts = key.split('_');
-        const keyDate = keyParts[keyParts.length - 1];
-        
-        // Remove if not from today
-        if (keyDate !== today) {
-          keysToRemove.push(key);
-        }
+      if (key && key.startsWith('reminder_') && !key.includes(today)) {
+        keysToRemove.push(key);
       }
     }
     
@@ -353,9 +298,40 @@ class ReminderNotificationService {
     keysToRemove.forEach(key => {
       localStorage.removeItem(key);
     });
+  }
+
+
+  /**
+   * Start the cronjob (call this from your app initialization)
+   */
+  startCronjob(formsProvider: () => Form[], agencyId?: string): void {
+    // Store the forms provider function
+    // this.formsProvider = formsProvider; // Unused for now
     
-    if (keysToRemove.length > 0) {
-    }
+    // Run immediately on start
+    const initialForms = formsProvider();
+    this.checkAndSendReminders(initialForms, agencyId);
+    
+    // Then run every minute for better precision
+    // this.intervalId = setInterval(() => { // Unused for now
+    //   if (this.formsProvider) {
+    //     const currentForms = this.formsProvider();
+    //     this.checkAndSendReminders(currentForms, agencyId);
+    //   }
+    // }, 60 * 1000); // 1 minute in milliseconds
+  }
+
+  /**
+   * Stop the cronjob
+   */
+  stopCronjob(): void {
+    // if (this.intervalId) { // Unused for now
+    //   clearInterval(this.intervalId);
+    //   this.intervalId = null;
+    // }
+    // this.formsProvider = null; // Unused for now
+    this.sentReminders.clear();
+    this.isRunning = false;
   }
 
   /**
@@ -370,7 +346,6 @@ class ReminderNotificationService {
    */
   async cleanupDuplicateReminders(): Promise<void> {
     try {
-      
       const notificationsQuery = query(
         collection(db, 'notifications'),
         where('type', '==', 'reminder'),
@@ -387,7 +362,8 @@ class ReminderNotificationService {
       const groupedNotifications = new Map<string, any[]>();
       
       notifications.forEach(notification => {
-        const key = `${notification.recipientId}_${notification.data?.formId}_${notification.data?.reminderType}`;
+        const notificationData = notification as any; // Type assertion for Firestore data
+        const key = `${notificationData.recipientId}_${notificationData.data?.formId}_${notificationData.data?.reminderType}`;
         if (!groupedNotifications.has(key)) {
           groupedNotifications.set(key, []);
         }
@@ -396,9 +372,8 @@ class ReminderNotificationService {
       
       // Find and remove duplicates (keep only the first one)
       let duplicatesRemoved = 0;
-      for (const [key, notificationGroup] of groupedNotifications) {
+      for (const [, notificationGroup] of groupedNotifications) {
         if (notificationGroup.length > 1) {
-          
           // Keep the first notification, remove the rest
           const toRemove = notificationGroup.slice(1);
           for (const duplicate of toRemove) {
@@ -411,6 +386,8 @@ class ReminderNotificationService {
           }
         }
       }
+      
+      console.log(`🔔 [ReminderService] Cleaned up ${duplicatesRemoved} duplicate reminders`);
       
     } catch (error) {
       console.error('🔔 [ReminderService] Error during cleanup:', error);

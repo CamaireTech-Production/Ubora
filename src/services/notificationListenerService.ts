@@ -1,6 +1,6 @@
-import { collection, query, where, orderBy, limit, onSnapshot, Timestamp } from 'firebase/firestore';
+import { collection, query, where, orderBy, limit, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
-import { useAuth } from '../contexts/AuthContext';
+// import { useAuth } from '../contexts/AuthContext'; // Unused for now
 
 /**
  * Service to listen for new notifications and show them using browser notifications
@@ -37,16 +37,10 @@ class NotificationListenerService {
           const notification = change.doc.data();
           const notificationTime = notification.createdAt?.toDate() || new Date();
           
-            title: notification.title,
-            time: notificationTime,
-            lastTime: this.lastNotificationTime
-          });
-          
           // Only show notification if it's new (not from initial load)
           if (!this.lastNotificationTime || notificationTime > this.lastNotificationTime) {
             this.showNotification(notification);
             this.lastNotificationTime = notificationTime;
-          } else {
           }
         }
       });
@@ -128,9 +122,9 @@ class NotificationListenerService {
       data: notification.data || {},
       requireInteraction: false, // Allow auto-dismiss for better UX
       silent: false, // Ensure sound plays
-      vibrate: [200, 100, 200], // Vibration pattern for mobile devices
-      timestamp: Date.now(),
-      renotify: true // Allow re-notification even with same tag
+      // vibrate: [200, 100, 200], // Vibration pattern for mobile devices (not supported in all browsers)
+      // timestamp: Date.now(), // Not supported in all browsers
+      // renotify: true // Allow re-notification even with same tag (not supported in all browsers)
     };
 
     try {

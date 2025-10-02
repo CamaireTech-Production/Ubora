@@ -152,7 +152,7 @@ export class MultiFormatToPDF {
     return (
       message.contentType === 'multi-format' ||
       message.contentType === 'mixed' ||
-      (message.contentType === 'text' && (message.graphData || message.tableData)) ||
+      (message.contentType === 'text' && (message.graphData !== undefined || message.tableData !== undefined)) ||
       message.graphData !== undefined ||
       message.tableData !== undefined
     );

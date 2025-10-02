@@ -21,6 +21,7 @@ import { useToast } from '../hooks/useToast';
 import { Toast } from '../components/Toast';
 import { usePackageAccess } from '../hooks/usePackageAccess';
 import { LimitReachedModal } from '../components/LimitReachedModal';
+import { SubscriptionSessionService } from '../services/subscriptionSessionService';
 import { doc, updateDoc, getDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 
@@ -97,7 +98,7 @@ export const DirecteurDashboard: React.FC = () => {
       await createForm({
         ...formData,
         createdBy: user.id,
-        createdByRole: user.role,
+        createdByRole: user.role as 'directeur' | 'employe',
         agencyId: user.agencyId,
       });
       setShowFormBuilder(false);
@@ -112,10 +113,6 @@ export const DirecteurDashboard: React.FC = () => {
   };
 
   const handleFormButtonClick = () => {
-      formsLength: forms.length,
-      canCreateForm: canCreateForm(forms.length),
-      userPayAsYouGoResources: user?.payAsYouGoResources
-    });
     
     if (!canCreateForm(forms.length)) {
       setLimitModalType('forms');
@@ -910,11 +907,6 @@ export const DirecteurDashboard: React.FC = () => {
             if (!success) {
               throw new Error('Erreur lors de l\'ajout de la ressource');
             }
-            
-              type,
-              quantity,
-              price: selectedOption.price
-            });
             
             showSuccess(`${quantity} ${type === 'forms' ? 'formulaire(s)' : type === 'dashboards' ? 'tableau(x) de bord' : 'utilisateur(s)'} supplémentaire(s) ajouté(s) pour ce mois !`);
             setShowLimitModal(false);

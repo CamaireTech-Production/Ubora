@@ -1,4 +1,4 @@
-import { FormEntry, FileAttachment } from '../types';
+import { FileAttachment } from '../types';
 
 export interface LocalFormResponse {
   id: string;
@@ -23,13 +23,6 @@ export class LocalStorageService {
       const updatedResponses = [...existingResponses, response];
       
       localStorage.setItem(this.STORAGE_KEY, JSON.stringify(updatedResponses));
-      
-        responseId: response.id,
-        formId: response.formId,
-        fileCount: response.fileAttachments.length,
-        status: response.status,
-        totalResponses: updatedResponses.length
-      });
     } catch (error) {
       console.error('❌ Error storing form response in localStorage:', error);
       throw new Error(`Failed to store form response: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -86,10 +79,6 @@ export class LocalStorageService {
 
       allResponses[responseIndex] = { ...allResponses[responseIndex], ...updates };
       localStorage.setItem(this.STORAGE_KEY, JSON.stringify(allResponses));
-      
-        responseId,
-        updates: Object.keys(updates)
-      });
     } catch (error) {
       console.error('❌ Error updating form response in localStorage:', error);
       throw error;
@@ -105,10 +94,6 @@ export class LocalStorageService {
       const filteredResponses = allResponses.filter(response => response.id !== responseId);
       
       localStorage.setItem(this.STORAGE_KEY, JSON.stringify(filteredResponses));
-      
-        responseId,
-        remainingResponses: filteredResponses.length
-      });
     } catch (error) {
       console.error('❌ Error removing form response from localStorage:', error);
       throw error;

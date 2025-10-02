@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { usePermissions } from '../hooks/usePermissions';
+// import { usePermissions } from '../hooks/usePermissions'; // Unused for now
 import { Layout } from '../components/Layout';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
@@ -14,7 +14,7 @@ import { ArrowLeft, Settings, User, Bell, Shield, Calendar } from 'lucide-react'
 export const DirectorSettingsPage: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { hasDirectorDashboardAccess } = usePermissions();
+  // const { hasDirectorDashboardAccess } = usePermissions(); // Unused for now
   const [showHistoryModal, setShowHistoryModal] = useState(false);
 
   // Get subscription history data
@@ -129,7 +129,7 @@ export const DirectorSettingsPage: React.FC = () => {
                     Agence
                   </label>
                   <div className="text-sm text-gray-900 bg-gray-50 px-3 py-2 rounded-md">
-                    {user.agencyName || 'Non spécifiée'}
+                    {(user as any).agencyName || 'Non spécifiée'}
                   </div>
                 </div>
                 
@@ -152,8 +152,8 @@ export const DirectorSettingsPage: React.FC = () => {
                       
                       // Handle Firestore timestamp conversion
                       let date: Date;
-                      if (user.createdAt && typeof user.createdAt.toDate === 'function') {
-                        date = user.createdAt.toDate();
+                      if (user.createdAt && typeof (user.createdAt as any).toDate === 'function') {
+                        date = (user.createdAt as any).toDate();
                       } else if (user.createdAt instanceof Date) {
                         date = user.createdAt;
                       } else if (typeof user.createdAt === 'string' || typeof user.createdAt === 'number') {
@@ -179,8 +179,8 @@ export const DirectorSettingsPage: React.FC = () => {
                       
                       // Handle Firestore timestamp conversion
                       let date: Date;
-                      if (currentSession.startDate && typeof currentSession.startDate.toDate === 'function') {
-                        date = currentSession.startDate.toDate();
+                      if (currentSession.startDate && typeof (currentSession.startDate as any).toDate === 'function') {
+                        date = (currentSession.startDate as any).toDate();
                       } else if (currentSession.startDate instanceof Date) {
                         date = currentSession.startDate;
                       } else if (typeof currentSession.startDate === 'string' || typeof currentSession.startDate === 'number') {
@@ -244,7 +244,7 @@ export const DirectorSettingsPage: React.FC = () => {
           isOpen={showHistoryModal}
           onClose={() => setShowHistoryModal(false)}
           sessions={subscriptionHistory?.totalSessions ? SubscriptionSessionService.getAllSessions(user) : []}
-          currentSession={subscriptionHistory?.currentSession}
+          currentSession={subscriptionHistory?.currentSession || null}
         />
       )}
     </Layout>

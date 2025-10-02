@@ -16,7 +16,7 @@ import {
   Star, 
   Crown, 
   Zap, 
-  Shield,
+  // Shield, // Unused for now
   Users,
   BarChart3,
   Brain,
@@ -32,7 +32,7 @@ import { AnalyticsService } from '../services/analyticsService';
 export const PackageSelectionPage: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { toast, showSuccess, showError } = useToast();
+  const { showSuccess, showError } = useToast();
   const [selectedPackage, setSelectedPackage] = useState<PackageType | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
 
@@ -202,11 +202,7 @@ export const PackageSelectionPage: React.FC = () => {
                 <p className="text-3xl font-bold text-blue-600 mb-2">
                   {getPackagePrice(pkg)}
                 </p>
-                {pkg === 'custom' && (
-                  <p className="text-base text-gray-500">
-                    Prix négociable selon vos besoins
-                  </p>
-                )}
+                {/* Custom package pricing info removed since custom is not available */}
               </div>
 
               {/* Liste des fonctionnalités */}
@@ -268,7 +264,7 @@ export const PackageSelectionPage: React.FC = () => {
       </div>
 
       {/* Toast pour les notifications */}
-      <Toast />
+      <Toast show={false} message="" type="success" />
     </div>
   );
 };
