@@ -107,6 +107,12 @@ jobs:
               ssl_certificate /etc/letsencrypt/live/apidev.ubora-app.com/fullchain.pem;
               ssl_certificate_key /etc/letsencrypt/live/apidev.ubora-app.com/privkey.pem;
               
+              # Increase timeouts for PDF processing
+              proxy_connect_timeout 300s;
+              proxy_send_timeout 300s;
+              proxy_read_timeout 300s;
+              send_timeout 300s;
+              
               location / {
                   proxy_pass http://localhost:3001;
                   proxy_http_version 1.1;
@@ -117,6 +123,11 @@ jobs:
                   proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
                   proxy_set_header X-Forwarded-Proto $scheme;
                   proxy_cache_bypass $http_upgrade;
+                  
+                  # Additional timeout settings for this location
+                  proxy_connect_timeout 300s;
+                  proxy_send_timeout 300s;
+                  proxy_read_timeout 300s;
               }
           }
           EOF
