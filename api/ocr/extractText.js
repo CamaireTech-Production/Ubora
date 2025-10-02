@@ -8,8 +8,13 @@ const openai = new OpenAI({
 module.exports = async function handler(req, res) {
   try {
     // Headers CORS complets
+    const corsOrigins = process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',') : ['*'];
+    const origin = req.headers.origin;
+    const allowedOrigin = corsOrigins.includes('*') ? '*' : 
+                         (origin && corsOrigins.includes(origin)) ? origin : corsOrigins[0];
+    
     const corsHeaders = {
-      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Origin': allowedOrigin,
       'Access-Control-Allow-Methods': 'POST, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type, Authorization',
       'Access-Control-Max-Age': '86400' // 24h cache preflight

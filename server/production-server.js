@@ -14,8 +14,9 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Middleware
+const corsOrigins = process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',') : ['*'];
 app.use(cors({
-  origin: process.env.CORS_ORIGIN || '*',
+  origin: corsOrigins,
   credentials: true
 }));
 app.use(express.json({ limit: '50mb' })); // Increase payload limit for large images

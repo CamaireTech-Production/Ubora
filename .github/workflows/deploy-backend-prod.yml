@@ -39,7 +39,7 @@ jobs:
         NODE_ENV=production
         
         # CORS Configuration
-        CORS_ORIGIN=https://my.ubora-app.com
+        CORS_ORIGIN=https://my.ubora-app.com,https://api.ubora-app.com
         EOF
         
     - name: Deploy to VPS
@@ -73,7 +73,7 @@ jobs:
           OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
           PORT=3000
           NODE_ENV=production
-          CORS_ORIGIN=https://my.ubora-app.com
+          CORS_ORIGIN=https://my.ubora-app.com,https://api.ubora-app.com
           EOF
           
           # Stop existing process
