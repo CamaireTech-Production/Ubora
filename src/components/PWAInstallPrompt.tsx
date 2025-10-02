@@ -89,13 +89,6 @@ export const PWAInstallPrompt: React.FC = () => {
       const hasManifest = document.querySelector('link[rel="manifest"]') !== null;
       const isHTTPS = location.protocol === 'https:' || location.hostname === 'localhost';
       
-      // Debug logging for PWA criteria
-      console.log('PWA Installability Check:', {
-        hasServiceWorker,
-        hasManifest,
-        isHTTPS,
-        isInstallable: getIsInstallable()
-      });
       
       // Show if basic PWA criteria are met
       return hasServiceWorker && hasManifest && isHTTPS;
