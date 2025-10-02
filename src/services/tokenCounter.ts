@@ -53,32 +53,39 @@ export class TokenCounter {
   static getTotalEstimatedTokens(systemPrompt: string, userPrompt: string, maxTokens: number = 800): number {
     const inputTokens = this.countTokens(systemPrompt, userPrompt);
     const outputTokens = this.estimateOutputTokens(maxTokens);
-    return inputTokens + outputTokens;
+    const totalTokens = inputTokens + outputTokens;
+    
+    
+    return totalTokens;
   }
 
   /**
-   * Apply multiplier for user billing (1.5x for profitability - reduced from 2.5x)
+   * Apply division for user billing (divide by 1000 for profitability)
    */
-  static getUserTokensToCharge(actualTokens: number, multiplier: number = 1.5): number {
-    return Math.ceil(actualTokens * multiplier);
+  static getUserTokensToCharge(actualTokens: number, divisor: number = 1000): number {
+    const userTokens = Math.ceil(actualTokens / divisor);
+    return userTokens;
   }
 
   /**
    * Get token cost breakdown for display
    */
-  static getTokenCostBreakdown(actualTokens: number, multiplier: number = 1.5) {
-    const userTokens = this.getUserTokensToCharge(actualTokens, multiplier);
+  static getTokenCostBreakdown(actualTokens: number, divisor: number = 1000) {
+    const userTokens = this.getUserTokensToCharge(actualTokens, divisor);
     const openAICost = actualTokens * 0.000003; // Approximate OpenAI cost per token
     const userCost = userTokens * 0.0000058; // Approximate user cost per token (based on package pricing)
     
-    return {
+    const breakdown = {
       actualTokens,
       userTokens,
-      multiplier,
+      divisor,
       openAICost,
       userCost,
       profitMargin: ((userCost - openAICost) / openAICost) * 100
     };
+    
+    
+    return breakdown;
   }
 }
 

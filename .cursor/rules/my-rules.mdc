@@ -1,6 +1,4 @@
 ---
-description: General Rules
-globs:
 alwaysApply: true
 ---
 - dp not try to run the start command for the project because the project is always started

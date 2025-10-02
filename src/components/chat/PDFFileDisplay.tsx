@@ -47,9 +47,7 @@ export const PDFFileDisplay: React.FC<PDFFileDisplayProps> = ({ pdfFiles }) => {
 
   const handleViewPDF = async (pdfFile: PDFFileReference) => {
     try {
-      // console.log('🔍 Attempting to view file:', pdfFile);
       const downloadUrl = await getFileDownloadURL(pdfFile);
-      // console.log('🔍 Generated download URL:', downloadUrl);
       
       // Open in PDF viewer modal
       setPdfViewerModal({
@@ -65,11 +63,9 @@ export const PDFFileDisplay: React.FC<PDFFileDisplayProps> = ({ pdfFiles }) => {
 
   const handleDownloadPDF = async (pdfFile: PDFFileReference) => {
     try {
-      // console.log('🔍 Attempting to download file:', pdfFile);
       
       // Try Firebase-specific download first
       if (pdfFile.storagePath) {
-        // console.log('🔄 Using Firebase-specific download method...');
         await forceDownloadFromFirebase(
           pdfFile.storagePath,
           pdfFile.fileName,
@@ -77,7 +73,6 @@ export const PDFFileDisplay: React.FC<PDFFileDisplayProps> = ({ pdfFiles }) => {
             showSuccess('Téléchargement démarré');
           },
           (error) => {
-            console.warn('Firebase download failed, trying fallback:', error);
             // Fallback to regular download
             handleDownloadFallback(pdfFile);
           }
@@ -96,7 +91,6 @@ export const PDFFileDisplay: React.FC<PDFFileDisplayProps> = ({ pdfFiles }) => {
   const handleDownloadFallback = async (pdfFile: PDFFileReference) => {
     try {
       const downloadUrl = await getFileDownloadURL(pdfFile);
-      // console.log('🔍 Generated download URL:', downloadUrl);
       
       await downloadFile({
         fileName: pdfFile.fileName,

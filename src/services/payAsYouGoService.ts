@@ -1,5 +1,6 @@
-import { doc, updateDoc, getDoc, serverTimestamp } from 'firebase/firestore';
-import { db } from '../firebaseConfig';
+// import { doc, updateDoc, getDoc, serverTimestamp } from 'firebase/firestore';
+// import { db } from '../firebaseConfig'; // Unused for now
+import { SubscriptionSessionService } from './subscriptionSessionService';
 
 export interface TokenPackage {
   tokens: number;
@@ -10,45 +11,63 @@ export interface TokenPackage {
 
 export class PayAsYouGoService {
   /**
-   * Purchase tokens for a user
+   * Purchase tokens for a user using the new session system
    * @param userId - ID de l'utilisateur
    * @param tokenPackage - Package de tokens à acheter
+   * @param paymentMethod - Méthode de paiement
    * @returns Promise<boolean> - true si l'achat a réussi
    */
-  static async purchaseTokens(userId: string, tokenPackage: TokenPackage): Promise<boolean> {
+  static async purchaseTokens(userId: string, tokenPackage: TokenPackage, paymentMethod?: string): Promise<boolean> {
     try {
-      const userDocRef = doc(db, 'users', userId);
-      const userDoc = await getDoc(userDocRef);
-      
-      if (!userDoc.exists()) {
-        console.error('Utilisateur non trouvé:', userId);
-        return false;
-      }
-      
-      const userData = userDoc.data();
-      const currentPayAsYouGoTokens = userData.payAsYouGoTokens || 0;
-      const newPayAsYouGoTokens = currentPayAsYouGoTokens + tokenPackage.tokens;
-      
-      // Calculate subscription extension based on token package
-      // Each token package extends subscription by 30 days
+      // Create a new pay-as-you-go session
       const now = new Date();
-      const currentSubscriptionEnd = userData.subscriptionEndDate ? userData.subscriptionEndDate.toDate() : now;
-      const subscriptionExtensionDays = 30; // Extend by 30 days
-      const newSubscriptionEnd = new Date(Math.max(now.getTime(), currentSubscriptionEnd.getTime()) + (subscriptionExtensionDays * 24 * 60 * 60 * 1000));
+      const endDate = new Date(now);
+      endDate.setDate(endDate.getDate() + 30); // 30 days validity
       
-      // Mettre à jour le document utilisateur
-      await updateDoc(userDocRef, {
-        payAsYouGoTokens: newPayAsYouGoTokens,
-        subscriptionEndDate: newSubscriptionEnd,
-        subscriptionStatus: 'active',
-        updatedAt: serverTimestamp()
+      const success = await SubscriptionSessionService.createSession(userId, {
+        packageType: 'starter', // Pay-as-you-go uses starter as base
+        sessionType: 'subscription',
+        startDate: now,
+        endDate: endDate,
+        amountPaid: tokenPackage.price,
+        durationDays: 30,
+        packageResources: {
+          tokensIncluded: 0, // No package tokens for pay-as-you-go
+          formsIncluded: 0,
+          dashboardsIncluded: 0,
+          usersIncluded: 0
+        },
+        payAsYouGoResources: {
+          tokens: tokenPackage.tokens,
+          forms: 0,
+          dashboards: 0,
+          users: 0,
+          purchases: [{
+            id: `paygo-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            purchaseDate: now,
+            itemType: 'tokens',
+            quantity: tokenPackage.tokens,
+            amountPaid: tokenPackage.price,
+            paymentMethod,
+            notes: `Pay-as-you-go: ${tokenPackage.tokens.toLocaleString()} tokens`
+          }]
+        },
+        usage: {
+          tokensUsed: 0,
+          formsCreated: 0,
+          dashboardsCreated: 0,
+          usersAdded: 0
+        },
+        isActive: true,
+        paymentMethod,
+        notes: `Pay-as-you-go: ${tokenPackage.tokens.toLocaleString()} tokens achetés`
       });
       
-      // Log the purchase (you might want to store this in a separate collection for analytics)
-      console.log(`Purchase successful: ${tokenPackage.tokens} tokens for ${tokenPackage.price} FCFA`);
-      console.log(`Subscription extended until: ${newSubscriptionEnd.toISOString()}`);
+      if (success) {
+        console.log(`✅ ${tokenPackage.tokens.toLocaleString()} tokens achetés avec succès pour ${tokenPackage.price.toLocaleString()} FCFA`);
+      }
       
-      return true;
+      return success;
       
     } catch (error) {
       console.error('Erreur lors de l\'achat de tokens:', error);
@@ -62,26 +81,20 @@ export class PayAsYouGoService {
   static getTokenPackages(): TokenPackage[] {
     return [
       {
-        tokens: 5000,
-        price: 5000, // 5000 FCFA
-        popular: false,
-        description: 'Pour quelques questions supplémentaires'
+        tokens: 80000, // 80k tokens (80 actual OpenAI tokens = ~2-3 requests)
+        price: 2500, // 2500 FCFA
+        popular: true,
+        description: 'Pour conversations et analyses supplémentaires'
       },
       {
-        tokens: 15000,
-        price: 12000, // 12000 FCFA (20% discount)
-        popular: true,
+        tokens: 120000, // 120k tokens (120 actual OpenAI tokens = ~4 requests)
+        price: 5000, // 5000 FCFA
+        popular: false,
         description: 'Idéal pour un usage intensif'
       },
       {
-        tokens: 30000,
-        price: 20000, // 20000 FCFA (33% discount)
-        popular: false,
-        description: 'Pour une utilisation professionnelle'
-      },
-      {
-        tokens: 50000,
-        price: 30000, // 30000 FCFA (40% discount)
+        tokens: 240000, // 240k tokens (240 actual OpenAI tokens = ~8 requests)
+        price: 8500, // 8500 FCFA
         popular: false,
         description: 'Pour une équipe active'
       }
@@ -112,16 +125,15 @@ export class PayAsYouGoService {
    */
   static getRecommendedPackage(currentTokensUsed: number, monthlyLimit: number): TokenPackage {
     const packages = this.getTokenPackages();
-    const remainingTokens = monthlyLimit - currentTokensUsed;
     
     // If user has used more than 80% of their monthly limit, recommend a larger package
     if (currentTokensUsed / monthlyLimit > 0.8) {
-      return packages.find(pkg => pkg.tokens >= 15000) || packages[1];
+      return packages.find(pkg => pkg.tokens >= 120000) || packages[1];
     }
     
     // If user has used more than 50% of their monthly limit, recommend a medium package
     if (currentTokensUsed / monthlyLimit > 0.5) {
-      return packages.find(pkg => pkg.tokens >= 10000) || packages[1];
+      return packages.find(pkg => pkg.tokens >= 80000) || packages[0];
     }
     
     // Otherwise, recommend the smallest package

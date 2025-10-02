@@ -68,17 +68,13 @@ const parseJsonInContent = (content: string): GraphData | null => {
     
     try {
       const jsonString = jsonMatch[1];
-      // console.log('🔍 FRONTEND DEBUG - PDFPreview raw JSON:', jsonString);
       
       const jsonData = JSON.parse(jsonString);
-      // console.log('🔍 FRONTEND DEBUG - PDFPreview parsed JSON:', jsonData);
       
       // Check if it's valid graph data
       if (jsonData && typeof jsonData === 'object' && jsonData.type && jsonData.data) {
-        // console.log('✅ FRONTEND DEBUG - PDFPreview valid graph data found');
         return jsonData as GraphData;
       } else {
-        // console.log('❌ FRONTEND DEBUG - PDFPreview invalid graph data structure');
       }
     } catch (error) {
       // console.error('❌ FRONTEND DEBUG - PDFPreview error parsing JSON:', error);
@@ -88,30 +84,21 @@ const parseJsonInContent = (content: string): GraphData | null => {
   // Try to find JSON object directly
   const directJsonMatch = content.match(/\{\s*"type"\s*:\s*"[^"]*"\s*,[\s\S]*?\}/);
   if (directJsonMatch) {
-    // console.log('🔍 FRONTEND DEBUG - PDFPreview found direct JSON');
-    // console.log('=====================================');
-    // console.log('Direct JSON String:', directJsonMatch[0]);
-    // console.log('=====================================');
     
     try {
       const jsonString = directJsonMatch[0];
-      // console.log('🔍 FRONTEND DEBUG - PDFPreview direct JSON:', jsonString);
       
       const jsonData = JSON.parse(jsonString);
-      // console.log('🔍 FRONTEND DEBUG - PDFPreview parsed direct JSON:', jsonData);
       
       if (jsonData && typeof jsonData === 'object' && jsonData.type && jsonData.data) {
-        // console.log('✅ FRONTEND DEBUG - PDFPreview valid direct graph data found');
         return jsonData as GraphData;
       } else {
-        // console.log('❌ FRONTEND DEBUG - PDFPreview invalid direct graph data structure');
       }
     } catch (error) {
       // console.error('❌ FRONTEND DEBUG - PDFPreview error parsing direct JSON:', error);
     }
   }
   
-  // console.log('❌ FRONTEND DEBUG - PDFPreview no JSON found in content');
   return null;
 };
 
@@ -533,16 +520,13 @@ export const TextPDFPreview: React.FC<TextPDFPreviewProps> = ({ content, title =
         
         // If there are charts, convert them to PNG using recharts-to-png
         if (pdfData.charts && pdfData.charts.length > 0) {
-          console.log('Converting charts to PNG:', pdfData.charts.length, 'charts found');
           
           const updatedPdfData = {
             ...pdfData,
             charts: await Promise.all(
               pdfData.charts.map(async (chart: GraphData, index: number) => {
                 try {
-                  console.log(`Converting chart ${index + 1}:`, chart.title, chart.type);
                   const chartImage = await RechartsToPNG.convertChartDataToPNG(chart, 800, 500);
-                  console.log(`Chart ${index + 1} converted successfully, image length:`, chartImage.length);
                   return {
                     ...chart,
                     imageData: chartImage
@@ -555,11 +539,9 @@ export const TextPDFPreview: React.FC<TextPDFPreviewProps> = ({ content, title =
             )
           };
           
-          console.log('All charts converted, generating PDF...');
           const generator = new PDFGenerator();
           await generator.generateReport(updatedPdfData);
         } else {
-          console.log('No charts found, generating PDF without charts');
           const generator = new PDFGenerator();
           await generator.generateReport(pdfData);
         }

@@ -62,13 +62,8 @@ export const ResponseDetailPage: React.FC = () => {
   // Debug: Log all response data
   React.useEffect(() => {
     if (allResponses.length > 0) {
-      console.log('🔍 All responses data:', allResponses);
       allResponses.forEach((response, index) => {
-        console.log(`Response ${index + 1}:`, {
-          id: response.id,
-          fileAttachments: response.fileAttachments,
-          answers: response.answers
-        });
+        // Process response data
       });
     }
   }, [allResponses]);
@@ -104,7 +99,6 @@ export const ResponseDetailPage: React.FC = () => {
     if (response.fileAttachments && Array.isArray(response.fileAttachments)) {
       const attachment = response.fileAttachments.find((att: any) => att.fieldId === fieldId);
       if (attachment) {
-        console.log('🔍 Found file attachment in fileAttachments array:', attachment);
         return attachment;
       }
     }
@@ -112,7 +106,6 @@ export const ResponseDetailPage: React.FC = () => {
     // Try to find in answers object (sometimes file data is stored there)
     const answerValue = response.answers?.[fieldId];
     if (answerValue && typeof answerValue === 'object' && answerValue.uploaded) {
-      console.log('🔍 Found file data in answers:', answerValue);
       // Create a file attachment object from the answer data
       return {
         fieldId,
@@ -125,15 +118,12 @@ export const ResponseDetailPage: React.FC = () => {
       };
     }
 
-    console.log('🔍 No file attachment found for fieldId:', fieldId);
     return null;
   };
 
   const handleViewPDF = async (fileAttachment: FileAttachment) => {
     try {
-      console.log('🔍 Attempting to view file:', fileAttachment);
       const downloadUrl = await getFileDownloadURL(fileAttachment);
-      console.log('🔍 Generated download URL:', downloadUrl);
       
       // Open in PDF viewer modal
       setPdfViewerModal({
@@ -149,11 +139,9 @@ export const ResponseDetailPage: React.FC = () => {
 
   const handleDownloadPDF = async (fileAttachment: FileAttachment) => {
     try {
-      console.log('🔍 Attempting to download file:', fileAttachment);
       
       // Try Firebase-specific download first
       if (fileAttachment.storagePath) {
-        console.log('🔄 Using Firebase-specific download method...');
         await forceDownloadFromFirebase(
           fileAttachment.storagePath,
           fileAttachment.fileName,
@@ -161,7 +149,6 @@ export const ResponseDetailPage: React.FC = () => {
             showSuccess('Téléchargement démarré');
           },
           (error) => {
-            console.warn('Firebase download failed, trying fallback:', error);
             // Fallback to regular download
             handleDownloadFallback(fileAttachment);
           }
@@ -180,7 +167,6 @@ export const ResponseDetailPage: React.FC = () => {
   const handleDownloadFallback = async (fileAttachment: FileAttachment) => {
     try {
       const downloadUrl = await getFileDownloadURL(fileAttachment);
-      console.log('🔍 Generated download URL:', downloadUrl);
       
       await downloadFile({
         fileName: fileAttachment.fileName,
@@ -625,15 +611,6 @@ export const ResponseDetailPage: React.FC = () => {
                               // Handle file fields specially
                               if (field?.type === 'file' && value && typeof value === 'object' && 'uploaded' in value && value.uploaded) {
                                 const fileAttachment = findFileAttachment(response, fieldId);
-                                console.log('🔍 File field debug:', {
-                                  fieldId,
-                                  fieldLabel,
-                                  isDirector,
-                                  fileAttachment,
-                                  hasDownloadUrl: fileAttachment?.downloadUrl,
-                                  hasStoragePath: fileAttachment?.storagePath,
-                                  value
-                                });
                                 return (
                                   <div key={fieldId} className="border-b border-gray-100 pb-3 last:border-b-0">
                                     <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">

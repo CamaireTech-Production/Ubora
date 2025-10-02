@@ -16,21 +16,16 @@ export class MultiFormatToPDF {
       // Parse chart data from content if present
       const chartData = this.parseChartDataFromContent(message.content);
       if (chartData) {
-        console.log('MultiFormatToPDF: Found chart data in content:', chartData.title, chartData.type);
         charts.push(chartData);
         
         // Remove the JSON chart data from the content to prevent it from appearing in the PDF
         const cleanedContent = this.removeChartDataFromContent(message.content);
-        console.log('MultiFormatToPDF: Original content length:', message.content.length);
-        console.log('MultiFormatToPDF: Cleaned content length:', cleanedContent.length);
-        console.log('MultiFormatToPDF: Content cleaned, JSON removed');
         
         sections.push({
           title: 'Analyse',
           content: cleanedContent
         });
       } else {
-        console.log('MultiFormatToPDF: No chart data found in content');
         sections.push({
           title: 'Analyse',
           content: message.content
@@ -42,8 +37,6 @@ export class MultiFormatToPDF {
     if (message.tableData) {
       // Clean and validate the markdown table
       const cleanedTableData = this.cleanMarkdownTable(message.tableData);
-      console.log('MultiFormatToPDF: Processing table data, length:', cleanedTableData.length);
-      console.log('MultiFormatToPDF: Table preview:', cleanedTableData.substring(0, 200) + '...');
       
       sections.push({
         title: 'Données tabulaires',
@@ -159,7 +152,7 @@ export class MultiFormatToPDF {
     return (
       message.contentType === 'multi-format' ||
       message.contentType === 'mixed' ||
-      (message.contentType === 'text' && (message.graphData || message.tableData)) ||
+      (message.contentType === 'text' && (message.graphData !== undefined || message.tableData !== undefined)) ||
       message.graphData !== undefined ||
       message.tableData !== undefined
     );
@@ -301,7 +294,6 @@ export class MultiFormatToPDF {
 
     // Ensure we have a proper table structure
     if (cleanedLines.length < 2) {
-      console.warn('MultiFormatToPDF: Table has insufficient rows, returning original data');
       return tableData;
     }
 
@@ -310,7 +302,6 @@ export class MultiFormatToPDF {
     const headerCells = headerRow.split('|').map(cell => cell.trim()).filter(cell => cell);
     
     if (headerCells.length === 0) {
-      console.warn('MultiFormatToPDF: Table has no valid headers, returning original data');
       return tableData;
     }
 
@@ -325,10 +316,6 @@ export class MultiFormatToPDF {
     }
 
     const result = cleanedLines.join('\n');
-    console.log('MultiFormatToPDF: Cleaned table structure:');
-    console.log('MultiFormatToPDF: - Rows:', cleanedLines.length);
-    console.log('MultiFormatToPDF: - Columns:', headerCells.length);
-    console.log('MultiFormatToPDF: - Headers:', headerCells);
     
     return result;
   }

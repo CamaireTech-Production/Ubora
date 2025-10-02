@@ -1,0 +1,12 @@
+---
+description:
+globs:
+alwaysApply: true
+---
+
+# Commit Rules
+- Use Conventional Commit format.
+- Always specify scope (e.g., `feat(auth): add login endpoint`).
+- Add a short description in body if needed.
+- If tests are updated/added, mention them.
+

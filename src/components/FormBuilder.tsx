@@ -7,8 +7,11 @@ import { Textarea } from './Textarea';
 import { Card } from './Card';
 import { FileTypeSelector } from './FileTypeSelector';
 import { FieldCSVImport } from './FieldCSVImport';
-import { Plus, Trash2, ArrowLeft, AlertCircle, Calculator, Copy, Check } from 'lucide-react';
-import { ExpressionCalculator } from '../utils/ExpressionCalculator';
+import { Plus, Trash2, ArrowLeft, AlertCircle, Calculator } from 'lucide-react';
+import { FormulaInput } from './FormulaInput';
+import { FormulaParser } from '../utils/FormulaParser';
+import { ConditionalLogicBuilder } from './ConditionalLogicBuilder';
+import { DesktopRecommendationInfo } from './DesktopRecommendationInfo';
 
 interface FormBuilderProps {
   onSave: (form: {
@@ -17,10 +20,19 @@ interface FormBuilderProps {
     description: string;
     fields: FormField[];
     assignedTo: string[];
+    deadline?: {
+      date: string;
+      time: string;
+      timezone?: string;
+    };
+    notificationSettings?: {
+      reminderIntervals: number[];
+      enabled: boolean;
+    };
   }) => void;
   onCancel: () => void;
   employees: Array<{ id: string; name: string; email: string }>;
-  initialForm?: Pick<Form, 'id' | 'title' | 'description' | 'fields' | 'assignedTo'>;
+  initialForm?: Pick<Form, 'id' | 'title' | 'description' | 'fields' | 'assignedTo' | 'deadline' | 'notificationSettings'>;
   isLoading?: boolean;
 }
 
@@ -37,8 +49,17 @@ export const FormBuilder: React.FC<FormBuilderProps> = ({
   const [assignedTo, setAssignedTo] = useState<string[]>(initialForm?.assignedTo || []);
   const [fields, setFields] = useState<FormField[]>(initialForm?.fields || []);
   const [errors, setErrors] = useState<string[]>([]);
-  const [copiedFieldId, setCopiedFieldId] = useState<string | null>(null);
-  const [formulaValidation, setFormulaValidation] = useState<Record<string, { isValid: boolean; error?: string }>>({});
+  
+  // Deadline and notification settings
+  const [deadline, setDeadline] = useState({
+    date: initialForm?.deadline?.date || '',
+    time: initialForm?.deadline?.time || '18:00',
+    timezone: initialForm?.deadline?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone
+  });
+  const [notificationSettings, setNotificationSettings] = useState({
+    enabled: initialForm?.notificationSettings?.enabled || false,
+    reminderIntervals: initialForm?.notificationSettings?.reminderIntervals || [60, 30, 15]
+  });
 
   // Déterminer le mode (création ou édition)
   const isEditMode = !!initialForm;
@@ -101,41 +122,6 @@ export const FormBuilder: React.FC<FormBuilderProps> = ({
     updateField(fieldId, { options: newOptions });
   };
 
-  const copyFieldId = async (fieldId: string) => {
-    try {
-      await navigator.clipboard.writeText(fieldId);
-      setCopiedFieldId(fieldId);
-      setTimeout(() => setCopiedFieldId(null), 2000);
-    } catch (err) {
-      console.error('Failed to copy field ID:', err);
-    }
-  };
-
-  const generateFormula = (calculationType: string, dependsOn: string[]) => {
-    if (!dependsOn || dependsOn.length === 0) return '';
-    
-    switch (calculationType) {
-      case 'sum':
-        return dependsOn.join(' + ');
-      case 'average':
-        return `(${dependsOn.join(' + ')}) / ${dependsOn.length}`;
-      case 'multiply':
-        return dependsOn.join(' * ');
-      case 'percentage':
-        return dependsOn.length > 0 ? `${dependsOn[0]} * 0.1` : '';
-      default:
-        return '';
-    }
-  };
-
-  const validateFormula = (fieldId: string, formula: string) => {
-    const validation = ExpressionCalculator.validateFormula(formula, fields);
-    setFormulaValidation(prev => ({
-      ...prev,
-      [fieldId]: validation
-    }));
-    return validation;
-  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -169,6 +155,14 @@ export const FormBuilder: React.FC<FormBuilderProps> = ({
       validationErrors.push(`${selectFieldsWithoutOptions.length} liste(s) déroulante(s) n'ont pas d'options`);
     }
 
+    // Valider que les champs calculés ont une formule
+    const calculatedFieldsWithoutFormula = fields.filter(field => 
+      field.type === 'calculated' && (!field.calculationFormula || !field.calculationFormula.trim())
+    );
+    if (calculatedFieldsWithoutFormula.length > 0) {
+      validationErrors.push(`${calculatedFieldsWithoutFormula.length} champ(s) calculé(s) n'ont pas de formule`);
+    }
+
     if (validationErrors.length > 0) {
       setErrors(validationErrors);
       return;
@@ -184,6 +178,19 @@ export const FormBuilder: React.FC<FormBuilderProps> = ({
       description,
       fields,
       assignedTo,
+      ...(deadline.date && {
+        deadline: {
+          date: deadline.date,
+          time: deadline.time,
+          timezone: deadline.timezone
+        }
+      }),
+      ...(notificationSettings.enabled && {
+        notificationSettings: {
+          enabled: notificationSettings.enabled,
+          reminderIntervals: notificationSettings.reminderIntervals
+        }
+      })
     };
 
     onSave(formData);
@@ -279,6 +286,103 @@ export const FormBuilder: React.FC<FormBuilderProps> = ({
             )}
           </div>
 
+          {/* Deadline and Notification Settings */}
+          <Card>
+            <h3 className="text-base sm:text-lg font-medium text-gray-900 mb-4">
+              ⏰ Échéance et Notifications
+            </h3>
+            
+            <div className="space-y-4">
+              {/* Deadline Date */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Date d'échéance
+                </label>
+                <input
+                  type="date"
+                  value={deadline.date}
+                  onChange={(e) => setDeadline(prev => ({ ...prev, date: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  min={new Date().toISOString().split('T')[0]}
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  La date d'échéance est optionnelle. Si définie, des rappels seront envoyés aux employés.
+                </p>
+              </div>
+
+              {/* Deadline Time */}
+              {deadline.date && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Heure d'échéance
+                  </label>
+                  <input
+                    type="time"
+                    value={deadline.time}
+                    onChange={(e) => setDeadline(prev => ({ ...prev, time: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+              )}
+
+              {/* Notification Settings */}
+              {deadline.date && (
+                <div>
+                  <div className="flex items-center space-x-3 mb-3">
+                    <input
+                      type="checkbox"
+                      id="notificationsEnabled"
+                      checked={notificationSettings.enabled}
+                      onChange={(e) => setNotificationSettings(prev => ({ ...prev, enabled: e.target.checked }))}
+                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    />
+                    <label htmlFor="notificationsEnabled" className="text-sm font-medium text-gray-700">
+                      Activer les notifications de rappel
+                    </label>
+                  </div>
+
+                  {notificationSettings.enabled && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Intervalles de rappel (en minutes avant l'échéance)
+                      </label>
+                      <div className="flex flex-wrap gap-2">
+                        {[15, 30, 60, 120].map((interval) => (
+                          <label key={interval} className="flex items-center space-x-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={notificationSettings.reminderIntervals.includes(interval)}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setNotificationSettings(prev => ({
+                                    ...prev,
+                                    reminderIntervals: [...prev.reminderIntervals, interval].sort((a, b) => b - a)
+                                  }));
+                                } else {
+                                  setNotificationSettings(prev => ({
+                                    ...prev,
+                                    reminderIntervals: prev.reminderIntervals.filter(i => i !== interval)
+                                  }));
+                                }
+                              }}
+                              className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                            />
+                            <span className="text-sm text-gray-700">
+                              {interval < 60 ? `${interval}min` : `${interval / 60}h`}
+                            </span>
+                          </label>
+                        ))}
+                      </div>
+                      <p className="text-xs text-gray-500 mt-1">
+                        Les employés recevront des notifications aux intervalles sélectionnés avant l'échéance.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </Card>
+
           <div>
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-base sm:text-lg font-medium text-gray-900">Champs du formulaire</h3>
@@ -294,6 +398,11 @@ export const FormBuilder: React.FC<FormBuilderProps> = ({
                 <span className="sm:hidden">Ajouter</span>
               </Button>
             </div>
+
+            {/* Desktop Recommendation - Show when any field has conditional logic enabled */}
+            {fields.some(field => field.conditionalLogic?.isEnabled) && (
+              <DesktopRecommendationInfo className="mb-4" />
+            )}
 
             {fields.length === 0 ? (
               <p className="text-gray-500 text-center py-6 sm:py-8 bg-gray-50 rounded-lg text-sm sm:text-base">
@@ -422,151 +531,36 @@ export const FormBuilder: React.FC<FormBuilderProps> = ({
                             <h4 className="font-medium text-blue-900">Configuration du champ calculé</h4>
                           </div>
                           
+                          <FormulaInput
+                            value={field.calculationFormula || ''}
+                            onChange={(formula, fieldIds) => {
+                              updateField(field.id, { 
+                                calculationFormula: formula,
+                                dependsOn: fieldIds,
+                                userFormula: FormulaParser.convertToUserFormula(formula, fields)
+                              });
+                            }}
+                            fields={fields}
+                            currentFieldId={field.id}
+                          />
 
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                              Champs dépendants *
-                            </label>
-                            <div className="space-y-2 max-h-32 overflow-y-auto border border-gray-200 rounded-lg p-3">
-                              {fields
-                                .filter(f => f.id !== field.id)
-                                .map(dependentField => (
-                                  <label key={dependentField.id} className="flex items-start space-x-3 cursor-pointer hover:bg-gray-50 p-2 rounded">
-                                    <input
-                                      type="checkbox"
-                                      checked={field.dependsOn?.includes(dependentField.id) || false}
-                                      onChange={(e) => {
-                                        const currentDependsOn = field.dependsOn || [];
-                                        const newDependsOn = e.target.checked
-                                          ? [...currentDependsOn, dependentField.id]
-                                          : currentDependsOn.filter(id => id !== dependentField.id);
-                                        
-                                        updateField(field.id, { dependsOn: newDependsOn });
-                                      }}
-                                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 mt-0.5"
-                                    />
-                                    <div className="flex-1">
-                                      <span className="text-sm font-medium text-gray-900">{dependentField.label}</span>
-                                      <div className="text-xs text-gray-500 space-y-1">
-                                        <div>({dependentField.type})</div>
-                                        <div className="flex items-center space-x-2">
-                                          <span className="font-mono bg-gray-100 px-2 py-1 rounded flex-1">
-                                            {dependentField.id}
-                                          </span>
-                                          <button
-                                            type="button"
-                                            onClick={(e) => {
-                                              e.preventDefault();
-                                              e.stopPropagation();
-                                              copyFieldId(dependentField.id);
-                                            }}
-                                            className="p-1 hover:bg-gray-200 rounded transition-colors"
-                                            title="Copier l'ID du champ"
-                                          >
-                                            {copiedFieldId === dependentField.id ? (
-                                              <Check className="h-3 w-3 text-green-600" />
-                                            ) : (
-                                              <Copy className="h-3 w-3 text-gray-500" />
-                                            )}
-                                          </button>
-                                        </div>
-                                      </div>
+                          {/* Show field dependencies for reference */}
+                          {field.dependsOn && field.dependsOn.length > 0 && (
+                            <div className="mt-4 p-3 bg-white border border-gray-200 rounded-lg">
+                              <p className="text-sm font-medium text-gray-700 mb-2">Champs utilisés dans la formule :</p>
+                              <div className="flex flex-wrap gap-2">
+                                {field.dependsOn.map(fieldId => {
+                                  const dependentField = fields.find(f => f.id === fieldId);
+                                  return dependentField ? (
+                                    <div key={fieldId} className="flex items-center space-x-1 px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs">
+                                      <span>{dependentField.label}</span>
+                                      <span className="text-blue-600">({dependentField.type})</span>
                                     </div>
-                                  </label>
-                                ))}
-                            </div>
-                            {(!field.dependsOn || field.dependsOn.length === 0) && (
-                              <p className="text-sm text-red-600 mt-1">Veuillez sélectionner au moins un champ dépendant</p>
-                            )}
-                          </div>
-
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                              Formule de calcul *
-                            </label>
-                            <div>
-                              <Input
-                                value={field.calculationFormula || ''}
-                                onChange={(e) => {
-                                  const newFormula = e.target.value;
-                                  updateField(field.id, { calculationFormula: newFormula });
-                                  validateFormula(field.id, newFormula);
-                                }}
-                                placeholder="Ex: field_id1 + field_id2 * 0.2"
-                                className={formulaValidation[field.id]?.isValid === false ? 'border-red-500 focus:border-red-500' : ''}
-                              />
-                              {formulaValidation[field.id] && (
-                                <div className={`mt-1 text-xs ${formulaValidation[field.id].isValid ? 'text-green-600' : 'text-red-600'}`}>
-                                  {formulaValidation[field.id].isValid ? (
-                                    <span className="flex items-center">
-                                      <Check className="h-3 w-3 mr-1" />
-                                      Formule valide
-                                    </span>
-                                  ) : (
-                                    <span className="flex items-center">
-                                      <AlertCircle className="h-3 w-3 mr-1" />
-                                      {formulaValidation[field.id].error}
-                                    </span>
-                                  )}
-                                </div>
-                              )}
-                            </div>
-                            
-                            <div className="mt-3 space-y-3">
-                              <div>
-                                <p className="text-sm font-medium text-gray-700 mb-2">Champs disponibles :</p>
-                                <div className="flex flex-wrap gap-1">
-                                  {field.dependsOn?.map(fieldId => {
-                                    const dependentField = fields.find(f => f.id === fieldId);
-                                    return dependentField ? (
-                                      <div key={fieldId} className="flex items-center space-x-1 px-2 py-1 bg-gray-100 rounded text-xs">
-                                        <span className="font-mono">{fieldId}</span>
-                                        <span className="text-gray-400">({dependentField.label})</span>
-                                        <button
-                                          type="button"
-                                          onClick={() => copyFieldId(fieldId)}
-                                          className="p-0.5 hover:bg-gray-200 rounded transition-colors"
-                                          title="Copier l'ID du champ"
-                                        >
-                                          {copiedFieldId === fieldId ? (
-                                            <Check className="h-3 w-3 text-green-600" />
-                                          ) : (
-                                            <Copy className="h-3 w-3 text-gray-500" />
-                                          )}
-                                        </button>
-                                      </div>
-                                    ) : null;
-                                  })}
-                                </div>
-                              </div>
-                              
-                              <div className="text-xs">
-                                <p className="font-medium text-gray-700 mb-2">Opérateurs et Fonctions :</p>
-                                <div className="grid grid-cols-2 gap-2 text-gray-600">
-                                  <div><code className="bg-gray-100 px-1 rounded">+</code> Addition</div>
-                                  <div><code className="bg-gray-100 px-1 rounded">SUM()</code> Somme</div>
-                                  <div><code className="bg-gray-100 px-1 rounded">-</code> Soustraction</div>
-                                  <div><code className="bg-gray-100 px-1 rounded">AVG()</code> Moyenne</div>
-                                  <div><code className="bg-gray-100 px-1 rounded">*</code> Multiplication</div>
-                                  <div><code className="bg-gray-100 px-1 rounded">MAX()</code> Maximum</div>
-                                  <div><code className="bg-gray-100 px-1 rounded">/</code> Division</div>
-                                  <div><code className="bg-gray-100 px-1 rounded">MIN()</code> Minimum</div>
-                                  <div><code className="bg-gray-100 px-1 rounded">( )</code> Parenthèses</div>
-                                </div>
-                              </div>
-                              
-                              <div className="p-2 bg-yellow-50 border border-yellow-200 rounded">
-                                <p className="text-xs text-yellow-800">
-                                  <strong>Exemples :</strong><br/>
-                                  • <code>field_id1 + field_id2</code> - Addition<br/>
-                                  • <code>field_id1 * 1.2</code> - Multiplication avec constante<br/>
-                                  • <code>(field_id1 + field_id2) / 2</code> - Moyenne<br/>
-                                  • <code>field_id1 * 0.1</code> - 10% d'un champ
-                                </p>
+                                  ) : null;
+                                })}
                               </div>
                             </div>
-                          </div>
-
+                          )}
                         </div>
                       )}
                       
@@ -579,6 +573,15 @@ export const FormBuilder: React.FC<FormBuilderProps> = ({
                         />
                         <span className="text-sm text-gray-700">Champ obligatoire</span>
                       </label>
+
+                      {/* Conditional Logic Section */}
+                      <div className="border-t pt-4">
+                        <ConditionalLogicBuilder
+                          field={field}
+                          allFields={fields}
+                          onUpdate={(conditionalLogic) => updateField(field.id, { conditionalLogic })}
+                        />
+                      </div>
                     </div>
                   </Card>
                 ))}

@@ -16,7 +16,7 @@ import {
   Star, 
   Crown, 
   Zap, 
-  Shield,
+  // Shield, // Unused for now
   Users,
   BarChart3,
   Brain,
@@ -27,22 +27,23 @@ import { useToast } from '../hooks/useToast';
 import { Toast } from '../components/Toast';
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
+import { AnalyticsService } from '../services/analyticsService';
 
 export const PackageSelectionPage: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { toast, showSuccess, showError } = useToast();
+  const { showSuccess, showError } = useToast();
   const [selectedPackage, setSelectedPackage] = useState<PackageType | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
 
-  const packages: PackageType[] = ['starter', 'standard', 'premium', 'custom'];
+  const packages: PackageType[] = ['starter', 'standard', 'premium' /* , 'custom' */];
 
   const getPackageIcon = (pkg: PackageType) => {
     switch (pkg) {
       case 'starter': return <Zap className="h-6 w-6" />;
       case 'standard': return <Star className="h-6 w-6" />;
       case 'premium': return <Crown className="h-6 w-6" />;
-      case 'custom': return <Shield className="h-6 w-6" />;
+      /* case 'custom': return <Shield className="h-6 w-6" />; */
     }
   };
 
@@ -51,7 +52,7 @@ export const PackageSelectionPage: React.FC = () => {
       case 'starter': return 'text-blue-600 bg-blue-100';
       case 'standard': return 'text-green-600 bg-green-100';
       case 'premium': return 'text-purple-600 bg-purple-100';
-      case 'custom': return 'text-orange-600 bg-orange-100';
+      /* case 'custom': return 'text-orange-600 bg-orange-100'; */
     }
   };
 
@@ -82,6 +83,12 @@ export const PackageSelectionPage: React.FC = () => {
         tokensResetDate: serverTimestamp(),
         updatedAt: serverTimestamp()
       });
+
+      // Track package selection analytics
+      try {
+        await AnalyticsService.logPackageSelection(user.id, pkg, user.agencyId);
+      } catch (analyticsError) {
+      }
 
       showSuccess(`Package ${getPackageDisplayName(pkg)} sélectionné avec succès !`);
       
@@ -119,7 +126,7 @@ export const PackageSelectionPage: React.FC = () => {
         icon: <Users className="h-4 w-4" />
       },
       {
-        name: 'Tokens IA mensuels',
+        name: 'Tokens ARCHA mensuels',
         value: limits.monthlyTokens === -1 ? 'Illimités' : `${limits.monthlyTokens.toLocaleString()} tokens`,
         icon: <Brain className="h-4 w-4" />
       },
@@ -195,11 +202,7 @@ export const PackageSelectionPage: React.FC = () => {
                 <p className="text-3xl font-bold text-blue-600 mb-2">
                   {getPackagePrice(pkg)}
                 </p>
-                {pkg === 'custom' && (
-                  <p className="text-base text-gray-500">
-                    Prix négociable selon vos besoins
-                  </p>
-                )}
+                {/* Custom package pricing info removed since custom is not available */}
               </div>
 
               {/* Liste des fonctionnalités */}
@@ -261,7 +264,7 @@ export const PackageSelectionPage: React.FC = () => {
       </div>
 
       {/* Toast pour les notifications */}
-      <Toast />
+      <Toast show={false} message="" type="success" />
     </div>
   );
 };

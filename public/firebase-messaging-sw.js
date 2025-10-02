@@ -56,18 +56,50 @@ self.addEventListener('notificationclick', (event) => {
     return;
   }
 
+  // Determine the URL to open based on notification data
+  let urlToOpen = '/';
+  const notificationData = event.notification.data;
+  
+  if (notificationData) {
+    // Handle form-related notifications
+    if (notificationData.formId) {
+      if (notificationData.action === 'form_assigned' || notificationData.action === 'form_created') {
+        urlToOpen = '/forms'; // Navigate to forms page
+      } else if (notificationData.action === 'form_submission') {
+        urlToOpen = '/dashboard'; // Navigate to dashboard for form submissions
+      } else if (notificationData.action === 'form_reminder') {
+        urlToOpen = '/forms'; // Navigate to forms page for reminders
+      }
+    }
+    
+    // Handle other notification types
+    if (notificationData.type === 'director_message') {
+      urlToOpen = '/notifications';
+    } else if (notificationData.type === 'system_alert') {
+      urlToOpen = '/dashboard';
+    } else if (notificationData.type === 'reminder') {
+      urlToOpen = '/forms';
+    }
+  }
+
   // Open the app
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
-      // If app is already open, focus it
+      // If app is already open, focus it and navigate to the specific page
       for (const client of clientList) {
         if (client.url.includes(self.location.origin) && 'focus' in client) {
+          // Send a message to the client to navigate to the specific page
+          client.postMessage({
+            type: 'NOTIFICATION_CLICK',
+            data: notificationData,
+            url: urlToOpen
+          });
           return client.focus();
         }
       }
-      // If app is not open, open it
+      // If app is not open, open it with the specific URL
       if (clients.openWindow) {
-        return clients.openWindow('/');
+        return clients.openWindow(urlToOpen);
       }
     })
   );

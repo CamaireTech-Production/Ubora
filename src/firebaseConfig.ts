@@ -1,9 +1,10 @@
 // src/firebaseConfig.ts
 import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
-import { getFirestore, connectFirestoreEmulator } from "firebase/firestore";
+import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 import { getMessaging, isSupported } from "firebase/messaging";
+import { getAnalytics, isSupported as isAnalyticsSupported } from "firebase/analytics";
 
 // Configuration Firebase avec vos vraies clés
 const firebaseConfig = {
@@ -13,6 +14,7 @@ const firebaseConfig = {
   storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "studio-gpnfx.firebasestorage.app",
   messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "848246677738",
   appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:848246677738:web:7612dab5f030c52b227793",
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || "G-6TWRQHW70W",
 };
 
 // Validation complète de la configuration
@@ -35,11 +37,9 @@ if (firebaseConfig.appId && !firebaseConfig.appId.includes(':web:')) {
 }
 
 // Initialisation de l'app Firebase
-let app;
+let app: any;
 try {
   app = initializeApp(firebaseConfig);
-  console.log('✅ [Firebase] App initialisée avec succès');
-  console.log('📊 [Firebase] Projet:', firebaseConfig.projectId);
 } catch (error) {
   console.error('🔥 [Firebase] Erreur lors de l\'initialisation:', error);
   throw new Error('Configuration Firebase invalide. Vérifiez vos clés dans .env.local');
@@ -55,7 +55,18 @@ export const messaging = isSupported().then((supported) => {
   if (supported) {
     return getMessaging(app);
   } else {
-    console.warn('🔔 [Firebase] Messaging non supporté sur ce navigateur');
     return null;
   }
 });
+
+// Initialisation de Firebase Analytics (seulement si supporté)
+export const analytics = isAnalyticsSupported().then((supported) => {
+  if (supported) {
+    return getAnalytics(app);
+  } else {
+    return null;
+  }
+});
+
+// Export de l'app pour les services
+export { app };

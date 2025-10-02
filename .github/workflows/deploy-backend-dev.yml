@@ -16,11 +16,11 @@ jobs:
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
-        node-version: '18'
+        node-version: '20'
         cache: 'npm'
         
     - name: Install dependencies
-      run: npm ci
+      run: npm install
       
     - name: Create environment file for backend
       run: |
@@ -40,7 +40,7 @@ jobs:
         NODE_ENV=development
         
         # CORS Configuration
-        CORS_ORIGIN=https://dev.ubora-app.com
+        CORS_ORIGIN=https://dev.ubora-app.com,https://apidev.ubora-app.com
         EOF
         
     - name: Deploy to VPS
@@ -48,7 +48,7 @@ jobs:
       with:
         host: ${{ secrets.VPS_HOST }}
         username: ${{ secrets.VPS_USERNAME }}
-        key: ${{ secrets.VPS_SSH_KEY }}
+        password: ${{ secrets.VPS_PASSWORD }}
         port: ${{ secrets.VPS_PORT }}
         script: |
           # Create directories if they don't exist
@@ -63,8 +63,11 @@ jobs:
             git pull origin dev
           fi
           
-          # Install dependencies
-          npm ci
+          # Install dependencies from root package.json
+          npm install
+          
+          # Install API dependencies (pdf-parse, etc.)
+          cd api && npm install && cd ..
           
           # Create/update .env file
           cat > .env << 'EOF'
@@ -74,7 +77,7 @@ jobs:
           OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
           PORT=3001
           NODE_ENV=development
-          CORS_ORIGIN=https://dev.ubora-app.com
+          CORS_ORIGIN=https://dev.ubora-app.com,https://apidev.ubora-app.com
           EOF
           
           # Stop existing process
@@ -104,6 +107,12 @@ jobs:
               ssl_certificate /etc/letsencrypt/live/apidev.ubora-app.com/fullchain.pem;
               ssl_certificate_key /etc/letsencrypt/live/apidev.ubora-app.com/privkey.pem;
               
+              # Increase timeouts for PDF processing
+              proxy_connect_timeout 300s;
+              proxy_send_timeout 300s;
+              proxy_read_timeout 300s;
+              send_timeout 300s;
+              
               location / {
                   proxy_pass http://localhost:3001;
                   proxy_http_version 1.1;
@@ -114,6 +123,11 @@ jobs:
                   proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
                   proxy_set_header X-Forwarded-Proto $scheme;
                   proxy_cache_bypass $http_upgrade;
+                  
+                  # Additional timeout settings for this location
+                  proxy_connect_timeout 300s;
+                  proxy_send_timeout 300s;
+                  proxy_read_timeout 300s;
               }
           }
           EOF

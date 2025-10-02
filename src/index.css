@@ -2,6 +2,23 @@
 @tailwind components;
 @tailwind utilities;
 
+/* PWA Styles */
+.install-button {
+  @apply inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg shadow-lg hover:bg-blue-700 transition-colors duration-200;
+}
+
+.status-badge {
+  @apply inline-flex items-center gap-1 px-2 py-1 text-xs font-medium bg-green-100 text-green-800 rounded-full;
+}
+
+.pwa-status {
+  @apply flex flex-col gap-1;
+}
+
+.pwa-manager {
+  @apply fixed bottom-4 right-4 z-50;
+}
+
 /* Hide scrollbar for horizontal scroll */
 .scrollbar-hide {
   -ms-overflow-style: none;  /* Internet Explorer 10+ */

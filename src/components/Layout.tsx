@@ -109,7 +109,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, title }) => {
             
             <div className="flex items-center space-x-2 sm:space-x-4">
               {/* Package info pour les directeurs */}
-              {isDirecteur && user?.package && (
+              {isDirecteur && (
                 <div className="hidden md:block">
                   <UserPackageInfo showTokens={true} clickable={true} />
                 </div>
@@ -182,7 +182,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, title }) => {
                 <p className="text-xs text-gray-500">{user?.email}</p>
                 
                 {/* Package info dans le menu mobile */}
-                {user?.package && (
+                {isDirecteur && (
                   <div className="mt-2 flex justify-center">
                     <UserPackageInfo showTokens={true} clickable={false} />
                   </div>

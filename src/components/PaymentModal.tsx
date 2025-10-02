@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, CreditCard, Plus, Users, BarChart3, Brain, Check } from 'lucide-react';
+import { X, CreditCard, Users, BarChart3, Brain, Check } from 'lucide-react';
 import { Button } from './Button';
 import { useToast } from '../hooks/useToast';
 
@@ -39,27 +39,27 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       case 'tokens':
         return [
           {
-            id: 'tokens-5k',
-            name: '5 000 Tokens Archa',
+            id: 'tokens-80k',
+            name: '80 000 Tokens Archa',
             description: 'Pour conversations et analyses supplémentaires',
-            price: 5000,
+            price: 2500,
             unit: 'FCFA',
             icon: <Brain className="h-5 w-5" />,
             popular: true
           },
           {
-            id: 'tokens-10k',
-            name: '10 000 Tokens Archa',
+            id: 'tokens-120k',
+            name: '120 000 Tokens Archa',
             description: 'Idéal pour usage intensif',
-            price: 9000,
+            price: 5000,
             unit: 'FCFA',
             icon: <Brain className="h-5 w-5" />
           },
           {
-            id: 'tokens-25k',
-            name: '25 000 Tokens Archa',
+            id: 'tokens-240k',
+            name: '240 000 Tokens Archa',
             description: 'Pour équipes importantes',
-            price: 20000,
+            price: 8500,
             unit: 'FCFA',
             icon: <Brain className="h-5 w-5" />
           }
@@ -165,7 +165,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
 
   const getTypeDescription = () => {
     switch (type) {
-      case 'tokens': return 'Vous avez atteint votre limite de tokens Archa. Achetez des tokens supplémentaires pour continuer à utiliser l\'IA.';
+      case 'tokens': return 'Vous avez atteint votre limite de tokens ARCHA. Achetez des tokens supplémentaires pour continuer à utiliser ARCHA.';
       case 'forms': return `Vous avez atteint votre limite de ${currentLimit} formulaires. Achetez des formulaires supplémentaires.`;
       case 'dashboards': return `Vous avez atteint votre limite de ${currentLimit} tableaux de bord. Achetez des tableaux de bord supplémentaires.`;
       case 'users': return `Vous avez atteint votre limite de ${currentLimit} utilisateurs. Achetez des utilisateurs supplémentaires.`;
@@ -282,7 +282,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
           
           <div className="flex space-x-3">
             <Button
-              variant="outline"
+              variant="secondary"
               onClick={onClose}
               disabled={isProcessing}
             >

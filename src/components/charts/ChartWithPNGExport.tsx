@@ -1,4 +1,4 @@
-import React, { forwardRef } from 'react';
+import { forwardRef } from 'react';
 import { 
   LineChart, 
   Line, 
@@ -107,12 +107,12 @@ export const ChartWithPNGExport = forwardRef<any, ChartWithPNGExportProps>(
                 cx={width / 2}
                 cy={height / 2}
                 labelLine={false}
-                label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                label={({ name, percent }: any) => `${name} ${(percent * 100).toFixed(0)}%`}
                 outerRadius={Math.min(width, height) / 2 - 20}
                 fill="#8884d8"
                 dataKey={data.dataKey || 'value'}
               >
-                {data.data.map((entry, index) => (
+                {data.data.map((_, index) => (
                   <Cell key={`cell-${index}`} fill={data.colors?.[index] || COLORS[index % COLORS.length]} />
                 ))}
               </Pie>
@@ -137,7 +137,7 @@ export const ChartWithPNGExport = forwardRef<any, ChartWithPNGExportProps>(
               {data.options?.showLegend && <Legend />}
               <Area 
                 type="monotone" 
-                dataKey={data.yAxisKey || data.dataKey} 
+                dataKey={data.yAxisKey || data.dataKey || 'value'} 
                 stroke={data.colors?.[0] || COLORS[0]} 
                 fill={data.colors?.[0] || COLORS[0]}
                 fillOpacity={0.3}

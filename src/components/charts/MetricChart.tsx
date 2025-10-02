@@ -32,13 +32,7 @@ export const MetricChart: React.FC<MetricChartProps> = ({ metric, formEntries, f
   const relevantEntries = formEntries.filter(entry => entry.formId === metric.formId);
   
   // Debug logging
-  console.log('🔍 MetricChart Debug:', {
-    totalFormEntries: formEntries.length,
-    metricFormId: metric.formId,
-    relevantEntriesCount: relevantEntries.length,
-    graphConfig: metric.graphConfig,
-    sampleEntry: relevantEntries[0]
-  });
+  // Metric chart data available for debugging if needed
   
   if (relevantEntries.length === 0) {
     return (
@@ -57,7 +51,7 @@ export const MetricChart: React.FC<MetricChartProps> = ({ metric, formEntries, f
   }
 
   // Prepare chart data
-  const chartData = prepareChartData(relevantEntries, form, graphConfig);
+  const chartData = prepareChartData(relevantEntries, form, graphConfig, metric);
 
   if (chartData.length === 0) {
     return (
@@ -120,7 +114,7 @@ export const MetricChart: React.FC<MetricChartProps> = ({ metric, formEntries, f
 };
 
 // Helper function to prepare chart data
-function prepareChartData(entries: FormEntry[], form: Form, graphConfig: NonNullable<DashboardMetric['graphConfig']>) {
+function prepareChartData(entries: FormEntry[], form: Form, graphConfig: NonNullable<DashboardMetric['graphConfig']>, metric: DashboardMetric) {
   const data: Array<{ x: string | number; y: number }> = [];
 
   if (graphConfig.xAxisType === 'time' || graphConfig.xAxisType === 'date') {

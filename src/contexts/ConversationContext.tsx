@@ -17,6 +17,7 @@ import {
 import { db } from '../firebaseConfig';
 import { Conversation, ChatMessage } from '../types';
 import { useAuth } from './AuthContext';
+import { PermissionManager } from '../utils/PermissionManager';
 
 interface ConversationContextType {
   currentConversation: Conversation | null;
@@ -121,7 +122,7 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   }, [messagesListener]);
 
   const createConversation = async (title: string): Promise<string> => {
-    if (!user || user.role !== 'directeur' || !user.agencyId) {
+    if (!user || !user.agencyId || !PermissionManager.canCreateConversations(user)) {
       throw new Error('Seuls les directeurs peuvent créer des conversations');
     }
 
@@ -138,16 +139,8 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         lastMessageAt: serverTimestamp(),
         messageCount: 0
       };
-
-      console.log('💾 FIREBASE SAVE - Creating new conversation:', {
-        title: conversationData.title,
-        directorId: conversationData.directorId,
-        agencyId: conversationData.agencyId,
-        messageCount: conversationData.messageCount
-      });
       
       const docRef = await addDoc(collection(db, 'conversations'), conversationData);
-      console.log('✅ FIREBASE SAVE - New conversation created successfully:', docRef.id);
       
       // Create the conversation object
       const newConversation: Conversation = {
@@ -195,27 +188,15 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       };
       
       // Store message in Firestore subcollection
-      console.log('💾 FIREBASE SAVE - Saving message to Firebase:', {
-        conversationId: currentConversation.id,
-        messageType: cleanMessage.type,
-        contentLength: cleanMessage.content.length,
-        timestamp: 'serverTimestamp',
-        contentType: cleanMessage.contentType
-      });
       
       try {
         await addDoc(collection(db, 'conversations', currentConversation.id, 'messages'), cleanMessage);
-        console.log('✅ FIREBASE SAVE - Message saved successfully to Firebase');
       } catch (error) {
         console.error('❌ FIREBASE SAVE ERROR - Failed to save message:', error);
         throw error;
       }
 
       // Update conversation metadata in Firestore (but don't trigger conversations list reload)
-      console.log('💾 FIREBASE SAVE - Updating conversation metadata:', {
-        conversationId: currentConversation.id,
-        messageCountIncrement: 1
-      });
       
       try {
         const conversationRef = doc(db, 'conversations', currentConversation.id);
@@ -224,7 +205,6 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({ 
           lastMessageAt: serverTimestamp(),
           messageCount: increment(1)
         });
-        console.log('✅ FIREBASE SAVE - Conversation metadata updated successfully');
       } catch (error) {
         console.error('❌ FIREBASE SAVE ERROR - Failed to update conversation metadata:', error);
         throw error;
@@ -274,7 +254,7 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
 
   const loadConversation = async (conversationId: string): Promise<void> => {
-    if (!user || user.role !== 'directeur') {
+    if (!user || !PermissionManager.canLoadConversations(user)) {
       throw new Error('Seuls les directeurs peuvent charger des conversations');
     }
 
@@ -304,11 +284,6 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
       const messagesSnapshot = await getDocs(messagesQuery);
       
-      console.log('📥 FIREBASE LOAD - Initial messages loaded from Firebase:', {
-        conversationId: conversationId,
-        snapshotSize: messagesSnapshot.docs.length,
-        timestamp: new Date().toISOString()
-      });
       
       const messagesData = messagesSnapshot.docs.map(doc => {
         const data = doc.data();
@@ -331,7 +306,6 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({ 
             message.graphData = data.graphData;
           } else {
             // Remove invalid graph data
-            console.warn('Removing invalid graph data from message:', doc.id);
             message.contentType = message.contentType === 'graph' ? 'text' : message.contentType;
           }
         }
@@ -339,24 +313,24 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         return message;
       });
 
-        // Remove duplicates based on ID first, then content and timestamp
-        const uniqueMessages = messagesData.filter((message, index, array) => {
-          // First check for exact ID duplicates
-          const idDuplicate = array.findIndex(m => m.id === message.id);
-          if (idDuplicate !== index) {
-            return false;
-          }
-          
-          // Then check for content duplicates within a reasonable time window
-          const contentDuplicate = array.findIndex(m => 
-            m.id !== message.id && // Different ID
-            m.content === message.content && 
-            m.type === message.type && 
-            Math.abs(m.timestamp.getTime() - message.timestamp.getTime()) < 5000 // Within 5 seconds
-          );
-          
-          return contentDuplicate === -1;
-        });
+      // Remove duplicates based on ID first, then content and timestamp
+      const uniqueMessages = messagesData.filter((message, index, array) => {
+        // First check for exact ID duplicates
+        const idDuplicate = array.findIndex(m => m.id === message.id);
+        if (idDuplicate !== index) {
+          return false;
+        }
+        
+        // Then check for content duplicates within a reasonable time window
+        const contentDuplicate = array.findIndex(m => 
+          m.id !== message.id && // Different ID
+          m.content === message.content && 
+          m.type === message.type && 
+          Math.abs(m.timestamp.getTime() - message.timestamp.getTime()) < 5000 // Within 5 seconds
+        );
+        
+        return contentDuplicate === -1;
+      });
 
       setMessages(uniqueMessages.reverse()); // Reverse to show oldest first
       setHasMoreMessages(messagesSnapshot.docs.length === 20);
@@ -391,7 +365,6 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({ 
             if (data.graphData.data && Array.isArray(data.graphData.data) && data.graphData.data.length > 0) {
               message.graphData = data.graphData;
             } else {
-              console.warn('Removing invalid graph data from message:', doc.id);
               message.contentType = message.contentType === 'graph' ? 'text' : message.contentType;
             }
           }
@@ -471,7 +444,6 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({ 
             message.graphData = data.graphData;
           } else {
             // Remove invalid graph data
-            console.warn('Removing invalid graph data from message:', doc.id);
             message.contentType = message.contentType === 'graph' ? 'text' : message.contentType;
           }
         }
@@ -504,10 +476,6 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     try {
       setError(null);
       
-      console.log('💾 FIREBASE SAVE - Updating conversation title:', {
-        conversationId: conversationId,
-        newTitle: title.trim()
-      });
       
       try {
         const conversationRef = doc(db, 'conversations', conversationId);
@@ -515,7 +483,6 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({ 
           title: title.trim(),
           updatedAt: serverTimestamp()
         });
-        console.log('✅ FIREBASE SAVE - Conversation title updated successfully');
       } catch (error) {
         console.error('❌ FIREBASE SAVE ERROR - Failed to update conversation title:', error);
         throw error;

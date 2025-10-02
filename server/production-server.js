@@ -14,11 +14,13 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Middleware
+const corsOrigins = process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',') : ['*'];
 app.use(cors({
-  origin: process.env.CORS_ORIGIN || '*',
+  origin: corsOrigins,
   credentials: true
 }));
-app.use(express.json());
+app.use(express.json({ limit: '50mb' })); // Increase payload limit for large images
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 // Import the AI handlers (CommonJS modules)
 import { createRequire } from 'module';
@@ -27,9 +29,19 @@ const require = createRequire(import.meta.url);
 const askHandler = require('../api/ai/ask.js');
 const healthHandler = require('../api/ai/health.js');
 
+// OCR handlers
+const ocrExtractHandler = require('../api/ocr/extractText.js');
+const ocrPdfExtractHandler = require('../api/ocr/extractPdfText.js');
+const ocrHealthHandler = require('../api/ocr/health.js');
+
 // API Routes
 app.post('/api/ai/ask', askHandler);
 app.get('/api/ai/health', healthHandler);
+
+// OCR routes
+app.post('/api/ocr/extract', ocrExtractHandler);
+app.post('/api/ocr/extractPdfText', ocrPdfExtractHandler);
+app.get('/api/ocr/health', ocrHealthHandler);
 
 // Health check endpoint
 app.get('/health', (req, res) => {
@@ -61,6 +73,9 @@ app.get('*', (req, res) => {
     availableEndpoints: [
       'POST /api/ai/ask',
       'GET /api/ai/health',
+      'POST /api/ocr/extract',
+      'POST /api/ocr/extractPdfText',
+      'GET /api/ocr/health',
       'GET /health'
     ]
   });
@@ -72,6 +87,10 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(`📡 AI endpoints available at:`);
   console.log(`   - POST /api/ai/ask`);
   console.log(`   - GET  /api/ai/health`);
+  console.log(`📡 OCR endpoints available at:`);
+  console.log(`   - POST /api/ocr/extract`);
+  console.log(`   - POST /api/ocr/extractPdfText`);
+  console.log(`   - GET  /api/ocr/health`);
   console.log(`   - GET  /health`);
   console.log(`   - GET  /test`);
   console.log(`🌐 CORS Origin: ${process.env.CORS_ORIGIN || 'All origins allowed'}`);

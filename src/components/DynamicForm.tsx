@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Form, FormField, FileAttachment } from '../types';
 import { Button } from './Button';
 import { Input } from './Input';
@@ -11,16 +11,18 @@ import { useAuth } from '../contexts/AuthContext';
 import { useApp } from '../contexts/AppContext';
 import { db, auth } from '../firebaseConfig';
 import { doc, getDoc } from 'firebase/firestore';
-import { Upload, CheckCircle, AlertCircle, X, Clock, AlertTriangle, Loader2, Calculator, Trash2 } from 'lucide-react';
+import { CheckCircle, Clock, AlertTriangle, Loader2, Calculator, Trash2 } from 'lucide-react';
 import { useToast } from '../hooks/useToast';
 import { ExpressionCalculator } from '../utils/ExpressionCalculator';
+import { TextExtractionModal } from './modals/TextExtractionModal';
+import { ConditionalLogicEvaluator } from '../utils/ConditionalLogicEvaluator';
 
 interface DynamicFormProps {
   form: Form;
-  onSubmit: (answers: Record<string, any>, fileAttachments?: any[]) => void;
+  onSubmit: (answers: Record<string, unknown>, fileAttachments?: FileAttachment[]) => void;
   onCancel: () => void;
-  initialAnswers?: Record<string, any>;
-  initialFileAttachments?: any[];
+  initialAnswers?: Record<string, unknown>;
+  initialFileAttachments?: FileAttachment[];
   isDraft?: boolean;
   isEditMode?: boolean;
   isLoading?: boolean;
@@ -35,15 +37,59 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
   isDraft = false,
   isEditMode = false,
   isLoading = false
-}) => {
+}: DynamicFormProps) => {
   const { user } = useAuth();
   const { submitFormEntry } = useApp();
   const { showError, showSuccess } = useToast();
-  const [answers, setAnswers] = useState<Record<string, any>>(initialAnswers);
+  const [answers, setAnswers] = useState<Record<string, unknown>>(initialAnswers);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [fileAttachments, setFileAttachments] = useState<FileAttachment[]>(initialFileAttachments);
+  const [originalFiles, setOriginalFiles] = useState<Map<string, File>>(new Map());
   const [uploadProgress, setUploadProgress] = useState<Record<string, UploadProgress>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [visibleFields, setVisibleFields] = useState<string[]>(form.fields.map((f: FormField) => f.id));
+  
+  // Function to update visible fields based on conditional logic
+  const updateVisibleFields = useCallback((currentAnswers: Record<string, unknown>) => {
+    const visible = ConditionalLogicEvaluator.getVisibleFields(form.fields, currentAnswers);
+    
+    
+    setVisibleFields(visible);
+  }, [form.fields]);
+
+  // Update visible fields when answers or form.fields change
+  useEffect(() => {
+    updateVisibleFields(answers);
+  }, [answers, form.fields, updateVisibleFields]);
+  
+  // Text extraction modal state
+  const [textExtractionModal, setTextExtractionModal] = useState<{
+    isOpen: boolean;
+    fileName: string;
+    extractedText: string;
+    extractionStatus: 'completed' | 'failed';
+    confidence?: number;
+    error?: string;
+    fileSize: number;
+    engine?: string;
+    pages?: number; // For PDF files
+    fileType?: 'image' | 'pdf'; // To distinguish between image and PDF
+    extractionStats?: {
+      totalCharacters: number;
+      totalWords: number;
+      averageWordsPerPage: number;
+      extractionTime: number;
+      tablesDetected: number;
+    };
+    pendingSubmission?: boolean; // Track if we're waiting for user to proceed
+  }>({
+    isOpen: false,
+    fileName: '',
+    extractedText: '',
+    extractionStatus: 'failed',
+    fileSize: 0,
+    pendingSubmission: false
+  });
   
 
   const formatTimeRestrictions = (restrictions?: {
@@ -106,7 +152,7 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
     return true;
   };
 
-  const handleFieldChange = (fieldId: string, value: any) => {
+  const handleFieldChange = (fieldId: string, value: unknown) => {
     setAnswers(prev => {
       const newAnswers = {
         ...prev,
@@ -115,7 +161,19 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
       
       // Recalculate all calculated fields that depend on this field
       const updatedAnswers = recalculateDependentFields(fieldId, newAnswers);
-      return updatedAnswers;
+      
+      // Update visible fields based on new answers
+      const newVisibleFields = ConditionalLogicEvaluator.getVisibleFields(form.fields, updatedAnswers);
+      
+      // Clear values for fields that are no longer visible
+      const cleanedAnswers = { ...updatedAnswers };
+      form.fields.forEach((field: FormField) => {
+        if (!newVisibleFields.includes(field.id) && field.id !== fieldId) {
+          delete cleanedAnswers[field.id];
+        }
+      });
+      
+      return cleanedAnswers;
     });
     
     // Supprimer l'erreur si le champ est rempli
@@ -128,10 +186,10 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
   };
 
   // Function to recalculate all calculated fields
-  const recalculateAllCalculatedFields = (currentAnswers: Record<string, any>): Record<string, any> => {
+  const recalculateAllCalculatedFields = useCallback((currentAnswers: Record<string, unknown>): Record<string, unknown> => {
     const updatedAnswers = { ...currentAnswers };
     
-    form.fields.forEach(field => {
+    form.fields.forEach((field: FormField) => {
       if (field.type === 'calculated' && field.calculationFormula) {
         try {
           const calculatedValue = ExpressionCalculator.evaluate(field.calculationFormula, updatedAnswers, form.fields);
@@ -144,13 +202,13 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
     });
     
     return updatedAnswers;
-  };
+  }, [form.fields]);
 
   // Function to recalculate fields that depend on a changed field
-  const recalculateDependentFields = (changedFieldId: string, currentAnswers: Record<string, any>): Record<string, any> => {
+  const recalculateDependentFields = useCallback((changedFieldId: string, currentAnswers: Record<string, unknown>): Record<string, unknown> => {
     const updatedAnswers = { ...currentAnswers };
     
-    form.fields.forEach(field => {
+    form.fields.forEach((field: FormField) => {
       if (field.type === 'calculated' && field.calculationFormula) {
         // Check if this calculated field depends on the changed field
         const dependsOnChangedField = field.dependsOn?.includes(changedFieldId);
@@ -171,7 +229,7 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
     });
     
     return updatedAnswers;
-  };
+  }, [form.fields]);
 
   // Initialize answers and recalculate when initialAnswers change
   useEffect(() => {
@@ -182,9 +240,15 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
   useEffect(() => {
     if (Object.keys(answers).length > 0) {
       const recalculatedAnswers = recalculateAllCalculatedFields(answers);
-      setAnswers(recalculatedAnswers);
+      // Only update if there are actual changes to prevent infinite loops
+      const hasChanges = Object.keys(recalculatedAnswers).some(key => 
+        recalculatedAnswers[key] !== answers[key]
+      );
+      if (hasChanges) {
+        setAnswers(recalculatedAnswers);
+      }
     }
-  }, [form.fields]); // Recalculate when form fields change
+  }, [form.fields, recalculateAllCalculatedFields]); // Remove answers from dependencies to prevent infinite loop
 
   const handleFileUpload = async (fieldId: string, file: File | null) => {
     if (!file || !user) return;
@@ -201,13 +265,13 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
         }
       }));
 
+      // Store original file for later Firebase upload
+      setOriginalFiles(prev => new Map(prev).set(fieldId, file));
+
       // Process file locally (extract text, no Firebase upload yet)
-        const attachment = await FileUploadService.uploadFile(
+        const attachment = await FileUploadService.processFile(
           file,
           fieldId,
-          form.id,
-          user?.id || '',
-          user?.agencyId || '',
           (progress) => {
             setUploadProgress(prev => ({
               ...prev,
@@ -215,22 +279,34 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
             }));
           },
           (pdfResult) => {
-            
-            // Show success message for PDF extraction
-            if (pdfResult.extractionStatus === 'completed') {
-              showSuccess(`PDF "${pdfResult.fileName}" analysé avec succès (${pdfResult.extractedText.length} caractères extraits)`);
-            } else {
-              showError(`Échec de l'analyse du PDF "${pdfResult.fileName}": ${pdfResult.error || 'Erreur inconnue'}`);
-            }
+            // Show text extraction modal for PDFs as well
+            setTextExtractionModal({
+              isOpen: true,
+              fileName: pdfResult.fileName,
+              extractedText: pdfResult.extractedText,
+              extractionStatus: pdfResult.extractionStatus,
+              error: pdfResult.error,
+              fileSize: pdfResult.fileSize,
+              pages: pdfResult.pages,
+              fileType: 'pdf',
+              extractionStats: pdfResult.extractionStats,
+              pendingSubmission: true // Mark as part of submission flow
+            });
           },
           (imageResult) => {
-            
-            // Show success message for image extraction
-            if (imageResult.extractionStatus === 'completed') {
-              showSuccess(`Image "${imageResult.fileName}" analysée avec succès (${imageResult.extractedText.length} caractères extraits, confiance: ${imageResult.confidence?.toFixed(1)}%)`);
-            } else {
-              showError(`Échec de l'analyse de l'image "${imageResult.fileName}": ${imageResult.error || 'Erreur inconnue'}`);
-            }
+            // Show text extraction modal as part of form submission flow
+            setTextExtractionModal({
+              isOpen: true,
+              fileName: imageResult.fileName,
+              extractedText: imageResult.extractedText,
+              extractionStatus: imageResult.extractionStatus,
+              confidence: imageResult.confidence,
+              error: imageResult.error,
+              fileSize: imageResult.fileSize,
+              engine: imageResult.engine,
+              fileType: 'image',
+              pendingSubmission: true // Mark as part of submission flow
+            });
           }
         );
 
@@ -280,6 +356,13 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
     // Remove from attachments
     setFileAttachments(prev => prev.filter(att => att.fieldId !== fieldId));
     
+    // Remove from original files
+    setOriginalFiles(prev => {
+      const newFiles = new Map(prev);
+      newFiles.delete(fieldId);
+      return newFiles;
+    });
+    
     // Clear answer
     setAnswers(prev => ({
       ...prev,
@@ -296,13 +379,56 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
 
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
-    
-    form.fields.forEach(field => {
-      if (field.required && (!answers[field.id] || answers[field.id].toString().trim() === '')) {
+ 
+    form.fields.forEach((field: FormField) => {
+      const value = answers[field.id];
+
+      if (field.required) {
+        if (field.type === 'file') {
+          // For file fields, check for null/undefined or missing required file properties
+          if (
+            !value ||
+            typeof value !== 'object' ||
+            !('uploaded' in value) ||
+            !value.uploaded
+          ) {
+            newErrors[field.id] = `${field.label} est obligatoire`;
+          }
+        } else if (field.type === 'textarea') {
+          // For textarea, check for empty string or only whitespace
+          if (
+            value === undefined ||
+            value === null ||
+            (typeof value === 'string' && value.trim() === '')
+          ) {
+            newErrors[field.id] = `${field.label} est obligatoire`;
+          }
+        } else if (field.type === 'email') {
+          // For email, check for empty and valid email format
+          if (
+            value === undefined ||
+            value === null ||
+            (typeof value === 'string' && value.trim() === '')
+          ) {
+            newErrors[field.id] = `${field.label} est obligatoire`;
+          } else if (
+            typeof value === 'string' &&
+            !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim())
+          ) {
+            newErrors[field.id] = `${field.label} doit être une adresse email valide`;
+          }
+        } else {
+          // For other fields, check for empty string or falsy value
+          if (
+            value === undefined ||
+            value === null ||
+            (typeof value === 'string' && value.trim() === '')
+          ) {
         newErrors[field.id] = `${field.label} est obligatoire`;
+          }
+        }
       }
     });
-    
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -340,11 +466,57 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
           }
           const userData = userDoc.data();
 
+          // Upload files to Firebase Storage if there are any
+          let updatedFileAttachments = fileAttachments;
+          if (fileAttachments.length > 0) {
+            
+            // Get files that need to be uploaded (those without downloadUrl)
+            const filesToUpload = fileAttachments
+              .filter(attachment => !attachment.downloadUrl)
+              .map(attachment => {
+                const originalFile = originalFiles.get(attachment.fieldId);
+                if (!originalFile) {
+                  throw new Error(`Original file not found for field ${attachment.fieldId}`);
+                }
+                return {
+                  file: originalFile,
+                  fieldId: attachment.fieldId
+                };
+              });
+
+            if (filesToUpload.length > 0) {
+              // Upload files to Firebase Storage
+              const uploadResults = await FileUploadService.uploadFilesToFirebase(
+                filesToUpload,
+                form.id,
+                currentUser.uid,
+                userData.agencyId,
+                () => {
+                  // Progress callback - could be used for progress indicators in the future
+                }
+              );
+
+              // Update file attachments with Firebase Storage URLs
+              updatedFileAttachments = fileAttachments.map(attachment => {
+                const uploadResult = uploadResults.find(result => result.fieldId === attachment.fieldId);
+                if (uploadResult) {
+                  return {
+                    ...attachment,
+                    downloadUrl: uploadResult.downloadUrl,
+                    storagePath: uploadResult.storagePath
+                  };
+                }
+                return attachment;
+              });
+
+            }
+          }
+
           // Submit to Firebase via AppContext
           const formEntryData = {
             formId: form.id,
             answers: answers,
-            fileAttachments: fileAttachments
+            fileAttachments: updatedFileAttachments
           };
 
           // Submit to Firebase via AppContext
@@ -364,11 +536,19 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
     }
   };
 
+  const handleProceedWithSubmission = () => {
+    // Close the modal and allow user to continue filling the form
+    setTextExtractionModal(prev => ({ ...prev, isOpen: false, pendingSubmission: false }));
+    
+    // Show a success message to inform user they can continue
+    showSuccess('Texte extrait avec succès ! Vous pouvez continuer à remplir le formulaire.');
+  };
+
   const renderField = (field: FormField) => {
     const commonProps = {
       label: field.label + (field.required ? ' *' : ''),
       placeholder: field.placeholder,
-      value: answers[field.id] || '',
+      value: String(answers[field.id] || ''),
       error: errors[field.id],
     };
 
@@ -378,7 +558,7 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
           <Textarea 
             key={field.id} 
             {...commonProps}
-            onChange={(e) => handleFieldChange(field.id, e.target.value)}
+            onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => handleFieldChange(field.id, e.target.value)}
           />
         );
       
@@ -388,7 +568,18 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
             key={field.id}
             {...commonProps}
             type="number"
-            onChange={(e) => handleFieldChange(field.id, parseFloat(e.target.value) || '')}
+            value={
+              typeof answers[field.id] === 'number' || answers[field.id] === ''
+                ? String(answers[field.id])
+                : ''
+            }
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+              const val = e.target.value;
+              handleFieldChange(
+                field.id,
+                val === '' ? '' : isNaN(Number(val)) ? '' : Number(val)
+              );
+            }}
           />
         );
       
@@ -398,7 +589,7 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
             key={field.id} 
             {...commonProps} 
             type="email"
-            onChange={(e) => handleFieldChange(field.id, e.target.value)}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleFieldChange(field.id, e.target.value)}
           />
         );
       
@@ -408,7 +599,7 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
             key={field.id} 
             {...commonProps} 
             type="date"
-            onChange={(e) => handleFieldChange(field.id, e.target.value)}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleFieldChange(field.id, e.target.value)}
           />
         );
       
@@ -419,9 +610,9 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
             {...commonProps}
             options={[
               { value: '', label: 'Sélectionner...' },
-              ...(field.options || []).map(option => ({ value: option, label: option }))
+              ...(field.options || []).map((option: string) => ({ value: option, label: option }))
             ]}
-            onChange={(e) => handleFieldChange(field.id, e.target.value)}
+            onChange={(e: React.ChangeEvent<HTMLSelectElement>) => handleFieldChange(field.id, e.target.value)}
           />
         );
       
@@ -431,8 +622,8 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
             <input
               type="checkbox"
               id={field.id}
-              checked={answers[field.id] || false}
-              onChange={(e) => handleFieldChange(field.id, e.target.checked)}
+              checked={Boolean(answers[field.id])}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleFieldChange(field.id, e.target.checked)}
               className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
             />
             <label htmlFor={field.id} className="text-sm font-medium text-gray-700">
@@ -444,8 +635,12 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
           </div>
         );
       
-      case 'file':
-        const fileAnswer = answers[field.id];
+      case 'file': {
+        const fileAnswer = answers[field.id] as {
+          fileName?: string;
+          fileSize?: number;
+          uploaded?: boolean;
+        } | null | undefined;
         const progress = uploadProgress[field.id];
         
         return (
@@ -459,7 +654,7 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
               <FileInput
                 label=""
                 value={null}
-                onChange={(file) => handleFileUpload(field.id, file)}
+                onChange={(file: File | null) => handleFileUpload(field.id, file)}
                 placeholder={field.placeholder}
                 error={errors[field.id]}
                 required={field.required}
@@ -476,7 +671,7 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
                     <CheckCircle className="h-4 w-4 text-green-600" />
                     <span className="text-sm text-gray-700">{fileAnswer.fileName}</span>
                     <span className="text-xs text-gray-500">
-                      ({FileUploadService.formatFileSize(fileAnswer.fileSize)})
+                      ({FileUploadService.formatFileSize(fileAnswer.fileSize || 0)})
                     </span>
                   </div>
                   <button
@@ -493,18 +688,19 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
             
           </div>
         );
+      }
       
-      case 'calculated':
+      case 'calculated': {
         const calculatedValue = answers[field.id] || 0;
         const dependentFields = field.dependsOn || [];
-        const dependentFieldLabels = dependentFields
-          .map(fieldId => form.fields.find(f => f.id === fieldId)?.label)
-          .filter(Boolean);
+        // const dependentFieldLabels = dependentFields
+        //   .map(fieldId => form.fields.find(f => f.id === fieldId)?.label)
+        //   .filter(Boolean);
         
         // Get current values of dependent fields for display
         const dependentFieldValues = dependentFields.map(fieldId => {
           const value = answers[fieldId];
-          const field = form.fields.find(f => f.id === fieldId);
+          const field = form.fields.find((f: FormField) => f.id === fieldId);
           return { id: fieldId, label: field?.label || fieldId, value: value || 0 };
         });
         
@@ -528,7 +724,7 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
                           {dependentFieldValues.map(({ label, value }) => (
                             <div key={label} className="flex justify-between">
                               <span>{label}:</span>
-                              <span className="font-mono">{value}</span>
+                              <span className="font-mono">{String(value)}</span>
                             </div>
                           ))}
                         </div>
@@ -536,7 +732,7 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
                     )}
                     <div className="pt-1 border-t border-blue-200">
                       <span className="font-medium">Résultat :</span>
-                      <span className="font-mono ml-2 text-lg font-bold">{calculatedValue}</span>
+                      <span className="font-mono ml-2 text-lg font-bold">{String(calculatedValue)}</span>
                     </div>
                   </div>
                 </div>
@@ -547,31 +743,33 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
               <Input
                 {...commonProps}
                 type="number"
-                value={calculatedValue}
+                value={String(calculatedValue)}
                 readOnly
-                className="bg-gray-50 border-gray-300 pr-10"
+                className="bg-gray-50 border-gray-300 pr-10 w-full"
                 placeholder="Calculé automatiquement"
+                aria-label="Valeur calculée"
               />
               <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
                 <Calculator className="h-4 w-4 text-gray-400" />
               </div>
             </div>
-            
             {errors[field.id] && (
               <span className="text-sm text-red-600">{errors[field.id]}</span>
             )}
           </div>
         );
+      }
       
-      default:
+      default: {
         return (
           <Input 
             key={field.id} 
             {...commonProps} 
             type="text"
-            onChange={(e) => handleFieldChange(field.id, e.target.value)}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleFieldChange(field.id, e.target.value)}
           />
         );
+      }
     }
   };
 
@@ -668,7 +866,12 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
             </div>
           )}
 
-          {form.fields.map(field => renderField(field))}
+          {(() => {
+            const visibleFieldsToRender = form.fields.filter((field: FormField) => visibleFields.includes(field.id));
+            
+            
+            return visibleFieldsToRender.map((field: FormField) => renderField(field));
+          })()}
 
           <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 pt-4 sm:pt-6 border-t border-gray-200">
             <Button 
@@ -702,6 +905,22 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
         </form>
       </Card>
       
+      {/* Text Extraction Modal */}
+      <TextExtractionModal
+        isOpen={textExtractionModal.isOpen}
+        onClose={() => setTextExtractionModal(prev => ({ ...prev, isOpen: false }))}
+        onProceed={handleProceedWithSubmission}
+        fileName={textExtractionModal.fileName}
+        extractedText={textExtractionModal.extractedText}
+        extractionStatus={textExtractionModal.extractionStatus}
+        confidence={textExtractionModal.confidence}
+        error={textExtractionModal.error}
+        fileSize={textExtractionModal.fileSize}
+        engine={textExtractionModal.engine}
+        pages={textExtractionModal.pages}
+        fileType={textExtractionModal.fileType}
+        extractionStats={textExtractionModal.extractionStats}
+      />
       
     </div>
   );

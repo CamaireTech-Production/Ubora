@@ -25,9 +25,8 @@ export class ChartToImage {
         
         // Scale the context for high DPI
         ctx.scale(scale, scale);
-        
-        // Enable text antialiasing and high quality rendering
-        ctx.textRenderingOptimization = 'optimizeQuality';
+
+        // Enable high quality image smoothing
         ctx.imageSmoothingEnabled = true;
         ctx.imageSmoothingQuality = 'high';
 

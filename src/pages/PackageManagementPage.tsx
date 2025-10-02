@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { useApp } from '../contexts/AppContext';
 import { usePackageAccess } from '../hooks/usePackageAccess';
-import { TokenService } from '../services/tokenService';
 import { Layout } from '../components/Layout';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
@@ -13,6 +13,10 @@ import {
   PACKAGE_FEATURES,
   PackageType 
 } from '../config/packageFeatures';
+import { SubscriptionSessionService } from '../services/subscriptionSessionService';
+import { PackageTransitionService, UserNeeds } from '../services/packageTransitionService';
+import { UserSessionService } from '../services/userSessionService';
+import { PackageTransitionPriceExplanation } from '../components/PackageTransitionPriceExplanation';
 import { 
   Check, 
   X, 
@@ -25,23 +29,26 @@ import {
   Users,
   BarChart3,
   Brain,
-  Plus,
+  FileText,
   AlertTriangle
 } from 'lucide-react';
 import { useToast } from '../hooks/useToast';
-import { Toast } from '../components/Toast';
 import { PaymentModal } from '../components/PaymentModal';
 import { PayAsYouGoService } from '../services/payAsYouGoService';
-import { doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 
 export const PackageManagementPage: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { packageType, getMonthlyTokens, hasUnlimitedTokens } = usePackageAccess();
-  const { toast, showSuccess, showError } = useToast();
+  const { forms, dashboards, employees } = useApp();
+  const { packageType } = usePackageAccess();
+  const { showSuccess, showError } = useToast();
   const [selectedPackage, setSelectedPackage] = useState<PackageType | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [showTransitionPreview, setShowTransitionPreview] = useState(false);
+  const [transitionPreview, setTransitionPreview] = useState<any>(null);
+  const [userNeeds, setUserNeeds] = useState<UserNeeds>({});
   const [paymentModal, setPaymentModal] = useState<{
     isOpen: boolean;
     type: 'tokens' | 'forms' | 'dashboards' | 'users';
@@ -52,14 +59,14 @@ export const PackageManagementPage: React.FC = () => {
     currentLimit: 0
   });
 
-  const packages: PackageType[] = ['starter', 'standard', 'premium', 'custom'];
+  const packages: PackageType[] = ['starter', 'standard', 'premium' /* , 'custom' */];
 
   const getPackageIcon = (pkg: PackageType) => {
     switch (pkg) {
       case 'starter': return <Zap className="h-6 w-6" />;
       case 'standard': return <Star className="h-6 w-6" />;
       case 'premium': return <Crown className="h-6 w-6" />;
-      case 'custom': return <Shield className="h-6 w-6" />;
+      /* case 'custom': return <Shield className="h-6 w-6" />; */
     }
   };
 
@@ -68,7 +75,7 @@ export const PackageManagementPage: React.FC = () => {
       case 'starter': return 'text-blue-600 bg-blue-100';
       case 'standard': return 'text-green-600 bg-green-100';
       case 'premium': return 'text-purple-600 bg-purple-100';
-      case 'custom': return 'text-orange-600 bg-orange-100';
+      /* case 'custom': return 'text-orange-600 bg-orange-100'; */
     }
   };
 
@@ -92,27 +99,63 @@ export const PackageManagementPage: React.FC = () => {
     }
 
     setSelectedPackage(pkg);
+    
+    // Automatically calculate transition based on current usage
+    const currentSession = SubscriptionSessionService.getCurrentSession(user);
+    const currentUsage = {
+      forms: currentSession?.usage?.formsCreated || 0,
+      dashboards: currentSession?.usage?.dashboardsCreated || 0,
+      users: currentSession?.usage?.usersAdded || 0,
+      tokens: currentSession?.usage?.tokensUsed || 0
+    };
+    
+    // Get enhanced transition preview with current usage
+    const preview = PackageTransitionService.getEnhancedTransitionPreview(
+      user, 
+      pkg, 
+      currentUsage
+    );
+    
+    if (preview) {
+      setTransitionPreview(preview);
+      setUserNeeds(currentUsage);
+      setShowTransitionPreview(true);
+    } else {
+      showError('Impossible de calculer la transition. Veuillez réessayer.');
+    }
+  };
+
+
+  const confirmTransition = async () => {
+    if (!selectedPackage || !user) return;
+
     setIsProcessing(true);
+    setShowTransitionPreview(false);
 
     try {
       // Simulation de paiement
       await new Promise(resolve => setTimeout(resolve, 2000));
       
-      // Mettre à jour le package dans Firestore
-      const userRef = doc(db, 'users', user.id);
-      const activationDate = new Date();
-      await updateDoc(userRef, {
-        package: pkg,
-        subscriptionStartDate: activationDate, // Set activation date to current date
-        updatedAt: new Date()
-      });
+      // Execute transition using the enhanced service
+      const success = await PackageTransitionService.executeTransition(
+        user.id,
+        selectedPackage,
+        {
+          preserveUnusedPayAsYouGo: true
+        },
+        'simulation' // Payment method
+      );
       
-      showSuccess(`Package ${getPackageDisplayName(pkg)} activé avec succès !`);
-      
-      // Navigate back to the previous page instead of reloading
-      setTimeout(() => {
-        navigate(-1); // Go back to the previous page
-      }, 1500);
+      if (success) {
+        showSuccess(`Package ${getPackageDisplayName(selectedPackage)} activé avec succès !`);
+        
+        // Navigate back to the previous page instead of reloading
+        setTimeout(() => {
+          navigate(-1); // Go back to the previous page
+        }, 1500);
+      } else {
+        showError('Erreur lors de l\'activation du package. Veuillez réessayer.');
+      }
       
     } catch (error) {
       console.error('Erreur lors du changement de package:', error);
@@ -120,8 +163,11 @@ export const PackageManagementPage: React.FC = () => {
     } finally {
       setIsProcessing(false);
       setSelectedPackage(null);
+      setTransitionPreview(null);
+      setUserNeeds({});
     }
   };
+
 
 
   const handlePurchaseResource = async (option: any) => {
@@ -138,8 +184,7 @@ export const PackageManagementPage: React.FC = () => {
         throw new Error('Utilisateur non trouvé');
       }
       
-      const userData = userDoc.data();
-      const currentPayAsYouGoResources = userData.payAsYouGoResources || {};
+      // No need to get user data since we're using SubscriptionSessionService
       
       if (option.id.startsWith('tokens-')) {
         // Handle token purchases using PayAsYouGoService
@@ -155,8 +200,8 @@ export const PackageManagementPage: React.FC = () => {
           throw new Error('Erreur lors de l\'achat des tokens');
         }
       } else {
-        // Handle other resource purchases
-        let resourceType: string;
+        // Handle other resource purchases using SubscriptionSessionService
+        let resourceType: 'forms' | 'dashboards' | 'users';
         let quantity: number;
         
         if (option.id.startsWith('forms-')) {
@@ -180,17 +225,23 @@ export const PackageManagementPage: React.FC = () => {
           throw new Error('Type de ressource non reconnu');
         }
         
-        // Add the new resource to the user's pay-as-you-go resources
-        if (!currentPayAsYouGoResources[resourceType]) {
-          currentPayAsYouGoResources[resourceType] = 0;
-        }
-        currentPayAsYouGoResources[resourceType] += quantity;
+        // Use SubscriptionSessionService to add pay-as-you-go resources to the active session
+        const purchase = {
+          itemType: resourceType,
+          quantity: quantity,
+          amountPaid: option.price,
+          purchaseDate: new Date(),
+          paymentMethod: 'card'
+        };
         
-        // Update the user document in Firebase
-        await updateDoc(userRef, {
-          payAsYouGoResources: currentPayAsYouGoResources,
-          updatedAt: serverTimestamp()
-        });
+        const success = await SubscriptionSessionService.addPayAsYouGoResources(
+          user.id,
+          purchase
+        );
+        
+        if (!success) {
+          throw new Error('Erreur lors de l\'ajout de la ressource');
+        }
       }
       
       showSuccess(`${option.name} acheté avec succès !`);
@@ -206,70 +257,52 @@ export const PackageManagementPage: React.FC = () => {
     setPaymentModal({ isOpen: true, type, currentLimit });
   };
 
-  // Calculate subscription days remaining
-  const subscriptionStartDate = user?.subscriptionStartDate || user?.createdAt;
-  let startDate: Date;
+  // Get current subscription session information
+  // Get package info from active session
+  const packageInfo = user ? UserSessionService.getUserPackageInfo(user) : null;
   
-  try {
-    if (subscriptionStartDate) {
-      startDate = subscriptionStartDate instanceof Date ? subscriptionStartDate : new Date(subscriptionStartDate);
-      // Check if the date is valid
-      if (isNaN(startDate.getTime())) {
-        startDate = new Date(); // Fallback to current date
-      }
-    } else {
-      startDate = new Date(); // Fallback to current date
-    }
-  } catch (error) {
-    startDate = new Date(); // Fallback to current date
-  }
-  
-  // Calculate days since activation and days remaining
-  const now = new Date();
-  const daysSinceActivation = Math.floor((now.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
-  
-  // Calculate the next renewal date (30 days from activation, then every 30 days)
-  const nextRenewalDate = new Date(startDate);
-  const cyclesPassed = Math.floor(daysSinceActivation / 30);
-  nextRenewalDate.setDate(startDate.getDate() + (cyclesPassed + 1) * 30);
-  
-  // Calculate days remaining until next renewal
-  const daysRemaining = Math.max(1, Math.ceil((nextRenewalDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
-  const isNearRenewal = daysRemaining <= 7;
+  // Get subscription details from package info
+  const daysRemaining = packageInfo?.daysRemaining || 0;
+  const isNearRenewal = daysRemaining <= 7 && daysRemaining > 0;
+  const startDate = packageInfo?.subscriptionStartDate || new Date();
+  const nextRenewalDate = packageInfo?.subscriptionEndDate || new Date();
 
   return (
     <Layout title="Gestion des Packages">
       <div className="max-w-6xl mx-auto space-y-8 px-4">
         {/* Header with back button */}
-        <div className="flex items-center space-x-4">
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => navigate('/directeur/dashboard')}
-            className="flex items-center space-x-1"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            <span>Retour</span>
-          </Button>
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">
-              Gestion des Packages
-            </h1>
-            <p className="text-gray-600">
-              Gérez votre abonnement et vos ressources supplémentaires
-            </p>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-4">
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => navigate('/directeur/dashboard')}
+              className="flex items-center space-x-1"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              <span>Retour</span>
+            </Button>
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">
+                Gestion des Packages
+              </h1>
+              <p className="text-gray-600">
+                Gérez votre abonnement et vos ressources supplémentaires
+              </p>
+            </div>
           </div>
+          
         </div>
 
         {/* Current Package Status */}
-        {user && packageType && (
+        {user && packageInfo && (
           <Card className="p-6 bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200">
             <div className="flex items-center justify-between mb-4">
               <div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                  Package Actuel: {getPackageDisplayName(packageType)}
+                  Package Actuel: {getPackageDisplayName(packageInfo.packageType!)}
                 </h3>
-                <p className="text-gray-600">{getPackagePrice(packageType)}</p>
+                <p className="text-gray-600">{getPackagePrice(packageInfo.packageType!)}</p>
               </div>
               <div className="text-right">
                 <div className={`text-sm font-semibold ${isNearRenewal ? 'text-orange-600' : 'text-gray-900'}`}>
@@ -298,19 +331,144 @@ export const PackageManagementPage: React.FC = () => {
               </div>
             </div>
             
+            {/* Resource Usage Overview */}
+            <div className="mb-4 p-4 bg-white rounded-lg border border-gray-200">
+              <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center">
+                <BarChart3 className="h-4 w-4 mr-2" />
+                Utilisation des Ressources
+              </h4>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {/* Tokens */}
+                <div className="text-center">
+                  <div className="flex items-center justify-center mb-2">
+                    <Brain className="h-5 w-5 text-blue-500" />
+                  </div>
+                  <div className="text-lg font-semibold text-gray-900">
+                    {(() => {
+                      const sessionInfo = UserSessionService.getUserPackageInfo(user);
+                      if (sessionInfo.totalTokens === -1) {
+                        return 'Illimité';
+                      }
+                      return sessionInfo.tokensRemaining.toLocaleString();
+                    })()}
+                  </div>
+                  <div className="text-xs text-gray-500">
+                    {(() => {
+                      const sessionInfo = UserSessionService.getUserPackageInfo(user);
+                      if (sessionInfo.totalTokens === -1) {
+                        return `${sessionInfo.tokensUsed.toLocaleString()} utilisés sur Illimité`;
+                      }
+                      const packageTokens = sessionInfo.packageTokens;
+                      const payAsYouGoTokens = sessionInfo.payAsYouGoTokens;
+                      if (payAsYouGoTokens > 0) {
+                        return `${sessionInfo.tokensUsed.toLocaleString()} utilisés sur ${sessionInfo.totalTokens.toLocaleString()} (${packageTokens.toLocaleString()} + pay-as-you-go ${payAsYouGoTokens.toLocaleString()})`;
+                      }
+                      return `${sessionInfo.tokensUsed.toLocaleString()} / ${sessionInfo.totalTokens.toLocaleString()}`;
+                    })()}
+                  </div>
+                </div>
+
+                {/* Forms */}
+                <div className="text-center">
+                  <div className="flex items-center justify-center mb-2">
+                    <FileText className="h-5 w-5 text-green-500" />
+                  </div>
+                  <div className="text-lg font-semibold text-gray-900">
+                    {(() => {
+                      const sessionInfo = UserSessionService.getUserPackageInfo(user);
+                      const currentForms = forms.length; // Use actual current data
+                      if (sessionInfo.totalForms === -1) {
+                        return 'Illimité';
+                      }
+                      return (sessionInfo.totalForms - currentForms).toString();
+                    })()}
+                  </div>
+                  <div className="text-xs text-gray-500">
+                    {(() => {
+                      const sessionInfo = UserSessionService.getUserPackageInfo(user);
+                      const currentForms = forms.length; // Use actual current data
+                      if (sessionInfo.totalForms === -1) {
+                        return `${currentForms} formulaires sur Illimité`;
+                      }
+                      const packageForms = sessionInfo.packageForms;
+                      const payAsYouGoForms = sessionInfo.payAsYouGoForms;
+                      if (payAsYouGoForms > 0) {
+                        return `${currentForms} formulaires sur ${sessionInfo.totalForms} (${packageForms} + pay-as-you-go ${payAsYouGoForms})`;
+                      }
+                      return `${currentForms} / ${sessionInfo.totalForms}`;
+                    })()}
+                  </div>
+                </div>
+
+                {/* Dashboards */}
+                <div className="text-center">
+                  <div className="flex items-center justify-center mb-2">
+                    <BarChart3 className="h-5 w-5 text-purple-500" />
+                  </div>
+                  <div className="text-lg font-semibold text-gray-900">
+                    {(() => {
+                      const sessionInfo = UserSessionService.getUserPackageInfo(user);
+                      const currentDashboards = dashboards.length; // Use actual current data
+                      if (sessionInfo.totalDashboards === -1) {
+                        return 'Illimité';
+                      }
+                      return (sessionInfo.totalDashboards - currentDashboards).toString();
+                    })()}
+                  </div>
+                  <div className="text-xs text-gray-500">
+                    {(() => {
+                      const sessionInfo = UserSessionService.getUserPackageInfo(user);
+                      const currentDashboards = dashboards.length; // Use actual current data
+                      if (sessionInfo.totalDashboards === -1) {
+                        return `${currentDashboards} tableaux sur Illimité`;
+                      }
+                      const packageDashboards = sessionInfo.packageDashboards;
+                      const payAsYouGoDashboards = sessionInfo.payAsYouGoDashboards;
+                      if (payAsYouGoDashboards > 0) {
+                        return `${currentDashboards} tableaux sur ${sessionInfo.totalDashboards} (${packageDashboards} + pay-as-you-go ${payAsYouGoDashboards})`;
+                      }
+                      return `${currentDashboards} / ${sessionInfo.totalDashboards}`;
+                    })()}
+                  </div>
+                </div>
+
+                {/* Users */}
+                <div className="text-center">
+                  <div className="flex items-center justify-center mb-2">
+                    <Users className="h-5 w-5 text-orange-500" />
+                  </div>
+                  <div className="text-lg font-semibold text-gray-900">
+                    {(() => {
+                      const sessionInfo = UserSessionService.getUserPackageInfo(user);
+                      const currentUsers = employees.filter(emp => emp.isApproved !== false).length; // Use actual current data
+                      if (sessionInfo.totalUsers === -1) {
+                        return 'Illimité';
+                      }
+                      return (sessionInfo.totalUsers - currentUsers).toString();
+                    })()}
+                  </div>
+                  <div className="text-xs text-gray-500">
+                    {(() => {
+                      const sessionInfo = UserSessionService.getUserPackageInfo(user);
+                      const currentUsers = employees.filter(emp => emp.isApproved !== false).length; // Use actual current data
+                      if (sessionInfo.totalUsers === -1) {
+                        return `${currentUsers} utilisateurs sur Illimité`;
+                      }
+                      const packageUsers = sessionInfo.packageUsers;
+                      const payAsYouGoUsers = sessionInfo.payAsYouGoUsers;
+                      if (payAsYouGoUsers > 0) {
+                        return `${currentUsers} utilisateurs sur ${sessionInfo.totalUsers} (${packageUsers} + pay-as-you-go ${payAsYouGoUsers})`;
+                      }
+                      return `${currentUsers} / ${sessionInfo.totalUsers}`;
+                    })()}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Account Information */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
               <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-gray-600">Tokens restants:</span>
-                  <span className="font-medium">
-                    {(() => {
-                      const monthlyLimit = getMonthlyTokens();
-                      const isUnlimited = hasUnlimitedTokens();
-                      const remainingTokens = TokenService.getRemainingTokensWithPayAsYouGo(user, monthlyLimit);
-                      return isUnlimited ? 'Illimités' : remainingTokens.toLocaleString();
-                    })()}
-                  </span>
-                </div>
                 <div className="flex items-center justify-between">
                   <span className="text-gray-600">Agence:</span>
                   <span className="font-medium">{user.agencyId || 'N/A'}</span>
@@ -332,6 +490,99 @@ export const PackageManagementPage: React.FC = () => {
             </div>
           </Card>
         )}
+
+        {/* Current Pay-as-You-Go Resources */}
+        {(() => {
+          if (!user) return null;
+          
+          const sessionInfo = UserSessionService.getUserPackageInfo(user);
+          const hasPayAsYouGoResources = sessionInfo.payAsYouGoTokens > 0 || 
+                                        sessionInfo.payAsYouGoForms > 0 || 
+                                        sessionInfo.payAsYouGoDashboards > 0 || 
+                                        sessionInfo.payAsYouGoUsers > 0;
+          
+          if (!hasPayAsYouGoResources) return null;
+          
+          return (
+            <Card className="p-6 bg-gradient-to-r from-green-50 to-emerald-50 border-green-200">
+              <div className="text-center mb-6">
+                <h2 className="text-2xl font-bold text-gray-900 mb-2 flex items-center justify-center">
+                  <Zap className="h-6 w-6 mr-2 text-green-600" />
+                  Ressources Pay-as-You-Go Actives
+                </h2>
+                <p className="text-gray-600">
+                  Ressources supplémentaires que vous avez achetées en plus de votre package
+                </p>
+              </div>
+
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {/* Pay-as-You-Go Tokens */}
+                {sessionInfo.payAsYouGoTokens > 0 && (
+                  <div className="bg-white rounded-lg p-4 border border-green-200 text-center">
+                    <div className="inline-flex p-3 rounded-full bg-blue-100 text-blue-600 mb-3">
+                      <Brain className="h-6 w-6" />
+                    </div>
+                    <h3 className="font-semibold text-gray-900 mb-2">Tokens ARCHA</h3>
+                    <div className="text-2xl font-bold text-blue-600 mb-2">
+                      +{sessionInfo.payAsYouGoTokens.toLocaleString()}
+                    </div>
+                    <div className="text-sm text-gray-500">
+                      Tokens supplémentaires
+                    </div>
+                  </div>
+                )}
+
+                {/* Pay-as-You-Go Forms */}
+                {sessionInfo.payAsYouGoForms > 0 && (
+                  <div className="bg-white rounded-lg p-4 border border-green-200 text-center">
+                    <div className="inline-flex p-3 rounded-full bg-green-100 text-green-600 mb-3">
+                      <FileText className="h-6 w-6" />
+                    </div>
+                    <h3 className="font-semibold text-gray-900 mb-2">Formulaires</h3>
+                    <div className="text-2xl font-bold text-green-600 mb-2">
+                      +{sessionInfo.payAsYouGoForms}
+                    </div>
+                    <div className="text-sm text-gray-500">
+                      Formulaires supplémentaires
+                    </div>
+                  </div>
+                )}
+
+                {/* Pay-as-You-Go Dashboards */}
+                {sessionInfo.payAsYouGoDashboards > 0 && (
+                  <div className="bg-white rounded-lg p-4 border border-green-200 text-center">
+                    <div className="inline-flex p-3 rounded-full bg-purple-100 text-purple-600 mb-3">
+                      <BarChart3 className="h-6 w-6" />
+                    </div>
+                    <h3 className="font-semibold text-gray-900 mb-2">Tableaux de bord</h3>
+                    <div className="text-2xl font-bold text-purple-600 mb-2">
+                      +{sessionInfo.payAsYouGoDashboards}
+                    </div>
+                    <div className="text-sm text-gray-500">
+                      Tableaux supplémentaires
+                    </div>
+                  </div>
+                )}
+
+                {/* Pay-as-You-Go Users */}
+                {sessionInfo.payAsYouGoUsers > 0 && (
+                  <div className="bg-white rounded-lg p-4 border border-green-200 text-center">
+                    <div className="inline-flex p-3 rounded-full bg-orange-100 text-orange-600 mb-3">
+                      <Users className="h-6 w-6" />
+                    </div>
+                    <h3 className="font-semibold text-gray-900 mb-2">Utilisateurs</h3>
+                    <div className="text-2xl font-bold text-orange-600 mb-2">
+                      +{sessionInfo.payAsYouGoUsers}
+                    </div>
+                    <div className="text-sm text-gray-500">
+                      Utilisateurs supplémentaires
+                    </div>
+                  </div>
+                )}
+              </div>
+            </Card>
+          );
+        })()}
 
         {/* Package Comparison Grid */}
         <div className="space-y-6">
@@ -489,16 +740,16 @@ export const PackageManagementPage: React.FC = () => {
                   </div>
                   <h3 className="font-semibold text-gray-900 mb-2">Tokens Archa</h3>
                   <p className="text-sm text-gray-600 mb-4">
-                    Achetez des tokens supplémentaires pour continuer à utiliser l'IA
+                    Achetez des tokens supplémentaires pour continuer à utiliser ARCHA
                   </p>
                   <div className="text-lg font-bold text-blue-600 mb-3">
-                    5 000 FCFA/mois
+                    À partir de 2 500 FCFA
                   </div>
                   <Button
                     onClick={() => openPaymentModal('tokens', 0)}
-                    className="w-full bg-blue-600 hover:bg-blue-700"
+                    className="w-full bg-blue-600 hover:bg-blue-700 flex items-center justify-center"
                   >
-                    <Plus className="h-4 w-4 mr-2" />
+                    <Brain className="h-4 w-4 mr-2" />
                     Activer
                   </Button>
                 </div>
@@ -515,13 +766,13 @@ export const PackageManagementPage: React.FC = () => {
                     Ajoutez des formulaires supplémentaires à votre package
                   </p>
                   <div className="text-lg font-bold text-green-600 mb-3">
-                    2 000 FCFA/mois
+                    À partir de 15 000 FCFA
                   </div>
                   <Button
                     onClick={() => openPaymentModal('forms', 4)}
-                    className="w-full bg-green-600 hover:bg-green-700"
+                    className="w-full bg-green-600 hover:bg-green-700 flex items-center justify-center"
                   >
-                    <Plus className="h-4 w-4 mr-2" />
+                    <FileText className="h-4 w-4 mr-2" />
                     Activer
                   </Button>
                 </div>
@@ -538,13 +789,13 @@ export const PackageManagementPage: React.FC = () => {
                     Créez plus de tableaux de bord pour vos analyses
                   </p>
                   <div className="text-lg font-bold text-purple-600 mb-3">
-                    3 000 FCFA/mois
+                    À partir de 20 000 FCFA
                   </div>
                   <Button
                     onClick={() => openPaymentModal('dashboards', 1)}
-                    className="w-full bg-purple-600 hover:bg-purple-700"
+                    className="w-full bg-purple-600 hover:bg-purple-700 flex items-center justify-center"
                   >
-                    <Plus className="h-4 w-4 mr-2" />
+                    <BarChart3 className="h-4 w-4 mr-2" />
                     Activer
                   </Button>
                 </div>
@@ -561,13 +812,13 @@ export const PackageManagementPage: React.FC = () => {
                     Ajoutez des utilisateurs à votre équipe
                   </p>
                   <div className="text-lg font-bold text-orange-600 mb-3">
-                    {packageType === 'starter' ? '10 000' : '7 000'} FCFA/mois
+                    À partir de 21 000 FCFA
                   </div>
                   <Button
                     onClick={() => openPaymentModal('users', 3)}
-                    className="w-full bg-orange-600 hover:bg-orange-700"
+                    className="w-full bg-orange-600 hover:bg-orange-700 flex items-center justify-center"
                   >
-                    <Plus className="h-4 w-4 mr-2" />
+                    <Users className="h-4 w-4 mr-2" />
                     Activer
                   </Button>
                 </div>
@@ -596,7 +847,108 @@ export const PackageManagementPage: React.FC = () => {
         onPurchase={handlePurchaseResource}
       />
 
-      <Toast {...toast} />
+
+
+      {/* Enhanced Package Transition Modal */}
+      {transitionPreview && (
+        <div className={`fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 ${showTransitionPreview ? 'block' : 'hidden'}`}>
+          <div className="bg-white rounded-lg max-w-6xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl font-semibold text-gray-900">
+                  Confirmation de transition vers {getPackageDisplayName(selectedPackage!)}
+                </h2>
+                <button
+                  onClick={() => {
+                    setShowTransitionPreview(false);
+                    setTransitionPreview(null);
+                    setSelectedPackage(null);
+                  }}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <X className="h-6 w-6" />
+                </button>
+              </div>
+              
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                <PackageTransitionPriceExplanation
+                  calculation={PackageTransitionService.calculateEnhancedTransition(
+                    user!,
+                    selectedPackage!,
+                    userNeeds
+                  )!}
+                />
+                
+                <div className="bg-white rounded-lg border border-gray-200 p-6">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Résumé de la transition</h3>
+                  
+                  <div className="space-y-4">
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-600">Package actuel</span>
+                      <span className="font-medium">{getPackageDisplayName(transitionPreview.currentPackage)}</span>
+                    </div>
+                    
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-600">Nouveau package</span>
+                      <span className="font-medium text-blue-600">{getPackageDisplayName(transitionPreview.newPackage)}</span>
+                    </div>
+                    
+                    {transitionPreview.daysRemaining > 0 && (
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-600">Jours restants</span>
+                        <span className="font-medium">{transitionPreview.daysRemaining} jours</span>
+                      </div>
+                    )}
+                    
+                    <div className="border-t border-gray-200 pt-4">
+                      <div className="flex justify-between items-center text-lg">
+                        <span className="font-semibold">Montant à payer</span>
+                        <span className="font-bold text-green-600">
+                          {transitionPreview.priceBreakdown.finalAmount.toLocaleString('fr-FR')} FCFA
+                        </span>
+                      </div>
+                      
+                      {transitionPreview.priceBreakdown.savings > 0 && (
+                        <div className="flex justify-between items-center text-sm text-green-600 mt-2">
+                          <span>Économie réalisée</span>
+                          <span>-{transitionPreview.priceBreakdown.savings.toLocaleString('fr-FR')} FCFA</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  
+                  <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                    <p className="text-sm text-blue-700">
+                      <strong>Note:</strong> {transitionPreview.summary}
+                    </p>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="flex justify-end gap-3">
+                <Button
+                    variant="secondary"
+                    onClick={() => {
+                      setShowTransitionPreview(false);
+                      setTransitionPreview(null);
+                      setSelectedPackage(null);
+                    }}
+                  >
+                    Annuler
+                  </Button>
+                  <Button
+                    onClick={confirmTransition}
+                    disabled={isProcessing}
+                    className="bg-green-600 hover:bg-green-700"
+                  >
+                    {isProcessing ? 'Traitement...' : 'Confirmer et payer'}
+                  </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
     </Layout>
   );
 };

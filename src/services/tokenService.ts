@@ -1,6 +1,8 @@
 import { doc, updateDoc, getDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 import { User } from '../types';
+import { SubscriptionSessionService } from './subscriptionSessionService';
+import { UserSessionService } from './userSessionService';
 
 export class TokenService {
   /**
@@ -29,7 +31,14 @@ export class TokenService {
         updatedAt: serverTimestamp()
       });
       
-      console.log(`Tokens soustraits: ${tokensToSubtract}, Total utilisé: ${newTokensUsed}`);
+      // Track token consumption in subscription session (only for directors)
+      if (userData.role === 'directeur') {
+        try {
+          await SubscriptionSessionService.updateUsage(userId, 'tokens', tokensToSubtract);
+        } catch (trackingError) {
+        }
+      }
+      
       return true;
       
     } catch (error) {
@@ -88,7 +97,6 @@ export class TokenService {
         updatedAt: serverTimestamp()
       });
       
-      console.log(`Tokens resetés pour l'utilisateur: ${userId}`);
       return true;
       
     } catch (error) {
@@ -108,9 +116,10 @@ export class TokenService {
       return 0; // Illimité = 0% d'utilisation
     }
     
-    const currentTokensUsed = user.tokensUsedMonthly || 0;
-    const payAsYouGoTokens = user.payAsYouGoTokens || 0;
-    const totalAvailableTokens = monthlyLimit + payAsYouGoTokens;
+    // Use UserSessionService to get current session data
+    const sessionInfo = UserSessionService.getUserPackageInfo(user);
+    const currentTokensUsed = sessionInfo.tokensUsed;
+    const totalAvailableTokens = sessionInfo.totalTokens;
     
     return Math.min(100, (currentTokensUsed / totalAvailableTokens) * 100);
   }
@@ -141,7 +150,6 @@ export class TokenService {
         updatedAt: serverTimestamp()
       });
       
-      console.log(`Tokens pay-as-you-go ajoutés: ${tokensToAdd}, Total: ${newPayAsYouGoTokens}`);
       return true;
       
     } catch (error) {
@@ -161,8 +169,9 @@ export class TokenService {
       return -1; // Illimité
     }
     
-    const payAsYouGoTokens = user.payAsYouGoTokens || 0;
-    return monthlyLimit + payAsYouGoTokens;
+    // Use UserSessionService to get current session data
+    const sessionInfo = UserSessionService.getUserPackageInfo(user);
+    return sessionInfo.totalTokens;
   }
 
   /**
@@ -178,9 +187,10 @@ export class TokenService {
       return true;
     }
     
-    const currentTokensUsed = user.tokensUsedMonthly || 0;
-    const payAsYouGoTokens = user.payAsYouGoTokens || 0;
-    const totalAvailableTokens = monthlyLimit + payAsYouGoTokens;
+    // Use UserSessionService to get current session data
+    const sessionInfo = UserSessionService.getUserPackageInfo(user);
+    const currentTokensUsed = sessionInfo.tokensUsed;
+    const totalAvailableTokens = sessionInfo.totalTokens;
     
     return (currentTokensUsed + tokensNeeded) <= totalAvailableTokens;
   }
@@ -197,10 +207,8 @@ export class TokenService {
       return -1;
     }
     
-    const currentTokensUsed = user.tokensUsedMonthly || 0;
-    const payAsYouGoTokens = user.payAsYouGoTokens || 0;
-    const totalAvailableTokens = monthlyLimit + payAsYouGoTokens;
-    
-    return Math.max(0, totalAvailableTokens - currentTokensUsed);
+    // Use UserSessionService to get current session data
+    const sessionInfo = UserSessionService.getUserPackageInfo(user);
+    return sessionInfo.tokensRemaining;
   }
 }

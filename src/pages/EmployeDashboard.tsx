@@ -566,19 +566,16 @@ export const EmployeDashboard: React.FC = () => {
 
   const handleDownloadPDF = async (fileAttachment: any) => {
     try {
-      console.log('🔍 Attempting to download file:', fileAttachment);
       
       // Try Firebase-specific download first
       if (fileAttachment.storagePath) {
-        console.log('🔄 Using Firebase-specific download method...');
         await forceDownloadFromFirebase(
           fileAttachment.storagePath,
           fileAttachment.fileName,
           () => {
             showSuccess('Téléchargement démarré');
           },
-          (error) => {
-            console.warn('Firebase download failed, trying fallback:', error);
+          () => {
             // Fallback to regular download
             handleDownloadFallback(fileAttachment);
           }

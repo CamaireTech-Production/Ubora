@@ -38,17 +38,14 @@ export const isValidDownloadURL = async (url: string): Promise<boolean> => {
  * @returns Promise<string> - The download URL
  */
 export const getFileDownloadURL = async (fileAttachment: any): Promise<string> => {
-  console.log('🔍 getFileDownloadURL called with:', fileAttachment);
   
   // If we already have a download URL, use it
   if (fileAttachment.downloadUrl) {
-    console.log('🔍 Using existing downloadUrl:', fileAttachment.downloadUrl);
     return fileAttachment.downloadUrl;
   }
   
   // If we have a storage path, generate a download URL
   if (fileAttachment.storagePath) {
-    console.log('🔍 Generating download URL from storagePath:', fileAttachment.storagePath);
     return await generateDownloadURL(fileAttachment.storagePath);
   }
   

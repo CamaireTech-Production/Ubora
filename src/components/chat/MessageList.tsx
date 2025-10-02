@@ -1,7 +1,8 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import MessageBubble from './MessageBubble';
 import { Bot, Loader2, ChevronUp } from 'lucide-react';
 import { Button } from '../Button';
+import { ScrollButtons } from './ScrollButtons';
 
 interface Message {
   id: string;
@@ -29,34 +30,92 @@ export const MessageList: React.FC<MessageListProps> = ({
 }) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const [userHasScrolled, setUserHasScrolled] = useState(false);
+  const [lastMessageCount, setLastMessageCount] = useState(messages.length);
+  const [isAtTop, setIsAtTop] = useState(false);
+  const [autoScrollDisabled, setAutoScrollDisabled] = useState(false);
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
 
-  // Auto-scroll to bottom when new messages arrive
+  // Auto-scroll to bottom when new messages arrive (only if auto-scroll is not disabled)
   useEffect(() => {
-    if (messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    const hasNewMessages = messages.length > lastMessageCount;
+    
+    // On initial load, always scroll to bottom
+    if (isInitialLoad && messages.length > 0) {
+      setTimeout(() => {
+        if (containerRef.current) {
+          containerRef.current.scrollTo({
+            top: containerRef.current.scrollHeight,
+            behavior: 'smooth'
+          });
+        }
+        setIsInitialLoad(false);
+      }, 200); // Slightly longer delay to ensure DOM is ready
+      setLastMessageCount(messages.length);
+      return;
     }
-  }, [messages.length, isTyping]);
+    
+    // Only auto-scroll if:
+    // 1. Auto-scroll is not disabled
+    // 2. We have new messages OR user is typing
+    // 3. User is not at the top
+    const shouldAutoScroll = !autoScrollDisabled && 
+                            (hasNewMessages || isTyping) && 
+                            !isAtTop;
+    
+    if (shouldAutoScroll && containerRef.current) {
+      containerRef.current.scrollTo({
+        top: containerRef.current.scrollHeight,
+        behavior: 'smooth'
+      });
+    }
+    
+    setLastMessageCount(messages.length);
+  }, [messages.length, isTyping, autoScrollDisabled, isAtTop, lastMessageCount, isInitialLoad]);
 
-  // Handle scroll to load more messages
+  // Handle scroll to load more messages and track user scrolling
   const handleScroll = () => {
-    if (!containerRef.current || isLoadingMore || !hasMoreMessages || !onLoadMore) return;
-
-    const { scrollTop } = containerRef.current;
-    if (scrollTop < 100) { // Near top
+    if (!containerRef.current) return;
+    
+    const { scrollTop, scrollHeight, clientHeight } = containerRef.current;
+    
+    // Check if user is at the top (within 50px)
+    const atTop = scrollTop < 50;
+    setIsAtTop(atTop);
+    
+    // Check if user is near bottom (within 100px)
+    const isNearBottom = scrollTop + clientHeight >= scrollHeight - 100;
+    
+    // If user scrolls to top, disable auto-scroll
+    if (atTop) {
+      setAutoScrollDisabled(true);
+    }
+    // If user scrolls back to bottom, re-enable auto-scroll
+    else if (isNearBottom) {
+      setAutoScrollDisabled(false);
+    }
+    
+    setUserHasScrolled(!isNearBottom);
+    
+    // Load more messages when near top
+    if (scrollTop < 100 && !isLoadingMore && hasMoreMessages && onLoadMore) {
       onLoadMore();
     }
   };
 
   return (
-    <div 
-      ref={containerRef}
-      className="flex-1 overflow-y-auto pt-4 pb-48 px-4 sm:px-6 lg:px-8"
-      onScroll={handleScroll}
-      style={{ 
-        maxHeight: 'calc(100vh - 140px)',
-        scrollBehavior: 'smooth'
-      }}
-    >
+    <>
+      <div 
+        ref={containerRef}
+        className="flex-1 overflow-y-auto pt-4 pb-48 px-4 sm:px-6 lg:px-8"
+        onScroll={handleScroll}
+        style={{ 
+          maxHeight: 'calc(100vh - 140px)',
+          scrollBehavior: 'smooth',
+          // Ensure proper spacing on mobile
+          paddingBottom: 'max(12rem, calc(12rem + env(safe-area-inset-bottom)))'
+        }}
+      >
       {/* Load more button */}
       {hasMoreMessages && (
         <div className="flex justify-center mb-4">
@@ -131,6 +190,12 @@ export const MessageList: React.FC<MessageListProps> = ({
       )}
 
       <div ref={messagesEndRef} />
-    </div>
+      </div>
+      
+      {/* Scroll buttons */}
+      <ScrollButtons 
+        containerRef={containerRef} 
+      />
+    </>
   );
 };

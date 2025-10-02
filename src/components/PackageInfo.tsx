@@ -41,7 +41,7 @@ export const PackageInfo: React.FC<PackageInfoProps> = ({
           </h3>
           <p className="text-sm text-gray-600">{price}</p>
         </div>
-        {showUpgrade && packageType !== 'custom' && (
+        {showUpgrade && packageType !== 'custom' /* && packageType !== 'custom' */ && (
           <button className="px-3 py-1 text-xs bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors">
             Mettre à niveau
           </button>

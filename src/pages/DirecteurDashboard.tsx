@@ -21,6 +21,7 @@ import { useToast } from '../hooks/useToast';
 import { Toast } from '../components/Toast';
 import { usePackageAccess } from '../hooks/usePackageAccess';
 import { LimitReachedModal } from '../components/LimitReachedModal';
+import { SubscriptionSessionService } from '../services/subscriptionSessionService';
 import { doc, updateDoc, getDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 
@@ -97,7 +98,7 @@ export const DirecteurDashboard: React.FC = () => {
       await createForm({
         ...formData,
         createdBy: user.id,
-        createdByRole: user.role,
+        createdByRole: user.role as 'directeur' | 'employe',
         agencyId: user.agencyId,
       });
       setShowFormBuilder(false);
@@ -112,11 +113,6 @@ export const DirecteurDashboard: React.FC = () => {
   };
 
   const handleFormButtonClick = () => {
-    console.log('🔍 Form button clicked:', {
-      formsLength: forms.length,
-      canCreateForm: canCreateForm(forms.length),
-      userPayAsYouGoResources: user?.payAsYouGoResources
-    });
     
     if (!canCreateForm(forms.length)) {
       setLimitModalType('forms');
@@ -894,46 +890,23 @@ export const DirecteurDashboard: React.FC = () => {
             // Simulate payment processing
             await new Promise(resolve => setTimeout(resolve, 2000));
             
-            // Actually save the pay-as-you-go purchase to Firebase
-            const userRef = doc(db, 'users', user.id);
-            const userDoc = await getDoc(userRef);
+            // Use SubscriptionSessionService to add pay-as-you-go resources to the active session
+            const purchase = {
+              itemType: type,
+              quantity: quantity,
+              amountPaid: selectedOption.price,
+              purchaseDate: new Date(),
+              paymentMethod: 'card'
+            };
             
-            if (!userDoc.exists()) {
-              throw new Error('Utilisateur non trouvé');
+            const success = await SubscriptionSessionService.addPayAsYouGoResources(
+              user.id,
+              purchase
+            );
+            
+            if (!success) {
+              throw new Error('Erreur lors de l\'ajout de la ressource');
             }
-            
-            const userData = userDoc.data();
-            const currentPayAsYouGoResources = userData.payAsYouGoResources || {};
-            
-            console.log('📊 Before update:', {
-              currentPayAsYouGoResources,
-              type,
-              quantity
-            });
-            
-            // Add the new resource to the user's pay-as-you-go resources
-            if (!currentPayAsYouGoResources[type]) {
-              currentPayAsYouGoResources[type] = 0;
-            }
-            currentPayAsYouGoResources[type] += quantity;
-            
-            console.log('📊 After update:', {
-              currentPayAsYouGoResources,
-              newValue: currentPayAsYouGoResources[type]
-            });
-            
-            // Update the user document in Firebase
-            await updateDoc(userRef, {
-              payAsYouGoResources: currentPayAsYouGoResources,
-              updatedAt: serverTimestamp()
-            });
-            
-            console.log('💾 Pay-as-you-go purchase saved to Firebase:', {
-              type,
-              quantity,
-              price: selectedOption.price,
-              newPayAsYouGoResources: currentPayAsYouGoResources
-            });
             
             showSuccess(`${quantity} ${type === 'forms' ? 'formulaire(s)' : type === 'dashboards' ? 'tableau(x) de bord' : 'utilisateur(s)'} supplémentaire(s) ajouté(s) pour ce mois !`);
             setShowLimitModal(false);

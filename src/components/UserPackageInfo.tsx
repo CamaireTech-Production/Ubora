@@ -2,7 +2,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { usePackageAccess } from '../hooks/usePackageAccess';
-import { TokenService } from '../services/tokenService';
+import { UserSessionService } from '../services/userSessionService';
 import { Brain, Crown, Star, Zap, ChevronRight } from 'lucide-react';
 
 interface UserPackageInfoProps {
@@ -17,15 +17,13 @@ export const UserPackageInfo: React.FC<UserPackageInfoProps> = ({
   clickable = true 
 }) => {
   const { user } = useAuth();
-  const { getMonthlyTokens, hasUnlimitedTokens } = usePackageAccess();
+  const { packageInfo } = usePackageAccess();
   const navigate = useNavigate();
 
-  if (!user || !user.package) return null;
+  if (!user || !packageInfo?.packageType) return null;
 
-  const monthlyLimit = getMonthlyTokens();
-  const isUnlimited = hasUnlimitedTokens();
-  const remainingTokens = TokenService.getRemainingTokensWithPayAsYouGo(user, monthlyLimit);
-  const usagePercentage = TokenService.getTokenUsagePercentage(user, monthlyLimit);
+  const remainingTokens = packageInfo.tokensRemaining;
+  const isUnlimited = packageInfo.totalTokens === -1;
 
   const getPackageIcon = (packageType: string) => {
     switch (packageType) {
@@ -69,9 +67,9 @@ export const UserPackageInfo: React.FC<UserPackageInfoProps> = ({
       onClick={handleClick}
     >
       {/* Package info */}
-      <div className={`flex items-center space-x-2 px-2 py-1 rounded-md border text-xs font-medium ${getPackageColor(user.package)}`}>
-        {getPackageIcon(user.package)}
-        <span>{getPackageName(user.package)}</span>
+      <div className={`flex items-center space-x-2 px-2 py-1 rounded-md border text-xs font-medium ${getPackageColor(packageInfo.packageType)}`}>
+        {getPackageIcon(packageInfo.packageType)}
+        <span>{getPackageName(packageInfo.packageType)}</span>
       </div>
 
       {/* Tokens info */}

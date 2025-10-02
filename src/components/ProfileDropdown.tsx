@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { usePermissions } from '../hooks/usePermissions';
+import { useUnreadNotifications } from '../hooks/useUnreadNotifications';
 import { Button } from './Button';
 import { 
   User, 
@@ -23,6 +24,7 @@ interface ProfileDropdownProps {
 export const ProfileDropdown: React.FC<ProfileDropdownProps> = ({ className = '' }) => {
   const { user, logout } = useAuth();
   const { hasDirectorDashboardAccess } = usePermissions();
+  const unreadCount = useUnreadNotifications();
   const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -217,10 +219,15 @@ export const ProfileDropdown: React.FC<ProfileDropdownProps> = ({ className = ''
               {/* Notifications Settings */}
               <button
                 onClick={handleGoToNotifications}
-                className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center space-x-2"
+                className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center space-x-2 relative"
               >
                 <Bell className="h-4 w-4 text-gray-400" />
                 <span>Notifications</span>
+                {unreadCount > 0 && (
+                  <span className="ml-auto bg-red-500 text-white text-xs font-medium px-2 py-0.5 rounded-full min-w-[20px] text-center">
+                    {unreadCount > 99 ? '99+' : unreadCount}
+                  </span>
+                )}
               </button>
             </div>
 

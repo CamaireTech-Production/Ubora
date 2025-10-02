@@ -602,7 +602,6 @@ export class ResponseParser {
           });
         }
       } catch (error) {
-        console.warn('Failed to parse file metadata:', metadataString, error);
         // Fallback to basic file detection
         const fileExtension = fileName.split('.').pop()?.toLowerCase();
         let fileType = 'application/octet-stream';
@@ -885,7 +884,6 @@ export class ResponseParser {
           });
         }
       } catch (error) {
-        console.warn('Failed to parse image metadata:', metadataString, error);
         // Fallback to basic image detection
         const fileExtension = fileName.split('.').pop()?.toLowerCase();
         let fileType = 'image/png';

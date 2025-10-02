@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { getMessaging, getToken, onMessage } from 'firebase/messaging';
+import { getToken, onMessage } from 'firebase/messaging';
 import { messaging } from '../firebaseConfig';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
@@ -104,7 +104,6 @@ export const usePushNotifications = () => {
         notificationEnabled: true,
       }, { merge: true });
       
-      console.log('🔔 [Push] Token saved to Firestore for user:', user.id);
     } catch (error) {
       console.error('🔔 [Push] Failed to save token:', error);
     }
@@ -113,7 +112,6 @@ export const usePushNotifications = () => {
   // Get FCM token
   const getFCMToken = useCallback(async () => {
     try {
-      console.log('🔔 [Push] Getting FCM token...', { user: user?.id });
       
       const messagingInstance = await messaging;
       if (!messagingInstance) {
@@ -138,7 +136,6 @@ export const usePushNotifications = () => {
           await saveTokenToFirestore(token);
         }
         
-        console.log('🔔 [Push] FCM Token generated successfully:', token.substring(0, 50) + '...');
         return token;
       } else {
         setState(prev => ({ ...prev, error: 'No registration token available' }));
@@ -192,7 +189,6 @@ export const usePushNotifications = () => {
         isSubscribed: false 
       }));
 
-      console.log('🔔 [Push] Unsubscribed successfully');
     } catch (error) {
       console.error('🔔 [Push] Unsubscribe failed:', error);
     }
@@ -206,7 +202,6 @@ export const usePushNotifications = () => {
         if (!messagingInstance) return;
 
         const unsubscribe = onMessage(messagingInstance, (payload) => {
-          console.log('🔔 [Push] Message reçu en premier plan:', payload);
           
           // Show notification manually when app is in foreground
           if (Notification.permission === 'granted') {
