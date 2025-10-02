@@ -36,9 +36,9 @@ const PACKAGE_LIMITS = {
 // Package prices in FCFA
 const PACKAGE_PRICES = {
   starter: 35000,
-  standard: 85000,
-  premium: 160000,
-  custom: 250000
+  standard: 49999,
+  premium: 199999
+  /* custom: 250000 */
 };
 
 /**

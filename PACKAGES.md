@@ -16,7 +16,7 @@
 ---
 
 ## Palier 2 – Standard
-**85 000 FCFA / mois**
+**49 999 FCFA / mois**
 
 - Formulaires illimités
 - Tableaux de bord illimités
@@ -31,7 +31,7 @@
 ---
 
 ## Palier 3 – Premium
-**160 000 FCFA / mois**
+**199 999 FCFA / mois**
 
 - Formulaires illimités
 - Tableaux de bord illimités
@@ -45,7 +45,7 @@
 
 ---
 
-## Palier 4 – Sur mesure
+<!-- ## Palier 4 – Sur mesure
 **À partir de 250 000 FCFA / mois (selon besoins)**
 
 - Formulaires & dashboards illimités
@@ -53,7 +53,7 @@
 - Hébergement dédié & sécurisé
 - Formation des équipes et support sur site
 - Utilisateurs illimités ou tarif spécifique selon profil
-- Personnalisation complète (workflows, branding, connecteurs externes)
+- Personnalisation complète (workflows, branding, connecteurs externes) -->
 
 ---
 
@@ -68,7 +68,7 @@ Les tokens sont inclus dans chaque abonnement (quota mensuel).
 - **Starter** : 300 000 tokens / mois (≈ 10 requêtes/jour)
 - **Standard** : 600 000 tokens / mois (≈ 20 requêtes/jour)
 - **Premium** : 1 500 000 tokens / mois (≈ 50 requêtes/jour)
-- **Sur mesure** : tokens à négocier
+<!-- - **Sur mesure** : tokens à négocier -->
 
 > Possibilité d'acheter des tokens additionnels si le quota est dépassé.
 

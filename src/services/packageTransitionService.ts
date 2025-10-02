@@ -39,7 +39,7 @@ export interface FeatureDowngrade {
 
 export interface TransitionCalculation {
   currentSession: SubscriptionSession;
-  newPackageType: 'starter' | 'standard' | 'premium' | 'custom';
+  newPackageType: 'starter' | 'standard' | 'premium' /* | 'custom' */;
   daysRemaining: number;
   unusedPackageTokens: number;
   unusedPayAsYouGoTokens: number;
@@ -50,7 +50,7 @@ export interface TransitionCalculation {
 
 export interface EnhancedTransitionCalculation {
   currentSession: SubscriptionSession;
-  newPackageType: 'starter' | 'standard' | 'premium' | 'custom';
+  newPackageType: 'starter' | 'standard' | 'premium' /* | 'custom' */;
   daysRemaining: number;
   
   // Cost calculations
@@ -117,7 +117,7 @@ export class PackageTransitionService {
    */
   static calculateTransition(
     userData: User,
-    newPackageType: 'starter' | 'standard' | 'premium' | 'custom',
+    newPackageType: 'starter' | 'standard' | 'premium' /* | 'custom' */,
     options: PackageTransitionOptions = {}
   ): TransitionCalculation | null {
     const currentSession = SubscriptionSessionService.getCurrentSession(userData);
@@ -223,7 +223,7 @@ export class PackageTransitionService {
   /**
    * Get package price
    */
-  private static getPackagePrice(packageType: 'starter' | 'standard' | 'premium' | 'custom'): number {
+  private static getPackagePrice(packageType: 'starter' | 'standard' | 'premium' /* | 'custom' */): number {
     const priceStr = getPackagePrice(packageType);
     return parseInt(priceStr.replace(/[^\d]/g, '')) || 0;
   }
@@ -324,7 +324,7 @@ export class PackageTransitionService {
    */
   static getTransitionPreview(
     userData: User,
-    newPackageType: 'starter' | 'standard' | 'premium' | 'custom',
+    newPackageType: 'starter' | 'standard' | 'premium' /* | 'custom' */,
     options: PackageTransitionOptions = {}
   ) {
     const calculation = this.calculateTransition(userData, newPackageType, options);
@@ -375,7 +375,7 @@ export class PackageTransitionService {
   /**
    * Get total available tokens (new package + preserved pay-as-you-go)
    */
-  static getTotalAvailableTokens(userData: User, newPackageType: 'starter' | 'standard' | 'premium' | 'custom'): number {
+  static getTotalAvailableTokens(userData: User, newPackageType: 'starter' | 'standard' | 'premium' /* | 'custom' */): number {
     const newPackageTokens = PACKAGE_LIMITS[newPackageType].monthlyTokens;
     const preservedPayAsYouGoTokens = this.getUnusedPayAsYouGoTokens(userData);
     
@@ -424,8 +424,8 @@ export class PackageTransitionService {
    * Analyze pay-as-you-go requirements
    */
   private static analyzePayAsYouGo(
-    currentPackage: 'starter' | 'standard' | 'premium' | 'custom',
-    newPackage: 'starter' | 'standard' | 'premium' | 'custom',
+    currentPackage: 'starter' | 'standard' | 'premium' /* | 'custom' */,
+    newPackage: 'starter' | 'standard' | 'premium' /* | 'custom' */,
     userNeeds: UserNeeds = {}
   ): PayAsYouGoItem[] {
     const payAsYouGoItems: PayAsYouGoItem[] = [];
@@ -459,8 +459,8 @@ export class PackageTransitionService {
    * Analyze feature upgrades
    */
   private static analyzeFeatureUpgrades(
-    currentPackage: 'starter' | 'standard' | 'premium' | 'custom',
-    newPackage: 'starter' | 'standard' | 'premium' | 'custom'
+    currentPackage: 'starter' | 'standard' | 'premium' /* | 'custom' */,
+    newPackage: 'starter' | 'standard' | 'premium' /* | 'custom' */
   ): FeatureUpgrade[] {
     const upgrades: FeatureUpgrade[] = [];
     const features = ['maxForms', 'maxDashboards', 'maxUsers', 'monthlyTokens'] as const;
@@ -500,8 +500,8 @@ export class PackageTransitionService {
    * Analyze feature downgrades
    */
   private static analyzeFeatureDowngrades(
-    currentPackage: 'starter' | 'standard' | 'premium' | 'custom',
-    newPackage: 'starter' | 'standard' | 'premium' | 'custom'
+    currentPackage: 'starter' | 'standard' | 'premium' /* | 'custom' */,
+    newPackage: 'starter' | 'standard' | 'premium' /* | 'custom' */
   ): FeatureDowngrade[] {
     const downgrades: FeatureDowngrade[] = [];
     const features = ['maxForms', 'maxDashboards', 'maxUsers', 'monthlyTokens'] as const;
@@ -532,7 +532,7 @@ export class PackageTransitionService {
    */
   static calculateEnhancedTransition(
     userData: User,
-    newPackageType: 'starter' | 'standard' | 'premium' | 'custom',
+    newPackageType: 'starter' | 'standard' | 'premium' /* | 'custom' */,
     userNeeds: UserNeeds = {},
     options: PackageTransitionOptions = {}
   ): EnhancedTransitionCalculation | null {
@@ -619,7 +619,7 @@ export class PackageTransitionService {
    */
   static getEnhancedTransitionPreview(
     userData: User,
-    newPackageType: 'starter' | 'standard' | 'premium' | 'custom',
+    newPackageType: 'starter' | 'standard' | 'premium' /* | 'custom' */,
     userNeeds: UserNeeds = {},
     options: PackageTransitionOptions = {}
   ) {

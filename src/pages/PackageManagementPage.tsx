@@ -59,14 +59,14 @@ export const PackageManagementPage: React.FC = () => {
     currentLimit: 0
   });
 
-  const packages: PackageType[] = ['starter', 'standard', 'premium', 'custom'];
+  const packages: PackageType[] = ['starter', 'standard', 'premium' /* , 'custom' */];
 
   const getPackageIcon = (pkg: PackageType) => {
     switch (pkg) {
       case 'starter': return <Zap className="h-6 w-6" />;
       case 'standard': return <Star className="h-6 w-6" />;
       case 'premium': return <Crown className="h-6 w-6" />;
-      case 'custom': return <Shield className="h-6 w-6" />;
+      /* case 'custom': return <Shield className="h-6 w-6" />; */
     }
   };
 
@@ -75,7 +75,7 @@ export const PackageManagementPage: React.FC = () => {
       case 'starter': return 'text-blue-600 bg-blue-100';
       case 'standard': return 'text-green-600 bg-green-100';
       case 'premium': return 'text-purple-600 bg-purple-100';
-      case 'custom': return 'text-orange-600 bg-orange-100';
+      /* case 'custom': return 'text-orange-600 bg-orange-100'; */
     }
   };
 

@@ -22,7 +22,7 @@ export interface PayAsYouGoResources {
 // Subscription Session Types
 export interface SubscriptionSession {
   id: string; // Unique session ID
-  packageType: 'starter' | 'standard' | 'premium' | 'custom';
+  packageType: 'starter' | 'standard' | 'premium' /* | 'custom' */;
   sessionType: 'subscription' | 'upgrade' | 'downgrade' | 'renewal';
   startDate: Date;
   endDate: Date;
@@ -98,7 +98,7 @@ export interface User {
   createdByAdmin?: string; // ID of admin who created this user
   
   // Legacy package properties (for backward compatibility)
-  package?: 'starter' | 'standard' | 'premium' | 'custom';
+  package?: 'starter' | 'standard' | 'premium' /* | 'custom' */;
   tokensUsedMonthly?: number;
   tokensResetDate?: Date;
   payAsYouGoTokens?: number;
@@ -470,7 +470,7 @@ export interface UserDetail {
   lastLogin?: Date;
   createdAt: Date;
   // Subscription details
-  package?: 'starter' | 'standard' | 'premium' | 'custom';
+  package?: 'starter' | 'standard' | 'premium' /* | 'custom' */;
   subscriptionStatus?: 'active' | 'expired' | 'cancelled';
   subscriptionStartDate?: Date;
   subscriptionEndDate?: Date;

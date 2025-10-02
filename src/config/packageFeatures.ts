@@ -1,7 +1,7 @@
 // Configuration des fonctionnalités par package UBORA
 // Basé sur les spécifications du fichier PACKAGES.md
 
-export type PackageType = 'starter' | 'standard' | 'premium' | 'custom';
+export type PackageType = 'starter' | 'standard' | 'premium' /* | 'custom' */;
 
 export interface PackageLimits {
   maxForms: number;
@@ -70,13 +70,13 @@ export const PACKAGE_LIMITS: Record<PackageType, PackageLimits> = {
     monthlyTokens: 1500000, // 1.5M tokens (1,500 actual OpenAI tokens = ~50 requests/day)
     additionalUserCost: 7000
   },
-  custom: {
+  /* custom: {
     maxForms: -1, // illimité
     maxDashboards: -1, // illimité
     maxUsers: -1, // illimité
     monthlyTokens: -1, // négociable
     additionalUserCost: 0 // négociable
-  }
+  } */
 };
 
 export const PACKAGE_FEATURES: Record<PackageType, PackageFeatures> = {
@@ -188,7 +188,7 @@ export const PACKAGE_FEATURES: Record<PackageType, PackageFeatures> = {
     externalConnectors: false,
     teamTraining: false
   },
-  custom: {
+  /* custom: {
     // Fonctionnalités de base
     basicForms: true,
     unlimitedForms: true,
@@ -223,7 +223,7 @@ export const PACKAGE_FEATURES: Record<PackageType, PackageFeatures> = {
     customWorkflows: true,
     externalConnectors: true,
     teamTraining: true
-  }
+  } */
 };
 
 // Fonction utilitaire pour vérifier si un package a accès à une fonctionnalité
@@ -246,8 +246,8 @@ export const getPackageDisplayName = (packageType: PackageType): string => {
   const names: Record<PackageType, string> = {
     starter: 'Starter',
     standard: 'Standard',
-    premium: 'Premium',
-    custom: 'Sur mesure'
+    premium: 'Premium'
+    /* custom: 'Sur mesure' */
   };
   return names[packageType];
 };
@@ -256,9 +256,9 @@ export const getPackageDisplayName = (packageType: PackageType): string => {
 export const getPackagePrice = (packageType: PackageType): string => {
   const prices: Record<PackageType, string> = {
     starter: '35 000 FCFA/mois',
-    standard: '85 000 FCFA/mois',
-    premium: '160 000 FCFA/mois',
-    custom: 'À partir de 250 000 FCFA/mois'
+    standard: '49 999 FCFA/mois',
+    premium: '199 999 FCFA/mois'
+    /* custom: 'À partir de 250 000 FCFA/mois' */
   };
   return prices[packageType];
 };

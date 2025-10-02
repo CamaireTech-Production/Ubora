@@ -7,14 +7,14 @@ export class SubscriptionService {
   /**
    * Renew user subscription using the new session system
    * @param userId - ID de l'utilisateur
-   * @param packageType - Type de package (starter, standard, premium, custom)
+   * @param packageType - Type de package (starter, standard, premium /* , custom */)
    * @param durationMonths - Durée en mois (défaut: 1)
    * @param paymentMethod - Méthode de paiement
    * @returns Promise<boolean> - true si le renouvellement a réussi
    */
   static async renewSubscription(
     userId: string, 
-    packageType: 'starter' | 'standard' | 'premium' | 'custom',
+    packageType: 'starter' | 'standard' | 'premium' /* | 'custom' */,
     durationMonths: number = 1,
     paymentMethod?: string
   ): Promise<boolean> {
