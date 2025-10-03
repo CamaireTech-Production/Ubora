@@ -162,7 +162,8 @@ export class PackageTransitionService {
     userId: string,
     newPackageType: 'starter' | 'standard' | 'premium' | 'custom',
     options: PackageTransitionOptions = {},
-    paymentMethod?: string
+    paymentMethod?: string,
+    paymentReference?: string
   ): Promise<boolean> {
     try {
       const userDocRef = doc(db, 'users', userId);
@@ -192,7 +193,8 @@ export class PackageTransitionService {
         userId,
         calculation as any,
         options,
-        paymentMethod
+        paymentMethod,
+        paymentReference
       );
 
       if (!transitionSession) {
@@ -237,7 +239,8 @@ export class PackageTransitionService {
     userId: string,
     calculation: EnhancedTransitionCalculation,
     options: PackageTransitionOptions,
-    paymentMethod?: string
+    paymentMethod?: string,
+    paymentReference?: string
   ): Promise<boolean> {
     const sessionType = calculation.finalAmountToPay >= 0 ? 'upgrade' : 'downgrade';
     
@@ -269,6 +272,7 @@ export class PackageTransitionService {
       },
       isActive: true,
       paymentMethod,
+      paymentReference,
       notes: this.generateEnhancedTransitionNotes(calculation as any, options)
     });
   }

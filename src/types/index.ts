@@ -30,6 +30,7 @@ export interface SubscriptionSession {
   durationDays: number; // Duration in days
   isActive: boolean; // Whether this session is currently active
   paymentMethod?: string; // Payment method used
+  paymentReference?: string; // Reference to payment record
   notes?: string; // Additional notes
   createdAt: Date;
   updatedAt: Date;

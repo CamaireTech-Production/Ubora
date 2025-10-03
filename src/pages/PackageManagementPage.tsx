@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useApp } from '../contexts/AppContext';
@@ -25,7 +25,6 @@ import {
   Zap, 
   ArrowLeft,
   CreditCard,
-  Shield,
   Users,
   BarChart3,
   Brain,
@@ -37,6 +36,9 @@ import { PaymentModal } from '../components/PaymentModal';
 import { PayAsYouGoService } from '../services/payAsYouGoService';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
+import { CampayPayment } from '../components/CampayPayment';
+import { PaymentService } from '../services/paymentService';
+import { PaymentRequest, CampayPaymentData } from '../types/payment';
 
 export const PackageManagementPage: React.FC = () => {
   const navigate = useNavigate();
@@ -58,6 +60,15 @@ export const PackageManagementPage: React.FC = () => {
     type: 'tokens',
     currentLimit: 0
   });
+  const [paymentRequest, setPaymentRequest] = useState<PaymentRequest | null>(null);
+  const [currentPaymentId, setCurrentPaymentId] = useState<string | null>(null);
+
+  // Debug payment request changes
+  useEffect(() => {
+    if (paymentRequest) {
+      console.log('PackageManagementPage: Payment request set:', paymentRequest);
+    }
+  }, [paymentRequest]);
 
   const packages: PackageType[] = ['starter', 'standard', 'premium' /* , 'custom' */];
 
@@ -127,46 +138,137 @@ export const PackageManagementPage: React.FC = () => {
 
 
   const confirmTransition = async () => {
-    if (!selectedPackage || !user) return;
-
-    setIsProcessing(true);
-    setShowTransitionPreview(false);
+    if (!selectedPackage || !user || !transitionPreview) return;
 
     try {
-      // Simulation de paiement
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      console.log('Starting package transition for:', selectedPackage);
+      console.log('Transition preview:', transitionPreview);
       
-      // Execute transition using the enhanced service
+      // Create payment request
+      const externalReference = PaymentService.generateExternalReference('PKG');
+      // Ensure minimum amount of 5000 FCFA for UI display, but use actual amount for Campay
+      const displayAmount = Math.max(transitionPreview.priceBreakdown.finalAmount, 5000);
+      const paymentAmount = transitionPreview.priceBreakdown.finalAmount;
+      
+      const paymentReq: PaymentRequest = {
+        amount: paymentAmount,
+        currency: 'XAF',
+        description: `Transition vers package ${getPackageDisplayName(selectedPackage)}`,
+        externalReference,
+        metadata: {
+          packageType: selectedPackage,
+          sessionType: 'package_transition',
+          previousPackageType: transitionPreview.currentPackage,
+          daysRemaining: transitionPreview.daysRemaining,
+          userId: user.id,
+          displayAmount: displayAmount,
+          actualAmount: paymentAmount
+        }
+      };
+
+      console.log('Payment request created:', paymentReq);
+
+      // Create payment record in Firebase
+      const paymentId = await PaymentService.createPayment(user.id, paymentReq, {
+        packageType: selectedPackage,
+        sessionType: 'package_transition',
+        previousPackageType: transitionPreview.currentPackage,
+        daysRemaining: transitionPreview.daysRemaining
+      });
+
+      console.log('Payment created with ID:', paymentId);
+
+      setCurrentPaymentId(paymentId);
+      setPaymentRequest(paymentReq);
+      
+      if (displayAmount > paymentAmount) {
+        showSuccess(`Paiement initialisé (montant: ${displayAmount.toLocaleString('fr-FR')} FCFA, démo: 10 FCFA). Cliquez sur "Confirmer et payer" pour procéder.`);
+      } else {
+        showSuccess(`Paiement initialisé (montant: ${paymentAmount.toLocaleString('fr-FR')} FCFA, démo: 10 FCFA). Cliquez sur "Confirmer et payer" pour procéder.`);
+      }
+      
+    } catch (error) {
+      console.error('Erreur lors de la création du paiement:', error);
+      showError('Erreur lors de l\'initialisation du paiement. Veuillez réessayer.');
+    }
+  };
+
+  const handlePaymentSuccess = useCallback(async (data: CampayPaymentData) => {
+    if (!currentPaymentId || !selectedPackage || !user) return;
+
+    try {
+      // Update payment status in Firebase
+      await PaymentService.updatePaymentStatus(currentPaymentId, data, 'completed');
+      
+      // Execute package transition
       const success = await PackageTransitionService.executeTransition(
         user.id,
         selectedPackage,
         {
           preserveUnusedPayAsYouGo: true
         },
-        'simulation' // Payment method
+        'campay', // Payment method
+        currentPaymentId // Payment reference
       );
       
       if (success) {
         showSuccess(`Package ${getPackageDisplayName(selectedPackage)} activé avec succès !`);
         
-        // Navigate back to the previous page instead of reloading
+        // Navigate back to the previous page
         setTimeout(() => {
-          navigate(-1); // Go back to the previous page
+          navigate(-1);
         }, 1500);
       } else {
-        showError('Erreur lors de l\'activation du package. Veuillez réessayer.');
+        showError('Erreur lors de l\'activation du package. Veuillez contacter le support.');
       }
       
     } catch (error) {
-      console.error('Erreur lors du changement de package:', error);
-      showError('Erreur lors du changement de package. Veuillez réessayer.');
+      console.error('Erreur lors du traitement du paiement:', error);
+      showError('Erreur lors du traitement du paiement. Veuillez contacter le support.');
     } finally {
+      // Reset states
       setIsProcessing(false);
       setSelectedPackage(null);
       setTransitionPreview(null);
       setUserNeeds({});
+      setPaymentRequest(null);
+      setCurrentPaymentId(null);
+      setShowTransitionPreview(false);
     }
-  };
+  }, [currentPaymentId, selectedPackage, user, showSuccess, showError, navigate]);
+
+  const handlePaymentFail = useCallback(async (data: CampayPaymentData) => {
+    if (!currentPaymentId) return;
+
+    try {
+      // Update payment status in Firebase
+      await PaymentService.updatePaymentStatus(currentPaymentId, data, 'failed');
+      showError('Paiement échoué. Veuillez réessayer.');
+    } catch (error) {
+      console.error('Erreur lors de la mise à jour du statut de paiement:', error);
+    } finally {
+      // Reset states
+      setIsProcessing(false);
+      setPaymentRequest(null);
+      setCurrentPaymentId(null);
+    }
+  }, [currentPaymentId, showError]);
+
+  const handlePaymentModalClose = useCallback(async (data: CampayPaymentData) => {
+    if (!currentPaymentId) return;
+
+    try {
+      // Update payment status in Firebase
+      await PaymentService.updatePaymentStatus(currentPaymentId, data, 'cancelled');
+    } catch (error) {
+      console.error('Erreur lors de la mise à jour du statut de paiement:', error);
+    } finally {
+      // Reset states
+      setIsProcessing(false);
+      setPaymentRequest(null);
+      setCurrentPaymentId(null);
+    }
+  }, [currentPaymentId]);
 
 
 
@@ -904,7 +1006,7 @@ export const PackageManagementPage: React.FC = () => {
                       <div className="flex justify-between items-center text-lg">
                         <span className="font-semibold">Montant à payer</span>
                         <span className="font-bold text-green-600">
-                          {transitionPreview.priceBreakdown.finalAmount.toLocaleString('fr-FR')} FCFA
+                          {Math.max(transitionPreview.priceBreakdown.finalAmount, 5000).toLocaleString('fr-FR')} FCFA
                         </span>
                       </div>
                       
@@ -914,12 +1016,23 @@ export const PackageManagementPage: React.FC = () => {
                           <span>-{transitionPreview.priceBreakdown.savings.toLocaleString('fr-FR')} FCFA</span>
                         </div>
                       )}
+                      
+                      {transitionPreview.priceBreakdown.finalAmount === 0 && (
+                        <div className="flex justify-between items-center text-sm text-blue-600 mt-2">
+                          <span>Montant minimum appliqué</span>
+                          <span>5 000 FCFA</span>
+                        </div>
+                      )}
+                      
                     </div>
                   </div>
                   
                   <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
                     <p className="text-sm text-blue-700">
                       <strong>Note:</strong> {transitionPreview.summary}
+                      {transitionPreview.priceBreakdown.finalAmount === 0 && (
+                        <><br/><strong>Montant minimum:</strong> Un montant minimum de 5 000 FCFA est appliqué pour le traitement du paiement.</>
+                      )}
                     </p>
                   </div>
                 </div>
@@ -932,17 +1045,33 @@ export const PackageManagementPage: React.FC = () => {
                       setShowTransitionPreview(false);
                       setTransitionPreview(null);
                       setSelectedPackage(null);
+                      setPaymentRequest(null);
+                      setCurrentPaymentId(null);
                     }}
                   >
                     Annuler
                   </Button>
-                  <Button
-                    onClick={confirmTransition}
-                    disabled={isProcessing}
-                    className="bg-green-600 hover:bg-green-700"
-                  >
-                    {isProcessing ? 'Traitement...' : 'Confirmer et payer'}
-                  </Button>
+                  
+                  {paymentRequest ? (
+                      <CampayPayment
+                        key={paymentRequest.externalReference}
+                        paymentRequest={paymentRequest}
+                        onSuccess={handlePaymentSuccess}
+                        onFail={handlePaymentFail}
+                        onModalClose={handlePaymentModalClose}
+                        buttonText="Confirmer et payer"
+                        buttonClassName="bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded-lg transition-colors"
+                        disabled={isProcessing}
+                      />
+                  ) : (
+                    <Button
+                      onClick={confirmTransition}
+                      disabled={isProcessing}
+                      className="bg-green-600 hover:bg-green-700"
+                    >
+                      {isProcessing ? 'Traitement...' : 'Confirmer et payer'}
+                    </Button>
+                  )}
               </div>
             </div>
           </div>

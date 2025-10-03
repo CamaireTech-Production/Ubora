@@ -375,6 +375,40 @@ service cloud.firestore {
     }
 
     // =============================================================================
+    // COLLECTION PAYMENTS
+    // Règles pour les paiements :
+    // - Les utilisateurs peuvent lire leurs propres paiements
+    // - Les directeurs peuvent créer des paiements
+    // - Les admins peuvent lire tous les paiements
+    // =============================================================================
+    
+    match /payments/{paymentId} {
+      // LECTURE des paiements
+      allow read: if isAuthenticated() && (
+        isAdmin() ||
+        (isDirecteur() && resource.data.userId == request.auth.uid) ||
+        (isEmploye() && resource.data.userId == request.auth.uid)
+      );
+      
+      // CRÉATION de paiements
+      allow create: if isAuthenticated() && (
+        isAdmin() ||
+        isDirecteur() ||
+        isEmploye()
+      ) && request.resource.data.userId == request.auth.uid;
+      
+      // MODIFICATION des paiements (pour les callbacks de paiement)
+      allow update: if isAuthenticated() && (
+        isAdmin() ||
+        (isDirecteur() && resource.data.userId == request.auth.uid) ||
+        (isEmploye() && resource.data.userId == request.auth.uid)
+      );
+      
+      // SUPPRESSION des paiements (seuls les admins)
+      allow delete: if isAdmin();
+    }
+
+    // =============================================================================
     // RÈGLE DE SÉCURITÉ GLOBALE
     // Bloquer tout accès non authentifié par défaut
     // =============================================================================
