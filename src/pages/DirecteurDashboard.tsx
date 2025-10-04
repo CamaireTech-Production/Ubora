@@ -849,74 +849,10 @@ export const DirecteurDashboard: React.FC = () => {
           navigate('/packages/manage');
         }}
         onPayAsYouGo={async (type, quantity) => {
-          // Handle pay-as-you-go purchase
-          try {
-            if (!user?.id) {
-              throw new Error('Données utilisateur manquantes');
-            }
-
-            // Get pricing for the selected option based on type
-            const getPricingForType = (type: 'forms' | 'dashboards' | 'users') => {
-              switch (type) {
-                case 'forms':
-                  return [
-                    { quantity: 1, price: 2000 },
-                    { quantity: 3, price: 5000 },
-                    { quantity: 5, price: 8000 }
-                  ];
-                case 'dashboards':
-                  return [
-                    { quantity: 1, price: 3000 },
-                    { quantity: 2, price: 5500 },
-                    { quantity: 3, price: 8000 }
-                  ];
-                case 'users':
-                  return [
-                    { quantity: 1, price: 7000 },
-                    { quantity: 2, price: 13000 },
-                    { quantity: 3, price: 20000 }
-                  ];
-                default:
-                  return [];
-              }
-            };
-
-            const pricing = getPricingForType(type);
-            const selectedOption = pricing.find(opt => opt.quantity === quantity);
-            if (!selectedOption) {
-              throw new Error('Option de prix non trouvée');
-            }
-
-            // Simulate payment processing
-            await new Promise(resolve => setTimeout(resolve, 2000));
-            
-            // Use SubscriptionSessionService to add pay-as-you-go resources to the active session
-            const purchase = {
-              itemType: type,
-              quantity: quantity,
-              amountPaid: selectedOption.price,
-              purchaseDate: new Date(),
-              paymentMethod: 'card'
-            };
-            
-            const success = await SubscriptionSessionService.addPayAsYouGoResources(
-              user.id,
-              purchase
-            );
-            
-            if (!success) {
-              throw new Error('Erreur lors de l\'ajout de la ressource');
-            }
-            
-            showSuccess(`${quantity} ${type === 'forms' ? 'formulaire(s)' : type === 'dashboards' ? 'tableau(x) de bord' : 'utilisateur(s)'} supplémentaire(s) ajouté(s) pour ce mois !`);
-            setShowLimitModal(false);
-            
-            // The user data will be automatically updated by the AuthContext
-            // No need to reload the page - the UI will update automatically
-          } catch (error) {
-            console.error('Erreur lors de l\'achat pay-as-you-go:', error);
-            showError('Erreur lors de l\'achat des ressources supplémentaires');
-          }
+          // This will be handled by the LimitReachedModal with Campay integration
+          // The modal will create the payment and handle the success/failure
+          // This callback is kept for backward compatibility but won't be used
+          // since the LimitReachedModal now handles the payment flow directly
         }}
       />
 

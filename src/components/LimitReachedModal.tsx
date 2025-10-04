@@ -1,8 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { X, AlertCircle, ArrowRight, Plus, CreditCard } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from './Button';
 import { useToast } from '../hooks/useToast';
+import { CampayPayment } from './CampayPayment';
+import { PayAsYouGoPaymentService } from '../services/payAsYouGoPaymentService';
+import { PaymentRequest } from '../services/paymentService';
+import { CampayPaymentData } from '../types/payment';
 
 interface LimitReachedModalProps {
   isOpen: boolean;
@@ -28,6 +32,11 @@ export const LimitReachedModal: React.FC<LimitReachedModalProps> = ({
   const [showPayAsYouGo, setShowPayAsYouGo] = useState(false);
   const [selectedQuantity, setSelectedQuantity] = useState(1);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [paymentRequest, setPaymentRequest] = useState<PaymentRequest | null>(null);
+  const [currentPaymentId, setCurrentPaymentId] = useState<string | null>(null);
+  const [isCreatingPayment, setIsCreatingPayment] = useState(false);
+  const [autoOpenPayment, setAutoOpenPayment] = useState(false);
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   
   if (!isOpen) return null;
 
@@ -79,18 +88,114 @@ export const LimitReachedModal: React.FC<LimitReachedModalProps> = ({
   };
 
   const handlePayAsYouGo = async () => {
-    if (!onPayAsYouGo) return;
-    
-    setIsProcessing(true);
+    if (!user?.id) return;
+
+    setIsCreatingPayment(true);
     try {
-      await onPayAsYouGo(type, selectedQuantity);
-      showSuccess(`${selectedQuantity} ${getTypeLabel()} supplémentaire(s) ajouté(s) pour ce mois !`);
-      onClose();
+      const selectedOption = getPayAsYouGoOptions().find(opt => opt.quantity === selectedQuantity);
+      if (!selectedOption) {
+        throw new Error('Option de prix non trouvée');
+      }
+
+      // Create payment request
+      const paymentResult = await PayAsYouGoPaymentService.createPaymentRequest({
+        userId: user.id,
+        type,
+        quantity: selectedQuantity,
+        price: selectedOption.price,
+        description: PayAsYouGoPaymentService.getDescription(type, selectedQuantity),
+        metadata: {
+          displayAmount: selectedOption.price,
+          itemType: type,
+          packageInfo: selectedOption
+        }
+      });
+
+      if (!paymentResult.success || !paymentResult.paymentId || !paymentResult.paymentRequest) {
+        throw new Error(paymentResult.error || 'Failed to create payment request');
+      }
+
+      // Set payment data for Campay
+      setCurrentPaymentId(paymentResult.paymentId);
+      setPaymentRequest(paymentResult.paymentRequest);
+      setAutoOpenPayment(true);
+      setIsPaymentModalOpen(true);
+
     } catch (error) {
-      showError('Erreur lors de l\'ajout des ressources supplémentaires');
+      console.error('Purchase failed:', error);
+      showError('Erreur lors de la création du paiement. Veuillez réessayer.');
     } finally {
-      setIsProcessing(false);
+      setIsCreatingPayment(false);
     }
+  };
+
+  const handlePaymentSuccess = useCallback(async (data: CampayPaymentData) => {
+    if (!currentPaymentId || !user) return;
+
+    try {
+      // Process payment success
+      const result = await PayAsYouGoPaymentService.processPaymentSuccess(
+        currentPaymentId,
+        data,
+        user
+      );
+
+      if (result.success) {
+        showSuccess(`${selectedQuantity} ${getTypeLabel()} supplémentaire(s) ajouté(s) avec succès !`);
+        
+        // Call the original onPayAsYouGo callback for UI updates
+        if (onPayAsYouGo) {
+          await onPayAsYouGo(type, selectedQuantity);
+        }
+        
+        // Close modal after success
+        setTimeout(() => {
+          handleClose();
+        }, 1500);
+      } else {
+        showError(result.error || 'Erreur lors du traitement du paiement.');
+      }
+      
+    } catch (error) {
+      console.error('Erreur lors du traitement du paiement:', error);
+      showError('Erreur lors du traitement du paiement. Veuillez contacter le support.');
+    } finally {
+      // Reset states
+      setCurrentPaymentId(null);
+      setPaymentRequest(null);
+      setAutoOpenPayment(false);
+      setIsPaymentModalOpen(false);
+    }
+  }, [currentPaymentId, selectedQuantity, user, showSuccess, showError, onPayAsYouGo, type, getTypeLabel]);
+
+  const handlePaymentFail = useCallback(async (data: CampayPaymentData) => {
+    if (!currentPaymentId) return;
+
+    try {
+      await PayAsYouGoPaymentService.processPaymentFailure(currentPaymentId, data);
+      showError('Paiement échoué. Veuillez réessayer.');
+    } catch (error) {
+      console.error('Error processing payment failure:', error);
+    } finally {
+      // Reset states
+      setCurrentPaymentId(null);
+      setPaymentRequest(null);
+      setAutoOpenPayment(false);
+      setIsPaymentModalOpen(false);
+    }
+  }, [currentPaymentId, showError]);
+
+  const handlePaymentModalClose = useCallback(() => {
+    setIsPaymentModalOpen(false);
+    setAutoOpenPayment(false);
+  }, []);
+
+  const handleClose = () => {
+    setCurrentPaymentId(null);
+    setPaymentRequest(null);
+    setAutoOpenPayment(false);
+    setIsPaymentModalOpen(false);
+    onClose();
   };
 
   const payAsYouGoOptions = getPayAsYouGoOptions();
@@ -100,7 +205,7 @@ export const LimitReachedModal: React.FC<LimitReachedModalProps> = ({
       <div className="bg-white rounded-lg max-w-md w-full p-6 relative shadow-2xl">
         {/* Bouton de fermeture */}
         <button
-          onClick={onClose}
+          onClick={handleClose}
           className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors"
         >
           <X className="h-5 w-5" />
@@ -171,7 +276,7 @@ export const LimitReachedModal: React.FC<LimitReachedModalProps> = ({
               <div className="flex flex-col sm:flex-row gap-3">
                 <Button
                   variant="outline"
-                  onClick={onClose}
+                  onClick={handleClose}
                   className="flex-1"
                 >
                   Fermer
@@ -190,17 +295,17 @@ export const LimitReachedModal: React.FC<LimitReachedModalProps> = ({
               {user?.role === 'directeur' && (
                 <Button
                   onClick={handlePayAsYouGo}
-                  disabled={isProcessing}
+                  disabled={isCreatingPayment}
                   className="w-full bg-orange-600 hover:bg-orange-700 text-white flex items-center justify-center gap-2"
                 >
-                  {isProcessing ? (
+                  {isCreatingPayment ? (
                     <>
                       <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                      Traitement...
+                      Création du paiement...
                     </>
                   ) : (
                     <>
-                      <Plus className="h-4 w-4" />
+                      <CreditCard className="h-4 w-4" />
                       Acheter pour ce mois ({payAsYouGoOptions.find(opt => opt.quantity === selectedQuantity)?.price.toLocaleString()} FCFA)
                     </>
                   )}
@@ -218,6 +323,20 @@ export const LimitReachedModal: React.FC<LimitReachedModalProps> = ({
           )}
         </div>
       </div>
+
+      {/* Campay Payment Modal */}
+      {paymentRequest && (
+        <CampayPayment
+          paymentRequest={paymentRequest}
+          onSuccess={handlePaymentSuccess}
+          onFail={handlePaymentFail}
+          onModalClose={handlePaymentModalClose}
+          autoOpen={autoOpenPayment}
+          onAutoOpened={() => setAutoOpenPayment(false)}
+          onModalOpen={() => setIsPaymentModalOpen(true)}
+          onModalClosed={handlePaymentModalClose}
+        />
+      )}
     </div>
   );
 };

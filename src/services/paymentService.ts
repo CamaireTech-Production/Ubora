@@ -26,6 +26,18 @@ export class PaymentService {
     metadata?: Record<string, any>
   ): Promise<string> {
     try {
+      if (!paymentRequest || !paymentRequest.amount) {
+        throw new Error('Invalid payment request: missing amount');
+      }
+
+      // Clean metadata to ensure it's serializable (remove any React components or symbols)
+      const cleanMetadata = JSON.parse(JSON.stringify({
+        ...paymentRequest.metadata,
+        ...metadata
+      }));
+
+      console.log('Cleaned metadata for Firestore:', cleanMetadata);
+
       const paymentData = {
         userId,
         amount: paymentRequest.amount,
@@ -36,10 +48,7 @@ export class PaymentService {
         externalReference: paymentRequest.externalReference,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
-        metadata: {
-          ...paymentRequest.metadata,
-          ...metadata
-        }
+        metadata: cleanMetadata
       };
 
       const docRef = await addDoc(collection(db, this.COLLECTION_NAME), paymentData);

@@ -33,9 +33,6 @@ import {
 } from 'lucide-react';
 import { useToast } from '../hooks/useToast';
 import { PaymentModal } from '../components/PaymentModal';
-import { PayAsYouGoService } from '../services/payAsYouGoService';
-import { doc, getDoc } from 'firebase/firestore';
-import { db } from '../firebaseConfig';
 import { CampayPayment } from '../components/CampayPayment';
 import { PaymentService } from '../services/paymentService';
 import { PaymentRequest, CampayPaymentData } from '../types/payment';
@@ -312,86 +309,11 @@ export const PackageManagementPage: React.FC = () => {
   }, []);
 
   const handlePurchaseResource = async (option: any) => {
-    if (!user) {
-      showError('Utilisateur non connecté');
-      return;
-    }
-
-    try {
-      const userRef = doc(db, 'users', user.id);
-      const userDoc = await getDoc(userRef);
-      
-      if (!userDoc.exists()) {
-        throw new Error('Utilisateur non trouvé');
-      }
-      
-      // No need to get user data since we're using SubscriptionSessionService
-      
-      if (option.id.startsWith('tokens-')) {
-        // Handle token purchases using PayAsYouGoService
-        const tokenPackage = {
-          tokens: parseInt(option.id.split('-')[1].replace('k', '000')),
-          price: option.price,
-          popular: option.popular || false,
-          description: option.description
-        };
-        
-        const success = await PayAsYouGoService.purchaseTokens(user.id, tokenPackage);
-        if (!success) {
-          throw new Error('Erreur lors de l\'achat des tokens');
-        }
-      } else {
-        // Handle other resource purchases using SubscriptionSessionService
-        let resourceType: 'forms' | 'dashboards' | 'users';
-        let quantity: number;
-        
-        if (option.id.startsWith('forms-')) {
-          resourceType = 'forms';
-          if (option.id.includes('unlimited')) {
-            quantity = 999; // Large number for unlimited
-          } else {
-            quantity = parseInt(option.id.split('-')[1]);
-          }
-        } else if (option.id.startsWith('dashboards-')) {
-          resourceType = 'dashboards';
-          if (option.id.includes('unlimited')) {
-            quantity = 999; // Large number for unlimited
-          } else {
-            quantity = parseInt(option.id.split('-')[1]);
-          }
-        } else if (option.id.startsWith('users-')) {
-          resourceType = 'users';
-          quantity = parseInt(option.id.split('-')[1]);
-        } else {
-          throw new Error('Type de ressource non reconnu');
-        }
-        
-        // Use SubscriptionSessionService to add pay-as-you-go resources to the active session
-        const purchase = {
-          itemType: resourceType,
-          quantity: quantity,
-          amountPaid: option.price,
-          purchaseDate: new Date(),
-          paymentMethod: 'card'
-        };
-        
-        const success = await SubscriptionSessionService.addPayAsYouGoResources(
-          user.id,
-          purchase
-        );
-        
-        if (!success) {
-          throw new Error('Erreur lors de l\'ajout de la ressource');
-        }
-      }
-      
-      showSuccess(`${option.name} acheté avec succès !`);
-      setPaymentModal({ isOpen: false, type: 'tokens', currentLimit: 0 });
-      
-    } catch (error) {
-      console.error('Erreur lors de l\'achat:', error);
-      showError('Erreur lors de l\'achat. Veuillez réessayer.');
-    }
+    // This function is now handled by the PaymentModal with Campay integration
+    // The modal will create the payment and handle the success/failure
+    // This callback is kept for backward compatibility but won't be used
+    // since the PaymentModal now handles the payment flow directly
+    console.log('Resource purchase requested:', option);
   };
 
   const openPaymentModal = (type: 'tokens' | 'forms' | 'dashboards' | 'users', currentLimit: number) => {

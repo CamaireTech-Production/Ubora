@@ -94,30 +94,11 @@ export const DirecteurChat: React.FC = () => {
     }
   });
   const handlePurchaseTokens = async (tokens: number) => {
-    if (!user) return;
-    
-    try {
-      const tokenPackage = PayAsYouGoService.getTokenPackages().find(pkg => pkg.tokens === tokens);
-      if (!tokenPackage) {
-        showError('Package de tokens non trouvé');
-        return;
-      }
-      
-      const success = await PayAsYouGoService.purchaseTokens(user.id, tokenPackage);
-      if (success) {
-        
-        // Update user data locally without page reload
-        if (user) {
-          // Update the user context (you'll need to implement this in your auth context)
-          // For now, we'll trigger a user refresh
-        }
-      } else {
-        showError('Erreur lors de l\'achat des tokens');
-      }
-    } catch (error) {
-      console.error('Error purchasing tokens:', error);
-      showError('Erreur lors de l\'achat des tokens');
-    }
+    // This function is now handled by the PayAsYouGoModal with Campay integration
+    // The modal will create the payment and handle the success/failure
+    // This callback is kept for backward compatibility but won't be used
+    // since the PayAsYouGoModal now handles the payment flow directly
+    console.log('Token purchase requested:', tokens);
   };
 
   // Watch for new assistant messages to hide loading indicator

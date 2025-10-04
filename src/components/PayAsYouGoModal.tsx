@@ -1,7 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { X, CreditCard, Zap, CheckCircle, AlertCircle } from 'lucide-react';
 import { Button } from './Button';
 import { Card } from './Card';
+import { CampayPayment } from './CampayPayment';
+import { PayAsYouGoPaymentService } from '../services/payAsYouGoPaymentService';
+import { PaymentRequest } from '../services/paymentService';
+import { CampayPaymentData } from '../types/payment';
+import { useAuth } from '../contexts/AuthContext';
+import { useToast } from '../hooks/useToast';
 
 interface PayAsYouGoModalProps {
   isOpen: boolean;
@@ -43,9 +49,17 @@ export const PayAsYouGoModal: React.FC<PayAsYouGoModalProps> = ({
   payAsYouGoTokens,
   requiredTokens = 0
 }) => {
+  const { user } = useAuth();
+  const { showSuccess, showError } = useToast();
+  
   const [selectedPackage, setSelectedPackage] = useState<number | null>(null);
   const [isPurchasing, setIsPurchasing] = useState(false);
   const [purchaseSuccess, setPurchaseSuccess] = useState(false);
+  const [paymentRequest, setPaymentRequest] = useState<PaymentRequest | null>(null);
+  const [currentPaymentId, setCurrentPaymentId] = useState<string | null>(null);
+  const [isCreatingPayment, setIsCreatingPayment] = useState(false);
+  const [autoOpenPayment, setAutoOpenPayment] = useState(false);
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
 
   if (!isOpen) return null;
 
@@ -53,29 +67,113 @@ export const PayAsYouGoModal: React.FC<PayAsYouGoModalProps> = ({
   const remainingTokens = totalAvailableTokens - currentTokens;
 
   const handlePurchase = async () => {
-    if (!selectedPackage) return;
+    if (!selectedPackage || !user?.id) return;
 
-    setIsPurchasing(true);
+    setIsCreatingPayment(true);
     try {
       const packageData = TOKEN_PACKAGES.find(pkg => pkg.tokens === selectedPackage);
-      if (packageData) {
-        await onPurchase(selectedPackage);
-        setPurchaseSuccess(true);
-        setTimeout(() => {
-          setPurchaseSuccess(false);
-          onClose();
-        }, 2000);
+      if (!packageData) {
+        throw new Error('Package data not found');
       }
+
+      // Create payment request
+      const paymentResult = await PayAsYouGoPaymentService.createPaymentRequest({
+        userId: user.id,
+        type: 'tokens',
+        quantity: selectedPackage,
+        price: packageData.price,
+        description: PayAsYouGoPaymentService.getDescription('tokens', selectedPackage),
+        metadata: {
+          displayAmount: packageData.price,
+          itemType: 'tokens',
+          packageInfo: packageData
+        }
+      });
+
+      if (!paymentResult.success || !paymentResult.paymentId || !paymentResult.paymentRequest) {
+        throw new Error(paymentResult.error || 'Failed to create payment request');
+      }
+
+      // Set payment data for Campay
+      setCurrentPaymentId(paymentResult.paymentId);
+      setPaymentRequest(paymentResult.paymentRequest);
+      setAutoOpenPayment(true);
+      setIsPaymentModalOpen(true);
+
     } catch (error) {
       console.error('Purchase failed:', error);
+      showError('Erreur lors de la création du paiement. Veuillez réessayer.');
     } finally {
-      setIsPurchasing(false);
+      setIsCreatingPayment(false);
     }
   };
+
+  const handlePaymentSuccess = useCallback(async (data: CampayPaymentData) => {
+    if (!currentPaymentId || !selectedPackage || !user) return;
+
+    try {
+      // Process payment success
+      const result = await PayAsYouGoPaymentService.processPaymentSuccess(
+        currentPaymentId,
+        data,
+        user
+      );
+
+      if (result.success) {
+        showSuccess(`${selectedPackage.toLocaleString()} tokens ajoutés avec succès !`);
+        
+        // Call the original onPurchase callback for UI updates
+        await onPurchase(selectedPackage);
+        
+        // Close modal after success
+        setTimeout(() => {
+          handleClose();
+        }, 1500);
+      } else {
+        showError(result.error || 'Erreur lors du traitement du paiement.');
+      }
+      
+    } catch (error) {
+      console.error('Erreur lors du traitement du paiement:', error);
+      showError('Erreur lors du traitement du paiement. Veuillez contacter le support.');
+    } finally {
+      // Reset states
+      setCurrentPaymentId(null);
+      setPaymentRequest(null);
+      setAutoOpenPayment(false);
+      setIsPaymentModalOpen(false);
+    }
+  }, [currentPaymentId, selectedPackage, user, showSuccess, showError, onPurchase]);
+
+  const handlePaymentFail = useCallback(async (data: CampayPaymentData) => {
+    if (!currentPaymentId) return;
+
+    try {
+      await PayAsYouGoPaymentService.processPaymentFailure(currentPaymentId, data);
+      showError('Paiement échoué. Veuillez réessayer.');
+    } catch (error) {
+      console.error('Error processing payment failure:', error);
+    } finally {
+      // Reset states
+      setCurrentPaymentId(null);
+      setPaymentRequest(null);
+      setAutoOpenPayment(false);
+      setIsPaymentModalOpen(false);
+    }
+  }, [currentPaymentId, showError]);
+
+  const handlePaymentModalClose = useCallback(() => {
+    setIsPaymentModalOpen(false);
+    setAutoOpenPayment(false);
+  }, []);
 
   const handleClose = () => {
     setSelectedPackage(null);
     setPurchaseSuccess(false);
+    setCurrentPaymentId(null);
+    setPaymentRequest(null);
+    setAutoOpenPayment(false);
+    setIsPaymentModalOpen(false);
     onClose();
   };
 
@@ -195,16 +293,30 @@ export const PayAsYouGoModal: React.FC<PayAsYouGoModalProps> = ({
               </Button>
               <Button
                 onClick={handlePurchase}
-                disabled={!selectedPackage || isPurchasing}
+                disabled={!selectedPackage || isCreatingPayment}
                 className="flex items-center gap-2"
               >
                 <CreditCard className="w-4 h-4" />
-                {isPurchasing ? 'Achat en cours...' : 'Acheter des tokens'}
+                {isCreatingPayment ? 'Création du paiement...' : 'Acheter des tokens'}
               </Button>
             </div>
           </>
         )}
       </Card>
+
+      {/* Campay Payment Modal */}
+      {paymentRequest && (
+        <CampayPayment
+          paymentRequest={paymentRequest}
+          onSuccess={handlePaymentSuccess}
+          onFail={handlePaymentFail}
+          onModalClose={handlePaymentModalClose}
+          autoOpen={autoOpenPayment}
+          onAutoOpened={() => setAutoOpenPayment(false)}
+          onModalOpen={() => setIsPaymentModalOpen(true)}
+          onModalClosed={handlePaymentModalClose}
+        />
+      )}
     </div>
   );
 };
