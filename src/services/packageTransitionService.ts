@@ -228,8 +228,21 @@ export class PackageTransitionService {
    * Get package price
    */
   private static getPackagePrice(packageType: 'starter' | 'standard' | 'premium' /* | 'custom' */): number {
-    const priceStr = getPackagePrice(packageType);
-    return parseInt(priceStr.replace(/[^\d]/g, '')) || 0;
+    try {
+      const priceStr = getPackagePrice(packageType);
+      const parsedPrice = parseInt(priceStr.replace(/[^\d]/g, '')) || 0;
+      
+      // Defensive programming: ensure we don't return NaN
+      if (isNaN(parsedPrice)) {
+        console.warn('Failed to parse package price for', packageType, 'price string:', priceStr);
+        return 0;
+      }
+      
+      return parsedPrice;
+    } catch (error) {
+      console.error('Error parsing package price for', packageType, error);
+      return 0;
+    }
   }
 
   /**
@@ -256,7 +269,7 @@ export class PackageTransitionService {
       sessionType,
       startDate: transitionDate, // Start from transition date
       endDate: newEndDate, // End 30 days from transition date
-      amountPaid: Math.abs(calculation.finalAmountToPay), // Use the calculated amount (package price - remaining value)
+      amountPaid: Math.abs(calculation.finalAmountToPay) || 0, // Use the calculated amount (package price - remaining value), ensure not NaN
       durationDays: 30, // Always 30 days for new session
       packageResources: {
         tokensIncluded: calculation.newPackageTokens,
@@ -420,9 +433,18 @@ export class PackageTransitionService {
     currentPackagePrice: number,
     daysRemaining: number
   ): number {
+    // Defensive programming: ensure we have valid numbers
+    if (isNaN(currentPackagePrice) || isNaN(daysRemaining) || currentPackagePrice < 0 || daysRemaining < 0) {
+      console.warn('Invalid values in calculateCostReduction:', { currentPackagePrice, daysRemaining });
+      return 0;
+    }
+    
     const totalDaysInCycle = 30;
     const remainingValue = (currentPackagePrice * daysRemaining) / totalDaysInCycle;
-    return Math.round(remainingValue);
+    const result = Math.round(remainingValue);
+    
+    // Ensure result is not NaN
+    return isNaN(result) ? 0 : result;
   }
 
   /**
@@ -586,6 +608,17 @@ export class PackageTransitionService {
       // DOWNGRADE: Industry best practice - no immediate refund, takes effect at next billing cycle
       // For now, we'll allow immediate downgrade but with no immediate payment
       finalAmountToPay = 0; // No immediate payment for downgrades
+    }
+    
+    // Defensive programming: ensure finalAmountToPay is not NaN
+    if (isNaN(finalAmountToPay)) {
+      console.warn('finalAmountToPay is NaN, setting to 0. Values:', {
+        newPackagePrice,
+        currentPackagePrice,
+        currentPackageRemainingValue,
+        daysRemaining
+      });
+      finalAmountToPay = 0;
     }
     
     // Token handling (existing logic)

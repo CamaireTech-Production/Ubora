@@ -62,6 +62,9 @@ export const PackageManagementPage: React.FC = () => {
   });
   const [paymentRequest, setPaymentRequest] = useState<PaymentRequest | null>(null);
   const [currentPaymentId, setCurrentPaymentId] = useState<string | null>(null);
+  const [isCreatingPayment, setIsCreatingPayment] = useState(false);
+  const [autoOpenPayment, setAutoOpenPayment] = useState(false);
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
 
   // Debug payment request changes
   useEffect(() => {
@@ -140,6 +143,7 @@ export const PackageManagementPage: React.FC = () => {
   const confirmTransition = async () => {
     if (!selectedPackage || !user || !transitionPreview) return;
 
+    setIsCreatingPayment(true);
     try {
       console.log('Starting package transition for:', selectedPackage);
       console.log('Transition preview:', transitionPreview);
@@ -169,6 +173,7 @@ export const PackageManagementPage: React.FC = () => {
       console.log('Payment request created:', paymentReq);
 
       // Create payment record in Firebase
+      console.log('Creating payment record in Firebase...');
       const paymentId = await PaymentService.createPayment(user.id, paymentReq, {
         packageType: selectedPackage,
         sessionType: 'package_transition',
@@ -177,19 +182,36 @@ export const PackageManagementPage: React.FC = () => {
       });
 
       console.log('Payment created with ID:', paymentId);
+      
+      // Verify payment was created
+      const createdPayment = await PaymentService.getPayment(paymentId);
+      if (createdPayment) {
+        console.log('Payment verification successful:', createdPayment);
+      } else {
+        console.error('Payment verification failed - payment not found in Firebase');
+        showError('Erreur lors de la création du paiement. Veuillez réessayer.');
+        return;
+      }
 
       setCurrentPaymentId(paymentId);
       setPaymentRequest(paymentReq);
       
+      // Auto-open payment modal after a short delay
+      setTimeout(() => {
+        setAutoOpenPayment(true);
+      }, 1000);
+      
       if (displayAmount > paymentAmount) {
-        showSuccess(`Paiement initialisé (montant: ${displayAmount.toLocaleString('fr-FR')} FCFA, démo: 10 FCFA). Cliquez sur "Confirmer et payer" pour procéder.`);
+        showSuccess(`Paiement initialisé (montant: ${displayAmount.toLocaleString('fr-FR')} FCFA, démo: 10 FCFA). Ouverture du modal de paiement...`);
       } else {
-        showSuccess(`Paiement initialisé (montant: ${paymentAmount.toLocaleString('fr-FR')} FCFA, démo: 10 FCFA). Cliquez sur "Confirmer et payer" pour procéder.`);
+        showSuccess(`Paiement initialisé (montant: ${paymentAmount.toLocaleString('fr-FR')} FCFA, démo: 10 FCFA). Ouverture du modal de paiement...`);
       }
       
     } catch (error) {
       console.error('Erreur lors de la création du paiement:', error);
       showError('Erreur lors de l\'initialisation du paiement. Veuillez réessayer.');
+    } finally {
+      setIsCreatingPayment(false);
     }
   };
 
@@ -233,6 +255,9 @@ export const PackageManagementPage: React.FC = () => {
       setUserNeeds({});
       setPaymentRequest(null);
       setCurrentPaymentId(null);
+      setIsCreatingPayment(false);
+      setAutoOpenPayment(false);
+      setIsPaymentModalOpen(false);
       setShowTransitionPreview(false);
     }
   }, [currentPaymentId, selectedPackage, user, showSuccess, showError, navigate]);
@@ -251,6 +276,9 @@ export const PackageManagementPage: React.FC = () => {
       setIsProcessing(false);
       setPaymentRequest(null);
       setCurrentPaymentId(null);
+      setIsCreatingPayment(false);
+      setAutoOpenPayment(false);
+      setIsPaymentModalOpen(false);
     }
   }, [currentPaymentId, showError]);
 
@@ -267,10 +295,21 @@ export const PackageManagementPage: React.FC = () => {
       setIsProcessing(false);
       setPaymentRequest(null);
       setCurrentPaymentId(null);
+      setIsCreatingPayment(false);
+      setAutoOpenPayment(false);
+      setIsPaymentModalOpen(false);
     }
   }, [currentPaymentId]);
 
+  const handlePaymentModalOpen = useCallback(() => {
+    console.log('Payment modal opened');
+    setIsPaymentModalOpen(true);
+  }, []);
 
+  const handlePaymentModalClosed = useCallback(() => {
+    console.log('Payment modal closed');
+    setIsPaymentModalOpen(false);
+  }, []);
 
   const handlePurchaseResource = async (option: any) => {
     if (!user) {
@@ -1047,6 +1086,9 @@ export const PackageManagementPage: React.FC = () => {
                       setSelectedPackage(null);
                       setPaymentRequest(null);
                       setCurrentPaymentId(null);
+                      setIsCreatingPayment(false);
+                      setAutoOpenPayment(false);
+                      setIsPaymentModalOpen(false);
                     }}
                   >
                     Annuler
@@ -1059,17 +1101,23 @@ export const PackageManagementPage: React.FC = () => {
                         onSuccess={handlePaymentSuccess}
                         onFail={handlePaymentFail}
                         onModalClose={handlePaymentModalClose}
-                        buttonText="Confirmer et payer"
+                        buttonText="Payer maintenant"
                         buttonClassName="bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded-lg transition-colors"
                         disabled={isProcessing}
+                        autoOpen={autoOpenPayment}
+                        onAutoOpened={() => setAutoOpenPayment(false)}
+                        onModalOpen={handlePaymentModalOpen}
+                        onModalClosed={handlePaymentModalClosed}
                       />
                   ) : (
                     <Button
                       onClick={confirmTransition}
-                      disabled={isProcessing}
+                      disabled={isProcessing || isCreatingPayment || isPaymentModalOpen}
                       className="bg-green-600 hover:bg-green-700"
                     >
-                      {isProcessing ? 'Traitement...' : 'Confirmer et payer'}
+                      {isCreatingPayment ? 'Préparation du paiement...' : 
+                       isPaymentModalOpen ? 'Modal de paiement ouvert...' : 
+                       isProcessing ? 'Traitement...' : 'Confirmer et payer'}
                     </Button>
                   )}
               </div>
