@@ -262,3 +262,14 @@ export const getPackagePrice = (packageType: PackageType): string => {
   };
   return prices[packageType];
 };
+
+// Fonction utilitaire pour obtenir le prix numérique d'un package
+export const getPackagePriceNumeric = (packageType: PackageType): number => {
+  const prices: Record<PackageType, number> = {
+    starter: 35000,
+    standard: 49999,
+    premium: 199999
+    /* custom: 250000 */
+  };
+  return prices[packageType];
+};

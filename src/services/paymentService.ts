@@ -9,13 +9,27 @@ import {
   orderBy, 
   limit, 
   getDocs,
-  serverTimestamp 
+  serverTimestamp,
+  enableNetwork
 } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 import { Payment, PaymentRequest, CampayPaymentData } from '../types/payment';
 
 export class PaymentService {
   private static readonly COLLECTION_NAME = 'payments';
+
+  /**
+   * Ensure Firestore connection is active
+   */
+  private static async ensureConnection(): Promise<void> {
+    try {
+      // Try to enable network connection
+      await enableNetwork(db);
+      console.log('Firestore connection enabled');
+    } catch (error) {
+      console.warn('Could not enable Firestore network:', error);
+    }
+  }
 
   /**
    * Create a new payment record in Firebase
@@ -26,7 +40,10 @@ export class PaymentService {
     metadata?: Record<string, any>
   ): Promise<string> {
     try {
-      if (!paymentRequest || !paymentRequest.amount) {
+      // Ensure Firestore connection is active
+      await this.ensureConnection();
+
+      if (!paymentRequest || paymentRequest.amount === undefined || paymentRequest.amount === null) {
         throw new Error('Invalid payment request: missing amount');
       }
 
@@ -38,24 +55,78 @@ export class PaymentService {
 
       console.log('Cleaned metadata for Firestore:', cleanMetadata);
 
+      // Create a more robust payment data object
       const paymentData = {
-        userId,
-        amount: paymentRequest.amount,
-        currency: paymentRequest.currency,
-        description: paymentRequest.description,
+        userId: String(userId), // Ensure userId is a string
+        amount: Number(paymentRequest.amount), // Ensure amount is a number
+        currency: String(paymentRequest.currency || 'XAF'), // Ensure currency is a string
+        description: String(paymentRequest.description || ''), // Ensure description is a string
         status: 'pending' as const,
         paymentMethod: 'campay' as const,
-        externalReference: paymentRequest.externalReference,
+        externalReference: String(paymentRequest.externalReference || ''), // Ensure externalReference is a string
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
         metadata: cleanMetadata
       };
 
-      const docRef = await addDoc(collection(db, this.COLLECTION_NAME), paymentData);
-      return docRef.id;
+      // Add retry logic for Firestore operations
+      let retries = 3;
+      let lastError: any;
+
+      while (retries > 0) {
+        try {
+          console.log('Attempting to create payment document...', { retries });
+          
+          // Try the standard approach first
+          const docRef = await addDoc(collection(db, this.COLLECTION_NAME), paymentData);
+          console.log('Payment document created successfully:', docRef.id);
+          return docRef.id;
+        } catch (firestoreError) {
+          lastError = firestoreError;
+          console.error(`Firestore error (attempt ${4 - retries}):`, firestoreError);
+          
+          // If it's the internal assertion error, try a different approach
+          if (firestoreError instanceof Error && firestoreError.message && firestoreError.message.includes('INTERNAL ASSERTION FAILED')) {
+            console.log('Detected Firestore internal assertion error, trying alternative approach...');
+            
+            try {
+              // Try with a simpler data structure
+              const simplePaymentData = {
+                userId: String(userId),
+                amount: Number(paymentRequest.amount),
+                currency: 'XAF',
+                description: String(paymentRequest.description || ''),
+                status: 'pending',
+                paymentMethod: 'campay',
+                externalReference: String(paymentRequest.externalReference || ''),
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+                metadata: JSON.stringify(cleanMetadata) // Store as string instead of object
+              };
+              
+              const docRef = await addDoc(collection(db, this.COLLECTION_NAME), simplePaymentData);
+              console.log('Payment document created successfully with alternative approach:', docRef.id);
+              return docRef.id;
+            } catch (altError) {
+              console.error('Alternative approach also failed:', altError);
+              lastError = altError;
+            }
+          }
+          
+          if (retries > 1) {
+            // Wait before retrying
+            await new Promise(resolve => setTimeout(resolve, 1000 * (4 - retries)));
+          }
+          retries--;
+        }
+      }
+
+      // If all retries failed, throw the last error
+      throw lastError;
+
     } catch (error) {
       console.error('Error creating payment:', error);
-      throw new Error('Failed to create payment record');
+      throw new Error(`Failed to create payment record: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 

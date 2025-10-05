@@ -54,6 +54,23 @@ const ServiceWorkerMessageHandler: React.FC = () => {
   return null;
 };
 
+// Component that only renders notification services for authenticated users
+const AuthenticatedServices: React.FC = () => {
+  const { user } = useAuth();
+
+  // Only render these services if user is authenticated
+  if (!user) {
+    return null;
+  }
+
+  return (
+    <>
+      <NotificationListener />
+      <ReminderServiceInitializer />
+    </>
+  );
+};
+
 function App() {
   // Initialize PWA configuration on app load
   useEffect(() => {
@@ -67,8 +84,7 @@ function App() {
           <ConversationProvider>
             <Router>
               <ServiceWorkerMessageHandler />
-              <NotificationListener />
-              <ReminderServiceInitializer />
+              <AuthenticatedServices />
             <Routes>
             {/* Page de connexion */}
             <Route path="/login" element={<LoginPage />} />
