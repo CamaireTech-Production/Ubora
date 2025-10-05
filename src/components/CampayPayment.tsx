@@ -87,9 +87,24 @@ export const CampayPayment: React.FC<CampayPaymentProps> = ({
       console.log('CampayPayment: Creating new script element');
       // Create new script element
       const script = document.createElement('script');
-      // New demo account with 100 FCFA max limit
-      script.src = 'https://demo.campay.net/sdk/js?app-id=Muw-QotZAcx8PbngvT7lbsnc1OomeDkw31sWjv5XftEBoSy_opiLcFz17UhClFC6ZNm8AOdL6xFCH7KoUEUN5Q';
+      
+      // Get Campay configuration from environment variables
+      const campayAppId = import.meta.env.VITE_CAMPAY_APP_ID || 'Muw-QotZAcx8PbngvT7lbsnc1OomeDkw31sWjv5XftEBoSy_opiLcFz17UhClFC6ZNm8AOdL6xFCH7KoUEUN5Q';
+      const campayEnvironment = import.meta.env.VITE_CAMPAY_ENVIRONMENT || 'demo'; // 'demo' or 'live'
+      
+      // Build the script URL based on environment
+      const baseUrl = campayEnvironment === 'live' 
+        ? 'https://www.campay.net/sdk/js' 
+        : 'https://demo.campay.net/sdk/js';
+      
+      script.src = `${baseUrl}?app-id=${campayAppId}`;
       script.async = true;
+      
+      console.log('CampayPayment: Using Campay configuration:', {
+        environment: campayEnvironment,
+        appId: campayAppId,
+        scriptUrl: script.src
+      });
       
       script.onload = () => {
         console.log('CampayPayment: Script loaded successfully');
@@ -132,24 +147,29 @@ export const CampayPayment: React.FC<CampayPaymentProps> = ({
         const buttonElement = document.getElementById(buttonId);
         console.log('CampayPayment: Button element found:', !!buttonElement, buttonElement);
 
-                // For demo mode, always use 10 FCFA for all transactions
-                const demoAmount = 10;
-                const actualAmount = demoAmount; // Always use 10 FCFA for demo
+        // Get Campay configuration from environment variables
+        const campayEnvironment = import.meta.env.VITE_CAMPAY_ENVIRONMENT || 'demo';
+        const demoAmount = parseInt(import.meta.env.VITE_CAMPAY_DEMO_AMOUNT || '10');
+        const actualAmount = campayEnvironment === 'demo' ? demoAmount : paymentRequest.amount;
         
-        console.log('CampayPayment: Using demo account with amount:', {
+        console.log('CampayPayment: Using Campay account with amount:', {
           originalAmount: paymentRequest.amount,
-          demoAmount: actualAmount,
-          isDemoMode: true,
+          actualAmount: actualAmount,
+          environment: campayEnvironment,
+          isDemoMode: campayEnvironment === 'demo',
           displayAmount: paymentRequest.metadata?.displayAmount
         });
 
+        // Get redirect URL from environment or use empty string
+        const redirectUrl = import.meta.env.VITE_CAMPAY_REDIRECT_URL || "";
+        
         window.campay.options({
           payButtonId: buttonId,
           description: paymentRequest.description,
           amount: actualAmount.toString(),
           currency: paymentRequest.currency,
           externalReference: paymentRequest.externalReference,
-          redirectUrl: "",
+          redirectUrl: redirectUrl,
         });
 
         console.log('CampayPayment: Campay options set successfully');

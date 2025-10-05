@@ -60,6 +60,12 @@ jobs:
         # PWA Configuration for Development
         VITE_APP_ENV=dev
         NODE_ENV=development
+        
+        # Campay Configuration for Development
+        VITE_CAMPAY_ENVIRONMENT=live
+        VITE_CAMPAY_APP_ID=${{ secrets.CAMPAY_APP_ID }}
+        VITE_CAMPAY_DEMO_AMOUNT=10
+        VITE_CAMPAY_REDIRECT_URL=
         EOF
         
     - name: Build application
