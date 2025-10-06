@@ -4,7 +4,7 @@ import { Button } from './Button';
 import { Card } from './Card';
 import { CampayPayment } from './CampayPayment';
 import { PayAsYouGoPaymentService } from '../services/payAsYouGoPaymentService';
-import { PaymentRequest } from '../services/paymentService';
+import { PaymentRequest } from '../types/payment';
 import { CampayPaymentData } from '../types/payment';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../hooks/useToast';

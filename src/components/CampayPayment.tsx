@@ -55,77 +55,24 @@ export const CampayPayment: React.FC<CampayPaymentProps> = ({
   // Generate unique button ID for this component instance (only once)
   const [buttonId] = useState(() => `campay-pay-button-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`);
 
-  // Load Campay SDK (only once globally)
+  // Rely on global preload (index.html) and only listen for readiness
   useEffect(() => {
-    console.log('CampayPayment: Starting script load process');
-    
-    const loadCampayScript = () => {
-      // Check if script is already loaded
-      if (window.campay) {
-        console.log('CampayPayment: Campay SDK already loaded');
-        setScriptLoaded(true);
-        return;
-      }
-
-      // Check if script is already in the DOM
-      const existingScript = document.querySelector('script[src*="campay.net/sdk/js"]');
-      if (existingScript) {
-        console.log('CampayPayment: Script exists in DOM, waiting for load');
-        // Script exists, wait for it to load
-        const checkCampay = () => {
-          if (window.campay) {
-            console.log('CampayPayment: Campay SDK loaded from existing script');
-            setScriptLoaded(true);
-          } else {
-            setTimeout(checkCampay, 100);
-          }
-        };
-        checkCampay();
-        return;
-      }
-
-      console.log('CampayPayment: Creating new script element');
-      // Create new script element
-      const script = document.createElement('script');
-      
-      // Get Campay configuration from environment variables
-      const campayAppId = import.meta.env.VITE_CAMPAY_APP_ID || 'Muw-QotZAcx8PbngvT7lbsnc1OomeDkw31sWjv5XftEBoSy_opiLcFz17UhClFC6ZNm8AOdL6xFCH7KoUEUN5Q';
-      const campayEnvironment = import.meta.env.VITE_CAMPAY_ENVIRONMENT || 'demo'; // 'demo' or 'live'
-      
-      // Build the script URL based on environment
-      const baseUrl = campayEnvironment === 'live' 
-        ? 'https://www.campay.net/sdk/js' 
-        : 'https://demo.campay.net/sdk/js';
-      
-      script.src = `${baseUrl}?app-id=${campayAppId}`;
-      script.async = true;
-      
-      console.log('CampayPayment: Using Campay configuration:', {
-        environment: campayEnvironment,
-        appId: campayAppId,
-        scriptUrl: script.src
-      });
-      
-      script.onload = () => {
-        console.log('CampayPayment: Script loaded successfully');
-        setScriptLoaded(true);
-      };
-      
-      script.onerror = () => {
-        console.error('CampayPayment: Failed to load Campay SDK');
-        setScriptLoaded(false);
-      };
-
-      document.head.appendChild(script);
-      console.log('CampayPayment: Script added to document head');
+    if (window.campay) {
+      console.log('CampayPayment: Campay SDK available globally');
+      setScriptLoaded(true);
+      return;
+    }
+    const onReady = () => {
+      console.log('CampayPayment: Received campay:ready event');
+      setScriptLoaded(true);
     };
-
-    loadCampayScript();
+    window.addEventListener('campay:ready', onReady);
+    return () => window.removeEventListener('campay:ready', onReady);
   }, []);
 
   // Initialize Campay when script is loaded and payment request is ready
   useEffect(() => {
-    console.log('CampayPayment: useEffect triggered', {
+    console.log('CampayPayment: useEffect (initialize) called', {
       scriptLoaded,
       hasCampay: !!window.campay,
       hasPaymentRequest: !!paymentRequest,

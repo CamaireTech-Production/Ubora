@@ -1,7 +1,8 @@
 export interface Payment {
   id: string;
   userId: string;
-  amount: number;
+  amount: number; // amount actually charged (enforced min-fee if applicable)
+  originalAmount?: number; // original computed amount before any min-fee adjustments
   currency: string;
   description: string;
   status: 'pending' | 'completed' | 'failed' | 'cancelled';

@@ -3,6 +3,7 @@ import { db } from '../firebaseConfig';
 import { SubscriptionSession, User } from '../types';
 import { SubscriptionSessionService } from './subscriptionSessionService';
 import { PACKAGE_LIMITS, getPackagePrice, PackageLimits } from '../config/packageFeatures';
+import { PaymentService } from './paymentService';
 
 export interface PackageTransitionOptions {
   preserveUnusedPayAsYouGo?: boolean; // Whether to preserve unused pay-as-you-go tokens (default: true)
@@ -264,12 +265,31 @@ export class PackageTransitionService {
     
     const newPackageLimits = PACKAGE_LIMITS[calculation.newPackageType];
     
+    // Get the actual payment amount from the payment document
+    let amountPaid = Math.abs(calculation.finalAmountToPay) || 0;
+    if (paymentReference) {
+      try {
+        const payment = await PaymentService.getPayment(paymentReference);
+        if (payment) {
+          amountPaid = payment.amount; // Use the actual charged amount from payment
+          console.log('PackageTransitionService: Using payment amount for session:', {
+            paymentId: paymentReference,
+            paymentAmount: payment.amount,
+            originalAmount: payment.originalAmount,
+            calculatedAmount: Math.abs(calculation.finalAmountToPay)
+          });
+        }
+      } catch (error) {
+        console.error('PackageTransitionService: Failed to get payment amount, using calculated amount:', error);
+      }
+    }
+    
     return SubscriptionSessionService.createSession(userId, {
       packageType: calculation.newPackageType,
       sessionType,
       startDate: transitionDate, // Start from transition date
       endDate: newEndDate, // End 30 days from transition date
-      amountPaid: Math.abs(calculation.finalAmountToPay) || 0, // Use the calculated amount (package price - remaining value), ensure not NaN
+      amountPaid: amountPaid, // Use actual payment amount
       durationDays: 30, // Always 30 days for new session
       packageResources: {
         tokensIncluded: calculation.newPackageTokens,

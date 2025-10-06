@@ -4,8 +4,8 @@ import { Button } from './Button';
 import { useToast } from '../hooks/useToast';
 import { CampayPayment } from './CampayPayment';
 import { PayAsYouGoPaymentService } from '../services/payAsYouGoPaymentService';
-import { PaymentService } from '../services/paymentService';
-import { PaymentRequest } from '../services/paymentService';
+import { PaymentService } from '../services/paymentService.ts';
+import { PaymentRequest } from '../types/payment';
 import { CampayPaymentData } from '../types/payment';
 import { useAuth } from '../contexts/AuthContext';
 

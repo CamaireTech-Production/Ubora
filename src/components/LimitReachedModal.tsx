@@ -5,7 +5,7 @@ import { Button } from './Button';
 import { useToast } from '../hooks/useToast';
 import { CampayPayment } from './CampayPayment';
 import { PayAsYouGoPaymentService } from '../services/payAsYouGoPaymentService';
-import { PaymentRequest } from '../services/paymentService';
+import { PaymentRequest } from '../types/payment';
 import { CampayPaymentData } from '../types/payment';
 
 interface LimitReachedModalProps {

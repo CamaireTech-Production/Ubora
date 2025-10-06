@@ -34,7 +34,7 @@ import {
 import { useToast } from '../hooks/useToast';
 import { PaymentModal } from '../components/PaymentModal';
 import { CampayPayment } from '../components/CampayPayment';
-import { PaymentService } from '../services/paymentService';
+import { PaymentService } from '../services/paymentService.ts';
 import { PaymentRequest, CampayPaymentData } from '../types/payment';
 
 export const PackageManagementPage: React.FC = () => {
@@ -147,7 +147,7 @@ export const PackageManagementPage: React.FC = () => {
       
       // Create payment request
       const externalReference = PaymentService.generateExternalReference('PKG');
-      // Ensure minimum amount of 5000 FCFA for UI display, but use actual amount for Campay
+      // UI may display min 5k, but the requested amount is the computed payable
       const displayAmount = Math.max(transitionPreview.priceBreakdown.finalAmount, 5000);
       const paymentAmount = transitionPreview.priceBreakdown.finalAmount;
       
@@ -163,7 +163,10 @@ export const PackageManagementPage: React.FC = () => {
           daysRemaining: transitionPreview.daysRemaining,
           userId: user.id,
           displayAmount: displayAmount,
-          actualAmount: paymentAmount
+          // for PaymentService to record originalAmount accurately
+          originalAmount: transitionPreview.priceBreakdown.newPackagePrice,
+          newPackagePrice: transitionPreview.priceBreakdown.newPackagePrice,
+          payableAmount: transitionPreview.priceBreakdown.finalAmount
         }
       };
 

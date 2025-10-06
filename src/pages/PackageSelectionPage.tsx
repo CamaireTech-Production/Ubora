@@ -29,7 +29,7 @@ import { Toast } from '../components/Toast';
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 import { AnalyticsService } from '../services/analyticsService';
-import { PaymentService } from '../services/paymentService';
+import { PaymentService } from '../services/paymentService.ts';
 import { CampayPayment } from '../components/CampayPayment';
 import { SubscriptionSessionService } from '../services/subscriptionSessionService';
 import { CampayPaymentData, PaymentRequest } from '../types/payment';
@@ -207,7 +207,7 @@ export const PackageSelectionPage: React.FC = () => {
       // Update payment status in Firebase
       await PaymentService.updatePaymentStatus(currentPaymentId, data, 'completed');
       
-      // Get payment details to get the amount paid
+      // Get payment details to get the amount actually stored/charged (min-fee applied if needed)
       const payment = await PaymentService.getPayment(currentPaymentId);
       const amountPaid = payment?.amount || 0;
       

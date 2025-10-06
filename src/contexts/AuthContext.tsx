@@ -130,6 +130,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           
           if (userDoc.exists()) {
             const userData = userDoc.data() as Omit<User, 'id'>;
+            // Cache user locally for offline usage
+            try { localStorage.setItem('ubora_cached_user', JSON.stringify({ id: firebaseUser.uid, ...userData })); } catch {}
             
             // Vérifier l'approbation pour les employés
             if (userData.role === 'employe' && userData.isApproved === false) {
@@ -157,7 +159,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           
           if (err instanceof Error) {
             if (err.message.includes('offline') || err.message.includes('Timeout')) {
-              setError('Impossible de se connecter à la base de données. Vérifiez votre connexion internet et la configuration Firebase.');
+              // Try to use cached user profile if available
+              try {
+                const cached = localStorage.getItem('ubora_cached_user');
+                if (cached) {
+                  const cachedUser = JSON.parse(cached);
+                  setUser(cachedUser);
+                  setFirebaseUser(firebaseUser);
+                  setError('Mode hors ligne: données locales affichées');
+                  setIsLoading(false);
+                  return;
+                }
+              } catch {}
+              setError('Impossible de se connecter à la base de données. Mode hors ligne indisponible.');
             } else if (err.message.includes('permission-denied')) {
               setError('Accès refusé. Vérifiez les règles de sécurité Firestore.');
             } else {
@@ -167,6 +181,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             setError('Erreur lors de la connexion');
           }
           
+          // Do not sign out if we could fall back to cached user
+          try {
+            const cached = localStorage.getItem('ubora_cached_user');
+            if (cached) {
+              return;
+            }
+          } catch {}
           await signOut(auth);
         }
       } else {
@@ -228,6 +249,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setError('Profil utilisateur non trouvé. Veuillez vous réinscrire.');
         return false;
       }
+      // Cache user after successful login fetch
+      try { localStorage.setItem('ubora_cached_user', JSON.stringify({ id: userCredential.user.uid, ...userDoc.data() })); } catch {}
       
       // Marquer pour afficher l'écran de bienvenue juste après la connexion
       try { sessionStorage.setItem('show_welcome_after_login', 'true'); } catch {}
@@ -428,20 +451,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const getErrorMessage = (errorCode: string): string => {
     switch (errorCode) {
+      case 'auth/invalid-credential':
+      case 'auth/invalid-login-credentials':
+        return 'Identifiants incorrects. Vérifiez votre email et votre mot de passe';
       case 'auth/user-not-found':
         return 'Aucun utilisateur trouvé avec cet email';
       case 'auth/wrong-password':
         return 'Mot de passe incorrect';
+      case 'auth/user-disabled':
+        return 'Compte désactivé. Contactez le support';
       case 'auth/email-already-in-use':
         return 'ACCOUNT_EXISTS'; // Special flag for existing account
       case 'auth/weak-password':
         return 'Le mot de passe doit contenir au moins 6 caractères';
       case 'auth/invalid-email':
         return 'Email invalide';
+      case 'auth/operation-not-allowed':
+        return 'Méthode de connexion désactivée. Vérifiez la configuration Firebase Auth';
       case 'auth/too-many-requests':
         return 'Trop de tentatives. Réessayez plus tard';
       case 'auth/network-request-failed':
         return 'Erreur de connexion réseau';
+      case 'auth/invalid-api-key':
+        return 'Configuration Firebase invalide (apiKey)';
+      case 'auth/unauthorized-domain':
+        return 'Domaine non autorisé pour cette application';
       default:
         return 'Une erreur est survenue';
     }

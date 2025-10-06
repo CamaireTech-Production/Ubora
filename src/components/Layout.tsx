@@ -5,7 +5,7 @@ import { Button } from './Button';
 import { Footer } from './Footer';
 import { UserPackageInfo } from './UserPackageInfo';
 import { ProfileDropdown } from './ProfileDropdown';
-import { LogOut, BarChart3, MessageSquare, Menu, X, Bell } from 'lucide-react';
+import { BarChart3, MessageSquare, Menu, X, Bell } from 'lucide-react';
 import { ShareCollaboratorButton } from './ShareCollaboratorButton';
 import { useUnreadNotifications } from '../hooks/useUnreadNotifications';
 
@@ -15,7 +15,7 @@ interface LayoutProps {
 }
 
 export const Layout: React.FC<LayoutProps> = ({ children, title }) => {
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
