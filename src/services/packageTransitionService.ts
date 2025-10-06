@@ -472,8 +472,8 @@ export class PackageTransitionService {
    */
   private static getPayAsYouGoPrice(feature: string): number {
     const prices: Record<string, number> = {
-      forms: 5000, // 5,000 FCFA per form
-      dashboards: 10000, // 10,000 FCFA per dashboard
+      forms: 2000, // 2,000 FCFA per form
+      dashboards: 30000, // 30,000 FCFA per dashboard
       users: 7000, // 7,000 FCFA per user
       tokens: 0.0085 // 8.5 FCFA per 1000 tokens
     };

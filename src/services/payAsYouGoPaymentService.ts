@@ -1,7 +1,6 @@
-import { PaymentService, PaymentRequest, PaymentStatus } from './paymentService';
-import { SubscriptionSessionService } from './subscriptionSessionService';
-import { PayAsYouGoService, TokenPackage } from './payAsYouGoService';
+import { PaymentService, PaymentRequest } from './paymentService';
 import { User } from '../types';
+import { CampayPaymentData } from '../types/payment';
 
 export interface PayAsYouGoPaymentRequest {
   userId: string;
@@ -12,7 +11,10 @@ export interface PayAsYouGoPaymentRequest {
   metadata?: {
     displayAmount?: number;
     itemType?: string;
-    packageInfo?: any;
+    packageInfo?: {
+      popular?: boolean;
+      [key: string]: unknown;
+    };
   };
 }
 
@@ -88,7 +90,7 @@ export class PayAsYouGoPaymentService {
    */
   static async processPaymentSuccess(
     paymentId: string,
-    campayData: any,
+    campayData: CampayPaymentData,
     user: User
   ): Promise<{ success: boolean; error?: string }> {
     try {
@@ -98,7 +100,8 @@ export class PayAsYouGoPaymentService {
         return { success: false, error: 'Payment not found' };
       }
 
-      const { itemType: type, quantity } = payment.metadata;
+      const type = payment.metadata?.itemType as string;
+      const quantity = payment.metadata?.quantity as number;
       
       console.log('PayAsYouGoPaymentService: Processing payment success', {
         paymentId,
@@ -158,7 +161,7 @@ export class PayAsYouGoPaymentService {
    */
   static async processPaymentFailure(
     paymentId: string,
-    campayData: any
+    campayData: CampayPaymentData
   ): Promise<{ success: boolean; error?: string }> {
     try {
       await PaymentService.updatePaymentStatus(paymentId, campayData, 'failed');
@@ -208,7 +211,7 @@ export class PayAsYouGoPaymentService {
       });
 
       // Update the active session with additional tokens
-      const updatedSessions = userData.subscriptionSessions.map(session => {
+      const updatedSessions = (userData.subscriptionSessions || []).map(session => {
         if (session.id === activeSession.id) {
           const currentPayAsYouGo = session.payAsYouGoResources || {
             tokens: 0,
@@ -290,7 +293,7 @@ export class PayAsYouGoPaymentService {
       }
 
       // Update the active session with additional forms
-      const updatedSessions = userData.subscriptionSessions.map(session => {
+      const updatedSessions = (userData.subscriptionSessions || []).map(session => {
         if (session.id === activeSession.id) {
           const currentPayAsYouGo = session.payAsYouGoResources || {
             tokens: 0,
@@ -370,7 +373,7 @@ export class PayAsYouGoPaymentService {
       }
 
       // Update the active session with additional dashboards
-      const updatedSessions = userData.subscriptionSessions.map(session => {
+      const updatedSessions = (userData.subscriptionSessions || []).map(session => {
         if (session.id === activeSession.id) {
           const currentPayAsYouGo = session.payAsYouGoResources || {
             tokens: 0,
@@ -450,7 +453,7 @@ export class PayAsYouGoPaymentService {
       }
 
       // Update the active session with additional users
-      const updatedSessions = userData.subscriptionSessions.map(session => {
+      const updatedSessions = (userData.subscriptionSessions || []).map(session => {
         if (session.id === activeSession.id) {
           const currentPayAsYouGo = session.payAsYouGoResources || {
             tokens: 0,
@@ -533,9 +536,9 @@ export class PayAsYouGoPaymentService {
         ];
       case 'dashboards':
         return [
-          { quantity: 1, price: 3000 },
-          { quantity: 2, price: 5500 },
-          { quantity: 3, price: 8000 }
+          { quantity: 1, price: 30000 },
+          { quantity: 2, price: 55000 },
+          { quantity: 3, price: 80000 }
         ];
       case 'users':
         return [

@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { X, AlertCircle, ArrowRight, Plus, CreditCard } from 'lucide-react';
+import { X, AlertCircle, ArrowRight, CreditCard } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from './Button';
 import { useToast } from '../hooks/useToast';
@@ -31,12 +31,10 @@ export const LimitReachedModal: React.FC<LimitReachedModalProps> = ({
   const { showSuccess, showError } = useToast();
   const [showPayAsYouGo, setShowPayAsYouGo] = useState(false);
   const [selectedQuantity, setSelectedQuantity] = useState(1);
-  const [isProcessing, setIsProcessing] = useState(false);
   const [paymentRequest, setPaymentRequest] = useState<PaymentRequest | null>(null);
   const [currentPaymentId, setCurrentPaymentId] = useState<string | null>(null);
   const [isCreatingPayment, setIsCreatingPayment] = useState(false);
   const [autoOpenPayment, setAutoOpenPayment] = useState(false);
-  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   
   if (!isOpen) return null;
 
@@ -72,9 +70,9 @@ export const LimitReachedModal: React.FC<LimitReachedModalProps> = ({
         ];
       case 'dashboards':
         return [
-          { quantity: 1, price: 3000, label: '1 tableau de bord supplémentaire' },
-          { quantity: 2, price: 5500, label: '2 tableaux de bord supplémentaires' },
-          { quantity: 3, price: 8000, label: '3 tableaux de bord supplémentaires' }
+          { quantity: 1, price: 30000, label: '1 tableau de bord supplémentaire' },
+          { quantity: 2, price: 55000, label: '2 tableaux de bord supplémentaires' },
+          { quantity: 3, price: 80000, label: '3 tableaux de bord supplémentaires' }
         ];
       case 'users':
         return [
@@ -119,7 +117,6 @@ export const LimitReachedModal: React.FC<LimitReachedModalProps> = ({
       setCurrentPaymentId(paymentResult.paymentId);
       setPaymentRequest(paymentResult.paymentRequest);
       setAutoOpenPayment(true);
-      setIsPaymentModalOpen(true);
 
     } catch (error) {
       console.error('Purchase failed:', error);
@@ -164,7 +161,6 @@ export const LimitReachedModal: React.FC<LimitReachedModalProps> = ({
       setCurrentPaymentId(null);
       setPaymentRequest(null);
       setAutoOpenPayment(false);
-      setIsPaymentModalOpen(false);
     }
   }, [currentPaymentId, selectedQuantity, user, showSuccess, showError, onPayAsYouGo, type, getTypeLabel]);
 
@@ -181,12 +177,10 @@ export const LimitReachedModal: React.FC<LimitReachedModalProps> = ({
       setCurrentPaymentId(null);
       setPaymentRequest(null);
       setAutoOpenPayment(false);
-      setIsPaymentModalOpen(false);
     }
   }, [currentPaymentId, showError]);
 
   const handlePaymentModalClose = useCallback(() => {
-    setIsPaymentModalOpen(false);
     setAutoOpenPayment(false);
   }, []);
 
@@ -194,7 +188,6 @@ export const LimitReachedModal: React.FC<LimitReachedModalProps> = ({
     setCurrentPaymentId(null);
     setPaymentRequest(null);
     setAutoOpenPayment(false);
-    setIsPaymentModalOpen(false);
     onClose();
   };
 
@@ -275,7 +268,7 @@ export const LimitReachedModal: React.FC<LimitReachedModalProps> = ({
             <>
               <div className="flex flex-col sm:flex-row gap-3">
                 <Button
-                  variant="outline"
+                  variant="secondary"
                   onClick={handleClose}
                   className="flex-1"
                 >
@@ -315,7 +308,7 @@ export const LimitReachedModal: React.FC<LimitReachedModalProps> = ({
           ) : (
             <Button
               onClick={() => setShowPayAsYouGo(false)}
-              variant="outline"
+              variant="secondary"
               className="w-full"
             >
               Retour
@@ -333,7 +326,7 @@ export const LimitReachedModal: React.FC<LimitReachedModalProps> = ({
           onModalClose={handlePaymentModalClose}
           autoOpen={autoOpenPayment}
           onAutoOpened={() => setAutoOpenPayment(false)}
-          onModalOpen={() => setIsPaymentModalOpen(true)}
+          onModalOpen={() => {}}
           onModalClosed={handlePaymentModalClose}
         />
       )}

@@ -194,7 +194,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
             id: 'dashboards-1',
             name: '1 Tableau de bord supplémentaire',
             description: 'Créez 1 tableau de bord de plus',
-            price: 3000,
+            price: 30000,
             unit: 'FCFA',
             icon: <BarChart3 className="h-5 w-5" />
           },
@@ -202,7 +202,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
             id: 'dashboards-2',
             name: '2 Tableaux de bord supplémentaires',
             description: 'Pour analyses approfondies',
-            price: 5500,
+            price: 55000,
             unit: 'FCFA',
             icon: <BarChart3 className="h-5 w-5" />,
             popular: true
@@ -211,7 +211,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
             id: 'dashboards-3',
             name: '3 Tableaux de bord supplémentaires',
             description: 'Pour analyses complètes',
-            price: 8000,
+            price: 80000,
             unit: 'FCFA',
             icon: <BarChart3 className="h-5 w-5" />
           }
