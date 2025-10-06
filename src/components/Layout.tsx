@@ -5,8 +5,9 @@ import { Button } from './Button';
 import { Footer } from './Footer';
 import { UserPackageInfo } from './UserPackageInfo';
 import { ProfileDropdown } from './ProfileDropdown';
-import { LogOut, BarChart3, MessageSquare, Menu, X } from 'lucide-react';
+import { LogOut, BarChart3, MessageSquare, Menu, X, Bell } from 'lucide-react';
 import { ShareCollaboratorButton } from './ShareCollaboratorButton';
+import { useUnreadNotifications } from '../hooks/useUnreadNotifications';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -19,6 +20,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, title }) => {
   const navigate = useNavigate();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
   const menuRef = React.useRef<HTMLDivElement>(null);
+  const unreadCount = useUnreadNotifications();
   
   const isDirecteur = user?.role === 'directeur';
   const isDashboard = location.pathname === '/directeur/dashboard';
@@ -127,6 +129,23 @@ export const Layout: React.FC<LayoutProps> = ({ children, title }) => {
                 </Button>
               )}
               
+              {/* Notifications */}
+              <button
+                type="button"
+                onClick={() => navigate('/notifications')}
+                className="relative p-2 rounded-lg hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                aria-label={unreadCount > 0 ? `${unreadCount} notification(s) non lue(s)` : 'Notifications'}
+              >
+                <Bell className="h-5 w-5 text-gray-700" />
+                {unreadCount > 0 && (
+                  <span
+                    className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 bg-red-600 text-white text-[10px] leading-[18px] rounded-full text-center font-semibold"
+                  >
+                    {unreadCount > 99 ? '99+' : unreadCount}
+                  </span>
+                )}
+              </button>
+
               {/* Profile Dropdown */}
               <ProfileDropdown />
             </div>
