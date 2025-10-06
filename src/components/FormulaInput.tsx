@@ -1,10 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { FormField } from '../types';
 import { Button } from './Button';
-import { Input } from './Input';
 import { Card } from './Card';
 import { FormulaHelpModal } from './FormulaHelpModal';
-import { Calculator, Check, AlertCircle, Copy, X, Plus, Minus, Divide, X as Multiply, HelpCircle } from 'lucide-react';
+import { Calculator, Check, AlertCircle, Plus, HelpCircle } from 'lucide-react';
 
 interface FormulaInputProps {
   value: string;
@@ -31,10 +30,14 @@ export const FormulaInput: React.FC<FormulaInputProps> = ({
   const [userFormula, setUserFormula] = useState('');
   const [fieldMatches, setFieldMatches] = useState<FieldMatch[]>([]);
   const [showFieldSelector, setShowFieldSelector] = useState(false);
-  const [selectedFieldId, setSelectedFieldId] = useState<string | null>(null);
-  const [cursorPosition, setCursorPosition] = useState(0);
+  // Removed unused selectedFieldId state
+  // Keep for potential future caret sync, currently unused
+  const [cursorPosition] = useState(0);
   const [showHelpModal, setShowHelpModal] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const editorRef = useRef<HTMLDivElement>(null);
+  const [fieldOccurrences, setFieldOccurrences] = useState<Array<{ field: FormField; start: number; end: number }>>([]);
+  const isEditorFocused = () => document.activeElement === editorRef.current;
 
   // Get available fields for calculation (exclude current field and non-calculable types)
   const availableFields = fields.filter(field => 
@@ -47,18 +50,26 @@ export const FormulaInput: React.FC<FormulaInputProps> = ({
     if (!userFormula.trim()) {
       setFieldMatches([]);
       onChange('', []);
+      setFieldOccurrences([]);
       return;
     }
 
     const matches: FieldMatch[] = [];
     const fieldIds: string[] = [];
+    const occurrences: Array<{ field: FormField; start: number; end: number }> = [];
 
     // Find field references in the formula
     availableFields.forEach(field => {
       const fieldName = field.label.toLowerCase().replace(/[^a-z0-9]/g, '');
+      if (!fieldName) return;
       const regex = new RegExp(`\\b${fieldName}\\b`, 'gi');
-      
-      if (regex.test(userFormula)) {
+      let match: RegExpExecArray | null;
+      let foundOnce = false;
+      while ((match = regex.exec(userFormula)) !== null) {
+        occurrences.push({ field, start: match.index, end: match.index + match[0].length });
+        foundOnce = true;
+      }
+      if (foundOnce) {
         matches.push({
           fieldId: field.id,
           fieldLabel: field.label,
@@ -68,6 +79,10 @@ export const FormulaInput: React.FC<FormulaInputProps> = ({
         fieldIds.push(field.id);
       }
     });
+
+    // Sort by appearance order
+    occurrences.sort((a, b) => a.start - b.start);
+    setFieldOccurrences(occurrences);
 
     setFieldMatches(matches);
 
@@ -81,6 +96,32 @@ export const FormulaInput: React.FC<FormulaInputProps> = ({
 
     onChange(formulaWithIds, fieldIds);
   }, [userFormula, availableFields, onChange, currentFieldId]);
+
+  // Render the contenteditable from current userFormula and occurrences when not focused (initial/load)
+  useEffect(() => {
+    if (!editorRef.current) return;
+    if (isEditorFocused()) return;
+    const root = editorRef.current;
+    // Rebuild DOM: text + badge spans
+    root.innerHTML = '';
+    let last = 0;
+    fieldOccurrences.forEach((occ) => {
+      if (occ.start > last) {
+        root.appendChild(document.createTextNode(userFormula.slice(last, occ.start)));
+      }
+      const span = document.createElement('span');
+      span.contentEditable = 'false';
+      span.dataset.fieldId = occ.field.id;
+      span.dataset.fieldLabel = occ.field.label;
+      span.className = 'inline-flex items-center px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 text-xs align-middle';
+      span.innerText = occ.field.label;
+      root.appendChild(span);
+      last = occ.end;
+    });
+    if (last < userFormula.length) {
+      root.appendChild(document.createTextNode(userFormula.slice(last)));
+    }
+  }, [fieldOccurrences, userFormula]);
 
   // Initialize user formula from stored value
   useEffect(() => {
@@ -98,29 +139,77 @@ export const FormulaInput: React.FC<FormulaInputProps> = ({
     }
   }, [value, fields]); // Removed userFormula from dependencies to prevent infinite loop
 
-  const handleFormulaChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newValue = e.target.value;
-    setUserFormula(newValue);
-    setCursorPosition(e.target.selectionStart || 0);
+  // Removed old input handlers (no longer used with contentEditable)
+
+  // Build user-facing formula string from the contenteditable DOM (text + badge labels)
+  const readEditorAsUserFormula = () => {
+    const root = editorRef.current;
+    if (!root) return '';
+    const parts: string[] = [];
+    root.childNodes.forEach((node) => {
+      if (node.nodeType === Node.TEXT_NODE) {
+        parts.push((node as Text).data);
+      } else if (node.nodeType === Node.ELEMENT_NODE) {
+        const el = node as HTMLElement;
+        if (el.dataset && el.dataset.fieldLabel) {
+          parts.push(el.dataset.fieldLabel!.toLowerCase().replace(/[^a-z0-9]/g, ''));
+        }
+      }
+    });
+    return parts.join('');
+  };
+
+  const handleEditorInput = () => {
+    const visual = readEditorAsUserFormula();
+    setUserFormula(visual);
+  };
+
+  // No separate removal helper needed; handled directly in editor handlers
+
+  // Removed old keydown handler for native input
+
+  const handleEditorKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key !== 'Backspace') return;
+    const sel = window.getSelection();
+    if (!sel || !editorRef.current || sel.rangeCount === 0) return;
+    const range = sel.getRangeAt(0);
+    if (!range.collapsed) return;
+    const container = range.startContainer as Node;
+    let node: Node | null = container;
+    // Find previous sibling element from current caret position
+    if (node.nodeType === Node.TEXT_NODE) {
+      const textNode = node as Text;
+      if (range.startOffset > 0) return; // normal backspace within text
+      node = textNode.previousSibling;
+    } else {
+      node = (node as HTMLElement).childNodes[range.startOffset - 1] || (node as HTMLElement).previousSibling;
+    }
+    const prevEl = node as HTMLElement | null;
+    if (prevEl && prevEl.nodeType === Node.ELEMENT_NODE && prevEl.dataset && prevEl.dataset.fieldId) {
+      e.preventDefault();
+      prevEl.remove();
+      handleEditorInput();
+    }
   };
 
   const insertField = (field: FormField) => {
-    const fieldName = field.label.toLowerCase().replace(/[^a-z0-9]/g, '');
-    const beforeCursor = userFormula.substring(0, cursorPosition);
-    const afterCursor = userFormula.substring(cursorPosition);
-    const newFormula = beforeCursor + fieldName + afterCursor;
-    
-    setUserFormula(newFormula);
+    // Insert a non-editable badge span at caret position in contenteditable editor
+    const sel = window.getSelection();
+    if (!editorRef.current || !sel || sel.rangeCount === 0) return;
+    const range = sel.getRangeAt(0);
+    const badge = document.createElement('span');
+    badge.contentEditable = 'false';
+    badge.dataset.fieldId = field.id;
+    badge.dataset.fieldLabel = field.label;
+    badge.className = 'inline-flex items-center px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 text-xs align-middle';
+    badge.innerText = field.label;
+    range.insertNode(badge);
+    range.setStartAfter(badge);
+    range.collapse(true);
+    sel.removeAllRanges();
+    sel.addRange(range);
     setShowFieldSelector(false);
-    
-    // Focus back to input and set cursor position
-    setTimeout(() => {
-      if (inputRef.current) {
-        const newPosition = cursorPosition + fieldName.length;
-        inputRef.current.focus();
-        inputRef.current.setSelectionRange(newPosition, newPosition);
-      }
-    }, 0);
+    handleEditorInput();
   };
 
   const insertOperator = (operator: string) => {
@@ -140,22 +229,7 @@ export const FormulaInput: React.FC<FormulaInputProps> = ({
     }, 0);
   };
 
-  const insertConstant = (constant: string) => {
-    const beforeCursor = userFormula.substring(0, cursorPosition);
-    const afterCursor = userFormula.substring(cursorPosition);
-    const newFormula = beforeCursor + constant + afterCursor;
-    
-    setUserFormula(newFormula);
-    
-    // Focus back to input and set cursor position
-    setTimeout(() => {
-      if (inputRef.current) {
-        const newPosition = cursorPosition + constant.length;
-        inputRef.current.focus();
-        inputRef.current.setSelectionRange(newPosition, newPosition);
-      }
-    }, 0);
-  };
+  // Removed unused insertConstant helper
 
   const validateFormula = (): { isValid: boolean; error?: string } => {
     if (!userFormula.trim()) {
@@ -185,19 +259,20 @@ export const FormulaInput: React.FC<FormulaInputProps> = ({
           Formule de calcul *
         </label>
         <div className="relative">
-          <Input
-            ref={inputRef}
-            value={userFormula}
-            onChange={handleFormulaChange}
-            onFocus={(e) => setCursorPosition(e.target.selectionStart || 0)}
-            onSelect={(e) => setCursorPosition(e.currentTarget.selectionStart || 0)}
-            placeholder="Ex: prix * quantité + frais"
-            className={`pr-10 ${validation.isValid === false ? 'border-red-500 focus:border-red-500' : ''}`}
+          <div
+            ref={editorRef}
+            contentEditable
+            role="textbox"
+            aria-label="Formule de calcul"
+            onInput={handleEditorInput}
+            onKeyDown={handleEditorKeyDown}
+            className={`w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-base ${validation.isValid === false ? 'border-red-500' : ''} min-h-[40px]`}
           />
           <div className="absolute inset-y-0 right-0 flex items-center pr-3">
             <Calculator className="h-4 w-4 text-gray-400" />
           </div>
         </div>
+        {/* badges moved inside input; no extra row below */}
         
         {/* Validation Message */}
         {validation.isValid === false && (
