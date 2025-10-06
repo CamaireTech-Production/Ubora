@@ -36,18 +36,26 @@ export class PayAsYouGoPaymentService {
       // Generate external reference for this payment
       const externalReference = PaymentService.generateExternalReference('PAYGO');
 
+      // Sanitize metadata to ensure no undefined values
+      const sanitizedMetadata = {
+        type: 'pay_as_you_go',
+        itemType: type,
+        quantity,
+        ...metadata
+      };
+
+      // Ensure packageInfo.popular is a boolean if it exists
+      if (sanitizedMetadata.packageInfo && sanitizedMetadata.packageInfo.popular === undefined) {
+        sanitizedMetadata.packageInfo.popular = false;
+      }
+
       // Create payment request
       const paymentRequest: PaymentRequest = {
         amount: price,
         currency: 'XAF',
         description,
         externalReference,
-        metadata: {
-          type: 'pay_as_you_go',
-          itemType: type,
-          quantity,
-          ...metadata
-        }
+        metadata: sanitizedMetadata
       };
 
       // Create payment record in Firebase

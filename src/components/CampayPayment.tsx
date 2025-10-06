@@ -55,19 +55,69 @@ export const CampayPayment: React.FC<CampayPaymentProps> = ({
   // Generate unique button ID for this component instance (only once)
   const [buttonId] = useState(() => `campay-pay-button-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`);
 
-  // Rely on global preload (index.html) and only listen for readiness
+  // Unified Campay SDK loading - always ensure script is loaded
   useEffect(() => {
-    if (window.campay) {
-      console.log('CampayPayment: Campay SDK available globally');
-      setScriptLoaded(true);
-      return;
-    }
-    const onReady = () => {
-      console.log('CampayPayment: Received campay:ready event');
-      setScriptLoaded(true);
+    const loadCampaySDK = async () => {
+      // Check if already available
+      if (window.campay) {
+        console.log('CampayPayment: Campay SDK already available');
+        setScriptLoaded(true);
+        return;
+      }
+
+      const appId = import.meta.env.VITE_CAMPAY_APP_ID || 'Muw-QotZAcx8PbngvT7lbsnc1OomeDkw31sWjv5XftEBoSy_opiLcFz17UhClFC6ZNm8AOdL6xFCH7KoUEUN5Q';
+      const baseUrl = 'https://www.campay.net/sdk/js';
+      const src = baseUrl + '?app-id=' + appId;
+      
+      console.log('CampayPayment: Loading Campay SDK from', src);
+
+      // Check if script already exists
+      const existingScript = document.querySelector('script[src="' + src + '"]');
+      if (existingScript) {
+        console.log('CampayPayment: Script already exists, waiting for campay to be available');
+        // Wait for campay to be available
+        const checkCampay = () => {
+          if (window.campay) {
+            console.log('CampayPayment: Campay became available');
+            setScriptLoaded(true);
+          } else {
+            setTimeout(checkCampay, 100);
+          }
+        };
+        checkCampay();
+        return;
+      }
+
+      // Load script
+      return new Promise<void>((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = src;
+        script.async = true;
+        script.onload = () => {
+          console.log('CampayPayment: Script loaded, waiting for campay object');
+          // Wait for campay to be available
+          const checkCampay = () => {
+            if (window.campay) {
+              console.log('CampayPayment: Campay available after script load');
+              setScriptLoaded(true);
+              resolve();
+            } else {
+              setTimeout(checkCampay, 100);
+            }
+          };
+          checkCampay();
+        };
+        script.onerror = () => {
+          console.error('CampayPayment: Script failed to load');
+          reject(new Error('Failed to load Campay script'));
+        };
+        document.head.appendChild(script);
+      });
     };
-    window.addEventListener('campay:ready', onReady);
-    return () => window.removeEventListener('campay:ready', onReady);
+
+    loadCampaySDK().catch(error => {
+      console.error('CampayPayment: Failed to load Campay SDK:', error);
+    });
   }, []);
 
   // Initialize Campay when script is loaded and payment request is ready
@@ -94,17 +144,20 @@ export const CampayPayment: React.FC<CampayPaymentProps> = ({
         const buttonElement = document.getElementById(buttonId);
         console.log('CampayPayment: Button element found:', !!buttonElement, buttonElement);
 
-        // Get Campay configuration from environment variables
-        const campayEnvironment = import.meta.env.VITE_CAMPAY_ENVIRONMENT || 'demo';
-        const demoAmount = parseInt(import.meta.env.VITE_CAMPAY_DEMO_AMOUNT || '10');
-        const actualAmount = campayEnvironment === 'demo' ? demoAmount : paymentRequest.amount;
+         // Get Campay configuration from environment variables
+         const campayEnvironment = import.meta.env.VITE_CAMPAY_ENVIRONMENT || 'demo';
+         const demoAmount = parseInt(import.meta.env.VITE_CAMPAY_DEMO_AMOUNT || '10');
+         // Demo mode: show actual price in modal but charge 10 FCFA
+         // Live mode: show and charge actual price
+         const displayAmount = paymentRequest.amount; // Always show actual price in modal
+         const chargeAmount = campayEnvironment === 'demo' ? demoAmount : paymentRequest.amount;
         
         console.log('CampayPayment: Using Campay account with amount:', {
           originalAmount: paymentRequest.amount,
-          actualAmount: actualAmount,
+          displayAmount: displayAmount,
+          chargeAmount: chargeAmount,
           environment: campayEnvironment,
-          isDemoMode: campayEnvironment === 'demo',
-          displayAmount: paymentRequest.metadata?.displayAmount
+          isDemoMode: campayEnvironment === 'demo'
         });
 
         // Get redirect URL from environment or use empty string
@@ -113,7 +166,7 @@ export const CampayPayment: React.FC<CampayPaymentProps> = ({
         window.campay.options({
           payButtonId: buttonId,
           description: paymentRequest.description,
-          amount: actualAmount.toString(),
+          amount: chargeAmount.toString(), // Use charge amount (10 FCFA in demo, actual in live)
           currency: paymentRequest.currency,
           externalReference: paymentRequest.externalReference,
           redirectUrl: redirectUrl,
@@ -278,22 +331,21 @@ export const CampayPayment: React.FC<CampayPaymentProps> = ({
   // This prevents interference with Campay's own click handling
 
   if (!scriptLoaded) {
-    return (
-      <button
-        disabled
-        className={`${buttonClassName} opacity-50 cursor-not-allowed`}
-      >
-        Loading Payment...
-      </button>
-    );
+    // Don't render anything when loading to avoid showing "Loading Payment..." button
+    return null;
   }
+
+  // When autoOpen is enabled, render the trigger button visually hidden to avoid UI artifacts
+  const hiddenStyles = autoOpen
+    ? 'absolute w-px h-px p-0 -m-px overflow-hidden whitespace-nowrap border-0 clip-[rect(0,0,0,0)]'
+    : '';
 
   return (
           <button
             ref={buttonRef}
             id={buttonId}
             disabled={disabled}
-            className={`${buttonClassName} ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+            className={`${buttonClassName} ${disabled ? 'opacity-50 cursor-not-allowed' : ''} ${hiddenStyles}`}
             onClick={() => {
               // Notify that modal is opening when button is clicked manually
               setTimeout(() => {

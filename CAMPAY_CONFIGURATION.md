@@ -48,13 +48,12 @@ VITE_CAMPAY_REDIRECT_URL=https://yourdomain.com/payment-success
 
 ## How It Works
 
-1. **Environment Detection**: The system automatically uses the correct Campay URL based on the environment:
-   - Demo: `https://demo.campay.net/sdk/js`
-   - Live: `https://www.campay.net/sdk/js`
+1. **Environment Detection**: The system always uses the live Campay endpoint:
+   - Both Demo and Live: `https://www.campay.net/sdk/js`
 
-2. **App ID**: The `app-id` parameter in the script URL identifies your specific Campay account
+2. **App ID**: The `app-id` parameter in the script URL identifies your specific Campay account (use your live App ID for both modes)
 
-3. **Demo Mode**: When in demo mode, all transactions use the configured demo amount instead of the actual payment amount
+3. **Demo Mode**: When in demo mode, the Campay modal shows actual prices but charges only the demo amount (10 FCFA). Firebase still stores the correct actual amounts for proper record keeping.
 
 4. **Account Switching**: To switch between different Campay accounts, simply change the `VITE_CAMPAY_APP_ID` value
 

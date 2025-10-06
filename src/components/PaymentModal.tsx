@@ -317,7 +317,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
             description: option.description,
             price: option.price,
             unit: option.unit,
-            popular: option.popular
+            popular: option.popular || false // Ensure boolean value, default to false
             // Note: Excluding 'icon' as it contains React components that can't be serialized
           }
         }

@@ -55,21 +55,8 @@
     
     <title>Ubora - Gestion des Formulaires avec ARCHA</title>
     <script>
-      (function preloadCampay(){
-        try {
-          if (window.campay) return;
-          var env = (window.__UBORA_ENV__ && window.__UBORA_ENV__.VITE_CAMPAY_ENVIRONMENT) || 'demo';
-          var appId = (window.__UBORA_ENV__ && window.__UBORA_ENV__.VITE_CAMPAY_APP_ID) || 'Muw-QotZAcx8PbngvT7lbsnc1OomeDkw31sWjv5XftEBoSy_opiLcFz17UhClFC6ZNm8AOdL6xFCH7KoUEUN5Q';
-          var baseUrl = env === 'live' ? 'https://www.campay.net/sdk/js' : 'https://demo.campay.net/sdk/js';
-          var src = baseUrl + '?app-id=' + appId;
-          if (document.querySelector('script[src="' + src + '"]')) return;
-          var s = document.createElement('script');
-          s.src = src;
-          s.async = true;
-          s.onload = function(){ window.dispatchEvent(new Event('campay:ready')); };
-          document.head.appendChild(s);
-        } catch(e) { console.warn('Campay preload error', e); }
-      })();
+      // Simplified Campay preload - let components handle the loading
+      console.log('Campay preload: Component-based loading will be used');
     </script>
   </head>
   <body>
