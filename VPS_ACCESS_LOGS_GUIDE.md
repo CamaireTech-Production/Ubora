@@ -254,48 +254,43 @@ pm2 restart ubora-backend-prod ubora-backend-dev
 pm2 restart all
 ```
 
-### Mettre à jour l'application
+### Déploiement par artefacts (recommandé) – Releases et symlink `current`
 
-#### Pour l'environnement de PRODUCTION :
+Le CI envoie une archive `deploy.tar.gz` sur le VPS et déploie dans un dossier versionné.
+
+#### Arborescence
 ```bash
-# Aller dans le répertoire de production
-cd /var/www/ubora-backend-prod
-
-# Récupérer les dernières modifications de la branche master
-git pull origin master
-
-# Installer les nouvelles dépendances
-npm ci
-
-# Redémarrer l'application
-pm2 restart ubora-backend-prod
+/var/www/ubora-backend-dev/
+  releases/
+    20251007084000/        # release horodatée
+    20251007091530/
+  current -> releases/20251007091530/   # symlink vers la release active
+  uploads/deploy.tar.gz
 ```
 
-#### Pour l'environnement de DÉVELOPPEMENT :
+#### Redémarrer sur la release active
 ```bash
-# Aller dans le répertoire de développement
-cd /var/www/ubora-backend-dev
-
-# Récupérer les dernières modifications de la branche dev
-git pull origin dev
-
-# Installer les nouvelles dépendances
-npm ci
-
-# Redémarrer l'application
-pm2 restart ubora-backend-dev
+pm2 stop ubora-backend-dev || true
+pm2 delete ubora-backend-dev || true
+pm2 start /var/www/ubora-backend-dev/current/server/production-server.js --name ubora-backend-dev --update-env
+pm2 save
 ```
 
-#### Mise à jour automatique (après déploiement GitHub Actions) :
+#### Bascule manuelle vers une release antérieure (rollback)
 ```bash
-# Si le déploiement automatique a échoué, forcer la mise à jour
 cd /var/www/ubora-backend-dev
-git pull origin dev
-npm ci
-pm2 restart ubora-backend-dev
+ls -1dt releases/* | head -n 5         # lister les dernières releases
+ln -sfn releases/20251007084000 current # pointer sur une release précédente
+pm2 stop ubora-backend-dev || true
+pm2 delete ubora-backend-dev || true
+pm2 start /var/www/ubora-backend-dev/current/server/production-server.js --name ubora-backend-dev --update-env
+pm2 save
+```
 
-# Vérifier que les nouvelles fonctionnalités sont actives
-pm2 logs ubora-backend-dev --lines 20
+#### Vérifier la version déployée
+```bash
+cat /var/www/ubora-backend-dev/current/VERSION
+curl -s http://localhost:3001/health   # doit inclure la version si exposée
 ```
 
 ## 📱 7. Monitoring en Temps Réel
