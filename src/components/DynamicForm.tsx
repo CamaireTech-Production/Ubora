@@ -76,11 +76,14 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
     
     let timeStr = '';
     if (restrictions.startTime && restrictions.endTime) {
+      // Range mode: between start and end
       timeStr = `entre ${restrictions.startTime} et ${restrictions.endTime}`;
-    } else if (restrictions.startTime) {
-      timeStr = `à partir de ${restrictions.startTime}`;
-    } else if (restrictions.endTime) {
+    } else if (restrictions.endTime && !restrictions.startTime) {
+      // Single-time mode: from 00:00 until endTime
       timeStr = `jusqu'à ${restrictions.endTime}`;
+    } else if (restrictions.startTime && !restrictions.endTime) {
+      // Fallback (shouldn't happen in our UX), treat as from 00:00 until startTime
+      timeStr = `jusqu'à ${restrictions.startTime}`;
     }
 
     let dayStr = '';
@@ -112,12 +115,16 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
     }
 
     // Check time restrictions
-    if (form.timeRestrictions.startTime && form.timeRestrictions.endTime) {
-      return currentTime >= form.timeRestrictions.startTime && currentTime <= form.timeRestrictions.endTime;
-    } else if (form.timeRestrictions.startTime) {
-      return currentTime >= form.timeRestrictions.startTime;
-    } else if (form.timeRestrictions.endTime) {
-      return currentTime <= form.timeRestrictions.endTime;
+    const { startTime, endTime } = form.timeRestrictions;
+    if (startTime && endTime) {
+      // Range mode: between start and end
+      return currentTime >= startTime && currentTime <= endTime;
+    } else if (!startTime && endTime) {
+      // Single-time mode: from 00:00 until endTime
+      return currentTime <= endTime;
+    } else if (startTime && !endTime) {
+      // Fallback: treat startTime as endTime (from 00:00 until startTime)
+      return currentTime <= startTime;
     }
 
     return true;

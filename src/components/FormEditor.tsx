@@ -133,10 +133,18 @@ export const FormEditor: React.FC<FormEditorProps> = ({
 
   const handleTimeRangeToggle = (checked: boolean) => {
     setUseTimeRange(checked);
-    if (!checked) {
-      // Clear end time when disabling range
-      setTimeRestrictions(prev => ({ ...prev, endTime: undefined }));
-    }
+    setTimeRestrictions(prev => {
+      // If switching to single-time mode, treat the existing single value as end time
+      if (!checked) {
+        const singleTime = prev.endTime || prev.startTime;
+        return { ...prev, startTime: undefined, endTime: singleTime };
+      }
+      // If switching to range mode and only an end time exists, initialize a start time
+      if (checked && !prev.startTime && prev.endTime) {
+        return { ...prev, startTime: '00:00' };
+      }
+      return prev;
+    });
   };
 
   const handleSelectAllEmployees = () => {
@@ -195,12 +203,24 @@ export const FormEditor: React.FC<FormEditorProps> = ({
     setIsSubmitting(true);
     
     try {
+      // Sanitize time restrictions: in single-time mode, keep only endTime
+      const sanitizedTimeRestrictions = (() => {
+        if (Object.keys(timeRestrictions).length === 0) return undefined;
+        const { startTime, endTime, allowedDays } = timeRestrictions;
+        const hasRange = useTimeRange && startTime && endTime;
+        if (hasRange) return { startTime, endTime, allowedDays };
+        // single-time mode: prefer endTime; if only startTime exists (legacy), treat it as endTime
+        const singleEnd = endTime || startTime;
+        if (!singleEnd && (!allowedDays || allowedDays.length === 0)) return undefined;
+        return { endTime: singleEnd, allowedDays } as typeof timeRestrictions;
+      })();
+
       await onSave({
         title,
         description,
         fields,
         assignedTo,
-        timeRestrictions: Object.keys(timeRestrictions).length > 0 ? timeRestrictions : undefined,
+        timeRestrictions: sanitizedTimeRestrictions,
       });
       
       const successMessage = isEditing ? 'Formulaire mis à jour avec succès' : 'Formulaire créé avec succès';
@@ -349,14 +369,22 @@ export const FormEditor: React.FC<FormEditorProps> = ({
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-600 mb-1">
-                    {useTimeRange ? 'Heure de début' : 'Heure'}
+                    {useTimeRange ? 'Heure de début' : 'Heure limite'}
                   </label>
                   <input
                     type="time"
-                    value={timeRestrictions.startTime || ''}
-                    onChange={(e) => updateTimeRestriction('startTime', e.target.value)}
+                    value={useTimeRange ? (timeRestrictions.startTime || '') : (timeRestrictions.endTime || '')}
+                    onChange={(e) => useTimeRange
+                      ? updateTimeRestriction('startTime', e.target.value)
+                      : updateTimeRestriction('endTime', e.target.value)
+                    }
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
+                  {!useTimeRange && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      Les employés peuvent remplir ce formulaire de 00:00 jusqu'à cette heure
+                    </p>
+                  )}
                 </div>
                 
                 <div className="flex items-center space-x-2">
@@ -383,6 +411,9 @@ export const FormEditor: React.FC<FormEditorProps> = ({
                       onChange={(e) => updateTimeRestriction('endTime', e.target.value)}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
+                    <p className="text-xs text-gray-500 mt-1">
+                      Les employés peuvent remplir ce formulaire entre ces deux heures
+                    </p>
                   </div>
                 )}
               </div>

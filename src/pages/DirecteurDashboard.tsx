@@ -351,10 +351,11 @@ export const DirecteurDashboard: React.FC = () => {
     let timeStr = '';
     if (restrictions.startTime && restrictions.endTime) {
       timeStr = `${restrictions.startTime} - ${restrictions.endTime}`;
-    } else if (restrictions.startTime) {
-      timeStr = `À partir de ${restrictions.startTime}`;
-    } else if (restrictions.endTime) {
-      timeStr = `Jusqu'à ${restrictions.endTime}`;
+    } else if (!restrictions.startTime && restrictions.endTime) {
+      timeStr = `À remplir avant ${restrictions.endTime}`;
+    } else if (restrictions.startTime && !restrictions.endTime) {
+      // Legacy single-time stored in startTime
+      timeStr = `À remplir avant ${restrictions.startTime}`;
     }
 
     let dayStr = '';

@@ -488,10 +488,11 @@ export const EmployeDashboard: React.FC = () => {
     let timeStr = '';
     if (restrictions.startTime && restrictions.endTime) {
       timeStr = `${restrictions.startTime} - ${restrictions.endTime}`;
-    } else if (restrictions.startTime) {
-      timeStr = `À partir de ${restrictions.startTime}`;
-    } else if (restrictions.endTime) {
-      timeStr = `Jusqu'à ${restrictions.endTime}`;
+    } else if (!restrictions.startTime && restrictions.endTime) {
+      timeStr = `À remplir avant ${restrictions.endTime}`;
+    } else if (restrictions.startTime && !restrictions.endTime) {
+      // Legacy single stored in startTime
+      timeStr = `À remplir avant ${restrictions.startTime}`;
     }
 
     let dayStr = '';
@@ -527,12 +528,15 @@ export const EmployeDashboard: React.FC = () => {
     }
 
     // Check time restrictions
-    if (restrictions.startTime && restrictions.endTime) {
-      return currentTime >= restrictions.startTime && currentTime <= restrictions.endTime;
-    } else if (restrictions.startTime) {
-      return currentTime >= restrictions.startTime;
-    } else if (restrictions.endTime) {
-      return currentTime <= restrictions.endTime;
+    const { startTime, endTime } = restrictions;
+    if (startTime && endTime) {
+      return currentTime >= startTime && currentTime <= endTime;
+    } else if (!startTime && endTime) {
+      // Single-time: allowed from 00:00 until endTime
+      return currentTime <= endTime;
+    } else if (startTime && !endTime) {
+      // Legacy single stored in startTime: treat as end time
+      return currentTime <= startTime;
     }
 
     return true;
