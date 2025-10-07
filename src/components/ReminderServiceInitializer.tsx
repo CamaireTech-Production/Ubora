@@ -11,8 +11,10 @@ export const ReminderServiceInitializer: React.FC = () => {
     // Only start the reminder service for authenticated users
     if (user) {
       
-      // Clean up any existing duplicate notifications on startup
-      reminderNotificationService.cleanupDuplicateReminders();
+      // Only admins should attempt global cleanup to avoid permission errors for employees
+      if (user.role === 'admin') {
+        reminderNotificationService.cleanupDuplicateReminders();
+      }
       
       // Create a forms provider function that gets current forms from context
       const formsProvider = () => {

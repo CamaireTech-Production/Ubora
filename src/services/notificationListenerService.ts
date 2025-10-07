@@ -45,6 +45,12 @@ class NotificationListenerService {
         }
       });
     }, (error) => {
+      // Reduce noise: handle permission-denied gracefully
+      const message = (error && (error.code || error.message)) || '';
+      if (typeof message === 'string' && message.includes('permission')) {
+        console.warn('🔔 [NotificationListener] Permission denied for notifications listener');
+        return;
+      }
       console.error('🔔 [NotificationListener] Error listening to notifications:', error);
     });
   }

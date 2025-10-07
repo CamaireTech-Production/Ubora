@@ -3,7 +3,7 @@ import { Layout } from '../components/Layout';
 import { PushNotificationSettings } from '../components/PushNotificationSettings';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
-import { Bell, CheckCircle, XCircle, Clock, Trash2 } from 'lucide-react';
+import { Bell, CheckCircle, XCircle, Clock, Trash2, FlaskConical } from 'lucide-react';
 import { notificationService, NotificationData } from '../services/notificationService';
 import { useAuth } from '../contexts/AuthContext';
 import { doc, updateDoc, collection, query, where, orderBy, limit, onSnapshot, writeBatch } from 'firebase/firestore';
@@ -165,6 +165,10 @@ export const NotificationsPage: React.FC = () => {
             </div>
             
             <div className="flex items-center gap-2">
+              <a href="/dev/push-test" className="inline-flex items-center gap-2 text-sm text-blue-600 hover:underline">
+                <FlaskConical className="w-4 h-4" />
+                Tester les notifications
+              </a>
               {notifications.length > 0 && (
                 <Button
                   onClick={deleteAllNotifications}

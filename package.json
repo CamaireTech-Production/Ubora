@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "vite --host",
     "dev:server": "node server/dev-server.js",
     "dev:full": "concurrently \"npm run dev:server\" \"npm run dev\"",
     "prebuild": "node scripts/update-html-meta.js",

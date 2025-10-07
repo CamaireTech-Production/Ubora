@@ -13,6 +13,46 @@ registerRoute(
   new StaleWhileRevalidate()
 );
 
+// ---- Firebase Messaging (unified in main SW) ----
+// Load Firebase compat scripts to enable messaging in the same service worker
+// This allows FCM background messages to be handled here instead of a separate SW file
+// Note: Keep using the compat layer for onBackgroundMessage support in SW context
+importScripts('https://www.gstatic.com/firebasejs/11.0.1/firebase-app-compat.js');
+importScripts('https://www.gstatic.com/firebasejs/11.0.1/firebase-messaging-compat.js');
+
+try {
+  // Initialize Firebase in the service worker (same config as app)
+  // Using explicit values to avoid depending on import.meta in SW context
+  firebase.initializeApp({
+    apiKey: "AIzaSyDjk-Y3jeoPy3nW_9MniNs8heBv17briMU",
+    authDomain: "studio-gpnfx.firebaseapp.com",
+    projectId: "studio-gpnfx",
+    storageBucket: "studio-gpnfx.firebasestorage.app",
+    messagingSenderId: "848246677738",
+    appId: "1:848246677738:web:7612dab5f030c52b227793"
+  });
+
+  const messaging = firebase.messaging();
+
+  // Handle background messages from FCM
+  messaging.onBackgroundMessage((payload) => {
+    const title = payload.notification?.title || 'Ubora';
+    const uniqueTag = `ubora-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const options = {
+      body: payload.notification?.body,
+      icon: '/fav-icons/android-icon-192x192.png',
+      badge: '/fav-icons/android-icon-96x96.png',
+      data: payload.data || {},
+      tag: uniqueTag,
+      requireInteraction: true,
+      silent: false
+    };
+    self.registration.showNotification(title, options);
+  });
+} catch (e) {
+  // Fail silently if Firebase scripts are unavailable
+}
+
 // Listen for push events
 self?.addEventListener("push", (event) => {
   const data = event.data?.json() ?? {};

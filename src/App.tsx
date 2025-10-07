@@ -20,6 +20,7 @@ import { NotificationsPage } from './pages/NotificationsPage';
 import { AdminLoginPage } from './admin/pages/AdminLoginPage';
 import { AdminPage } from './admin';
 import { UserDetailPage } from './admin/pages/UserDetailPage';
+import PushTestPage from './pages/PushTestPage';
 import { HybridPWAManager } from './components/HybridPWAManager';
 import { EmployeeManagement } from './components/EmployeeManagement';
 import { Layout } from './components/Layout';
@@ -214,6 +215,15 @@ function App() {
               element={
                 <ProtectedRoute allowedRoles={['directeur', 'employe']}>
                   <NotificationsPage />
+                </ProtectedRoute>
+              } 
+            />
+            {/* Dev/Test: Push Notifications */}
+            <Route 
+              path="/dev/push-test" 
+              element={
+                <ProtectedRoute allowedRoles={['directeur', 'employe']}>
+                  <PushTestPage />
                 </ProtectedRoute>
               } 
             />

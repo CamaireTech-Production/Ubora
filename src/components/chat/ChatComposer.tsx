@@ -79,6 +79,11 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
   const isUnlimited = packageInfo?.totalTokens === -1;
   const remainingTokens = packageInfo?.tokensRemaining || 0;
   
+  // Stable initial viewport height for reliable keyboard detection
+  const initialViewportHeightRef = useRef<number>(
+    (typeof window !== 'undefined' && (window.visualViewport?.height || window.innerHeight)) || 0
+  );
+  
   // Debug token data (safe logging)
   if (packageInfo) {
     // Token data available for debugging if needed
@@ -105,28 +110,33 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
 
   // Detect mobile keyboard open/close
   useEffect(() => {
-    const handleResize = () => {
-      const initialViewportHeight = window.visualViewport?.height || window.innerHeight;
+    const handleViewportChange = () => {
+      const initialViewportHeight = initialViewportHeightRef.current;
       const currentViewportHeight = window.visualViewport?.height || window.innerHeight;
-      
-      // If viewport height decreased significantly, keyboard is likely open
+
       const heightDifference = initialViewportHeight - currentViewportHeight;
-      setIsKeyboardOpen(heightDifference > 150); // Threshold for keyboard detection
+      const keyboardOpen = heightDifference > 150; // Threshold for keyboard detection
+      setIsKeyboardOpen(keyboardOpen);
+
+      if (keyboardOpen) {
+        // Keep the textarea visible
+        textareaRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
     };
 
-    // Listen for viewport changes (better for mobile keyboard detection)
     if (window.visualViewport) {
-      window.visualViewport.addEventListener('resize', handleResize);
+      window.visualViewport.addEventListener('resize', handleViewportChange);
+      window.visualViewport.addEventListener('scroll', handleViewportChange);
     } else {
-      // Fallback to window resize
-      window.addEventListener('resize', handleResize);
+      window.addEventListener('resize', handleViewportChange);
     }
 
     return () => {
       if (window.visualViewport) {
-        window.visualViewport.removeEventListener('resize', handleResize);
+        window.visualViewport.removeEventListener('resize', handleViewportChange);
+        window.visualViewport.removeEventListener('scroll', handleViewportChange);
       } else {
-        window.removeEventListener('resize', handleResize);
+        window.removeEventListener('resize', handleViewportChange);
       }
     };
   }, []);

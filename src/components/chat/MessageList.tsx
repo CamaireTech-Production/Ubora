@@ -30,11 +30,52 @@ export const MessageList: React.FC<MessageListProps> = ({
 }) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const [userHasScrolled, setUserHasScrolled] = useState(false);
   const [lastMessageCount, setLastMessageCount] = useState(messages.length);
   const [isAtTop, setIsAtTop] = useState(false);
   const [autoScrollDisabled, setAutoScrollDisabled] = useState(false);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
+
+  // Helpers: FR labels for date group headers
+  const formatDateLabel = (d: Date) => {
+    const today = new Date();
+    const yesterday = new Date();
+    yesterday.setDate(today.getDate() - 1);
+
+    const sameDay = (a: Date, b: Date) =>
+      a.getFullYear() === b.getFullYear() &&
+      a.getMonth() === b.getMonth() &&
+      a.getDate() === b.getDate();
+
+    if (sameDay(d, today)) return "Aujourd’hui";
+    if (sameDay(d, yesterday)) return "Hier";
+
+    return new Intl.DateTimeFormat('fr-FR', {
+      weekday: 'long',
+      day: '2-digit',
+      month: 'long',
+      year: 'numeric'
+    }).format(d);
+  };
+
+  // Group messages by day (expects messages sorted asc by timestamp)
+  const groupedMessages = (() => {
+    const groups: { label: string; items: typeof messages }[] = [];
+    let currentLabel: string | null = null;
+    let current: typeof messages = [];
+
+    for (const m of messages) {
+      const label = formatDateLabel(m.timestamp);
+      if (label !== currentLabel) {
+        if (currentLabel) groups.push({ label: currentLabel, items: current });
+        currentLabel = label;
+        current = [m];
+      } else {
+        current.push(m);
+      }
+    }
+    if (currentLabel) groups.push({ label: currentLabel, items: current });
+    return groups;
+  })();
 
   // Auto-scroll to bottom when new messages arrive (only if auto-scroll is not disabled)
   useEffect(() => {
@@ -95,8 +136,6 @@ export const MessageList: React.FC<MessageListProps> = ({
       setAutoScrollDisabled(false);
     }
     
-    setUserHasScrolled(!isNearBottom);
-    
     // Load more messages when near top
     if (scrollTop < 100 && !isLoadingMore && hasMoreMessages && onLoadMore) {
       onLoadMore();
@@ -107,13 +146,13 @@ export const MessageList: React.FC<MessageListProps> = ({
     <>
       <div 
         ref={containerRef}
-        className="flex-1 overflow-y-auto pt-4 pb-48 px-4 sm:px-6 lg:px-8"
+        className="flex-1 overflow-y-auto pt-4 px-4 sm:px-6 lg:px-8"
         onScroll={handleScroll}
         style={{ 
-          maxHeight: 'calc(100vh - 140px)',
+          maxHeight: 'calc(100dvh - 140px)',
           scrollBehavior: 'smooth',
           // Ensure proper spacing on mobile
-          paddingBottom: 'max(12rem, calc(12rem + env(safe-area-inset-bottom)))'
+          paddingBottom: 'max(8rem, calc(8rem + env(safe-area-inset-bottom)))'
         }}
       >
       {/* Load more button */}
@@ -156,13 +195,25 @@ export const MessageList: React.FC<MessageListProps> = ({
         </div>
       )}
 
-      {/* Messages */}
+      {/* Messages with date grouping */}
       <div className="space-y-3 sm:space-y-6">
-        {messages.map((message, index) => (
-          <MessageBubble 
-            key={`${message.id}-${message.timestamp.getTime()}-${index}`} 
-            message={message} 
-          />
+        {groupedMessages.map(group => (
+          <div key={group.label} className="space-y-3 sm:space-y-6">
+            {/* Date separator */}
+            <div className="flex justify-center my-2">
+              <span className="text-xs px-3 py-1 rounded-full bg-gray-100 text-gray-600">
+                {group.label}
+              </span>
+            </div>
+
+            {/* Group messages */}
+            {group.items.map((message, index) => (
+              <MessageBubble
+                key={`${message.id}-${message.timestamp.getTime()}-${index}`}
+                message={message}
+              />
+            ))}
+          </div>
         ))}
       </div>
 

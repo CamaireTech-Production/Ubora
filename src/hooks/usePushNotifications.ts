@@ -75,19 +75,13 @@ export const usePushNotifications = () => {
       const permission = await Notification.requestPermission();
       checkPermission();
 
-      if (permission === 'granted') {
-        await getFCMToken();
-      } else {
-        setState(prev => ({ ...prev, error: 'Permission denied' }));
-      }
-
       return permission === 'granted';
     } catch (error) {
       console.error('🔔 [Push] Permission request failed:', error);
       setState(prev => ({ ...prev, error: 'Failed to request permission' }));
       return false;
     }
-  }, []);
+  }, [checkPermission]);
 
   // Save token to Firestore
   const saveTokenToFirestore = useCallback(async (token: string) => {
@@ -124,8 +118,17 @@ export const usePushNotifications = () => {
         throw new Error('VAPID key not configured. Please add VITE_FIREBASE_VAPID_KEY to your .env.local file');
       }
 
+      // Ensure we pass the active service worker registration used by the app
+      let serviceWorkerRegistration: ServiceWorkerRegistration | undefined;
+      try {
+        serviceWorkerRegistration = await navigator.serviceWorker.getRegistration('/') || undefined;
+      } catch (e) {
+        serviceWorkerRegistration = undefined;
+      }
+
       const token = await getToken(messagingInstance, {
-        vapidKey: vapidKey
+        vapidKey: vapidKey,
+        serviceWorkerRegistration
       });
 
       if (token) {
