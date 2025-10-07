@@ -26,13 +26,31 @@ export const PushTestPage: React.FC = () => {
 
   const showLocalNotification = useCallback(async (title: string, body: string) => {
     try {
-      // If the page is visible/foreground, use Notification API directly
       if (Notification.permission === 'granted') {
-        new Notification(title, {
-          body,
-          icon: '/fav-icons/android-icon-192x192.png',
-          tag: `ubora-push-test-${Date.now()}`,
-        });
+        // For mobile devices, use service worker to show notifications
+        if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+          // Send message to service worker to show notification
+          navigator.serviceWorker.controller.postMessage({
+            type: 'SHOW_NOTIFICATION',
+            payload: {
+              notification: {
+                title,
+                body
+              },
+              data: {
+                url: '/dev/push-test',
+                timestamp: Date.now()
+              }
+            }
+          });
+        } else {
+          // Fallback for desktop or when service worker not available
+          new Notification(title, {
+            body,
+            icon: '/fav-icons/android-icon-192x192.png',
+            tag: `ubora-push-test-${Date.now()}`,
+          });
+        }
         return true;
       }
       return false;

@@ -34,6 +34,7 @@ export const MessageList: React.FC<MessageListProps> = ({
   const [isAtTop, setIsAtTop] = useState(false);
   const [autoScrollDisabled, setAutoScrollDisabled] = useState(false);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
 
   // Helpers: FR labels for date group headers
   const formatDateLabel = (d: Date) => {
@@ -76,6 +77,33 @@ export const MessageList: React.FC<MessageListProps> = ({
     if (currentLabel) groups.push({ label: currentLabel, items: current });
     return groups;
   })();
+
+  // Track keyboard height for proper spacing
+  useEffect(() => {
+    const handleViewportChange = () => {
+      if (!window.visualViewport) return;
+      
+      const initialHeight = window.innerHeight;
+      const currentHeight = window.visualViewport.height;
+      const heightDifference = initialHeight - currentHeight;
+      
+      setKeyboardHeight(heightDifference > 100 ? heightDifference : 0);
+    };
+
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', handleViewportChange);
+    } else {
+      window.addEventListener('resize', handleViewportChange);
+    }
+
+    return () => {
+      if (window.visualViewport) {
+        window.visualViewport.removeEventListener('resize', handleViewportChange);
+      } else {
+        window.removeEventListener('resize', handleViewportChange);
+      }
+    };
+  }, []);
 
   // Auto-scroll to bottom when new messages arrive (only if auto-scroll is not disabled)
   useEffect(() => {
@@ -149,10 +177,14 @@ export const MessageList: React.FC<MessageListProps> = ({
         className="flex-1 overflow-y-auto pt-4 px-4 sm:px-6 lg:px-8"
         onScroll={handleScroll}
         style={{ 
-          maxHeight: 'calc(100dvh - 140px)',
+          maxHeight: keyboardHeight > 0 
+            ? `calc(100dvh - 140px - ${keyboardHeight}px)` 
+            : 'calc(100dvh - 140px)',
           scrollBehavior: 'smooth',
-          // Ensure proper spacing on mobile
-          paddingBottom: 'max(8rem, calc(8rem + env(safe-area-inset-bottom)))'
+          // Ensure proper spacing on mobile - increase when keyboard is open
+          paddingBottom: keyboardHeight > 0 
+            ? `max(12rem, calc(12rem + env(safe-area-inset-bottom) + ${keyboardHeight}px))`
+            : 'max(8rem, calc(8rem + env(safe-area-inset-bottom)))'
         }}
       >
       {/* Load more button */}

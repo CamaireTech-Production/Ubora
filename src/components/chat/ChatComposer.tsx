@@ -83,7 +83,8 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
   const initialViewportHeightRef = useRef<number>(
     (typeof window !== 'undefined' && (window.visualViewport?.height || window.innerHeight)) || 0
   );
-  
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+
   // Debug token data (safe logging)
   if (packageInfo) {
     // Token data available for debugging if needed
@@ -108,26 +109,38 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
     }
   }, [value]);
 
-  // Detect mobile keyboard open/close
+  // Comprehensive mobile keyboard detection and handling
   useEffect(() => {
     const handleViewportChange = () => {
-      const initialViewportHeight = initialViewportHeightRef.current;
-      const currentViewportHeight = window.visualViewport?.height || window.innerHeight;
-
-      const heightDifference = initialViewportHeight - currentViewportHeight;
-      const keyboardOpen = heightDifference > 150; // Threshold for keyboard detection
+      if (!window.visualViewport) return;
+      
+      const initialHeight = initialViewportHeightRef.current;
+      const currentHeight = window.visualViewport.height;
+      const heightDifference = initialHeight - currentHeight;
+      
+      // More sensitive threshold for better detection
+      const keyboardOpen = heightDifference > 100;
       setIsKeyboardOpen(keyboardOpen);
+      setKeyboardHeight(keyboardOpen ? heightDifference : 0);
 
       if (keyboardOpen) {
-        // Keep the textarea visible
-        textareaRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        // Ensure input stays visible with proper spacing
+        setTimeout(() => {
+          textareaRef.current?.scrollIntoView({ 
+            behavior: 'smooth', 
+            block: 'center',
+            inline: 'nearest'
+          });
+        }, 100);
       }
     };
 
+    // Use visualViewport API for accurate keyboard detection
     if (window.visualViewport) {
       window.visualViewport.addEventListener('resize', handleViewportChange);
       window.visualViewport.addEventListener('scroll', handleViewportChange);
     } else {
+      // Fallback for older browsers
       window.addEventListener('resize', handleViewportChange);
     }
 
@@ -174,7 +187,10 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
       }`}
       style={{ 
         paddingBottom: isKeyboardOpen ? '0.5rem' : 'max(1rem, env(safe-area-inset-bottom))',
-        bottom: isKeyboardOpen ? '0' : '0'
+        bottom: isKeyboardOpen ? '0' : '0',
+        // Ensure composer stays above keyboard with proper spacing
+        transform: isKeyboardOpen ? `translateY(-${Math.max(0, keyboardHeight - 50)}px)` : 'translateY(0)',
+        transition: 'transform 0.3s ease-out'
       }}
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
