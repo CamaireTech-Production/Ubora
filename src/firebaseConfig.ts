@@ -53,17 +53,43 @@ try {
 
 // Initialisation des services
 export const auth = getAuth(app);
-// Firestore singleton with persistent cache; avoid re-initialization across HMR
+// Firestore singleton with development-safe configuration
 export const db = ((): Firestore => {
   if (globalForFirebase.__UBORA_FIRESTORE__) return globalForFirebase.__UBORA_FIRESTORE__ as Firestore;
-  const instance = initializeFirestore(app, {
+  
+  const isDev = typeof import.meta !== 'undefined' && !!(import.meta as any).env && (import.meta as any).env.DEV;
+  
+  // In development, use minimal configuration to avoid assertion errors
+  const config = isDev ? {
+    // No local cache in dev to completely avoid IndexedDB issues
+    experimentalAutoDetectLongPolling: true,
+    // Disable offline persistence completely in dev
+    ignoreUndefinedProperties: true
+  } : {
     localCache: persistentLocalCache({
       tabManager: persistentMultipleTabManager()
     }),
     experimentalAutoDetectLongPolling: true
-  });
-  globalForFirebase.__UBORA_FIRESTORE__ = instance;
-  return instance;
+  };
+  
+  try {
+    const instance = initializeFirestore(app, config);
+    globalForFirebase.__UBORA_FIRESTORE__ = instance;
+    return instance;
+  } catch (error) {
+    console.error('🔥 [Firebase] Firestore initialization failed:', error);
+    // Final fallback - minimal config
+    try {
+      const fallbackInstance = initializeFirestore(app, {
+        experimentalAutoDetectLongPolling: true
+      });
+      globalForFirebase.__UBORA_FIRESTORE__ = fallbackInstance;
+      return fallbackInstance;
+    } catch (fallbackError) {
+      console.error('🔥 [Firebase] Firestore fallback initialization also failed:', fallbackError);
+      throw new Error('Firestore initialization failed completely');
+    }
+  }
 })();
 export const storage = getStorage(app);
 

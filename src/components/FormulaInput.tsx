@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { FormField } from '../types';
 import { Button } from './Button';
 import { Card } from './Card';
@@ -37,19 +37,29 @@ export const FormulaInput: React.FC<FormulaInputProps> = ({
   const inputRef = useRef<HTMLInputElement>(null);
   const editorRef = useRef<HTMLDivElement>(null);
   const [fieldOccurrences, setFieldOccurrences] = useState<Array<{ field: FormField; start: number; end: number }>>([]);
+  const isInitialized = useRef(false);
+  const onChangeRef = useRef(onChange);
   const isEditorFocused = () => document.activeElement === editorRef.current;
 
+  // Update the ref when onChange changes
+  useEffect(() => {
+    onChangeRef.current = onChange;
+  }, [onChange]);
+
   // Get available fields for calculation (exclude current field and non-calculable types)
-  const availableFields = fields.filter(field => 
-    field.id !== currentFieldId && 
-    ['number', 'calculated'].includes(field.type)
+  // Use useMemo to prevent recreation on every render
+  const availableFields = useMemo(() => 
+    fields.filter(field => 
+      field.id !== currentFieldId && 
+      ['number', 'calculated'].includes(field.type)
+    ), [fields, currentFieldId]
   );
 
   // Parse user formula and find field matches
   useEffect(() => {
     if (!userFormula.trim()) {
       setFieldMatches([]);
-      onChange('', []);
+      onChangeRef.current('', []);
       setFieldOccurrences([]);
       return;
     }
@@ -94,8 +104,8 @@ export const FormulaInput: React.FC<FormulaInputProps> = ({
       formulaWithIds = formulaWithIds.replace(regex, match.fieldId);
     });
 
-    onChange(formulaWithIds, fieldIds);
-  }, [userFormula, availableFields, onChange, currentFieldId]);
+    onChangeRef.current(formulaWithIds, fieldIds);
+  }, [userFormula, availableFields, currentFieldId]); // Remove onChange from dependencies
 
   // Render the contenteditable from current userFormula and occurrences when not focused (initial/load)
   useEffect(() => {
@@ -125,7 +135,7 @@ export const FormulaInput: React.FC<FormulaInputProps> = ({
 
   // Initialize user formula from stored value
   useEffect(() => {
-    if (value && !userFormula) {
+    if (value && !isInitialized.current) {
       let displayFormula = value;
       
       // Convert field IDs back to field labels for display
@@ -136,8 +146,9 @@ export const FormulaInput: React.FC<FormulaInputProps> = ({
       });
       
       setUserFormula(displayFormula);
+      isInitialized.current = true;
     }
-  }, [value, fields]); // Removed userFormula from dependencies to prevent infinite loop
+  }, [value, fields]);
 
   // Removed old input handlers (no longer used with contentEditable)
 
@@ -213,20 +224,19 @@ export const FormulaInput: React.FC<FormulaInputProps> = ({
   };
 
   const insertOperator = (operator: string) => {
-    const beforeCursor = userFormula.substring(0, cursorPosition);
-    const afterCursor = userFormula.substring(cursorPosition);
-    const newFormula = beforeCursor + operator + afterCursor;
+    const sel = window.getSelection();
+    if (!editorRef.current || !sel || sel.rangeCount === 0) return;
     
-    setUserFormula(newFormula);
+    const range = sel.getRangeAt(0);
+    const textNode = document.createTextNode(operator);
+    range.insertNode(textNode);
+    range.setStartAfter(textNode);
+    range.collapse(true);
+    sel.removeAllRanges();
+    sel.addRange(range);
     
-    // Focus back to input and set cursor position
-    setTimeout(() => {
-      if (inputRef.current) {
-        const newPosition = cursorPosition + operator.length;
-        inputRef.current.focus();
-        inputRef.current.setSelectionRange(newPosition, newPosition);
-      }
-    }, 0);
+    // Update the formula by reading from the editor
+    handleEditorInput();
   };
 
   // Removed unused insertConstant helper

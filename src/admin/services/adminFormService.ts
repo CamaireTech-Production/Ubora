@@ -246,8 +246,34 @@ export class AdminFormService {
    */
   static async createForm(adminId: string, adminEmail: string, adminName: string, formData: Partial<AdminForm>): Promise<boolean> {
     try {
+      // Helper function to remove undefined values from objects recursively
+      const removeUndefinedValues = (obj: any): any => {
+        if (obj === null || obj === undefined) {
+          return null;
+        }
+        if (Array.isArray(obj)) {
+          return obj.map(removeUndefinedValues).filter(item => item !== null && item !== undefined);
+        }
+        if (typeof obj === 'object') {
+          const cleaned: any = {};
+          for (const [key, value] of Object.entries(obj)) {
+            if (value !== undefined) {
+              const cleanedValue = removeUndefinedValues(value);
+              if (cleanedValue !== null && cleanedValue !== undefined) {
+                cleaned[key] = cleanedValue;
+              }
+            }
+          }
+          return cleaned;
+        }
+        return obj;
+      };
+
+      // Clean the form data to remove undefined values
+      const cleanedFormData = removeUndefinedValues(formData);
+
       const formRef = await addDoc(collection(db, this.FORMS_COLLECTION), {
-        ...formData,
+        ...cleanedFormData,
         createdBy: adminId,
         createdByName: adminName,
         createdAt: serverTimestamp(),
@@ -290,8 +316,34 @@ export class AdminFormService {
    */
   static async updateForm(adminId: string, adminEmail: string, adminName: string, formId: string, updates: Partial<AdminForm>): Promise<boolean> {
     try {
+      // Helper function to remove undefined values from objects recursively
+      const removeUndefinedValues = (obj: any): any => {
+        if (obj === null || obj === undefined) {
+          return null;
+        }
+        if (Array.isArray(obj)) {
+          return obj.map(removeUndefinedValues).filter(item => item !== null && item !== undefined);
+        }
+        if (typeof obj === 'object') {
+          const cleaned: any = {};
+          for (const [key, value] of Object.entries(obj)) {
+            if (value !== undefined) {
+              const cleanedValue = removeUndefinedValues(value);
+              if (cleanedValue !== null && cleanedValue !== undefined) {
+                cleaned[key] = cleanedValue;
+              }
+            }
+          }
+          return cleaned;
+        }
+        return obj;
+      };
+
+      // Clean the updates to remove undefined values
+      const cleanedUpdates = removeUndefinedValues(updates);
+
       await updateDoc(doc(db, this.FORMS_COLLECTION, formId), {
-        ...updates,
+        ...cleanedUpdates,
         updatedAt: serverTimestamp()
       });
 

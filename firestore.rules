@@ -79,7 +79,14 @@ service cloud.firestore {
         (isDirecteur() && isSameAgency(resource.data.agencyId)) ||
         (hasDirectorDashboardAccess() && isSameAgency(resource.data.agencyId)) ||
         isAdmin()
+      ) || (
+        // Allow reading director info during employee registration (for limit checking)
+        !isAuthenticated() && 
+        resource.data.role == 'directeur'
       );
+      
+      // Allow collection queries for directors during employee registration
+      allow list: if !isAuthenticated() && resource.data.role == 'directeur';
       
       // CRÉATION d'un utilisateur
       allow create: if isAuthenticated() && 

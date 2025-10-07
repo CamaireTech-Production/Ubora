@@ -9,7 +9,7 @@ import { DynamicForm } from '../components/DynamicForm';
 import { LoadingGuard } from '../components/LoadingGuard';
 import { Toast } from '../components/Toast';
 import { useToast } from '../hooks/useToast';
-import { FileText, CheckCircle, ArrowLeft, Eye, AlertTriangle, Edit, Trash2, Send, FileEdit, Filter, Calendar, SortAsc, SortDesc, Download } from 'lucide-react';
+import { FileText, CheckCircle, ArrowLeft, Eye, AlertTriangle, Edit, Trash2, Send, FileEdit, Filter, Calendar, SortAsc, SortDesc, Download, ClipboardList, FileCheck, FileBarChart } from 'lucide-react';
 import { getFileDownloadURL } from '../utils/firebaseStorageUtils';
 import { PDFViewerModal } from '../components/PDFViewerModal';
 import { downloadFile } from '../utils/downloadUtils';
@@ -456,6 +456,24 @@ export const EmployeDashboard: React.FC = () => {
   const [isSubmittingDrafts, setIsSubmittingDrafts] = useState(false);
   const [isSavingDraft, setIsSavingDraft] = useState(false);
   const { toast, showSuccess, showError } = useToast();
+
+  // Function to get form icon based on form type or content
+  const getFormIcon = (form: any) => {
+    // Check if form has specific field types that suggest its purpose
+    const hasFileFields = form.fields.some((field: any) => field.type === 'file');
+    const hasDateFields = form.fields.some((field: any) => field.type === 'date');
+    const hasNumberFields = form.fields.some((field: any) => field.type === 'number');
+    const hasSelectFields = form.fields.some((field: any) => field.type === 'select');
+    
+    // Determine icon based on form characteristics
+    if (hasFileFields) return <FileEdit className="h-5 w-5 text-blue-600" />;
+    if (hasDateFields && hasNumberFields) return <FileBarChart className="h-5 w-5 text-green-600" />;
+    if (hasSelectFields) return <ClipboardList className="h-5 w-5 text-purple-600" />;
+    if (hasNumberFields) return <FileBarChart className="h-5 w-5 text-orange-600" />;
+    
+    // Default form icon
+    return <FileText className="h-5 w-5 text-indigo-600" />;
+  };
 
   const [pdfViewerModal, setPdfViewerModal] = useState<{
     isOpen: boolean;
@@ -1167,14 +1185,27 @@ export const EmployeDashboard: React.FC = () => {
                       return (
                         <div
                           key={form.id}
-                          className="bg-white border border-gray-200 rounded-lg p-4 sm:p-5 hover:shadow-lg transition-all duration-200 hover:border-green-300 mobile-form-card flex-shrink-0 w-80 sm:w-96"
+                          className="bg-white border border-gray-200 rounded-xl p-4 sm:p-6 hover:shadow-xl transition-all duration-300 hover:border-green-300 hover:-translate-y-1 mobile-form-card flex-shrink-0 w-80 sm:w-96 h-80 group flex flex-col"
                         >
-                          {/* Header avec titre et badges */}
-                          <div className="mb-3">
-                            <div className="flex flex-col space-y-2">
-                              <h3 className="font-semibold text-gray-900 text-base sm:text-lg line-clamp-2 leading-tight">
+                          {/* Header avec icône, titre et badges */}
+                          <div className="mb-3 flex-shrink-0">
+                            <div className="flex items-start space-x-3 mb-2">
+                              <div className="flex-shrink-0 mt-1">
+                                {getFormIcon(form)}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <h3 className="font-semibold text-gray-900 text-base sm:text-lg leading-tight" style={{
+                                  display: '-webkit-box',
+                                  WebkitLineClamp: 2,
+                                  WebkitBoxOrient: 'vertical',
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                  lineHeight: '1.3'
+                                }}>
                                 {form.title}
                               </h3>
+                              </div>
+                            </div>
                               <div className="flex flex-wrap gap-2">
                                 {entryCount > 0 && (
                                   <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
@@ -1195,38 +1226,43 @@ export const EmployeDashboard: React.FC = () => {
                                     {isWithinTimeRestrictions(form.timeRestrictions) ? '🕒' : '⚠️'} {formatTimeRestrictions(form.timeRestrictions)}
                                   </span>
                                 )}
-                              </div>
                             </div>
                           </div>
 
                           {/* Description */}
-                          <p className="text-sm text-gray-600 mb-4 line-clamp-3 leading-relaxed">
+                          <p className="text-sm text-gray-600 mb-4 leading-relaxed flex-1" style={{
+                            display: '-webkit-box',
+                            WebkitLineClamp: 3,
+                            WebkitBoxOrient: 'vertical',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis'
+                          }}>
                             {form.description}
                           </p>
 
                           {/* Statistiques */}
-                          <div className="grid grid-cols-2 gap-3 mb-4">
-                            <div className="bg-gray-50 rounded-lg p-2 text-center">
-                              <div className="text-lg font-bold text-gray-900">{form.fields.length}</div>
-                              <div className="text-xs text-gray-600">Champ(s)</div>
+                          <div className="grid grid-cols-2 gap-3 mb-4 flex-shrink-0">
+                            <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-xl p-3 text-center border border-green-200">
+                              <div className="text-xl font-bold text-green-700">{form.fields.length}</div>
+                              <div className="text-xs text-green-600 font-medium">Champ(s)</div>
                             </div>
-                            <div className="bg-gray-50 rounded-lg p-2 text-center">
-                              <div className="text-lg font-bold text-gray-900">{entryCount + draftCount}</div>
-                              <div className="text-xs text-gray-600">Total</div>
+                            <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-3 text-center border border-blue-200">
+                              <div className="text-xl font-bold text-blue-700">{entryCount + draftCount}</div>
+                              <div className="text-xs text-blue-600 font-medium">Total</div>
                             </div>
                           </div>
 
                           {/* Date de création */}
-                          <div className="text-xs text-gray-500 mb-4">
+                          <div className="text-xs text-gray-500 mb-4 flex-shrink-0">
                             Créé le {form.createdAt.toLocaleDateString()}
                           </div>
 
                           {/* Actions */}
-                          <div className="flex flex-col space-y-2 form-card-actions">
+                          <div className="flex flex-col space-y-2 form-card-actions flex-shrink-0">
                             <Button
                               size="sm"
                               onClick={() => setSelectedFormId(form.id)}
-                              className="w-full flex items-center justify-center space-x-1 text-xs"
+                              className="w-full flex items-center justify-center space-x-1 text-xs bg-green-600 hover:bg-green-700 text-white border-0 rounded-lg font-medium shadow-md hover:shadow-lg transition-all duration-200"
                             >
                               <span>Remplir le formulaire</span>
                             </Button>
@@ -1236,7 +1272,7 @@ export const EmployeDashboard: React.FC = () => {
                                 variant="secondary"
                                 size="sm"
                                 onClick={() => handleViewResponses(form.id)}
-                                className="w-full flex items-center justify-center space-x-1 text-xs"
+                                className="w-full flex items-center justify-center space-x-1 text-xs bg-blue-50 hover:bg-blue-100 text-blue-700 border-0 rounded-lg font-medium"
                               >
                                 <Eye className="h-3 w-3" />
                                 <span>Voir mes réponses</span>

@@ -17,6 +17,7 @@ import { MetricEditModal } from '../components/MetricEditModal';
 import { GraphPreview } from '../components/charts/GraphPreview';
 import { GraphModal } from '../components/charts/GraphModal';
 import { getValidYAxisFields, validateYAxisField } from '../utils/GraphFieldValidator';
+import { metricReminderService } from '../services/metricReminderService';
 import { 
   ArrowLeft, 
   BarChart3, 
@@ -36,7 +37,8 @@ import {
   Plus,
   FileText,
   X,
-  ChevronDown
+  ChevronDown,
+  BellPlus
 } from 'lucide-react';
 
 export const DashboardDetailPage: React.FC = () => {
@@ -82,6 +84,18 @@ export const DashboardDetailPage: React.FC = () => {
   // Graph modal state
   const [showGraphModal, setShowGraphModal] = useState(false);
   const [expandedGraphMetric, setExpandedGraphMetric] = useState<DashboardMetric | null>(null);
+  
+  // Reminder modal state
+  const [showReminderModal, setShowReminderModal] = useState<{open: boolean; metric: DashboardMetric | null}>({open: false, metric: null});
+  const [reminderDraft, setReminderDraft] = useState<{ 
+    frequency: 'daily' | 'weekly' | 'monthly';
+    time: string; // HH:MM format
+    note?: string;
+  }>({ 
+    frequency: 'daily',
+    time: '09:00',
+    note: ''
+  });
   
   // États pour le filtrage temporel
   const [timeFilter, setTimeFilter] = useState<string>('all');
@@ -632,18 +646,20 @@ export const DashboardDetailPage: React.FC = () => {
               
               return (
                 <Card key={metric.id || index} className="hover:shadow-lg transition-shadow h-full flex flex-col">
-                  {/* Header with icons, badge and action buttons */}
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center space-x-2">
-                      {getFieldIcon(metric.fieldType)}
-                      {getCalculationIcon(metric.calculationType)}
-                      <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
-                        {getCalculationLabel(metric.calculationType)}
-                      </span>
-                    </div>
-                    
-                    {/* Action buttons */}
+                  {/* Row 1: Action buttons on the right */}
+                  <div className="flex justify-end mb-2">
                     <div className="flex items-center space-x-1">
+                      {user?.role === 'directeur' && (
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => setShowReminderModal({ open: true, metric })}
+                          className="p-1"
+                          title="Programmer un rappel"
+                        >
+                          <BellPlus className="h-3 w-3" />
+                        </Button>
+                      )}
                       <Button
                         variant="secondary"
                         size="sm"
@@ -665,7 +681,7 @@ export const DashboardDetailPage: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Metric name and description */}
+                  {/* Row 2: Metric title */}
                   <div className="mb-3">
                     <h4 className="font-semibold text-gray-900 text-base lg:text-lg mb-1">
                       {metric.name}
@@ -676,6 +692,16 @@ export const DashboardDetailPage: React.FC = () => {
                       </p>
                     )}
                   </div>
+
+                  {/* Row 3: Symbols and type on the left */}
+                  <div className="flex items-center space-x-2 mb-3">
+                    {getFieldIcon(metric.fieldType)}
+                    {getCalculationIcon(metric.calculationType)}
+                    <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
+                      {getCalculationLabel(metric.calculationType)}
+                    </span>
+                  </div>
+
 
                   {/* Metric value and result */}
                   <div className="flex-1 mb-3">
@@ -1258,6 +1284,156 @@ export const DashboardDetailPage: React.FC = () => {
           formEntries={getFilteredFormEntries()}
           forms={forms}
         />
+      )}
+
+       {/* Reminder Modal */}
+       {showReminderModal.open && showReminderModal.metric && user && (
+         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 p-2 sm:p-4">
+           <div className="w-full max-w-lg bg-white rounded-t-lg sm:rounded-lg shadow-xl p-4 sm:p-6">
+             <div className="flex items-center justify-between mb-4">
+               <h4 className="text-lg font-semibold">Programmer un rappel</h4>
+               <button
+                 className="text-gray-500 hover:text-gray-700 text-xl"
+                 onClick={() => setShowReminderModal({ open: false, metric: null })}
+               >
+                 ✕
+               </button>
+             </div>
+             
+              <div className="space-y-4">
+                {/* Metric Info */}
+                <div className="bg-blue-50 p-3 rounded-lg">
+                  <p className="text-sm text-blue-800">
+                    <strong>Métrique:</strong> {showReminderModal.metric.name}
+                  </p>
+                  <p className="text-xs text-blue-600 mt-1">
+                    Vous recevrez un rappel périodique avec la valeur de cette métrique
+                  </p>
+                </div>
+
+                {/* Frequency Selection */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Fréquence du rappel</label>
+                  <div className="grid grid-cols-3 gap-2">
+                    <label className="flex flex-col items-center p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
+                      <input
+                        type="radio"
+                        name="frequency"
+                        value="daily"
+                        checked={reminderDraft.frequency === 'daily'}
+                        onChange={(e) => setReminderDraft({ ...reminderDraft, frequency: e.target.value as any })}
+                        className="mb-2"
+                      />
+                      <span className="text-sm font-medium">Quotidien</span>
+                      <span className="text-xs text-gray-500">Chaque jour</span>
+                    </label>
+                    <label className="flex flex-col items-center p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
+                      <input
+                        type="radio"
+                        name="frequency"
+                        value="weekly"
+                        checked={reminderDraft.frequency === 'weekly'}
+                        onChange={(e) => setReminderDraft({ ...reminderDraft, frequency: e.target.value as any })}
+                        className="mb-2"
+                      />
+                      <span className="text-sm font-medium">Hebdomadaire</span>
+                      <span className="text-xs text-gray-500">Chaque semaine</span>
+                    </label>
+                    <label className="flex flex-col items-center p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
+                      <input
+                        type="radio"
+                        name="frequency"
+                        value="monthly"
+                        checked={reminderDraft.frequency === 'monthly'}
+                        onChange={(e) => setReminderDraft({ ...reminderDraft, frequency: e.target.value as any })}
+                        className="mb-2"
+                      />
+                      <span className="text-sm font-medium">Mensuel</span>
+                      <span className="text-xs text-gray-500">Chaque mois</span>
+                    </label>
+                  </div>
+                </div>
+
+                {/* Time Selection */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Heure de notification</label>
+                  <input
+                    type="time"
+                    className="w-full border rounded px-3 py-2 text-sm"
+                    value={reminderDraft.time}
+                    onChange={(e) => setReminderDraft({ ...reminderDraft, time: e.target.value })}
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    L'heure à laquelle vous recevrez le rappel {reminderDraft.frequency === 'daily' ? 'chaque jour' : reminderDraft.frequency === 'weekly' ? 'chaque semaine' : 'chaque mois'}
+                  </p>
+                </div>
+
+                {/* Period Explanation */}
+                <div className="bg-green-50 p-3 rounded-lg">
+                  <p className="text-sm text-green-800">
+                    <strong>Période de la métrique:</strong>
+                  </p>
+                  <ul className="text-xs text-green-700 mt-1 space-y-1">
+                    <li>• <strong>Quotidien:</strong> Valeur de la métrique pour 1 jour</li>
+                    <li>• <strong>Hebdomadaire:</strong> Valeur de la métrique pour 1 semaine</li>
+                    <li>• <strong>Mensuel:</strong> Valeur de la métrique pour 1 mois</li>
+                  </ul>
+                  <p className="text-xs text-green-600 mt-2">
+                    En cliquant sur la notification, vous serez redirigé vers la page détaillée de la métrique avec la période correspondante.
+                  </p>
+                </div>
+
+               {/* Note */}
+               <div>
+                 <label className="block text-sm font-medium text-gray-700 mb-2">Note (optionnel)</label>
+                 <textarea
+                   className="w-full border rounded px-3 py-2 text-sm"
+                   rows={2}
+                   value={reminderDraft.note || ''}
+                   onChange={(e) => setReminderDraft({ ...reminderDraft, note: e.target.value })}
+                   placeholder="Ajoutez une note pour ce rappel..."
+                 />
+               </div>
+             </div>
+
+             <div className="flex justify-end gap-3 mt-6">
+               <button
+                 className="px-4 py-2 text-sm rounded border text-gray-700 hover:bg-gray-50"
+                 onClick={() => setShowReminderModal({ open: false, metric: null })}
+               >
+                 Annuler
+               </button>
+               <button
+                 className="px-4 py-2 text-sm rounded bg-blue-600 text-white hover:bg-blue-700"
+                 onClick={async () => {
+                   if (!showReminderModal.metric || !user) return;
+                   const dashId = dashboard?.id;
+                   if (!dashId) return;
+                   
+                   // Create the reminder with frequency-based scheduling
+                   await metricReminderService.create({
+                     id: '', // ignored by service
+                     agencyId: user.agencyId!,
+                     directorId: user.id,
+                     dashboardId: dashId,
+                     metricId: showReminderModal.metric.id,
+                     scheduledAt: new Date(), // Will be calculated based on frequency
+                     frequency: reminderDraft.frequency,
+                     time: reminderDraft.time,
+                     note: reminderDraft.note,
+                     status: 'pending',
+                     createdAt: new Date(),
+                     createdBy: user.id,
+                   } as any);
+                   setShowReminderModal({ open: false, metric: null });
+                   showSuccess('Rappel programmé avec succès');
+                 }}
+               >
+                 Enregistrer
+               </button>
+             </div>
+           </div>
+         </div>
       )}
 
       {/* Toast Notification */}

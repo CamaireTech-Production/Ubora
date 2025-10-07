@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { FormField, Form } from '../types';
 import { Button } from './Button';
 import { Input } from './Input';
@@ -114,6 +114,14 @@ export const FormBuilder: React.FC<FormBuilderProps> = ({
   const handleFieldOptionsUpdate = (fieldId: string, newOptions: string[]) => {
     updateField(fieldId, { options: newOptions });
   };
+
+  const handleFormulaChange = useCallback((fieldId: string, formula: string, fieldIds: string[]) => {
+    updateField(fieldId, { 
+      calculationFormula: formula,
+      dependsOn: fieldIds,
+      userFormula: FormulaParser.convertToUserFormula(formula, fields)
+    });
+  }, [fields, updateField]);
 
   const toggleDaySelection = (day: number) => {
     setTimeRestrictions(prev => {
@@ -566,13 +574,7 @@ export const FormBuilder: React.FC<FormBuilderProps> = ({
                           
                           <FormulaInput
                             value={field.calculationFormula || ''}
-                            onChange={(formula, fieldIds) => {
-                              updateField(field.id, { 
-                                calculationFormula: formula,
-                                dependsOn: fieldIds,
-                                userFormula: FormulaParser.convertToUserFormula(formula, fields)
-                              });
-                            }}
+                            onChange={(formula: string, fieldIds: string[]) => handleFormulaChange(field.id, formula, fieldIds)}
                             fields={fields}
                             currentFieldId={field.id}
                           />

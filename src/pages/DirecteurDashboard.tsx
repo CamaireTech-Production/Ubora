@@ -10,7 +10,7 @@ import { Button } from '../components/Button';
 import { FormEditor } from '../components/FormEditor';
 import { FormBuilder } from '../components/FormBuilder';
 import { LoadingGuard } from '../components/LoadingGuard';
-import { Plus, FileText, Users, Eye, Trash2, Edit, UserCheck, BarChart3, Calendar, ChevronDown, Crown, User as UserIcon } from 'lucide-react';
+import { Plus, FileText, Users, Eye, Trash2, Edit, UserCheck, BarChart3, Calendar, ChevronDown, Crown, User as UserIcon, ClipboardList, FileCheck, FileEdit, FileBarChart } from 'lucide-react';
 import { PendingApprovals } from '../components/PendingApprovals';
 import { VideoSection } from '../components/VideoSection';
 import { directorVideos } from '../data/videoData';
@@ -77,6 +77,38 @@ export const DirecteurDashboard: React.FC = () => {
   });
   const [showCustomDatePicker, setShowCustomDatePicker] = useState(false);
 
+  // Function to get form icon based on form type or content
+  const getFormIcon = (form: Form) => {
+    // Check if form has specific field types that suggest its purpose
+    const hasFileFields = form.fields.some(field => field.type === 'file');
+    const hasDateFields = form.fields.some(field => field.type === 'date');
+    const hasNumberFields = form.fields.some(field => field.type === 'number');
+    const hasSelectFields = form.fields.some(field => field.type === 'select');
+    
+    // Determine icon based on form characteristics
+    if (hasFileFields) return <FileEdit className="h-5 w-5 text-blue-600" />;
+    if (hasDateFields && hasNumberFields) return <FileBarChart className="h-5 w-5 text-green-600" />;
+    if (hasSelectFields) return <ClipboardList className="h-5 w-5 text-purple-600" />;
+    if (hasNumberFields) return <FileBarChart className="h-5 w-5 text-orange-600" />;
+    
+    // Default form icon
+    return <FileText className="h-5 w-5 text-indigo-600" />;
+  };
+
+  // Function to get dashboard icon based on dashboard metrics
+  const getDashboardIcon = (dashboard: any) => {
+    const hasGraphMetrics = dashboard.metrics.some((metric: any) => metric.metricType === 'graph');
+    const hasCalculatedMetrics = dashboard.metrics.some((metric: any) => metric.metricType === 'calculated');
+    const metricCount = dashboard.metrics.length;
+    
+    // Determine icon based on dashboard characteristics
+    if (hasGraphMetrics) return <BarChart3 className="h-5 w-5 text-blue-600" />;
+    if (hasCalculatedMetrics && metricCount > 3) return <FileBarChart className="h-5 w-5 text-green-600" />;
+    if (metricCount > 5) return <BarChart3 className="h-5 w-5 text-purple-600" />;
+    
+    // Default dashboard icon
+    return <BarChart3 className="h-5 w-5 text-indigo-600" />;
+  };
 
   const handleCreateForm = async (formData: {
     title: string;
@@ -645,58 +677,76 @@ export const DirecteurDashboard: React.FC = () => {
                     return (
                       <div
                         key={form.id}
-                        className="bg-white border border-gray-200 rounded-lg p-4 sm:p-5 hover:shadow-lg transition-all duration-200 hover:border-blue-300 mobile-form-card flex-shrink-0 w-80 sm:w-96 relative"
+                        className="bg-white border border-gray-200 rounded-xl p-4 sm:p-6 hover:shadow-xl transition-all duration-300 hover:border-blue-300 hover:-translate-y-1 mobile-form-card flex-shrink-0 w-80 sm:w-96 h-80 relative group flex flex-col"
                       >
                         {/* Delete button in top-right corner */}
-                        <div className="absolute top-3 right-3 z-10">
+                        <div className="absolute top-3 right-3 z-10 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
                           <Button
                             variant="danger"
                             size="sm"
                             onClick={() => handleDeleteForm(form.id)}
-                            className="p-1.5 h-8 w-8 opacity-70 hover:opacity-100 transition-opacity"
+                            className="p-1.5 h-8 w-8 shadow-lg"
                             title="Supprimer le formulaire"
                           >
                             <Trash2 className="h-3 w-3" />
                           </Button>
                         </div>
 
-                        {/* Header avec titre et badge */}
-                        <div className="mb-3 pr-10">
-                          <div className="flex flex-col space-y-2">
-                            <h3 className="font-semibold text-gray-900 text-base sm:text-lg line-clamp-2 leading-tight">
-                              {form.title}
-                            </h3>
-                            {form.timeRestrictions && formatTimeRestrictions(form.timeRestrictions) && (
-                              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 w-fit">
-                                🕒 {formatTimeRestrictions(form.timeRestrictions)}
-                              </span>
-                            )}
+                        {/* Header avec icône, titre et badge */}
+                        <div className="mb-3 pr-10 flex-shrink-0">
+                          <div className="flex items-start space-x-3 mb-2">
+                            <div className="flex-shrink-0 mt-1">
+                              {getFormIcon(form)}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <h3 className="font-semibold text-gray-900 text-base sm:text-lg leading-tight" style={{
+                                display: '-webkit-box',
+                                WebkitLineClamp: 2,
+                                WebkitBoxOrient: 'vertical',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                lineHeight: '1.3'
+                              }}>
+                                {form.title}
+                              </h3>
+                            </div>
                           </div>
+                          {form.timeRestrictions && formatTimeRestrictions(form.timeRestrictions) && (
+                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 w-fit">
+                              🕒 {formatTimeRestrictions(form.timeRestrictions)}
+                            </span>
+                          )}
                         </div>
 
                         {/* Description */}
-                        <p className="text-sm text-gray-600 mb-4 line-clamp-3 leading-relaxed">
+                        <p className="text-sm text-gray-600 mb-4 leading-relaxed flex-1" style={{
+                          display: '-webkit-box',
+                          WebkitLineClamp: 3,
+                          WebkitBoxOrient: 'vertical',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis'
+                        }}>
                           {form.description}
                         </p>
 
                         {/* Statistiques */}
-                        <div className="grid grid-cols-3 gap-2 mb-4">
-                          <div className="bg-gray-50 rounded-lg p-2 text-center">
-                            <div className="text-lg font-bold text-gray-900">{formEntriesForForm.length}</div>
-                            <div className="text-xs text-gray-600">Réponse(s)</div>
+                        <div className="grid grid-cols-3 gap-3 mb-4 flex-shrink-0">
+                          <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-3 text-center border border-blue-200">
+                            <div className="text-xl font-bold text-blue-700">{formEntriesForForm.length}</div>
+                            <div className="text-xs text-blue-600 font-medium">Réponse(s)</div>
                           </div>
-                          <div className="bg-gray-50 rounded-lg p-2 text-center">
-                            <div className="text-lg font-bold text-gray-900">{form.fields.length}</div>
-                            <div className="text-xs text-gray-600">Champ(s)</div>
+                          <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-xl p-3 text-center border border-green-200">
+                            <div className="text-xl font-bold text-green-700">{form.fields.length}</div>
+                            <div className="text-xs text-green-600 font-medium">Champ(s)</div>
                           </div>
-                          <div className="bg-gray-50 rounded-lg p-2 text-center">
-                            <div className="text-lg font-bold text-gray-900">{form.assignedTo.length}</div>
-                            <div className="text-xs text-gray-600">Employé(s)</div>
+                          <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl p-3 text-center border border-purple-200">
+                            <div className="text-xl font-bold text-purple-700">{form.assignedTo.length}</div>
+                            <div className="text-xs text-purple-600 font-medium">Employé(s)</div>
                           </div>
                         </div>
 
                         {/* Date de création et créateur */}
-                        <div className="text-xs text-gray-500 mb-4 space-y-1">
+                        <div className="text-xs text-gray-500 mb-4 space-y-1 flex-shrink-0">
                           <div>Créé le {form.createdAt.toLocaleDateString()}</div>
                           {form.createdByRole === 'directeur' ? (
                             <div className="flex items-center space-x-1">
@@ -712,12 +762,12 @@ export const DirecteurDashboard: React.FC = () => {
                         </div>
 
                         {/* Actions */}
-                        <div className="flex space-x-2 form-card-actions">
+                        <div className="flex space-x-2 form-card-actions flex-shrink-0">
                           <Button
                             variant="secondary"
                             size="sm"
                             onClick={() => handleEditForm(form)}
-                            className="flex-1 flex items-center justify-center space-x-1 text-xs"
+                            className="flex-1 flex items-center justify-center space-x-1 text-xs bg-gray-100 hover:bg-gray-200 border-0 rounded-lg font-medium"
                           >
                             <Edit className="h-3 w-3" />
                             <span>Modifier</span>
@@ -727,7 +777,7 @@ export const DirecteurDashboard: React.FC = () => {
                             variant="secondary"
                             size="sm"
                             onClick={() => handleViewResponses(form.id)}
-                            className="flex-1 flex items-center justify-center space-x-1 text-xs"
+                            className="flex-1 flex items-center justify-center space-x-1 text-xs bg-blue-50 hover:bg-blue-100 text-blue-700 border-0 rounded-lg font-medium"
                           >
                             <Eye className="h-3 w-3" />
                             <span>Voir les réponses</span>
@@ -788,7 +838,7 @@ export const DirecteurDashboard: React.FC = () => {
                     {/* Always horizontal scrollable like forms and videos */}
                     <div className="flex gap-4 sm:gap-6 overflow-x-auto pb-4 scrollbar-hide horizontal-scroll-dashboards">
                       {filteredDashboards.map(dashboard => (
-                        <div key={dashboard.id} className="flex-shrink-0 w-70 sm:w-75">
+                        <div key={dashboard.id} className="flex-shrink-0">
                           <DashboardDisplay
                             dashboard={dashboard}
                             formEntries={formEntries}

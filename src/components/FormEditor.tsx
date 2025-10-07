@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { FormField, Form } from '../types';
 import { Button } from './Button';
 import { Input } from './Input';
@@ -174,6 +174,14 @@ export const FormEditor: React.FC<FormEditorProps> = ({
     updateField(fieldId, { options: newOptions });
     showSuccess('Options importées avec succès');
   };
+
+  const handleFormulaChange = useCallback((fieldId: string, formula: string, fieldIds: string[]) => {
+    updateField(fieldId, { 
+      calculationFormula: formula,
+      dependsOn: fieldIds,
+      userFormula: FormulaParser.convertToUserFormula(formula, fields)
+    });
+  }, [fields, updateField]);
 
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -606,13 +614,7 @@ export const FormEditor: React.FC<FormEditorProps> = ({
                           
                           <FormulaInput
                                 value={field.calculationFormula || ''}
-                            onChange={(formula, fieldIds) => {
-                              updateField(field.id, { 
-                                calculationFormula: formula,
-                                dependsOn: fieldIds,
-                                userFormula: FormulaParser.convertToUserFormula(formula, fields)
-                              });
-                            }}
+                            onChange={(formula: string, fieldIds: string[]) => handleFormulaChange(field.id, formula, fieldIds)}
                             fields={fields}
                             currentFieldId={field.id}
                           />
