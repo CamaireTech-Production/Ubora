@@ -11,7 +11,8 @@ import {
   doc,
   getDoc,
   serverTimestamp,
-  writeBatch
+  writeBatch,
+  deleteField
 } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 import { Form, FormEntry, User, DraftResponse, Dashboard } from '../types';
@@ -411,13 +412,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (formData.assignedTo !== undefined) updateData.assignedTo = formData.assignedTo;
       if (formData.fields !== undefined) updateData.fields = formData.fields;
       
-      // Handle timeRestrictions properly - only add if it has content, or remove if undefined
+      // Handle timeRestrictions properly - only add if it has content, or remove if empty/undefined
       if (formData.timeRestrictions !== undefined) {
         if (formData.timeRestrictions && Object.keys(formData.timeRestrictions).length > 0) {
           updateData.timeRestrictions = formData.timeRestrictions;
         } else {
-          // If timeRestrictions is undefined or empty, remove the field from Firestore
-          updateData.timeRestrictions = null;
+          // If timeRestrictions is empty, delete the field from Firestore to ensure clean state
+          updateData.timeRestrictions = deleteField();
         }
       }
 
