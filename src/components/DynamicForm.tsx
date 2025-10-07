@@ -14,7 +14,6 @@ import { doc, getDoc } from 'firebase/firestore';
 import { CheckCircle, Clock, AlertTriangle, Loader2, Calculator, Trash2 } from 'lucide-react';
 import { useToast } from '../hooks/useToast';
 import { ExpressionCalculator } from '../utils/ExpressionCalculator';
-import { TextExtractionModal } from './modals/TextExtractionModal';
 import { ConditionalLogicEvaluator } from '../utils/ConditionalLogicEvaluator';
 
 interface DynamicFormProps {
@@ -62,34 +61,6 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
     updateVisibleFields(answers);
   }, [answers, form.fields, updateVisibleFields]);
   
-  // Text extraction modal state
-  const [textExtractionModal, setTextExtractionModal] = useState<{
-    isOpen: boolean;
-    fileName: string;
-    extractedText: string;
-    extractionStatus: 'completed' | 'failed';
-    confidence?: number;
-    error?: string;
-    fileSize: number;
-    engine?: string;
-    pages?: number; // For PDF files
-    fileType?: 'image' | 'pdf'; // To distinguish between image and PDF
-    extractionStats?: {
-      totalCharacters: number;
-      totalWords: number;
-      averageWordsPerPage: number;
-      extractionTime: number;
-      tablesDetected: number;
-    };
-    pendingSubmission?: boolean; // Track if we're waiting for user to proceed
-  }>({
-    isOpen: false,
-    fileName: '',
-    extractedText: '',
-    extractionStatus: 'failed',
-    fileSize: 0,
-    pendingSubmission: false
-  });
   
 
   const formatTimeRestrictions = (restrictions?: {
@@ -279,34 +250,13 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
             }));
           },
           (pdfResult) => {
-            // Show text extraction modal for PDFs as well
-            setTextExtractionModal({
-              isOpen: true,
-              fileName: pdfResult.fileName,
-              extractedText: pdfResult.extractedText,
-              extractionStatus: pdfResult.extractionStatus,
-              error: pdfResult.error,
-              fileSize: pdfResult.fileSize,
-              pages: pdfResult.pages,
-              fileType: 'pdf',
-              extractionStats: pdfResult.extractionStats,
-              pendingSubmission: true // Mark as part of submission flow
-            });
+            // PDF extraction successful - no modal needed
+            // Text is extracted and formatting happens in background
+            console.log(`✅ PDF ${pdfResult.fileName} processed successfully. Formatting in background...`);
           },
           (imageResult) => {
-            // Show text extraction modal as part of form submission flow
-            setTextExtractionModal({
-              isOpen: true,
-              fileName: imageResult.fileName,
-              extractedText: imageResult.extractedText,
-              extractionStatus: imageResult.extractionStatus,
-              confidence: imageResult.confidence,
-              error: imageResult.error,
-              fileSize: imageResult.fileSize,
-              engine: imageResult.engine,
-              fileType: 'image',
-              pendingSubmission: true // Mark as part of submission flow
-            });
+            // Image extraction successful - no modal needed
+            console.log(`✅ Image ${imageResult.fileName} processed successfully`);
           }
         );
 
@@ -536,13 +486,6 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
     }
   };
 
-  const handleProceedWithSubmission = () => {
-    // Close the modal and allow user to continue filling the form
-    setTextExtractionModal(prev => ({ ...prev, isOpen: false, pendingSubmission: false }));
-    
-    // Show a success message to inform user they can continue
-    showSuccess('Texte extrait avec succès ! Vous pouvez continuer à remplir le formulaire.');
-  };
 
   const renderField = (field: FormField) => {
     const commonProps = {
@@ -905,22 +848,6 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
         </form>
       </Card>
       
-      {/* Text Extraction Modal */}
-      <TextExtractionModal
-        isOpen={textExtractionModal.isOpen}
-        onClose={() => setTextExtractionModal(prev => ({ ...prev, isOpen: false }))}
-        onProceed={handleProceedWithSubmission}
-        fileName={textExtractionModal.fileName}
-        extractedText={textExtractionModal.extractedText}
-        extractionStatus={textExtractionModal.extractionStatus}
-        confidence={textExtractionModal.confidence}
-        error={textExtractionModal.error}
-        fileSize={textExtractionModal.fileSize}
-        engine={textExtractionModal.engine}
-        pages={textExtractionModal.pages}
-        fileType={textExtractionModal.fileType}
-        extractionStats={textExtractionModal.extractionStats}
-      />
       
     </div>
   );

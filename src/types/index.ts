@@ -196,6 +196,7 @@ export interface FileAttachment {
   uploadedAt: Date;
   extractedText?: string; // Add extracted text for PDFs
   textExtractionStatus?: 'pending' | 'completed' | 'failed'; // Track extraction status
+  submissionId?: string; // Store submission ID for background formatting
 }
 
 export interface FormEntry {

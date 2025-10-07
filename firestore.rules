@@ -409,6 +409,90 @@ service cloud.firestore {
     }
 
     // =============================================================================
+    // COLLECTION DRAFT FORMATTING
+    // Règles pour le stockage temporaire des textes formatés en brouillon :
+    // - Seuls les utilisateurs authentifiés peuvent créer/lire/supprimer leurs propres drafts
+    // - Les drafts sont isolés par utilisateur
+    // =============================================================================
+    
+    match /draftFormatting/{submissionId} {
+      // LECTURE des drafts de formatage
+      allow read: if isAuthenticated();
+      
+      // CRÉATION de drafts de formatage
+      allow create: if isAuthenticated();
+      
+      // MODIFICATION des drafts de formatage
+      allow update: if isAuthenticated();
+      
+      // SUPPRESSION des drafts de formatage
+      allow delete: if isAuthenticated();
+    }
+
+    // =============================================================================
+    // COLLECTION TEXT PROCESSING
+    // Règles pour le suivi du traitement des textes :
+    // - Seuls les utilisateurs authentifiés peuvent créer/lire leurs propres enregistrements
+    // - Les enregistrements sont isolés par utilisateur
+    // =============================================================================
+    
+    match /textProcessing/{submissionId} {
+      // LECTURE des enregistrements de traitement
+      allow read: if isAuthenticated();
+      
+      // CRÉATION d'enregistrements de traitement
+      allow create: if isAuthenticated();
+      
+      // MODIFICATION des enregistrements de traitement
+      allow update: if isAuthenticated();
+      
+      // SUPPRESSION des enregistrements de traitement
+      allow delete: if isAuthenticated();
+    }
+
+    // =============================================================================
+    // COLLECTION FORMATTED TEXT CACHE
+    // Règles pour le cache des textes formatés :
+    // - Seuls les utilisateurs authentifiés peuvent lire le cache
+    // - Seuls les utilisateurs authentifiés peuvent créer des entrées de cache
+    // =============================================================================
+    
+    match /formattedTextCache/{contentHash} {
+      // LECTURE du cache de textes formatés
+      allow read: if isAuthenticated();
+      
+      // CRÉATION d'entrées de cache
+      allow create: if isAuthenticated();
+      
+      // MODIFICATION des entrées de cache
+      allow update: if isAuthenticated();
+      
+      // SUPPRESSION des entrées de cache
+      allow delete: if isAuthenticated();
+    }
+
+    // =============================================================================
+    // COLLECTION FORMATTING ERRORS
+    // Règles pour les erreurs de formatage :
+    // - Seuls les utilisateurs authentifiés peuvent lire leurs propres erreurs
+    // - Seuls les utilisateurs authentifiés peuvent créer des enregistrements d'erreur
+    // =============================================================================
+    
+    match /formattingErrors/{errorId} {
+      // LECTURE des erreurs de formatage
+      allow read: if isAuthenticated();
+      
+      // CRÉATION d'enregistrements d'erreur
+      allow create: if isAuthenticated();
+      
+      // MODIFICATION des enregistrements d'erreur
+      allow update: if isAuthenticated();
+      
+      // SUPPRESSION des enregistrements d'erreur
+      allow delete: if isAuthenticated();
+    }
+
+    // =============================================================================
     // RÈGLE DE SÉCURITÉ GLOBALE
     // Bloquer tout accès non authentifié par défaut
     // =============================================================================

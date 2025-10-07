@@ -459,13 +459,36 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try {
       setError(null);
       
+      // Check for formatted text in drafts for any file attachments
+      let updatedFileAttachments = entryData.fileAttachments || [];
+      
+      for (let i = 0; i < updatedFileAttachments.length; i++) {
+        const attachment = updatedFileAttachments[i];
+        if (attachment.submissionId && attachment.extractedText) {
+          // Check if we have formatted text available for this submission
+          const { DraftFormattingService } = await import('../services/draftFormattingService');
+          const formattedText = await DraftFormattingService.getFormattedTextForDraft(attachment.submissionId);
+          
+          if (formattedText) {
+            // Use formatted text instead of raw text
+            updatedFileAttachments[i] = {
+              ...attachment,
+              extractedText: formattedText
+            };
+            
+            // Clean up the draft formatting record
+            await DraftFormattingService.removeFormattedTextForDraft(attachment.submissionId);
+          }
+        }
+      }
+      
       // Forcer les champs requis selon les spécifications
       const docData = {
         formId: entryData.formId,
         userId: firebaseUser.uid, // Forcer auth.uid
         agencyId: user.agencyId, // Hérité du user
         answers: entryData.answers || {},
-        fileAttachments: entryData.fileAttachments || [],
+        fileAttachments: updatedFileAttachments,
         submittedAt: serverTimestamp() // Forcer serverTimestamp
       };
 

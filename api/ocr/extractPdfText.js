@@ -1,5 +1,8 @@
 const OpenAI = require('openai');
 const pdfParse = require('pdf-parse');
+const crypto = require('crypto');
+const { adminDb } = require('../lib/firebaseAdmin');
+const admin = require('firebase-admin');
 
 // Configuration OpenAI
 const openai = new OpenAI({
@@ -71,13 +74,10 @@ module.exports = async function handler(req, res) {
       console.log('⚠️ Large PDF detected - processing may take 1-2 minutes...');
     }
     
-    // Use reliable pdf-parse + OpenAI formatting method
-    console.log('🔄 Using reliable pdf-parse + OpenAI formatting method...');
-    
+    // Extract text using pdf-parse (fast OCR only)
+    console.log('📖 Extracting text using pdf-parse...');
     const processingStartTime = Date.now();
     
-    // Extract text using pdf-parse
-    console.log('📖 Extracting text using pdf-parse...');
     const pdfData_result = await pdfParse(pdfBuffer);
     const rawText = pdfData_result.text;
     
@@ -89,10 +89,79 @@ module.exports = async function handler(req, res) {
       throw new Error('No text could be extracted from the PDF');
     }
     
-    // Use OpenAI to format the extracted text
-    console.log('🤖 Formatting text with OpenAI...');
-    const formatResponse = await openai.chat.completions.create({
+    // Generate unique submission ID and content hash
+    const submissionId = `sub_${Date.now()}_${crypto.randomBytes(8).toString('hex')}`;
+    const contentHash = crypto.createHash('sha256')
+      .update(pdfBuffer.toString('base64') + (model || 'gpt-4o') + 'v1')
+      .digest('hex');
+    
+    // Save raw text to processing collection for background worker
+    await saveTextProcessing(submissionId, rawText, contentHash, model || 'gpt-4o', fileName);
+    
+    // Start background formatting (don't wait for it)
+    startBackgroundFormatting(submissionId, rawText, contentHash, model || 'gpt-4o', fileName)
+      .catch(error => {
+        console.error('❌ Background formatting failed:', error);
+      });
+    
+    const processingTime = Date.now() - processingStartTime;
+    console.log('⏱️ OCR processing time:', processingTime, 'ms');
+    
+    return res.status(200).json({
+      success: true,
+      text: rawText, // Return raw text immediately
+      extractedText: rawText,
+      submissionId: submissionId,
+      status: 'processing', // Background formatting in progress
+      confidence: 95, // High confidence with pdf-parse
+      engine: 'pdf-parse_fast_ocr',
       model: model || 'gpt-4o',
+      meta: {
+        timestamp: new Date().toISOString(),
+        type: 'fast_ocr_with_background_formatting',
+        fileName: fileName || 'Unknown',
+        fileSize: pdfBuffer.length,
+        fileSizeMB: fileSizeMB,
+        processingTime: processingTime,
+        pages: pdfData_result.numpages,
+        contentHash: contentHash
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ PDF text extraction error:', error);
+    console.error('🔍 Error details:', {
+      message: error.message,
+      stack: error.stack,
+      name: error.name
+    });
+    
+    return res.status(500).json({
+      success: false,
+      error: 'Erreur lors de l\'extraction de texte du PDF',
+      code: 'PDF_EXTRACTION_ERROR',
+      details: error.message,
+      engine: 'reliable_pdf_processing'
+    });
+  }
+};
+
+// Background formatting function
+async function startBackgroundFormatting(submissionId, rawText, contentHash, model, fileName) {
+  try {
+    console.log('🔄 Starting background formatting for submission:', submissionId);
+    
+    // Check if we already have formatted text for this content
+    const existingResult = await checkFormattedTextCache(contentHash);
+    if (existingResult) {
+      console.log('✅ Found cached formatted text for content hash:', contentHash);
+      await updateFormattedText(submissionId, existingResult.formattedText);
+      return;
+    }
+    
+    // Format with OpenAI
+    const formatResponse = await openai.chat.completions.create({
+      model: model,
       messages: [
         {
           role: "user",
@@ -115,59 +184,118 @@ ${rawText}`
       temperature: 0.1
     });
     
-    const processingTime = Date.now() - processingStartTime;
-    const method = 'pdf-parse_openai_formatting';
-    console.log('✅ PDF processing completed');
-    console.log('⏱️ Processing time:', processingTime, 'ms');
-    
-    const extractedText = formatResponse.choices[0]?.message?.content || '';
-    
-    // Log des informations de coût (pour monitoring)
+    const formattedText = formatResponse.choices[0]?.message?.content || '';
     const usage = formatResponse.usage;
+    
+    console.log('✅ Background formatting completed for submission:', submissionId);
     console.log('💰 OpenAI API Usage:', {
       prompt_tokens: usage?.prompt_tokens || 0,
       completion_tokens: usage?.completion_tokens || 0,
       total_tokens: usage?.total_tokens || 0,
-      model: model || 'gpt-4o'
+      model: model
     });
     
-    console.log('📊 Final extracted text length:', extractedText.length, 'characters');
+    // Save to cache
+    await saveFormattedTextCache(contentHash, formattedText, model);
     
-    return res.status(200).json({
-      success: true,
-      text: extractedText,
-      extractedText: extractedText,
-      confidence: 90, // High confidence with pdf-parse + OpenAI formatting
-      engine: method,
-      model: model || 'gpt-4o',
-      usage: usage,
-      meta: {
-        timestamp: new Date().toISOString(),
-        type: 'reliable_pdf_processing',
-        fileName: fileName || 'Unknown',
-        fileSize: pdfBuffer.length,
-        fileSizeMB: fileSizeMB,
-        uploadTime: 0,
-        processingTime: processingTime,
-        totalTime: processingTime,
-        method: method
-      }
-    });
-
+    // Update formatted text
+    await updateFormattedText(submissionId, formattedText);
+    
   } catch (error) {
-    console.error('❌ PDF text extraction error:', error);
-    console.error('🔍 Error details:', {
-      message: error.message,
-      stack: error.stack,
-      name: error.name
-    });
+    console.error('❌ Background formatting failed for submission:', submissionId, error);
     
-    return res.status(500).json({
-      success: false,
-      error: 'Erreur lors de l\'extraction de texte du PDF',
-      code: 'PDF_EXTRACTION_ERROR',
-      details: error.message,
-      engine: 'reliable_pdf_processing'
-    });
+    // Save error for retry
+    await saveFormattingError(submissionId, error.message);
   }
-};
+}
+
+// Check if formatted text exists in cache
+async function checkFormattedTextCache(contentHash) {
+  try {
+    const cacheDoc = await adminDb.collection('formattedTextCache').doc(contentHash).get();
+    if (cacheDoc.exists) {
+      return cacheDoc.data();
+    }
+    return null;
+  } catch (error) {
+    console.error('❌ Error checking formatted text cache:', error);
+    return null;
+  }
+}
+
+// Save formatted text to cache
+async function saveFormattedTextCache(contentHash, formattedText, model) {
+  try {
+    await adminDb.collection('formattedTextCache').doc(contentHash).set({
+      formattedText,
+      model,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      contentHash
+    });
+  } catch (error) {
+    console.error('❌ Error saving formatted text cache:', error);
+  }
+}
+
+// Update formatted text for a submission
+async function updateFormattedText(submissionId, formattedText) {
+  try {
+    // Check if FormEntry exists in Firebase
+    const entryRef = adminDb.collection('formEntries').doc(submissionId);
+    const entryDoc = await entryRef.get();
+    
+    if (entryDoc.exists) {
+      // Case 1: FormEntry already submitted → Update Firebase
+      console.log('📝 Updating existing FormEntry with formatted text:', submissionId);
+      await entryRef.update({
+        'fileAttachments.0.extractedText': formattedText,
+        formattedAt: admin.firestore.FieldValue.serverTimestamp(),
+        formattingStatus: 'completed'
+      });
+    } else {
+      // Case 2: Still in draft → Save to draft formatting collection
+      console.log('📝 Saving formatted text for draft submission:', submissionId);
+      await adminDb.collection('draftFormatting').doc(submissionId).set({
+        submissionId,
+        formattedText,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        status: 'ready'
+      });
+    }
+  } catch (error) {
+    console.error('❌ Error updating formatted text:', error);
+  }
+}
+
+// Save text processing record
+async function saveTextProcessing(submissionId, rawText, contentHash, model, fileName) {
+  try {
+    await adminDb.collection('textProcessing').doc(submissionId).set({
+      submissionId,
+      rawText,
+      contentHash,
+      model,
+      fileName,
+      status: 'processing',
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      attempts: 0
+    });
+  } catch (error) {
+    console.error('❌ Error saving text processing record:', error);
+  }
+}
+
+// Save formatting error for retry
+async function saveFormattingError(submissionId, errorMessage) {
+  try {
+    await adminDb.collection('formattingErrors').doc(submissionId).set({
+      submissionId,
+      error: errorMessage,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      status: 'failed',
+      attempts: 1
+    });
+  } catch (error) {
+    console.error('❌ Error saving formatting error:', error);
+  }
+}

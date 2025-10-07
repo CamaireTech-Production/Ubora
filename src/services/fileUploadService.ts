@@ -108,16 +108,13 @@ export class FileUploadService {
           if (extractionResult.success) {
             fileAttachment.extractedText = PDFTextExtractionService.cleanExtractedText(extractionResult.text);
             fileAttachment.textExtractionStatus = 'completed';
+            fileAttachment.submissionId = extractionResult.submissionId; // Store submission ID for later use
 
-            // Trigger debug modal callback
-            onPDFExtraction?.({
-              fileName: file.name,
-              extractedText: fileAttachment.extractedText,
-              extractionStatus: 'completed',
-              pages: extractionResult.pages,
-              fileSize: file.size,
-              extractionStats: extractionResult.extractionStats
-            });
+            // Show simple success message instead of modal
+            console.log(`✅ PDF text extraction successful for ${file.name}. Formatting in background...`);
+            
+            // Optional: Show a toast notification instead of modal
+            // You can implement a toast service here if needed
           } else {
             // Extraction failed
             fileAttachment.textExtractionStatus = 'failed';
