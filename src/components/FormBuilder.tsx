@@ -20,19 +20,15 @@ interface FormBuilderProps {
     description: string;
     fields: FormField[];
     assignedTo: string[];
-    deadline?: {
-      date: string;
-      time: string;
-      timezone?: string;
-    };
-    notificationSettings?: {
-      reminderIntervals: number[];
-      enabled: boolean;
+    timeRestrictions?: {
+      startTime?: string;
+      endTime?: string;
+      allowedDays?: number[];
     };
   }) => void;
   onCancel: () => void;
   employees: Array<{ id: string; name: string; email: string }>;
-  initialForm?: Pick<Form, 'id' | 'title' | 'description' | 'fields' | 'assignedTo' | 'deadline' | 'notificationSettings'>;
+  initialForm?: Pick<Form, 'id' | 'title' | 'description' | 'fields' | 'assignedTo' | 'timeRestrictions'>;
   isLoading?: boolean;
 }
 
@@ -50,16 +46,13 @@ export const FormBuilder: React.FC<FormBuilderProps> = ({
   const [fields, setFields] = useState<FormField[]>(initialForm?.fields || []);
   const [errors, setErrors] = useState<string[]>([]);
   
-  // Deadline and notification settings
-  const [deadline, setDeadline] = useState({
-    date: initialForm?.deadline?.date || '',
-    time: initialForm?.deadline?.time || '18:00',
-    timezone: initialForm?.deadline?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone
-  });
-  const [notificationSettings, setNotificationSettings] = useState({
-    enabled: initialForm?.notificationSettings?.enabled || false,
-    reminderIntervals: initialForm?.notificationSettings?.reminderIntervals || [60, 30, 15]
-  });
+  // Time restrictions settings
+  const [timeRestrictions, setTimeRestrictions] = useState<{
+    startTime?: string;
+    endTime?: string;
+    allowedDays?: number[];
+  }>(initialForm?.timeRestrictions || {});
+  const [useTimeRange, setUseTimeRange] = useState(!!initialForm?.timeRestrictions?.endTime);
 
   // Déterminer le mode (création ou édition)
   const isEditMode = !!initialForm;
@@ -122,6 +115,36 @@ export const FormBuilder: React.FC<FormBuilderProps> = ({
     updateField(fieldId, { options: newOptions });
   };
 
+  const toggleDaySelection = (day: number) => {
+    setTimeRestrictions(prev => {
+      const currentDays = prev.allowedDays || [];
+      const newDays = currentDays.includes(day)
+        ? currentDays.filter(d => d !== day)
+        : [...currentDays, day];
+      return { ...prev, allowedDays: newDays };
+    });
+  };
+
+  const updateTimeRestriction = (field: 'startTime' | 'endTime', value: string) => {
+    setTimeRestrictions(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleTimeRangeToggle = (checked: boolean) => {
+    setUseTimeRange(checked);
+    setTimeRestrictions(prev => {
+      // If switching to single-time mode, treat the existing single value as end time
+      if (!checked) {
+        const singleTime = prev.endTime || prev.startTime;
+        return { ...prev, startTime: undefined, endTime: singleTime };
+      }
+      // If switching to range mode and only an end time exists, initialize a start time
+      if (checked && !prev.startTime && prev.endTime) {
+        return { ...prev, startTime: '00:00' };
+      }
+      return prev;
+    });
+  };
+
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -178,19 +201,31 @@ export const FormBuilder: React.FC<FormBuilderProps> = ({
       description,
       fields,
       assignedTo,
-      ...(deadline.date && {
-        deadline: {
-          date: deadline.date,
-          time: deadline.time,
-          timezone: deadline.timezone
+      ...(Object.keys(timeRestrictions).length > 0 && (() => {
+        const { startTime, endTime, allowedDays } = timeRestrictions;
+        const hasRange = useTimeRange && startTime && endTime;
+        
+        if (hasRange) {
+          return { 
+            timeRestrictions: { 
+              startTime, 
+              endTime, 
+              allowedDays: allowedDays || [] 
+            } 
+          };
         }
-      }),
-      ...(notificationSettings.enabled && {
-        notificationSettings: {
-          enabled: notificationSettings.enabled,
-          reminderIntervals: notificationSettings.reminderIntervals
-        }
-      })
+        
+        // single-time mode: prefer endTime; if only startTime exists (legacy), treat it as endTime
+        const singleEnd = endTime || startTime;
+        if (!singleEnd && (!allowedDays || allowedDays.length === 0)) return {};
+        
+        return { 
+          timeRestrictions: { 
+            endTime: singleEnd, 
+            allowedDays: allowedDays || [] 
+          } 
+        };
+      })())
     };
 
     onSave(formData);
@@ -286,102 +321,100 @@ export const FormBuilder: React.FC<FormBuilderProps> = ({
             )}
           </div>
 
-          {/* Deadline and Notification Settings */}
-          <Card>
-            <h3 className="text-base sm:text-lg font-medium text-gray-900 mb-4">
-              ⏰ Échéance et Notifications
-            </h3>
-            
-            <div className="space-y-4">
-              {/* Deadline Date */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Date d'échéance
-                </label>
-                <input
-                  type="date"
-                  value={deadline.date}
-                  onChange={(e) => setDeadline(prev => ({ ...prev, date: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  min={new Date().toISOString().split('T')[0]}
-                />
-                <p className="text-xs text-gray-500 mt-1">
-                  La date d'échéance est optionnelle. Si définie, des rappels seront envoyés aux employés.
-                </p>
-              </div>
-
-              {/* Deadline Time */}
-              {deadline.date && (
+          {/* Time Restrictions */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-3">
+              Restrictions horaires (optionnel)
+            </label>
+            <div className="space-y-4 p-4 border border-gray-200 rounded-lg bg-gray-50">
+              <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Heure d'échéance
+                  <label className="block text-sm font-medium text-gray-600 mb-1">
+                    {useTimeRange ? 'Heure de début' : 'Heure limite'}
                   </label>
                   <input
                     type="time"
-                    value={deadline.time}
-                    onChange={(e) => setDeadline(prev => ({ ...prev, time: e.target.value }))}
+                    value={useTimeRange ? (timeRestrictions.startTime || '') : (timeRestrictions.endTime || '')}
+                    onChange={(e) => useTimeRange
+                      ? updateTimeRestriction('startTime', e.target.value)
+                      : updateTimeRestriction('endTime', e.target.value)
+                    }
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
-                </div>
-              )}
-
-              {/* Notification Settings */}
-              {deadline.date && (
-                <div>
-                  <div className="flex items-center space-x-3 mb-3">
-                    <input
-                      type="checkbox"
-                      id="notificationsEnabled"
-                      checked={notificationSettings.enabled}
-                      onChange={(e) => setNotificationSettings(prev => ({ ...prev, enabled: e.target.checked }))}
-                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                    />
-                    <label htmlFor="notificationsEnabled" className="text-sm font-medium text-gray-700">
-                      Activer les notifications de rappel
-                    </label>
-                  </div>
-
-                  {notificationSettings.enabled && (
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Intervalles de rappel (en minutes avant l'échéance)
-                      </label>
-                      <div className="flex flex-wrap gap-2">
-                        {[15, 30, 60, 120].map((interval) => (
-                          <label key={interval} className="flex items-center space-x-2 cursor-pointer">
-                            <input
-                              type="checkbox"
-                              checked={notificationSettings.reminderIntervals.includes(interval)}
-                              onChange={(e) => {
-                                if (e.target.checked) {
-                                  setNotificationSettings(prev => ({
-                                    ...prev,
-                                    reminderIntervals: [...prev.reminderIntervals, interval].sort((a, b) => b - a)
-                                  }));
-                                } else {
-                                  setNotificationSettings(prev => ({
-                                    ...prev,
-                                    reminderIntervals: prev.reminderIntervals.filter(i => i !== interval)
-                                  }));
-                                }
-                              }}
-                              className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                            />
-                            <span className="text-sm text-gray-700">
-                              {interval < 60 ? `${interval}min` : `${interval / 60}h`}
-                            </span>
-                          </label>
-                        ))}
-                      </div>
-                      <p className="text-xs text-gray-500 mt-1">
-                        Les employés recevront des notifications aux intervalles sélectionnés avant l'échéance.
-                      </p>
-                    </div>
+                  {!useTimeRange && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      Les employés peuvent remplir ce formulaire de 00:00 jusqu'à cette heure
+                    </p>
                   )}
+                </div>
+                
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    id="useTimeRange"
+                    checked={useTimeRange}
+                    onChange={(e) => handleTimeRangeToggle(e.target.checked)}
+                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <label htmlFor="useTimeRange" className="text-sm text-gray-700">
+                    Définir une plage horaire
+                  </label>
+                </div>
+                
+                {useTimeRange && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-600 mb-1">
+                      Heure de fin
+                    </label>
+                    <input
+                      type="time"
+                      value={timeRestrictions.endTime || ''}
+                      onChange={(e) => updateTimeRestriction('endTime', e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      Les employés peuvent remplir ce formulaire entre ces deux heures
+                    </p>
+                  </div>
+                )}
+              </div>
+              
+              {(timeRestrictions.startTime || timeRestrictions.endTime) && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-600 mb-2">
+                    Jours autorisés
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    {[
+                      { value: 1, label: 'Lun' },
+                      { value: 2, label: 'Mar' },
+                      { value: 3, label: 'Mer' },
+                      { value: 4, label: 'Jeu' },
+                      { value: 5, label: 'Ven' },
+                      { value: 6, label: 'Sam' },
+                      { value: 0, label: 'Dim' }
+                    ].map(day => (
+                      <button
+                        key={day.value}
+                        type="button"
+                        onClick={() => toggleDaySelection(day.value)}
+                        className={`px-3 py-1 text-sm rounded-full border transition-colors ${
+                          timeRestrictions.allowedDays?.includes(day.value)
+                            ? 'bg-blue-600 text-white border-blue-600'
+                            : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                        }`}
+                      >
+                        {day.label}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-xs text-gray-500 mt-2">
+                    Laissez vide pour permettre tous les jours
+                  </p>
                 </div>
               )}
             </div>
-          </Card>
+          </div>
 
           <div>
             <div className="flex items-center justify-between mb-4">

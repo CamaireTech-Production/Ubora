@@ -208,11 +208,23 @@ export const FormEditor: React.FC<FormEditorProps> = ({
         if (Object.keys(timeRestrictions).length === 0) return undefined;
         const { startTime, endTime, allowedDays } = timeRestrictions;
         const hasRange = useTimeRange && startTime && endTime;
-        if (hasRange) return { startTime, endTime, allowedDays };
+        
+        if (hasRange) {
+          return { 
+            startTime, 
+            endTime, 
+            allowedDays: allowedDays || [] 
+          };
+        }
+        
         // single-time mode: prefer endTime; if only startTime exists (legacy), treat it as endTime
         const singleEnd = endTime || startTime;
         if (!singleEnd && (!allowedDays || allowedDays.length === 0)) return undefined;
-        return { endTime: singleEnd, allowedDays } as typeof timeRestrictions;
+        
+        return { 
+          endTime: singleEnd, 
+          allowedDays: allowedDays || [] 
+        };
       })();
 
       await onSave({
