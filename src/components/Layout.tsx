@@ -55,19 +55,26 @@ export const Layout: React.FC<LayoutProps> = ({ children, title }) => {
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white shadow-sm border-b border-gray-200 relative">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-14 sm:h-16">
+          <div className="flex justify-between items-center min-h-14 sm:min-h-16 py-2">
             <div 
-              className="relative flex items-center space-x-2 sm:space-x-3 cursor-pointer hover:opacity-80 transition-opacity group"
+              className="relative flex items-center space-x-2 sm:space-x-3 cursor-pointer hover:opacity-80 transition-opacity group flex-1 min-w-0"
               onClick={() => {
                 if (isDirecteur) {
                   navigate('/directeur/chat');
                 }
               }}
             >
-              <img src="/fav-icons/favicon-96x96.png" alt="Ubora Logo" className="h-8 w-8 text-blue-600" />
-              <div>
-                <h1 className="text-lg sm:text-xl font-bold text-gray-900 truncate max-w-[200px] sm:max-w-none">{title}</h1>
-                <p className="text-xs sm:text-sm text-gray-500 capitalize">{user?.role}</p>
+              <img src="/fav-icons/favicon-96x96.png" alt="Ubora Logo" className="h-8 w-8 text-blue-600 flex-shrink-0" />
+              <div className="min-w-0 flex-1">
+                <h1 className="text-lg sm:text-xl font-bold text-gray-900 leading-tight line-clamp-2 break-words" style={{
+                  display: '-webkit-box',
+                  WebkitLineClamp: 2,
+                  WebkitBoxOrient: 'vertical',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  maxWidth: '100%'
+                }}>{title}</h1>
+                <p className="text-xs sm:text-sm text-gray-500 capitalize truncate">{user?.role}</p>
               </div>
               
               {/* Tooltip pour directeurs */}
@@ -109,7 +116,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, title }) => {
               </div>
             )}
             
-            <div className="flex items-center space-x-2 sm:space-x-4">
+            <div className="flex items-center ml-4 space-x-2 sm:space-x-4">
               {/* Package info pour les directeurs */}
               {isDirecteur && (
                 <div className="hidden md:block">

@@ -124,14 +124,12 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
       setKeyboardHeight(keyboardOpen ? heightDifference : 0);
 
       if (keyboardOpen) {
-        // Ensure input stays visible with proper spacing
-        setTimeout(() => {
-          textareaRef.current?.scrollIntoView({ 
-            behavior: 'smooth', 
-            block: 'center',
-            inline: 'nearest'
-          });
-        }, 100);
+        // Ensure input stays visible immediately - no delay
+        textareaRef.current?.scrollIntoView({ 
+          behavior: 'smooth', 
+          block: 'nearest',
+          inline: 'nearest'
+        });
       }
     };
 
@@ -165,14 +163,20 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
   };
 
   const handleFocus = () => {
-    // On mobile, ensure the input is visible when focused
+    // On mobile, ensure the input is visible when focused - immediate scroll
     if (textareaRef.current) {
+      // Immediate scroll, then another after a short delay for keyboard animation
+      textareaRef.current?.scrollIntoView({ 
+        behavior: 'smooth', 
+        block: 'nearest' 
+      });
+      
       setTimeout(() => {
         textareaRef.current?.scrollIntoView({ 
           behavior: 'smooth', 
-          block: 'center' 
+          block: 'nearest' 
         });
-      }, 300); // Delay to allow keyboard to open
+      }, 100);
     }
   };
 
@@ -186,11 +190,11 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
         isKeyboardOpen ? 'pb-2' : 'pb-4'
       }`}
       style={{ 
-        paddingBottom: isKeyboardOpen ? '0.5rem' : 'max(1rem, env(safe-area-inset-bottom))',
+        paddingBottom: isKeyboardOpen ? '0.25rem' : 'max(1rem, env(safe-area-inset-bottom))',
         bottom: isKeyboardOpen ? '0' : '0',
-        // Ensure composer stays above keyboard with proper spacing
-        transform: isKeyboardOpen ? `translateY(-${Math.max(0, keyboardHeight - 50)}px)` : 'translateY(0)',
-        transition: 'transform 0.3s ease-out'
+        // Ensure composer stays above keyboard with minimal spacing
+        transform: isKeyboardOpen ? `translateY(-${Math.max(0, keyboardHeight - 80)}px)` : 'translateY(0)',
+        transition: 'transform 0.2s ease-out'
       }}
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">

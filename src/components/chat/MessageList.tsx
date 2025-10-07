@@ -181,9 +181,9 @@ export const MessageList: React.FC<MessageListProps> = ({
             ? `calc(100dvh - 140px - ${keyboardHeight}px)` 
             : 'calc(100dvh - 140px)',
           scrollBehavior: 'smooth',
-          // Ensure proper spacing on mobile - increase when keyboard is open
+          // Reduce excessive spacing when keyboard is open
           paddingBottom: keyboardHeight > 0 
-            ? `max(12rem, calc(12rem + env(safe-area-inset-bottom) + ${keyboardHeight}px))`
+            ? `max(6rem, calc(6rem + env(safe-area-inset-bottom)))`
             : 'max(8rem, calc(8rem + env(safe-area-inset-bottom)))'
         }}
       >
