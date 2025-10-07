@@ -45,13 +45,16 @@
         <h1>Campay Payment Test</h1>
         <div class="info">
             <p><strong>Amount:</strong> 10 XAF</p>
-            <p><strong>Description:</strong> Test Payment</p>
+            <p><strong>Description:</strong> TAKWID GROUP (USSD) — Test Payment</p>
+            <p style="font-size:12px;color:#0b5ed7;background:#e7f1ff;border:1px solid #b6d4fe;border-radius:6px;padding:8px;margin-top:10px">
+                Important: On the USSD screen, you must see the merchant name "TAKWID GROUP". If another name appears, cancel the transaction.
+            </p>
         </div>
         <button id="payButton">Pay Now</button>
         <div id="result"></div>
     </div>
 
-    <script src="https://demo.campay.net/sdk/js?app-id=Muw-QotZAcx8PbngvT7lbsnc1OomeDkw31sWjv5XftEBoSy_opiLcFz17UhClFC6ZNm8AOdL6xFCH7KoUEUN5Q"></script>
+    <script src="https://www.campay.net/sdk/js?app-id=i37BZvZMnnTySXIcFhcCe2mhcTaDeMXAK_8kzuhqSHZpmeXrL1wK3wI7CaWpuLlMNLbjTv28Id4E-pIP2XQjKg"></script>
 
     <script>
         // Wait for the Campay SDK to load
@@ -59,7 +62,7 @@
             // Configure Campay options
             campay.options({
                 payButtonId: "payButton", // Required
-                description: "Test Payment for Campay Integration", // Required
+                description: "TAKWID GROUP (USSD) — Test Payment for Campay Integration", // Required
                 amount: "10", // Required - amount in XAF
                 currency: "XAF", // Required
                 externalReference: "TEST_" + Date.now(), // Optional - unique reference

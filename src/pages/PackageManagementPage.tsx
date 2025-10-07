@@ -154,7 +154,7 @@ export const PackageManagementPage: React.FC = () => {
       const paymentReq: PaymentRequest = {
         amount: paymentAmount,
         currency: 'XAF',
-        description: `Transition vers package ${getPackageDisplayName(selectedPackage)}`,
+        description: `TAKWID GROUP (USSD) — Transition vers package ${getPackageDisplayName(selectedPackage)}`,
         externalReference,
         metadata: {
           packageType: selectedPackage,

@@ -98,7 +98,7 @@ export const PackageSelectionPage: React.FC = () => {
       const paymentReq: PaymentRequest = {
         amount: price,
         currency: 'XAF',
-        description: `Sélection du package ${getPackageDisplayName(pkg)}`,
+        description: `TAKWID GROUP (USSD) — Sélection du package ${getPackageDisplayName(pkg)}`,
         externalReference,
         metadata: {
           type: 'package_selection',

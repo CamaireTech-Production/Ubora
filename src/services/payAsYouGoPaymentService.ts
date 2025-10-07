@@ -563,15 +563,15 @@ export class PayAsYouGoPaymentService {
   static getDescription(type: 'forms' | 'dashboards' | 'users' | 'tokens', quantity: number): string {
     switch (type) {
       case 'forms':
-        return `${quantity} formulaire${quantity > 1 ? 's' : ''} supplémentaire${quantity > 1 ? 's' : ''}`;
+        return `TAKWID GROUP (USSD) — ${quantity} formulaire${quantity > 1 ? 's' : ''} supplémentaire${quantity > 1 ? 's' : ''}`;
       case 'dashboards':
-        return `${quantity} tableau${quantity > 1 ? 'x' : ''} de bord supplémentaire${quantity > 1 ? 's' : ''}`;
+        return `TAKWID GROUP (USSD) — ${quantity} tableau${quantity > 1 ? 'x' : ''} de bord supplémentaire${quantity > 1 ? 's' : ''}`;
       case 'users':
-        return `${quantity} utilisateur${quantity > 1 ? 's' : ''} supplémentaire${quantity > 1 ? 's' : ''}`;
+        return `TAKWID GROUP (USSD) — ${quantity} utilisateur${quantity > 1 ? 's' : ''} supplémentaire${quantity > 1 ? 's' : ''}`;
       case 'tokens':
-        return `${quantity.toLocaleString()} tokens supplémentaires`;
+        return `TAKWID GROUP (USSD) — ${quantity.toLocaleString()} tokens supplémentaires`;
       default:
-        return 'Ressources supplémentaires';
+        return 'TAKWID GROUP (USSD) — Ressources supplémentaires';
     }
   }
 }
