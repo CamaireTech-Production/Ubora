@@ -231,6 +231,10 @@ export const PayAsYouGoModal: React.FC<PayAsYouGoModalProps> = ({
               </div>
             </div>
 
+            <div className="mb-6 p-3 bg-blue-50 border border-blue-200 rounded text-xs text-blue-800">
+              <strong>Important :</strong> lors de la validation sur l'écran USSD, le <strong>nom du marchand doit être "TAKWID GROUP"</strong>. Si un autre nom s'affiche, annulez la transaction.
+            </div>
+
             {/* Token Packages */}
             <div className="mb-6">
               <h3 className="text-lg font-semibold mb-4">Choisissez un package de tokens</h3>

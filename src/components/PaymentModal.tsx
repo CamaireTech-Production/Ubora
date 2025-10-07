@@ -375,6 +375,9 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
             <p className="text-sm text-gray-600 mt-1">
               {getTypeDescription()}
             </p>
+            <div className="mt-3 p-3 rounded-md bg-blue-50 border border-blue-200 text-xs text-blue-800">
+              <strong>Important:</strong> lors de l'étape USSD sur votre téléphone, le <strong>nom du marchand affiché doit être "TAKWID GROUP"</strong>. Si un autre nom apparaît, annulez la transaction.
+            </div>
           </div>
           <button
             onClick={handleClose}
