@@ -1,9 +1,30 @@
 {
-  "name": "multi-agency-ai-backend",
+  "name": "ubora-api",
   "version": "1.0.0",
+  "description": "Ubora API Backend for PDF processing and AI services",
+  "main": "index.js",
+  "scripts": {
+    "start": "node server/production-server.js",
+    "dev": "node server/dev-server.js",
+    "test": "node test.js"
+  },
   "dependencies": {
+    "openai": "^4.0.0",
+    "pdf-parse": "^1.1.1",
     "firebase-admin": "^12.0.0",
-    "openai": "^4.28.0",
-    "pdf-parse": "^1.1.1"
-  }
+    "cors": "^2.8.5",
+    "express": "^4.18.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": [
+    "api",
+    "pdf",
+    "ocr",
+    "openai",
+    "firebase"
+  ],
+  "author": "CamaireTech",
+  "license": "MIT"
 }

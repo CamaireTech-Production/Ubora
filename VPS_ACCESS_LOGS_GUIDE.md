@@ -11,10 +11,14 @@ Ce guide vous explique comment accéder à votre serveur VPS et consulter les lo
 ## 🔧 Configuration de Déploiement
 
 **Votre backend est déployé avec :**
-- **Répertoire de déploiement :** `/var/www/ubora-backend-prod`
-- **Nom du processus PM2 :** `ubora-backend-prod`
-- **Port :** `3000`
-- **Branche Git :** `master`
+- **Répertoire de production :** `/var/www/ubora-backend-prod`
+- **Répertoire de développement :** `/var/www/ubora-backend-dev`
+- **Nom du processus PM2 (prod) :** `ubora-backend-prod`
+- **Nom du processus PM2 (dev) :** `ubora-backend-dev`
+- **Port production :** `3000`
+- **Port développement :** `3001`
+- **Branche Git (prod) :** `master`
+- **Branche Git (dev) :** `dev`
 - **Repository :** `https://github.com/CamaireTech-Production/Ubora.git`
 
 ## 🔐 1. Connexion SSH au VPS
@@ -57,15 +61,19 @@ Une fois connecté, naviguez vers votre application :
 # Lister les répertoires
 ls -la
 
-# Aller dans le répertoire de votre application (répertoire de production)
+# Aller dans le répertoire de production
 cd /var/www/ubora-backend-prod
+
+# OU aller dans le répertoire de développement
+cd /var/www/ubora-backend-dev
 
 # Vérifier la structure
 ls -la
 ```
 
-**Répertoire de production :**
-- `/var/www/ubora-backend-prod` (répertoire principal de votre backend)
+**Répertoires disponibles :**
+- `/var/www/ubora-backend-prod` (répertoire de production - branche master)
+- `/var/www/ubora-backend-dev` (répertoire de développement - branche dev)
 
 ## 🚀 3. Vérification du Statut de l'Application
 
@@ -74,23 +82,36 @@ ls -la
 # Vérifier les processus Node.js
 ps aux | grep node
 
-# Vérifier les processus sur le port 3000
+# Vérifier les processus sur le port 3000 (production)
 netstat -tlnp | grep :3000
+
+# Vérifier les processus sur le port 3001 (développement)
+netstat -tlnp | grep :3001
 
 # Ou avec ss (plus moderne)
 ss -tlnp | grep :3000
+ss -tlnp | grep :3001
 ```
 
 ### Vérifier les services systemd (si configuré)
 ```bash
-# Statut du service
+# Statut du service de production
 sudo systemctl status ubora-backend-prod
 
-# Démarrer le service
+# Statut du service de développement
+sudo systemctl status ubora-backend-dev
+
+# Démarrer le service de production
 sudo systemctl start ubora-backend-prod
 
-# Redémarrer le service
+# Démarrer le service de développement
+sudo systemctl start ubora-backend-dev
+
+# Redémarrer le service de production
 sudo systemctl restart ubora-backend-prod
+
+# Redémarrer le service de développement
+sudo systemctl restart ubora-backend-dev
 ```
 
 ## 📊 4. Consultation des Logs en Temps Réel
@@ -100,11 +121,14 @@ sudo systemctl restart ubora-backend-prod
 # Vérifier les processus PM2
 pm2 list
 
-# Voir les logs en temps réel
+# Voir les logs en temps réel (tous les processus)
 pm2 logs
 
-# Logs d'une application spécifique (nom exact de votre déploiement)
+# Logs de production
 pm2 logs ubora-backend-prod
+
+# Logs de développement
+pm2 logs ubora-backend-dev
 
 # Logs avec timestamps
 pm2 logs --timestamp
@@ -112,8 +136,17 @@ pm2 logs --timestamp
 # Logs des 100 dernières lignes
 pm2 logs --lines 100
 
-# Logs d'erreurs uniquement
+# Logs d'erreurs uniquement (production)
 pm2 logs ubora-backend-prod --err
+
+# Logs d'erreurs uniquement (développement)
+pm2 logs ubora-backend-dev --err
+
+# Logs en temps réel pour le développement (recommandé pour debug)
+pm2 logs ubora-backend-dev -f
+
+# Logs en temps réel pour la production
+pm2 logs ubora-backend-prod -f
 ```
 
 ### Option B: Logs systemd
@@ -183,8 +216,10 @@ sudo tail -f /var/log/nginx/error.log
 ## 🛠️ 6. Gestion de l'Application
 
 ### Redémarrer l'application
+
+#### Pour l'environnement de PRODUCTION :
 ```bash
-# Avec PM2 (nom exact de votre déploiement)
+# Avec PM2 (recommandé)
 pm2 restart ubora-backend-prod
 
 # Avec systemd
@@ -196,12 +231,37 @@ cd /var/www/ubora-backend-prod
 npm start
 ```
 
-### Mettre à jour l'application
+#### Pour l'environnement de DÉVELOPPEMENT :
 ```bash
-# Aller dans le répertoire
+# Avec PM2 (recommandé)
+pm2 restart ubora-backend-dev
+
+# Avec systemd
+sudo systemctl restart ubora-backend-dev
+
+# Manuel (tuer le processus et redémarrer)
+pkill -f "node.*server/dev-server.js"
+cd /var/www/ubora-backend-dev
+npm start
+```
+
+#### Redémarrer les deux environnements :
+```bash
+# Redémarrer production et développement
+pm2 restart ubora-backend-prod ubora-backend-dev
+
+# Ou redémarrer tous les processus PM2
+pm2 restart all
+```
+
+### Mettre à jour l'application
+
+#### Pour l'environnement de PRODUCTION :
+```bash
+# Aller dans le répertoire de production
 cd /var/www/ubora-backend-prod
 
-# Récupérer les dernières modifications
+# Récupérer les dernières modifications de la branche master
 git pull origin master
 
 # Installer les nouvelles dépendances
@@ -209,6 +269,33 @@ npm ci
 
 # Redémarrer l'application
 pm2 restart ubora-backend-prod
+```
+
+#### Pour l'environnement de DÉVELOPPEMENT :
+```bash
+# Aller dans le répertoire de développement
+cd /var/www/ubora-backend-dev
+
+# Récupérer les dernières modifications de la branche dev
+git pull origin dev
+
+# Installer les nouvelles dépendances
+npm ci
+
+# Redémarrer l'application
+pm2 restart ubora-backend-dev
+```
+
+#### Mise à jour automatique (après déploiement GitHub Actions) :
+```bash
+# Si le déploiement automatique a échoué, forcer la mise à jour
+cd /var/www/ubora-backend-dev
+git pull origin dev
+npm ci
+pm2 restart ubora-backend-dev
+
+# Vérifier que les nouvelles fonctionnalités sont actives
+pm2 logs ubora-backend-dev --lines 20
 ```
 
 ## 📱 7. Monitoring en Temps Réel
@@ -234,15 +321,58 @@ htop
 
 ### Application ne démarre pas
 ```bash
-# Vérifier les erreurs
+# Vérifier les erreurs (production)
 pm2 logs ubora-backend-prod --err
 
+# Vérifier les erreurs (développement)
+pm2 logs ubora-backend-dev --err
+
 # Vérifier les variables d'environnement
-cd /var/www/ubora-backend-prod
+cd /var/www/ubora-backend-dev
 cat .env
 
-# Tester manuellement
+# Tester manuellement (développement)
+cd /var/www/ubora-backend-dev
+node server/dev-server.js
+
+# Tester manuellement (production)
+cd /var/www/ubora-backend-prod
 node server/production-server.js
+```
+
+### Dépannage du Background Formatting (Nouvelle fonctionnalité)
+```bash
+# Vérifier les logs de développement pour les erreurs de formatage
+pm2 logs ubora-backend-dev --lines 50
+
+# Chercher spécifiquement les erreurs de formatage
+pm2 logs ubora-backend-dev | grep -i "formatting\|openai\|firebase"
+
+# Vérifier les erreurs Firebase Admin SDK
+pm2 logs ubora-backend-dev | grep -i "firebase\|admin"
+
+# Tester le worker de formatage manuellement
+cd /var/www/ubora-backend-dev
+node api/start-worker.js
+
+# Vérifier les collections Firestore
+# (nécessite l'accès à la console Firebase ou un script de test)
+```
+
+### Vérifier que les nouvelles fonctionnalités sont actives
+```bash
+# Vérifier que le code a été déployé
+cd /var/www/ubora-backend-dev
+git log --oneline -5
+
+# Vérifier que les nouveaux fichiers existent
+ls -la api/background/
+ls -la api/ocr/
+
+# Tester l'endpoint de formatage
+curl -X POST http://localhost:3001/api/ocr/extractPdfText \
+  -H "Content-Type: application/json" \
+  -d '{"test": "connection"}'
 ```
 
 ### Port déjà utilisé
@@ -362,24 +492,48 @@ sudo grep "Failed password" /var/log/auth.log | tail -20
 ssh root@72.60.94.31
 ```
 
+**Aller au répertoire de développement :**
+```bash
+cd /var/www/ubora-backend-dev
+```
+
 **Aller au répertoire de production :**
 ```bash
 cd /var/www/ubora-backend-prod
 ```
 
-**Voir les logs en temps réel :**
+**Voir les logs de développement en temps réel :**
 ```bash
-pm2 logs ubora-backend-prod
+pm2 logs ubora-backend-dev -f
 ```
 
-**Redémarrer l'application :**
+**Voir les logs de production en temps réel :**
+```bash
+pm2 logs ubora-backend-prod -f
+```
+
+**Redémarrer l'application de développement :**
+```bash
+pm2 restart ubora-backend-dev
+```
+
+**Redémarrer l'application de production :**
 ```bash
 pm2 restart ubora-backend-prod
 ```
 
-**Vérifier le statut :**
+**Vérifier le statut de tous les processus :**
 ```bash
 pm2 list
+```
+
+**Mettre à jour et redémarrer le développement (après déploiement GitHub) :**
+```bash
+cd /var/www/ubora-backend-dev
+git pull origin dev
+npm ci
+pm2 restart ubora-backend-dev
+pm2 logs ubora-backend-dev --lines 10
 ```
 
 ---

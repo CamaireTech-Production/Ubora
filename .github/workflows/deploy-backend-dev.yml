@@ -66,8 +66,39 @@ jobs:
           # Install dependencies from root package.json
           npm install
           
+          # Check if API package.json exists
+          if [ ! -f "api/package.json" ]; then
+            echo "❌ API package.json not found, creating it..."
+            cat > api/package.json << 'EOF'
+          {
+            "name": "ubora-api",
+            "version": "1.0.0",
+            "description": "Ubora API Backend",
+            "main": "index.js",
+            "dependencies": {
+              "openai": "^4.0.0",
+              "pdf-parse": "^1.1.1",
+              "firebase-admin": "^12.0.0",
+              "cors": "^2.8.5",
+              "express": "^4.18.0"
+            }
+          }
+          EOF
+          fi
+          
           # Install API dependencies (pdf-parse, etc.)
           cd api && npm install && cd ..
+          
+          # Verify API dependencies are installed
+          ls -la api/node_modules/ | head -10
+          
+          # Check if OpenAI is installed
+          if [ -d "api/node_modules/openai" ]; then
+            echo "✅ OpenAI module found"
+          else
+            echo "❌ OpenAI module missing, reinstalling..."
+            cd api && npm install openai --save && cd ..
+          fi
           
           # Create/update .env file
           cat > .env << 'EOF'
@@ -84,18 +115,30 @@ jobs:
           pm2 stop ubora-backend-dev || true
           pm2 delete ubora-backend-dev || true
           
+          # Clear PM2 logs
+          pm2 flush
+          
           # Start fresh with PM2
           pm2 start server/production-server.js --name ubora-backend-dev
           pm2 save
           
           # Wait a moment for startup
-          sleep 3
+          sleep 5
           
           # Check if it's running
           pm2 list
           
+          # Check for startup errors
+          pm2 logs ubora-backend-dev --lines 20 --nostream
+          
           # Test the endpoint
           curl -f http://localhost:3001/health || echo "Health check failed"
+          
+          # Show recent logs if health check fails
+          if ! curl -f http://localhost:3001/health; then
+            echo "❌ Health check failed, showing recent logs:"
+            pm2 logs ubora-backend-dev --lines 50 --nostream
+          fi
           
           # Create Nginx configuration for apidev.ubora-app.com
           cat > /etc/nginx/sites-available/apidev.ubora-app.com << 'EOF'
