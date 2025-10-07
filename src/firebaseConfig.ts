@@ -1,7 +1,7 @@
 // src/firebaseConfig.ts
-import { initializeApp } from "firebase/app";
+import { initializeApp, getApp, getApps } from "firebase/app";
 import { getAuth } from "firebase/auth";
-import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from "firebase/firestore";
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, Firestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 import { getMessaging, isSupported } from "firebase/messaging";
 import { getAnalytics, isSupported as isAnalyticsSupported } from "firebase/analytics";
@@ -36,10 +36,16 @@ if (firebaseConfig.appId && !firebaseConfig.appId.includes(':web:')) {
   console.error('🔥 [Firebase] VITE_FIREBASE_APP_ID format invalide (attendu: 1:xxx:web:xxx)');
 }
 
-// Initialisation de l'app Firebase
+// Initialisation de l'app Firebase (HMR-safe singleton)
+const globalForFirebase = globalThis as unknown as {
+  __UBORA_FIREBASE_APP__?: any;
+  __UBORA_FIRESTORE__?: Firestore;
+};
+
 let app: any;
 try {
-  app = initializeApp(firebaseConfig);
+  app = globalForFirebase.__UBORA_FIREBASE_APP__ || (getApps().length ? getApp() : initializeApp(firebaseConfig));
+  globalForFirebase.__UBORA_FIREBASE_APP__ = app;
 } catch (error) {
   console.error('🔥 [Firebase] Erreur lors de l\'initialisation:', error);
   throw new Error('Configuration Firebase invalide. Vérifiez vos clés dans .env.local');
@@ -47,12 +53,18 @@ try {
 
 // Initialisation des services
 export const auth = getAuth(app);
-export const db = initializeFirestore(app, {
-  localCache: persistentLocalCache({
-    tabManager: persistentMultipleTabManager()
-  }),
-  experimentalAutoDetectLongPolling: true
-});
+// Firestore singleton with persistent cache; avoid re-initialization across HMR
+export const db = ((): Firestore => {
+  if (globalForFirebase.__UBORA_FIRESTORE__) return globalForFirebase.__UBORA_FIRESTORE__ as Firestore;
+  const instance = initializeFirestore(app, {
+    localCache: persistentLocalCache({
+      tabManager: persistentMultipleTabManager()
+    }),
+    experimentalAutoDetectLongPolling: true
+  });
+  globalForFirebase.__UBORA_FIRESTORE__ = instance;
+  return instance;
+})();
 export const storage = getStorage(app);
 
 // Initialisation de Firebase Messaging (seulement si supporté)

@@ -18,9 +18,9 @@ jobs:
         node-version: '20'
         cache: 'npm'
         
-    - name: Install dependencies
-      run: npm install
-      
+    - name: Install dependencies (root)
+      run: npm ci
+
     - name: Create environment file for backend
       run: |
         cat > .env << EOF
@@ -41,8 +41,31 @@ jobs:
         # CORS Configuration
         CORS_ORIGIN=https://my.ubora-app.com,https://api.ubora-app.com
         EOF
-        
-    - name: Deploy to VPS
+
+    - name: Create version stamp
+      run: echo "${GITHUB_SHA}" > VERSION
+
+    - name: Create deployment tarball
+      run: |
+        tar --exclude-vcs -czf deploy.tar.gz \
+          api \
+          server \
+          package.json \
+          package-lock.json \
+          .env \
+          VERSION
+
+    - name: Upload artifact to VPS
+      uses: appleboy/scp-action@v0.1.7
+      with:
+        host: ${{ secrets.VPS_HOST }}
+        username: ${{ secrets.VPS_USERNAME }}
+        key: ${{ secrets.VPS_SSH_KEY }}
+        port: ${{ secrets.VPS_PORT }}
+        source: "deploy.tar.gz"
+        target: "/var/www/ubora-backend-prod/uploads/"
+
+    - name: Deploy on VPS (releases + symlink + PM2 + health)
       uses: appleboy/ssh-action@v1.0.3
       with:
         host: ${{ secrets.VPS_HOST }}
@@ -50,52 +73,65 @@ jobs:
         key: ${{ secrets.VPS_SSH_KEY }}
         port: ${{ secrets.VPS_PORT }}
         script: |
-          # Create directories if they don't exist
-          mkdir -p /var/www/ubora-backend-prod
-          cd /var/www/ubora-backend-prod
-          
-          # Clone repository if it doesn't exist
-          if [ ! -d ".git" ]; then
-            git clone https://github.com/CamaireTech-Production/Ubora.git .
-            git checkout master
-          else
-            git pull origin master
-          fi
-          
-          # Install dependencies from root package.json
-          npm install
-          
-          # Install API dependencies (pdf-parse, etc.)
-          cd api && npm install && cd ..
-          
-          # Create/update .env file
-          cat > .env << 'EOF'
-          FIREBASE_PROJECT_ID=${{ secrets.FIREBASE_PROJECT_ID }}
-          FIREBASE_CLIENT_EMAIL=${{ secrets.FIREBASE_CLIENT_EMAIL }}
-          FIREBASE_PRIVATE_KEY=${{ secrets.FIREBASE_PRIVATE_KEY }}
-          OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
-          PORT=3000
-          NODE_ENV=production
-          CORS_ORIGIN=https://my.ubora-app.com,https://api.ubora-app.com
-          EOF
-          
-          # Stop existing process
+          set -e
+          BASE_DIR=/var/www/ubora-backend-prod
+          RELEASES_DIR=$BASE_DIR/releases
+          UPLOADS_DIR=$BASE_DIR/uploads
+          TS=$(date +%Y%m%d%H%M%S)
+          NEW_RELEASE=$RELEASES_DIR/$TS
+          CURRENT_LINK=$BASE_DIR/current
+
+          mkdir -p $RELEASES_DIR $UPLOADS_DIR
+          echo "📦 Extracting artifact to release $NEW_RELEASE"
+          mkdir -p $NEW_RELEASE
+          tar -xzf $UPLOADS_DIR/deploy.tar.gz -C $NEW_RELEASE
+
+          cd $NEW_RELEASE
+          echo "📥 Installing dependencies (root)"
+          npm ci || npm install
+          echo "📥 Installing dependencies (api)"
+          cd api && npm ci || npm install; cd ..
+
+          echo "🔁 Updating current symlink"
+          ln -sfn $NEW_RELEASE $CURRENT_LINK
+
+          echo "🛑 Restarting PM2"
           pm2 stop ubora-backend-prod || true
           pm2 delete ubora-backend-prod || true
-          
-          # Start fresh with PM2
-          pm2 start server/production-server.js --name ubora-backend-prod
+          pm2 flush || true
+          pm2 kill || true
+          sleep 2
+
+          echo "🚀 Starting app with PM2"
+          pm2 start $CURRENT_LINK/server/production-server.js --name ubora-backend-prod --update-env
           pm2 save
-          
-          # Wait a moment for startup
-          sleep 3
-          
-          # Check if it's running
+
+          echo "⏳ Waiting for app to boot"
+          sleep 10
+          echo "📊 PM2 Status:"
           pm2 list
-          
-          # Test the endpoint
-          curl -f http://localhost:3000/health || echo "Health check failed"
-          
+
+          echo "🧪 Health check"
+          if curl -fsS http://localhost:3000/health > /dev/null; then
+            echo "✅ Health OK"
+          else
+            echo "❌ Health check failed. Rolling back..."
+            PREV=$(ls -1dt $RELEASES_DIR/* | sed -n '2p')
+            if [ -n "$PREV" ]; then
+              ln -sfn $PREV $CURRENT_LINK
+              pm2 stop ubora-backend-prod || true
+              pm2 delete ubora-backend-prod || true
+              pm2 start $CURRENT_LINK/server/production-server.js --name ubora-backend-prod --update-env
+              pm2 save
+              sleep 8
+              curl -fsS http://localhost:3000/health || true
+            fi
+            exit 1
+          fi
+
+          echo "🧹 Cleaning old releases (keep 5)"
+          ls -1dt $RELEASES_DIR/* | tail -n +6 | xargs -r rm -rf
+
           # Create Nginx configuration for api.ubora-app.com
           cat > /etc/nginx/sites-available/api.ubora-app.com << 'EOF'
           server {
@@ -137,4 +173,4 @@ jobs:
           # Test and reload Nginx
           nginx -t && systemctl reload nginx
           
-          echo "Production backend deployed successfully"
+          echo "✅ Production backend deployed successfully"

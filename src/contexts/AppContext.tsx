@@ -59,59 +59,10 @@ interface AppContextType {
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // Safely get auth context
-  let user, firebaseUser;
-  try {
-    const authContext = useAuth();
-    user = authContext.user;
-    firebaseUser = authContext.firebaseUser;
-  } catch (error) {
-    // If useAuth fails (context not ready), provide default values
-    user = null;
-    firebaseUser = null;
-  }
-  
-  // Always provide a context value, but with different behavior based on auth state
-  const defaultContextValue = {
-    forms: [],
-    formEntries: [],
-    employees: [],
-    dashboards: [],
-    createForm: async () => {},
-    updateForm: async () => {},
-    submitFormEntry: async () => {},
-    updateFormEntry: async () => {},
-    submitMultipleFormEntries: async () => {},
-    deleteForm: async () => {},
-    getFormsForEmployee: () => [],
-    getEntriesForForm: () => [],
-    getEntriesForEmployee: () => [],
-    getEmployeesForAgency: () => [],
-    getPendingEmployees: () => [],
-    refreshData: () => {},
-    createDashboard: async () => {},
-    updateDashboard: async () => {},
-    deleteDashboard: async () => {},
-    getDashboardsForDirector: () => [],
-    getDraftsForForm: () => [],
-    saveDraft: () => {},
-    deleteDraft: () => {},
-    deleteDraftsForForm: () => {},
-    createDraft: () => ({ id: '', formId: '', userId: '', agencyId: '', answers: {}, fileAttachments: [], isDraft: true as const, createdAt: new Date(), updatedAt: new Date() }),
-    isLoading: true,
-    error: null
-  };
-  
-  // Guard: If not authenticated, provide default context
-  if (!user || !firebaseUser) {
-    return (
-      <AppContext.Provider value={defaultContextValue}>
-        {children}
-      </AppContext.Provider>
-    );
-  }
+  // Access auth context from parent provider (always mounted in App.tsx)
+  const { user, firebaseUser } = useAuth();
 
-  // Now we can safely use package access since user is authenticated
+  // Always initialize package access hooks and state hooks in stable order
   const { canCreateForm, canCreateDashboard } = usePackageAccess();
   
   const [forms, setForms] = useState<Form[]>([]);
@@ -129,6 +80,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setFormEntries([]);
       setEmployees([]);
       setDashboards([]);
+      setIsLoading(false);
+      setError(null);
       return;
     }
 
@@ -460,28 +413,32 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try {
       setError(null);
       
-      // Check for formatted text in drafts for any file attachments
-      let updatedFileAttachments = entryData.fileAttachments || [];
-      
-      for (let i = 0; i < updatedFileAttachments.length; i++) {
-        const attachment = updatedFileAttachments[i];
-        if (attachment.submissionId && attachment.extractedText) {
-          // Check if we have formatted text available for this submission
-          const { DraftFormattingService } = await import('../services/draftFormattingService');
-          const formattedText = await DraftFormattingService.getFormattedTextForDraft(attachment.submissionId);
-          
-          if (formattedText) {
-            // Use formatted text instead of raw text
-            updatedFileAttachments[i] = {
-              ...attachment,
-              extractedText: formattedText
-            };
-            
-            // Clean up the draft formatting record
-            await DraftFormattingService.removeFormattedTextForDraft(attachment.submissionId);
-          }
+      // Merge formatted text when available and preserve raw text
+      const updatedFileAttachments = (entryData.fileAttachments || []).map(async (attachment: any) => {
+        if (!attachment || !attachment.submissionId) return attachment;
+        const { DraftFormattingService } = await import('../services/draftFormattingService');
+        const formattedText = await DraftFormattingService.getFormattedTextForDraft(attachment.submissionId);
+        if (formattedText) {
+          // Prefer formatted text; keep raw in rawExtractedText
+          await DraftFormattingService.removeFormattedTextForDraft(attachment.submissionId);
+          return {
+            ...attachment,
+            rawExtractedText: attachment.extractedText || attachment.rawExtractedText,
+            extractedText: formattedText
+          };
         }
-      }
+        // No formatted yet: ensure rawExtractedText is preserved
+        return {
+          ...attachment,
+          rawExtractedText: attachment.extractedText || attachment.rawExtractedText
+        };
+      });
+      const resolvedFileAttachments = await Promise.all(updatedFileAttachments);
+
+      // Collect submission ids for backend worker to locate the entry later
+      const attachmentSubmissionIds = resolvedFileAttachments
+        .map((a: any) => a && a.submissionId)
+        .filter((id: any) => !!id);
       
       // Forcer les champs requis selon les spécifications
       const docData = {
@@ -489,7 +446,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         userId: firebaseUser.uid, // Forcer auth.uid
         agencyId: user.agencyId, // Hérité du user
         answers: entryData.answers || {},
-        fileAttachments: updatedFileAttachments,
+        fileAttachments: resolvedFileAttachments,
+        attachmentSubmissionIds,
         submittedAt: serverTimestamp() // Forcer serverTimestamp
       };
 

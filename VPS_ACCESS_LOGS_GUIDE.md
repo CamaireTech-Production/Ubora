@@ -258,7 +258,7 @@ pm2 restart all
 
 Le CI envoie une archive `deploy.tar.gz` sur le VPS et déploie dans un dossier versionné.
 
-#### Arborescence
+#### Arborescence DEV
 ```bash
 /var/www/ubora-backend-dev/
   releases/
@@ -268,7 +268,17 @@ Le CI envoie une archive `deploy.tar.gz` sur le VPS et déploie dans un dossier 
   uploads/deploy.tar.gz
 ```
 
-#### Redémarrer sur la release active
+#### Arborescence PROD
+```bash
+/var/www/ubora-backend-prod/
+  releases/
+    20251007084000/        # release horodatée
+    20251007091530/
+  current -> releases/20251007091530/   # symlink vers la release active
+  uploads/deploy.tar.gz
+```
+
+#### Redémarrer sur la release active (DEV)
 ```bash
 pm2 stop ubora-backend-dev || true
 pm2 delete ubora-backend-dev || true
@@ -276,7 +286,15 @@ pm2 start /var/www/ubora-backend-dev/current/server/production-server.js --name 
 pm2 save
 ```
 
-#### Bascule manuelle vers une release antérieure (rollback)
+#### Redémarrer sur la release active (PROD)
+```bash
+pm2 stop ubora-backend-prod || true
+pm2 delete ubora-backend-prod || true
+pm2 start /var/www/ubora-backend-prod/current/server/production-server.js --name ubora-backend-prod --update-env
+pm2 save
+```
+
+#### Bascule manuelle vers une release antérieure (rollback DEV)
 ```bash
 cd /var/www/ubora-backend-dev
 ls -1dt releases/* | head -n 5         # lister les dernières releases
@@ -287,10 +305,26 @@ pm2 start /var/www/ubora-backend-dev/current/server/production-server.js --name 
 pm2 save
 ```
 
+#### Bascule manuelle vers une release antérieure (rollback PROD)
+```bash
+cd /var/www/ubora-backend-prod
+ls -1dt releases/* | head -n 5         # lister les dernières releases
+ln -sfn releases/20251007084000 current # pointer sur une release précédente
+pm2 stop ubora-backend-prod || true
+pm2 delete ubora-backend-prod || true
+pm2 start /var/www/ubora-backend-prod/current/server/production-server.js --name ubora-backend-prod --update-env
+pm2 save
+```
+
 #### Vérifier la version déployée
 ```bash
+# DEV
 cat /var/www/ubora-backend-dev/current/VERSION
-curl -s http://localhost:3001/health   # doit inclure la version si exposée
+curl -s http://localhost:3001/health
+
+# PROD
+cat /var/www/ubora-backend-prod/current/VERSION
+curl -s http://localhost:3000/health
 ```
 
 ## 📱 7. Monitoring en Temps Réel

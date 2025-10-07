@@ -181,25 +181,48 @@ ${rawText}`
 
   async updateFormattedText(submissionId, formattedText) {
     try {
-      // Check if FormEntry exists in Firebase
-      const entryRef = adminDb.collection('formEntries').doc(submissionId);
-      const entryDoc = await entryRef.get();
-      
+      // Try direct id first
+      let entryRef = adminDb.collection('formEntries').doc(submissionId);
+      let entryDoc = await entryRef.get();
+
+      if (!entryDoc.exists) {
+        // Fallback: locate entry by attachmentSubmissionIds
+        const qSnap = await adminDb
+          .collection('formEntries')
+          .where('attachmentSubmissionIds', 'array-contains', submissionId)
+          .limit(1)
+          .get();
+        if (!qSnap.empty) {
+          entryRef = qSnap.docs[0].ref;
+          entryDoc = qSnap.docs[0];
+        }
+      }
+
       if (entryDoc.exists) {
-        // Case 1: FormEntry already submitted → Update Firebase
-        console.log('📝 Updating existing FormEntry with formatted text:', submissionId);
+        console.log('📝 Updating FormEntry with formatted text for attachment:', submissionId);
+        const data = entryDoc.data() || {};
+        const attachments = Array.isArray(data.fileAttachments) ? data.fileAttachments : [];
+        const updated = attachments.map((att) => {
+          if (att && att.submissionId === submissionId) {
+            return {
+              ...att,
+              rawExtractedText: att.rawExtractedText || att.extractedText,
+              extractedText: formattedText
+            };
+          }
+          return att;
+        });
         await entryRef.update({
-          'fileAttachments.0.extractedText': formattedText,
+          fileAttachments: updated,
           formattedAt: admin.firestore.FieldValue.serverTimestamp(),
           formattingStatus: 'completed'
         });
       } else {
-        // Case 2: Still in draft → Save to draft formatting collection
         console.log('📝 Saving formatted text for draft submission:', submissionId);
         await adminDb.collection('draftFormatting').doc(submissionId).set({
           submissionId,
           formattedText,
-          createdAt: adminDb.FieldValue.serverTimestamp(),
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
           status: 'ready'
         });
       }

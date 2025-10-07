@@ -210,22 +210,70 @@ async function loadAndAggregateData(
     .limit(2000) // Increased limit for complete analysis
     .get();
 
+  // Ensure attachments are formatted when needed (on-demand formatting)
+  const ensureFormattedAttachmentsForDoc = async (doc) => {
+    const data = doc.data() || {};
+    const attachments = Array.isArray(data.fileAttachments) ? data.fileAttachments : [];
+    if (attachments.length === 0) return data;
+
+    const updated = [];
+    let changed = false;
+    for (const att of attachments) {
+      if (
+        att &&
+        (att.fileType === 'application/pdf' || (att.fileType && att.fileType.startsWith('image/')))
+      ) {
+        const hasFormatted = typeof att.extractedText === 'string' && att.extractedText.trim().length > 0;
+        const hasRaw = typeof att.rawExtractedText === 'string' && att.rawExtractedText.trim().length > 0;
+        if (!hasFormatted && hasRaw) {
+          // Format raw text synchronously before analysis
+          try {
+            const formattedText = await formatRawWithOpenAI(att.rawExtractedText);
+            updated.push({
+              ...att,
+              extractedText: formattedText,
+              rawExtractedText: att.rawExtractedText,
+            });
+            changed = true;
+          } catch (e) {
+            updated.push(att);
+          }
+          continue;
+        }
+      }
+      updated.push(att);
+    }
+
+    if (changed) {
+      try {
+        await adminDb.collection('formEntries').doc(doc.id).update({ fileAttachments: updated });
+        data.fileAttachments = updated;
+      } catch (e) {
+        // Non-blocking if update fails; continue with in-memory update
+        data.fileAttachments = updated;
+      }
+    }
+
+    return data;
+  };
+
   // Transformer, filtrer par période et filtres optionnels
-  let entries = baseSnapshot.docs.map((doc) => {
+  let entries = await Promise.all(baseSnapshot.docs.map(async (doc) => {
+    const ensured = await ensureFormattedAttachmentsForDoc(doc);
     const data = doc.data();
     const entry = {
       id: doc.id,
-      formId: data.formId || '',
-      userId: data.userId || '',
-      agencyId: data.agencyId || '',
-      submittedAt: data.submittedAt || new Date(),
-      answers: data.answers || {},
-      fileAttachments: data.fileAttachments || [] // Include fileAttachments from Firestore
+      formId: ensured.formId || data.formId || '',
+      userId: ensured.userId || data.userId || '',
+      agencyId: ensured.agencyId || data.agencyId || '',
+      submittedAt: ensured.submittedAt || data.submittedAt || new Date(),
+      answers: ensured.answers || data.answers || {},
+      fileAttachments: ensured.fileAttachments || data.fileAttachments || [] // Include fileAttachments, ensuring formatted when possible
     };
     
     
     return entry;
-  });
+  }));
 
   entries = entries.filter(e => {
     const submittedDate = safeToDate(e.submittedAt);
