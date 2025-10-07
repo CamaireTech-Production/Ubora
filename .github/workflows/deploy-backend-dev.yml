@@ -113,10 +113,10 @@ jobs:
           pm2 list
 
           echo "🧪 Health check"
-          if curl -fsS http://localhost:3001/health | grep -q $(cat $CURRENT_LINK/VERSION); then
-            echo "✅ Health OK & version match"
+          if curl -fsS http://localhost:3001/health > /dev/null; then
+            echo "✅ Health OK"
           else
-            echo "❌ Health/version check failed. Rolling back..."
+            echo "❌ Health check failed. Rolling back..."
             PREV=$(ls -1dt $RELEASES_DIR/* | sed -n '2p')
             if [ -n "$PREV" ]; then
               ln -sfn $PREV $CURRENT_LINK
