@@ -34,11 +34,45 @@ class MetricReminderService {
       orderBy('scheduledAt', 'asc')
     );
     const snap = await getDocs(q);
-    return snap.docs.map(d => ({ id: d.id, ...(d.data() as any) })) as MetricReminder[];
+    return snap.docs.map(d => {
+      const data = d.data();
+      const reminder = {
+        id: d.id,
+        ...data,
+        // Convert Firestore Timestamps to JavaScript Dates
+        scheduledAt: data.scheduledAt?.toDate ? data.scheduledAt.toDate() : data.scheduledAt,
+        createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : data.createdAt,
+        lastEvaluatedAt: data.lastEvaluatedAt?.toDate ? data.lastEvaluatedAt.toDate() : data.lastEvaluatedAt,
+        sentAt: data.sentAt?.toDate ? data.sentAt.toDate() : data.sentAt,
+      } as MetricReminder;
+      
+      return reminder;
+    });
   }
 
   async cancel(reminderId: string): Promise<void> {
-    await updateDoc(doc(db, this.collectionName, reminderId), { status: 'cancelled' });
+    try {
+      console.log('Attempting to cancel reminder:', reminderId);
+      
+      // Validate reminderId
+      if (!reminderId || typeof reminderId !== 'string' || reminderId.trim() === '') {
+        throw new Error('Invalid reminder ID: reminderId is empty or invalid');
+      }
+      
+      // Validate that reminderId doesn't contain invalid characters for Firestore
+      if (reminderId.includes('/') || reminderId.includes('\\')) {
+        throw new Error('Invalid reminder ID: contains invalid characters');
+      }
+      
+      console.log('Using collection:', this.collectionName, 'and document ID:', reminderId);
+      await updateDoc(doc(db, this.collectionName, reminderId), { status: 'cancelled' });
+      console.log('Reminder cancelled successfully:', reminderId);
+    } catch (error) {
+      console.error('Error cancelling reminder:', error);
+      console.error('ReminderId that caused error:', reminderId);
+      console.error('Collection name:', this.collectionName);
+      throw error;
+    }
   }
 
   private buildDedupKey(metricId: string, date: Date): string {
@@ -92,12 +126,22 @@ class MetricReminderService {
       );
       const snap = await getDocs(q);
       const due = snap.docs
-        .map(d => ({ id: d.id, ...(d.data() as any) }))
-        .filter((r: any) => {
-          const scheduled = r.scheduledAt?.toDate ? r.scheduledAt.toDate() : new Date(r.scheduledAt);
-          if (!scheduled) return false;
-          return Math.abs(now.getTime() - scheduled.getTime()) < 60 * 1000; // within 1 minute
-        }) as MetricReminder[];
+        .map(d => {
+          const data = d.data();
+          return {
+            id: d.id,
+            ...data,
+            // Convert Firestore Timestamps to JavaScript Dates
+            scheduledAt: data.scheduledAt?.toDate ? data.scheduledAt.toDate() : data.scheduledAt,
+            createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : data.createdAt,
+            lastEvaluatedAt: data.lastEvaluatedAt?.toDate ? data.lastEvaluatedAt.toDate() : data.lastEvaluatedAt,
+            sentAt: data.sentAt?.toDate ? data.sentAt.toDate() : data.sentAt,
+          } as MetricReminder;
+        })
+        .filter((r: MetricReminder) => {
+          if (!r.scheduledAt) return false;
+          return Math.abs(now.getTime() - r.scheduledAt.getTime()) < 60 * 1000; // within 1 minute
+        });
 
       for (const reminder of due) {
         const dash = params.dashboards.find(d => d.id === reminder.dashboardId);
@@ -119,7 +163,16 @@ class MetricReminderService {
         
         // Filter form entries for the period
         const periodFormEntries = params.formEntries.filter(entry => {
-          const entryDate = entry.submittedAt?.toDate ? entry.submittedAt.toDate() : new Date(entry.submittedAt);
+          let entryDate: Date;
+          if (entry.submittedAt && typeof entry.submittedAt === 'object' && 'toDate' in entry.submittedAt) {
+            // Firestore Timestamp
+            entryDate = (entry.submittedAt as any).toDate();
+          } else if (entry.submittedAt) {
+            // Regular Date or string
+            entryDate = new Date(entry.submittedAt);
+          } else {
+            return false; // Skip entries without submittedAt
+          }
           return entryDate >= periodStart && entryDate <= periodEnd;
         });
 

@@ -6,6 +6,7 @@ import { useApp } from '../contexts/AppContext';
 import { Layout } from '../components/Layout';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
+import { ConfirmationModal } from '../components/ConfirmationModal';
 import { Input } from '../components/Input';
 import { Select } from '../components/Select';
 import { MetricCalculator } from '../utils/MetricCalculator';
@@ -122,6 +123,12 @@ export const DashboardDetailPage: React.FC = () => {
   });
   const [isCreatingReminder, setIsCreatingReminder] = useState(false);
   const [activeReminders, setActiveReminders] = useState<MetricReminder[]>([]);
+  
+  // Confirmation modal state for reminder cancellation
+  const [cancelReminderModal, setCancelReminderModal] = useState<{
+    isOpen: boolean;
+    reminder: MetricReminder | null;
+  }>({ isOpen: false, reminder: null });
 
   // Load active reminders
   useEffect(() => {
@@ -562,7 +569,20 @@ export const DashboardDetailPage: React.FC = () => {
             <div className="space-y-3">
               {activeReminders.map((reminder) => {
                 const metric = dashboard.metrics.find(m => m.id === reminder.metricId);
-                const nextScheduled = new Date(reminder.scheduledAt);
+                
+                // Safely convert Firestore Timestamp to Date
+                let nextScheduled: Date;
+                if (reminder.scheduledAt && typeof reminder.scheduledAt === 'object' && 'toDate' in reminder.scheduledAt) {
+                  // Firestore Timestamp
+                  nextScheduled = (reminder.scheduledAt as any).toDate();
+                } else if (reminder.scheduledAt) {
+                  // Regular Date or string
+                  nextScheduled = new Date(reminder.scheduledAt);
+                } else {
+                  // Fallback to current date if no scheduledAt
+                  nextScheduled = new Date();
+                }
+                
                 const frequencyLabel = reminder.frequency === 'daily' ? 'Quotidien' : 
                                      reminder.frequency === 'weekly' ? 'Hebdomadaire' : 'Mensuel';
                 
@@ -584,25 +604,29 @@ export const DashboardDetailPage: React.FC = () => {
                     </div>
                     <div className="flex items-center space-x-2">
                       <span className="text-xs text-gray-500">
-                        Prochaine: {nextScheduled.toLocaleDateString('fr-FR')} à {nextScheduled.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                        {!isNaN(nextScheduled.getTime()) ? (
+                          <>Prochaine: {nextScheduled.toLocaleDateString('fr-FR')} à {nextScheduled.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</>
+                        ) : (
+                          <>Prochaine: Date en cours de calcul</>
+                        )}
                       </span>
-                      <Button
-                        variant="danger"
-                        size="sm"
-                        onClick={async () => {
-                          try {
-                            await metricReminderService.cancel(reminder.id);
-                            setActiveReminders(prev => prev.filter(r => r.id !== reminder.id));
-                            showSuccess('Rappel annulé');
-                          } catch (error) {
-                            showError('Erreur lors de l\'annulation du rappel');
-                          }
-                        }}
-                        className="p-1"
-                        title="Annuler le rappel"
-                      >
-                        <X className="h-3 w-3" />
-                      </Button>
+                      {reminder.id && reminder.id.trim() !== '' ? (
+                        <Button
+                          variant="danger"
+                          size="sm"
+                          onClick={() => {
+                            setCancelReminderModal({ isOpen: true, reminder });
+                          }}
+                          className="p-1"
+                          title="Annuler le rappel"
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
+                      ) : (
+                        <span className="text-xs text-gray-400 px-2" title="Ce rappel ne peut pas être annulé (ID invalide)">
+                          Non annulable
+                        </span>
+                      )}
                     </div>
                   </div>
                 );
@@ -1555,6 +1579,42 @@ export const DashboardDetailPage: React.FC = () => {
            </div>
          </div>
       )}
+
+      {/* Cancel Reminder Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={cancelReminderModal.isOpen}
+        onClose={() => setCancelReminderModal({ isOpen: false, reminder: null })}
+        onConfirm={async () => {
+          if (!cancelReminderModal.reminder) {
+            console.error('No reminder selected for cancellation');
+            showError('Aucun rappel sélectionné pour l\'annulation.');
+            return;
+          }
+          
+          if (!cancelReminderModal.reminder.id) {
+            console.error('Reminder has no ID:', cancelReminderModal.reminder);
+            showError('Le rappel n\'a pas d\'identifiant valide.');
+            return;
+          }
+          
+          try {
+            console.log('Cancelling reminder:', cancelReminderModal.reminder.id);
+            console.log('Full reminder object:', cancelReminderModal.reminder);
+            await metricReminderService.cancel(cancelReminderModal.reminder.id);
+            setActiveReminders(prev => prev.filter(r => r.id !== cancelReminderModal.reminder!.id));
+            showSuccess('Rappel annulé avec succès');
+            setCancelReminderModal({ isOpen: false, reminder: null });
+          } catch (error) {
+            console.error('Error cancelling reminder:', error);
+            showError('Erreur lors de l\'annulation du rappel. Veuillez réessayer.');
+          }
+        }}
+        title="Annuler le rappel"
+        message={`Êtes-vous sûr de vouloir annuler le rappel pour "${cancelReminderModal.reminder?.metricId ? dashboard.metrics.find(m => m.id === cancelReminderModal.reminder?.metricId)?.name || 'cette métrique' : 'cette métrique'}" ?`}
+        confirmText="Annuler le rappel"
+        cancelText="Garder le rappel"
+        variant="warning"
+      />
 
       {/* Toast Notification */}
       <Toast

@@ -500,6 +500,47 @@ service cloud.firestore {
     }
 
     // =============================================================================
+    // COLLECTION METRIC REMINDERS
+    // Règles pour les rappels de métriques :
+    // - Seuls les directeurs peuvent créer/lire/modifier/supprimer leurs rappels
+    // - Les rappels sont isolés par agence
+    // - Les directeurs peuvent gérer tous les rappels de leur agence
+    // =============================================================================
+    
+    match /metricReminders/{reminderId} {
+      // LECTURE des rappels de métriques
+      allow read: if isAuthenticated() && (
+        isAdmin() ||
+        (hasDirectorDashboardAccess() && isSameAgency(resource.data.agencyId))
+      );
+      
+      // CRÉATION de rappels de métriques
+      allow create: if isAuthenticated() && (
+        isAdmin() ||
+        (hasDirectorDashboardAccess() && 
+         isSameAgency(request.resource.data.agencyId) &&
+         request.resource.data.directorId == request.auth.uid &&
+         request.resource.data.keys().hasAll(['directorId', 'agencyId', 'dashboardId', 'metricId', 'frequency', 'time']))
+      );
+      
+      // MODIFICATION des rappels de métriques
+      allow update: if isAuthenticated() && (
+        isAdmin() ||
+        (hasDirectorDashboardAccess() && 
+         isSameAgency(resource.data.agencyId) &&
+         resource.data.directorId == request.auth.uid)
+      );
+      
+      // SUPPRESSION des rappels de métriques
+      allow delete: if isAuthenticated() && (
+        isAdmin() ||
+        (hasDirectorDashboardAccess() && 
+         isSameAgency(resource.data.agencyId) &&
+         resource.data.directorId == request.auth.uid)
+      );
+    }
+
+    // =============================================================================
     // RÈGLE DE SÉCURITÉ GLOBALE
     // Bloquer tout accès non authentifié par défaut
     // =============================================================================
