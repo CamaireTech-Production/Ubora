@@ -39,6 +39,7 @@ export const FormulaInput: React.FC<FormulaInputProps> = ({
   const [fieldOccurrences, setFieldOccurrences] = useState<Array<{ field: FormField; start: number; end: number }>>([]);
   const isInitialized = useRef(false);
   const onChangeRef = useRef(onChange);
+  const lastProcessedFormula = useRef('');
   const isEditorFocused = () => document.activeElement === editorRef.current;
 
   // Update the ref when onChange changes
@@ -57,6 +58,13 @@ export const FormulaInput: React.FC<FormulaInputProps> = ({
 
   // Parse user formula and find field matches
   useEffect(() => {
+    // Prevent unnecessary processing if formula hasn't changed
+    if (lastProcessedFormula.current === userFormula) {
+      return;
+    }
+    
+    lastProcessedFormula.current = userFormula;
+
     if (!userFormula.trim()) {
       setFieldMatches([]);
       onChangeRef.current('', []);
@@ -105,7 +113,7 @@ export const FormulaInput: React.FC<FormulaInputProps> = ({
     });
 
     onChangeRef.current(formulaWithIds, fieldIds);
-  }, [userFormula, availableFields, currentFieldId]); // Remove onChange from dependencies
+  }, [userFormula, availableFields]); // Removed currentFieldId from dependencies to prevent infinite loop
 
   // Render the contenteditable from current userFormula and occurrences when not focused (initial/load)
   useEffect(() => {

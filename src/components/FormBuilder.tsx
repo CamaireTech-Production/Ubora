@@ -12,6 +12,7 @@ import { FormulaInput } from './FormulaInput';
 import { FormulaParser } from '../utils/FormulaParser';
 import { ConditionalLogicBuilder } from './ConditionalLogicBuilder';
 import { DesktopRecommendationInfo } from './DesktopRecommendationInfo';
+import { ConfirmationModal } from './ConfirmationModal';
 
 interface FormBuilderProps {
   onSave: (form: {
@@ -46,6 +47,19 @@ export const FormBuilder: React.FC<FormBuilderProps> = ({
   const [fields, setFields] = useState<FormField[]>(initialForm?.fields || []);
   const [errors, setErrors] = useState<string[]>([]);
   const errorRef = useRef<HTMLDivElement>(null);
+  
+  // Confirmation modal state
+  const [confirmationModal, setConfirmationModal] = useState<{
+    isOpen: boolean;
+    fieldId: string | null;
+    fieldLabel: string;
+    dependentFields: Array<{ id: string; label: string }>;
+  }>({
+    isOpen: false,
+    fieldId: null,
+    fieldLabel: '',
+    dependentFields: []
+  });
   
   // Auto-scroll to errors when they appear (mobile-responsive)
   useEffect(() => {
@@ -91,7 +105,68 @@ export const FormBuilder: React.FC<FormBuilderProps> = ({
   };
 
   const removeField = (id: string) => {
-    setFields(fields.filter(field => field.id !== id));
+    const fieldToDelete = fields.find(field => field.id === id);
+    if (!fieldToDelete) return;
+
+    // Check for dependencies before deletion
+    const dependentFields = fields.filter(field => 
+      field.type === 'calculated' && 
+      field.dependsOn?.includes(id)
+    );
+    
+    if (dependentFields.length > 0) {
+      // Show confirmation modal
+      setConfirmationModal({
+        isOpen: true,
+        fieldId: id,
+        fieldLabel: fieldToDelete.label,
+        dependentFields: dependentFields.map(field => ({
+          id: field.id,
+          label: field.label
+        }))
+      });
+    } else {
+      // Safe to delete immediately
+      setFields(fields.filter(field => field.id !== id));
+    }
+  };
+
+  const handleConfirmDelete = () => {
+    if (!confirmationModal.fieldId) return;
+
+    const fieldId = confirmationModal.fieldId;
+    
+    // Clean up dependencies in calculated fields
+    setFields(prevFields => 
+      prevFields.map(field => {
+        if (field.type === 'calculated' && field.dependsOn?.includes(fieldId)) {
+          return {
+            ...field,
+            dependsOn: field.dependsOn.filter(depId => depId !== fieldId),
+            calculationFormula: '', // Clear invalid formula
+            userFormula: ''
+          };
+        }
+        return field;
+      }).filter(field => field.id !== fieldId)
+    );
+
+    // Close modal
+    setConfirmationModal({
+      isOpen: false,
+      fieldId: null,
+      fieldLabel: '',
+      dependentFields: []
+    });
+  };
+
+  const handleCancelDelete = () => {
+    setConfirmationModal({
+      isOpen: false,
+      fieldId: null,
+      fieldLabel: '',
+      dependentFields: []
+    });
   };
 
   const updateField = (id: string, updates: Partial<FormField>) => {
@@ -138,6 +213,24 @@ export const FormBuilder: React.FC<FormBuilderProps> = ({
   };
 
   const handleFormulaChange = useCallback((fieldId: string, formula: string, fieldIds: string[]) => {
+    // Validate dependencies
+    const invalidDeps = fieldIds.filter(id => 
+      !fields.find(f => f.id === id && ['number', 'calculated'].includes(f.type))
+    );
+    
+    if (invalidDeps.length > 0) {
+      console.warn(`Invalid dependencies detected: ${invalidDeps.join(', ')}`);
+      // Don't update if there are invalid dependencies
+      return;
+    }
+    
+    // Check for circular dependencies
+    if (FormulaParser.hasCircularDependency(fieldId, fieldIds, fields)) {
+      console.warn('Circular dependency detected');
+      // Don't update if there's a circular dependency
+      return;
+    }
+    
     updateField(fieldId, { 
       calculationFormula: formula,
       dependsOn: fieldIds,
@@ -210,11 +303,15 @@ export const FormBuilder: React.FC<FormBuilderProps> = ({
 
     // Valider que les champs calculés ont une formule
     const calculatedFieldsWithoutFormula = fields.filter(field => 
-      field.type === 'calculated' && (!field.calculationFormula || !field.calculationFormula.trim())
+      field.type === 'calculated' && !field.calculationFormula?.trim()
     );
     if (calculatedFieldsWithoutFormula.length > 0) {
       validationErrors.push(`${calculatedFieldsWithoutFormula.length} champ(s) calculé(s) n'ont pas de formule`);
     }
+
+    // Valider les dépendances des champs
+    const dependencyErrors = FormulaParser.validateFieldDependencies(fields);
+    validationErrors.push(...dependencyErrors);
 
     if (validationErrors.length > 0) {
       setErrors(validationErrors);
@@ -673,6 +770,22 @@ export const FormBuilder: React.FC<FormBuilderProps> = ({
           </div>
         </form>
       </Card>
+
+      {/* Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={confirmationModal.isOpen}
+        onClose={handleCancelDelete}
+        onConfirm={handleConfirmDelete}
+        title="Confirmer la suppression"
+        message={
+          confirmationModal.dependentFields.length > 0
+            ? `Le champ "${confirmationModal.fieldLabel}" est utilisé dans ${confirmationModal.dependentFields.length} champ(s) calculé(s) :\n\n${confirmationModal.dependentFields.map(field => `• ${field.label}`).join('\n')}\n\nVoulez-vous vraiment le supprimer ? Les formules de ces champs calculés seront invalidées et devront être reconfigurées.`
+            : `Êtes-vous sûr de vouloir supprimer le champ "${confirmationModal.fieldLabel}" ?`
+        }
+        confirmText="Supprimer"
+        cancelText="Annuler"
+        variant={confirmationModal.dependentFields.length > 0 ? 'warning' : 'danger'}
+      />
     </div>
   );
 };
