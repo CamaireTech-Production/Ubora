@@ -10,20 +10,17 @@ import { Button } from '../components/Button';
 import { FormEditor } from '../components/FormEditor';
 import { FormBuilder } from '../components/FormBuilder';
 import { LoadingGuard } from '../components/LoadingGuard';
-import { Plus, FileText, Users, Eye, Trash2, Edit, UserCheck, BarChart3, Calendar, ChevronDown, Crown, User as UserIcon, ClipboardList, FileCheck, FileEdit, FileBarChart } from 'lucide-react';
+import { Plus, FileText, Users, Eye, Trash2, Edit, UserCheck, BarChart3, Calendar, ChevronDown, Crown, User as UserIcon, ClipboardList, FileEdit, FileBarChart } from 'lucide-react';
 import { PendingApprovals } from '../components/PendingApprovals';
 import { VideoSection } from '../components/VideoSection';
 import { directorVideos } from '../data/videoData';
-import { DashboardCreationModal } from '../components/DashboardCreationModal';
+import { DashboardBuilder } from '../components/DashboardBuilder';
 import { DashboardDisplay } from '../components/DashboardDisplay';
 import { ComingSoonModal } from '../components/ComingSoonModal';
 import { useToast } from '../hooks/useToast';
 import { Toast } from '../components/Toast';
 import { usePackageAccess } from '../hooks/usePackageAccess';
 import { LimitReachedModal } from '../components/LimitReachedModal';
-import { SubscriptionSessionService } from '../services/subscriptionSessionService';
-import { doc, updateDoc, getDoc, serverTimestamp } from 'firebase/firestore';
-import { db } from '../firebaseConfig';
 
 export const DirecteurDashboard: React.FC = () => {
   const navigate = useNavigate();
@@ -53,7 +50,7 @@ export const DirecteurDashboard: React.FC = () => {
   
   const [showFormBuilder, setShowFormBuilder] = useState(false);
   const [editingForm, setEditingForm] = useState<Form | null>(null);
-  const [showDashboardModal, setShowDashboardModal] = useState(false);
+  const [showDashboardBuilder, setShowDashboardBuilder] = useState(false);
   const [showComingSoonModal, setShowComingSoonModal] = useState(false);
   const [showDeleteFormModal, setShowDeleteFormModal] = useState(false);
   const [showDeleteDashboardModal, setShowDeleteDashboardModal] = useState(false);
@@ -64,6 +61,7 @@ export const DirecteurDashboard: React.FC = () => {
   const [showLimitModal, setShowLimitModal] = useState(false);
   const [limitModalType, setLimitModalType] = useState<'forms' | 'dashboards' | 'users'>('forms');
   const [isCreatingForm, setIsCreatingForm] = useState(false);
+  const [isCreatingDashboard, setIsCreatingDashboard] = useState(false);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   
   // États pour le filtrage temporel
@@ -95,20 +93,6 @@ export const DirecteurDashboard: React.FC = () => {
     return <FileText className="h-5 w-5 text-indigo-600" />;
   };
 
-  // Function to get dashboard icon based on dashboard metrics
-  const getDashboardIcon = (dashboard: any) => {
-    const hasGraphMetrics = dashboard.metrics.some((metric: any) => metric.metricType === 'graph');
-    const hasCalculatedMetrics = dashboard.metrics.some((metric: any) => metric.metricType === 'calculated');
-    const metricCount = dashboard.metrics.length;
-    
-    // Determine icon based on dashboard characteristics
-    if (hasGraphMetrics) return <BarChart3 className="h-5 w-5 text-blue-600" />;
-    if (hasCalculatedMetrics && metricCount > 3) return <FileBarChart className="h-5 w-5 text-green-600" />;
-    if (metricCount > 5) return <BarChart3 className="h-5 w-5 text-purple-600" />;
-    
-    // Default dashboard icon
-    return <BarChart3 className="h-5 w-5 text-indigo-600" />;
-  };
 
   const handleCreateForm = async (formData: {
     title: string;
@@ -159,7 +143,7 @@ export const DirecteurDashboard: React.FC = () => {
       setLimitModalType('dashboards');
       setShowLimitModal(true);
     } else {
-      setShowDashboardModal(true);
+      setShowDashboardBuilder(true);
     }
   };
 
@@ -195,14 +179,36 @@ export const DirecteurDashboard: React.FC = () => {
     setShowFormBuilder(false);
   };
 
-  const handleCreateDashboard = async (dashboardData: any) => {
+  const handleCancelDashboard = () => {
+    setShowDashboardBuilder(false);
+  };
+
+  const handleCreateDashboard = async (dashboardData: {
+    name: string;
+    description: string;
+    metrics: any[];
+  }) => {
+    setIsCreatingDashboard(true);
     try {
-      await createDashboard(dashboardData);
-      setShowDashboardModal(false);
+      if (!user?.id || !user?.agencyId) {
+        throw new Error('Données utilisateur manquantes');
+      }
+
+      await createDashboard({
+        name: dashboardData.name,
+        description: dashboardData.description,
+        metrics: dashboardData.metrics,
+        createdBy: user.id,
+        createdByRole: user.role as 'directeur' | 'employe',
+        agencyId: user.agencyId,
+      });
+      setShowDashboardBuilder(false);
       showSuccess('Tableau de bord créé avec succès !');
     } catch (error) {
       console.error('Erreur lors de la création du tableau de bord:', error);
       showError('Erreur lors de la création du tableau de bord. Veuillez réessayer.');
+    } finally {
+      setIsCreatingDashboard(false);
     }
   };
 
@@ -438,6 +444,18 @@ export const DirecteurDashboard: React.FC = () => {
               isLoading={isCreatingForm}
             />
           )}
+        </Layout>
+      ) : showDashboardBuilder ? (
+        <Layout title="Créer un tableau de bord">
+          <DashboardBuilder
+            onSave={handleCreateDashboard}
+            onCancel={handleCancelDashboard}
+            forms={forms}
+            formEntries={formEntries}
+            currentUserId={user?.id || ''}
+            agencyId={user?.agencyId || ''}
+            isLoading={isCreatingDashboard}
+          />
         </Layout>
       ) : (
         <Layout title="Dashboard Directeur">
@@ -868,16 +886,6 @@ export const DirecteurDashboard: React.FC = () => {
         </Layout>
       )}
 
-      {/* Dashboard Creation Modal */}
-      <DashboardCreationModal
-        isOpen={showDashboardModal}
-        onClose={() => setShowDashboardModal(false)}
-        onSave={handleCreateDashboard}
-        forms={forms}
-        formEntries={formEntries}
-        currentUserId={user?.id || ''}
-        agencyId={user?.agencyId || ''}
-      />
 
 
       {/* Coming Soon Modal */}
@@ -899,7 +907,7 @@ export const DirecteurDashboard: React.FC = () => {
           setShowLimitModal(false);
           navigate('/packages/manage');
         }}
-        onPayAsYouGo={async (type, quantity) => {
+        onPayAsYouGo={async () => {
           // This will be handled by the LimitReachedModal with Campay integration
           // The modal will create the payment and handle the success/failure
           // This callback is kept for backward compatibility but won't be used
