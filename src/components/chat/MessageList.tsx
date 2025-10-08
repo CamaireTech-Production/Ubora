@@ -87,7 +87,7 @@ export const MessageList: React.FC<MessageListProps> = ({
       const currentHeight = window.visualViewport.height;
       const heightDifference = initialHeight - currentHeight;
       
-      setKeyboardHeight(heightDifference > 100 ? heightDifference : 0);
+      setKeyboardHeight(heightDifference > 50 ? heightDifference : 0);
     };
 
     if (window.visualViewport) {
@@ -177,13 +177,14 @@ export const MessageList: React.FC<MessageListProps> = ({
         className="flex-1 overflow-y-auto pt-4 px-4 sm:px-6 lg:px-8"
         onScroll={handleScroll}
         style={{ 
-          maxHeight: keyboardHeight > 0 
+          // Use viewport height minus keyboard height for precise sizing
+          height: keyboardHeight > 0 
             ? `calc(100dvh - 140px - ${keyboardHeight}px)` 
             : 'calc(100dvh - 140px)',
           scrollBehavior: 'smooth',
-          // Reduce excessive spacing when keyboard is open
+          // Minimal padding - just enough for the composer
           paddingBottom: keyboardHeight > 0 
-            ? `max(6rem, calc(6rem + env(safe-area-inset-bottom)))`
+            ? '4rem'
             : 'max(8rem, calc(8rem + env(safe-area-inset-bottom)))'
         }}
       >

@@ -119,7 +119,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
       const heightDifference = initialHeight - currentHeight;
       
       // More sensitive threshold for better detection
-      const keyboardOpen = heightDifference > 100;
+      const keyboardOpen = heightDifference > 50;
       setIsKeyboardOpen(keyboardOpen);
       setKeyboardHeight(keyboardOpen ? heightDifference : 0);
 
@@ -186,15 +186,11 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
 
   return (
     <div 
-      className={`fixed left-0 right-0 z-10 bg-gradient-to-t from-white via-white to-transparent pt-4 transition-all duration-300 ${
-        isKeyboardOpen ? 'pb-2' : 'pb-4'
-      }`}
+      className="fixed left-0 right-0 z-10 bg-gradient-to-t from-white via-white to-transparent pt-4 pb-2 transition-all duration-200"
       style={{ 
-        paddingBottom: isKeyboardOpen ? '0.25rem' : 'max(1rem, env(safe-area-inset-bottom))',
-        bottom: isKeyboardOpen ? '0' : '0',
-        // Ensure composer stays above keyboard with minimal spacing
-        transform: isKeyboardOpen ? `translateY(-${Math.max(0, keyboardHeight - 80)}px)` : 'translateY(0)',
-        transition: 'transform 0.2s ease-out'
+        // Use viewport height minus keyboard height for precise positioning
+        bottom: isKeyboardOpen ? `${keyboardHeight}px` : '0',
+        paddingBottom: isKeyboardOpen ? '0.5rem' : 'max(1rem, env(safe-area-inset-bottom))'
       }}
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
