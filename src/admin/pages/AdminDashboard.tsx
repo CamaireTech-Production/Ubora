@@ -8,6 +8,7 @@ import { AdminDashboardStats, AdminUser, AdminActivitySummary, ActivityLog } fro
 import { PushNotificationsTab } from '../../components/PushNotificationsTab';
 import { AppUsageTab } from '../../components/AppUsageTab';
 import { UsersTable } from '../../components/UsersTable';
+import { NotificationManager } from '../../components/NotificationManager';
 import { Card } from '../../components/Card';
 import { Button } from '../../components/Button';
 import { 
@@ -41,7 +42,7 @@ export const AdminDashboard: React.FC = () => {
   const [activitySummary, setActivitySummary] = useState<AdminActivitySummary[]>([]);
   const [systemHealth, setSystemHealth] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'activities' | 'notifications' | 'usage' | 'system'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'activities' | 'notifications' | 'usage' | 'system' | 'fcm'>('overview');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   useEffect(() => {
@@ -222,6 +223,7 @@ export const AdminDashboard: React.FC = () => {
               { id: 'users', label: 'Utilisateurs', icon: Users },
               { id: 'activities', label: 'Activités', icon: Activity },
               { id: 'notifications', label: 'Notifications', icon: Bell },
+              { id: 'fcm', label: 'FCM Manager', icon: Send },
               { id: 'usage', label: 'Utilisation', icon: Clock },
               { id: 'system', label: 'Système', icon: Settings }
             ].map((tab) => {
@@ -387,6 +389,11 @@ export const AdminDashboard: React.FC = () => {
         {/* Notifications Tab */}
         {activeTab === 'notifications' && (
           <PushNotificationsTab onRefresh={loadDashboardData} />
+        )}
+
+        {/* FCM Manager Tab */}
+        {activeTab === 'fcm' && (
+          <NotificationManager />
         )}
 
         {/* Usage Tab */}

@@ -13,10 +13,32 @@
  *   pm2 start start-worker.js --name "formatting-worker"
  */
 
+// Load environment variables from the root directory
+const path = require('path');
+const dotenv = require('dotenv');
+
+// Load .env.local from the root directory (parent of api directory)
+const envPath = path.join(__dirname, '..', '.env.local');
+console.log('📁 Loading environment variables from:', envPath);
+
+try {
+  const result = dotenv.config({ path: envPath });
+  if (result.error) {
+    console.log('⚠️  .env.local not found, trying .env...');
+    // Fallback to .env if .env.local doesn't exist
+    dotenv.config({ path: path.join(__dirname, '..', '.env') });
+  } else {
+    console.log('✅ Loaded .env.local file');
+  }
+} catch (error) {
+  console.error('❌ Error loading environment variables:', error.message);
+}
+
 const formattingWorker = require('./background/formattingWorker');
 
 console.log('🚀 Starting PDF Text Formatting Worker...');
 console.log('📋 Worker will process formatting errors and retries every 30 seconds');
+console.log('🔧 Environment:', process.env.NODE_ENV || 'development');
 console.log('🛑 Press Ctrl+C to stop the worker');
 
 // Start the worker

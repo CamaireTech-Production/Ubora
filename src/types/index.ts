@@ -197,6 +197,7 @@ export interface FileAttachment {
   extractedText?: string; // Add extracted text for PDFs
   textExtractionStatus?: 'pending' | 'completed' | 'failed'; // Track extraction status
   submissionId?: string; // Store submission ID for background formatting
+  base64Data?: string; // Store file as base64 for draft storage
 }
 
 export interface FormEntry {

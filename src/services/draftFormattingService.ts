@@ -14,18 +14,25 @@ export class DraftFormattingService {
    */
   static async getFormattedTextForDraft(submissionId: string): Promise<string | null> {
     try {
+      console.log('📝 Checking draftFormatting collection for submission:', submissionId);
       const draftDoc = await getDoc(doc(db, 'draftFormatting', submissionId));
       
       if (draftDoc.exists()) {
         const data = draftDoc.data();
+        console.log('📝 Found draft formatting document:', data);
         if (data.status === 'ready' && data.formattedText) {
+          console.log('✅ Found ready formatted text for submission:', submissionId);
           return data.formattedText;
+        } else {
+          console.log('📝 Draft formatting document exists but not ready:', data.status);
         }
+      } else {
+        console.log('📝 No draft formatting document found for submission:', submissionId);
       }
       
       return null;
     } catch (error) {
-      console.error('Error getting formatted text for draft:', error);
+      console.error('❌ Error getting formatted text for draft:', error);
       return null;
     }
   }

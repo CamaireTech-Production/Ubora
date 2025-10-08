@@ -4,6 +4,7 @@ export interface TextExtractionResult {
   info?: any;
   success: boolean;
   error?: string;
+  submissionId?: string;
   extractionStats?: {
     totalCharacters: number;
     totalWords: number;

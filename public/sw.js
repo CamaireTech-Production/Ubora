@@ -16,6 +16,18 @@ if (workbox) {
     ({ request }) => request.destination === "image",
     new StaleWhileRevalidate()
   );
+
+  // Cache Firebase scripts for offline functionality
+  registerRoute(
+    ({ url }) => url.hostname === 'www.gstatic.com',
+    new StaleWhileRevalidate({
+      cacheName: 'firebase-scripts',
+      expiration: {
+        maxEntries: 10,
+        maxAgeSeconds: 60 * 60 * 24 * 7 // 1 week
+      }
+    })
+  );
 }
 
 // ---- Firebase Messaging (unified in main SW) ----
@@ -39,19 +51,41 @@ try {
 
   const messaging = firebase.messaging();
 
-  // Handle background messages from FCM
+  // Handle FCM background messages with enhanced mobile support
   messaging.onBackgroundMessage((payload) => {
+    console.log('🔔 [SW] FCM background message received:', payload);
+    
     const title = payload.notification?.title || 'Ubora';
-    const uniqueTag = `ubora-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const body = payload.notification?.body || 'Vous avez reçu une nouvelle notification';
+    const uniqueTag = `ubora-fcm-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    
     const options = {
-      body: payload.notification?.body,
+      body: body,
       icon: '/fav-icons/android-icon-192x192.png',
       badge: '/fav-icons/android-icon-96x96.png',
-      data: payload.data || {},
+      data: {
+        ...payload.data,
+        fcmMessageId: payload.messageId,
+        timestamp: Date.now()
+      },
       tag: uniqueTag,
-      requireInteraction: true,
-      silent: false
+      requireInteraction: false, // Allow auto-dismiss for better UX
+      silent: false,
+      vibrate: [200, 100, 200], // Vibration pattern for mobile
+      actions: [
+        {
+          action: 'open',
+          title: 'Ouvrir',
+          icon: '/fav-icons/android-icon-48x48.png'
+        },
+        {
+          action: 'dismiss',
+          title: 'Ignorer',
+          icon: '/fav-icons/android-icon-48x48.png'
+        }
+      ]
     };
+    
     self.registration.showNotification(title, options);
   });
 } catch (e) {
@@ -70,11 +104,66 @@ self?.addEventListener("push", (event) => {
   event.waitUntil(self.registration.showNotification(title, options));
 });
 
-// Handle notification click
+// Handle notification click with action support
 self?.addEventListener("notificationclick", (event) => {
+  console.log('🔔 [SW] Notification clicked:', event);
+  
   event.notification.close();
-  const urlToOpen = event.notification.data?.url || "/";
-  event.waitUntil(clients.openWindow(urlToOpen));
+
+  // Handle action buttons
+  if (event.action === 'dismiss') {
+    return;
+  }
+
+  // Determine the URL to open based on notification data
+  let urlToOpen = '/';
+  const notificationData = event.notification.data;
+  
+  if (notificationData) {
+    // Handle form-related notifications
+    if (notificationData.formId) {
+      if (notificationData.action === 'form_assigned' || notificationData.action === 'form_created') {
+        urlToOpen = '/forms';
+      } else if (notificationData.action === 'form_submission') {
+        urlToOpen = '/dashboard';
+      } else if (notificationData.action === 'form_reminder') {
+        urlToOpen = '/forms';
+      }
+    }
+    
+    // Handle other notification types
+    if (notificationData.type === 'director_message') {
+      urlToOpen = '/notifications';
+    } else if (notificationData.type === 'system_alert') {
+      urlToOpen = '/dashboard';
+    } else if (notificationData.type === 'reminder') {
+      urlToOpen = '/forms';
+    } else if (notificationData.url) {
+      urlToOpen = notificationData.url;
+    }
+  }
+
+  // Open the app
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+      // If app is already open, focus it and navigate to the specific page
+      for (const client of clientList) {
+        if (client.url.includes(self.location.origin) && 'focus' in client) {
+          // Send a message to the client to navigate to the specific page
+          client.postMessage({
+            type: 'NOTIFICATION_CLICK',
+            data: notificationData,
+            url: urlToOpen
+          });
+          return client.focus();
+        }
+      }
+      // If app is not open, open it with the specific URL
+      if (clients.openWindow) {
+        return clients.openWindow(urlToOpen);
+      }
+    })
+  );
 });
 
 // Handle messages from the main thread (for test notifications)

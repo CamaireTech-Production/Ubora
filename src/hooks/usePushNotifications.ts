@@ -17,6 +17,10 @@ interface PushNotificationState {
   token: string | null;
   isSubscribed: boolean;
   error: string | null;
+  isIOS: boolean;
+  isAndroid: boolean;
+  isDesktop: boolean;
+  platform: 'ios' | 'android' | 'desktop' | 'unknown';
 }
 
 export const usePushNotifications = () => {
@@ -27,15 +31,83 @@ export const usePushNotifications = () => {
     token: null,
     isSubscribed: false,
     error: null,
+    isIOS: false,
+    isAndroid: false,
+    isDesktop: false,
+    platform: 'unknown',
   });
+
+  // Detect platform
+  const detectPlatform = useCallback(() => {
+    const userAgent = navigator.userAgent;
+    const isIOS = /iPad|iPhone|iPod/.test(userAgent);
+    const isAndroid = /Android/.test(userAgent);
+    const isDesktop = !isIOS && !isAndroid;
+    
+    let platform: 'ios' | 'android' | 'desktop' | 'unknown' = 'unknown';
+    if (isIOS) platform = 'ios';
+    else if (isAndroid) platform = 'android';
+    else if (isDesktop) platform = 'desktop';
+    
+    setState(prev => ({ 
+      ...prev, 
+      isIOS, 
+      isAndroid, 
+      isDesktop, 
+      platform 
+    }));
+    
+    return { isIOS, isAndroid, isDesktop, platform };
+  }, []);
 
   // Check if push notifications are supported
   const checkSupport = useCallback(async () => {
     try {
+      // Check basic support
+      if (!('Notification' in window) || !('serviceWorker' in navigator)) {
+        setState(prev => ({ ...prev, isSupported: false, error: 'Push notifications not supported' }));
+        return false;
+      }
+
+      // Check Firebase messaging support
       const messagingInstance = await messaging;
       if (!messagingInstance) {
-        setState(prev => ({ ...prev, isSupported: false }));
+        setState(prev => ({ ...prev, isSupported: false, error: 'Firebase messaging not supported' }));
         return false;
+      }
+
+      // Get platform info
+      const { isIOS, isAndroid } = detectPlatform();
+
+      // iOS specific checks
+      if (isIOS) {
+        const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
+        const isInSafari = /Safari/.test(navigator.userAgent) && !/Chrome/.test(navigator.userAgent);
+        
+        // Check iOS version for web push support (iOS 16.4+)
+        const iosVersionMatch = navigator.userAgent.match(/OS (\d+)_(\d+)/);
+        if (iosVersionMatch) {
+          const majorVersion = parseInt(iosVersionMatch[1], 10);
+          const minorVersion = parseInt(iosVersionMatch[2], 10);
+          
+          if (majorVersion < 16 || (majorVersion === 16 && minorVersion < 4)) {
+            setState(prev => ({ 
+              ...prev, 
+              isSupported: false, 
+              error: 'iOS 16.4+ required for web push notifications' 
+            }));
+            return false;
+          }
+        }
+        
+        if (!isStandalone && !isInSafari) {
+          setState(prev => ({ 
+            ...prev, 
+            isSupported: false, 
+            error: 'iOS requires Safari or installed PWA for push notifications' 
+          }));
+          return false;
+        }
       }
 
       setState(prev => ({ ...prev, isSupported: true }));
@@ -45,7 +117,7 @@ export const usePushNotifications = () => {
       setState(prev => ({ ...prev, isSupported: false, error: 'Push notifications not supported' }));
       return false;
     }
-  }, []);
+  }, [detectPlatform]);
 
   // Check notification permission
   const checkPermission = useCallback(() => {
@@ -96,12 +168,15 @@ export const usePushNotifications = () => {
         fcmToken: token,
         lastTokenUpdate: new Date(),
         notificationEnabled: true,
+        platform: state.platform,
+        userAgent: navigator.userAgent,
+        isStandalone: window.matchMedia('(display-mode: standalone)').matches,
       }, { merge: true });
       
     } catch (error) {
       console.error('🔔 [Push] Failed to save token:', error);
     }
-  }, [user]);
+  }, [user, state.platform]);
 
   // Get FCM token
   const getFCMToken = useCallback(async () => {
@@ -256,13 +331,14 @@ export const usePushNotifications = () => {
   // Initialize on mount
   useEffect(() => {
     const initialize = async () => {
+      detectPlatform(); // Detect platform first
       await checkSupport();
       checkPermission();
       await checkUserNotificationState();
     };
 
     initialize();
-  }, [checkSupport, checkPermission, checkUserNotificationState]);
+  }, [detectPlatform, checkSupport, checkPermission, checkUserNotificationState]);
 
   return {
     ...state,

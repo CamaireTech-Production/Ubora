@@ -192,6 +192,45 @@ async function getConversationContext(conversationId) {
   }
 }
 
+// Function to format raw text with OpenAI (missing implementation)
+async function formatRawWithOpenAI(rawText) {
+  try {
+    console.log('🔄 Formatting raw text with OpenAI...');
+    
+    const formatResponse = await openai.chat.completions.create({
+      model: 'gpt-4o',
+      messages: [
+        {
+          role: "user",
+          content: `Please format the following extracted PDF text into well-structured markdown format. Pay special attention to:
+
+1. **Tables**: Convert any tabular data to proper markdown table format with headers and rows
+2. **Lists**: Convert numbered and bulleted lists to markdown format
+3. **Headers**: Identify and format section headers with appropriate markdown headers (# ## ###)
+4. **Structure**: Preserve the document structure and hierarchy
+5. **Complex layouts**: Handle multi-column layouts, sidebars, and complex formatting
+6. **Text formatting**: Preserve bold, italic, and other text formatting as markdown
+
+Return only the formatted text in markdown, without any additional commentary or explanations.
+
+Extracted text:
+${rawText}`
+        }
+      ],
+      max_tokens: 6000,
+      temperature: 0.1
+    });
+    
+    const formattedText = formatResponse.choices[0]?.message?.content || '';
+    console.log('✅ Raw text formatted successfully');
+    
+    return formattedText;
+  } catch (error) {
+    console.error('❌ Error formatting raw text with OpenAI:', error);
+    throw error;
+  }
+}
+
 // Fonction pour charger et agréger les données
 async function loadAndAggregateData(
   agencyId,
@@ -228,7 +267,9 @@ async function loadAndAggregateData(
         if (!hasFormatted && hasRaw) {
           // Format raw text synchronously before analysis
           try {
+            console.log('🔄 Formatting raw text for AI analysis:', att.fileName);
             const formattedText = await formatRawWithOpenAI(att.rawExtractedText);
+            console.log('✅ Successfully formatted text for AI analysis:', att.fileName);
             updated.push({
               ...att,
               extractedText: formattedText,
@@ -236,7 +277,14 @@ async function loadAndAggregateData(
             });
             changed = true;
           } catch (e) {
-            updated.push(att);
+            console.error('❌ Failed to format raw text for AI analysis:', att.fileName, e.message);
+            // Continue with raw text - better than no text at all
+            updated.push({
+              ...att,
+              rawExtractedText: att.rawExtractedText,
+              extractedText: att.rawExtractedText // Use raw text as fallback
+            });
+            changed = true;
           }
           continue;
         }

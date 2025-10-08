@@ -2,11 +2,20 @@ import React, { useCallback, useState } from 'react';
 import { Layout } from '../components/Layout';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
-import { Bell, Timer, ShieldCheck } from 'lucide-react';
+import { Bell, Timer, ShieldCheck, Smartphone, Monitor } from 'lucide-react';
 import { usePushNotifications } from '../hooks/usePushNotifications';
 
 export const PushTestPage: React.FC = () => {
-  const { permission, requestPermission } = usePushNotifications();
+  const { 
+    permission, 
+    requestPermission, 
+    isSupported, 
+    isIOS, 
+    isAndroid, 
+    isDesktop,
+    platform,
+    error 
+  } = usePushNotifications();
   const [status, setStatus] = useState<string>('');
 
   const ensurePermission = useCallback(async () => {
@@ -79,19 +88,59 @@ export const PushTestPage: React.FC = () => {
     }, 10000);
   }, [ensurePermission, showLocalNotification]);
 
+  const getPlatformInfo = () => {
+    if (isIOS) {
+      return {
+        icon: <Smartphone className="w-4 h-4" />,
+        text: 'iOS Safari/PWA',
+        note: 'Requires iOS 16.4+ and Safari or installed PWA'
+      };
+    } else if (isAndroid) {
+      return {
+        icon: <Smartphone className="w-4 h-4" />,
+        text: 'Android Chrome',
+        note: 'Full support in Chrome and installed PWAs'
+      };
+    } else {
+      return {
+        icon: <Monitor className="w-4 h-4" />,
+        text: 'Desktop Browser',
+        note: 'Full support in modern browsers'
+      };
+    }
+  };
+
+  const platformInfo = getPlatformInfo();
+
   return (
     <Layout title="Test des Notifications Push">
       <Card className="p-6 space-y-4">
-        <div className="space-y-2 text-gray-700">
+        <div className="space-y-3 text-gray-700">
           <div>
-            Utilisez ces boutons pour tester l\'affichage des notifications locales (foreground). Pour tester les notifications d\'arrière-plan, envoyez un push FCM et fermez l\'onglet.
+            Utilisez ces boutons pour tester l'affichage des notifications locales (foreground). 
+            Pour tester les notifications d'arrière-plan, envoyez un push FCM et fermez l'onglet.
           </div>
+          
+          <div className="flex items-center gap-2 text-sm text-gray-600">
+            {platformInfo.icon}
+            <span>Plateforme: {platformInfo.text}</span>
+          </div>
+          
           <div className="text-sm text-gray-600">
-            Astuce: Les notifications nécessitent un contexte sécurisé (HTTPS). En local sur mobile, utilisez une URL HTTPS (ex: ngrok) pour voir l\'invite d\'autorisation.
+            {platformInfo.note}
           </div>
+          
           <div className="text-sm">
-            État des permissions: <span className="font-medium">{permission.granted ? 'autorisées' : permission.denied ? 'refusées' : 'à demander'}</span>
+            État des permissions: <span className="font-medium">
+              {permission.granted ? 'autorisées' : permission.denied ? 'refusées' : 'à demander'}
+            </span>
           </div>
+          
+          {!isSupported && (
+            <div className="text-sm text-red-600 bg-red-50 p-3 rounded-lg">
+              <strong>Non supporté:</strong> {error}
+            </div>
+          )}
         </div>
         <div className="flex flex-wrap gap-3">
           <Button onClick={async () => {

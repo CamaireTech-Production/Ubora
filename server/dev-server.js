@@ -81,6 +81,16 @@ const require = createRequire(import.meta.url);
 const askHandler = require('../api/ai/ask.js');
 const healthHandler = require('../api/ai/health.js');
 
+console.log('🔄 Loading format handler...');
+let formatHandler;
+try {
+  formatHandler = require('../api/ai/format.js');
+  console.log('✅ Format handler loaded successfully:', typeof formatHandler);
+} catch (error) {
+  console.error('❌ Failed to load format handler:', error);
+  process.exit(1);
+}
+
 // OCR handlers
 const ocrExtractHandler = require('../api/ocr/extractText.js');
 const ocrPdfExtractHandler = require('../api/ocr/extractPdfText.js');
@@ -89,6 +99,24 @@ const ocrHealthHandler = require('../api/ocr/health.js');
 // Routes
 app.post('/api/ai/ask', askHandler);
 app.get('/api/ai/health', healthHandler);
+app.post('/api/ai/format', formatHandler);
+
+// Test endpoint to verify server is running
+app.get('/api/test', (req, res) => {
+  res.json({ message: 'Server is running!', timestamp: new Date().toISOString() });
+});
+
+// Test endpoint for format handler
+app.get('/api/ai/format', (req, res) => {
+  res.json({ 
+    message: 'Format endpoint is working!', 
+    timestamp: new Date().toISOString(),
+    method: 'GET'
+  });
+});
+
+console.log('✅ Format route registered: POST /api/ai/format');
+console.log('✅ Test route registered: GET /api/test');
 
 // OCR routes
 app.post('/api/ocr/extract', ocrExtractHandler);

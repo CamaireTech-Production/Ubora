@@ -48,6 +48,16 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [visibleFields, setVisibleFields] = useState<string[]>(form.fields.map((f: FormField) => f.id));
   
+  // Debug modal state
+  const [showDebugModal, setShowDebugModal] = useState(false);
+  const [debugText, setDebugText] = useState('');
+  const [debugFileName, setDebugFileName] = useState('');
+  
+  // Debug modal state changes
+  useEffect(() => {
+    console.log('🔍 Debug modal state changed:', { showDebugModal, debugFileName, debugTextLength: debugText.length });
+  }, [showDebugModal, debugFileName, debugText]);
+  
   // Function to update visible fields based on conditional logic
   const updateVisibleFields = useCallback((currentAnswers: Record<string, unknown>) => {
     const visible = ConditionalLogicEvaluator.getVisibleFields(form.fields, currentAnswers);
@@ -232,6 +242,19 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
     if (!file || !user) return;
 
     try {
+      // Get current user info
+      const currentUser = auth.currentUser;
+      if (!currentUser) {
+        throw new Error('User not authenticated');
+      }
+
+      // Get user data to get agencyId
+      const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
+      if (!userDoc.exists()) {
+        throw new Error('User data not found');
+      }
+      const userData = userDoc.data();
+
       // Update progress
       setUploadProgress(prev => ({
         ...prev,
@@ -243,10 +266,10 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
         }
       }));
 
-      // Store original file for later Firebase upload
+      // Store original file for later Firebase upload (like images)
       setOriginalFiles(prev => new Map(prev).set(fieldId, file));
 
-      // Process file locally (extract text, no Firebase upload yet)
+      // Process file locally (extract text only)
         const attachment = await FileUploadService.processFile(
           file,
           fieldId,
@@ -257,12 +280,20 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
             }));
           },
           (pdfResult) => {
-            // PDF extraction successful - no modal needed
-            // Text is extracted and formatting happens in background
-            console.log(`✅ PDF ${pdfResult.fileName} processed successfully. Formatting in background...`);
+            // PDF extraction successful - show debug modal
+            console.log(`✅ PDF ${pdfResult.fileName} processed successfully`);
+            console.log(`📝 Extracted text length: ${pdfResult.extractedText?.length || 0} characters`);
+            console.log(`🔍 Setting debug modal state...`);
+            
+            // Show debug modal with extracted text
+            setDebugText(pdfResult.extractedText || '');
+            setDebugFileName(pdfResult.fileName);
+            setShowDebugModal(true);
+            
+            console.log(`✅ Debug modal should now be visible`);
           },
           (imageResult) => {
-            // Image extraction successful - no modal needed
+            // Image extraction successful
             console.log(`✅ Image ${imageResult.fileName} processed successfully`);
           }
         );
@@ -423,50 +454,15 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
           }
           const userData = userDoc.data();
 
-          // Upload files to Firebase Storage if there are any
+          // Files will be uploaded to Firebase Storage during form submission
           let updatedFileAttachments = fileAttachments;
           if (fileAttachments.length > 0) {
-            
-            // Get files that need to be uploaded (those without downloadUrl)
-            const filesToUpload = fileAttachments
-              .filter(attachment => !attachment.downloadUrl)
-              .map(attachment => {
-                const originalFile = originalFiles.get(attachment.fieldId);
-                if (!originalFile) {
-                  throw new Error(`Original file not found for field ${attachment.fieldId}`);
-                }
-                return {
-                  file: originalFile,
-                  fieldId: attachment.fieldId
-                };
-              });
-
-            if (filesToUpload.length > 0) {
-              // Upload files to Firebase Storage
-              const uploadResults = await FileUploadService.uploadFilesToFirebase(
-                filesToUpload,
-                form.id,
-                currentUser.uid,
-                userData.agencyId,
-                () => {
-                  // Progress callback - could be used for progress indicators in the future
-                }
-              );
-
-              // Update file attachments with Firebase Storage URLs
-              updatedFileAttachments = fileAttachments.map(attachment => {
-                const uploadResult = uploadResults.find(result => result.fieldId === attachment.fieldId);
-                if (uploadResult) {
-                  return {
-                    ...attachment,
-                    downloadUrl: uploadResult.downloadUrl,
-                    storagePath: uploadResult.storagePath
-                  };
-                }
-                return attachment;
-              });
-
-            }
+            console.log('📎 Form has file attachments:', fileAttachments.map(att => ({
+              fieldId: att.fieldId,
+              fileName: att.fileName,
+              hasExtractedText: !!att.extractedText,
+              extractedTextLength: att.extractedText?.length || 0
+            })));
           }
 
           // Submit to Firebase via AppContext
@@ -476,8 +472,8 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
             fileAttachments: updatedFileAttachments
           };
 
-          // Submit to Firebase via AppContext
-          await submitFormEntry(formEntryData);
+          // Submit to Firebase via AppContext (pass original files)
+          await submitFormEntry(formEntryData, originalFiles);
 
         }
 
@@ -855,6 +851,40 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
         </form>
       </Card>
       
+      {/* Debug Modal for PDF Text */}
+      {showDebugModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-4xl w-full max-h-[80vh] flex flex-col">
+            <div className="flex justify-between items-center p-4 border-b">
+              <h3 className="text-lg font-semibold">PDF Text Extraction Debug - {debugFileName}</h3>
+              <button
+                onClick={() => setShowDebugModal(false)}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="flex-1 overflow-auto p-4">
+              <div className="bg-gray-100 p-4 rounded-lg">
+                <h4 className="font-medium mb-2">Extracted Text ({debugText.length} characters):</h4>
+                <pre className="whitespace-pre-wrap text-sm text-gray-800 max-h-96 overflow-auto">
+                  {debugText}
+                </pre>
+              </div>
+            </div>
+            <div className="p-4 border-t">
+              <button
+                onClick={() => setShowDebugModal(false)}
+                className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       
     </div>
   );

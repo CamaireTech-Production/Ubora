@@ -11,7 +11,6 @@ import {
   doc,
   getDoc,
   serverTimestamp,
-  writeBatch,
   deleteField
 } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
@@ -20,9 +19,9 @@ import { DraftService } from '../services/draftService';
 import { useAuth } from './AuthContext';
 import { usePackageAccess } from '../hooks/usePackageAccess';
 import { PermissionManager } from '../utils/PermissionManager';
-import { AnalyticsService } from '../services/analyticsService';
 import { SubscriptionSessionService } from '../services/subscriptionSessionService';
 import { notificationService } from '../services/notificationService';
+import { useToast } from '../hooks/useToast';
 
 interface AppContextType {
   forms: Form[];
@@ -31,7 +30,7 @@ interface AppContextType {
   dashboards: Dashboard[];
   createForm: (form: Omit<Form, 'id' | 'createdAt'>) => Promise<void>;
   updateForm: (formId: string, form: Partial<Omit<Form, 'id' | 'createdAt' | 'createdBy' | 'agencyId'>>) => Promise<void>;
-  submitFormEntry: (entry: Omit<FormEntry, 'id' | 'submittedAt' | 'userId' | 'agencyId'>) => Promise<void>;
+  submitFormEntry: (entry: Omit<FormEntry, 'id' | 'submittedAt' | 'userId' | 'agencyId'>, originalFiles?: Map<string, File>) => Promise<void>;
   updateFormEntry: (entryId: string, entry: Partial<Omit<FormEntry, 'id' | 'submittedAt' | 'userId' | 'agencyId'>>) => Promise<void>;
   submitMultipleFormEntries: (entries: Omit<FormEntry, 'id' | 'submittedAt' | 'userId' | 'agencyId'>[]) => Promise<void>;
   deleteForm: (formId: string) => Promise<void>;
@@ -61,6 +60,7 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // Access auth context from parent provider (always mounted in App.tsx)
   const { user, firebaseUser } = useAuth();
+  const { showSuccess } = useToast();
 
   // Always initialize package access hooks and state hooks in stable order
   const { canCreateForm, canCreateDashboard } = usePackageAccess();
@@ -404,7 +404,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  const submitFormEntry = async (entryData: Omit<FormEntry, 'id' | 'submittedAt' | 'userId' | 'agencyId'>) => {
+  const submitFormEntry = async (entryData: Omit<FormEntry, 'id' | 'submittedAt' | 'userId' | 'agencyId'>, originalFiles?: Map<string, File>) => {
     // Guard: Vérifier que l'utilisateur est connecté et a un profil complet
     if (!firebaseUser || !user || !user.agencyId) {
       throw new Error('Utilisateur non connecté ou profil incomplet');
@@ -413,60 +413,142 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try {
       setError(null);
       
-      // Merge formatted text when available and preserve raw text
-      const updatedFileAttachments = (entryData.fileAttachments || []).map(async (attachment: any) => {
-        if (!attachment || !attachment.submissionId) return attachment;
-        const { DraftFormattingService } = await import('../services/draftFormattingService');
-        const formattedText = await DraftFormattingService.getFormattedTextForDraft(attachment.submissionId);
-        if (formattedText) {
-          // Prefer formatted text; keep raw in rawExtractedText
-          await DraftFormattingService.removeFormattedTextForDraft(attachment.submissionId);
-          return {
-            ...attachment,
-            rawExtractedText: attachment.extractedText || attachment.rawExtractedText,
-            extractedText: formattedText
-          };
-        }
-        // No formatted yet: ensure rawExtractedText is preserved
+      console.log('🔄 Starting form submission with file attachments:', entryData.fileAttachments?.length || 0);
+      
+      // Step 1: Upload files to Firebase Storage and get download URLs
+      let updatedFileAttachments = entryData.fileAttachments || [];
+      
+      if (entryData.fileAttachments && entryData.fileAttachments.length > 0) {
+        console.log('📤 Uploading files to Firebase Storage...');
+        
+        // Import FileUploadService dynamically
+        const { FileUploadService } = await import('../services/fileUploadService');
+        
+        // Upload each file to Firebase Storage
+        const uploadPromises = entryData.fileAttachments.map(async (attachment) => {
+          try {
+            console.log(`🔄 Uploading ${attachment.fileName} to Firebase Storage...`);
+            
+            // Get the original file from the originalFiles Map
+            const originalFile = originalFiles?.get(attachment.fieldId);
+            if (!originalFile) {
+              console.log('⚠️ No original file found for attachment:', attachment.fileName);
+              return attachment; // Return original attachment without download URL
+            }
+            
+            const uploadResult = await FileUploadService.uploadFileToFirebase(
+              originalFile,
+              attachment.fieldId,
+              entryData.formId,
+              firebaseUser.uid,
+              user.agencyId
+            );
+            
+            console.log(`✅ ${attachment.fileName} uploaded successfully:`, uploadResult.downloadUrl);
+            
         return {
           ...attachment,
-          rawExtractedText: attachment.extractedText || attachment.rawExtractedText
-        };
-      });
-      const resolvedFileAttachments = await Promise.all(updatedFileAttachments);
-
-      // Collect submission ids for backend worker to locate the entry later
-      const attachmentSubmissionIds = resolvedFileAttachments
-        .map((a: any) => a && a.submissionId)
-        .filter((id: any) => !!id);
+              downloadUrl: uploadResult.downloadUrl,
+              storagePath: uploadResult.storagePath
+            };
+            
+          } catch (uploadError) {
+            console.error(`❌ Failed to upload ${attachment.fileName}:`, uploadError);
+            return attachment; // Return original attachment without download URL
+          }
+        });
+        
+        updatedFileAttachments = await Promise.all(uploadPromises);
+        console.log('✅ All files processed');
+      }
       
-      // Forcer les champs requis selon les spécifications
+      // Step 2: Create FormEntry in Firebase (clean file attachments for Firestore)
+      const cleanFileAttachments = updatedFileAttachments.map(attachment => ({
+        fieldId: attachment.fieldId,
+        fileName: attachment.fileName,
+        fileSize: attachment.fileSize,
+        fileType: attachment.fileType,
+        downloadUrl: attachment.downloadUrl,
+        storagePath: attachment.storagePath,
+        uploadedAt: attachment.uploadedAt,
+        extractedText: attachment.extractedText,
+        textExtractionStatus: attachment.textExtractionStatus,
+        submissionId: attachment.submissionId
+        // Remove base64Data and any other complex objects that can't be stored in Firestore
+      }));
+
       const docData = {
         formId: entryData.formId,
-        userId: firebaseUser.uid, // Forcer auth.uid
-        agencyId: user.agencyId, // Hérité du user
+        userId: firebaseUser.uid,
+        agencyId: user.agencyId,
         answers: entryData.answers || {},
-        fileAttachments: resolvedFileAttachments,
-        attachmentSubmissionIds,
-        submittedAt: serverTimestamp() // Forcer serverTimestamp
+        fileAttachments: cleanFileAttachments,
+        submittedAt: serverTimestamp()
       };
 
-      await addDoc(collection(db, 'formEntries'), docData);
+      console.log('💾 Creating FormEntry in Firebase with data:', {
+        formId: docData.formId,
+        userId: docData.userId,
+        agencyId: docData.agencyId,
+        fileAttachmentsCount: docData.fileAttachments.length,
+        fileAttachments: docData.fileAttachments.map(att => ({
+          fieldId: att.fieldId,
+          fileName: att.fileName,
+          hasDownloadUrl: !!att.downloadUrl,
+          hasStoragePath: !!att.storagePath,
+          hasExtractedText: !!att.extractedText,
+          extractedTextLength: att.extractedText?.length || 0
+        }))
+      });
+
+      const docRef = await addDoc(collection(db, 'formEntries'), docData);
+      console.log('✅ FormEntry created in Firebase with ID:', docRef.id);
       
-      // Track form submission analytics
-      try {
-        // Get form data to get the form title
-        const formDoc = await getDoc(doc(db, 'forms', entryData.formId));
-        const formTitle = formDoc.exists() ? formDoc.data().title : 'Unknown Form';
+      // Step 3: Call format endpoint for each PDF file
+      if (updatedFileAttachments.length > 0) {
+        console.log('🔄 Calling format endpoint for PDF files...');
         
-        await AnalyticsService.logFormSubmission(
-          firebaseUser.uid, 
-          entryData.formId, 
-          formTitle, 
-          user.agencyId
-        );
-      } catch (analyticsError) {
+        const formatPromises = updatedFileAttachments
+          .filter(att => att.extractedText && att.extractedText.trim().length > 0)
+          .map(async (attachment) => {
+            try {
+              console.log(`🔄 Formatting text for ${attachment.fileName}...`);
+              
+              // Get the API endpoint dynamically
+              const apiEndpoint = import.meta.env.VITE_AI_ENDPOINT 
+                ? import.meta.env.VITE_AI_ENDPOINT.replace('/api/ai/ask', '')
+                : import.meta.env.DEV 
+                  ? 'http://localhost:3000'
+                  : 'https://apidev.ubora-app.com';
+              
+              const response = await fetch(`${apiEndpoint}/api/ai/format`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  formEntryId: docRef.id,
+                  rawText: attachment.extractedText,
+                  fileName: attachment.fileName
+                })
+              });
+              
+              if (response.ok) {
+                console.log(`✅ Format request sent for ${attachment.fileName}`);
+              } else {
+                console.error(`❌ Format request failed for ${attachment.fileName}:`, response.statusText);
+              }
+            } catch (error) {
+              console.error(`❌ Error calling format endpoint for ${attachment.fileName}:`, error);
+            }
+          });
+        
+        await Promise.all(formatPromises);
+        console.log('✅ All format requests sent');
       }
+      
+      // Show success message
+      showSuccess('Formulaire soumis avec succès!');
     } catch (err) {
       console.error('Erreur lors de la soumission du formulaire:', err);
       if (err instanceof Error) {
@@ -570,24 +652,216 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     try {
       setError(null);
+      console.log('🔄 Starting multiple form submissions:', entries.length);
       
-      const batch = writeBatch(db);
-      
-      entries.forEach((entry) => {
-        const docRef = doc(collection(db, 'formEntries'));
+      // Process each entry individually to handle file uploads and formatting
+      const submissionPromises = entries.map(async (entry) => {
+        console.log('🔄 Processing entry for form:', entry.formId);
+        
+        // Step 1: For draft submissions, convert base64 data back to files and upload to Firebase Storage
+        let updatedFileAttachments = entry.fileAttachments || [];
+        
+        if (entry.fileAttachments && entry.fileAttachments.length > 0) {
+          console.log('📤 Processing file attachments for draft submission...');
+          
+          // Import FileUploadService dynamically
+          const { FileUploadService } = await import('../services/fileUploadService');
+          
+          // Process each file attachment
+          const uploadPromises = entry.fileAttachments.map(async (attachment) => {
+            try {
+              console.log('🔍 Processing attachment:', {
+                fileName: attachment.fileName,
+                hasDownloadUrl: !!attachment.downloadUrl,
+                hasExtractedText: !!attachment.extractedText,
+                hasBase64Data: !!attachment.base64Data
+              });
+              
+              // If already has download URL, use it
+              if (attachment.downloadUrl) {
+                console.log(`✅ ${attachment.fileName} already has download URL`);
+                return attachment;
+              }
+              
+              // If no base64 data, can't upload the file
+              if (!attachment.base64Data) {
+                console.log(`⚠️ No base64 data for ${attachment.fileName}, skipping upload`);
+                return attachment;
+              }
+              
+              // Convert base64 back to File object
+              console.log(`🔄 Converting base64 back to file for ${attachment.fileName}...`);
+              let file: File;
+              
+              try {
+                file = FileUploadService.base64ToFile(
+                  attachment.base64Data,
+                  attachment.fileName,
+                  attachment.fileType
+                );
+                console.log(`✅ File reconstructed successfully:`, {
+                  name: file.name,
+                  size: file.size,
+                  type: file.type
+                });
+              } catch (conversionError) {
+                console.error(`❌ Failed to convert base64 to file:`, conversionError);
+                throw new Error(`Failed to reconstruct file from base64: ${conversionError instanceof Error ? conversionError.message : 'Unknown error'}`);
+              }
+              
+              // Upload to Firebase Storage
+              console.log(`🔄 Uploading ${attachment.fileName} to Firebase Storage...`);
+              const uploadResult = await FileUploadService.uploadFileToFirebase(
+                file,
+                attachment.fieldId,
+                entry.formId,
+                user.id,
+                user.agencyId
+              );
+              
+              console.log(`✅ ${attachment.fileName} uploaded successfully:`, uploadResult.downloadUrl);
+              
+              return {
+                ...attachment,
+                downloadUrl: uploadResult.downloadUrl,
+                storagePath: uploadResult.storagePath
+              };
+              
+            } catch (uploadError) {
+              console.error(`❌ Failed to upload ${attachment.fileName}:`, uploadError);
+              
+              // Return attachment with upload error status
+              return {
+                ...attachment,
+                downloadUrl: '', // Keep empty
+                storagePath: '', // Keep empty
+                uploadError: uploadError instanceof Error ? uploadError.message : 'Upload failed',
+                uploadStatus: 'failed'
+              };
+            }
+          });
+          
+          updatedFileAttachments = await Promise.all(uploadPromises);
+          console.log('✅ All file attachments processed');
+        }
+        
+        // Step 2: Create FormEntry in Firebase (clean file attachments for Firestore)
+        const cleanFileAttachments = updatedFileAttachments.map(attachment => ({
+          fieldId: attachment.fieldId,
+          fileName: attachment.fileName,
+          fileSize: attachment.fileSize,
+          fileType: attachment.fileType,
+          downloadUrl: attachment.downloadUrl,
+          storagePath: attachment.storagePath,
+          uploadedAt: attachment.uploadedAt,
+          extractedText: attachment.extractedText,
+          textExtractionStatus: attachment.textExtractionStatus,
+          submissionId: attachment.submissionId
+          // Remove base64Data and any other complex objects that can't be stored in Firestore
+        }));
+
         const docData = {
           formId: entry.formId,
           userId: user.id,
           agencyId: user.agencyId,
-          answers: entry.answers,
-          fileAttachments: entry.fileAttachments || [],
+          answers: entry.answers || {},
+          fileAttachments: cleanFileAttachments,
           submittedAt: serverTimestamp()
         };
         
-        batch.set(docRef, docData);
-      });
+        console.log('💾 Creating FormEntry in Firebase with data:', {
+          formId: docData.formId,
+          userId: docData.userId,
+          agencyId: docData.agencyId,
+          fileAttachmentsCount: docData.fileAttachments.length,
+          fileAttachments: docData.fileAttachments.map(att => ({
+            fieldId: att.fieldId,
+            fileName: att.fileName,
+            hasDownloadUrl: !!att.downloadUrl,
+            hasStoragePath: !!att.storagePath,
+            hasExtractedText: !!att.extractedText,
+            extractedTextLength: att.extractedText?.length || 0
+          }))
+        });
 
-      await batch.commit();
+        const docRef = await addDoc(collection(db, 'formEntries'), docData);
+        console.log('✅ FormEntry created in Firebase with ID:', docRef.id);
+        
+        // Step 3: Call format endpoint for each PDF file
+        if (updatedFileAttachments.length > 0) {
+          console.log('🔄 Calling format endpoint for PDF files...');
+          
+          const formatPromises = updatedFileAttachments
+            .filter(att => att.extractedText && att.extractedText.trim().length > 0)
+            .map(async (attachment) => {
+              try {
+                console.log(`🔄 Formatting text for ${attachment.fileName}...`);
+                
+                // Get the API endpoint dynamically
+                const apiEndpoint = import.meta.env.VITE_AI_ENDPOINT 
+                  ? import.meta.env.VITE_AI_ENDPOINT.replace('/api/ai/ask', '')
+                  : import.meta.env.DEV 
+                    ? 'http://localhost:3000'
+                    : 'https://apidev.ubora-app.com';
+                
+                const response = await fetch(`${apiEndpoint}/api/ai/format`, {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                  },
+                  body: JSON.stringify({
+                    formEntryId: docRef.id,
+                    rawText: attachment.extractedText,
+                    fileName: attachment.fileName
+                  })
+                });
+                
+                if (response.ok) {
+                  console.log(`✅ Format request sent for ${attachment.fileName}`);
+                } else {
+                  console.error(`❌ Format request failed for ${attachment.fileName}:`, {
+                    status: response.status,
+                    statusText: response.statusText,
+                    endpoint: `${apiEndpoint}/api/ai/format`
+                  });
+                  
+                  // Try alternative endpoint
+                  if (response.status === 404) {
+                    console.log(`🔄 Trying alternative endpoint...`);
+                    const altResponse = await fetch(`http://localhost:3000/api/ai/format`, {
+                      method: 'POST',
+                      headers: {
+                        'Content-Type': 'application/json',
+                      },
+                      body: JSON.stringify({
+                        formEntryId: docRef.id,
+                        rawText: attachment.extractedText,
+                        fileName: attachment.fileName
+                      })
+                    });
+                    
+                    if (altResponse.ok) {
+                      console.log(`✅ Format request sent via alternative endpoint for ${attachment.fileName}`);
+                    } else {
+                      console.error(`❌ Alternative endpoint also failed:`, altResponse.statusText);
+                    }
+                  }
+                }
+              } catch (error) {
+                console.error(`❌ Error calling format endpoint for ${attachment.fileName}:`, error);
+              }
+            });
+          
+          await Promise.all(formatPromises);
+          console.log('✅ All format requests sent');
+        }
+        
+        return docRef.id;
+      });
+      
+      await Promise.all(submissionPromises);
+      console.log('✅ All form entries submitted successfully');
+      
     } catch (err) {
       console.error('Erreur lors de la soumission multiple:', err);
       setError('Erreur lors de la soumission des formulaires');
