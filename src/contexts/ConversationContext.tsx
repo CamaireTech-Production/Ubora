@@ -32,6 +32,7 @@ interface ConversationContextType {
   loadConversation: (conversationId: string) => Promise<void>;
   createNewConversation: () => Promise<string>;
   updateConversationTitle: (conversationId: string, title: string) => Promise<void>;
+  triggerAutoLoad: () => Promise<void>;
   error: string | null;
 }
 
@@ -98,13 +99,9 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
   // Auto-load the most recent conversation when conversations are loaded
   useEffect(() => {
-    // Ensure auto-load runs at most once per session
-    const autoLoadRanRef = (window as any).__ubora_auto_load_ran__ ??= { value: false };
     const autoLoadRecent = async () => {
-      if (autoLoadRanRef.value) return;
       // Only auto-load if we have conversations, no current conversation, not loading, and not adding a message
       if (conversations.length > 0 && !currentConversation && !isLoading && !isAddingMessage) {
-        autoLoadRanRef.value = true;
         try {
           console.groupCollapsed('[Chat] Auto-load most recent conversation');
           console.debug('Conversations ordered by lastMessageAt desc:', conversations.map(c => ({ id: c.id, title: c.title, lastMessageAt: c.lastMessageAt })));
@@ -468,6 +465,21 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     }
   };
 
+  const triggerAutoLoad = async (): Promise<void> => {
+    // Only auto-load if we have conversations, no current conversation, not loading, and not adding a message
+    if (conversations.length > 0 && !currentConversation && !isLoading && !isAddingMessage) {
+      try {
+        console.groupCollapsed('[Chat] Manual trigger auto-load most recent conversation');
+        console.debug('Conversations ordered by lastMessageAt desc:', conversations.map(c => ({ id: c.id, title: c.title, lastMessageAt: c.lastMessageAt })));
+        console.debug('Selecting conversation:', { id: conversations[0].id, title: conversations[0].title });
+        await loadConversation(conversations[0].id);
+        console.groupEnd();
+      } catch (error) {
+        console.error('Error auto-loading recent conversation:', error);
+      }
+    }
+  };
+
   return (
     <ConversationContext.Provider value={{
       currentConversation,
@@ -482,6 +494,7 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       loadConversation,
       createNewConversation,
       updateConversationTitle,
+      triggerAutoLoad,
       error
     }}>
       {children}

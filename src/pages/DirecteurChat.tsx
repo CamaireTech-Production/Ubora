@@ -56,7 +56,8 @@ export const DirecteurChat: React.FC = () => {
     createNewConversation,
     loadConversation,
     loadMoreMessages,
-    addMessageToLocalState
+    addMessageToLocalState,
+    triggerAutoLoad
   } = useConversation();
   
   const { showError } = useToast();
@@ -113,6 +114,23 @@ export const DirecteurChat: React.FC = () => {
     }
     setLastMessageCount(messages.length);
   }, [messages, isTyping, lastMessageCount]);
+
+  // Fallback: Auto-load conversations when component mounts and conversations are available
+  // This ensures chats load even if welcome screen logic fails
+  useEffect(() => {
+    const shouldAutoLoad = !showWelcome && conversations.length > 0 && !currentConversation && !isLoading;
+    if (shouldAutoLoad) {
+      const timeoutId = setTimeout(async () => {
+        try {
+          await triggerAutoLoad();
+        } catch (error) {
+          console.error('Error in fallback auto-load:', error);
+        }
+      }, 500); // Delay to ensure all contexts are properly initialized
+      
+      return () => clearTimeout(timeoutId);
+    }
+  }, [showWelcome, conversations.length, currentConversation, isLoading, triggerAutoLoad]);
 
   const handleSendMessage = async (message?: string) => {
     const messageToSend = message || inputMessage.trim();
@@ -432,9 +450,19 @@ RÉPONSE :
 
 
   // Gérer la fermeture de l'écran de bienvenue
-  const handleWelcomeContinue = () => {
+  const handleWelcomeContinue = async () => {
     setShowWelcome(false);
     try { sessionStorage.removeItem('show_welcome_after_login'); } catch {}
+    
+    // Trigger auto-load of conversations after welcome screen is dismissed
+    // This ensures chats are loaded when the user actually sees the chat interface
+    setTimeout(async () => {
+      try {
+        await triggerAutoLoad();
+      } catch (error) {
+        console.error('Error triggering auto-load after welcome screen:', error);
+      }
+    }, 100); // Small delay to ensure state updates are complete
   };
 
   // Afficher uniquement l'écran de bienvenue sans afficher le chat en arrière-plan

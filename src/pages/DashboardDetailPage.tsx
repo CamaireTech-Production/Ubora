@@ -38,7 +38,9 @@ import {
   FileText,
   X,
   ChevronDown,
-  BellPlus
+  BellPlus,
+  Bell,
+  Clock
 } from 'lucide-react';
 
 export const DashboardDetailPage: React.FC = () => {
@@ -96,6 +98,26 @@ export const DashboardDetailPage: React.FC = () => {
     time: '09:00',
     note: ''
   });
+  const [isCreatingReminder, setIsCreatingReminder] = useState(false);
+  const [activeReminders, setActiveReminders] = useState<MetricReminder[]>([]);
+
+  // Load active reminders
+  useEffect(() => {
+    const loadActiveReminders = async () => {
+      if (user?.id && user?.agencyId && dashboardId) {
+        try {
+          const reminders = await metricReminderService.listForDirector(user.id, user.agencyId);
+          // Filter reminders for this dashboard
+          const dashboardReminders = reminders.filter(r => r.dashboardId === dashboardId && r.status === 'pending');
+          setActiveReminders(dashboardReminders);
+        } catch (error) {
+          console.error('Error loading reminders:', error);
+        }
+      }
+    };
+
+    loadActiveReminders();
+  }, [user?.id, user?.agencyId, dashboardId]);
   
   // États pour le filtrage temporel
   const [timeFilter, setTimeFilter] = useState<string>('all');
@@ -507,6 +529,65 @@ export const DashboardDetailPage: React.FC = () => {
             </div>
           </div>
         </Card>
+
+        {/* Active Reminders */}
+        {activeReminders.length > 0 && (
+          <Card>
+            <div className="flex items-center space-x-3 mb-4">
+              <Bell className="h-5 w-5 text-orange-600" />
+              <h2 className="text-lg font-semibold text-gray-900">Rappels actifs</h2>
+            </div>
+            <div className="space-y-3">
+              {activeReminders.map((reminder) => {
+                const metric = dashboard.metrics.find(m => m.id === reminder.metricId);
+                const nextScheduled = new Date(reminder.scheduledAt);
+                const frequencyLabel = reminder.frequency === 'daily' ? 'Quotidien' : 
+                                     reminder.frequency === 'weekly' ? 'Hebdomadaire' : 'Mensuel';
+                
+                return (
+                  <div key={reminder.id} className="flex items-center justify-between p-3 bg-orange-50 rounded-lg border border-orange-200">
+                    <div className="flex items-center space-x-3">
+                      <Clock className="h-4 w-4 text-orange-600" />
+                      <div>
+                        <p className="text-sm font-medium text-gray-900">
+                          {metric?.name || 'Métrique supprimée'}
+                        </p>
+                        <p className="text-xs text-gray-600">
+                          {frequencyLabel} à {reminder.time}
+                        </p>
+                        {reminder.note && (
+                          <p className="text-xs text-gray-500 mt-1">{reminder.note}</p>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <span className="text-xs text-gray-500">
+                        Prochaine: {nextScheduled.toLocaleDateString('fr-FR')} à {nextScheduled.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                      <Button
+                        variant="danger"
+                        size="sm"
+                        onClick={async () => {
+                          try {
+                            await metricReminderService.cancel(reminder.id);
+                            setActiveReminders(prev => prev.filter(r => r.id !== reminder.id));
+                            showSuccess('Rappel annulé');
+                          } catch (error) {
+                            showError('Erreur lors de l\'annulation du rappel');
+                          }
+                        }}
+                        className="p-1"
+                        title="Annuler le rappel"
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </Card>
+        )}
 
         {/* Time Filter */}
         <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
@@ -1404,32 +1485,49 @@ export const DashboardDetailPage: React.FC = () => {
                  Annuler
                </button>
                <button
-                 className="px-4 py-2 text-sm rounded bg-blue-600 text-white hover:bg-blue-700"
+                 className="px-4 py-2 text-sm rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                 disabled={isCreatingReminder}
                  onClick={async () => {
                    if (!showReminderModal.metric || !user) return;
                    const dashId = dashboard?.id;
                    if (!dashId) return;
                    
-                   // Create the reminder with frequency-based scheduling
-                   await metricReminderService.create({
-                     id: '', // ignored by service
-                     agencyId: user.agencyId!,
-                     directorId: user.id,
-                     dashboardId: dashId,
-                     metricId: showReminderModal.metric.id,
-                     scheduledAt: new Date(), // Will be calculated based on frequency
-                     frequency: reminderDraft.frequency,
-                     time: reminderDraft.time,
-                     note: reminderDraft.note,
-                     status: 'pending',
-                     createdAt: new Date(),
-                     createdBy: user.id,
-                   } as any);
-                   setShowReminderModal({ open: false, metric: null });
-                   showSuccess('Rappel programmé avec succès');
+                   setIsCreatingReminder(true);
+                   try {
+                     // Create the reminder with frequency-based scheduling
+                     await metricReminderService.create({
+                       id: '', // ignored by service
+                       agencyId: user.agencyId!,
+                       directorId: user.id,
+                       dashboardId: dashId,
+                       metricId: showReminderModal.metric.id,
+                       scheduledAt: new Date(), // Will be calculated based on frequency
+                       frequency: reminderDraft.frequency,
+                       time: reminderDraft.time,
+                       note: reminderDraft.note,
+                       status: 'pending',
+                       createdAt: new Date(),
+                       createdBy: user.id,
+                     } as any);
+                     setShowReminderModal({ open: false, metric: null });
+                     showSuccess('Rappel programmé avec succès');
+                     
+                     // Refresh active reminders list
+                     const reminders = await metricReminderService.listForDirector(user.id, user.agencyId);
+                     const dashboardReminders = reminders.filter(r => r.dashboardId === dashId && r.status === 'pending');
+                     setActiveReminders(dashboardReminders);
+                   } catch (error) {
+                     console.error('Error creating reminder:', error);
+                     showError('Erreur lors de la création du rappel');
+                   } finally {
+                     setIsCreatingReminder(false);
+                   }
                  }}
                >
-                 Enregistrer
+                 {isCreatingReminder && (
+                   <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                 )}
+                 {isCreatingReminder ? 'Création...' : 'Enregistrer'}
                </button>
              </div>
            </div>
