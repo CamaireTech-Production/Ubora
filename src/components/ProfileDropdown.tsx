@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { usePermissions } from '../hooks/usePermissions';
 import { useUnreadNotifications } from '../hooks/useUnreadNotifications';
 import { Button } from './Button';
+import { LogoutConfirmationModal } from './LogoutConfirmationModal';
 import { 
   User, 
   ChevronDown, 
@@ -27,6 +28,8 @@ export const ProfileDropdown: React.FC<ProfileDropdownProps> = ({ className = ''
   const unreadCount = useUnreadNotifications();
   const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Fermer le dropdown quand on clique à l'extérieur
@@ -47,8 +50,14 @@ export const ProfileDropdown: React.FC<ProfileDropdownProps> = ({ className = ''
   }, [isOpen]);
 
   const handleLogout = async () => {
-    await logout();
-    navigate('/login');
+    setIsLoggingOut(true);
+    try {
+      await logout();
+      navigate('/login');
+    } finally {
+      setIsLoggingOut(false);
+      setShowLogoutModal(false);
+    }
   };
 
   const handleSwitchToDirectorDashboard = () => {
@@ -237,7 +246,7 @@ export const ProfileDropdown: React.FC<ProfileDropdownProps> = ({ className = ''
             {/* Déconnexion */}
             <div className="py-2">
               <button
-                onClick={handleLogout}
+                onClick={() => setShowLogoutModal(true)}
                 className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center space-x-2"
               >
                 <LogOut className="h-4 w-4" />

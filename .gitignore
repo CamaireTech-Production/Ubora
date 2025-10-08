@@ -63,6 +63,12 @@ coverage/
 # nyc test coverage
 .nyc_output/
 
+# Test output and temporary files
+test-results/
+test-output/
+*.test.log
+*.test.tmp
+
 # Dependency directories
 jspm_packages/
 

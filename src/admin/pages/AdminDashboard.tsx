@@ -32,7 +32,8 @@ import {
   LogOut,
   Menu,
   X,
-  Bell
+  Bell,
+  Send
 } from 'lucide-react';
 
 export const AdminDashboard: React.FC = () => {
