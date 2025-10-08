@@ -47,7 +47,9 @@ export const FormEditor: React.FC<FormEditorProps> = ({
     endTime?: string;
     allowedDays?: number[];
   }>(form?.timeRestrictions || {});
-  const [useTimeRange, setUseTimeRange] = useState(!!form?.timeRestrictions?.endTime);
+  const [useTimeRange, setUseTimeRange] = useState(
+    !!(form?.timeRestrictions?.startTime && form?.timeRestrictions?.endTime)
+  );
   const [employeeSearchTerm, setEmployeeSearchTerm] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
@@ -96,7 +98,7 @@ export const FormEditor: React.FC<FormEditorProps> = ({
       setAssignedTo(form.assignedTo || []);
       setFields(form.fields || []);
       setTimeRestrictions(form.timeRestrictions || {});
-      setUseTimeRange(!!form.timeRestrictions?.endTime);
+      setUseTimeRange(!!(form.timeRestrictions?.startTime && form.timeRestrictions?.endTime));
     }
   }, [form]);
 

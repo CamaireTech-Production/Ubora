@@ -88,7 +88,9 @@ export const FormBuilder: React.FC<FormBuilderProps> = ({
     endTime?: string;
     allowedDays?: number[];
   }>(initialForm?.timeRestrictions || {});
-  const [useTimeRange, setUseTimeRange] = useState(!!initialForm?.timeRestrictions?.endTime);
+  const [useTimeRange, setUseTimeRange] = useState(
+    !!(initialForm?.timeRestrictions?.startTime && initialForm?.timeRestrictions?.endTime)
+  );
 
   // Déterminer le mode (création ou édition)
   const isEditMode = !!initialForm;
