@@ -114,16 +114,6 @@ export const InfoTabs: React.FC<InfoTabsProps> = ({
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <h4 className="font-medium text-gray-900">Conversations récentes</h4>
-              {onCreateConversation && (
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={onCreateConversation}
-                  className="text-xs px-2 py-1"
-                >
-                  Nouvelle
-                </Button>
-              )}
             </div>
             <div className="space-y-2 max-h-48 overflow-y-auto">
               {conversations.length === 0 ? (
