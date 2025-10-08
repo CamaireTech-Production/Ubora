@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { FormField, Form } from '../types';
 import { Button } from './Button';
 import { Input } from './Input';
@@ -45,6 +45,28 @@ export const FormBuilder: React.FC<FormBuilderProps> = ({
   const [assignedTo, setAssignedTo] = useState<string[]>(initialForm?.assignedTo || []);
   const [fields, setFields] = useState<FormField[]>(initialForm?.fields || []);
   const [errors, setErrors] = useState<string[]>([]);
+  const errorRef = useRef<HTMLDivElement>(null);
+  
+  // Auto-scroll to errors when they appear (mobile-responsive)
+  useEffect(() => {
+    if (errors.length > 0 && errorRef.current) {
+      // Immediate scroll
+      errorRef.current.scrollIntoView({ 
+        behavior: 'smooth', 
+        block: 'nearest' 
+      });
+      
+      // Additional scroll after delay for mobile keyboard animations
+      setTimeout(() => {
+        if (errorRef.current) {
+          errorRef.current.scrollIntoView({ 
+            behavior: 'smooth', 
+            block: 'nearest' 
+          });
+        }
+      }, 100);
+    }
+  }, [errors]);
   
   // Time restrictions settings
   const [timeRestrictions, setTimeRestrictions] = useState<{
@@ -258,7 +280,7 @@ export const FormBuilder: React.FC<FormBuilderProps> = ({
 
       {/* Affichage des erreurs de validation */}
       {errors.length > 0 && (
-        <Card className="border-red-200 bg-red-50">
+        <Card ref={errorRef} className="border-red-200 bg-red-50">
           <div className="flex items-start space-x-3">
             <AlertCircle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
             <div className="flex-1">

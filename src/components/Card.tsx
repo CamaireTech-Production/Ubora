@@ -6,9 +6,9 @@ interface CardProps {
   title?: string;
 }
 
-export const Card: React.FC<CardProps> = ({ children, className = '', title }) => {
+export const Card = React.forwardRef<HTMLDivElement, CardProps>(({ children, className = '', title }, ref) => {
   return (
-    <div className={`bg-white rounded-lg sm:rounded-xl shadow-lg border border-gray-100 overflow-hidden ${className}`}>
+    <div ref={ref} className={`bg-white rounded-lg sm:rounded-xl shadow-lg border border-gray-100 overflow-hidden ${className}`}>
       {title && (
         <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-100 bg-gray-50">
           <h3 className="text-base sm:text-lg font-semibold text-gray-900 break-words">{title}</h3>
@@ -19,4 +19,6 @@ export const Card: React.FC<CardProps> = ({ children, className = '', title }) =
       </div>
     </div>
   );
-};
+});
+
+Card.displayName = 'Card';

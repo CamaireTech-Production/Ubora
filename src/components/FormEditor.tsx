@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { FormField, Form } from '../types';
 import { Button } from './Button';
 import { Input } from './Input';
@@ -9,7 +9,7 @@ import { FileTypeSelector } from './FileTypeSelector';
 import { FieldCSVImport } from './FieldCSVImport';
 import { Toast } from './Toast';
 import { useToast } from '../hooks/useToast';
-import { Plus, Trash2, ArrowLeft, CheckSquare, Square, Loader2, Calculator } from 'lucide-react';
+import { Plus, Trash2, ArrowLeft, CheckSquare, Square, Loader2, Calculator, AlertCircle } from 'lucide-react';
 import { FormulaInput } from './FormulaInput';
 import { FormulaParser } from '../utils/FormulaParser';
 import { ConditionalLogicBuilder } from './ConditionalLogicBuilder';
@@ -49,7 +49,30 @@ export const FormEditor: React.FC<FormEditorProps> = ({
   const [useTimeRange, setUseTimeRange] = useState(!!form?.timeRestrictions?.endTime);
   const [employeeSearchTerm, setEmployeeSearchTerm] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errors, setErrors] = useState<string[]>([]);
+  const errorRef = useRef<HTMLDivElement>(null);
   const { toast, showSuccess, showError } = useToast();
+  
+  // Auto-scroll to errors when they appear (mobile-responsive)
+  useEffect(() => {
+    if (errors.length > 0 && errorRef.current) {
+      // Immediate scroll
+      errorRef.current.scrollIntoView({ 
+        behavior: 'smooth', 
+        block: 'nearest' 
+      });
+      
+      // Additional scroll after delay for mobile keyboard animations
+      setTimeout(() => {
+        if (errorRef.current) {
+          errorRef.current.scrollIntoView({ 
+            behavior: 'smooth', 
+            block: 'nearest' 
+          });
+        }
+      }, 100);
+    }
+  }, [errors]);
 
   // Update state when form prop changes
   useEffect(() => {
@@ -187,16 +210,25 @@ export const FormEditor: React.FC<FormEditorProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!title || assignedTo.length === 0 || fields.length === 0) {
-      showError('Veuillez remplir tous les champs obligatoires');
-      return;
+    // Validation avec messages d'erreur détaillés
+    const validationErrors: string[] = [];
+    
+    if (!title.trim()) {
+      validationErrors.push('Le titre du formulaire est obligatoire');
+    }
+    
+    if (assignedTo.length === 0) {
+      validationErrors.push('Veuillez sélectionner au moins un employé');
+    }
+    
+    if (fields.length === 0) {
+      validationErrors.push('Veuillez ajouter au moins un champ au formulaire');
     }
 
     // Valider que tous les champs ont un label
     const invalidFields = fields.filter(field => !field.label.trim());
     if (invalidFields.length > 0) {
-      showError('Tous les champs doivent avoir un libellé');
-      return;
+      validationErrors.push(`${invalidFields.length} champ(s) n'ont pas de libellé`);
     }
 
     // Valider que les champs calculés ont une formule
@@ -204,9 +236,16 @@ export const FormEditor: React.FC<FormEditorProps> = ({
       field.type === 'calculated' && (!field.calculationFormula || !field.calculationFormula.trim())
     );
     if (calculatedFieldsWithoutFormula.length > 0) {
-      showError(`${calculatedFieldsWithoutFormula.length} champ(s) calculé(s) n'ont pas de formule`);
+      validationErrors.push(`${calculatedFieldsWithoutFormula.length} champ(s) calculé(s) n'ont pas de formule`);
+    }
+
+    if (validationErrors.length > 0) {
+      setErrors(validationErrors);
       return;
     }
+
+    // Réinitialiser les erreurs si validation OK
+    setErrors([]);
 
     setIsSubmitting(true);
     
@@ -272,6 +311,28 @@ export const FormEditor: React.FC<FormEditorProps> = ({
           {isEditing ? 'Modifier le formulaire' : 'Créer un nouveau formulaire'}
         </h2>
       </div>
+
+      {/* Affichage des erreurs de validation */}
+      {errors.length > 0 && (
+        <Card ref={errorRef} className="border-red-200 bg-red-50">
+          <div className="flex items-start space-x-3">
+            <AlertCircle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <h3 className="text-sm font-medium text-red-800 mb-2">
+                Veuillez corriger les erreurs suivantes :
+              </h3>
+              <ul className="text-sm text-red-700 space-y-1">
+                {errors.map((error, index) => (
+                  <li key={index} className="flex items-start space-x-1">
+                    <span>•</span>
+                    <span>{error}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </Card>
+      )}
 
       <Card>
         <form onSubmit={handleSubmit} className="space-y-6">

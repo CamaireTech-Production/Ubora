@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { DashboardMetric, MetricReminder } from '../types';
 import { useAuth } from '../contexts/AuthContext';
@@ -69,7 +69,29 @@ export const DashboardDetailPage: React.FC = () => {
     graphConfig: undefined
   });
   const [errors, setErrors] = useState<string[]>([]);
+  const errorRef = useRef<HTMLDivElement>(null);
   const [showDeleteDashboardModal, setShowDeleteDashboardModal] = useState(false);
+  
+  // Auto-scroll to errors when they appear (mobile-responsive)
+  useEffect(() => {
+    if (errors.length > 0 && errorRef.current) {
+      // Immediate scroll
+      errorRef.current.scrollIntoView({ 
+        behavior: 'smooth', 
+        block: 'nearest' 
+      });
+      
+      // Additional scroll after delay for mobile keyboard animations
+      setTimeout(() => {
+        if (errorRef.current) {
+          errorRef.current.scrollIntoView({ 
+            behavior: 'smooth', 
+            block: 'nearest' 
+          });
+        }
+      }, 100);
+    }
+  }, [errors]);
   const [showDeleteMetricModal, setShowDeleteMetricModal] = useState(false);
   const [metricToDelete, setMetricToDelete] = useState<{index: number, name: string} | null>(null);
   const [showComingSoonModal, setShowComingSoonModal] = useState(false);
@@ -855,7 +877,7 @@ export const DashboardDetailPage: React.FC = () => {
             <div className="p-6 overflow-y-auto max-h-[calc(90vh-140px)]">
               {/* Errors */}
               {errors.length > 0 && (
-                <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+                <div ref={errorRef} className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
                   <h3 className="text-sm font-medium text-red-800 mb-2">Erreurs à corriger :</h3>
                   <ul className="text-sm text-red-700 space-y-1">
                     {errors.map((error, index) => (
