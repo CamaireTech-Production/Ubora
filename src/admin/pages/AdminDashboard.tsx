@@ -11,6 +11,7 @@ import { UsersTable } from '../../components/UsersTable';
 import { NotificationManager } from '../../components/NotificationManager';
 import { Card } from '../../components/Card';
 import { Button } from '../../components/Button';
+import { LogoutConfirmationModal } from '../../components/LogoutConfirmationModal';
 import { 
   Users, 
   Building2, 
@@ -44,6 +45,8 @@ export const AdminDashboard: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'activities' | 'notifications' | 'usage' | 'system' | 'fcm'>('overview');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   useEffect(() => {
     loadDashboardData();
@@ -113,7 +116,13 @@ export const AdminDashboard: React.FC = () => {
 
 
   const handleLogout = async () => {
-    await logout();
+    setIsLoggingOut(true);
+    try {
+      await logout();
+    } finally {
+      setIsLoggingOut(false);
+      setShowLogoutModal(false);
+    }
   };
 
   if (isLoading) {
@@ -161,7 +170,7 @@ export const AdminDashboard: React.FC = () => {
                 <span>Exporter</span>
               </Button> */}
               <Button
-                onClick={handleLogout}
+                onClick={() => setShowLogoutModal(true)}
                 variant="secondary"
                 size="sm"
                 className="flex items-center space-x-2 text-red-600 hover:text-red-700"
@@ -202,7 +211,7 @@ export const AdminDashboard: React.FC = () => {
               <span>Exporter</span>
             </Button>
             <Button
-              onClick={handleLogout}
+              onClick={() => setShowLogoutModal(true)}
               variant="secondary"
               size="sm"
               className="w-full flex items-center justify-center space-x-2 text-red-600 hover:text-red-700"
@@ -436,6 +445,14 @@ export const AdminDashboard: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* Logout Confirmation Modal */}
+      <LogoutConfirmationModal
+        isOpen={showLogoutModal}
+        onClose={() => setShowLogoutModal(false)}
+        onConfirm={handleLogout}
+        isLoading={isLoggingOut}
+      />
     </div>
   );
 };

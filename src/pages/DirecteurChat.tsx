@@ -16,6 +16,7 @@ import { TokenCounter } from '../services/tokenCounter';
 import { PayAsYouGoModal } from '../components/PayAsYouGoModal';
 import { PayAsYouGoService } from '../services/payAsYouGoService';
 import { AnalyticsService } from '../services/analyticsService';
+import { LogoutConfirmationModal } from '../components/LogoutConfirmationModal';
 
 // Remove the old Message interface since we're using ChatMessage from types
 
@@ -85,6 +86,10 @@ export const DirecteurChat: React.FC = () => {
   const [showPayAsYouGoModal, setShowPayAsYouGoModal] = useState(false);
   const [requiredTokens, setRequiredTokens] = useState(0);
 
+  // État pour le modal de confirmation de déconnexion
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+
   // État pour l'écran de bienvenue (uniquement juste après login)
   const [showWelcome, setShowWelcome] = useState(() => {
     try {
@@ -100,6 +105,16 @@ export const DirecteurChat: React.FC = () => {
     // This callback is kept for backward compatibility but won't be used
     // since the PayAsYouGoModal now handles the payment flow directly
     console.log('Token purchase requested:', tokens);
+  };
+
+  const handleLogout = async () => {
+    setIsLoggingOut(true);
+    try {
+      await logout();
+    } finally {
+      setIsLoggingOut(false);
+      setShowLogoutModal(false);
+    }
   };
 
   // Watch for new assistant messages to hide loading indicator
@@ -501,7 +516,7 @@ RÉPONSE :
             isConnected={!!AI_ENDPOINT}
             isLoading={isTyping}
             onOpenPanel={() => setPanelOpen(true)}
-            onLogout={logout}
+            onLogout={() => setShowLogoutModal(true)}
           />
 
           {/* Messages list */}
@@ -563,6 +578,14 @@ RÉPONSE :
             packageLimit={getMonthlyTokens()}
             payAsYouGoTokens={user?.payAsYouGoTokens || 0}
             requiredTokens={requiredTokens}
+          />
+
+          {/* Logout Confirmation Modal */}
+          <LogoutConfirmationModal
+            isOpen={showLogoutModal}
+            onClose={() => setShowLogoutModal(false)}
+            onConfirm={handleLogout}
+            isLoading={isLoggingOut}
           />
         </div>
       </div>
