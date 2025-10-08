@@ -29,6 +29,16 @@ const require = createRequire(import.meta.url);
 const askHandler = require('../api/ai/ask.js');
 const healthHandler = require('../api/ai/health.js');
 
+console.log('🔄 Loading format handler...');
+let formatHandler;
+try {
+  formatHandler = require('../api/ai/format.js');
+  console.log('✅ Format handler loaded successfully:', typeof formatHandler);
+} catch (error) {
+  console.error('❌ Failed to load format handler:', error);
+  process.exit(1);
+}
+
 // OCR handlers
 const ocrExtractHandler = require('../api/ocr/extractText.js');
 const ocrPdfExtractHandler = require('../api/ocr/extractPdfText.js');
@@ -37,6 +47,9 @@ const ocrHealthHandler = require('../api/ocr/health.js');
 // API Routes
 app.post('/api/ai/ask', askHandler);
 app.get('/api/ai/health', healthHandler);
+app.post('/api/ai/format', formatHandler);
+
+console.log('✅ Format route registered: POST /api/ai/format');
 
 // OCR routes
 app.post('/api/ocr/extract', ocrExtractHandler);
@@ -73,6 +86,7 @@ app.get('*', (req, res) => {
     availableEndpoints: [
       'POST /api/ai/ask',
       'GET /api/ai/health',
+      'POST /api/ai/format',
       'POST /api/ocr/extract',
       'POST /api/ocr/extractPdfText',
       'GET /api/ocr/health',
@@ -87,6 +101,7 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(`📡 AI endpoints available at:`);
   console.log(`   - POST /api/ai/ask`);
   console.log(`   - GET  /api/ai/health`);
+  console.log(`   - POST /api/ai/format`);
   console.log(`📡 OCR endpoints available at:`);
   console.log(`   - POST /api/ocr/extract`);
   console.log(`   - POST /api/ocr/extractPdfText`);
