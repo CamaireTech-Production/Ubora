@@ -16,6 +16,27 @@ import { useToast } from '../hooks/useToast';
 import { ExpressionCalculator } from '../utils/ExpressionCalculator';
 import { ConditionalLogicEvaluator } from '../utils/ConditionalLogicEvaluator';
 
+// Helper function to convert field IDs back to user-friendly field names in formulas
+const convertFormulaToUserFriendly = (formula: string, fields: FormField[]): string => {
+  if (!formula || !fields) return formula;
+  
+  let userFriendlyFormula = formula;
+  
+  // Replace field IDs with their labels
+  fields.forEach(field => {
+    if (field.id && field.label) {
+      // Create a clean field name for display (remove special characters, make lowercase)
+      const cleanFieldName = field.label.toLowerCase().replace(/[^a-z0-9]/g, '');
+      if (cleanFieldName) {
+        const regex = new RegExp(`\\b${field.id}\\b`, 'g');
+        userFriendlyFormula = userFriendlyFormula.replace(regex, cleanFieldName);
+      }
+    }
+  });
+  
+  return userFriendlyFormula;
+};
+
 interface DynamicFormProps {
   form: Form;
   onSubmit: (answers: Record<string, unknown>, fileAttachments?: FileAttachment[]) => void;
@@ -662,7 +683,7 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
                 <div className="text-sm text-blue-800">
                   <div className="font-medium mb-2">Calcul automatique :</div>
                   <div className="space-y-1">
-                    <div><span className="font-mono text-xs bg-white px-2 py-1 rounded border">{field.calculationFormula}</span></div>
+                    <div><span className="font-mono text-xs bg-white px-2 py-1 rounded border">{convertFormulaToUserFriendly(field.calculationFormula, form.fields)}</span></div>
                     {dependentFieldValues.length > 0 && (
                       <div className="text-xs">
                         <span className="font-medium">Valeurs actuelles :</span>
