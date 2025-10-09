@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useApp } from '../contexts/AppContext';
 import { useConversation } from '../contexts/ConversationContext';
@@ -14,7 +14,7 @@ import { useToast } from '../hooks/useToast';
 import { usePackageAccess } from '../hooks/usePackageAccess';
 import { TokenCounter } from '../services/tokenCounter';
 import { PayAsYouGoModal } from '../components/PayAsYouGoModal';
-import { PayAsYouGoService } from '../services/payAsYouGoService';
+import { LimitReachedModal } from '../components/LimitReachedModal';
 import { AnalyticsService } from '../services/analyticsService';
 import { LogoutConfirmationModal } from '../components/LogoutConfirmationModal';
 
@@ -48,7 +48,7 @@ if (!AI_ENDPOINT) {
 export const DirecteurChat: React.FC = () => {
   const { user, firebaseUser, isLoading, logout, refreshUserData } = useAuth();
   const { forms, formEntries, employees, isLoading: appLoading } = useApp();
-  const { getMonthlyTokens, hasUnlimitedTokens } = usePackageAccess();
+  const { getMonthlyTokens, hasUnlimitedTokens, packageInfo } = usePackageAccess();
   const { 
     currentConversation, 
     conversations, 
@@ -64,6 +64,9 @@ export const DirecteurChat: React.FC = () => {
   const { showError } = useToast();
   const [inputMessage, setInputMessage] = useState('');
   const [isTyping, setIsTyping] = useState(false);
+  
+  // Ref for direct input access without re-renders
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const [selectedFormat, setSelectedFormat] = useState<string | null>(null);
   const [selectedFormats, setSelectedFormats] = useState<string[]>([]);
   const [selectedFormIds, setSelectedFormIds] = useState<string[]>([]);
@@ -84,7 +87,9 @@ export const DirecteurChat: React.FC = () => {
   
   // État pour le modal pay-as-you-go
   const [showPayAsYouGoModal, setShowPayAsYouGoModal] = useState(false);
-  const [requiredTokens, setRequiredTokens] = useState(0);
+  
+  // État pour le modal de limite de tokens
+  const [showTokenLimitModal, setShowTokenLimitModal] = useState(false);
 
   // État pour le modal de confirmation de déconnexion
   const [showLogoutModal, setShowLogoutModal] = useState(false);
@@ -99,6 +104,14 @@ export const DirecteurChat: React.FC = () => {
       return false;
     }
   });
+
+
+  // Memoize package calculations for performance - only recalculate when user changes
+  const packageCalculations = useMemo(() => {
+    const monthlyLimit = getMonthlyTokens();
+    const isUnlimited = hasUnlimitedTokens();
+    return { monthlyLimit, isUnlimited };
+  }, [user?.id, user?.tokensUsedMonthly]);
   const handlePurchaseTokens = async (tokens: number) => {
     // This function is now handled by the PayAsYouGoModal with Campay integration
     // The modal will create the payment and handle the success/failure
@@ -148,14 +161,22 @@ export const DirecteurChat: React.FC = () => {
   }, [showWelcome, conversations.length, currentConversation, isLoading, triggerAutoLoad]);
 
   const handleSendMessage = async (message?: string) => {
-    const messageToSend = message || inputMessage.trim();
+    // Get message from parameter, state, or direct input access
+    let messageToSend = message;
+    if (!messageToSend) {
+      // Try to get from ChatComposer's local state via ref
+      if (inputRef.current) {
+        messageToSend = inputRef.current.value.trim();
+      } else {
+        messageToSend = inputMessage.trim();
+      }
+    }
+    
     if (!messageToSend || isTyping) return;
 
     // Vérifier les tokens avant d'envoyer
     if (user) {
-      const monthlyLimit = getMonthlyTokens();
-      const isUnlimited = hasUnlimitedTokens();
-      
+      const { isUnlimited } = packageCalculations;
       
       if (!isUnlimited) {
         // Estimate tokens needed for this request
@@ -183,17 +204,20 @@ RÉPONSE :
         // Use same formula as backend: (estimatedTokens * 2.5) / 100
         const userTokensToCharge = Math.min(Math.ceil((estimatedTokens * 2.5) / 100), 3000); // Cap at 3000 tokens
         
+        // Use session-based token checking (same as backend)
+        const currentTokensUsed = packageInfo?.tokensUsed || 0;
+        const totalAvailableTokens = packageInfo?.totalTokens || 0;
         
-        // Check if user has enough tokens (including pay-as-you-go tokens)
-        const currentTokensUsed = user.tokensUsedMonthly || 0;
-        const payAsYouGoTokens = user.payAsYouGoTokens || 0;
-        const totalAvailableTokens = monthlyLimit + payAsYouGoTokens;
-        
+        console.log('🔍 FRONTEND TOKEN CHECK:', {
+          currentTokensUsed,
+          totalAvailableTokens,
+          userTokensToCharge,
+          willExceed: (currentTokensUsed + userTokensToCharge) > totalAvailableTokens
+        });
         
         if (currentTokensUsed + userTokensToCharge > totalAvailableTokens) {
-          // Show pay-as-you-go modal instead of error
-          setRequiredTokens(userTokensToCharge);
-          setShowPayAsYouGoModal(true);
+          // Show limit reached modal instead of pay-as-you-go modal
+          setShowTokenLimitModal(true);
           return;
         }
       }
@@ -252,8 +276,11 @@ RÉPONSE :
       }
     }
 
+    // Clear input after sending
     setInputMessage('');
     setIsTyping(true);
+
+    // Loading indicator will be shown by MessageList component via isTyping prop
 
     try {
       // Vérifier que l'endpoint est configuré
@@ -377,6 +404,16 @@ RÉPONSE :
       
       // Successfully received response, stop loading
       setIsTyping(false);
+      
+      // Remove loading message from local state
+      if (currentConversation) {
+        try {
+          // The loading message will be replaced by the actual response from the backend
+          // The real-time listener will handle the replacement automatically
+        } catch (error) {
+          console.error('Error removing loading message:', error);
+        }
+      }
 
     } catch (error) {
       console.error('Erreur lors de l\'envoi du message:', error);
@@ -423,6 +460,15 @@ RÉPONSE :
         setTimeout(() => {
           if (isTyping) {
             setIsTyping(false);
+            // Remove loading message in case of error
+            if (currentConversation) {
+              try {
+                // The loading message will be replaced by the error message
+                // The real-time listener will handle this automatically
+              } catch (error) {
+                console.error('Error removing loading message on error:', error);
+              }
+            }
           }
         }, 100);
       }
@@ -442,25 +488,25 @@ RÉPONSE :
     }
   };
 
-  const handleFormatChange = (format: string | null) => {
+  const handleFormatChange = useCallback((format: string | null) => {
     setSelectedFormat(format);
     // Clear multi-format when using single format
     if (format) {
       setSelectedFormats([]);
     }
-  };
+  }, []);
 
-  const handleFormatsChange = (formats: string[]) => {
+  const handleFormatsChange = useCallback((formats: string[]) => {
     setSelectedFormats(formats);
     // Clear single format when using multi-format
     if (formats.length > 0) {
       setSelectedFormat(null);
     }
-  };
+  }, []);
 
-  const handleFormSelectionChange = (formIds: string[]) => {
+  const handleFormSelectionChange = useCallback((formIds: string[]) => {
     setSelectedFormIds(formIds);
-  };
+  }, []);
 
 
 
@@ -549,6 +595,7 @@ RÉPONSE :
             showFormatSelector={true}
             showComprehensiveFilter={true}
             allowMultipleFormats={true}
+            inputRef={inputRef}
           />
 
 
@@ -569,6 +616,17 @@ RÉPONSE :
             onGoDashboard={() => (window.location.href = '/directeur/dashboard')}
           />
 
+          {/* Token Limit Modal */}
+          <LimitReachedModal
+            isOpen={showTokenLimitModal}
+            onClose={() => setShowTokenLimitModal(false)}
+            type="tokens"
+            current={packageInfo?.tokensUsed || 0}
+            limit={packageInfo?.totalTokens || 0}
+            onUpgrade={() => setShowTokenLimitModal(false)}
+            onPayAsYouGo={() => setShowTokenLimitModal(false)}
+          />
+
           {/* Pay-as-you-go Modal */}
           <PayAsYouGoModal
             isOpen={showPayAsYouGoModal}
@@ -577,7 +635,7 @@ RÉPONSE :
             currentTokens={user?.tokensUsedMonthly || 0}
             packageLimit={getMonthlyTokens()}
             payAsYouGoTokens={user?.payAsYouGoTokens || 0}
-            requiredTokens={requiredTokens}
+            requiredTokens={0}
           />
 
           {/* Logout Confirmation Modal */}

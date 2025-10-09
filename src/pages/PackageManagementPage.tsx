@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useApp } from '../contexts/AppContext';
 import { usePackageAccess } from '../hooks/usePackageAccess';
@@ -44,6 +44,7 @@ import { PaymentRequest, CampayPaymentData } from '../types/payment';
 
 export const PackageManagementPage: React.FC = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { user } = useAuth();
   const { forms, dashboards, employees } = useApp();
   const { packageType } = usePackageAccess();
@@ -62,6 +63,41 @@ export const PackageManagementPage: React.FC = () => {
     type: 'tokens',
     currentLimit: 0
   });
+
+  // URL parameter handling for section highlighting and auto-scroll
+  const targetSection = searchParams.get('section');
+  const targetType = searchParams.get('type');
+  const highlightPackage = searchParams.get('highlight');
+
+  // Auto-scroll to target section when page loads
+  useEffect(() => {
+    if (targetSection && targetType) {
+      const sectionId = `pay-as-you-go-${targetType}`;
+      setTimeout(() => {
+        const element = document.getElementById(sectionId);
+        if (element) {
+          element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          // Add temporary highlight effect
+          element.classList.add('ring-4', 'ring-blue-500', 'ring-opacity-50', 'transition-all', 'duration-1000');
+          setTimeout(() => {
+            element.classList.remove('ring-4', 'ring-blue-500', 'ring-opacity-50');
+          }, 3000);
+        }
+      }, 500);
+    } else if (targetSection === 'packages' && highlightPackage) {
+      setTimeout(() => {
+        const element = document.getElementById(`package-${highlightPackage}`);
+        if (element) {
+          element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          // Add temporary highlight effect
+          element.classList.add('ring-4', 'ring-green-500', 'ring-opacity-50', 'transition-all', 'duration-1000');
+          setTimeout(() => {
+            element.classList.remove('ring-4', 'ring-green-500', 'ring-opacity-50');
+          }, 3000);
+        }
+      }, 500);
+    }
+  }, [targetSection, targetType, highlightPackage]);
   const [paymentRequest, setPaymentRequest] = useState<PaymentRequest | null>(null);
   const [currentPaymentId, setCurrentPaymentId] = useState<string | null>(null);
   const [isCreatingPayment, setIsCreatingPayment] = useState(false);
@@ -751,7 +787,8 @@ export const PackageManagementPage: React.FC = () => {
 
               return (
                 <div 
-                  key={pkg} 
+                  key={pkg}
+                  id={`package-${pkg}`}
                   className={`relative group transition-all duration-300 transform hover:scale-105 ${
                     isCurrentPackage 
                       ? 'scale-105' 
@@ -898,7 +935,7 @@ export const PackageManagementPage: React.FC = () => {
             <div className="absolute inset-0 bg-gradient-to-br from-green-50 via-emerald-50 to-teal-50 rounded-2xl"></div>
             
             {/* Glassmorphism Card */}
-            <div className="relative backdrop-blur-sm bg-white/80 border border-white/20 rounded-2xl shadow-xl shadow-green-500/10 p-4 sm:p-6 lg:p-8">
+            <div id="pay-as-you-go-section" className="relative backdrop-blur-sm bg-white/80 border border-white/20 rounded-2xl shadow-xl shadow-green-500/10 p-4 sm:p-6 lg:p-8">
               <div className="text-center mb-6 sm:mb-8">
                 <div className="flex items-center justify-center space-x-2 mb-3 sm:mb-4">
                   <Plus className="h-5 w-5 sm:h-6 sm:w-6 text-green-600" />
@@ -914,7 +951,7 @@ export const PackageManagementPage: React.FC = () => {
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
                 {/* Tokens Archa */}
-                <div className="group relative bg-white/60 backdrop-blur-sm rounded-xl p-4 sm:p-6 border border-white/30 hover:bg-white/80 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105">
+                <div id="pay-as-you-go-tokens" className="group relative bg-white/60 backdrop-blur-sm rounded-xl p-4 sm:p-6 border border-white/30 hover:bg-white/80 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105">
                   <div className="text-center">
                     <div className="relative mb-3 sm:mb-4">
                       <div className="inline-flex p-2.5 sm:p-3 rounded-xl bg-blue-100 text-blue-600 shadow-lg transform transition-transform group-hover:scale-110">
@@ -940,7 +977,7 @@ export const PackageManagementPage: React.FC = () => {
                 </div>
 
                 {/* Formulaires */}
-                <div className="group relative bg-white/60 backdrop-blur-sm rounded-xl p-4 sm:p-6 border border-white/30 hover:bg-white/80 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105">
+                <div id="pay-as-you-go-forms" className="group relative bg-white/60 backdrop-blur-sm rounded-xl p-4 sm:p-6 border border-white/30 hover:bg-white/80 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105">
                   <div className="text-center">
                     <div className="relative mb-3 sm:mb-4">
                       <div className="inline-flex p-2.5 sm:p-3 rounded-xl bg-green-100 text-green-600 shadow-lg transform transition-transform group-hover:scale-110">
@@ -966,7 +1003,7 @@ export const PackageManagementPage: React.FC = () => {
                 </div>
 
                 {/* Tableaux de bord */}
-                <div className="group relative bg-white/60 backdrop-blur-sm rounded-xl p-4 sm:p-6 border border-white/30 hover:bg-white/80 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105">
+                <div id="pay-as-you-go-dashboards" className="group relative bg-white/60 backdrop-blur-sm rounded-xl p-4 sm:p-6 border border-white/30 hover:bg-white/80 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105">
                   <div className="text-center">
                     <div className="relative mb-3 sm:mb-4">
                       <div className="inline-flex p-2.5 sm:p-3 rounded-xl bg-purple-100 text-purple-600 shadow-lg transform transition-transform group-hover:scale-110">
@@ -992,7 +1029,7 @@ export const PackageManagementPage: React.FC = () => {
                 </div>
 
                 {/* Utilisateurs */}
-                <div className="group relative bg-white/60 backdrop-blur-sm rounded-xl p-4 sm:p-6 border border-white/30 hover:bg-white/80 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105">
+                <div id="pay-as-you-go-users" className="group relative bg-white/60 backdrop-blur-sm rounded-xl p-4 sm:p-6 border border-white/30 hover:bg-white/80 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105">
                   <div className="text-center">
                     <div className="relative mb-3 sm:mb-4">
                       <div className="inline-flex p-2.5 sm:p-3 rounded-xl bg-orange-100 text-orange-600 shadow-lg transform transition-transform group-hover:scale-110">

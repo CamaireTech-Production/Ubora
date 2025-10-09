@@ -474,7 +474,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         try {
           const limitCheck = await checkAgencyUserLimit(agencyId);
           if (!limitCheck.canAddUser) {
-            setError(limitCheck.error || 'Limite d\'utilisateurs atteinte');
+            setError('Limite d\'utilisateurs atteinte. Contactez votre directeur pour cette agence.');
             return false;
           }
         } catch (error) {

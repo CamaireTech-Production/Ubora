@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { Send, Brain } from 'lucide-react';
 import { Button } from '../Button';
 import { FormatSelector } from './FormatSelector';
@@ -45,6 +45,7 @@ interface ChatComposerProps {
   showFormatSelector?: boolean;
   showComprehensiveFilter?: boolean;
   allowMultipleFormats?: boolean; // Enable multi-format selection
+  inputRef?: React.RefObject<HTMLTextAreaElement>; // For direct access
 }
 
 export const ChatComposer: React.FC<ChatComposerProps> = ({
@@ -67,17 +68,41 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
   maxLength = 2000,
   showFormatSelector = true,
   showComprehensiveFilter = true,
-  allowMultipleFormats = false
+  allowMultipleFormats = false,
+  inputRef: externalInputRef
 }) => {
   const { user } = useAuth();
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const [rows, setRows] = useState(1);
+  const internalTextareaRef = useRef<HTMLTextAreaElement>(null);
+  const textareaRef = externalInputRef || internalTextareaRef;
   const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
+  
+  // Simple uncontrolled input - no state updates during typing
+  const [localValue, setLocalValue] = useState(value);
 
-  // Calculer les tokens restants
+  // Only sync when value changes externally (e.g., after sending)
+  useEffect(() => {
+    setLocalValue(value);
+  }, [value]);
+
+  // Clear input when disabled (during analysis)
+  useEffect(() => {
+    if (disabled) {
+      setLocalValue('');
+    }
+  }, [disabled]);
+
+  // Handle input changes - only update local state, no parent updates
+  const handleInputChange = useCallback((newValue: string) => {
+    setLocalValue(newValue); // Only local state update
+    // NO parent state update during typing
+  }, []);
+
+  // Calculer les tokens restants - memoized for performance
   const { packageInfo } = usePackageAccess();
-  const isUnlimited = packageInfo?.totalTokens === -1;
-  const remainingTokens = packageInfo?.tokensRemaining || 0;
+  const tokenCalculations = useMemo(() => ({
+    isUnlimited: packageInfo?.totalTokens === -1,
+    remainingTokens: packageInfo?.tokensRemaining || 0
+  }), [packageInfo?.totalTokens, packageInfo?.tokensRemaining]);
   
   // Stable initial viewport height for reliable keyboard detection
   const initialViewportHeightRef = useRef<number>(
@@ -90,24 +115,38 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
     // Token data available for debugging if needed
   }
 
-  // Auto-resize textarea
+  // Fallback auto-resize for browsers that don't support fieldSizing
   useEffect(() => {
-    if (textareaRef.current) {
-      const textarea = textareaRef.current;
-      textarea.style.height = 'auto';
-      const scrollHeight = textarea.scrollHeight;
-      const lineHeight = 24; // Standard line height for chat input
-      const maxHeight = lineHeight * 5; // Max 5 lines
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+
+    // Check if fieldSizing is supported
+    const supportsFieldSizing = 'fieldSizing' in textarea.style;
+    
+    if (!supportsFieldSizing) {
+      const adjustHeight = () => {
+        textarea.style.height = 'auto';
+        const scrollHeight = textarea.scrollHeight;
+        const maxHeight = 120; // 5 lines * 24px
+        
+        if (scrollHeight <= maxHeight) {
+          textarea.style.height = `${scrollHeight}px`;
+        } else {
+          textarea.style.height = `${maxHeight}px`;
+        }
+      };
+
+      // Initial adjustment
+      adjustHeight();
       
-      if (scrollHeight <= maxHeight) {
-        textarea.style.height = `${scrollHeight}px`;
-        setRows(Math.max(1, Math.floor(scrollHeight / lineHeight)));
-      } else {
-        textarea.style.height = `${maxHeight}px`;
-        setRows(5);
-      }
+      // Listen for input changes
+      textarea.addEventListener('input', adjustHeight);
+      
+      return () => {
+        textarea.removeEventListener('input', adjustHeight);
+      };
     }
-  }, [value]);
+  }, [localValue]);
 
   // Comprehensive mobile keyboard detection and handling
   useEffect(() => {
@@ -152,17 +191,19 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
     };
   }, []);
 
-  const handleKeyPress = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+  const handleKeyPress = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      if (!disabled && value.trim()) {
+      if (!disabled && localValue.trim()) {
+        // Update parent state with current value before sending
+        onChange(localValue);
         onSend();
       }
     }
     onKeyPress?.(e);
-  };
+  }, [disabled, localValue, onSend, onKeyPress, onChange]);
 
-  const handleFocus = () => {
+  const handleFocus = useCallback(() => {
     // On mobile, ensure the input is visible when focused - immediate scroll
     if (textareaRef.current) {
       // Immediate scroll, then another after a short delay for keyboard animation
@@ -178,10 +219,11 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
         });
       }, 100);
     }
-  };
+  }, []);
 
-  const canSend = !disabled && value.trim().length > 0;
-  const isNearLimit = value.length > maxLength * 0.8;
+  // Memoize these calculations to prevent unnecessary re-renders
+  const canSend = useMemo(() => !disabled && localValue.trim().length > 0, [disabled, localValue]);
+  const isNearLimit = useMemo(() => localValue.length > maxLength * 0.8, [localValue, maxLength]);
 
 
   return (
@@ -231,8 +273,8 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
         {/* Character counter (when near limit) */}
         {isNearLimit && (
           <div className="text-center mb-2">
-            <span className={`text-xs ${value.length >= maxLength ? 'text-red-500' : 'text-yellow-600'}`}>
-              {value.length}/{maxLength} caractères
+            <span className={`text-xs ${localValue.length >= maxLength ? 'text-red-500' : 'text-yellow-600'}`}>
+              {localValue.length}/{maxLength} caractères
             </span>
           </div>
         )}
@@ -244,26 +286,32 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
               <div className="flex-1 p-3">
                 <textarea
                   ref={textareaRef}
-                  value={value}
-                  onChange={(e) => onChange(e.target.value)}
+                  value={localValue}
+                  onChange={(e) => handleInputChange(e.target.value)}
                   onKeyPress={handleKeyPress}
                   onFocus={handleFocus}
                   placeholder={placeholder}
                   disabled={disabled}
                   maxLength={maxLength}
-                  rows={rows}
-                  className="w-full resize-none border-0 outline-none text-base placeholder-gray-500 bg-transparent leading-6 overflow-y-auto"
+                  className="w-full resize-none border-0 outline-none text-base placeholder-gray-500 bg-transparent leading-6"
                   style={{
                     minHeight: '24px',
-                    maxHeight: '120px' // 5 lines * 24px line height
-                  }}
+                    maxHeight: '120px', // 5 lines * 24px line height
+                    height: 'auto',
+                    overflow: 'hidden',
+                    fieldSizing: 'content' // Modern CSS auto-resize
+                  } as React.CSSProperties & { fieldSizing?: string }}
                 />
               </div>
 
               {/* Send button */}
               <div className="p-2">
                 <Button
-                  onClick={onSend}
+                  onClick={() => {
+                    // Update parent state with current value before sending
+                    onChange(localValue);
+                    onSend();
+                  }}
                   disabled={!canSend}
                   className={`p-2 rounded-full transition-all duration-200 ${
                     canSend
@@ -284,11 +332,11 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
           <div className="flex items-center justify-center space-x-1 text-xs text-gray-500 mt-2">
             <Brain className="h-3 w-3 text-blue-500" />
             <span>
-              {isUnlimited ? (
+              {tokenCalculations.isUnlimited ? (
                 <span className="text-green-600 font-medium">Tokens illimités</span>
               ) : (
                 <span>
-                  <span className="font-medium text-gray-700">{remainingTokens.toLocaleString()}</span>
+                  <span className="font-medium text-gray-700">{tokenCalculations.remainingTokens.toLocaleString()}</span>
                   <span className="text-gray-400"> tokens restants</span>
                 </span>
               )}

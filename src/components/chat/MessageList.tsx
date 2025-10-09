@@ -124,13 +124,8 @@ export const MessageList: React.FC<MessageListProps> = ({
       return;
     }
     
-    // Only auto-scroll if:
-    // 1. Auto-scroll is not disabled
-    // 2. We have new messages OR user is typing
-    // 3. User is not at the top
-    const shouldAutoScroll = !autoScrollDisabled && 
-                            (hasNewMessages || isTyping) && 
-                            !isAtTop;
+    // Always auto-scroll when new messages are added or when typing
+    const shouldAutoScroll = hasNewMessages || isTyping;
     
     if (shouldAutoScroll && containerRef.current) {
       containerRef.current.scrollTo({
@@ -252,7 +247,7 @@ export const MessageList: React.FC<MessageListProps> = ({
 
       {/* Typing indicator */}
       {isTyping && (
-        <div className="flex items-start space-x-3 mb-4">
+        <div className="flex items-start space-x-3 mb-8">
           <div className="w-8 h-8 bg-gradient-to-br from-gray-100 to-gray-200 rounded-full flex items-center justify-center">
             <img 
               src="/fav-icons/favicon-32x32.png" 

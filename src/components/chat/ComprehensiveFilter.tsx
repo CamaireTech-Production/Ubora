@@ -88,7 +88,7 @@ interface ComprehensiveFilterProps {
   disabled?: boolean;
 }
 
-export const ComprehensiveFilter: React.FC<ComprehensiveFilterProps> = ({
+export const ComprehensiveFilter: React.FC<ComprehensiveFilterProps> = React.memo(({
   filters,
   onFiltersChange,
   forms,
@@ -512,4 +512,4 @@ export const ComprehensiveFilter: React.FC<ComprehensiveFilterProps> = ({
       )}
     </div>
   );
-};
+});

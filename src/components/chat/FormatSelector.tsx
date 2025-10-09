@@ -38,7 +38,7 @@ interface FormatSelectorProps {
   allowMultiple?: boolean; // Enable multi-format selection
 }
 
-export const FormatSelector: React.FC<FormatSelectorProps> = ({
+export const FormatSelector: React.FC<FormatSelectorProps> = React.memo(({
   selectedFormat,
   selectedFormats = [],
   onFormatChange,
@@ -287,5 +287,5 @@ export const FormatSelector: React.FC<FormatSelectorProps> = ({
       )}
     </div>
   );
-};
+});
 

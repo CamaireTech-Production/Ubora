@@ -290,6 +290,7 @@ export interface ChatMessage {
   content: string;
   timestamp: Date;
   responseTime?: number;
+  isLoading?: boolean;
   contentType?: 'text' | 'graph' | 'pdf' | 'text-pdf' | 'table' | 'mixed' | 'multi-format';
   graphData?: GraphData;
   pdfData?: PDFData;

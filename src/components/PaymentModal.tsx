@@ -166,7 +166,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
             id: 'forms-1',
             name: '1 Formulaire supplémentaire',
             description: 'Créez 1 formulaire de plus',
-            price: 2000,
+            price: 15000,
             unit: 'FCFA',
             icon: <BarChart3 className="h-5 w-5" />
           },
@@ -174,7 +174,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
             id: 'forms-3',
             name: '3 Formulaires supplémentaires',
             description: 'Idéal pour les structures en croissance',
-            price: 5000,
+            price: 40000,
             unit: 'FCFA',
             icon: <BarChart3 className="h-5 w-5" />,
             popular: true
@@ -183,7 +183,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
             id: 'forms-5',
             name: '5 Formulaires supplémentaires',
             description: 'Pour les grandes structures',
-            price: 8000,
+            price: 60000,
             unit: 'FCFA',
             icon: <BarChart3 className="h-5 w-5" />
           }
@@ -194,7 +194,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
             id: 'dashboards-1',
             name: '1 Tableau de bord supplémentaire',
             description: 'Créez 1 tableau de bord de plus',
-            price: 30000,
+            price: 20000,
             unit: 'FCFA',
             icon: <BarChart3 className="h-5 w-5" />
           },
@@ -202,7 +202,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
             id: 'dashboards-2',
             name: '2 Tableaux de bord supplémentaires',
             description: 'Pour analyses approfondies',
-            price: 55000,
+            price: 35000,
             unit: 'FCFA',
             icon: <BarChart3 className="h-5 w-5" />,
             popular: true
@@ -211,7 +211,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
             id: 'dashboards-3',
             name: '3 Tableaux de bord supplémentaires',
             description: 'Pour analyses complètes',
-            price: 80000,
+            price: 50000,
             unit: 'FCFA',
             icon: <BarChart3 className="h-5 w-5" />
           }
@@ -222,7 +222,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
             id: 'users-1',
             name: '1 Utilisateur supplémentaire',
             description: 'Ajoutez 1 utilisateur à votre équipe',
-            price: 7000,
+            price: 21000,
             unit: 'FCFA',
             icon: <Users className="h-5 w-5" />
           },
@@ -230,7 +230,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
             id: 'users-2',
             name: '2 Utilisateurs supplémentaires',
             description: 'Idéal pour les équipes moyennes',
-            price: 13000,
+            price: 40000,
             unit: 'FCFA',
             icon: <Users className="h-5 w-5" />,
             popular: true
@@ -239,7 +239,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
             id: 'users-3',
             name: '3 Utilisateurs supplémentaires',
             description: 'Pour les grandes équipes',
-            price: 20000,
+            price: 60000,
             unit: 'FCFA',
             icon: <Users className="h-5 w-5" />
           }

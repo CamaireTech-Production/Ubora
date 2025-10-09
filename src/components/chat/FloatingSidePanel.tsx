@@ -4,7 +4,7 @@ import { Button } from '../Button';
 import { useAuth } from '../../contexts/AuthContext';
 import { usePackageAccess } from '../../hooks/usePackageAccess';
 import { useApp } from '../../contexts/AppContext';
-import { UserLimitModal } from '../UserLimitModal';
+import { LimitReachedModal } from '../LimitReachedModal';
 import { PaymentModal } from '../PaymentModal';
 import { useToast } from '../../hooks/useToast';
 import { PackageType } from '../../config/packageFeatures';
@@ -74,15 +74,14 @@ export const FloatingSidePanel: React.FC<FloatingSidePanelProps> = ({
     }
   };
 
-  const handleUpgradePackage = (packageType: PackageType) => {
+  const handleUpgradePackage = () => {
     setShowUserLimitModal(false);
-    // Navigate to package management page
-    window.location.href = '/packages/manage';
+    // This will be handled by LimitReachedModal navigation
   };
 
   const handlePurchaseUsers = () => {
     setShowUserLimitModal(false);
-    setShowPaymentModal(true);
+    // This will be handled by LimitReachedModal navigation
   };
 
   const handlePurchaseResource = async (option: any) => {
@@ -482,14 +481,14 @@ export const FloatingSidePanel: React.FC<FloatingSidePanelProps> = ({
       )}
 
       {/* User Limit Modal */}
-      <UserLimitModal
+      <LimitReachedModal
         isOpen={showUserLimitModal}
         onClose={() => setShowUserLimitModal(false)}
+        type="users"
+        current={currentUserCount}
+        limit={maxUsers}
         onUpgrade={handleUpgradePackage}
-        onPurchaseUsers={handlePurchaseUsers}
-        currentUserCount={currentUserCount}
-        maxUsers={maxUsers}
-        payAsYouGoUsers={payAsYouGoUsers}
+        onPayAsYouGo={handlePurchaseUsers}
       />
 
       {/* Payment Modal */}

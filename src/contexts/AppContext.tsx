@@ -282,7 +282,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     // Vérifier les limites du package (pour les directeurs et employés avec accès directeur)
     if ((user.role === 'directeur' || (user.role === 'employe' && user.hasDirectorDashboardAccess)) && !canCreateForm(forms.length)) {
-      throw new Error('Limite de formulaires atteinte pour votre package. Veuillez mettre à niveau votre abonnement.');
+      if (user.role === 'employe') {
+        throw new Error('Limite de formulaires atteinte. Contactez votre directeur pour cette agence.');
+      } else {
+        throw new Error('Limite de formulaires atteinte pour votre package. Veuillez mettre à niveau votre abonnement.');
+      }
     }
 
     try {
@@ -887,7 +891,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     // Vérifier les limites du package (pour les directeurs et employés avec accès directeur)
     if ((user.role === 'directeur' || (user.role === 'employe' && user.hasDirectorDashboardAccess)) && !canCreateDashboard(dashboards.length)) {
-      throw new Error('Limite de tableaux de bord atteinte pour votre package. Veuillez mettre à niveau votre abonnement.');
+      if (user.role === 'employe') {
+        throw new Error('Limite de tableaux de bord atteinte. Contactez votre directeur pour cette agence.');
+      } else {
+        throw new Error('Limite de tableaux de bord atteinte pour votre package. Veuillez mettre à niveau votre abonnement.');
+      }
     }
 
     try {
