@@ -70,14 +70,7 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
   const [visibleFields, setVisibleFields] = useState<string[]>(form.fields.map((f: FormField) => f.id));
   
   // Debug modal state
-  const [showDebugModal, setShowDebugModal] = useState(false);
-  const [debugText, setDebugText] = useState('');
-  const [debugFileName, setDebugFileName] = useState('');
   
-  // Debug modal state changes
-  useEffect(() => {
-    console.log('🔍 Debug modal state changed:', { showDebugModal, debugFileName, debugTextLength: debugText.length });
-  }, [showDebugModal, debugFileName, debugText]);
   
   // Function to update visible fields based on conditional logic
   const updateVisibleFields = useCallback((currentAnswers: Record<string, unknown>) => {
@@ -301,17 +294,9 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
             }));
           },
           (pdfResult) => {
-            // PDF extraction successful - show debug modal
+            // PDF extraction successful
             console.log(`✅ PDF ${pdfResult.fileName} processed successfully`);
             console.log(`📝 Extracted text length: ${pdfResult.extractedText?.length || 0} characters`);
-            console.log(`🔍 Setting debug modal state...`);
-            
-            // Show debug modal with extracted text
-            setDebugText(pdfResult.extractedText || '');
-            setDebugFileName(pdfResult.fileName);
-            setShowDebugModal(true);
-            
-            console.log(`✅ Debug modal should now be visible`);
           },
           (imageResult) => {
             // Image extraction successful
@@ -872,40 +857,6 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
         </form>
       </Card>
       
-      {/* Debug Modal for PDF Text */}
-      {showDebugModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg max-w-4xl w-full max-h-[80vh] flex flex-col">
-            <div className="flex justify-between items-center p-4 border-b">
-              <h3 className="text-lg font-semibold">PDF Text Extraction Debug - {debugFileName}</h3>
-              <button
-                onClick={() => setShowDebugModal(false)}
-                className="text-gray-500 hover:text-gray-700"
-              >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-            <div className="flex-1 overflow-auto p-4">
-              <div className="bg-gray-100 p-4 rounded-lg">
-                <h4 className="font-medium mb-2">Extracted Text ({debugText.length} characters):</h4>
-                <pre className="whitespace-pre-wrap text-sm text-gray-800 max-h-96 overflow-auto">
-                  {debugText}
-                </pre>
-              </div>
-            </div>
-            <div className="p-4 border-t">
-              <button
-                onClick={() => setShowDebugModal(false)}
-                className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
       
     </div>
   );
