@@ -142,9 +142,20 @@ export const LimitReachedModal: React.FC<LimitReachedModalProps> = ({
           <p className="text-gray-800 font-medium">
             Mettez à niveau votre package pour créer plus de {getTypeLabel()}.
           </p>
-          <div className="mt-3 p-3 rounded bg-blue-50 border border-blue-200 text-xs text-blue-800">
-            <strong>Important :</strong> lors de la validation USSD sur votre téléphone, le nom du marchand doit être <strong>"TAKWID GROUP"</strong>. Si un autre nom apparaît, annulez.
-          </div>
+          
+          {/* Message for employees with director access */}
+          {user?.role === 'employe' && user?.hasDirectorDashboardAccess && (
+            <div className="mt-3 p-3 rounded bg-amber-50 border border-amber-200 text-sm text-amber-800">
+              <strong>💡 Contactez votre directeur :</strong> En tant qu'employé avec accès directeur, vous ne pouvez pas effectuer de paiements. Veuillez contacter votre directeur pour mettre à niveau le package.
+            </div>
+          )}
+          
+          {/* USSD payment instructions - only for directors */}
+          {user?.role === 'directeur' && (
+            <div className="mt-3 p-3 rounded bg-blue-50 border border-blue-200 text-xs text-blue-800">
+              <strong>Important :</strong> lors de la validation USSD sur votre téléphone, le nom du marchand doit être <strong>"TAKWID GROUP"</strong>. Si un autre nom apparaît, annulez.
+            </div>
+          )}
         </div>
 
         {/* Actions */}
