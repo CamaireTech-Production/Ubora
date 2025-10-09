@@ -492,7 +492,7 @@ export const PackageManagementPage: React.FC = () => {
                         if (sessionInfo.totalForms === -1) {
                           return 'Illimité';
                         }
-                        return (sessionInfo.totalForms - currentForms).toString();
+                        return currentForms.toString();
                       })()}
                     </div>
                     <div className="text-xs sm:text-sm text-gray-600 text-center">
@@ -503,6 +503,16 @@ export const PackageManagementPage: React.FC = () => {
                           return `${currentForms} sur Illimité`;
                         }
                         return `${currentForms} / ${sessionInfo.totalForms}`;
+                      })()}
+                    </div>
+                    <div className="text-xs text-gray-500 text-center mt-1">
+                      {(() => {
+                        const sessionInfo = UserSessionService.getUserPackageInfo(user);
+                        const currentForms = forms.length;
+                        if (sessionInfo.totalForms === -1) {
+                          return '';
+                        }
+                        return currentForms > sessionInfo.totalForms ? '0 disponible' : `${Math.max(0, sessionInfo.totalForms - currentForms)} disponible`;
                       })()}
                     </div>
                   </div>
@@ -521,7 +531,7 @@ export const PackageManagementPage: React.FC = () => {
                         if (sessionInfo.totalDashboards === -1) {
                           return 'Illimité';
                         }
-                        return (sessionInfo.totalDashboards - currentDashboards).toString();
+                        return currentDashboards.toString();
                       })()}
                     </div>
                     <div className="text-xs sm:text-sm text-gray-600 text-center">
@@ -532,6 +542,16 @@ export const PackageManagementPage: React.FC = () => {
                           return `${currentDashboards} sur Illimité`;
                         }
                         return `${currentDashboards} / ${sessionInfo.totalDashboards}`;
+                      })()}
+                    </div>
+                    <div className="text-xs text-gray-500 text-center mt-1">
+                      {(() => {
+                        const sessionInfo = UserSessionService.getUserPackageInfo(user);
+                        const currentDashboards = dashboards.length;
+                        if (sessionInfo.totalDashboards === -1) {
+                          return '';
+                        }
+                        return currentDashboards > sessionInfo.totalDashboards ? '0 disponible' : `${Math.max(0, sessionInfo.totalDashboards - currentDashboards)} disponible`;
                       })()}
                     </div>
                   </div>
@@ -550,7 +570,7 @@ export const PackageManagementPage: React.FC = () => {
                         if (sessionInfo.totalUsers === -1) {
                           return 'Illimité';
                         }
-                        return (sessionInfo.totalUsers - currentUsers).toString();
+                        return currentUsers.toString();
                       })()}
                     </div>
                     <div className="text-xs sm:text-sm text-gray-600 text-center">
@@ -561,6 +581,16 @@ export const PackageManagementPage: React.FC = () => {
                           return `${currentUsers} sur Illimité`;
                         }
                         return `${currentUsers} / ${sessionInfo.totalUsers}`;
+                      })()}
+                    </div>
+                    <div className="text-xs text-gray-500 text-center mt-1">
+                      {(() => {
+                        const sessionInfo = UserSessionService.getUserPackageInfo(user);
+                        const currentUsers = employees.filter(emp => emp.isApproved !== false).length;
+                        if (sessionInfo.totalUsers === -1) {
+                          return '';
+                        }
+                        return currentUsers > sessionInfo.totalUsers ? '0 disponible' : `${Math.max(0, sessionInfo.totalUsers - currentUsers)} disponible`;
                       })()}
                     </div>
                   </div>
