@@ -346,7 +346,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const updateForm = async (formId: string, formData: Partial<Omit<Form, 'id' | 'createdAt' | 'createdBy' | 'agencyId'>>) => {
     if (!user || !user.agencyId || !PermissionManager.canUpdateForms(user)) {
-      throw new Error('Seuls les directeurs peuvent modifier des formulaires');
+      throw new Error('Seuls les directeurs et employés avec accès directeur peuvent modifier des formulaires');
     }
 
     try {
@@ -605,7 +605,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const deleteForm = async (formId: string) => {
     if (!user || !PermissionManager.canDeleteForms(user)) {
-      throw new Error('Seuls les directeurs peuvent supprimer des formulaires');
+      throw new Error('Seuls les directeurs et employés avec accès directeur peuvent supprimer des formulaires');
     }
 
     try {
@@ -619,6 +619,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const getFormsForEmployee = (employeeId: string): Form[] => {
+    // If user has director dashboard access, return all forms from their agency
+    if (user && PermissionManager.hasDirectorDashboardAccess(user)) {
+      return forms; // Return all forms from the agency
+    }
+    
+    // Otherwise, return only forms assigned to this specific employee
     return forms.filter(form => 
       form.assignedTo && form.assignedTo.includes(employeeId)
     );
@@ -938,7 +944,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const updateDashboard = async (dashboardId: string, dashboardData: Partial<Omit<Dashboard, 'id' | 'createdAt' | 'createdBy' | 'agencyId'>>) => {
     if (!user || !user.agencyId || !PermissionManager.canUpdateDashboards(user)) {
-      throw new Error('Seuls les directeurs peuvent modifier des tableaux de bord');
+      throw new Error('Seuls les directeurs et employés avec accès directeur peuvent modifier des tableaux de bord');
     }
 
     try {
@@ -963,7 +969,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const deleteDashboard = async (dashboardId: string) => {
     if (!user || !PermissionManager.canDeleteDashboards(user)) {
-      throw new Error('Seuls les directeurs peuvent supprimer des tableaux de bord');
+      throw new Error('Seuls les directeurs et employés avec accès directeur peuvent supprimer des tableaux de bord');
     }
 
     try {
