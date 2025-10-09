@@ -103,6 +103,7 @@ export const PackageManagementPage: React.FC = () => {
   const [isCreatingPayment, setIsCreatingPayment] = useState(false);
   const [autoOpenPayment, setAutoOpenPayment] = useState(false);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+  const [activePayAsYouGoType, setActivePayAsYouGoType] = useState<'tokens' | 'forms' | 'dashboards' | 'users' | null>(null);
 
   // Debug payment request changes
   useEffect(() => {
@@ -300,6 +301,7 @@ export const PackageManagementPage: React.FC = () => {
       setAutoOpenPayment(false);
       setIsPaymentModalOpen(false);
       setShowTransitionPreview(false);
+      setActivePayAsYouGoType(null);
     }
   }, [currentPaymentId, selectedPackage, user, showSuccess, showError, navigate]);
 
@@ -320,6 +322,7 @@ export const PackageManagementPage: React.FC = () => {
       setIsCreatingPayment(false);
       setAutoOpenPayment(false);
       setIsPaymentModalOpen(false);
+      setActivePayAsYouGoType(null);
     }
   }, [currentPaymentId, showError]);
 
@@ -339,6 +342,7 @@ export const PackageManagementPage: React.FC = () => {
       setIsCreatingPayment(false);
       setAutoOpenPayment(false);
       setIsPaymentModalOpen(false);
+      setActivePayAsYouGoType(null);
     }
   }, [currentPaymentId]);
 
@@ -360,8 +364,60 @@ export const PackageManagementPage: React.FC = () => {
     console.log('Resource purchase requested:', option);
   };
 
+  const handlePaymentCreated = useCallback((paymentRequest: PaymentRequest, paymentId: string) => {
+    console.log('Payment created in PaymentModal, setting autoOpenPayment to true');
+    setPaymentRequest(paymentRequest);
+    setCurrentPaymentId(paymentId);
+    setAutoOpenPayment(true);
+    
+    // Track which pay-as-you-go type is active
+    const itemType = paymentRequest.metadata?.itemType;
+    if (itemType && ['tokens', 'forms', 'dashboards', 'users'].includes(itemType)) {
+      setActivePayAsYouGoType(itemType as 'tokens' | 'forms' | 'dashboards' | 'users');
+    }
+  }, []);
+
   const openPaymentModal = (type: 'tokens' | 'forms' | 'dashboards' | 'users', currentLimit: number) => {
     setPaymentModal({ isOpen: true, type, currentLimit });
+  };
+
+  // Helper function to render pay-as-you-go button
+  const renderPayAsYouGoButton = (
+    type: 'tokens' | 'forms' | 'dashboards' | 'users',
+    currentLimit: number,
+    icon: React.ReactNode,
+    className: string
+  ) => {
+    const isActive = activePayAsYouGoType === type && paymentRequest;
+    
+    if (isActive) {
+      return (
+        <CampayPayment
+          key={paymentRequest.externalReference}
+          paymentRequest={paymentRequest}
+          onSuccess={handlePaymentSuccess}
+          onFail={handlePaymentFail}
+          onModalClose={handlePaymentModalClose}
+          buttonText="Payer maintenant"
+          buttonClassName={`w-full ${className} flex items-center justify-center text-sm sm:text-base`}
+          disabled={isProcessing}
+          autoOpen={autoOpenPayment}
+          onAutoOpened={() => setAutoOpenPayment(false)}
+          onModalOpen={handlePaymentModalOpen}
+          onModalClosed={handlePaymentModalClosed}
+        />
+      );
+    }
+    
+    return (
+      <Button
+        onClick={() => openPaymentModal(type, currentLimit)}
+        className={`w-full ${className} flex items-center justify-center text-sm sm:text-base`}
+      >
+        {icon}
+        <span>Activer</span>
+      </Button>
+    );
   };
 
   // Get current subscription session information
@@ -966,13 +1022,12 @@ export const PackageManagementPage: React.FC = () => {
                     <div className="text-lg sm:text-xl font-bold text-blue-600 mb-3 sm:mb-4">
                       À partir de 2 500 FCFA
                     </div>
-                    <Button
-                      onClick={() => openPaymentModal('tokens', 0)}
-                      className="w-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-105 flex items-center justify-center text-sm sm:text-base"
-                    >
-                      <Brain className="h-3 w-3 sm:h-4 sm:w-4 mr-1.5 sm:mr-2" />
-                      <span>Activer</span>
-                    </Button>
+                    {renderPayAsYouGoButton(
+                      'tokens',
+                      0,
+                      <Brain className="h-3 w-3 sm:h-4 sm:w-4 mr-1.5 sm:mr-2" />,
+                      "bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-105"
+                    )}
                   </div>
                 </div>
 
@@ -992,13 +1047,12 @@ export const PackageManagementPage: React.FC = () => {
                     <div className="text-lg sm:text-xl font-bold text-green-600 mb-3 sm:mb-4">
                       À partir de 15 000 FCFA
                     </div>
-                    <Button
-                      onClick={() => openPaymentModal('forms', 4)}
-                      className="w-full bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-105 flex items-center justify-center text-sm sm:text-base"
-                    >
-                      <FileText className="h-3 w-3 sm:h-4 sm:w-4 mr-1.5 sm:mr-2" />
-                      <span>Activer</span>
-                    </Button>
+                    {renderPayAsYouGoButton(
+                      'forms',
+                      4,
+                      <FileText className="h-3 w-3 sm:h-4 sm:w-4 mr-1.5 sm:mr-2" />,
+                      "bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-105"
+                    )}
                   </div>
                 </div>
 
@@ -1018,13 +1072,12 @@ export const PackageManagementPage: React.FC = () => {
                     <div className="text-lg sm:text-xl font-bold text-purple-600 mb-3 sm:mb-4">
                       À partir de 20 000 FCFA
                     </div>
-                    <Button
-                      onClick={() => openPaymentModal('dashboards', 1)}
-                      className="w-full bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-105 flex items-center justify-center text-sm sm:text-base"
-                    >
-                      <BarChart3 className="h-3 w-3 sm:h-4 sm:w-4 mr-1.5 sm:mr-2" />
-                      <span>Activer</span>
-                    </Button>
+                    {renderPayAsYouGoButton(
+                      'dashboards',
+                      1,
+                      <BarChart3 className="h-3 w-3 sm:h-4 sm:w-4 mr-1.5 sm:mr-2" />,
+                      "bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-105"
+                    )}
                   </div>
                 </div>
 
@@ -1044,13 +1097,12 @@ export const PackageManagementPage: React.FC = () => {
                     <div className="text-lg sm:text-xl font-bold text-orange-600 mb-3 sm:mb-4">
                       À partir de 21 000 FCFA
                     </div>
-                    <Button
-                      onClick={() => openPaymentModal('users', 3)}
-                      className="w-full bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-105 flex items-center justify-center text-sm sm:text-base"
-                    >
-                      <Users className="h-3 w-3 sm:h-4 sm:w-4 mr-1.5 sm:mr-2" />
-                      <span>Activer</span>
-                    </Button>
+                    {renderPayAsYouGoButton(
+                      'users',
+                      3,
+                      <Users className="h-3 w-3 sm:h-4 sm:w-4 mr-1.5 sm:mr-2" />,
+                      "bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-105"
+                    )}
                   </div>
                 </div>
               </div>
@@ -1089,6 +1141,8 @@ export const PackageManagementPage: React.FC = () => {
         type={paymentModal.type}
         currentLimit={paymentModal.currentLimit}
         onPurchase={handlePurchaseResource}
+        onPaymentCreated={handlePaymentCreated}
+        hideInternalPayment={true}
       />
 
 

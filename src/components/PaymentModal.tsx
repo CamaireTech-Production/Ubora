@@ -25,6 +25,8 @@ interface PaymentModalProps {
   type: 'tokens' | 'forms' | 'dashboards' | 'users';
   currentLimit: number;
   onPurchase: (option: PaymentOption) => void;
+  onPaymentCreated?: (paymentRequest: PaymentRequest, paymentId: string) => void;
+  hideInternalPayment?: boolean; // New prop to hide internal CampayPayment
 }
 
 export const PaymentModal: React.FC<PaymentModalProps> = ({
@@ -32,7 +34,9 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   onClose,
   type,
   currentLimit,
-  onPurchase
+  onPurchase,
+  onPaymentCreated,
+  hideInternalPayment = false
 }) => {
   const { user } = useAuth();
   const { showSuccess, showError } = useToast();
@@ -345,6 +349,9 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       setCurrentPaymentId(paymentId);
       setPaymentRequest(paymentReq);
       
+      // Notify parent component that payment was created
+      onPaymentCreated?.(paymentReq, paymentId);
+      
       // Auto-open payment modal after a short delay
       setTimeout(() => {
         setAutoOpenPayment(true);
@@ -474,7 +481,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       </div>
 
       {/* Campay Payment Modal */}
-      {paymentRequest && (
+      {paymentRequest && !hideInternalPayment && (
         <CampayPayment
           paymentRequest={paymentRequest}
           onSuccess={handlePaymentSuccess}
