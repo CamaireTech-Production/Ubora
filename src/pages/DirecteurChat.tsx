@@ -17,6 +17,7 @@ import { PayAsYouGoModal } from '../components/PayAsYouGoModal';
 import { LimitReachedModal } from '../components/LimitReachedModal';
 import { AnalyticsService } from '../services/analyticsService';
 import { LogoutConfirmationModal } from '../components/LogoutConfirmationModal';
+import { ImpersonationHeader } from '../components/ImpersonationHeader';
 
 // Remove the old Message interface since we're using ChatMessage from types
 
@@ -596,6 +597,7 @@ RÉPONSE :
       firebaseUser={firebaseUser}
       message="ARCHA loading..."
     >
+      <ImpersonationHeader />
       <div className="min-h-screen bg-gradient-to-b from-blue-50 via-white to-white">
         {/* Container centré pour toute l'interface */}
         <div 

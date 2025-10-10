@@ -6,6 +6,7 @@ import {
   createUserWithEmailAndPassword,
   signInWithPopup,
   GoogleAuthProvider,
+  sendPasswordResetEmail,
   User as FirebaseUser
 } from 'firebase/auth';
 import { doc, getDoc, setDoc, serverTimestamp, onSnapshot, collection, query, where, getDocs } from 'firebase/firestore';
@@ -22,6 +23,7 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<boolean>;
   loginWithGoogle: () => Promise<boolean>;
   register: (email: string, password: string, name: string, role: 'admin' | 'directeur' | 'employe', agencyId: string) => Promise<boolean>;
+  resetPassword: (email: string) => Promise<boolean>;
   logout: () => Promise<void>;
   refreshUserData: () => Promise<void>;
   isLoading: boolean;
@@ -430,19 +432,76 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const userDoc = await getDoc(userDocRef);
       
       if (!userDoc.exists()) {
-        // Créer un profil basique pour Google Auth (sera complété lors de la première connexion)
-        const userData: Omit<User, 'id'> = {
-          name: result.user.displayName || '',
-          email: result.user.email || '',
-          role: 'employe', // Rôle par défaut
-          agencyId: '', // L'utilisateur devra saisir son ID d'agence
-          // Pas de package pour les employés
-          isApproved: false, // Les employés Google Auth doivent être approuvés
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp()
-        };
+        // Check if this is an invitation-based registration
+        const urlParams = new URLSearchParams(window.location.search);
+        const isInvite = urlParams.get('invite') === 'true';
+        const inviteAgencyId = urlParams.get('agencyId');
+        const inviteRole = urlParams.get('role');
         
-        await setDoc(userDocRef, userData);
+        if (isInvite) {
+          // Handle invitation-based registration (employees only)
+          if (inviteRole !== 'employe' || !inviteAgencyId) {
+            await signOut(auth);
+            setError('Lien d\'invitation invalide. Contactez votre directeur.');
+            return false;
+          }
+          
+          // Verify the agency exists and has a director
+          const directorsQuery = query(
+            collection(db, 'users'),
+            where('agencyId', '==', inviteAgencyId),
+            where('role', '==', 'directeur')
+          );
+          const directorsSnapshot = await getDocs(directorsQuery);
+          
+          if (directorsSnapshot.empty) {
+            await signOut(auth);
+            setError('Agence invalide. Contactez votre directeur.');
+            return false;
+          }
+          
+          // Create user profile with validated invitation data
+          const userData: Omit<User, 'id'> = {
+            name: result.user.displayName || '',
+            email: result.user.email || '',
+            role: 'employe', // Always employee for invitations
+            agencyId: inviteAgencyId, // From invitation
+            isApproved: false, // Requires director approval
+            accessLevels: [],
+            hasDirectorDashboardAccess: false,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp()
+          };
+          
+          await setDoc(userDocRef, userData);
+          
+          // Track user addition in subscription session
+          try {
+            const director = directorsSnapshot.docs[0];
+            await SubscriptionSessionService.updateUsage(director.id, 'users', 1);
+          } catch (trackingError) {
+            console.error('Error tracking user addition:', trackingError);
+          }
+        } else {
+          // Handle director registration (no invitation needed)
+          const userData: Omit<User, 'id'> = {
+            name: result.user.displayName || '',
+            email: result.user.email || '',
+            role: 'directeur', // Directors can self-register
+            agencyId: '', // Will be set during onboarding
+            needsPackageSelection: true,
+            tokensUsedMonthly: 0,
+            tokensResetDate: new Date(),
+            isApproved: true, // Directors are auto-approved
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp()
+          };
+          
+          await setDoc(userDocRef, userData);
+          
+          // Redirect to package selection
+          sessionStorage.setItem('needs_package_selection', 'true');
+        }
       }
       
       // Marquer pour afficher l'écran de bienvenue juste après la connexion
@@ -560,6 +619,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const resetPassword = async (email: string): Promise<boolean> => {
+    try {
+      setError(null);
+      setIsLoading(true);
+      
+      await sendPasswordResetEmail(auth, email);
+      return true;
+    } catch (err: any) {
+      console.error('Erreur de réinitialisation du mot de passe:', err);
+      setError(getErrorMessage(err.code));
+      return false;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const logout = async (): Promise<void> => {
     try {
       await signOut(auth);
@@ -641,6 +716,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       login,
       loginWithGoogle,
       register,
+      resetPassword,
       logout,
       refreshUserData,
       isLoading,

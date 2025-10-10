@@ -6,6 +6,8 @@ import { ConversationProvider } from './contexts/ConversationContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { LoginPage } from './pages/LoginPage';
+import { PasswordResetPage } from './pages/PasswordResetPage';
+import { ProfileCompletionPage } from './pages/ProfileCompletionPage';
 import { DirecteurDashboard } from './pages/DirecteurDashboard';
 import { DirecteurChat } from './pages/DirecteurChat';
 import { EmployeDashboard } from './pages/EmployeDashboard';
@@ -89,6 +91,12 @@ function App() {
             <Routes>
             {/* Page de connexion */}
             <Route path="/login" element={<LoginPage />} />
+            
+            {/* Password Reset */}
+            <Route path="/reset-password" element={<PasswordResetPage />} />
+            
+            {/* Profile Completion */}
+            <Route path="/complete-profile" element={<ProfileCompletionPage />} />
             
             {/* Admin Login */}
             <Route path="/admin/login" element={<AdminLoginPage />} />

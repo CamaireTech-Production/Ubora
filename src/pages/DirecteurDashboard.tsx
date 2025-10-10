@@ -21,6 +21,7 @@ import { useToast } from '../hooks/useToast';
 import { Toast } from '../components/Toast';
 import { usePackageAccess } from '../hooks/usePackageAccess';
 import { LimitReachedModal } from '../components/LimitReachedModal';
+import { ImpersonationHeader } from '../components/ImpersonationHeader';
 
 export const DirecteurDashboard: React.FC = () => {
   const navigate = useNavigate();
@@ -458,8 +459,10 @@ export const DirecteurDashboard: React.FC = () => {
           />
         </Layout>
       ) : (
-        <Layout title="Dashboard Directeur">
-          <div className="space-y-6 lg:space-y-8">
+        <>
+          <ImpersonationHeader />
+          <Layout title="Dashboard Directeur">
+            <div className="space-y-6 lg:space-y-8">
             {/* Filtre temporel compact */}
             
             <div className="flex items-center justify-between gap-2 bg-white border border-gray-200 rounded-lg px-3 py-2 shadow-sm">
@@ -884,6 +887,7 @@ export const DirecteurDashboard: React.FC = () => {
 
           </div>
         </Layout>
+        </>
       )}
 
 

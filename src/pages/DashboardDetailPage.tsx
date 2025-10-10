@@ -19,6 +19,7 @@ import { GraphPreview } from '../components/charts/GraphPreview';
 import { GraphModal } from '../components/charts/GraphModal';
 import { getValidYAxisFields, validateYAxisField } from '../utils/GraphFieldValidator';
 import { metricReminderService } from '../services/metricReminderService';
+import { ImpersonationHeader } from '../components/ImpersonationHeader';
 import { 
   ArrowLeft, 
   BarChart3, 
@@ -481,8 +482,10 @@ export const DashboardDetailPage: React.FC = () => {
   }
 
   return (
-    <Layout title={dashboard.name}>
-      <div className="space-y-6">
+    <>
+      <ImpersonationHeader />
+      <Layout title={dashboard.name}>
+        <div className="space-y-6">
         {/* Header with back button and actions */}
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-4">
@@ -1623,5 +1626,6 @@ export const DashboardDetailPage: React.FC = () => {
         type={toast.type}
       />
     </Layout>
+    </>
   );
 };

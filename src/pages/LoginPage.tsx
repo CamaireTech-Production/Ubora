@@ -8,7 +8,7 @@ import { Footer } from '../components/Footer';
 import { Lock, Mail, AlertCircle } from 'lucide-react';
 
 export const LoginPage: React.FC = () => {
-  const { user, login, loginWithGoogle, register, isLoading, error } = useAuth();
+  const { user, login, loginWithGoogle, register, resetPassword, isLoading, error } = useAuth();
   const [searchParams] = useSearchParams();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -20,6 +20,9 @@ export const LoginPage: React.FC = () => {
   const [isInviteLink, setIsInviteLink] = useState(false);
   const [showAccountExistsModal, setShowAccountExistsModal] = useState(false);
   const [modalCountdown, setModalCountdown] = useState(5);
+  const [showForgotPasswordModal, setShowForgotPasswordModal] = useState(false);
+  const [forgotPasswordEmail, setForgotPasswordEmail] = useState('');
+  const [forgotPasswordSuccess, setForgotPasswordSuccess] = useState(false);
 
   // Gérer les paramètres d'invitation depuis l'URL
   useEffect(() => {
@@ -112,10 +115,36 @@ export const LoginPage: React.FC = () => {
 
   const handleGoogleLogin = async () => {
     setLocalError('');
-    try {
-      await loginWithGoogle();
-    } catch (err) {
-      setLocalError('Erreur lors de la connexion Google');
+    
+    // Check if this is an invitation context
+    const urlParams = new URLSearchParams(window.location.search);
+    const isInvite = urlParams.get('invite') === 'true';
+    
+    if (isInvite) {
+      // For invitations, Google Auth is allowed
+      try {
+        await loginWithGoogle();
+      } catch (err) {
+        setLocalError('Erreur lors de la connexion Google');
+      }
+    } else {
+      // For non-invitation contexts, show error
+      setLocalError('Les employés doivent utiliser un lien d\'invitation pour se connecter avec Google. Contactez votre directeur.');
+    }
+  };
+
+  const handleForgotPassword = async () => {
+    if (!forgotPasswordEmail.trim()) {
+      setLocalError('Veuillez entrer votre adresse email');
+      return;
+    }
+    
+    setLocalError('');
+    const success = await resetPassword(forgotPasswordEmail);
+    
+    if (success) {
+      setForgotPasswordSuccess(true);
+      setForgotPasswordEmail('');
     }
   };
 
@@ -255,6 +284,18 @@ export const LoginPage: React.FC = () => {
               />
             </div>
 
+            {!isRegisterMode && (
+              <div className="text-right">
+                <button
+                  type="button"
+                  onClick={() => setShowForgotPasswordModal(true)}
+                  className="text-sm text-blue-600 hover:text-blue-500 transition-colors"
+                >
+                  Mot de passe oublié ?
+                </button>
+              </div>
+            )}
+
             {displayError && (
               <div className="flex items-start space-x-2 text-red-600 text-sm bg-red-50 p-3 rounded-lg">
                 <AlertCircle className="h-4 w-4 flex-shrink-0" />
@@ -282,15 +323,27 @@ export const LoginPage: React.FC = () => {
                 </div>
               </div>
 
-              <Button
-                type="button"
-                variant="secondary"
-                onClick={handleGoogleLogin}
-                disabled={isLoading}
-                className="w-full mt-4"
-              >
-                Continuer avec Google
-              </Button>
+              {/* Only show Google button for invitations or directors */}
+              {(isInviteLink || (!isInviteLink && role === 'directeur')) && (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={handleGoogleLogin}
+                  disabled={isLoading}
+                  className="w-full mt-4"
+                >
+                  Continuer avec Google
+                </Button>
+              )}
+              
+              {/* Show message for employees without invitation */}
+              {!isInviteLink && role === 'employe' && (
+                <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                  <p className="text-sm text-yellow-800 text-center">
+                    Les employés doivent utiliser un lien d'invitation pour se connecter avec Google.
+                  </p>
+                </div>
+              )}
             </div>
           )}
 
@@ -355,6 +408,90 @@ export const LoginPage: React.FC = () => {
                   Annuler
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Modal pour mot de passe oublié */}
+      {showForgotPasswordModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
+            <div className="text-center">
+              <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-blue-100 mb-4">
+                <Lock className="h-6 w-6 text-blue-600" />
+              </div>
+              
+              <h3 className="text-xl font-semibold text-gray-900 mb-3">
+                Mot de passe oublié
+              </h3>
+              
+              {!forgotPasswordSuccess ? (
+                <>
+                  <p className="text-gray-600 mb-6">
+                    Entrez votre adresse email et nous vous enverrons un lien pour réinitialiser votre mot de passe.
+                  </p>
+                  
+                  <div className="space-y-4">
+                    <Input
+                      label="Email"
+                      type="email"
+                      value={forgotPasswordEmail}
+                      onChange={(e) => setForgotPasswordEmail(e.target.value)}
+                      placeholder="votre@email.com"
+                      required
+                    />
+                    
+                    <div className="flex space-x-3">
+                      <Button
+                        onClick={handleForgotPassword}
+                        disabled={isLoading || !forgotPasswordEmail.trim()}
+                        className="flex-1"
+                      >
+                        {isLoading ? 'Envoi...' : 'Envoyer le lien'}
+                      </Button>
+                      <button
+                        onClick={() => {
+                          setShowForgotPasswordModal(false);
+                          setForgotPasswordEmail('');
+                          setLocalError('');
+                        }}
+                        className="flex-1 border border-gray-300 hover:border-gray-400 text-gray-700 hover:text-gray-900 font-medium py-3 px-4 rounded-lg transition-colors"
+                      >
+                        Annuler
+                      </button>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-green-100 mb-4">
+                    <svg className="h-8 w-8 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  
+                  <h3 className="text-xl font-semibold text-gray-900 mb-3">
+                    Email envoyé !
+                  </h3>
+                  
+                  <p className="text-gray-600 mb-6">
+                    Nous avons envoyé un lien de réinitialisation à votre adresse email. 
+                    Vérifiez votre boîte de réception et suivez les instructions.
+                  </p>
+                  
+                  <Button
+                    onClick={() => {
+                      setShowForgotPasswordModal(false);
+                      setForgotPasswordSuccess(false);
+                      setForgotPasswordEmail('');
+                    }}
+                    className="w-full"
+                  >
+                    Fermer
+                  </Button>
+                </>
+              )}
             </div>
           </div>
         </div>
