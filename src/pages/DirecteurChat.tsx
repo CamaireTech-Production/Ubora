@@ -554,7 +554,7 @@ RÉPONSE :
     >
       <div className="min-h-screen bg-gradient-to-b from-blue-50 via-white to-white">
         {/* Container centré pour toute l'interface */}
-        <div className="max-w-7xl mx-auto flex flex-col h-screen px-0 sm:px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto flex flex-col h-screen px-0 sm:px-6 lg:px-8" style={{ height: '100dvh' }}>
           
           {/* Top bar */}
           <ChatTopBar

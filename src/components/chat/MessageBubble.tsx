@@ -320,7 +320,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
 
       {/* Message bubble */}
       <div className={`mobile-chat-bubble ${isUser ? 'mobile-user-message' : 'mobile-ai-message'} flex flex-col`}>
-        <div className={`px-4 py-3 rounded-2xl shadow-sm min-w-0 w-full overflow-x-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent mobile-chat-content ${
+        <div className={`px-3 py-2.5 rounded-2xl shadow-sm min-w-0 w-full overflow-x-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent mobile-chat-content ${
           isUser 
             ? 'bg-gradient-to-br from-blue-600 to-blue-700 text-white rounded-br-md' 
             : 'bg-white border border-gray-200 text-gray-900 rounded-bl-md'
@@ -584,18 +584,18 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
           
           {/* Enhanced PDF Files Display with Source Attribution - Horizontal Layout */}
           {!isUser && message.pdfFiles && message.pdfFiles.length > 0 && (
-            <div className="mt-4 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg shadow-sm">
+            <div className="mt-3 p-3 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg shadow-sm">
               <h4 className="text-sm font-semibold text-blue-900 mb-3 flex items-center justify-between">
-                <div className="flex items-center">
-                  <span className="mr-2">📄</span>
-                  Documents analysés
-                  <span className="ml-2 text-xs bg-blue-200 text-blue-900 px-2 py-1 rounded-full font-medium">
+                <div className="flex items-center gap-1.5 min-w-0 flex-1 document-analysis-section">
+                  <span className="flex-shrink-0">📄</span>
+                  <span className="flex-shrink-0 text-xs sm:text-sm document-label">Docs analysés</span>
+                  <span className="text-xs bg-blue-200 text-blue-900 px-1.5 py-0.5 rounded-full font-medium flex-shrink-0 whitespace-nowrap document-count">
                     {message.pdfFiles.length} fichier{message.pdfFiles.length > 1 ? 's' : ''}
                   </span>
                 </div>
                 <button
                   onClick={() => setShowDocuments(!showDocuments)}
-                  className="ml-2 p-1 text-blue-700 hover:text-blue-900 hover:bg-blue-100 rounded-md transition-colors"
+                  className="ml-2 p-1 text-blue-700 hover:text-blue-900 hover:bg-blue-100 rounded-md transition-colors expand-button"
                   title={showDocuments ? "Masquer les documents" : "Afficher les documents"}
                 >
                   <svg 

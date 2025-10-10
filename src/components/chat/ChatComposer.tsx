@@ -158,17 +158,19 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
       const heightDifference = initialHeight - currentHeight;
       
       // More sensitive threshold for better detection
-      const keyboardOpen = heightDifference > 50;
+      const keyboardOpen = heightDifference > 30;
       setIsKeyboardOpen(keyboardOpen);
       setKeyboardHeight(keyboardOpen ? heightDifference : 0);
 
       if (keyboardOpen) {
         // Ensure input stays visible immediately - no delay
-        textareaRef.current?.scrollIntoView({ 
-          behavior: 'smooth', 
-          block: 'nearest',
-          inline: 'nearest'
-        });
+        setTimeout(() => {
+          textareaRef.current?.scrollIntoView({ 
+            behavior: 'smooth', 
+            block: 'end',
+            inline: 'nearest'
+          });
+        }, 50);
       }
     };
 
@@ -206,18 +208,19 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
   const handleFocus = useCallback(() => {
     // On mobile, ensure the input is visible when focused - immediate scroll
     if (textareaRef.current) {
-      // Immediate scroll, then another after a short delay for keyboard animation
+      // Immediate scroll to bring input into view
       textareaRef.current?.scrollIntoView({ 
         behavior: 'smooth', 
-        block: 'nearest' 
+        block: 'end' 
       });
       
+      // Additional scroll after keyboard animation completes
       setTimeout(() => {
         textareaRef.current?.scrollIntoView({ 
           behavior: 'smooth', 
-          block: 'nearest' 
+          block: 'end' 
         });
-      }, 100);
+      }, 300);
     }
   }, []);
 
@@ -228,11 +231,13 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
 
   return (
     <div 
-      className="fixed left-0 right-0 z-10 bg-gradient-to-t from-white via-white to-transparent pt-4 pb-2 transition-all duration-200"
+      className="fixed left-0 right-0 z-10 bg-gradient-to-t from-white via-white to-transparent pt-4 pb-2 transition-all duration-300"
       style={{ 
         // Use viewport height minus keyboard height for precise positioning
         bottom: isKeyboardOpen ? `${keyboardHeight}px` : '0',
-        paddingBottom: isKeyboardOpen ? '0.5rem' : 'max(1rem, env(safe-area-inset-bottom))'
+        paddingBottom: isKeyboardOpen ? '0.5rem' : 'max(1rem, env(safe-area-inset-bottom))',
+        // Ensure it stays above keyboard
+        transform: isKeyboardOpen ? 'translateY(0)' : 'translateY(0)'
       }}
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -280,10 +285,10 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
         )}
 
           {/* Composer input section */}
-          <div className="p-4">
+          <div className="p-3">
             <div className="flex items-end space-x-3 bg-white rounded-2xl">
               {/* Textarea */}
-              <div className="flex-1 p-3">
+              <div className="flex-1 p-2.5">
                 <textarea
                   ref={textareaRef}
                   value={localValue}

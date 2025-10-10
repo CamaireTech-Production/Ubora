@@ -87,7 +87,7 @@ export const MessageList: React.FC<MessageListProps> = ({
       const currentHeight = window.visualViewport.height;
       const heightDifference = initialHeight - currentHeight;
       
-      setKeyboardHeight(heightDifference > 50 ? heightDifference : 0);
+      setKeyboardHeight(heightDifference > 30 ? heightDifference : 0);
     };
 
     if (window.visualViewport) {
@@ -137,6 +137,20 @@ export const MessageList: React.FC<MessageListProps> = ({
     setLastMessageCount(messages.length);
   }, [messages.length, isTyping, autoScrollDisabled, isAtTop, lastMessageCount, isInitialLoad]);
 
+  // Auto-scroll when keyboard opens to keep input visible
+  useEffect(() => {
+    if (keyboardHeight > 0 && containerRef.current) {
+      setTimeout(() => {
+        if (containerRef.current) {
+          containerRef.current.scrollTo({
+            top: containerRef.current.scrollHeight,
+            behavior: 'smooth'
+          });
+        }
+      }, 100);
+    }
+  }, [keyboardHeight]);
+
   // Handle scroll to load more messages and track user scrolling
   const handleScroll = () => {
     if (!containerRef.current) return;
@@ -177,9 +191,9 @@ export const MessageList: React.FC<MessageListProps> = ({
             ? `calc(100dvh - 140px - ${keyboardHeight}px)` 
             : 'calc(100dvh - 140px)',
           scrollBehavior: 'smooth',
-          // Minimal padding - just enough for the composer
+          // Optimized padding for clean spacing like WhatsApp
           paddingBottom: keyboardHeight > 0 
-            ? '4rem'
+            ? '1rem'
             : 'max(8rem, calc(8rem + env(safe-area-inset-bottom)))'
         }}
       >
