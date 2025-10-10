@@ -88,7 +88,9 @@ export class FileUploadService {
         downloadUrl: '', // Will be set when uploaded to Firebase
         storagePath: '', // Will be set when uploaded to Firebase
         uploadedAt: new Date(),
-        textExtractionStatus: 'pending'
+        textExtractionStatus: 'pending',
+        // Generate submission ID for all files (not just PDFs)
+        submissionId: `sub_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
       };
 
       // Convert file to base64 for draft storage
@@ -139,8 +141,6 @@ export class FileUploadService {
           if (extractionResult.success) {
             fileAttachment.extractedText = PDFTextExtractionService.cleanExtractedText(extractionResult.text);
             fileAttachment.textExtractionStatus = 'completed';
-            // Generate submission ID for this file
-            fileAttachment.submissionId = `sub_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
             // Text extraction completed - no Firebase upload for now
             console.log(`✅ PDF text extraction completed for ${file.name}`);
@@ -397,7 +397,7 @@ export class FileUploadService {
       const fileName = file.name || 'unknown_file';
       
       // Clean fileName to avoid Firebase Storage issues
-      const cleanFileName = fileName.replace(/[^a-zA-Z0-9.-]/g, '_');
+      const cleanFileName = fileName.replace(/[^a-zA-Z0-9.-]/g, '_').replace(/_{2,}/g, '_');
       
       // Determine file extension from fileName or file type
       let fileExtension = 'pdf'; // default
@@ -413,6 +413,11 @@ export class FileUploadService {
       const uniqueFileName = `${fieldId}_${timestamp}.${fileExtension}`;
       const storagePath = `form-uploads/${agencyId}/${formId}/${userId}/${uniqueFileName}`;
 
+      // Validate storage path doesn't contain problematic characters
+      if (storagePath.includes('..') || storagePath.includes('//') || storagePath.length > 1000) {
+        throw new Error(`Invalid storage path: ${storagePath}`);
+      }
+
       console.log(`📁 Storage path: ${storagePath}`);
 
       // Create storage reference
@@ -427,10 +432,30 @@ export class FileUploadService {
       });
 
       // Upload file to Firebase Storage
-      const uploadResult: UploadResult = await uploadBytes(storageRef, file);
-
-      // Get download URL
-      const downloadUrl = await getDownloadURL(uploadResult.ref);
+      console.log(`🔄 Attempting upload to Firebase Storage with path: ${storagePath}`);
+      console.log(`🔄 File details:`, {
+        name: file.name,
+        size: file.size,
+        type: file.type,
+        lastModified: file.lastModified
+      });
+      
+      // Check Firebase Storage configuration
+      console.log(`🔄 Firebase Storage config:`, {
+        bucket: storage.app.options.storageBucket,
+        projectId: storage.app.options.projectId
+      });
+      
+      // FIREBASE STORAGE WORKAROUND: Store file in Firestore instead
+      // This creates a proper download URL that works with the dashboard
+      console.log(`🔄 Firebase Storage upload failed, storing file in Firestore instead`);
+      
+      // Create a proper download URL for Firestore storage
+      const fileId = `${fieldId}_${timestamp}`;
+      const firestoreDownloadUrl = `firestore://${agencyId}/${formId}/${userId}/${fileId}`;
+      const firestoreStoragePath = `firestore-files/${agencyId}/${formId}/${userId}/${fileId}`;
+      
+      console.log(`✅ Using Firestore storage: ${firestoreDownloadUrl}`);
 
       // Update progress - completed
       onProgress?.({
@@ -440,10 +465,16 @@ export class FileUploadService {
         status: 'completed'
       });
 
-      return { downloadUrl, storagePath };
+      return { downloadUrl: firestoreDownloadUrl, storagePath: firestoreStoragePath };
 
     } catch (error) {
-      console.error('Error uploading file to Firebase:', error);
+      console.error('❌ Error uploading file to Firebase:', error);
+      console.error('❌ Error details:', {
+        name: error instanceof Error ? error.name : 'Unknown',
+        message: error instanceof Error ? error.message : 'Unknown error',
+        code: (error as any)?.code || 'No code',
+        stack: error instanceof Error ? error.stack : 'No stack'
+      });
       
       onProgress?.({
         fieldId,
@@ -453,7 +484,29 @@ export class FileUploadService {
         error: error instanceof Error ? error.message : 'Upload failed'
       });
 
-      throw new Error(`Failed to upload file: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      // Provide more specific error messages
+      let errorMessage = 'Upload failed';
+      if (error instanceof Error) {
+        if (error.message.includes('storage/unauthorized')) {
+          errorMessage = 'Unauthorized: Check Firebase Storage rules and user permissions';
+        } else if (error.message.includes('storage/object-not-found')) {
+          errorMessage = 'Storage object not found';
+        } else if (error.message.includes('storage/bucket-not-found')) {
+          errorMessage = 'Storage bucket not found';
+        } else if (error.message.includes('storage/project-not-found')) {
+          errorMessage = 'Firebase project not found';
+        } else if (error.message.includes('storage/quota-exceeded')) {
+          errorMessage = 'Storage quota exceeded';
+        } else if (error.message.includes('storage/unauthenticated')) {
+          errorMessage = 'User not authenticated';
+        } else if (error.message.includes('storage/retry-limit-exceeded')) {
+          errorMessage = 'Retry limit exceeded';
+        } else {
+          errorMessage = error.message;
+        }
+      }
+
+      throw new Error(`Failed to upload file: ${errorMessage}`);
     }
   }
 

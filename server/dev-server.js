@@ -96,10 +96,14 @@ const ocrExtractHandler = require('../api/ocr/extractText.js');
 const ocrPdfExtractHandler = require('../api/ocr/extractPdfText.js');
 const ocrHealthHandler = require('../api/ocr/health.js');
 
+// File download handler
+const { downloadHandler } = require('../api/files/download.js');
+
 // Routes
 app.post('/api/ai/ask', askHandler);
 app.get('/api/ai/health', healthHandler);
 app.post('/api/ai/format', formatHandler);
+app.get('/api/files/download', downloadHandler);
 
 // Test endpoint to verify server is running
 app.get('/api/test', (req, res) => {
@@ -116,6 +120,7 @@ app.get('/api/ai/format', (req, res) => {
 });
 
 console.log('✅ Format route registered: POST /api/ai/format');
+console.log('✅ Download route registered: GET /api/files/download');
 console.log('✅ Test route registered: GET /api/test');
 
 // OCR routes

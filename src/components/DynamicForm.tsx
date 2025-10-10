@@ -8,13 +8,13 @@ import { Card } from './Card';
 import { FileInput } from './FileInput';
 import { FileUploadService, UploadProgress } from '../services/fileUploadService';
 import { useAuth } from '../contexts/AuthContext';
-import { useApp } from '../contexts/AppContext';
 import { db, auth } from '../firebaseConfig';
 import { doc, getDoc } from 'firebase/firestore';
 import { CheckCircle, Clock, AlertTriangle, Loader2, Calculator, Trash2 } from 'lucide-react';
 import { useToast } from '../hooks/useToast';
 import { ExpressionCalculator } from '../utils/ExpressionCalculator';
 import { ConditionalLogicEvaluator } from '../utils/ConditionalLogicEvaluator';
+import { getFileBlobUrl } from '../utils/simpleFileDownload';
 
 // Helper function to convert field IDs back to user-friendly field names in formulas
 const convertFormulaToUserFriendly = (formula: string, fields: FormField[]): string => {
@@ -59,12 +59,10 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
   isLoading = false
 }: DynamicFormProps) => {
   const { user } = useAuth();
-  const { submitFormEntry } = useApp();
   const { showError, showSuccess } = useToast();
   const [answers, setAnswers] = useState<Record<string, unknown>>(initialAnswers);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [fileAttachments, setFileAttachments] = useState<FileAttachment[]>(initialFileAttachments);
-  const [originalFiles, setOriginalFiles] = useState<Map<string, File>>(new Map());
   const [uploadProgress, setUploadProgress] = useState<Record<string, UploadProgress>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [visibleFields, setVisibleFields] = useState<string[]>(form.fields.map((f: FormField) => f.id));
@@ -280,8 +278,6 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
         }
       }));
 
-      // Store original file for later Firebase upload (like images)
-      setOriginalFiles(prev => new Map(prev).set(fieldId, file));
 
       // Process file locally (extract text only)
         const attachment = await FileUploadService.processFile(
@@ -350,12 +346,6 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
     // Remove from attachments
     setFileAttachments(prev => prev.filter(att => att.fieldId !== fieldId));
     
-    // Remove from original files
-    setOriginalFiles(prev => {
-      const newFiles = new Map(prev);
-      newFiles.delete(fieldId);
-      return newFiles;
-    });
     
     // Clear answer
     setAnswers(prev => ({
@@ -445,45 +435,8 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
           return;
         }
 
-        // Only submit to Firebase if it's NOT a draft and NOT in edit mode
-        if (!isDraft) {
-          // Get current user info
-          const currentUser = auth.currentUser;
-          if (!currentUser) {
-            throw new Error('User not authenticated');
-          }
-
-          // Get user data to get agencyId
-          const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
-          if (!userDoc.exists()) {
-            throw new Error('User data not found');
-          }
-          const userData = userDoc.data();
-
-          // Files will be uploaded to Firebase Storage during form submission
-          let updatedFileAttachments = fileAttachments;
-          if (fileAttachments.length > 0) {
-            console.log('📎 Form has file attachments:', fileAttachments.map(att => ({
-              fieldId: att.fieldId,
-              fileName: att.fileName,
-              hasExtractedText: !!att.extractedText,
-              extractedTextLength: att.extractedText?.length || 0
-            })));
-          }
-
-          // Submit to Firebase via AppContext
-          const formEntryData = {
-            formId: form.id,
-            answers: answers,
-            fileAttachments: updatedFileAttachments
-          };
-
-          // Submit to Firebase via AppContext (pass original files)
-          await submitFormEntry(formEntryData, originalFiles);
-
-        }
-
-        // Always call the onSubmit prop (parent handles draft vs final submission)
+        // ALWAYS treat as draft submission - no direct Firebase upload
+        // The parent component will handle the actual submission
         onSubmit(answers, fileAttachments);
 
       } catch (error) {
@@ -802,14 +755,23 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
                     </div>
                     <div className="flex items-center space-x-2">
                       {attachment.downloadUrl && (
-                        <a
-                          href={attachment.downloadUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
+                        <button
+                          onClick={async () => {
+                            try {
+                              const blobUrl = await getFileBlobUrl(attachment);
+                              const link = document.createElement('a');
+                              link.href = blobUrl;
+                              link.download = attachment.fileName;
+                              link.click();
+                              URL.revokeObjectURL(blobUrl);
+                            } catch (error) {
+                              console.error('Download failed:', error);
+                            }
+                          }}
                           className="px-3 py-1 text-xs bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors"
                         >
                           📥 Télécharger
-                        </a>
+                        </button>
                       )}
                     </div>
                   </div>

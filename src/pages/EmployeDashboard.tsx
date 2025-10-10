@@ -14,6 +14,7 @@ import { getFileDownloadURL } from '../utils/firebaseStorageUtils';
 import { PDFViewerModal } from '../components/PDFViewerModal';
 import { downloadFile } from '../utils/downloadUtils';
 import { forceDownloadFromFirebase } from '../utils/firebaseDownloadUtils';
+import { getFileBlobUrl, downloadFileFromBlob } from '../utils/simpleFileDownload';
 import { VideoSection } from '../components/VideoSection';
 import { employeeVideos } from '../data/videoData';
 
@@ -572,14 +573,19 @@ export const EmployeDashboard: React.FC = () => {
 
   const handleViewPDF = async (fileAttachment: any) => {
     try {
-      const downloadUrl = await getFileDownloadURL(fileAttachment);
+      console.log('🔄 Opening PDF viewer for:', fileAttachment.fileName);
+      
+      // Get blob URL for the file
+      const blobUrl = await getFileBlobUrl(fileAttachment);
       
       // Open in PDF viewer modal
       setPdfViewerModal({
         isOpen: true,
-        fileUrl: downloadUrl,
+        fileUrl: blobUrl,
         fileName: fileAttachment.fileName
       });
+      
+      console.log('✅ PDF viewer opened successfully');
     } catch (error) {
       console.error('Error viewing file:', error);
       showError('Erreur lors de l\'ouverture du fichier');
@@ -588,25 +594,12 @@ export const EmployeDashboard: React.FC = () => {
 
   const handleDownloadPDF = async (fileAttachment: any) => {
     try {
+      console.log('🔄 Downloading file:', fileAttachment.fileName);
       
-      // Try Firebase-specific download first
-      if (fileAttachment.storagePath) {
-        await forceDownloadFromFirebase(
-          fileAttachment.storagePath,
-          fileAttachment.fileName,
-          () => {
-            showSuccess('Téléchargement démarré');
-          },
-          () => {
-            // Fallback to regular download
-            handleDownloadFallback(fileAttachment);
-          }
-        );
-        return;
-      }
+      // Use the simple blob download approach
+      await downloadFileFromBlob(fileAttachment);
+      showSuccess('Téléchargement démarré');
       
-      // Fallback to regular download
-      await handleDownloadFallback(fileAttachment);
     } catch (error) {
       console.error('Error downloading file:', error);
       showError('Erreur lors du téléchargement du fichier');
@@ -615,7 +608,13 @@ export const EmployeDashboard: React.FC = () => {
 
   const handleDownloadFallback = async (fileAttachment: any) => {
     try {
-      const downloadUrl = await getFileDownloadURL(fileAttachment);
+      // Use the new utility function to get proper download URL
+      const downloadUrl = getFileDownloadUrl(fileAttachment);
+      
+      if (!downloadUrl) {
+        showError('URL de téléchargement non disponible');
+        return;
+      }
       
       await downloadFile({
         fileName: fileAttachment.fileName,

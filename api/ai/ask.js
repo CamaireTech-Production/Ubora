@@ -1504,20 +1504,20 @@ TOP FORMULAIRES : ${data.formStats.slice(0, 3).map(f => `${f.title} (${f.count} 
 
     // Analyze content types present in the data
     const hasPDFContent = data.submissions.some(s => 
-      s.fileAttachments?.some(att => att.fileType === 'application/pdf' && att.extractedText)
+      s.fileAttachments?.some(att => att.fileType === 'application/pdf' && (att.extractedText || att.rawExtractedText))
     ) || data.submissions.some(s => 
       Object.values(s.answers).some(value => 
-        value && typeof value === 'object' && value.uploaded && value.fileName && value.extractedText
+        value && typeof value === 'object' && value.uploaded && value.fileName && (value.extractedText || value.rawExtractedText)
       )
     );
 
     const hasImageContent = data.submissions.some(s => 
       s.fileAttachments?.some(att => 
-        att.fileType && att.fileType.startsWith('image/') && att.extractedText
+        att.fileType && att.fileType.startsWith('image/') && (att.extractedText || att.rawExtractedText)
       )
     ) || data.submissions.some(s => 
       Object.values(s.answers).some(value => 
-        value && typeof value === 'object' && value.uploaded && value.fileName && value.extractedText && 
+        value && typeof value === 'object' && value.uploaded && value.fileName && (value.extractedText || value.rawExtractedText) && 
         value.fileType && value.fileType.startsWith('image/')
       )
     );
@@ -1554,24 +1554,30 @@ TOP FORMULAIRES : ${data.formStats.slice(0, 3).map(f => `${f.title} (${f.count} 
         let extractedTextSummary = '';
         if (s.fileAttachments && s.fileAttachments.length > 0) {
           const pdfFiles = s.fileAttachments.filter(att => 
-            att.fileType === 'application/pdf' && att.extractedText
+            att.fileType === 'application/pdf' && (att.extractedText || att.rawExtractedText)
           );
           
           const imageFiles = s.fileAttachments.filter(att => 
-            att.fileType && att.fileType.startsWith('image/') && att.extractedText
+            att.fileType && att.fileType.startsWith('image/') && (att.extractedText || att.rawExtractedText)
           );
           
           if (pdfFiles.length > 0) {
             pdfFiles.forEach((file, fileIndex) => {
-              // Include extracted text as additional field data, not as separate section
-              extractedTextSummary += ` | Document PDF: ${file.fileName} (${file.extractedText.substring(0, 1500)}${file.extractedText.length > 1500 ? '...' : ''})`;
+              // Use formatted text if available, otherwise fall back to raw extracted text
+              const textToUse = file.extractedText || file.rawExtractedText || '';
+              if (textToUse) {
+                extractedTextSummary += ` | Document PDF: ${file.fileName} (${textToUse.substring(0, 1500)}${textToUse.length > 1500 ? '...' : ''})`;
+              }
             });
           }
           
           if (imageFiles.length > 0) {
             imageFiles.forEach((file, fileIndex) => {
-              // Include extracted text from images
-              extractedTextSummary += ` | Image: ${file.fileName} (${file.extractedText.substring(0, 1500)}${file.extractedText.length > 1500 ? '...' : ''})`;
+              // Use formatted text if available, otherwise fall back to raw extracted text
+              const textToUse = file.extractedText || file.rawExtractedText || '';
+              if (textToUse) {
+                extractedTextSummary += ` | Image: ${file.fileName} (${textToUse.substring(0, 1500)}${textToUse.length > 1500 ? '...' : ''})`;
+              }
             });
           }
         }

@@ -14,25 +14,47 @@ async function formatHandler(req, res) {
   try {
     console.log('🔍 Format endpoint called with method:', req.method);
     console.log('🔍 Request body:', req.body);
+    console.log('🔍 Request headers:', req.headers);
+    console.log('🔍 Content-Type:', req.headers['content-type']);
     
-    const { formEntryId, rawText, fileName } = req.body;
+    const { submissionId, formEntryId, rawText, fileName } = req.body;
 
     console.log('🔄 Format request received:', {
+      submissionId,
       formEntryId,
       fileName,
       rawTextLength: rawText?.length || 0
     });
 
-    // Validate required fields
-    if (!formEntryId || !rawText) {
+    // Validate required fields - accept either submissionId or formEntryId
+    if ((!submissionId && !formEntryId) || !rawText) {
+      console.error('❌ Missing required fields:', {
+        hasSubmissionId: !!submissionId,
+        hasFormEntryId: !!formEntryId,
+        hasRawText: !!rawText,
+        submissionId,
+        formEntryId,
+        rawTextLength: rawText?.length || 0,
+        fullRequestBody: req.body
+      });
+      
       return res.status(400).json({
         success: false,
-        error: 'Missing required fields: formEntryId and rawText are required'
+        error: 'Missing required fields: submissionId (or formEntryId) and rawText are required',
+        details: {
+          hasSubmissionId: !!submissionId,
+          hasFormEntryId: !!formEntryId,
+          hasRawText: !!rawText,
+          receivedBody: req.body
+        }
       });
     }
 
+    // Use submissionId if available, otherwise fall back to formEntryId
+    const idToUse = submissionId || formEntryId;
+
     // Start background formatting (don't wait for it)
-    formatTextInBackground(formEntryId, rawText, fileName)
+    formatTextInBackground(idToUse, rawText, fileName)
       .catch(error => {
         console.error('❌ Background formatting failed:', error);
       });
@@ -128,25 +150,65 @@ ${rawText}`
 /**
  * Update FormEntry with formatted text
  */
-async function updateFormEntryWithFormattedText(formEntryId, formattedText, fileName) {
+async function updateFormEntryWithFormattedText(submissionId, formattedText, fileName) {
   try {
-    console.log('📝 Updating FormEntry with formatted text:', formEntryId);
+    console.log('📝 Updating FormEntry with formatted text for submission:', submissionId);
 
-    // Get the FormEntry document
-    const formEntryRef = adminDb.collection('formEntries').doc(formEntryId);
-    const formEntryDoc = await formEntryRef.get();
+    // First try to find FormEntry by submissionId in fileAttachments
+    let formEntryRef = null;
+    let formEntryDoc = null;
 
-    if (!formEntryDoc.exists) {
-      throw new Error(`FormEntry not found: ${formEntryId}`);
+    // Try to find FormEntry by searching for the submissionId in fileAttachments
+    // We need to search through all recent FormEntries since Firestore doesn't support
+    // complex queries on array objects
+    const recentEntriesQuery = await adminDb
+      .collection('formEntries')
+      .orderBy('submittedAt', 'desc')
+      .limit(50) // Check last 50 entries
+      .get();
+
+    let foundEntry = null;
+    for (const doc of recentEntriesQuery.docs) {
+      const data = doc.data();
+      if (data.fileAttachments && Array.isArray(data.fileAttachments)) {
+        const hasMatchingSubmissionId = data.fileAttachments.some(att => 
+          att && att.submissionId === submissionId
+        );
+        if (hasMatchingSubmissionId) {
+          foundEntry = doc;
+          break;
+        }
+      }
+    }
+
+    if (foundEntry) {
+      formEntryRef = foundEntry.ref;
+      formEntryDoc = foundEntry;
+      console.log('✅ Found FormEntry by submissionId in fileAttachments');
+    } else {
+      // Fallback: try using submissionId as document ID (for backward compatibility)
+      formEntryRef = adminDb.collection('formEntries').doc(submissionId);
+      formEntryDoc = await formEntryRef.get();
+      
+      if (formEntryDoc.exists) {
+        console.log('✅ Found FormEntry using submissionId as document ID');
+      }
+    }
+
+    if (!formEntryDoc || !formEntryDoc.exists) {
+      throw new Error(`FormEntry not found for submissionId: ${submissionId}`);
     }
 
     const formEntryData = formEntryDoc.data();
     const fileAttachments = Array.isArray(formEntryData.fileAttachments) ? formEntryData.fileAttachments : [];
 
-    // Update the file attachment with the matching fileName
+    // Update the file attachment with the matching submissionId
     const updatedFileAttachments = fileAttachments.map((attachment) => {
-      if (attachment.fileName === fileName) {
-        console.log('📝 Updating attachment with formatted text:', attachment.fileName);
+      if (attachment.submissionId === submissionId) {
+        console.log('📝 Updating attachment with formatted text:', {
+          fileName: attachment.fileName,
+          submissionId: attachment.submissionId
+        });
         return {
           ...attachment,
           rawExtractedText: attachment.extractedText, // Keep raw text
@@ -157,6 +219,18 @@ async function updateFormEntryWithFormattedText(formEntryId, formattedText, file
       }
       return attachment;
     });
+
+    // Check if any attachment was actually updated
+    const wasUpdated = updatedFileAttachments.some((att, index) => 
+      att.submissionId === submissionId && 
+      att.extractedText === formattedText &&
+      att.formattingStatus === 'completed'
+    );
+
+    if (!wasUpdated) {
+      console.warn('⚠️ No attachment was updated - submissionId might not match any attachment');
+      console.log('Available submissionIds:', fileAttachments.map(att => att.submissionId));
+    }
 
     // Update the FormEntry document
     await formEntryRef.update({

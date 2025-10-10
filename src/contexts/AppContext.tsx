@@ -30,7 +30,7 @@ interface AppContextType {
   dashboards: Dashboard[];
   createForm: (form: Omit<Form, 'id' | 'createdAt'>) => Promise<void>;
   updateForm: (formId: string, form: Partial<Omit<Form, 'id' | 'createdAt' | 'createdBy' | 'agencyId'>>) => Promise<void>;
-  submitFormEntry: (entry: Omit<FormEntry, 'id' | 'submittedAt' | 'userId' | 'agencyId'>, originalFiles?: Map<string, File>) => Promise<void>;
+  submitFormEntry: (entry: Omit<FormEntry, 'id' | 'submittedAt' | 'userId' | 'agencyId'>) => Promise<string>;
   updateFormEntry: (entryId: string, entry: Partial<Omit<FormEntry, 'id' | 'submittedAt' | 'userId' | 'agencyId'>>) => Promise<void>;
   submitMultipleFormEntries: (entries: Omit<FormEntry, 'id' | 'submittedAt' | 'userId' | 'agencyId'>[]) => Promise<void>;
   deleteForm: (formId: string) => Promise<void>;
@@ -410,7 +410,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  const submitFormEntry = async (entryData: Omit<FormEntry, 'id' | 'submittedAt' | 'userId' | 'agencyId'>, originalFiles?: Map<string, File>) => {
+  const submitFormEntry = async (entryData: Omit<FormEntry, 'id' | 'submittedAt' | 'userId' | 'agencyId'>) => {
     // Guard: Vérifier que l'utilisateur est connecté et a un profil complet
     if (!firebaseUser || !user || !user.agencyId) {
       throw new Error('Utilisateur non connecté ou profil incomplet');
@@ -421,29 +421,69 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       
       console.log('🔄 Starting form submission with file attachments:', entryData.fileAttachments?.length || 0);
       
-      // Step 1: Upload files to Firebase Storage and get download URLs
+      // Step 1: Process file attachments (upload to Firebase Storage)
       let updatedFileAttachments = entryData.fileAttachments || [];
       
       if (entryData.fileAttachments && entryData.fileAttachments.length > 0) {
-        console.log('📤 Uploading files to Firebase Storage...');
+        console.log('📤 Processing file attachments for submission...');
         
         // Import FileUploadService dynamically
         const { FileUploadService } = await import('../services/fileUploadService');
         
-        // Upload each file to Firebase Storage
+        // Process each file attachment
         const uploadPromises = entryData.fileAttachments.map(async (attachment) => {
           try {
-            console.log(`🔄 Uploading ${attachment.fileName} to Firebase Storage...`);
+            console.log('🔍 Processing attachment:', {
+              fileName: attachment.fileName,
+              hasDownloadUrl: !!attachment.downloadUrl,
+              hasExtractedText: !!attachment.extractedText,
+              hasBase64Data: !!attachment.base64Data,
+              hasSubmissionId: !!attachment.submissionId,
+              submissionId: attachment.submissionId
+            });
             
-            // Get the original file from the originalFiles Map
-            const originalFile = originalFiles?.get(attachment.fieldId);
-            if (!originalFile) {
-              console.log('⚠️ No original file found for attachment:', attachment.fileName);
-              return attachment; // Return original attachment without download URL
+            // If already has download URL, use it
+            if (attachment.downloadUrl) {
+              console.log(`✅ ${attachment.fileName} already has download URL`);
+              return attachment;
             }
             
+            // If no base64 data, can't upload the file
+            if (!attachment.base64Data) {
+              console.log(`⚠️ No base64 data for ${attachment.fileName}, skipping upload`);
+              return {
+                ...attachment,
+                downloadUrl: '',
+                storagePath: '',
+                uploadError: 'No base64 data available',
+                uploadStatus: 'skipped'
+              };
+            }
+            
+            // Convert base64 back to File object
+            console.log(`🔄 Converting base64 back to file for ${attachment.fileName}...`);
+            let file: File;
+            
+            try {
+              file = FileUploadService.base64ToFile(
+                attachment.base64Data,
+                attachment.fileName,
+                attachment.fileType
+              );
+              console.log(`✅ File reconstructed successfully:`, {
+                name: file.name,
+                size: file.size,
+                type: file.type
+              });
+            } catch (conversionError) {
+              console.error(`❌ Failed to convert base64 to file:`, conversionError);
+              throw new Error(`Failed to reconstruct file from base64: ${conversionError instanceof Error ? conversionError.message : 'Unknown error'}`);
+            }
+            
+            // Upload to Firebase Storage
+            console.log(`🔄 Uploading ${attachment.fileName} to Firebase Storage...`);
             const uploadResult = await FileUploadService.uploadFileToFirebase(
-              originalFile,
+              file,
               attachment.fieldId,
               entryData.formId,
               firebaseUser.uid,
@@ -452,15 +492,45 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             
             console.log(`✅ ${attachment.fileName} uploaded successfully:`, uploadResult.downloadUrl);
             
-        return {
-          ...attachment,
+            // If using Firestore fallback, store the file data in a separate collection
+            if (uploadResult.downloadUrl.startsWith('firestore://')) {
+              console.log(`🔄 Storing file data in Firestore for ${attachment.fileName}...`);
+              
+              // Store file data in a separate Firestore collection
+              const fileDataRef = await addDoc(collection(db, 'fileData'), {
+                fileName: attachment.fileName,
+                fileType: attachment.fileType,
+                fileSize: attachment.fileSize,
+                base64Data: attachment.base64Data,
+                formId: entryData.formId,
+                userId: firebaseUser.uid,
+                agencyId: user.agencyId,
+                fieldId: attachment.fieldId,
+                uploadedAt: new Date(),
+                downloadUrl: uploadResult.downloadUrl,
+                storagePath: uploadResult.storagePath
+              });
+              
+              console.log(`✅ File data stored in Firestore with ID: ${fileDataRef.id}`);
+            }
+            
+            return {
+              ...attachment,
               downloadUrl: uploadResult.downloadUrl,
               storagePath: uploadResult.storagePath
             };
             
           } catch (uploadError) {
             console.error(`❌ Failed to upload ${attachment.fileName}:`, uploadError);
-            return attachment; // Return original attachment without download URL
+            
+            // Return attachment with upload error status
+            return {
+              ...attachment,
+              downloadUrl: '', // Keep empty
+              storagePath: '', // Keep empty
+              uploadError: uploadError instanceof Error ? uploadError.message : 'Upload failed',
+              uploadStatus: 'failed'
+            };
           }
         });
         
@@ -527,22 +597,55 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                   ? 'http://localhost:3000'
                   : 'https://apidev.ubora-app.com';
               
+              // Check if submissionId exists before making the request
+              if (!attachment.submissionId) {
+                console.warn(`⚠️ No submissionId for ${attachment.fileName}, generating one now`);
+                // Generate a submissionId if missing
+                attachment.submissionId = `sub_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+                console.log(`✅ Generated submissionId: ${attachment.submissionId}`);
+              }
+
+              const requestBody = {
+                submissionId: attachment.submissionId,
+                rawText: attachment.extractedText,
+                fileName: attachment.fileName
+              };
+
+              console.log(`🔄 Sending format request for ${attachment.fileName}:`, {
+                ...requestBody,
+                rawTextLength: requestBody.rawText?.length || 0,
+                hasSubmissionId: !!requestBody.submissionId,
+                hasRawText: !!requestBody.rawText
+              });
+              
+              console.log(`🔍 Full request body:`, JSON.stringify(requestBody, null, 2));
+
               const response = await fetch(`${apiEndpoint}/api/ai/format`, {
                 method: 'POST',
                 headers: {
                   'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({
-                  formEntryId: docRef.id,
-                  rawText: attachment.extractedText,
-                  fileName: attachment.fileName
-                })
+                body: JSON.stringify(requestBody)
               });
               
               if (response.ok) {
                 console.log(`✅ Format request sent for ${attachment.fileName}`);
               } else {
-                console.error(`❌ Format request failed for ${attachment.fileName}:`, response.statusText);
+                const errorText = await response.text();
+                console.error(`❌ Format request failed for ${attachment.fileName}:`, {
+                  status: response.status,
+                  statusText: response.statusText,
+                  error: errorText,
+                  requestBody: requestBody
+                });
+                
+                // Try to parse the error response as JSON
+                try {
+                  const errorJson = JSON.parse(errorText);
+                  console.error(`❌ Parsed error response:`, errorJson);
+                } catch (parseError) {
+                  console.error(`❌ Could not parse error response as JSON:`, errorText);
+                }
               }
             } catch (error) {
               console.error(`❌ Error calling format endpoint for ${attachment.fileName}:`, error);
@@ -555,6 +658,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       
       // Show success message
       showSuccess('Formulaire soumis avec succès!');
+      
+      return docRef.id;
     } catch (err) {
       console.error('Erreur lors de la soumission du formulaire:', err);
       if (err instanceof Error) {
@@ -682,7 +787,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 fileName: attachment.fileName,
                 hasDownloadUrl: !!attachment.downloadUrl,
                 hasExtractedText: !!attachment.extractedText,
-                hasBase64Data: !!attachment.base64Data
+                hasBase64Data: !!attachment.base64Data,
+                hasSubmissionId: !!attachment.submissionId,
+                submissionId: attachment.submissionId
               });
               
               // If already has download URL, use it
@@ -738,13 +845,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             } catch (uploadError) {
               console.error(`❌ Failed to upload ${attachment.fileName}:`, uploadError);
               
-              // Return attachment with upload error status
+              // For Firebase Storage failures, we'll store the file data in Firestore as a fallback
+              console.log(`🔄 Using fallback storage for ${attachment.fileName} - storing base64 data in Firestore`);
+              
+              // Return attachment with fallback storage info
               return {
                 ...attachment,
-                downloadUrl: '', // Keep empty
-                storagePath: '', // Keep empty
+                downloadUrl: '', // Keep empty for failed uploads
+                storagePath: '', // Keep empty for failed uploads
                 uploadError: uploadError instanceof Error ? uploadError.message : 'Upload failed',
-                uploadStatus: 'failed'
+                uploadStatus: 'failed',
+                // Keep base64 data as fallback for failed uploads
+                fallbackStorage: true,
+                fallbackData: attachment.base64Data
               };
             }
           });
@@ -818,7 +931,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                     'Content-Type': 'application/json',
                   },
                   body: JSON.stringify({
-                    formEntryId: docRef.id,
+                    submissionId: attachment.submissionId,
                     rawText: attachment.extractedText,
                     fileName: attachment.fileName
                   })
@@ -842,7 +955,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                         'Content-Type': 'application/json',
                       },
                       body: JSON.stringify({
-                        formEntryId: docRef.id,
+                        submissionId: attachment.submissionId,
                         rawText: attachment.extractedText,
                         fileName: attachment.fileName
                       })
