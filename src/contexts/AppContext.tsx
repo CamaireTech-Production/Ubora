@@ -621,12 +621,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const getFormsForEmployee = (employeeId: string): Form[] => {
-    // If user has director dashboard access, return all forms from their agency
-    if (user && PermissionManager.hasDirectorDashboardAccess(user)) {
-      return forms; // Return all forms from the agency
-    }
-    
-    // Otherwise, return only forms assigned to this specific employee
+    // Always return only forms assigned to this specific employee
+    // Director dashboard access only affects what they see on the director dashboard, not employee dashboard
     return forms.filter(form => 
       form.assignedTo && form.assignedTo.includes(employeeId)
     );
