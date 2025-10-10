@@ -74,7 +74,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
   const { user } = useAuth();
   const internalTextareaRef = useRef<HTMLTextAreaElement>(null);
   const textareaRef = externalInputRef || internalTextareaRef;
-  const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
+  const [, setIsKeyboardOpen] = useState(false);
   
   // Simple uncontrolled input - no state updates during typing
   const [localValue, setLocalValue] = useState(value);
@@ -108,7 +108,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
   const initialViewportHeightRef = useRef<number>(
     (typeof window !== 'undefined' && (window.visualViewport?.height || window.innerHeight)) || 0
   );
-  const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const [, setKeyboardHeight] = useState(0);
 
   // Debug token data (safe logging)
   if (packageInfo) {
@@ -164,13 +164,11 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
 
       if (keyboardOpen) {
         // Ensure input stays visible immediately - no delay
-        setTimeout(() => {
-          textareaRef.current?.scrollIntoView({ 
-            behavior: 'smooth', 
-            block: 'end',
-            inline: 'nearest'
-          });
-        }, 50);
+        textareaRef.current?.scrollIntoView({ 
+          behavior: 'auto', 
+          block: 'end',
+          inline: 'nearest'
+        });
       }
     };
 
@@ -210,17 +208,9 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
     if (textareaRef.current) {
       // Immediate scroll to bring input into view
       textareaRef.current?.scrollIntoView({ 
-        behavior: 'smooth', 
+        behavior: 'auto', 
         block: 'end' 
       });
-      
-      // Additional scroll after keyboard animation completes
-      setTimeout(() => {
-        textareaRef.current?.scrollIntoView({ 
-          behavior: 'smooth', 
-          block: 'end' 
-        });
-      }, 300);
     }
   }, []);
 

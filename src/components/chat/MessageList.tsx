@@ -155,8 +155,8 @@ export const MessageList: React.FC<MessageListProps> = ({
           // Maintain full height and let content scroll naturally
           height: 'calc(100dvh - 140px)',
           scrollBehavior: 'smooth',
-          // Optimized padding for clean spacing like WhatsApp
-          paddingBottom: 'max(4rem, calc(4rem + env(safe-area-inset-bottom)))'
+          // Minimal padding - no space between last bubble and input
+          paddingBottom: '0'
         }}
       >
       {/* Load more button */}
@@ -200,7 +200,7 @@ export const MessageList: React.FC<MessageListProps> = ({
       )}
 
       {/* Messages with date grouping */}
-      <div className="space-y-3 sm:space-y-4 pb-2">
+      <div className="space-y-3 sm:space-y-4 pb-0">
         {groupedMessages.map(group => (
             <div key={group.label} className="space-y-2 sm:space-y-3">
             {/* Date separator */}

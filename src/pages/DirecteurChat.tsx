@@ -106,19 +106,17 @@ export const DirecteurChat: React.FC = () => {
     };
   }, []);
   
-  // Auto-scroll when keyboard opens to keep input visible
+  // Auto-scroll when keyboard opens to keep input visible - immediate
   useEffect(() => {
     if (keyboardHeight > 0) {
-      // Scroll to bottom when keyboard opens to keep input visible
-      setTimeout(() => {
-        const messageList = document.querySelector('.flex-1.overflow-y-auto');
-        if (messageList) {
-          messageList.scrollTo({
-            top: messageList.scrollHeight,
-            behavior: 'smooth'
-          });
-        }
-      }, 100);
+      // Immediate scroll when keyboard opens - no delay
+      const messageList = document.querySelector('.flex-1.overflow-y-auto');
+      if (messageList) {
+        messageList.scrollTo({
+          top: messageList.scrollHeight,
+          behavior: 'auto' // Instant scroll, no animation
+        });
+      }
     }
   }, [keyboardHeight]);
   
