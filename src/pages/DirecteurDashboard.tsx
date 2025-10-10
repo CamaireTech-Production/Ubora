@@ -669,7 +669,7 @@ export const DirecteurDashboard: React.FC = () => {
             </div>
 
             {/* Liste des formulaires */}
-            <Card title="Formulaires créés">
+            <Card title={`Formulaires créés (${getFilteredData().forms.length})`}>
               {(() => {
                 const filteredData = getFilteredData();
                 return filteredData.forms.length === 0 ? (
@@ -831,7 +831,9 @@ export const DirecteurDashboard: React.FC = () => {
             </Card>
 
             {/* Liste des tableaux de bord */}
-            <Card title="Tableaux de bord créés">
+            <Card title={`Tableaux de bord créés (${dashboards.filter(dashboard => 
+              isDateInRange(dashboard.createdAt, getDateRange(timeFilter).start, getDateRange(timeFilter).end)
+            ).length})`}>
               {(() => {
                 const filteredDashboards = dashboards.filter(dashboard => 
                   isDateInRange(dashboard.createdAt, getDateRange(timeFilter).start, getDateRange(timeFilter).end)
