@@ -78,14 +78,14 @@
     width: 100%;
     padding-left: 0.5rem;
     padding-right: 0.5rem;
-    margin-bottom: 0.75rem;
+    margin-bottom: 0.5rem;
     display: flex;
     align-items: flex-start;
   }
   
-  /* Add extra spacing to the last message bubble */
+  /* Add minimal spacing to the last message bubble */
   .mobile-message-container:last-child {
-    margin-bottom: 1.5rem;
+    margin-bottom: 0.5rem;
   }
   
   /* User message container - avatar on right, bubble on left */

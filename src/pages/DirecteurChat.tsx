@@ -76,6 +76,52 @@ export const DirecteurChat: React.FC = () => {
     userId: ''
   });
   
+  // Track keyboard height for proper layout adjustment
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+  
+  // Keyboard detection for proper layout adjustment
+  useEffect(() => {
+    const handleViewportChange = () => {
+      if (!window.visualViewport) return;
+      
+      const initialHeight = window.innerHeight;
+      const currentHeight = window.visualViewport.height;
+      const heightDifference = initialHeight - currentHeight;
+      
+      setKeyboardHeight(heightDifference > 30 ? heightDifference : 0);
+    };
+
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', handleViewportChange);
+    } else {
+      window.addEventListener('resize', handleViewportChange);
+    }
+
+    return () => {
+      if (window.visualViewport) {
+        window.visualViewport.removeEventListener('resize', handleViewportChange);
+      } else {
+        window.removeEventListener('resize', handleViewportChange);
+      }
+    };
+  }, []);
+  
+  // Auto-scroll when keyboard opens to keep input visible
+  useEffect(() => {
+    if (keyboardHeight > 0) {
+      // Scroll to bottom when keyboard opens to keep input visible
+      setTimeout(() => {
+        const messageList = document.querySelector('.flex-1.overflow-y-auto');
+        if (messageList) {
+          messageList.scrollTo({
+            top: messageList.scrollHeight,
+            behavior: 'smooth'
+          });
+        }
+      }, 100);
+    }
+  }, [keyboardHeight]);
+  
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   
   // États pour le panneau latéral
@@ -554,7 +600,13 @@ RÉPONSE :
     >
       <div className="min-h-screen bg-gradient-to-b from-blue-50 via-white to-white">
         {/* Container centré pour toute l'interface */}
-        <div className="max-w-7xl mx-auto flex flex-col h-screen px-0 sm:px-6 lg:px-8" style={{ height: '100dvh' }}>
+        <div 
+          className="max-w-7xl mx-auto flex flex-col px-0 sm:px-6 lg:px-8" 
+          style={{ 
+            height: keyboardHeight > 0 ? `calc(100dvh - ${keyboardHeight}px)` : '100dvh',
+            minHeight: keyboardHeight > 0 ? `calc(100dvh - ${keyboardHeight}px)` : '100dvh'
+          }}
+        >
           
           {/* Top bar */}
           <ChatTopBar

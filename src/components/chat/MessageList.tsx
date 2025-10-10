@@ -34,7 +34,7 @@ export const MessageList: React.FC<MessageListProps> = ({
   const [isAtTop, setIsAtTop] = useState(false);
   const [autoScrollDisabled, setAutoScrollDisabled] = useState(false);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
-  const [keyboardHeight, setKeyboardHeight] = useState(0);
+  // Keyboard height is handled at the main chat level
 
   // Helpers: FR labels for date group headers
   const formatDateLabel = (d: Date) => {
@@ -78,32 +78,7 @@ export const MessageList: React.FC<MessageListProps> = ({
     return groups;
   })();
 
-  // Track keyboard height for proper spacing
-  useEffect(() => {
-    const handleViewportChange = () => {
-      if (!window.visualViewport) return;
-      
-      const initialHeight = window.innerHeight;
-      const currentHeight = window.visualViewport.height;
-      const heightDifference = initialHeight - currentHeight;
-      
-      setKeyboardHeight(heightDifference > 30 ? heightDifference : 0);
-    };
-
-    if (window.visualViewport) {
-      window.visualViewport.addEventListener('resize', handleViewportChange);
-    } else {
-      window.addEventListener('resize', handleViewportChange);
-    }
-
-    return () => {
-      if (window.visualViewport) {
-        window.visualViewport.removeEventListener('resize', handleViewportChange);
-      } else {
-        window.removeEventListener('resize', handleViewportChange);
-      }
-    };
-  }, []);
+  // Keyboard height is now handled at the main chat level
 
   // Auto-scroll to bottom when new messages arrive (only if auto-scroll is not disabled)
   useEffect(() => {
@@ -139,17 +114,8 @@ export const MessageList: React.FC<MessageListProps> = ({
 
   // Auto-scroll when keyboard opens to keep input visible
   useEffect(() => {
-    if (keyboardHeight > 0 && containerRef.current) {
-      setTimeout(() => {
-        if (containerRef.current) {
-          containerRef.current.scrollTo({
-            top: containerRef.current.scrollHeight,
-            behavior: 'smooth'
-          });
-        }
-      }, 100);
-    }
-  }, [keyboardHeight]);
+    // This will be handled by the main chat component
+  }, []);
 
   // Handle scroll to load more messages and track user scrolling
   const handleScroll = () => {
@@ -183,18 +149,14 @@ export const MessageList: React.FC<MessageListProps> = ({
     <>
       <div 
         ref={containerRef}
-        className="flex-1 overflow-y-auto pt-4 pb-4 px-4 sm:px-6 lg:px-8"
+        className="flex-1 overflow-y-auto pt-4 pb-2 px-4 sm:px-6 lg:px-8"
         onScroll={handleScroll}
         style={{ 
-          // Use viewport height minus keyboard height for precise sizing
-          height: keyboardHeight > 0 
-            ? `calc(100dvh - 140px - ${keyboardHeight}px)` 
-            : 'calc(100dvh - 140px)',
+          // Maintain full height and let content scroll naturally
+          height: 'calc(100dvh - 140px)',
           scrollBehavior: 'smooth',
           // Optimized padding for clean spacing like WhatsApp
-          paddingBottom: keyboardHeight > 0 
-            ? '2rem'
-            : 'max(10rem, calc(10rem + env(safe-area-inset-bottom)))'
+          paddingBottom: 'max(4rem, calc(4rem + env(safe-area-inset-bottom)))'
         }}
       >
       {/* Load more button */}
@@ -238,9 +200,9 @@ export const MessageList: React.FC<MessageListProps> = ({
       )}
 
       {/* Messages with date grouping */}
-      <div className="space-y-3 sm:space-y-6 pb-4">
+      <div className="space-y-3 sm:space-y-4 pb-2">
         {groupedMessages.map(group => (
-          <div key={group.label} className="space-y-3 sm:space-y-6">
+            <div key={group.label} className="space-y-2 sm:space-y-3">
             {/* Date separator */}
             <div className="flex justify-center my-2">
               <span className="text-xs px-3 py-1 rounded-full bg-gray-100 text-gray-600">
