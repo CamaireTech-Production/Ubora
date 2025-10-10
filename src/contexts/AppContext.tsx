@@ -118,13 +118,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       
       // Filtrer les formulaires selon le rôle de l'utilisateur
       let filteredForms = allFormsData;
-      if (user.role === 'employe') {
+      if (user.role === 'employe' && !user.hasDirectorDashboardAccess) {
+        // Regular employees see only forms assigned to them or created by them
         filteredForms = allFormsData.filter(form => 
           form.assignedTo.includes(user.id) || 
           form.createdByEmployeeId === user.id ||
           form.createdBy === user.id
         );
       }
+      // Employees with director dashboard access see ALL forms (same as directors)
       
       setForms(filteredForms);
     }, (err) => {
@@ -142,15 +144,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // Try with orderBy first, fallback to simple query if it fails
     let entriesQuery;
     try {
-      if (user.role === 'directeur') {
-        // Directors can see all entries in their agency
+      if (user.role === 'directeur' || user.hasDirectorDashboardAccess) {
+        // Directors and employees with director access can see all entries in their agency
         entriesQuery = query(
           collection(db, 'formEntries'),
           where('agencyId', '==', user.agencyId),
           orderBy('submittedAt', 'desc')
         );
       } else {
-        // Employees can only see their own entries
+        // Regular employees can only see their own entries
         entriesQuery = query(
           collection(db, 'formEntries'),
           where('agencyId', '==', user.agencyId),
@@ -159,7 +161,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         );
       }
     } catch (orderByError) {
-      if (user.role === 'directeur') {
+      if (user.role === 'directeur' || user.hasDirectorDashboardAccess) {
         entriesQuery = query(
           collection(db, 'formEntries'),
           where('agencyId', '==', user.agencyId)
