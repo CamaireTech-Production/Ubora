@@ -83,6 +83,11 @@
     align-items: flex-start;
   }
   
+  /* Add extra spacing to the last message bubble */
+  .mobile-message-container:last-child {
+    margin-bottom: 1.5rem;
+  }
+  
   /* User message container - avatar on right, bubble on left */
   .mobile-message-container.user-message {
     flex-direction: row-reverse;

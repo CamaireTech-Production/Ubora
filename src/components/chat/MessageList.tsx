@@ -183,7 +183,7 @@ export const MessageList: React.FC<MessageListProps> = ({
     <>
       <div 
         ref={containerRef}
-        className="flex-1 overflow-y-auto pt-4 px-4 sm:px-6 lg:px-8"
+        className="flex-1 overflow-y-auto pt-4 pb-4 px-4 sm:px-6 lg:px-8"
         onScroll={handleScroll}
         style={{ 
           // Use viewport height minus keyboard height for precise sizing
@@ -193,8 +193,8 @@ export const MessageList: React.FC<MessageListProps> = ({
           scrollBehavior: 'smooth',
           // Optimized padding for clean spacing like WhatsApp
           paddingBottom: keyboardHeight > 0 
-            ? '1rem'
-            : 'max(8rem, calc(8rem + env(safe-area-inset-bottom)))'
+            ? '2rem'
+            : 'max(10rem, calc(10rem + env(safe-area-inset-bottom)))'
         }}
       >
       {/* Load more button */}
@@ -238,7 +238,7 @@ export const MessageList: React.FC<MessageListProps> = ({
       )}
 
       {/* Messages with date grouping */}
-      <div className="space-y-3 sm:space-y-6">
+      <div className="space-y-3 sm:space-y-6 pb-4">
         {groupedMessages.map(group => (
           <div key={group.label} className="space-y-3 sm:space-y-6">
             {/* Date separator */}
