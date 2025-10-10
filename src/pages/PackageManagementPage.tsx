@@ -550,6 +550,9 @@ export const PackageManagementPage: React.FC = () => {
                         <Brain className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600" />
                       </div>
                     </div>
+                    <div className="text-xs sm:text-sm font-medium text-gray-700 text-center mb-1">
+                      Tokens
+                    </div>
                     <div className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900 mb-1 text-center">
                       {(() => {
                         const sessionInfo = UserSessionService.getUserPackageInfo(user);
@@ -568,6 +571,17 @@ export const PackageManagementPage: React.FC = () => {
                         return `${sessionInfo.tokensUsed.toLocaleString()} / ${sessionInfo.totalTokens.toLocaleString()}`;
                       })()}
                     </div>
+                    {(() => {
+                      const sessionInfo = UserSessionService.getUserPackageInfo(user);
+                      if (sessionInfo.payAsYouGoTokens > 0) {
+                        return (
+                          <div className="text-xs text-green-600 text-center mt-1">
+                            Base: {sessionInfo.packageTokens.toLocaleString()} + Pay-as-you-go: {sessionInfo.payAsYouGoTokens.toLocaleString()}
+                          </div>
+                        );
+                      }
+                      return null;
+                    })()}
                   </div>
 
                   {/* Forms */}
@@ -576,6 +590,9 @@ export const PackageManagementPage: React.FC = () => {
                       <div className="p-1.5 sm:p-2 bg-green-100 rounded-lg">
                         <FileText className="h-4 w-4 sm:h-5 sm:w-5 text-green-600" />
                       </div>
+                    </div>
+                    <div className="text-xs sm:text-sm font-medium text-gray-700 text-center mb-1">
+                      Formulaires
                     </div>
                     <div className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900 mb-1 text-center">
                       {(() => {
@@ -607,6 +624,17 @@ export const PackageManagementPage: React.FC = () => {
                         return currentForms > sessionInfo.totalForms ? '0 disponible' : `${Math.max(0, sessionInfo.totalForms - currentForms)} disponible`;
                       })()}
                     </div>
+                    {(() => {
+                      const sessionInfo = UserSessionService.getUserPackageInfo(user);
+                      if (sessionInfo.payAsYouGoForms > 0) {
+                        return (
+                          <div className="text-xs text-green-600 text-center mt-1">
+                            Base: {sessionInfo.packageForms} + Pay-as-you-go: {sessionInfo.payAsYouGoForms}
+                          </div>
+                        );
+                      }
+                      return null;
+                    })()}
                   </div>
 
                   {/* Dashboards */}
@@ -615,6 +643,9 @@ export const PackageManagementPage: React.FC = () => {
                       <div className="p-1.5 sm:p-2 bg-purple-100 rounded-lg">
                         <BarChart3 className="h-4 w-4 sm:h-5 sm:w-5 text-purple-600" />
                       </div>
+                    </div>
+                    <div className="text-xs sm:text-sm font-medium text-gray-700 text-center mb-1">
+                      Tableaux de bord
                     </div>
                     <div className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900 mb-1 text-center">
                       {(() => {
@@ -646,6 +677,17 @@ export const PackageManagementPage: React.FC = () => {
                         return currentDashboards > sessionInfo.totalDashboards ? '0 disponible' : `${Math.max(0, sessionInfo.totalDashboards - currentDashboards)} disponible`;
                       })()}
                     </div>
+                    {(() => {
+                      const sessionInfo = UserSessionService.getUserPackageInfo(user);
+                      if (sessionInfo.payAsYouGoDashboards > 0) {
+                        return (
+                          <div className="text-xs text-green-600 text-center mt-1">
+                            Base: {sessionInfo.packageDashboards} + Pay-as-you-go: {sessionInfo.payAsYouGoDashboards}
+                          </div>
+                        );
+                      }
+                      return null;
+                    })()}
                   </div>
 
                   {/* Users */}
@@ -654,6 +696,9 @@ export const PackageManagementPage: React.FC = () => {
                       <div className="p-1.5 sm:p-2 bg-orange-100 rounded-lg">
                         <Users className="h-4 w-4 sm:h-5 sm:w-5 text-orange-600" />
                       </div>
+                    </div>
+                    <div className="text-xs sm:text-sm font-medium text-gray-700 text-center mb-1">
+                      Utilisateurs
                     </div>
                     <div className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900 mb-1 text-center">
                       {(() => {
@@ -685,6 +730,17 @@ export const PackageManagementPage: React.FC = () => {
                         return currentUsers > sessionInfo.totalUsers ? '0 disponible' : `${Math.max(0, sessionInfo.totalUsers - currentUsers)} disponible`;
                       })()}
                     </div>
+                    {(() => {
+                      const sessionInfo = UserSessionService.getUserPackageInfo(user);
+                      if (sessionInfo.payAsYouGoUsers > 0) {
+                        return (
+                          <div className="text-xs text-green-600 text-center mt-1">
+                            Base: {sessionInfo.packageUsers} + Pay-as-you-go: {sessionInfo.payAsYouGoUsers}
+                          </div>
+                        );
+                      }
+                      return null;
+                    })()}
                   </div>
                 </div>
               </div>

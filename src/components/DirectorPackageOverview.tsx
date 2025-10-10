@@ -242,6 +242,11 @@ export const DirectorPackageOverview: React.FC<DirectorPackageOverviewProps> = (
                     {currentForms > maxForms ? '0 disponible' : `${Math.max(0, maxForms - currentForms)} disponible`}
                   </div>
                 )}
+                {payAsYouGoForms > 0 && (
+                  <div className="text-xs text-green-600 mt-1">
+                    Base: {maxForms - payAsYouGoForms} + Pay-as-you-go: {payAsYouGoForms}
+                  </div>
+                )}
                 {!isLimitUnlimited('maxForms') && (
                   <div className="mt-2 w-full bg-gray-200 rounded-full h-1.5">
                     <div 
@@ -259,7 +264,7 @@ export const DirectorPackageOverview: React.FC<DirectorPackageOverviewProps> = (
                     <div className="p-2 bg-purple-100 rounded-lg">
                       <BarChart3 className="h-4 w-4 text-purple-600" />
                     </div>
-                    <span className="text-sm font-medium text-gray-700">Tableaux</span>
+                    <span className="text-sm font-medium text-gray-700">Tableaux de bord</span>
                   </div>
                   {dashboardsLimitReached && (
                     <AlertTriangle className="h-4 w-4 text-orange-500" />
@@ -274,6 +279,11 @@ export const DirectorPackageOverview: React.FC<DirectorPackageOverviewProps> = (
                 {!isLimitUnlimited('maxDashboards') && (
                   <div className="text-xs text-gray-500 mt-1">
                     {currentDashboards > maxDashboards ? '0 disponible' : `${Math.max(0, maxDashboards - currentDashboards)} disponible`}
+                  </div>
+                )}
+                {payAsYouGoDashboards > 0 && (
+                  <div className="text-xs text-green-600 mt-1">
+                    Base: {maxDashboards - payAsYouGoDashboards} + Pay-as-you-go: {payAsYouGoDashboards}
                   </div>
                 )}
                 {!isLimitUnlimited('maxDashboards') && (
@@ -310,6 +320,11 @@ export const DirectorPackageOverview: React.FC<DirectorPackageOverviewProps> = (
                     {currentUsers > maxUsers ? '0 disponible' : `${Math.max(0, maxUsers - currentUsers)} disponible`}
                   </div>
                 )}
+                {payAsYouGoUsers > 0 && (
+                  <div className="text-xs text-green-600 mt-1">
+                    Base: {maxUsers - payAsYouGoUsers} + Pay-as-you-go: {payAsYouGoUsers}
+                  </div>
+                )}
                 {!isLimitUnlimited('maxUsers') && (
                   <div className="mt-2 w-full bg-gray-200 rounded-full h-1.5">
                     <div 
@@ -339,6 +354,11 @@ export const DirectorPackageOverview: React.FC<DirectorPackageOverviewProps> = (
                 <div className="text-sm text-gray-600">
                   {hasUnlimitedTokens() ? 'Illimité' : 'restants'}
                 </div>
+                {packageInfo?.payAsYouGoTokens && packageInfo.payAsYouGoTokens > 0 && (
+                  <div className="text-xs text-green-600 mt-1">
+                    Base: {packageInfo.packageTokens.toLocaleString()} + Pay-as-you-go: {packageInfo.payAsYouGoTokens.toLocaleString()}
+                  </div>
+                )}
                 {!hasUnlimitedTokens() && (
                   <div className="mt-2 w-full bg-gray-200 rounded-full h-1.5">
                     <div 
