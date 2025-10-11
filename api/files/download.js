@@ -6,6 +6,28 @@ const { adminDb, admin } = require('../lib/firebaseAdmin');
  */
 async function downloadHandler(req, res) {
   try {
+    // CORS headers
+    const corsOrigins = process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',') : ['*'];
+    const origin = req.headers.origin;
+    const allowedOrigin = corsOrigins.includes('*') ? '*' : 
+                         (origin && corsOrigins.includes(origin)) ? origin : corsOrigins[0];
+    
+    const corsHeaders = {
+      'Access-Control-Allow-Origin': allowedOrigin,
+      'Access-Control-Allow-Methods': 'GET, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+      'Access-Control-Max-Age': '86400'
+    };
+
+    Object.entries(corsHeaders).forEach(([key, value]) => {
+      res.setHeader(key, value);
+    });
+
+    // Handle OPTIONS requests
+    if (req.method === 'OPTIONS') {
+      return res.status(204).end();
+    }
+
     console.log('🔍 Download endpoint called with method:', req.method);
     console.log('🔍 Query params:', req.query);
     

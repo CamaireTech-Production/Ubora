@@ -13,12 +13,43 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Middleware
-const corsOrigins = process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',') : ['*'];
+// Middleware - CORS configuration for production
+const corsOrigins = [
+  'https://dev.ubora-app.com',     // Development frontend
+  'https://ubora-app.com',         // Production frontend
+  'https://my.ubora.com',          // Alternative production domain
+  'https://dev.ubora.com',         // Alternative dev domain
+  ...(process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',') : [])
+];
+
 app.use(cors({
-  origin: corsOrigins,
-  credentials: true
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    // Check if origin is in our allowed list
+    if (corsOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    
+    // For production, be more restrictive but allow known domains
+    console.log(`🚫 CORS blocked origin: ${origin}`);
+    callback(new Error('Not allowed by CORS'));
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
 }));
+
+// Handle preflight requests
+app.options('*', (req, res) => {
+  res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.sendStatus(200);
+});
+
 app.use(express.json({ limit: '50mb' })); // Increase payload limit for large images
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
@@ -108,7 +139,7 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(`   - GET  /api/ocr/health`);
   console.log(`   - GET  /health`);
   console.log(`   - GET  /test`);
-  console.log(`🌐 CORS Origin: ${process.env.CORS_ORIGIN || 'All origins allowed'}`);
+  console.log(`🌐 CORS Origins: ${corsOrigins.join(', ')}`);
   console.log(`🔧 Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`📊 Firebase Project: ${process.env.FIREBASE_PROJECT_ID || 'Not configured'}`);
   console.log(`🤖 OpenAI: ${process.env.OPENAI_API_KEY ? 'Configured' : 'Not configured'}`);
