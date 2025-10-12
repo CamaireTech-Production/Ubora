@@ -26,15 +26,40 @@ const PORT = 3000;
 
 // Middleware - CORS configuration for development
 const corsOrigins = [
-  'http://localhost:5173',      // Vite dev server
-  'http://localhost:3000',      // Alternative local port
-  'http://localhost:4173',      // Vite preview
-  'https://dev.ubora.com',      // Development domain
-  'https://my.ubora.com',       // Production domain
-  'http://dev.ubora.com',       // HTTP version of dev domain
-  'http://my.ubora.com',        // HTTP version of prod domain
-  'https://localhost:5173',     // HTTPS localhost
-  'https://localhost:3000',     // HTTPS localhost alternative
+  // Main domains
+  'https://dev.ubora-app.com',     // Development frontend
+  'https://ubora-app.com',         // Production frontend
+  'https://my.ubora.com',          // Alternative production domain
+  'https://dev.ubora.com',         // Alternative dev domain
+  
+  // API subdomains
+  'https://apidev.ubora-app.com',  // API development subdomain
+  'https://api.ubora-app.com',     // API production subdomain
+  'https://apidev.ubora.com',      // Alternative API dev subdomain
+  'https://api.ubora.com',         // Alternative API prod subdomain
+  
+  // Admin subdomains
+  'https://admin.ubora-app.com',   // Admin development
+  'https://admin.ubora.com',       // Admin production
+  
+  // Firebase hosting domains
+  'https://studio-gpnfx.firebaseapp.com',  // Firebase auth domain
+  'https://studio-gpnfx.web.app',          // Firebase hosting domain
+  
+  // Local development
+  'http://localhost:5173',         // Vite dev server
+  'http://localhost:3000',         // Local API server
+  'http://localhost:4173',         // Vite preview
+  'https://localhost:5173',        // HTTPS localhost
+  'https://localhost:3000',        // HTTPS localhost API
+  
+  // HTTP versions (for development)
+  'http://dev.ubora.com',          // HTTP version of dev domain
+  'http://my.ubora.com',           // HTTP version of prod domain
+  'http://dev.ubora-app.com',      // HTTP version of dev app domain
+  'http://ubora-app.com',          // HTTP version of prod app domain
+  
+  // Environment variable overrides
   ...(process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',') : [])
 ];
 

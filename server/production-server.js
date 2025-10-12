@@ -15,10 +15,34 @@ const PORT = process.env.PORT || 3000;
 
 // Middleware - CORS configuration for production
 const corsOrigins = [
+  // Main domains
   'https://dev.ubora-app.com',     // Development frontend
   'https://ubora-app.com',         // Production frontend
   'https://my.ubora.com',          // Alternative production domain
   'https://dev.ubora.com',         // Alternative dev domain
+  
+  // API subdomains (in case frontend calls API from different subdomain)
+  'https://apidev.ubora-app.com',  // API development subdomain
+  'https://api.ubora-app.com',     // API production subdomain
+  'https://apidev.ubora.com',      // Alternative API dev subdomain
+  'https://api.ubora.com',         // Alternative API prod subdomain
+  
+  // Admin subdomains
+  'https://admin.ubora-app.com',   // Admin development
+  'https://admin.ubora.com',       // Admin production
+  
+  // Firebase hosting domains (from firebaseConfig.ts)
+  'https://studio-gpnfx.firebaseapp.com',  // Firebase auth domain
+  'https://studio-gpnfx.web.app',          // Firebase hosting domain
+  
+  // Local development
+  'http://localhost:5173',         // Vite dev server
+  'http://localhost:3000',         // Local API server
+  'http://localhost:4173',         // Vite preview
+  'https://localhost:5173',        // HTTPS localhost
+  'https://localhost:3000',        // HTTPS localhost API
+  
+  // Environment variable overrides
   ...(process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',') : [])
 ];
 
@@ -93,7 +117,39 @@ app.get('/health', (req, res) => {
     ok: true, 
     message: 'Production server running on VPS',
     timestamp: new Date().toISOString(),
-    port: PORT
+    port: PORT,
+    cors: {
+      allowedOrigins: corsOrigins,
+      requestOrigin: req.headers.origin || 'No origin header'
+    }
+  });
+});
+
+// Detailed health check for debugging
+app.get('/health/detailed', (req, res) => {
+  res.json({
+    ok: true,
+    server: 'Production API Server',
+    timestamp: new Date().toISOString(),
+    port: PORT,
+    environment: process.env.NODE_ENV || 'development',
+    cors: {
+      allowedOrigins: corsOrigins,
+      requestOrigin: req.headers.origin || 'No origin header',
+      isOriginAllowed: corsOrigins.includes(req.headers.origin) || !req.headers.origin
+    },
+    endpoints: {
+      ai: ['/api/ai/ask', '/api/ai/format', '/api/ai/health'],
+      ocr: ['/api/ocr/extract', '/api/ocr/extractPdfText', '/api/ocr/health'],
+      files: ['/api/files/download'],
+      health: ['/health', '/health/detailed', '/test']
+    },
+    environment_variables: {
+      corsOrigin: process.env.CORS_ORIGIN || 'Not set',
+      firebaseProjectId: process.env.FIREBASE_PROJECT_ID ? 'Set' : 'Missing',
+      openaiKey: process.env.OPENAI_API_KEY ? 'Set' : 'Missing',
+      nodeEnv: process.env.NODE_ENV || 'Not set'
+    }
   });
 });
 
@@ -137,7 +193,11 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(`   - POST /api/ocr/extract`);
   console.log(`   - POST /api/ocr/extractPdfText`);
   console.log(`   - GET  /api/ocr/health`);
+  console.log(`📡 File endpoints available at:`);
+  console.log(`   - GET  /api/files/download`);
+  console.log(`📡 Health check endpoints:`);
   console.log(`   - GET  /health`);
+  console.log(`   - GET  /health/detailed`);
   console.log(`   - GET  /test`);
   console.log(`🌐 CORS Origins: ${corsOrigins.join(', ')}`);
   console.log(`🔧 Environment: ${process.env.NODE_ENV || 'development'}`);
