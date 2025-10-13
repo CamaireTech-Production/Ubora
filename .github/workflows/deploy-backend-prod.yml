@@ -38,8 +38,8 @@ jobs:
         PORT=3000
         NODE_ENV=production
         
-        # CORS Configuration
-        CORS_ORIGIN=https://my.ubora-app.com,https://api.ubora-app.com
+        # CORS Configuration - Match production server configuration
+        CORS_ORIGIN=https://dev.ubora-app.com,https://ubora-app.com,https://my.ubora.com,https://dev.ubora.com,https://apidev.ubora-app.com,https://api.ubora-app.com,https://apidev.ubora.com,https://api.ubora.com,https://admin.ubora-app.com,https://admin.ubora.com,https://studio-gpnfx.firebaseapp.com,https://studio-gpnfx.web.app,http://localhost:5173,http://localhost:3000,http://localhost:4173,https://localhost:5173,https://localhost:3000
         EOF
 
     - name: Create version stamp
@@ -142,7 +142,8 @@ jobs:
               ssl_certificate /etc/letsencrypt/live/api.ubora-app.com/fullchain.pem;
               ssl_certificate_key /etc/letsencrypt/live/api.ubora-app.com/privkey.pem;
               
-              # Increase timeouts for PDF processing
+              # Increase timeouts and body size for PDF processing
+              client_max_body_size 100M;
               proxy_connect_timeout 300s;
               proxy_send_timeout 300s;
               proxy_read_timeout 300s;

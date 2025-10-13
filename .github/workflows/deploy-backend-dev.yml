@@ -39,8 +39,8 @@ jobs:
         PORT=3001
         NODE_ENV=development
         
-        # CORS Configuration
-        CORS_ORIGIN=https://dev.ubora-app.com,https://apidev.ubora-app.com
+        # CORS Configuration - Match local dev server configuration
+        CORS_ORIGIN=https://dev.ubora-app.com,https://ubora-app.com,https://my.ubora.com,https://dev.ubora.com,https://apidev.ubora-app.com,https://api.ubora-app.com,https://apidev.ubora.com,https://api.ubora.com,https://admin.ubora-app.com,https://admin.ubora.com,https://studio-gpnfx.firebaseapp.com,https://studio-gpnfx.web.app,http://localhost:5173,http://localhost:3000,http://localhost:4173,https://localhost:5173,https://localhost:3000,http://dev.ubora.com,http://my.ubora.com,http://dev.ubora-app.com,http://ubora-app.com
         EOF
         
     - name: Create version stamp
@@ -133,4 +133,46 @@ jobs:
           echo "🧹 Cleaning old releases (keep 5)"
           ls -1dt $RELEASES_DIR/* | tail -n +6 | xargs -r rm -rf
 
+          # Create Nginx configuration for apidev.ubora-app.com
+          cat > /etc/nginx/sites-available/apidev.ubora-app.com << 'EOF'
+          server {
+              listen 80;
+              listen 443 ssl;
+              server_name apidev.ubora-app.com;
+              
+              ssl_certificate /etc/letsencrypt/live/apidev.ubora-app.com/fullchain.pem;
+              ssl_certificate_key /etc/letsencrypt/live/apidev.ubora-app.com/privkey.pem;
+              
+              # Increase timeouts and body size for PDF processing
+              client_max_body_size 100M;
+              proxy_connect_timeout 300s;
+              proxy_send_timeout 300s;
+              proxy_read_timeout 300s;
+              send_timeout 300s;
+              
+              location / {
+                  proxy_pass http://localhost:3001;
+                  proxy_http_version 1.1;
+                  proxy_set_header Upgrade $http_upgrade;
+                  proxy_set_header Connection 'upgrade';
+                  proxy_set_header Host $host;
+                  proxy_set_header X-Real-IP $remote_addr;
+                  proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                  proxy_set_header X-Forwarded-Proto $scheme;
+                  proxy_cache_bypass $http_upgrade;
+                  
+                  # Additional timeout settings for this location
+                  proxy_connect_timeout 300s;
+                  proxy_send_timeout 300s;
+                  proxy_read_timeout 300s;
+              }
+          }
+          EOF
+          
+          # Enable the site
+          ln -sf /etc/nginx/sites-available/apidev.ubora-app.com /etc/nginx/sites-enabled/
+          
+          # Test and reload Nginx
+          nginx -t && systemctl reload nginx
+          
           echo "✅ Development backend deployed successfully"
