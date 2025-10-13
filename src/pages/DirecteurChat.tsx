@@ -37,7 +37,18 @@ const getAIEndpoint = () => {
     return 'http://localhost:3000/api/ai/ask';
   }
   
-  return null;
+  // Fallback for development deployment
+  if (typeof window !== 'undefined' && window.location.hostname === 'dev.ubora-app.com') {
+    return 'http://apidev.ubora-app.com/api/ai/ask';
+  }
+  
+  // Fallback for production deployment
+  if (typeof window !== 'undefined' && window.location.hostname === 'my.ubora-app.com') {
+    return 'http://api.ubora-app.com/api/ai/ask';
+  }
+  
+  // Default fallback
+  return 'http://apidev.ubora-app.com/api/ai/ask';
 };
 
 const AI_ENDPOINT = getAIEndpoint();
