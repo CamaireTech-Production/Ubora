@@ -290,9 +290,15 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
             }));
           },
           (pdfResult) => {
-            // PDF extraction successful
-            console.log(`✅ PDF ${pdfResult.fileName} processed successfully`);
-            console.log(`📝 Extracted text length: ${pdfResult.extractedText?.length || 0} characters`);
+            // PDF extraction result (success or failure)
+            if (pdfResult.extractionStatus === 'completed') {
+              console.log(`✅ PDF ${pdfResult.fileName} processed successfully`);
+              console.log(`📝 Extracted text length: ${pdfResult.extractedText?.length || 0} characters`);
+            } else if (pdfResult.extractionStatus === 'failed') {
+              console.error(`❌ PDF ${pdfResult.fileName} extraction failed:`, pdfResult.error);
+              // Show user-friendly error message
+              showError(`Erreur d'extraction PDF: ${pdfResult.error || 'Impossible d\'extraire le texte du PDF'}`);
+            }
           },
           (imageResult) => {
             // Image extraction successful
@@ -335,10 +341,22 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
 
     } catch (error) {
       console.error('File upload error:', error);
+      
+      // Show user-friendly error message
+      const errorMessage = error instanceof Error ? error.message : 'Erreur lors du traitement du fichier';
+      showError(`Erreur de fichier: ${errorMessage}`);
+      
       setErrors(prev => ({
         ...prev,
-        [fieldId]: error instanceof Error ? error.message : 'Upload failed'
+        [fieldId]: errorMessage
       }));
+      
+      // Clear progress on error
+      setUploadProgress(prev => {
+        const newProgress = { ...prev };
+        delete newProgress[fieldId];
+        return newProgress;
+      });
     }
   };
 
@@ -745,9 +763,15 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
                             <span className={`ml-2 px-2 py-1 rounded-full text-xs ${
                               attachment.textExtractionStatus === 'completed' 
                                 ? 'bg-green-100 text-green-700' 
+                                : attachment.textExtractionStatus === 'failed'
+                                ? 'bg-red-100 text-red-700'
                                 : 'bg-yellow-100 text-yellow-700'
                             }`}>
-                              {attachment.textExtractionStatus === 'completed' ? '✅ Texte extrait' : '⏳ Extraction...'}
+                              {attachment.textExtractionStatus === 'completed' 
+                                ? '✅ Texte extrait' 
+                                : attachment.textExtractionStatus === 'failed'
+                                ? '❌ Erreur extraction'
+                                : '⏳ Extraction...'}
                             </span>
                           )}
                         </p>
