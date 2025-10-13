@@ -39,8 +39,8 @@ jobs:
         PORT=3001
         NODE_ENV=development
         
-        # CORS Configuration - Match local dev server configuration
-        CORS_ORIGIN=https://dev.ubora-app.com,https://ubora-app.com,https://my.ubora.com,https://dev.ubora.com,https://apidev.ubora-app.com,https://api.ubora-app.com,https://apidev.ubora.com,https://api.ubora.com,https://admin.ubora-app.com,https://admin.ubora.com,https://studio-gpnfx.firebaseapp.com,https://studio-gpnfx.web.app,http://localhost:5173,http://localhost:3000,http://localhost:4173,https://localhost:5173,https://localhost:3000,http://dev.ubora.com,http://my.ubora.com,http://dev.ubora-app.com,http://ubora-app.com
+        # CORS Configuration - Match local dev server configuration (including HTTP for dev)
+        CORS_ORIGIN=https://dev.ubora-app.com,https://ubora-app.com,https://my.ubora.com,https://dev.ubora.com,https://apidev.ubora-app.com,https://api.ubora-app.com,https://apidev.ubora.com,https://api.ubora.com,https://admin.ubora-app.com,https://admin.ubora.com,https://studio-gpnfx.firebaseapp.com,https://studio-gpnfx.web.app,http://localhost:5173,http://localhost:3000,http://localhost:4173,https://localhost:5173,https://localhost:3000,http://dev.ubora.com,http://my.ubora.com,http://dev.ubora-app.com,http://ubora-app.com,http://apidev.ubora-app.com
         EOF
         
     - name: Create version stamp
@@ -137,11 +137,13 @@ jobs:
           cat > /etc/nginx/sites-available/apidev.ubora-app.com << 'EOF'
           server {
               listen 80;
-              listen 443 ssl;
+              # Temporarily disable SSL until certificates are set up
+              # listen 443 ssl;
               server_name apidev.ubora-app.com;
               
-              ssl_certificate /etc/letsencrypt/live/apidev.ubora-app.com/fullchain.pem;
-              ssl_certificate_key /etc/letsencrypt/live/apidev.ubora-app.com/privkey.pem;
+              # SSL certificates - uncomment when certificates are available
+              # ssl_certificate /etc/letsencrypt/live/apidev.ubora-app.com/fullchain.pem;
+              # ssl_certificate_key /etc/letsencrypt/live/apidev.ubora-app.com/privkey.pem;
               
               # Increase timeouts and body size for PDF processing
               client_max_body_size 100M;
