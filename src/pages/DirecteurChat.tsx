@@ -30,28 +30,34 @@ interface ChatFilters {
 // Configuration de l'endpoint IA
 const getAIEndpoint = () => {
   if (import.meta.env.VITE_AI_ENDPOINT) {
+    console.log('🔧 Using VITE_AI_ENDPOINT:', import.meta.env.VITE_AI_ENDPOINT);
     return import.meta.env.VITE_AI_ENDPOINT;
   }
   
   if (import.meta.env.DEV) {
+    console.log('🔧 Using local development endpoint');
     return 'http://localhost:3000/api/ai/ask';
   }
   
   // Fallback for development deployment
   if (typeof window !== 'undefined' && window.location.hostname === 'dev.ubora-app.com') {
+    console.log('🔧 Using dev deployment endpoint');
     return 'http://apidev.ubora-app.com/api/ai/ask';
   }
   
   // Fallback for production deployment
   if (typeof window !== 'undefined' && window.location.hostname === 'my.ubora-app.com') {
+    console.log('🔧 Using production deployment endpoint');
     return 'http://api.ubora-app.com/api/ai/ask';
   }
   
   // Default fallback
+  console.log('🔧 Using default fallback endpoint');
   return 'http://apidev.ubora-app.com/api/ai/ask';
 };
 
 const AI_ENDPOINT = getAIEndpoint();
+console.log('🎯 Final AI_ENDPOINT:', AI_ENDPOINT);
 
 if (!AI_ENDPOINT) {
   console.error("❌ Aucun endpoint IA configuré. ARCHA ne fonctionnera pas.");

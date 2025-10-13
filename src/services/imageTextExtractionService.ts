@@ -236,7 +236,7 @@ export class ImageTextExtractionService {
     }
     
     // Fallback for production
-    return 'https://api.ubora-app.com';
+    return 'http://api.ubora-app.com';
   }
 
   /**
