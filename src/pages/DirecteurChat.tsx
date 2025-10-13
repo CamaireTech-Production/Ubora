@@ -39,10 +39,10 @@ const getAIEndpoint = () => {
     return 'http://localhost:3000/api/ai/ask';
   }
   
-  // Fallback for development deployment
+  // Fallback for development deployment - TEMPORARILY USE LOCAL BACKEND
   if (typeof window !== 'undefined' && window.location.hostname === 'dev.ubora-app.com') {
-    console.log('🔧 Using dev deployment endpoint');
-    return 'http://apidev.ubora-app.com/api/ai/ask';
+    console.log('🔧 Using LOCAL backend for testing (dev server is down)');
+    return 'http://localhost:3000/api/ai/ask';
   }
   
   // Fallback for production deployment
