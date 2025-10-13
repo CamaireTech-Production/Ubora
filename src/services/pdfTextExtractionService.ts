@@ -106,7 +106,7 @@ export class PDFTextExtractionService {
     
     // Check if we're in dev environment (dev.ubora-app.com)
     if (typeof window !== 'undefined' && window.location.hostname === 'dev.ubora-app.com') {
-      return 'https://apidev.ubora-app.com';
+      return 'http://apidev.ubora-app.com';
     }
     
     // Fallback for production

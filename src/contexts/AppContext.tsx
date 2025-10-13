@@ -595,7 +595,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 ? import.meta.env.VITE_AI_ENDPOINT.replace('/api/ai/ask', '')
                 : import.meta.env.DEV 
                   ? 'http://localhost:3000'
-                  : 'https://apidev.ubora-app.com';
+                  : 'http://apidev.ubora-app.com';
               
               // Check if submissionId exists before making the request
               if (!attachment.submissionId) {
@@ -923,7 +923,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                   ? import.meta.env.VITE_AI_ENDPOINT.replace('/api/ai/ask', '')
                   : import.meta.env.DEV 
                     ? 'http://localhost:3000'
-                    : 'https://apidev.ubora-app.com';
+                    : 'http://apidev.ubora-app.com';
                 
                 const response = await fetch(`${apiEndpoint}/api/ai/format`, {
                   method: 'POST',

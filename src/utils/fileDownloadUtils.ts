@@ -11,7 +11,7 @@ export const convertToDownloadUrl = (firestoreUrl: string): string => {
     ? import.meta.env.VITE_AI_ENDPOINT.replace('/api/ai/ask', '')
     : import.meta.env.DEV 
       ? 'http://localhost:3000'
-      : 'https://apidev.ubora-app.com';
+      : 'http://apidev.ubora-app.com';
 
   // Convert firestore://agencyId/formId/userId/fileId to HTTP URL
   const httpUrl = `${apiEndpoint}/api/files/download?downloadUrl=${encodeURIComponent(firestoreUrl)}`;

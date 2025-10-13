@@ -31,7 +31,7 @@ export const getFileBlobUrl = async (attachment: any): Promise<string> => {
       ? import.meta.env.VITE_AI_ENDPOINT.replace('/api/ai/ask', '')
       : import.meta.env.DEV 
         ? 'http://localhost:3000'
-        : 'https://apidev.ubora-app.com';
+        : 'http://apidev.ubora-app.com';
 
     const downloadUrl = `${apiEndpoint}/api/files/download?downloadUrl=${encodeURIComponent(attachment.downloadUrl)}`;
     
