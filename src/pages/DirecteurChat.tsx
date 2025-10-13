@@ -18,6 +18,8 @@ import { LimitReachedModal } from '../components/LimitReachedModal';
 import { AnalyticsService } from '../services/analyticsService';
 import { LogoutConfirmationModal } from '../components/LogoutConfirmationModal';
 import { ImpersonationHeader } from '../components/ImpersonationHeader';
+import { ConnectionQualityIndicator, useConnectionQuality } from '../components/ConnectionQualityIndicator';
+import { enhancedFetch } from '../utils/errorHandling'; // Enhanced error handling with retry logic
 
 // Remove the old Message interface since we're using ChatMessage from types
 
@@ -143,6 +145,9 @@ export const DirecteurChat: React.FC = () => {
   // États pour le panneau latéral
   const [panelOpen, setPanelOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'history' | 'forms' | 'employees' | 'entries' | null>(null);
+  
+  // Connection quality tracking
+  const { quality, updateQuality } = useConnectionQuality();
   
   // Track the last message count to detect new messages
   const [lastMessageCount, setLastMessageCount] = useState(0);
@@ -377,18 +382,11 @@ RÉPONSE :
       };
       
 
-      // Timeout de 90 secondes pour laisser plus de temps au traitement IA
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => {
-        controller.abort();
-      }, 90000);
-
-      
-      let response = await fetch(AI_ENDPOINT, {
+      // Use enhanced fetch with retry logic and better error handling
+      let response = await enhancedFetch.aiRequest(AI_ENDPOINT, {
         method: 'POST',
         headers: makeHeaders(token),
-        body: JSON.stringify(requestData),
-        signal: controller.signal
+        body: JSON.stringify(requestData)
       });
       
 
@@ -397,19 +395,16 @@ RÉPONSE :
         try {
           const freshToken = await firebaseUser?.getIdToken(true);
           if (freshToken) {
-            response = await fetch(AI_ENDPOINT, {
+            response = await enhancedFetch.aiRequest(AI_ENDPOINT, {
               method: 'POST',
               headers: makeHeaders(freshToken),
-              body: JSON.stringify(requestData),
-              signal: controller.signal
+              body: JSON.stringify(requestData)
             });
           }
         } catch (refreshErr) {
           console.error('Failed to refresh token:', refreshErr);
         }
       }
-
-      clearTimeout(timeoutId);
 
       if (!response.ok) {
         // Essayer de récupérer le message d'erreur du serveur
@@ -467,6 +462,10 @@ RÉPONSE :
       // Successfully received response, stop loading
       setIsTyping(false);
       
+      // Update connection quality based on response time
+      const responseTime = Date.now() - startTime;
+      updateQuality(responseTime);
+      
       // Remove loading message from local state
       if (currentConversation) {
         try {
@@ -485,17 +484,21 @@ RÉPONSE :
       let errorContent = '';
       
       if (error instanceof Error) {
-        if (error.name === 'AbortError') {
-          errorContent = `⏱️ **Timeout**\n\nLe serveur IA met trop de temps à répondre (>60s). Cela peut être dû à:\n• Un grand volume de données à analyser\n• Une charge élevée du serveur\n• Un problème de connexion\n\nVeuillez réessayer ou contactez l'administrateur.`;
-        } else if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
-          errorContent = `🌐 **Erreur de connexion**\n\nImpossible de joindre le serveur IA. Vérifiez:\n• Votre connexion internet\n• La configuration de l'endpoint IA\n• Que le serveur est en ligne\n\nEndpoint configuré: ${AI_ENDPOINT}`;
-        } else if (error.message.includes('ARCHA n\'est pas configuré')) {
-          errorContent = `⚙️ **Configuration manquante**\n\n${error.message}`;
-        } else {
-          errorContent = `❌ **Erreur API**\n\n${error.message}\n\nEndpoint: ${AI_ENDPOINT}`;
+        // Use the enhanced error message from our error handler
+        errorContent = error.message;
+        
+        // Add additional context for specific error types
+        if (error.message.includes('Connexion lente détectée')) {
+          errorContent += `\n\n💡 **Conseils:**\n• Vérifiez votre connexion internet\n• Réessayez dans quelques instants\n• Contactez le support si le problème persiste`;
+        } else if (error.message.includes('Problème de connexion réseau')) {
+          errorContent += `\n\n💡 **Solutions:**\n• Vérifiez votre connexion WiFi/4G\n• Redémarrez votre routeur si nécessaire\n• Réessayez dans quelques minutes`;
+        } else if (error.message.includes('Impossible de joindre')) {
+          errorContent += `\n\n💡 **Actions:**\n• Le service est temporairement indisponible\n• Réessayez dans 5-10 minutes\n• Contactez l'administrateur si le problème persiste`;
+        } else if (error.message.includes('Configuration manquante')) {
+          errorContent += `\n\n💡 **Solution:**\n• Contactez l'administrateur système\n• Vérifiez la configuration du serveur`;
         }
       } else {
-        errorContent = `❌ **Erreur inconnue**\n\nUne erreur inattendue s'est produite. Veuillez réessayer.\n\nEndpoint: ${AI_ENDPOINT}`;
+        errorContent = `❌ **Erreur inattendue**\n\nUne erreur inattendue s'est produite. Veuillez réessayer.\n\nEndpoint: ${AI_ENDPOINT}`;
       }
       
       const errorMessage: ChatMessage = {
@@ -614,6 +617,9 @@ RÉPONSE :
       firebaseUser={firebaseUser}
       message="ARCHA loading..."
     >
+      {/* Connection Quality Indicator */}
+      <ConnectionQualityIndicator quality={quality} />
+      
       <ImpersonationHeader />
       <div className="min-h-screen bg-gradient-to-b from-blue-50 via-white to-white">
         {/* Container centré pour toute l'interface */}

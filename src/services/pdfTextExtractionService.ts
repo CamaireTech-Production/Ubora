@@ -1,3 +1,5 @@
+import { enhancedFetch } from '../utils/errorHandling';
+
 export interface TextExtractionResult {
   text: string;
   pages: number;
@@ -37,18 +39,14 @@ export class PDFTextExtractionService {
         fileName: file.name
       };
       
-      // Make API request to the dedicated PDF extraction endpoint
-      const response = await fetch(`${apiEndpoint}/api/ocr/extractPdfText`, {
+      // Make API request to the dedicated PDF extraction endpoint with enhanced error handling
+      const response = await enhancedFetch.ocrRequest(`${apiEndpoint}/api/ocr/extractPdfText`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(payload)
       });
-      
-      if (!response.ok) {
-        throw new Error(`PDF extraction API error: ${response.status} ${response.statusText}`);
-      }
       
       const result = await response.json();
       
