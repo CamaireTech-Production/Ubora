@@ -22,93 +22,47 @@ export class EnhancedErrorHandler {
   private static readonly DEFAULT_RETRY_DELAY = 1000; // 1 second
 
   /**
-   * Enhanced fetch with retry logic, timeout, and better error handling
+   * Single-attempt fetch with timeout and enhanced error handling (no retries)
    */
   static async fetchWithRetry(
     url: string,
     options: RequestInit = {},
     retryOptions: RetryOptions = {}
   ): Promise<Response> {
-    const {
-      maxRetries = this.DEFAULT_MAX_RETRIES,
-      timeout = this.DEFAULT_TIMEOUT,
-      retryDelay = this.DEFAULT_RETRY_DELAY,
-      exponentialBackoff = true
-    } = retryOptions;
+    const { timeout = this.DEFAULT_TIMEOUT } = retryOptions;
 
-    let lastError: Error | null = null;
-    
-    for (let attempt = 0; attempt <= maxRetries; attempt++) {
-      let controller: AbortController | null = null;
-      let timeoutId: NodeJS.Timeout | null = null;
-      
-      try {
-        console.log(`🔄 Attempt ${attempt + 1}/${maxRetries + 1} for ${url}`);
-        
-        // Create abort controller for timeout
-        controller = new AbortController();
-        timeoutId = setTimeout(() => {
-          console.log(`⏰ Request timeout after ${timeout}ms on attempt ${attempt + 1}`);
-          controller?.abort();
-        }, timeout);
+    let controller: AbortController | null = null;
+    let timeoutId: NodeJS.Timeout | null = null;
 
-        const response = await fetch(url, {
-          ...options,
-          signal: controller.signal
-        });
+    try {
+      // Create abort controller for timeout
+      controller = new AbortController();
+      timeoutId = setTimeout(() => {
+        controller?.abort();
+      }, timeout);
 
-        // Clear timeout immediately after response
-        if (timeoutId) {
-          clearTimeout(timeoutId);
-          timeoutId = null;
-        }
+      const response = await fetch(url, {
+        ...options,
+        signal: controller.signal
+      });
 
-        // Check if response is ok
-        if (!response.ok) {
-          // Don't retry on client errors (4xx) except 408 (timeout)
-          if (response.status >= 400 && response.status < 500 && response.status !== 408) {
-            console.log(`❌ Client error ${response.status}, not retrying`);
-            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-          }
-          // Retry on server errors (5xx) and 408 (timeout)
-          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-        }
-
-        console.log(`✅ Request successful on attempt ${attempt + 1}`);
-        return response;
-
-      } catch (error) {
-        // Clear timeout on error
-        if (timeoutId) {
-          clearTimeout(timeoutId);
-          timeoutId = null;
-        }
-        
-        lastError = error as Error;
-        console.warn(`❌ Attempt ${attempt + 1} failed:`, error);
-
-        // Don't retry on the last attempt
-        if (attempt === maxRetries) {
-          break;
-        }
-
-        // Don't retry on AbortError (timeout) - it's likely a network issue
-        if (error instanceof Error && error.name === 'AbortError') {
-          console.log(`⏰ Request aborted on attempt ${attempt + 1}, will retry`);
-        }
-
-        // Calculate delay for next retry
-        const delay = exponentialBackoff 
-          ? retryDelay * Math.pow(2, attempt)
-          : retryDelay;
-
-        console.log(`⏳ Waiting ${delay}ms before retry...`);
-        await this.delay(delay);
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+        timeoutId = null;
       }
-    }
 
-    // All retries failed, throw enhanced error
-    throw this.createEnhancedError(lastError!, url, maxRetries + 1);
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      return response;
+    } catch (error) {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+        timeoutId = null;
+      }
+      throw this.createEnhancedError(error as Error, url, 1);
+    }
   }
 
   /**
@@ -254,10 +208,7 @@ export const enhancedFetch = {
     
     try {
       const response = await EnhancedErrorHandler.fetchWithRetry(url, options, {
-        maxRetries: 2,
-        timeout: 20000,
-        retryDelay: 1000,
-        exponentialBackoff: true
+        timeout: 20000
       });
 
       const responseTime = Date.now() - startTime;
@@ -283,10 +234,7 @@ export const enhancedFetch = {
     
     try {
       const response = await EnhancedErrorHandler.fetchWithRetry(url, options, {
-        maxRetries: 2,
-        timeout: 30000, // OCR requests can take longer
-        retryDelay: 2000,
-        exponentialBackoff: true
+        timeout: 30000 // OCR requests can take longer
       });
 
       const responseTime = Date.now() - startTime;
