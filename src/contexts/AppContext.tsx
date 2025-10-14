@@ -22,6 +22,7 @@ import { PermissionManager } from '../utils/PermissionManager';
 import { SubscriptionSessionService } from '../services/subscriptionSessionService';
 import { notificationService } from '../services/notificationService';
 import { useToast } from '../hooks/useToast';
+import { getAIFormatEndpoint, getFilesDownloadEndpoint } from '../config/api';
 
 interface AppContextType {
   forms: Form[];
@@ -590,12 +591,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             try {
               console.log(`🔄 Formatting text for ${attachment.fileName}...`);
               
-              // Get the API endpoint dynamically
-              const apiEndpoint = import.meta.env.VITE_AI_ENDPOINT 
-                ? import.meta.env.VITE_AI_ENDPOINT.replace('/api/ai/ask', '')
-                : import.meta.env.DEV 
-                  ? 'http://localhost:3000'
-                  : 'http://apidev.ubora-app.com';
               
               // Check if submissionId exists before making the request
               if (!attachment.submissionId) {
@@ -620,7 +615,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               
               console.log(`🔍 Full request body:`, JSON.stringify(requestBody, null, 2));
 
-              const response = await fetch(`${apiEndpoint}/api/ai/format`, {
+              const response = await fetch(getAIFormatEndpoint(), {
                 method: 'POST',
                 headers: {
                   'Content-Type': 'application/json',
@@ -918,14 +913,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               try {
                 console.log(`🔄 Formatting text for ${attachment.fileName}...`);
                 
-                // Get the API endpoint dynamically
-                const apiEndpoint = import.meta.env.VITE_AI_ENDPOINT 
-                  ? import.meta.env.VITE_AI_ENDPOINT.replace('/api/ai/ask', '')
-                  : import.meta.env.DEV 
-                    ? 'http://localhost:3000'
-                    : 'http://apidev.ubora-app.com';
                 
-                const response = await fetch(`${apiEndpoint}/api/ai/format`, {
+                const response = await fetch(getAIFormatEndpoint(), {
                   method: 'POST',
                   headers: {
                     'Content-Type': 'application/json',
@@ -943,13 +932,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                   console.error(`❌ Format request failed for ${attachment.fileName}:`, {
                     status: response.status,
                     statusText: response.statusText,
-                    endpoint: `${apiEndpoint}/api/ai/format`
+                    endpoint: getAIFormatEndpoint()
                   });
                   
                   // Try alternative endpoint
                   if (response.status === 404) {
                     console.log(`🔄 Trying alternative endpoint...`);
-                    const altResponse = await fetch(`http://localhost:3000/api/ai/format`, {
+                    const altResponse = await fetch(getAIFormatEndpoint(), {
                       method: 'POST',
                       headers: {
                         'Content-Type': 'application/json',
