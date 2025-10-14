@@ -18,8 +18,6 @@ export interface ConnectionQuality {
 
 export class EnhancedErrorHandler {
   private static readonly DEFAULT_TIMEOUT = 20000; // 20 seconds
-  private static readonly DEFAULT_MAX_RETRIES = 2;
-  private static readonly DEFAULT_RETRY_DELAY = 1000; // 1 second
 
   /**
    * Single-attempt fetch with timeout and enhanced error handling (no retries)
@@ -61,22 +59,21 @@ export class EnhancedErrorHandler {
         clearTimeout(timeoutId);
         timeoutId = null;
       }
-      throw this.createEnhancedError(error as Error, url, 1);
+      throw this.createEnhancedError(error as Error, url);
     }
   }
 
   /**
    * Create user-friendly error messages
    */
-  static createEnhancedError(originalError: Error, url: string, attempts: number): Error {
+  static createEnhancedError(originalError: Error, url: string): Error {
     const errorType = this.detectErrorType(originalError);
-    const userMessage = this.getUserFriendlyMessage(errorType, url, attempts);
+    const userMessage = this.getUserFriendlyMessage(errorType, url);
     
     const enhancedError = new Error(userMessage);
     (enhancedError as any).originalError = originalError;
     (enhancedError as any).errorType = errorType;
     (enhancedError as any).url = url;
-    (enhancedError as any).attempts = attempts;
     
     return enhancedError;
   }
@@ -113,13 +110,13 @@ export class EnhancedErrorHandler {
   /**
    * Get user-friendly error messages in French
    */
-  private static getUserFriendlyMessage(errorType: string, url: string, attempts: number): string {
+  private static getUserFriendlyMessage(errorType: string, url: string): string {
     const isApiEndpoint = url.includes('/api/');
     const serviceName = isApiEndpoint ? 'le service IA' : 'le serveur';
     
     switch (errorType) {
       case 'timeout':
-        return `⏱️ Connexion lente détectée. ${serviceName} met plus de temps à répondre que prévu. Veuillez patienter ou réessayer.`;
+        return `⏱️ Le service met plus de temps à répondre que prévu. Veuillez réessayer.`;
       
       case 'network':
         return `🌐 Problème de connexion réseau. Vérifiez votre connexion internet et réessayez.`;
@@ -134,7 +131,7 @@ export class EnhancedErrorHandler {
         return `🔒 Problème de configuration de sécurité. Contactez le support technique.`;
       
       default:
-        return `❌ Erreur inattendue lors de la communication avec ${serviceName}. Veuillez réessayer.`;
+        return `❌ Erreur lors de la communication avec ${serviceName}. Veuillez réessayer.`;
     }
   }
 
@@ -174,12 +171,6 @@ export class EnhancedErrorHandler {
     return null;
   }
 
-  /**
-   * Utility function to delay execution
-   */
-  private static delay(ms: number): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, ms));
-  }
 
   /**
    * Check if error is retryable
@@ -204,20 +195,10 @@ export const enhancedFetch = {
    * AI API calls with enhanced error handling
    */
   async aiRequest(url: string, options: RequestInit = {}): Promise<Response> {
-    const startTime = Date.now();
-    
     try {
       const response = await EnhancedErrorHandler.fetchWithRetry(url, options, {
         timeout: 20000
       });
-
-      const responseTime = Date.now() - startTime;
-      const quality = EnhancedErrorHandler.detectConnectionQuality(responseTime);
-      const warning = EnhancedErrorHandler.showConnectionWarning(quality);
-      
-      if (warning) {
-        console.warn(warning);
-      }
 
       return response;
     } catch (error) {
@@ -230,20 +211,10 @@ export const enhancedFetch = {
    * OCR API calls with enhanced error handling
    */
   async ocrRequest(url: string, options: RequestInit = {}): Promise<Response> {
-    const startTime = Date.now();
-    
     try {
       const response = await EnhancedErrorHandler.fetchWithRetry(url, options, {
         timeout: 30000 // OCR requests can take longer
       });
-
-      const responseTime = Date.now() - startTime;
-      const quality = EnhancedErrorHandler.detectConnectionQuality(responseTime);
-      const warning = EnhancedErrorHandler.showConnectionWarning(quality);
-      
-      if (warning) {
-        console.warn(warning);
-      }
 
       return response;
     } catch (error) {
