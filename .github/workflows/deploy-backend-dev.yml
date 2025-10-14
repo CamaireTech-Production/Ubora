@@ -156,42 +156,73 @@ jobs:
           
           # Create Nginx configuration for apidev.ubora-app.com
           echo "🔧 Creating Nginx configuration for apidev.ubora-app.com..."
-          cat > /etc/nginx/sites-available/apidev.ubora-app.com << 'EOF'
-          server {
-              listen 80;
-              # Temporarily disable SSL until certificates are set up
-              # listen 443 ssl;
-              server_name apidev.ubora-app.com;
-              
-              # SSL certificates - uncomment when certificates are available
-              # ssl_certificate /etc/letsencrypt/live/apidev.ubora-app.com/fullchain.pem;
-              # ssl_certificate_key /etc/letsencrypt/live/apidev.ubora-app.com/privkey.pem;
-              
-              # Increase timeouts and body size for PDF processing
-              client_max_body_size 100M;
-              proxy_connect_timeout 300s;
-              proxy_send_timeout 300s;
-              proxy_read_timeout 300s;
-              send_timeout 300s;
-              
-              location / {
-                  proxy_pass http://localhost:3001;
-                  proxy_http_version 1.1;
-                  proxy_set_header Upgrade $http_upgrade;
-                  proxy_set_header Connection 'upgrade';
-                  proxy_set_header Host $host;
-                  proxy_set_header X-Real-IP $remote_addr;
-                  proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-                  proxy_set_header X-Forwarded-Proto $scheme;
-                  proxy_cache_bypass $http_upgrade;
-                  
-                  # Additional timeout settings for this location
-                  proxy_connect_timeout 300s;
-                  proxy_send_timeout 300s;
-                  proxy_read_timeout 300s;
-              }
-          }
-          EOF
+          DOMAIN=apidev.ubora-app.com
+          if [ -f "/etc/letsencrypt/live/$DOMAIN/fullchain.pem" ]; then
+            # SSL is available - write SSL-enabled server
+            cat > /etc/nginx/sites-available/$DOMAIN << EOF
+            server {
+                listen 80;
+                listen 443 ssl;
+                server_name $DOMAIN;
+                
+                ssl_certificate /etc/letsencrypt/live/$DOMAIN/fullchain.pem;
+                ssl_certificate_key /etc/letsencrypt/live/$DOMAIN/privkey.pem;
+                
+                # Increase timeouts and body size for PDF processing
+                client_max_body_size 100M;
+                proxy_connect_timeout 300s;
+                proxy_send_timeout 300s;
+                proxy_read_timeout 300s;
+                send_timeout 300s;
+                
+                location / {
+                    proxy_pass http://localhost:3001;
+                    proxy_http_version 1.1;
+                    proxy_set_header Upgrade $http_upgrade;
+                    proxy_set_header Connection 'upgrade';
+                    proxy_set_header Host $host;
+                    proxy_set_header X-Real-IP $remote_addr;
+                    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                    proxy_set_header X-Forwarded-Proto $scheme;
+                    proxy_cache_bypass $http_upgrade;
+                    
+                    # Additional timeout settings for this location
+                    proxy_connect_timeout 300s;
+                    proxy_send_timeout 300s;
+                    proxy_read_timeout 300s;
+                }
+            }
+            EOF
+          else
+            # No SSL yet - write HTTP-only, certbot will enable SSL later
+            cat > /etc/nginx/sites-available/$DOMAIN << EOF
+            server {
+                listen 80;
+                server_name $DOMAIN;
+                
+                client_max_body_size 100M;
+                proxy_connect_timeout 300s;
+                proxy_send_timeout 300s;
+                proxy_read_timeout 300s;
+                send_timeout 300s;
+                
+                location / {
+                    proxy_pass http://localhost:3001;
+                    proxy_http_version 1.1;
+                    proxy_set_header Upgrade $http_upgrade;
+                    proxy_set_header Connection 'upgrade';
+                    proxy_set_header Host $host;
+                    proxy_set_header X-Real-IP $remote_addr;
+                    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                    proxy_set_header X-Forwarded-Proto $scheme;
+                    proxy_cache_bypass $http_upgrade;
+                    proxy_connect_timeout 300s;
+                    proxy_send_timeout 300s;
+                    proxy_read_timeout 300s;
+                }
+            }
+            EOF
+          fi
           
           # Enable ONLY the apidev.ubora-app.com site
           echo "🔗 Enabling apidev.ubora-app.com site..."
@@ -225,6 +256,42 @@ jobs:
           
           echo "♻️ Attempting safe renew"
           certbot renew --quiet || true
+
+          # If SSL now exists, ensure SSL-enabled config is in place
+          if [ -f "/etc/letsencrypt/live/$DOMAIN/fullchain.pem" ]; then
+            echo "🔧 Writing SSL-enabled config for $DOMAIN"
+            cat > /etc/nginx/sites-available/$DOMAIN << EOF
+            server {
+                listen 80;
+                listen 443 ssl;
+                server_name $DOMAIN;
+                
+                ssl_certificate /etc/letsencrypt/live/$DOMAIN/fullchain.pem;
+                ssl_certificate_key /etc/letsencrypt/live/$DOMAIN/privkey.pem;
+                
+                client_max_body_size 100M;
+                proxy_connect_timeout 300s;
+                proxy_send_timeout 300s;
+                proxy_read_timeout 300s;
+                send_timeout 300s;
+                
+                location / {
+                    proxy_pass http://localhost:3001;
+                    proxy_http_version 1.1;
+                    proxy_set_header Upgrade $http_upgrade;
+                    proxy_set_header Connection 'upgrade';
+                    proxy_set_header Host $host;
+                    proxy_set_header X-Real-IP $remote_addr;
+                    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                    proxy_set_header X-Forwarded-Proto $scheme;
+                    proxy_cache_bypass $http_upgrade;
+                    proxy_connect_timeout 300s;
+                    proxy_send_timeout 300s;
+                    proxy_read_timeout 300s;
+                }
+            }
+            EOF
+          fi
           
           # Test and reload Nginx
           echo "🧪 Testing Nginx configuration..."
