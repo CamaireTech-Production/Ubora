@@ -1,0 +1,253 @@
+```markdown
+# RAPPORT DU POINT DE VENTE SUR LA PERIODE
+
+## DEPOT MVOG MBI
+
+### PERIODE : 01/09/2025 0:00:00 - 15/09/2025 0:00:00
+
+**NOM DE LA GERANTE:** OK
+
+## CHIFFRE D’AFFAIRE ET DETAILS
+
+**CHIFFRE D’AFFAIRE TOTAL:** 3780828 FCFA
+
+- **CHIFFRE BOUTIQUE:** 1723903 FCFA
+- **CHIFFRE BOULANGERIE:** 2056925 FCFA
+- **RAFFINERIE:** 969600 FCFA
+- **SAVONNERIE:** 120875 FCFA
+- **EAU & JUS:** 352100 FCFA
+- **COSMÉTIQUE:** 116728 FCFA
+- **MARGARINE:** 160000 FCFA
+- **CHAMPS:** 4600 FCFA
+
+## RESULTAT ET MATIERE PREMIERE BOULANGERIE
+
+- **COÛT DE PRODUCTION BOULANGERIE:** 1746745.67 FCFA
+- **CHIFFRE D’AFFAIRE ATTENDU BOULANGERIE:** 2454175 FCFA
+- **RENTABILITÉ SUR MATIÈRE:** 707429.33 FCFA
+- **% DE RENTABILITE:** 28.83%
+- **AVARIES:** 208825 FCFA
+
+### Matières Premières
+
+- **FARINE DE BLÉ:** KG
+- **FARINE DE MANIOC:** KG
+- **SUCRE:** 121.9 KG
+- **MARGARINE:** 148.44 KG
+- **OEUFS:** 618 oeufs
+- **EAU PAFIC:** 860.05 litres
+
+## SITUATION
+
+- **CHIFFRE D’AFFAIRE TOTAL:** 3780828 FCFA
+- **DEPENSES:** 773025 FCFA
+- **MONTANT A VERSER:** 3596703 FCFA
+- **VERSEMENT BOULANGERIE:** 2014275 FCFA
+- **VERSEMENT BOUTIQUE:** 1691650 FCFA
+- **VERSEMENT TOTAL:** 3705925 FCFA
+- **MANQUANT(-) OU SURPLUS(+):** 109222 FCFA
+  - **M/S Boulangerie:** 141475 FCFA
+  - **M/S Boutique:** -32253 FCFA
+- **VERSEMENT REEL BOULANGERIE:** 2014275 FCFA
+- **VERSEMENT REEL BOUTIQUE:** 1691650 FCFA
+- **VERSEMENT TOTAL REEL:** 3705925 FCFA
+
+## OBSERVATION
+
+- **Nom, signature du gérant**
+- **Nom, signature chef boulanger**
+- **Nom, signature hôtesse boutique et boulangerie**
+
+## PRODUIT PAR LE NUAGE DE PAFIC
+
+---
+
+## DÉPENSES ET DETAILS
+
+**TOTAL DEPENSES:** 773025 FCFA
+
+| Date       | Details | Montant | Type |
+|------------|---------|---------|------|
+| ca         | is      | se      |      |
+
+## VERSEMENTS VIRTUEL
+
+**TOTAL VERSEMENTS:** 3705925 FCFA
+
+| Date                  | Departement | Montant  | Photos |
+|-----------------------|-------------|----------|--------|
+| 2025-09-01T19:29:00Z  | BOUTIQUE    | 293600   | FCFA   |
+| 2025-09-01T21:24:00Z  | BOULANGERIE | 114875   | FCFA   |
+| 2025-09-02T19:57:00Z  | BOUTIQUE    | 42525    | FCFA   |
+| 2025-09-02T20:57:00Z  | BOULANGERIE | 154300   | FCFA   |
+| 2025-09-03T20:00:00Z  | BOUTIQUE    | 102100   | FCFA   |
+| 2025-09-03T11:44:00Z  | BOULANGERIE | 146000   | FCFA   |
+| 2025-09-04T21:56:00Z  | BOUTIQUE    | 119200   | FCFA   |
+| 2025-09-04T20:37:00Z  | BOULANGERIE | 139650   | FCFA   |
+| 2025-09-05T19:45:00Z  | BOUTIQUE    | 70250    | FCFA   |
+| 2025-09-05T20:07:00Z  | BOULANGERIE | 154725   | FCFA   |
+| 2025-09-06T21:18:00Z  | BOUTIQUE    | 87725    | FCFA   |
+| 2025-09-06T19:35:00Z  | BOULANGERIE | 135025   | FCFA   |
+| 2025-09-07T21:33:00Z  | BOULANGERIE | 141500   | FCFA   |
+| 2025-09-07T21:50:00Z  | BOUTIQUE    | 205000   | FCFA   |
+| 2025-09-08T20:22:00Z  | BOUTIQUE    | 94900    | FCFA   |
+| 2025-09-08T21:09:00Z  | BOULANGERIE | 148125   | FCFA   |
+| 2025-09-09T20:59:00Z  | BOUTIQUE    | 93100    | FCFA   |
+| 2025-09-09T20:59:00Z  | BOULANGERIE | 147375   | FCFA   |
+| 2025-09-10T20:20:00Z  | BOUTIQUE    | 93500    | FCFA   |
+| 2025-09-10T21:55:00Z  | BOULANGERIE | 130000   | FCFA   |
+| 2025-09-11T21:05:00Z  | BOUTIQUE    | 48700    | FCFA   |
+| 2025-09-11T21:51:00Z  | BOULANGERIE | 153050   | FCFA   |
+| 2025-09-12T21:25:00Z  | BOULANGERIE | 111825   | FCFA   |
+| 2025-09-12T21:33:00Z  | BOUTIQUE    | 110100   | FCFA   |
+| 2025-09-13T20:59:00Z  | BOUTIQUE    | 147650   | FCFA   |
+| 2025-09-13T11:09:00Z  | BOULANGERIE | 151000   | FCFA   |
+| 2025-09-14T09:08:00Z  | BOULANGERIE | 86425    | FCFA   |
+| 2025-09-14T09:10:00Z  | BOUTIQUE    | 118800   | FCFA   |
+| 2025-09-15T09:55:00Z  | BOUTIQUE    | 64500    | FCFA   |
+| 2025-09-15T09:56:00Z  | BOULANGERIE | 100400   | FCFA   |
+
+## DETAIL DES VENTES
+
+| Date                  | Article               | Quantité | P.U  | Montant |
+|-----------------------|-----------------------|----------|------|---------|
+| 2025-09-01T18:19:00Z  | PAFIC WATER 1.65L     | 103      | 200  | 20600   |
+| 2025-09-01T18:19:00Z  | SAVON 3 EN 1 200G     | 1        | 700  | 700     |
+| 2025-09-01T18:19:00Z  | SAVON DERMA ANTISEPTIQUE | 12   | 167  | 2004    |
+| 2025-09-01T18:19:00Z  | SAVON LA VILLAGEOISE 350G | 12   | 250  | 3000    |
+| 2025-09-01T18:19:00Z  | CHERIFAA ECLAIR 500ML | 1        | 1500 | 1500    |
+| 2025-09-01T18:19:00Z  | DERMA 650ML           | 1        | 1200 | 1200    |
+| 2025-09-01T18:19:00Z  | LAIT BELLA            | 2        | 1000 | 2000    |
+| 2025-09-01T18:19:00Z  | LAIT PAFIC DERMA 1.1L | 1        | 1800 | 1800    |
+| 2025-09-01T18:19:00Z  | OZAN FOLERE 1L        | 6        | 500  | 3000    |
+| 2025-09-01T18:19:00Z  | PAFIC OR 20 L         | 9        | 25500| 229500  |
+| 2025-09-01T18:19:00Z  | PAFIC OR 5L           | 1        | 6500 | 6500    |
+| 2025-09-01T18:19:00Z  | PAFIC OR 900ML        | 9        | 1200 | 10800   |
+| 2025-09-01T18:19:00Z  | GLYCERINE ECLAIR 125  | 1        | 600  | 600     |
+| 2025-09-01T18:19:00Z  | MARGARINE PÂTISSERIES 20KG | 1   | 20000| 20000   |
+| 2025-09-02T11:29:00Z  | CHERIFA ECLAIR 300ML  | 2        | 800  | 1600    |
+| 2025-09-02T11:29:00Z  | CHERIFAA ECLAIR 500ML | 1        | 1500 | 1500    |
+| 2025-09-02T11:29:00Z  | EAU DE JAVEL          | 1        | 1000 | 1000    |
+| 2025-09-02T11:29:00Z  | LAIT PAFIC DERMA 1.1L | 1        | 1800 | 1800    |
+| 2025-09-02T11:29:00Z  | MALIBU 200G           | 3        | 600  | 1800    |
+| 2025-09-02T11:29:00Z  | OZAN FOLERE 1L        | 13       | 500  | 6500    |
+| 2025-09-02T11:29:00Z  | GLYCERINE ECLAIR 125  | 2        | 600  | 1200    |
+| 2025-09-02T11:29:00Z  | PAFIC OR 900ML        | 6        | 1200 | 7200    |
+| 2025-09-02T11:29:00Z  | PAFIC WATER 1.65L     | 73       | 200  | 14600   |
+| 2025-09-02T11:29:00Z  | SAVON 3 EN 1 200G     | 1        | 700  | 700     |
+| 2025-09-02T11:29:00Z  | SAVON LA VILLAGEOISE 350G | 14   | 250  | 3500    |
+| 2025-09-02T11:29:00Z  | SAVON LV 200G         | 1        | 125  | 125     |
+| 2025-09-02T11:29:00Z  | LAIT BELLA            | 1        | 1000 | 1000    |
+| 2025-09-02T11:29:00Z  | TAPIOCA JAUNE 1KG     | 1        | 700  | 700     |
+| 2025-09-02T11:29:00Z  | BEIGNET 100f          | 565      | 100  | 56500   |
+| 2025-09-02T11:29:00Z  | BISCOTS 100           | 16       | 100  | 1600    |
+| 2025-09-02T11:29:00Z  | BRIOCHE 300           | 4        | 300  | 1200    |
+| 2025-09-02T11:29:00Z  | BRIOCHE 500           | 8        | 500  | 4000    |
+| 2025-09-02T11:29:00Z  | KIRIKOU 125           | 14       | 125  | 1750    |
+| 2025-09-02T11:29:00Z  | PAIN AU LAIT 200      | 7        | 200  | 1400    |
+| 2025-09-02T11:29:00Z  | BRIOCHE DE 100        | 156      | 100  | 15600   |
+| 2025-09-02T11:29:00Z  | CAKE 500              | 4        | 500  | 2000    |
+| 2025-09-02T11:29:00Z  | MINI BRIOCHE 100      | 20       | 100  | 2000    |
+| 2025-09-02T11:29:00Z  | PAIN AU LAIT 100      | 247      | 100  | 24700   |
+| 2025-09-02T11:29:00Z  | PAIN AU LAIT 300      | 3        | 300  | 900     |
+| 2025-09-02T11:29:00Z  | PAIN AU LAIT DE 500   | 2        | 500  | 1000    |
+| 2025-09-02T11:29:00Z  | PAIN AU LAIT 50       | 69       | 50   | 3450    |
+| 2025-09-02T11:29:00Z  | PAIN ORDINAIRE 100f   | 300      | 100  | 30000   |
+| 2025-09-02T11:29:00Z  | PAIN ORDINAIRE 150    | 20       | 150  | 3000    |
+| 2025-09-02T11:29:00Z  | PAIN ORDINAIRE 500    | 2        | 500  | 1000    |
+| 2025-09-02T11:29:00Z  | POUDING 100           | 48       | 100  | 4800    |
+| 2025-09-02T11:29:00Z  | PAIN ORDINAIRE 200    | 10       | 200  | 2000    |
+| 2025-09-02T11:29:00Z  | PAIN ORDINAIRE 300    | 2        | 300  | 600     |
+| 2025-09-03T07:09:00Z  | SAVON DERMA ANTISEPTIQUE | 6    | 167  | 1002    |
+| 2025-09-03T07:09:00Z  | PAFIC WATER 1.65L     | 102      | 200  | 20400   |
+| 2025-09-03T07:09:00Z  | CHERIFAA ECLAIR 500ML | 4        | 1500 | 6000    |
+| 2025-09-03T07:09:00Z  | LAIT BELLA            | 2        | 1000 | 2000    |
+| 2025-09-03T07:09:00Z  | MALIBU 200G           | 3        | 600  | 1800    |
+| 2025-09-03T07:09:00Z  | MARGARINE PÂTISSERIES 20KG | 1   | 20000| 20000   |
+| 2025-09-03T07:09:00Z  | OZAN FOLERE 1L        | 15       | 500  | 7500    |
+| 2025-09-03T07:09:00Z  | PAFIC OR 20 L         | 1        | 25500| 25500   |
+| 2025-09-03T07:09:00Z  | PAFIC OR 900ML        | 12       | 1200 | 14400   |
+| 2025-09-03T07:09:00Z  | DERMA 650ML           | 1        | 1200 | 1200    |
+| 2025-09-03T07:09:00Z  | SAVON LA VILLAGEOISE 350G | 9   | 250  | 2250    |
+| 2025-09-03T07:09:00Z  | PAIN AU LAIT DE 500   | 2        | 500  | 1000    |
+| 2025-09-03T07:09:00Z  | PAIN ORDINAIRE 100f   | 178      | 100  | 17800   |
+| 2025-09-03T07:09:00Z  | BEIGNET 100f          | 639      | 100  | 63900   |
+| 2025-09-03T07:09:00Z  | BEIGNETS SOUFFLETS 100| 68       | 100  | 6800    |
+| 2025-09-03T07:09:00Z  | BISCOTS 100           | 34       | 100  | 3400    |
+| 2025-09-03T07:09:00Z  | BISCUIT SABLÉ 100     | 62       | 100  | 6200    |
+| 2025-09-03T07:09:00Z  | BISCUIT SABLÉ 150     | 23       | 150  | 3450    |
+| 2025-09-03T07:09:00Z  | BRIOCHE 300           | 18       | 300  | 5400    |
+| 2025-09-03T07:09:00Z  | BRIOCHE 500           | 7        | 500  | 3500    |
+| 2025-09-03T07:09:00Z  | BRIOCHE DE 100        | 173      | 100  | 17300   |
+| 2025-09-03T07:09:00Z  | BRIOCHE SUCRE 150     | 8        | 150  | 1200    |
+| 2025-09-03T07:09:00Z  | MINI BRIOCHE 100      | 40       | 100  | 4000    |
+| 2025-09-03T07:09:00Z  | PAIN AU LAIT 100      | 219      | 100  | 21900   |
+| 2025-09-03T07:09:00Z  | PAIN AU LAIT 200      | 14       | 200  | 2800    |
+| 2025-09-03T07:09:00Z  | PAIN AU LAIT 300      | 4        | 300  | 1200    |
+| 2025-09-03T07:09:00Z  | PAIN AU LAIT 50       | 120      | 50   | 6000    |
+| 2025-09-03T07:09:00Z  | CAKE 1500             | 1        | 1500 | 1500    |
+
+## FICHE DE PRODUCTION
+
+### MATIERE
+
+| Matiere                  | Quantité | Cout  |
+|--------------------------|----------|-------|
+| FARINE COMPOSITE 20% M. MAKALA | 10       | 4500 F |
+| AMELIORANT               | 0.1      | 300 F |
+| SEL                      | 0.1      | 22.2 F |
+| SUCRE                    | 1        | 720 F |
+| MARGARINE                | 1.4      | 1400 F |
+| HUILE RAFFINEE           | 5        | 6500 F |
+| LEVURE BOULANGERE        | 0.2      | 600 F |
+| EAU PAFIC 12l            | 5        | 415 F |
+
+### PRODUIT
+
+| Produit                  | Quantité | Prix  |
+|--------------------------|----------|-------|
+| BEIGNET 100f             | 215      | 21500 F |
+| DONUT 200                | 7        | 1400 F |
+| PAIN ORDINAIRE 100f      | 90       | 9000 F |
+| PAIN ORDINAIRE 500       | 2        | 1000 F |
+| PAIN ORDINAIRE 300       | 3        | 900 F |
+| PAIN ORDINAIRE 200       | 10       | 2000 F |
+| PAIN ORDINAIRE 150       | 25       | 3750 F |
+| KIRIKOU 125              | 20       | 2500 F |
+| PAIN AU LAIT 100         | 120      | 12000 F |
+| PAIN AU LAIT DE 500      | 2        | 1000 F |
+| PAIN AU LAIT 300         | 3        | 900 F |
+| PAIN AU LAIT 200         | 10       | 2000 F |
+| BRIOCHE DE 100           | 80       | 8000 F |
+
+## VERSEMENTS BANCAIRES
+
+| Date                  | Montant | N°BORDEREAU | Image |
+|-----------------------|---------|-------------|-------|
+| 2025-09-01T13:18:00Z  | 114875  | CIC-C1245005|       |
+| 2025-09-01T13:20:00Z  | 293600  | CIC-C1245004|       |
+| 2025-09-02T17:04:00Z  | 154300  | CIC-C1246001|       |
+| 2025-09-02T17:08:00Z  | 42525   | CIC-C1246002|       |
+| 2025-09-03T17:21:00Z  | 146000  | CIC-C1247002|       |
+| 2025-09-03T17:28:00Z  | 102100  | CIC-C1247001-MVOG-MBI| |
+| 2025-09-04T17:31:00Z  | 119200  | CIC-C1248014-MVOG-MBI| |
+| 2025-09-04T17:33:00Z  | 139650  | CIC-C1248013-MVOG-MBI| |
+| 2025-09-05T17:02:00Z  | 154725  | CIC-C1249004|       |
+| 2025-09-05T17:08:00Z  | 70250   | CIC-C1249003-MVOG-MBI| |
+| 2025-09-06T17:11:00Z  | 135025  | CIC-C1251004-MVOG-MBI| |
+| 2025-09-06T17:12:00Z  | 87725   | CIC-C1251003-MVOG-MBI| |
+| 2025-09-07T17:15:00Z  | 141500  | CIC-C1251006-MVOG-MBI| |
+| 2025-09-07T17:18:00Z  | 205000  | CIC-C1251005-MVOG-MBI| |
+| 2025-09-08T17:29:00Z  | 94900   | CIC-C1252006|       |
+| 2025-09-08T17:31:00Z  | 148125  | CIC-C1252005-MVOG-MBI| |
+| 2025-09-09T17:40:00Z  | 147375  | CIC-C1253028-MVOG-MBI| |
+| 2025-09-09T17:43:00Z  | 93100   | CIC-C1253027-MVOG-MBI| |
+| 2025-09-10T14:27:00Z  | 93500   | CIC-C1254005-MVOG-MBI| |
+| 2025-09-10T14:31:00Z  | 130000  | CIC-C1254004-MVOG-MBI| |
+| 2025-09-11T20:16:00Z  | 153050  | CIC-C1255009-MVOG-MBI| |
+| 2025-09-11T20:20:00Z  | 48700   | CIC-C1255008-MVOG-MBI| |
+| 2025-09-12T17:54:00Z  | 110100  | CIC-C1256002-MVOG-MBI| |
+| 2025-09-12T17:58:00Z  | 111825  | CIC-C1256003-MVOG-MBI| |
+| 2025-09-13T18:01:00Z  | 147650  | CIC-C1258007-MVOG-MBI| |
+| 2025-09-13T18:02:00Z  | 151000  | CIC-C1258006-MVOG-MBI| |
+| 2025-09-14T18:06:00Z  | 118800  | CIC-C1258008-MVOG-MBI

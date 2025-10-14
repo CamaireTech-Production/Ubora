@@ -29,35 +29,10 @@ interface ChatFilters {
   userId: string;
 }
 
-// Configuration de l'endpoint IA
-const getAIEndpoint = () => {
-  if (import.meta.env.VITE_AI_ENDPOINT) {
-    console.log('🔧 Using VITE_AI_ENDPOINT:', import.meta.env.VITE_AI_ENDPOINT);
-    return import.meta.env.VITE_AI_ENDPOINT;
-  }
-  
-  if (import.meta.env.DEV) {
-    console.log('🔧 Using local development endpoint');
-    return 'http://localhost:3000/api/ai/ask';
-  }
-  
-  // Fallback for development deployment - TEMPORARILY USE LOCAL BACKEND
-  if (typeof window !== 'undefined' && window.location.hostname === 'dev.ubora-app.com') {
-    console.log('🔧 Using LOCAL backend for testing (dev server is down)');
-    return 'http://localhost:3000/api/ai/ask';
-  }
-  
-  // Fallback for production deployment
-  if (typeof window !== 'undefined' && window.location.hostname === 'my.ubora-app.com') {
-    console.log('🔧 Using production deployment endpoint');
-    return 'http://api.ubora-app.com/api/ai/ask';
-  }
-  
-  // Default fallback
-  console.log('🔧 Using default fallback endpoint');
-  return 'http://apidev.ubora-app.com/api/ai/ask';
-};
+// Import centralized API configuration
+import { getAIEndpoint } from '../config/api';
 
+// Get AI endpoint from centralized configuration
 const AI_ENDPOINT = getAIEndpoint();
 console.log('🎯 Final AI_ENDPOINT:', AI_ENDPOINT);
 
@@ -84,6 +59,10 @@ export const DirecteurChat: React.FC = () => {
   const { showError } = useToast();
   const [inputMessage, setInputMessage] = useState('');
   const [isTyping, setIsTyping] = useState(false);
+  const [typingMessage, setTypingMessage] = useState<string | undefined>(undefined);
+  const typingSoftTimerRef = useRef<number | null>(null);
+  const typingHardTimerRef = useRef<number | null>(null);
+  const activeRequestIdRef = useRef<string | null>(null);
   
   // Ref for direct input access without re-renders
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -346,6 +325,21 @@ RÉPONSE :
     // Clear input after sending
     setInputMessage('');
     setIsTyping(true);
+    setTypingMessage('ARCHA analyse vos données...');
+    const reqId = `req_${Date.now()}`;
+    activeRequestIdRef.current = reqId;
+    if (typingSoftTimerRef.current) { window.clearTimeout(typingSoftTimerRef.current); typingSoftTimerRef.current = null; }
+    if (typingHardTimerRef.current) { window.clearTimeout(typingHardTimerRef.current); typingHardTimerRef.current = null; }
+    typingSoftTimerRef.current = window.setTimeout(() => {
+      if (activeRequestIdRef.current === reqId) {
+        setTypingMessage('⏳ Toujours en cours... ARCHA traite votre demande.');
+      }
+    }, 30000);
+    typingHardTimerRef.current = window.setTimeout(() => {
+      if (activeRequestIdRef.current === reqId) {
+        setTypingMessage('⏱️ ARCHA prend plus de temps que prévu à traiter votre demande...');
+      }
+    }, 60000);
 
     // Loading indicator will be shown by MessageList component via isTyping prop
 
@@ -386,7 +380,8 @@ RÉPONSE :
       let response = await enhancedFetch.aiRequest(AI_ENDPOINT, {
         method: 'POST',
         headers: makeHeaders(token),
-        body: JSON.stringify(requestData)
+        body: JSON.stringify(requestData),
+        timeout: 60000
       });
       
 
@@ -398,7 +393,8 @@ RÉPONSE :
             response = await enhancedFetch.aiRequest(AI_ENDPOINT, {
               method: 'POST',
               headers: makeHeaders(freshToken),
-              body: JSON.stringify(requestData)
+              body: JSON.stringify(requestData),
+              timeout: 60000
             });
           }
         } catch (refreshErr) {
@@ -461,6 +457,10 @@ RÉPONSE :
       
       // Successfully received response, stop loading
       setIsTyping(false);
+      setTypingMessage(undefined);
+      if (typingSoftTimerRef.current) { window.clearTimeout(typingSoftTimerRef.current); typingSoftTimerRef.current = null; }
+      if (typingHardTimerRef.current) { window.clearTimeout(typingHardTimerRef.current); typingHardTimerRef.current = null; }
+      activeRequestIdRef.current = null;
       
       // Update connection quality based on response time
       const responseTime = Date.now() - startTime;
@@ -518,25 +518,7 @@ RÉPONSE :
         }
       }
     } finally {
-      // Ensure loading state is always cleared, even if there was an error
-      // The useEffect will handle the success case, but we need to handle error cases here
-      if (isTyping) {
-        // Add a small delay to allow the useEffect to handle success cases first
-        setTimeout(() => {
-          if (isTyping) {
-            setIsTyping(false);
-            // Remove loading message in case of error
-            if (currentConversation) {
-              try {
-                // The loading message will be replaced by the error message
-                // The real-time listener will handle this automatically
-              } catch (error) {
-                console.error('Error removing loading message on error:', error);
-              }
-            }
-          }
-        }, 100);
-      }
+      // Keep typing bubble until success or explicit error handling
     }
   };
 
@@ -641,9 +623,10 @@ RÉPONSE :
           />
 
           {/* Messages list */}
-          <MessageList
+      <MessageList
             messages={messages}
-            isTyping={isTyping}
+        isTyping={isTyping}
+        typingMessage={typingMessage}
             hasMoreMessages={hasMoreMessages}
             isLoadingMore={isLoadingMore}
             onLoadMore={handleLoadMore}

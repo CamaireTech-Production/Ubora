@@ -1,4 +1,5 @@
 import { enhancedFetch } from '../utils/errorHandling';
+import { getOCRPDFEndpoint } from '../config/api';
 
 export interface TextExtractionResult {
   text: string;
@@ -29,9 +30,6 @@ export class PDFTextExtractionService {
       // Convert PDF to base64 for OpenAI Vision API
       const base64Pdf = await this.fileToBase64(file);
       
-      // Get the API endpoint
-      const apiEndpoint = this.getAPIEndpoint();
-      
       // Prepare the request payload
       const payload = {
         pdfData: `data:${file.type};base64,${base64Pdf}`,
@@ -40,7 +38,7 @@ export class PDFTextExtractionService {
       };
       
       // Make API request to the dedicated PDF extraction endpoint with enhanced error handling
-      const response = await enhancedFetch.ocrRequest(`${apiEndpoint}/api/ocr/extractPdfText`, {
+      const response = await enhancedFetch.ocrRequest(getOCRPDFEndpoint(), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -89,27 +87,6 @@ export class PDFTextExtractionService {
     }
   }
 
-  /**
-   * Get the API endpoint URL
-   */
-  private static getAPIEndpoint(): string {
-    if (import.meta.env.VITE_AI_ENDPOINT) {
-      // Extract base URL from AI endpoint (remove /api/ai/ask)
-      return import.meta.env.VITE_AI_ENDPOINT.replace('/api/ai/ask', '');
-    }
-    
-    if (import.meta.env.DEV) {
-      return 'http://localhost:3000';
-    }
-    
-    // Check if we're in dev environment (dev.ubora-app.com)
-    if (typeof window !== 'undefined' && window.location.hostname === 'dev.ubora-app.com') {
-      return 'http://apidev.ubora-app.com';
-    }
-    
-    // Fallback for production
-    return 'http://api.ubora-app.com';
-  }
 
   /**
    * Convert File to base64 string

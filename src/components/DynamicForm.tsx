@@ -15,6 +15,7 @@ import { useToast } from '../hooks/useToast';
 import { ExpressionCalculator } from '../utils/ExpressionCalculator';
 import { ConditionalLogicEvaluator } from '../utils/ConditionalLogicEvaluator';
 import { getFileBlobUrl } from '../utils/simpleFileDownload';
+import { TextExtractionReviewModal } from './TextExtractionReviewModal';
 
 // Helper function to convert field IDs back to user-friendly field names in formulas
 const convertFormulaToUserFriendly = (formula: string, fields: FormField[]): string => {
@@ -67,8 +68,13 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [visibleFields, setVisibleFields] = useState<string[]>(form.fields.map((f: FormField) => f.id));
   
-  // Debug modal state
-  
+  // Image text extraction review modal state
+  const [imageTextModal, setImageTextModal] = useState<{
+    isOpen: boolean;
+    fieldId: string | null;
+    fileName?: string;
+    text: string;
+  }>({ isOpen: false, fieldId: null, fileName: undefined, text: '' });
   
   // Function to update visible fields based on conditional logic
   const updateVisibleFields = useCallback((currentAnswers: Record<string, unknown>) => {
@@ -301,8 +307,15 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
             }
           },
           (imageResult) => {
-            // Image extraction successful
-            console.log(`✅ Image ${imageResult.fileName} processed successfully`);
+            // Only for images: show review modal with extracted text
+            if (imageResult.extractionStatus === 'completed') {
+              setImageTextModal({
+                isOpen: true,
+                fieldId,
+                fileName: imageResult.fileName,
+                text: imageResult.extractedText || ''
+              });
+            }
           }
         );
 
@@ -358,6 +371,28 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
         return newProgress;
       });
     }
+  };
+
+  const acceptExtractedText = () => {
+    if (!imageTextModal.fieldId) {
+      setImageTextModal({ isOpen: false, fieldId: null, text: '' });
+      return;
+    }
+    // Put extracted text into a sibling textarea field if exists, else keep it in attachment metadata
+    const targetFieldId = imageTextModal.fieldId;
+    const existing = answers[targetFieldId];
+    if (existing && typeof existing === 'object') {
+      const updated = { ...(existing as Record<string, unknown>), extractedText: imageTextModal.text };
+      setAnswers(prev => ({ ...prev, [targetFieldId]: updated }));
+    }
+    setImageTextModal({ isOpen: false, fieldId: null, fileName: undefined, text: '' });
+  };
+
+  const reuploadImage = () => {
+    if (imageTextModal.fieldId) {
+      handleFileRemove(imageTextModal.fieldId);
+    }
+    setImageTextModal({ isOpen: false, fieldId: null, fileName: undefined, text: '' });
   };
 
   const handleFileRemove = (fieldId: string) => {
@@ -843,7 +878,15 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
         </form>
       </Card>
       
-      
+      <TextExtractionReviewModal
+        isOpen={imageTextModal.isOpen}
+        title="Vérifier le texte extrait"
+        fileName={imageTextModal.fileName}
+        extractedText={imageTextModal.text}
+        onAccept={acceptExtractedText}
+        onReupload={reuploadImage}
+        onClose={() => setImageTextModal({ isOpen: false, fieldId: null, fileName: undefined, text: '' })}
+      />
     </div>
   );
 };

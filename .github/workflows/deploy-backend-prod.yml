@@ -155,7 +155,9 @@ jobs:
           
           # Create Nginx configuration for api.ubora-app.com
           echo "🔧 Creating Nginx configuration for api.ubora-app.com..."
-          cat > /etc/nginx/sites-available/api.ubora-app.com << 'EOF'
+          DOMAIN=api.ubora-app.com
+          if [ -f "/etc/letsencrypt/live/$DOMAIN/fullchain.pem" ]; then
+            cat > /etc/nginx/sites-available/$DOMAIN << 'EOF'
           server {
               listen 80;
               listen 443 ssl;
@@ -164,7 +166,6 @@ jobs:
               ssl_certificate /etc/letsencrypt/live/api.ubora-app.com/fullchain.pem;
               ssl_certificate_key /etc/letsencrypt/live/api.ubora-app.com/privkey.pem;
               
-              # Increase timeouts and body size for PDF processing
               client_max_body_size 100M;
               proxy_connect_timeout 300s;
               proxy_send_timeout 300s;
@@ -181,14 +182,41 @@ jobs:
                   proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
                   proxy_set_header X-Forwarded-Proto $scheme;
                   proxy_cache_bypass $http_upgrade;
-                  
-                  # Additional timeout settings for this location
                   proxy_connect_timeout 300s;
                   proxy_send_timeout 300s;
                   proxy_read_timeout 300s;
               }
           }
           EOF
+          else
+            cat > /etc/nginx/sites-available/$DOMAIN << 'EOF'
+          server {
+              listen 80;
+              server_name api.ubora-app.com;
+              
+              client_max_body_size 100M;
+              proxy_connect_timeout 300s;
+              proxy_send_timeout 300s;
+              proxy_read_timeout 300s;
+              send_timeout 300s;
+              
+              location / {
+                  proxy_pass http://localhost:3000;
+                  proxy_http_version 1.1;
+                  proxy_set_header Upgrade $http_upgrade;
+                  proxy_set_header Connection 'upgrade';
+                  proxy_set_header Host $host;
+                  proxy_set_header X-Real-IP $remote_addr;
+                  proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                  proxy_set_header X-Forwarded-Proto $scheme;
+                  proxy_cache_bypass $http_upgrade;
+                  proxy_connect_timeout 300s;
+                  proxy_send_timeout 300s;
+                  proxy_read_timeout 300s;
+              }
+          }
+          EOF
+          fi
           
           # Enable ONLY the api.ubora-app.com site
           echo "🔗 Enabling api.ubora-app.com site..."
@@ -198,6 +226,65 @@ jobs:
           if [ -f /etc/nginx/sites-available/apidev.ubora-app.com ]; then
             echo "🔗 Ensuring apidev.ubora-app.com is enabled..."
             ln -sf /etc/nginx/sites-available/apidev.ubora-app.com /etc/nginx/sites-enabled/
+          fi
+          
+          echo "🔐 Ensuring Certbot is installed"
+          if ! command -v certbot >/dev/null 2>&1; then
+            apt-get update -y
+            apt-get install -y certbot python3-certbot-nginx
+          fi
+          
+          echo "🔐 Configure SSL certificate for api.ubora-app.com"
+          DOMAIN=api.ubora-app.com
+          if ! grep -q "listen 80" /etc/nginx/sites-available/$DOMAIN; then
+            echo "❌ $DOMAIN config missing listen 80; please ensure port 80 is present."
+            exit 1
+          fi
+          if [ ! -f "/etc/letsencrypt/live/$DOMAIN/fullchain.pem" ]; then
+            echo "🔐 Issuing certificate for $DOMAIN"
+            certbot --nginx -d $DOMAIN --non-interactive --agree-tos -m admin@$DOMAIN || true
+          else
+            echo "🔐 Re-deploying existing certificate for $DOMAIN"
+            certbot install --nginx -d $DOMAIN || true
+          fi
+          
+          echo "♻️ Attempting safe renew"
+          certbot renew --quiet || true
+
+          # If SSL now exists, ensure SSL-enabled config is in place
+          if [ -f "/etc/letsencrypt/live/$DOMAIN/fullchain.pem" ]; then
+            echo "🔧 Writing SSL-enabled config for $DOMAIN"
+            cat > /etc/nginx/sites-available/$DOMAIN << 'EOF'
+          server {
+              listen 80;
+              listen 443 ssl;
+              server_name api.ubora-app.com;
+              
+              ssl_certificate /etc/letsencrypt/live/api.ubora-app.com/fullchain.pem;
+              ssl_certificate_key /etc/letsencrypt/live/api.ubora-app.com/privkey.pem;
+              
+              client_max_body_size 100M;
+              proxy_connect_timeout 300s;
+              proxy_send_timeout 300s;
+              proxy_read_timeout 300s;
+              send_timeout 300s;
+              
+              location / {
+                  proxy_pass http://localhost:3000;
+                  proxy_http_version 1.1;
+                  proxy_set_header Upgrade $http_upgrade;
+                  proxy_set_header Connection 'upgrade';
+                  proxy_set_header Host $host;
+                  proxy_set_header X-Real-IP $remote_addr;
+                  proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                  proxy_set_header X-Forwarded-Proto $scheme;
+                  proxy_cache_bypass $http_upgrade;
+                  proxy_connect_timeout 300s;
+                  proxy_send_timeout 300s;
+                  proxy_read_timeout 300s;
+              }
+          }
+          EOF
           fi
           
           # Test and reload Nginx

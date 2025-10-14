@@ -18,83 +18,62 @@ export interface ConnectionQuality {
 
 export class EnhancedErrorHandler {
   private static readonly DEFAULT_TIMEOUT = 20000; // 20 seconds
-  private static readonly DEFAULT_MAX_RETRIES = 2;
-  private static readonly DEFAULT_RETRY_DELAY = 1000; // 1 second
 
   /**
-   * Enhanced fetch with retry logic, timeout, and better error handling
+   * Single-attempt fetch with timeout and enhanced error handling (no retries)
    */
   static async fetchWithRetry(
     url: string,
     options: RequestInit = {},
     retryOptions: RetryOptions = {}
   ): Promise<Response> {
-    const {
-      maxRetries = this.DEFAULT_MAX_RETRIES,
-      timeout = this.DEFAULT_TIMEOUT,
-      retryDelay = this.DEFAULT_RETRY_DELAY,
-      exponentialBackoff = true
-    } = retryOptions;
+    const { timeout = this.DEFAULT_TIMEOUT } = retryOptions;
 
-    let lastError: Error | null = null;
-    
-    for (let attempt = 0; attempt <= maxRetries; attempt++) {
-      try {
-        console.log(`🔄 Attempt ${attempt + 1}/${maxRetries + 1} for ${url}`);
-        
-        // Create abort controller for timeout
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), timeout);
+    let controller: AbortController | null = null;
+    let timeoutId: NodeJS.Timeout | null = null;
 
-        const response = await fetch(url, {
-          ...options,
-          signal: controller.signal
-        });
+    try {
+      // Create abort controller for timeout
+      controller = new AbortController();
+      timeoutId = setTimeout(() => {
+        controller?.abort();
+      }, timeout);
 
+      const response = await fetch(url, {
+        ...options,
+        signal: controller.signal
+      });
+
+      if (timeoutId) {
         clearTimeout(timeoutId);
-
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-        }
-
-        console.log(`✅ Request successful on attempt ${attempt + 1}`);
-        return response;
-
-      } catch (error) {
-        lastError = error as Error;
-        console.warn(`❌ Attempt ${attempt + 1} failed:`, error);
-
-        // Don't retry on the last attempt
-        if (attempt === maxRetries) {
-          break;
-        }
-
-        // Calculate delay for next retry
-        const delay = exponentialBackoff 
-          ? retryDelay * Math.pow(2, attempt)
-          : retryDelay;
-
-        console.log(`⏳ Waiting ${delay}ms before retry...`);
-        await this.delay(delay);
+        timeoutId = null;
       }
-    }
 
-    // All retries failed, throw enhanced error
-    throw this.createEnhancedError(lastError!, url, maxRetries + 1);
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      return response;
+    } catch (error) {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+        timeoutId = null;
+      }
+      throw this.createEnhancedError(error as Error, url);
+    }
   }
 
   /**
    * Create user-friendly error messages
    */
-  static createEnhancedError(originalError: Error, url: string, attempts: number): Error {
+  static createEnhancedError(originalError: Error, url: string): Error {
     const errorType = this.detectErrorType(originalError);
-    const userMessage = this.getUserFriendlyMessage(errorType, url, attempts);
+    const userMessage = this.getUserFriendlyMessage(errorType, url);
     
     const enhancedError = new Error(userMessage);
     (enhancedError as any).originalError = originalError;
     (enhancedError as any).errorType = errorType;
     (enhancedError as any).url = url;
-    (enhancedError as any).attempts = attempts;
     
     return enhancedError;
   }
@@ -131,13 +110,13 @@ export class EnhancedErrorHandler {
   /**
    * Get user-friendly error messages in French
    */
-  private static getUserFriendlyMessage(errorType: string, url: string, attempts: number): string {
+  private static getUserFriendlyMessage(errorType: string, url: string): string {
     const isApiEndpoint = url.includes('/api/');
     const serviceName = isApiEndpoint ? 'le service IA' : 'le serveur';
     
     switch (errorType) {
       case 'timeout':
-        return `⏱️ Connexion lente détectée. ${serviceName} met plus de temps à répondre que prévu. Veuillez patienter ou réessayer.`;
+        return `⏱️ Le service met plus de temps à répondre que prévu. Veuillez réessayer.`;
       
       case 'network':
         return `🌐 Problème de connexion réseau. Vérifiez votre connexion internet et réessayez.`;
@@ -152,7 +131,7 @@ export class EnhancedErrorHandler {
         return `🔒 Problème de configuration de sécurité. Contactez le support technique.`;
       
       default:
-        return `❌ Erreur inattendue lors de la communication avec ${serviceName}. Veuillez réessayer.`;
+        return `❌ Erreur lors de la communication avec ${serviceName}. Veuillez réessayer.`;
     }
   }
 
@@ -192,12 +171,6 @@ export class EnhancedErrorHandler {
     return null;
   }
 
-  /**
-   * Utility function to delay execution
-   */
-  private static delay(ms: number): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, ms));
-  }
 
   /**
    * Check if error is retryable
@@ -221,24 +194,12 @@ export const enhancedFetch = {
   /**
    * AI API calls with enhanced error handling
    */
-  async aiRequest(url: string, options: RequestInit = {}): Promise<Response> {
-    const startTime = Date.now();
-    
+  async aiRequest(url: string, options: RequestInit & { timeout?: number } = {}): Promise<Response> {
     try {
-      const response = await EnhancedErrorHandler.fetchWithRetry(url, options, {
-        maxRetries: 2,
-        timeout: 20000,
-        retryDelay: 1000,
-        exponentialBackoff: true
+      const { timeout, ...init } = options as any;
+      const response = await EnhancedErrorHandler.fetchWithRetry(url, init, {
+        timeout: typeof timeout === 'number' ? timeout : 20000
       });
-
-      const responseTime = Date.now() - startTime;
-      const quality = EnhancedErrorHandler.detectConnectionQuality(responseTime);
-      const warning = EnhancedErrorHandler.showConnectionWarning(quality);
-      
-      if (warning) {
-        console.warn(warning);
-      }
 
       return response;
     } catch (error) {
@@ -250,24 +211,12 @@ export const enhancedFetch = {
   /**
    * OCR API calls with enhanced error handling
    */
-  async ocrRequest(url: string, options: RequestInit = {}): Promise<Response> {
-    const startTime = Date.now();
-    
+  async ocrRequest(url: string, options: RequestInit & { timeout?: number } = {}): Promise<Response> {
     try {
-      const response = await EnhancedErrorHandler.fetchWithRetry(url, options, {
-        maxRetries: 2,
-        timeout: 30000, // OCR requests can take longer
-        retryDelay: 2000,
-        exponentialBackoff: true
+      const { timeout, ...init } = options as any;
+      const response = await EnhancedErrorHandler.fetchWithRetry(url, init, {
+        timeout: typeof timeout === 'number' ? timeout : 30000 // OCR requests can take longer
       });
-
-      const responseTime = Date.now() - startTime;
-      const quality = EnhancedErrorHandler.detectConnectionQuality(responseTime);
-      const warning = EnhancedErrorHandler.showConnectionWarning(quality);
-      
-      if (warning) {
-        console.warn(warning);
-      }
 
       return response;
     } catch (error) {

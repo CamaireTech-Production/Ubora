@@ -1,5 +1,29 @@
 # Guide d'Accès VPS et Consultation des Logs
 
+## SSL certificate management (Certbot)
+
+Use these steps to verify, renew, or reinstall certificates for `apidev.ubora-app.com` (and similarly for other domains) and reload Nginx.
+
+```bash
+# SSH into your VPS
+ssh root@your-vps-ip
+
+# Check current certificates
+sudo certbot certificates
+
+# Renew certificates for apidev.ubora-app.com
+sudo certbot renew --cert-name apidev.ubora-app.com
+
+# Or reinstall if missing
+sudo certbot --nginx -d apidev.ubora-app.com
+
+# Test Nginx configuration
+sudo nginx -t
+
+# Reload Nginx
+sudo systemctl reload nginx
+```
+
 Ce guide vous explique comment accéder à votre serveur VPS et consulter les logs de votre application backend en temps réel.
 
 ## 📋 Prérequis
