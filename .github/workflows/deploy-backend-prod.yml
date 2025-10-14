@@ -200,6 +200,29 @@ jobs:
             ln -sf /etc/nginx/sites-available/apidev.ubora-app.com /etc/nginx/sites-enabled/
           fi
           
+          echo "🔐 Ensuring Certbot is installed"
+          if ! command -v certbot >/dev/null 2>&1; then
+            apt-get update -y
+            apt-get install -y certbot python3-certbot-nginx
+          fi
+          
+          echo "🔐 Configure SSL certificate for api.ubora-app.com"
+          DOMAIN=api.ubora-app.com
+          if ! grep -q "listen 80" /etc/nginx/sites-available/$DOMAIN; then
+            echo "❌ $DOMAIN config missing listen 80; please ensure port 80 is present."
+            exit 1
+          fi
+          if [ ! -f "/etc/letsencrypt/live/$DOMAIN/fullchain.pem" ]; then
+            echo "🔐 Issuing certificate for $DOMAIN"
+            certbot --nginx -d $DOMAIN --non-interactive --agree-tos -m admin@$DOMAIN || true
+          else
+            echo "🔐 Re-deploying existing certificate for $DOMAIN"
+            certbot install --nginx -d $DOMAIN || true
+          fi
+          
+          echo "♻️ Attempting safe renew"
+          certbot renew --quiet || true
+          
           # Test and reload Nginx
           echo "🧪 Testing Nginx configuration..."
           nginx -t && systemctl reload nginx
