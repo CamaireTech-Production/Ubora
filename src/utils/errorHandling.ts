@@ -194,10 +194,11 @@ export const enhancedFetch = {
   /**
    * AI API calls with enhanced error handling
    */
-  async aiRequest(url: string, options: RequestInit = {}): Promise<Response> {
+  async aiRequest(url: string, options: RequestInit & { timeout?: number } = {}): Promise<Response> {
     try {
-      const response = await EnhancedErrorHandler.fetchWithRetry(url, options, {
-        timeout: 20000
+      const { timeout, ...init } = options as any;
+      const response = await EnhancedErrorHandler.fetchWithRetry(url, init, {
+        timeout: typeof timeout === 'number' ? timeout : 20000
       });
 
       return response;
@@ -210,10 +211,11 @@ export const enhancedFetch = {
   /**
    * OCR API calls with enhanced error handling
    */
-  async ocrRequest(url: string, options: RequestInit = {}): Promise<Response> {
+  async ocrRequest(url: string, options: RequestInit & { timeout?: number } = {}): Promise<Response> {
     try {
-      const response = await EnhancedErrorHandler.fetchWithRetry(url, options, {
-        timeout: 30000 // OCR requests can take longer
+      const { timeout, ...init } = options as any;
+      const response = await EnhancedErrorHandler.fetchWithRetry(url, init, {
+        timeout: typeof timeout === 'number' ? timeout : 30000 // OCR requests can take longer
       });
 
       return response;

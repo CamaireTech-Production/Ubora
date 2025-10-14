@@ -16,6 +16,7 @@ interface Message {
 interface MessageListProps {
   messages: Message[];
   isTyping?: boolean;
+  typingMessage?: string;
   hasMoreMessages?: boolean;
   isLoadingMore?: boolean;
   onLoadMore?: () => void;
@@ -24,6 +25,7 @@ interface MessageListProps {
 export const MessageList: React.FC<MessageListProps> = ({
   messages,
   isTyping = false,
+  typingMessage,
   hasMoreMessages = false,
   isLoadingMore = false,
   onLoadMore
@@ -238,7 +240,7 @@ export const MessageList: React.FC<MessageListProps> = ({
                 <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
                 <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
               </div>
-              <span className="text-sm text-gray-500">ARCHA analyse vos données...</span>
+              <span className="text-sm text-gray-500">{typingMessage || 'ARCHA analyse vos données...'}</span>
             </div>
           </div>
         </div>
