@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { Send, Brain } from 'lucide-react';
 import { Button } from '../Button';
 import { FormatSelector } from './FormatSelector';
@@ -45,6 +45,7 @@ interface ChatComposerProps {
   showFormatSelector?: boolean;
   showComprehensiveFilter?: boolean;
   allowMultipleFormats?: boolean; // Enable multi-format selection
+  inputRef?: React.RefObject<HTMLTextAreaElement>; // For direct access
 }
 
 export const ChatComposer: React.FC<ChatComposerProps> = ({
@@ -67,104 +68,164 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
   maxLength = 2000,
   showFormatSelector = true,
   showComprehensiveFilter = true,
-  allowMultipleFormats = false
+  allowMultipleFormats = false,
+  inputRef: externalInputRef
 }) => {
   const { user } = useAuth();
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const [rows, setRows] = useState(1);
-  const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
-
-  // Calculer les tokens restants
-  const { packageInfo } = usePackageAccess();
-  const isUnlimited = packageInfo?.totalTokens === -1;
-  const remainingTokens = packageInfo?.tokensRemaining || 0;
+  const internalTextareaRef = useRef<HTMLTextAreaElement>(null);
+  const textareaRef = externalInputRef || internalTextareaRef;
+  const [, setIsKeyboardOpen] = useState(false);
   
+  // Simple uncontrolled input - no state updates during typing
+  const [localValue, setLocalValue] = useState(value);
+
+  // Only sync when value changes externally (e.g., after sending)
+  useEffect(() => {
+    setLocalValue(value);
+  }, [value]);
+
+  // Clear input when disabled (during analysis)
+  useEffect(() => {
+    if (disabled) {
+      setLocalValue('');
+    }
+  }, [disabled]);
+
+  // Handle input changes - only update local state, no parent updates
+  const handleInputChange = useCallback((newValue: string) => {
+    setLocalValue(newValue); // Only local state update
+    // NO parent state update during typing
+  }, []);
+
+  // Calculer les tokens restants - memoized for performance
+  const { packageInfo } = usePackageAccess();
+  const tokenCalculations = useMemo(() => ({
+    isUnlimited: packageInfo?.totalTokens === -1,
+    remainingTokens: packageInfo?.tokensRemaining || 0
+  }), [packageInfo?.totalTokens, packageInfo?.tokensRemaining]);
+  
+  // Stable initial viewport height for reliable keyboard detection
+  const initialViewportHeightRef = useRef<number>(
+    (typeof window !== 'undefined' && (window.visualViewport?.height || window.innerHeight)) || 0
+  );
+  const [, setKeyboardHeight] = useState(0);
+
   // Debug token data (safe logging)
   if (packageInfo) {
     // Token data available for debugging if needed
   }
 
-  // Auto-resize textarea
+  // Fallback auto-resize for browsers that don't support fieldSizing
   useEffect(() => {
-    if (textareaRef.current) {
-      const textarea = textareaRef.current;
-      textarea.style.height = 'auto';
-      const scrollHeight = textarea.scrollHeight;
-      const lineHeight = 24; // Standard line height for chat input
-      const maxHeight = lineHeight * 5; // Max 5 lines
-      
-      if (scrollHeight <= maxHeight) {
-        textarea.style.height = `${scrollHeight}px`;
-        setRows(Math.max(1, Math.floor(scrollHeight / lineHeight)));
-      } else {
-        textarea.style.height = `${maxHeight}px`;
-        setRows(5);
-      }
-    }
-  }, [value]);
+    const textarea = textareaRef.current;
+    if (!textarea) return;
 
-  // Detect mobile keyboard open/close
-  useEffect(() => {
-    const handleResize = () => {
-      const initialViewportHeight = window.visualViewport?.height || window.innerHeight;
-      const currentViewportHeight = window.visualViewport?.height || window.innerHeight;
+    // Check if fieldSizing is supported
+    const supportsFieldSizing = 'fieldSizing' in textarea.style;
+    
+    if (!supportsFieldSizing) {
+      const adjustHeight = () => {
+        textarea.style.height = 'auto';
+        const scrollHeight = textarea.scrollHeight;
+        const maxHeight = 120; // 5 lines * 24px
+        
+        if (scrollHeight <= maxHeight) {
+          textarea.style.height = `${scrollHeight}px`;
+        } else {
+          textarea.style.height = `${maxHeight}px`;
+        }
+      };
+
+      // Initial adjustment
+      adjustHeight();
       
-      // If viewport height decreased significantly, keyboard is likely open
-      const heightDifference = initialViewportHeight - currentViewportHeight;
-      setIsKeyboardOpen(heightDifference > 150); // Threshold for keyboard detection
+      // Listen for input changes
+      textarea.addEventListener('input', adjustHeight);
+      
+      return () => {
+        textarea.removeEventListener('input', adjustHeight);
+      };
+    }
+  }, [localValue]);
+
+  // Comprehensive mobile keyboard detection and handling
+  useEffect(() => {
+    const handleViewportChange = () => {
+      if (!window.visualViewport) return;
+      
+      const initialHeight = initialViewportHeightRef.current;
+      const currentHeight = window.visualViewport.height;
+      const heightDifference = initialHeight - currentHeight;
+      
+      // More sensitive threshold for better detection
+      const keyboardOpen = heightDifference > 30;
+      setIsKeyboardOpen(keyboardOpen);
+      setKeyboardHeight(keyboardOpen ? heightDifference : 0);
+
+      if (keyboardOpen) {
+        // Ensure input stays visible immediately - no delay
+        textareaRef.current?.scrollIntoView({ 
+          behavior: 'auto', 
+          block: 'end',
+          inline: 'nearest'
+        });
+      }
     };
 
-    // Listen for viewport changes (better for mobile keyboard detection)
+    // Use visualViewport API for accurate keyboard detection
     if (window.visualViewport) {
-      window.visualViewport.addEventListener('resize', handleResize);
+      window.visualViewport.addEventListener('resize', handleViewportChange);
+      window.visualViewport.addEventListener('scroll', handleViewportChange);
     } else {
-      // Fallback to window resize
-      window.addEventListener('resize', handleResize);
+      // Fallback for older browsers
+      window.addEventListener('resize', handleViewportChange);
     }
 
     return () => {
       if (window.visualViewport) {
-        window.visualViewport.removeEventListener('resize', handleResize);
+        window.visualViewport.removeEventListener('resize', handleViewportChange);
+        window.visualViewport.removeEventListener('scroll', handleViewportChange);
       } else {
-        window.removeEventListener('resize', handleResize);
+        window.removeEventListener('resize', handleViewportChange);
       }
     };
   }, []);
 
-  const handleKeyPress = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+  const handleKeyPress = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      if (!disabled && value.trim()) {
+      if (!disabled && localValue.trim()) {
+        // Update parent state with current value before sending
+        onChange(localValue);
         onSend();
       }
     }
     onKeyPress?.(e);
-  };
+  }, [disabled, localValue, onSend, onKeyPress, onChange]);
 
-  const handleFocus = () => {
-    // On mobile, ensure the input is visible when focused
+  const handleFocus = useCallback(() => {
+    // On mobile, ensure the input is visible when focused - immediate scroll
     if (textareaRef.current) {
-      setTimeout(() => {
-        textareaRef.current?.scrollIntoView({ 
-          behavior: 'smooth', 
-          block: 'center' 
-        });
-      }, 300); // Delay to allow keyboard to open
+      // Immediate scroll to bring input into view
+      textareaRef.current?.scrollIntoView({ 
+        behavior: 'auto', 
+        block: 'end' 
+      });
     }
-  };
+  }, []);
 
-  const canSend = !disabled && value.trim().length > 0;
-  const isNearLimit = value.length > maxLength * 0.8;
+  // Memoize these calculations to prevent unnecessary re-renders
+  const canSend = useMemo(() => !disabled && localValue.trim().length > 0, [disabled, localValue]);
+  const isNearLimit = useMemo(() => localValue.length > maxLength * 0.8, [localValue, maxLength]);
 
 
   return (
     <div 
-      className={`fixed left-0 right-0 z-10 bg-gradient-to-t from-white via-white to-transparent pt-4 transition-all duration-300 ${
-        isKeyboardOpen ? 'pb-2' : 'pb-4'
-      }`}
+      className="bg-gradient-to-t from-white via-white to-transparent pt-1 pb-1 transition-all duration-300"
       style={{ 
-        paddingBottom: isKeyboardOpen ? '0.5rem' : 'max(1rem, env(safe-area-inset-bottom))',
-        bottom: isKeyboardOpen ? '0' : '0'
+        // Use relative positioning to allow natural scrolling
+        position: 'relative',
+        paddingBottom: 'max(1rem, env(safe-area-inset-bottom))'
       }}
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -205,39 +266,45 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
         {/* Character counter (when near limit) */}
         {isNearLimit && (
           <div className="text-center mb-2">
-            <span className={`text-xs ${value.length >= maxLength ? 'text-red-500' : 'text-yellow-600'}`}>
-              {value.length}/{maxLength} caractères
+            <span className={`text-xs ${localValue.length >= maxLength ? 'text-red-500' : 'text-yellow-600'}`}>
+              {localValue.length}/{maxLength} caractères
             </span>
           </div>
         )}
 
           {/* Composer input section */}
-          <div className="p-4">
+          <div className="p-1.5">
             <div className="flex items-end space-x-3 bg-white rounded-2xl">
               {/* Textarea */}
-              <div className="flex-1 p-3">
+              <div className="flex-1 p-2">
                 <textarea
                   ref={textareaRef}
-                  value={value}
-                  onChange={(e) => onChange(e.target.value)}
+                  value={localValue}
+                  onChange={(e) => handleInputChange(e.target.value)}
                   onKeyPress={handleKeyPress}
                   onFocus={handleFocus}
                   placeholder={placeholder}
                   disabled={disabled}
                   maxLength={maxLength}
-                  rows={rows}
-                  className="w-full resize-none border-0 outline-none text-base placeholder-gray-500 bg-transparent leading-6 overflow-y-auto"
+                  className="w-full resize-none border-0 outline-none text-base placeholder-gray-500 bg-transparent leading-6"
                   style={{
                     minHeight: '24px',
-                    maxHeight: '120px' // 5 lines * 24px line height
-                  }}
+                    maxHeight: '120px', // 5 lines * 24px line height
+                    height: 'auto',
+                    overflow: 'hidden',
+                    fieldSizing: 'content' // Modern CSS auto-resize
+                  } as React.CSSProperties & { fieldSizing?: string }}
                 />
               </div>
 
               {/* Send button */}
               <div className="p-2">
                 <Button
-                  onClick={onSend}
+                  onClick={() => {
+                    // Update parent state with current value before sending
+                    onChange(localValue);
+                    onSend();
+                  }}
                   disabled={!canSend}
                   className={`p-2 rounded-full transition-all duration-200 ${
                     canSend
@@ -258,11 +325,11 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
           <div className="flex items-center justify-center space-x-1 text-xs text-gray-500 mt-2">
             <Brain className="h-3 w-3 text-blue-500" />
             <span>
-              {isUnlimited ? (
+              {tokenCalculations.isUnlimited ? (
                 <span className="text-green-600 font-medium">Tokens illimités</span>
               ) : (
                 <span>
-                  <span className="font-medium text-gray-700">{remainingTokens.toLocaleString()}</span>
+                  <span className="font-medium text-gray-700">{tokenCalculations.remainingTokens.toLocaleString()}</span>
                   <span className="text-gray-400"> tokens restants</span>
                 </span>
               )}

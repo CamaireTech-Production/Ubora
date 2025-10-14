@@ -159,9 +159,11 @@ class ReminderNotificationService {
       
       // Check if the notification was created today
       return notificationDateString === today;
-    } catch (error) {
+    } catch (error: any) {
       // Handle permission errors gracefully
-      if (error instanceof Error && error.message.includes('permission-denied')) {
+      const code = error?.code as string | undefined;
+      const message = (error?.message as string | undefined) || '';
+      if (code === 'permission-denied' || message.includes('permission-denied') || message.includes('Missing or insufficient permissions')) {
         console.warn('🔔 [ReminderService] Permission denied for checking reminders - this is normal for employees');
         return false; // Allow sending to be safe
       }
@@ -394,9 +396,11 @@ class ReminderNotificationService {
       
       console.log(`🔔 [ReminderService] Cleaned up ${duplicatesRemoved} duplicate reminders`);
       
-    } catch (error) {
+    } catch (error: any) {
       // Handle permission errors gracefully
-      if (error instanceof Error && error.message.includes('permission-denied')) {
+      const code = error?.code as string | undefined;
+      const message = (error?.message as string | undefined) || '';
+      if (code === 'permission-denied' || message.includes('permission-denied') || message.includes('Missing or insufficient permissions')) {
         console.warn('🔔 [ReminderService] Permission denied for cleanup - this is normal for employees');
         return;
       }

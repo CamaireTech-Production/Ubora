@@ -1,12 +1,25 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from '../components/Button';
 import { Card } from '../components/Card';
 import { Footer } from '../components/Footer';
+import { LogoutConfirmationModal } from '../components/LogoutConfirmationModal';
 import { AlertTriangle } from 'lucide-react';
 
 export const UnauthorizedPage: React.FC = () => {
   const { logout } = useAuth();
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+  const handleLogout = async () => {
+    setIsLoggingOut(true);
+    try {
+      await logout();
+    } finally {
+      setIsLoggingOut(false);
+      setShowLogoutModal(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
@@ -17,13 +30,21 @@ export const UnauthorizedPage: React.FC = () => {
           <p className="text-sm sm:text-base text-gray-600 mb-4 sm:mb-6">
             Vous n'avez pas les permissions nécessaires pour accéder à cette page.
           </p>
-          <Button onClick={logout} variant="secondary" className="w-full sm:w-auto">
+          <Button onClick={() => setShowLogoutModal(true)} variant="secondary" className="w-full sm:w-auto">
             Retour à la connexion
           </Button>
         </Card>
       </div>
       
       <Footer />
+
+      {/* Logout Confirmation Modal */}
+      <LogoutConfirmationModal
+        isOpen={showLogoutModal}
+        onClose={() => setShowLogoutModal(false)}
+        onConfirm={handleLogout}
+        isLoading={isLoggingOut}
+      />
     </div>
   );
 };

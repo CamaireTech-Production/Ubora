@@ -6,6 +6,8 @@ import { ConversationProvider } from './contexts/ConversationContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { LoginPage } from './pages/LoginPage';
+import { PasswordResetPage } from './pages/PasswordResetPage';
+import { ProfileCompletionPage } from './pages/ProfileCompletionPage';
 import { DirecteurDashboard } from './pages/DirecteurDashboard';
 import { DirecteurChat } from './pages/DirecteurChat';
 import { EmployeDashboard } from './pages/EmployeDashboard';
@@ -20,6 +22,7 @@ import { NotificationsPage } from './pages/NotificationsPage';
 import { AdminLoginPage } from './admin/pages/AdminLoginPage';
 import { AdminPage } from './admin';
 import { UserDetailPage } from './admin/pages/UserDetailPage';
+import PushTestPage from './pages/PushTestPage';
 import { HybridPWAManager } from './components/HybridPWAManager';
 import { EmployeeManagement } from './components/EmployeeManagement';
 import { Layout } from './components/Layout';
@@ -54,6 +57,23 @@ const ServiceWorkerMessageHandler: React.FC = () => {
   return null;
 };
 
+// Component that only renders notification services for authenticated users
+const AuthenticatedServices: React.FC = () => {
+  const { user } = useAuth();
+
+  // Only render these services if user is authenticated
+  if (!user) {
+    return null;
+  }
+
+  return (
+    <>
+      <NotificationListener />
+      <ReminderServiceInitializer />
+    </>
+  );
+};
+
 function App() {
   // Initialize PWA configuration on app load
   useEffect(() => {
@@ -67,11 +87,16 @@ function App() {
           <ConversationProvider>
             <Router>
               <ServiceWorkerMessageHandler />
-              <NotificationListener />
-              <ReminderServiceInitializer />
+              <AuthenticatedServices />
             <Routes>
             {/* Page de connexion */}
             <Route path="/login" element={<LoginPage />} />
+            
+            {/* Password Reset */}
+            <Route path="/reset-password" element={<PasswordResetPage />} />
+            
+            {/* Profile Completion */}
+            <Route path="/complete-profile" element={<ProfileCompletionPage />} />
             
             {/* Admin Login */}
             <Route path="/admin/login" element={<AdminLoginPage />} />
@@ -201,6 +226,16 @@ function App() {
                 </ProtectedRoute>
               } 
             />
+            {/* Dev/Test: Push Notifications */}
+            <Route 
+              path="/dev/push-test" 
+              element={
+                <ProtectedRoute allowedRoles={['directeur', 'employe']}>
+                  <PushTestPage />
+                </ProtectedRoute>
+              } 
+            />
+            
             
             {/* Gestion des employés */}
             <Route 

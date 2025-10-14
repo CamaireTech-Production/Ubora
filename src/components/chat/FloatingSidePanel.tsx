@@ -4,7 +4,7 @@ import { Button } from '../Button';
 import { useAuth } from '../../contexts/AuthContext';
 import { usePackageAccess } from '../../hooks/usePackageAccess';
 import { useApp } from '../../contexts/AppContext';
-import { UserLimitModal } from '../UserLimitModal';
+import { LimitReachedModal } from '../LimitReachedModal';
 import { PaymentModal } from '../PaymentModal';
 import { useToast } from '../../hooks/useToast';
 import { PackageType } from '../../config/packageFeatures';
@@ -74,15 +74,14 @@ export const FloatingSidePanel: React.FC<FloatingSidePanelProps> = ({
     }
   };
 
-  const handleUpgradePackage = (packageType: PackageType) => {
+  const handleUpgradePackage = () => {
     setShowUserLimitModal(false);
-    // Navigate to package management page
-    window.location.href = '/packages/manage';
+    // This will be handled by LimitReachedModal navigation
   };
 
   const handlePurchaseUsers = () => {
     setShowUserLimitModal(false);
-    setShowPaymentModal(true);
+    // This will be handled by LimitReachedModal navigation
   };
 
   const handlePurchaseResource = async (option: any) => {
@@ -212,16 +211,6 @@ export const FloatingSidePanel: React.FC<FloatingSidePanelProps> = ({
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <h4 className="font-medium text-gray-900">Conversations récentes</h4>
-              {onCreateConversation && (
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={onCreateConversation}
-                  className="text-xs px-2 py-1"
-                >
-                  Nouvelle
-                </Button>
-              )}
             </div>
             <div className="space-y-2 max-h-48 overflow-y-auto">
               {conversations.length === 0 ? (
@@ -492,14 +481,14 @@ export const FloatingSidePanel: React.FC<FloatingSidePanelProps> = ({
       )}
 
       {/* User Limit Modal */}
-      <UserLimitModal
+      <LimitReachedModal
         isOpen={showUserLimitModal}
         onClose={() => setShowUserLimitModal(false)}
+        type="users"
+        current={currentUserCount}
+        limit={maxUsers}
         onUpgrade={handleUpgradePackage}
-        onPurchaseUsers={handlePurchaseUsers}
-        currentUserCount={currentUserCount}
-        maxUsers={maxUsers}
-        payAsYouGoUsers={payAsYouGoUsers}
+        onPayAsYouGo={handlePurchaseUsers}
       />
 
       {/* Payment Modal */}

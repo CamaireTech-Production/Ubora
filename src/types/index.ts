@@ -30,6 +30,7 @@ export interface SubscriptionSession {
   durationDays: number; // Duration in days
   isActive: boolean; // Whether this session is currently active
   paymentMethod?: string; // Payment method used
+  paymentReference?: string; // Reference to payment record
   notes?: string; // Additional notes
   createdAt: Date;
   updatedAt: Date;
@@ -195,6 +196,8 @@ export interface FileAttachment {
   uploadedAt: Date;
   extractedText?: string; // Add extracted text for PDFs
   textExtractionStatus?: 'pending' | 'completed' | 'failed'; // Track extraction status
+  submissionId?: string; // Store submission ID for background formatting
+  base64Data?: string; // Store file as base64 for draft storage
 }
 
 export interface FormEntry {
@@ -234,6 +237,29 @@ export interface ScheduledNotification {
   sentAt?: Date;
 }
 
+// One-off metric reminder for director dashboards
+export interface MetricReminder {
+  id: string;
+  agencyId: string;
+  directorId: string; // creator/recipient
+  dashboardId: string;
+  metricId: string; // references DashboardMetric.id
+  // Scheduling
+  scheduledAt: Date; // next occurrence for the reminder
+  frequency: 'daily' | 'weekly' | 'monthly'; // how often to send the reminder
+  time: string; // HH:MM format - when to send the reminder
+  timezone?: string; // IANA timezone
+  note?: string;
+  // Status & bookkeeping
+  status: 'pending' | 'sent' | 'cancelled' | 'failed';
+  lastEvaluatedAt?: Date;
+  sentAt?: Date;
+  // Dedup key for safety (metricId + scheduledAt UTC minutes)
+  dedupKey?: string;
+  createdAt: Date;
+  createdBy: string; // directorId
+}
+
 // Types pour les conversations IA
 export interface PDFFileReference {
   fileName: string;
@@ -264,6 +290,7 @@ export interface ChatMessage {
   content: string;
   timestamp: Date;
   responseTime?: number;
+  isLoading?: boolean;
   contentType?: 'text' | 'graph' | 'pdf' | 'text-pdf' | 'table' | 'mixed' | 'multi-format';
   graphData?: GraphData;
   pdfData?: PDFData;

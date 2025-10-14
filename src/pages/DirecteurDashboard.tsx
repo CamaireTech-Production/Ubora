@@ -10,20 +10,18 @@ import { Button } from '../components/Button';
 import { FormEditor } from '../components/FormEditor';
 import { FormBuilder } from '../components/FormBuilder';
 import { LoadingGuard } from '../components/LoadingGuard';
-import { Plus, FileText, Users, Eye, Trash2, Edit, UserCheck, BarChart3, Calendar, ChevronDown, Crown, User as UserIcon } from 'lucide-react';
+import { Plus, FileText, Users, Eye, Trash2, Edit, UserCheck, BarChart3, Calendar, ChevronDown, Crown, User as UserIcon, ClipboardList, FileEdit, FileBarChart } from 'lucide-react';
 import { PendingApprovals } from '../components/PendingApprovals';
 import { VideoSection } from '../components/VideoSection';
 import { directorVideos } from '../data/videoData';
-import { DashboardCreationModal } from '../components/DashboardCreationModal';
+import { DashboardBuilder } from '../components/DashboardBuilder';
 import { DashboardDisplay } from '../components/DashboardDisplay';
 import { ComingSoonModal } from '../components/ComingSoonModal';
 import { useToast } from '../hooks/useToast';
 import { Toast } from '../components/Toast';
 import { usePackageAccess } from '../hooks/usePackageAccess';
 import { LimitReachedModal } from '../components/LimitReachedModal';
-import { SubscriptionSessionService } from '../services/subscriptionSessionService';
-import { doc, updateDoc, getDoc, serverTimestamp } from 'firebase/firestore';
-import { db } from '../firebaseConfig';
+import { ImpersonationHeader } from '../components/ImpersonationHeader';
 
 export const DirecteurDashboard: React.FC = () => {
   const navigate = useNavigate();
@@ -53,7 +51,7 @@ export const DirecteurDashboard: React.FC = () => {
   
   const [showFormBuilder, setShowFormBuilder] = useState(false);
   const [editingForm, setEditingForm] = useState<Form | null>(null);
-  const [showDashboardModal, setShowDashboardModal] = useState(false);
+  const [showDashboardBuilder, setShowDashboardBuilder] = useState(false);
   const [showComingSoonModal, setShowComingSoonModal] = useState(false);
   const [showDeleteFormModal, setShowDeleteFormModal] = useState(false);
   const [showDeleteDashboardModal, setShowDeleteDashboardModal] = useState(false);
@@ -64,6 +62,7 @@ export const DirecteurDashboard: React.FC = () => {
   const [showLimitModal, setShowLimitModal] = useState(false);
   const [limitModalType, setLimitModalType] = useState<'forms' | 'dashboards' | 'users'>('forms');
   const [isCreatingForm, setIsCreatingForm] = useState(false);
+  const [isCreatingDashboard, setIsCreatingDashboard] = useState(false);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   
   // États pour le filtrage temporel
@@ -76,6 +75,24 @@ export const DirecteurDashboard: React.FC = () => {
     end: ''
   });
   const [showCustomDatePicker, setShowCustomDatePicker] = useState(false);
+
+  // Function to get form icon based on form type or content
+  const getFormIcon = (form: Form) => {
+    // Check if form has specific field types that suggest its purpose
+    const hasFileFields = form.fields.some(field => field.type === 'file');
+    const hasDateFields = form.fields.some(field => field.type === 'date');
+    const hasNumberFields = form.fields.some(field => field.type === 'number');
+    const hasSelectFields = form.fields.some(field => field.type === 'select');
+    
+    // Determine icon based on form characteristics
+    if (hasFileFields) return <FileEdit className="h-5 w-5 text-blue-600" />;
+    if (hasDateFields && hasNumberFields) return <FileBarChart className="h-5 w-5 text-green-600" />;
+    if (hasSelectFields) return <ClipboardList className="h-5 w-5 text-purple-600" />;
+    if (hasNumberFields) return <FileBarChart className="h-5 w-5 text-orange-600" />;
+    
+    // Default form icon
+    return <FileText className="h-5 w-5 text-indigo-600" />;
+  };
 
 
   const handleCreateForm = async (formData: {
@@ -127,7 +144,7 @@ export const DirecteurDashboard: React.FC = () => {
       setLimitModalType('dashboards');
       setShowLimitModal(true);
     } else {
-      setShowDashboardModal(true);
+      setShowDashboardBuilder(true);
     }
   };
 
@@ -163,14 +180,36 @@ export const DirecteurDashboard: React.FC = () => {
     setShowFormBuilder(false);
   };
 
-  const handleCreateDashboard = async (dashboardData: any) => {
+  const handleCancelDashboard = () => {
+    setShowDashboardBuilder(false);
+  };
+
+  const handleCreateDashboard = async (dashboardData: {
+    name: string;
+    description: string;
+    metrics: any[];
+  }) => {
+    setIsCreatingDashboard(true);
     try {
-      await createDashboard(dashboardData);
-      setShowDashboardModal(false);
+      if (!user?.id || !user?.agencyId) {
+        throw new Error('Données utilisateur manquantes');
+      }
+
+      await createDashboard({
+        name: dashboardData.name,
+        description: dashboardData.description,
+        metrics: dashboardData.metrics,
+        createdBy: user.id,
+        createdByRole: user.role as 'directeur' | 'employe',
+        agencyId: user.agencyId,
+      });
+      setShowDashboardBuilder(false);
       showSuccess('Tableau de bord créé avec succès !');
     } catch (error) {
       console.error('Erreur lors de la création du tableau de bord:', error);
       showError('Erreur lors de la création du tableau de bord. Veuillez réessayer.');
+    } finally {
+      setIsCreatingDashboard(false);
     }
   };
 
@@ -351,10 +390,11 @@ export const DirecteurDashboard: React.FC = () => {
     let timeStr = '';
     if (restrictions.startTime && restrictions.endTime) {
       timeStr = `${restrictions.startTime} - ${restrictions.endTime}`;
-    } else if (restrictions.startTime) {
-      timeStr = `À partir de ${restrictions.startTime}`;
-    } else if (restrictions.endTime) {
-      timeStr = `Jusqu'à ${restrictions.endTime}`;
+    } else if (!restrictions.startTime && restrictions.endTime) {
+      timeStr = `À remplir avant ${restrictions.endTime}`;
+    } else if (restrictions.startTime && !restrictions.endTime) {
+      // Legacy single-time stored in startTime
+      timeStr = `À remplir avant ${restrictions.startTime}`;
     }
 
     let dayStr = '';
@@ -406,9 +446,23 @@ export const DirecteurDashboard: React.FC = () => {
             />
           )}
         </Layout>
+      ) : showDashboardBuilder ? (
+        <Layout title="Créer un tableau de bord">
+          <DashboardBuilder
+            onSave={handleCreateDashboard}
+            onCancel={handleCancelDashboard}
+            forms={forms}
+            formEntries={formEntries}
+            currentUserId={user?.id || ''}
+            agencyId={user?.agencyId || ''}
+            isLoading={isCreatingDashboard}
+          />
+        </Layout>
       ) : (
-        <Layout title="Dashboard Directeur">
-          <div className="space-y-6 lg:space-y-8">
+        <>
+          <ImpersonationHeader />
+          <Layout title="Dashboard Directeur">
+            <div className="space-y-6 lg:space-y-8">
             {/* Filtre temporel compact */}
             
             <div className="flex items-center justify-between gap-2 bg-white border border-gray-200 rounded-lg px-3 py-2 shadow-sm">
@@ -615,7 +669,7 @@ export const DirecteurDashboard: React.FC = () => {
             </div>
 
             {/* Liste des formulaires */}
-            <Card title="Formulaires créés">
+            <Card title={`Formulaires créés (${getFilteredData().forms.length})`}>
               {(() => {
                 const filteredData = getFilteredData();
                 return filteredData.forms.length === 0 ? (
@@ -644,58 +698,76 @@ export const DirecteurDashboard: React.FC = () => {
                     return (
                       <div
                         key={form.id}
-                        className="bg-white border border-gray-200 rounded-lg p-4 sm:p-5 hover:shadow-lg transition-all duration-200 hover:border-blue-300 mobile-form-card flex-shrink-0 w-80 sm:w-96 relative"
+                        className="bg-white border border-gray-200 rounded-xl p-4 sm:p-6 hover:shadow-xl transition-all duration-300 hover:border-blue-300 hover:-translate-y-1 mobile-form-card flex-shrink-0 w-80 sm:w-96 h-80 relative group flex flex-col"
                       >
                         {/* Delete button in top-right corner */}
-                        <div className="absolute top-3 right-3 z-10">
+                        <div className="absolute top-3 right-3 z-10 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
                           <Button
                             variant="danger"
                             size="sm"
                             onClick={() => handleDeleteForm(form.id)}
-                            className="p-1.5 h-8 w-8 opacity-70 hover:opacity-100 transition-opacity"
+                            className="p-1.5 h-8 w-8 shadow-lg"
                             title="Supprimer le formulaire"
                           >
                             <Trash2 className="h-3 w-3" />
                           </Button>
                         </div>
 
-                        {/* Header avec titre et badge */}
-                        <div className="mb-3 pr-10">
-                          <div className="flex flex-col space-y-2">
-                            <h3 className="font-semibold text-gray-900 text-base sm:text-lg line-clamp-2 leading-tight">
-                              {form.title}
-                            </h3>
-                            {form.timeRestrictions && formatTimeRestrictions(form.timeRestrictions) && (
-                              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 w-fit">
-                                🕒 {formatTimeRestrictions(form.timeRestrictions)}
-                              </span>
-                            )}
+                        {/* Header avec icône, titre et badge */}
+                        <div className="mb-3 pr-10 flex-shrink-0">
+                          <div className="flex items-start space-x-3 mb-2">
+                            <div className="flex-shrink-0 mt-1">
+                              {getFormIcon(form)}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <h3 className="font-semibold text-gray-900 text-base sm:text-lg leading-tight" style={{
+                                display: '-webkit-box',
+                                WebkitLineClamp: 2,
+                                WebkitBoxOrient: 'vertical',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                lineHeight: '1.3'
+                              }}>
+                                {form.title}
+                              </h3>
+                            </div>
                           </div>
+                          {form.timeRestrictions && formatTimeRestrictions(form.timeRestrictions) && (
+                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 w-fit">
+                              🕒 {formatTimeRestrictions(form.timeRestrictions)}
+                            </span>
+                          )}
                         </div>
 
                         {/* Description */}
-                        <p className="text-sm text-gray-600 mb-4 line-clamp-3 leading-relaxed">
+                        <p className="text-sm text-gray-600 mb-4 leading-relaxed flex-1" style={{
+                          display: '-webkit-box',
+                          WebkitLineClamp: 3,
+                          WebkitBoxOrient: 'vertical',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis'
+                        }}>
                           {form.description}
                         </p>
 
                         {/* Statistiques */}
-                        <div className="grid grid-cols-3 gap-2 mb-4">
-                          <div className="bg-gray-50 rounded-lg p-2 text-center">
-                            <div className="text-lg font-bold text-gray-900">{formEntriesForForm.length}</div>
-                            <div className="text-xs text-gray-600">Réponse(s)</div>
+                        <div className="grid grid-cols-3 gap-3 mb-4 flex-shrink-0">
+                          <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-3 text-center border border-blue-200">
+                            <div className="text-xl font-bold text-blue-700">{formEntriesForForm.length}</div>
+                            <div className="text-xs text-blue-600 font-medium">Réponse(s)</div>
                           </div>
-                          <div className="bg-gray-50 rounded-lg p-2 text-center">
-                            <div className="text-lg font-bold text-gray-900">{form.fields.length}</div>
-                            <div className="text-xs text-gray-600">Champ(s)</div>
+                          <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-xl p-3 text-center border border-green-200">
+                            <div className="text-xl font-bold text-green-700">{form.fields.length}</div>
+                            <div className="text-xs text-green-600 font-medium">Champ(s)</div>
                           </div>
-                          <div className="bg-gray-50 rounded-lg p-2 text-center">
-                            <div className="text-lg font-bold text-gray-900">{form.assignedTo.length}</div>
-                            <div className="text-xs text-gray-600">Employé(s)</div>
+                          <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl p-3 text-center border border-purple-200">
+                            <div className="text-xl font-bold text-purple-700">{form.assignedTo.length}</div>
+                            <div className="text-xs text-purple-600 font-medium">Employé(s)</div>
                           </div>
                         </div>
 
                         {/* Date de création et créateur */}
-                        <div className="text-xs text-gray-500 mb-4 space-y-1">
+                        <div className="text-xs text-gray-500 mb-4 space-y-1 flex-shrink-0">
                           <div>Créé le {form.createdAt.toLocaleDateString()}</div>
                           {form.createdByRole === 'directeur' ? (
                             <div className="flex items-center space-x-1">
@@ -711,12 +783,12 @@ export const DirecteurDashboard: React.FC = () => {
                         </div>
 
                         {/* Actions */}
-                        <div className="flex space-x-2 form-card-actions">
+                        <div className="flex space-x-2 form-card-actions flex-shrink-0">
                           <Button
                             variant="secondary"
                             size="sm"
                             onClick={() => handleEditForm(form)}
-                            className="flex-1 flex items-center justify-center space-x-1 text-xs"
+                            className="flex-1 flex items-center justify-center space-x-1 text-xs bg-gray-100 hover:bg-gray-200 border-0 rounded-lg font-medium"
                           >
                             <Edit className="h-3 w-3" />
                             <span>Modifier</span>
@@ -726,7 +798,7 @@ export const DirecteurDashboard: React.FC = () => {
                             variant="secondary"
                             size="sm"
                             onClick={() => handleViewResponses(form.id)}
-                            className="flex-1 flex items-center justify-center space-x-1 text-xs"
+                            className="flex-1 flex items-center justify-center space-x-1 text-xs bg-blue-50 hover:bg-blue-100 text-blue-700 border-0 rounded-lg font-medium"
                           >
                             <Eye className="h-3 w-3" />
                             <span>Voir les réponses</span>
@@ -759,7 +831,9 @@ export const DirecteurDashboard: React.FC = () => {
             </Card>
 
             {/* Liste des tableaux de bord */}
-            <Card title="Tableaux de bord créés">
+            <Card title={`Tableaux de bord créés (${dashboards.filter(dashboard => 
+              isDateInRange(dashboard.createdAt, getDateRange(timeFilter).start, getDateRange(timeFilter).end)
+            ).length})`}>
               {(() => {
                 const filteredDashboards = dashboards.filter(dashboard => 
                   isDateInRange(dashboard.createdAt, getDateRange(timeFilter).start, getDateRange(timeFilter).end)
@@ -787,7 +861,7 @@ export const DirecteurDashboard: React.FC = () => {
                     {/* Always horizontal scrollable like forms and videos */}
                     <div className="flex gap-4 sm:gap-6 overflow-x-auto pb-4 scrollbar-hide horizontal-scroll-dashboards">
                       {filteredDashboards.map(dashboard => (
-                        <div key={dashboard.id} className="flex-shrink-0 w-70 sm:w-75">
+                        <div key={dashboard.id} className="flex-shrink-0">
                           <DashboardDisplay
                             dashboard={dashboard}
                             formEntries={formEntries}
@@ -815,18 +889,9 @@ export const DirecteurDashboard: React.FC = () => {
 
           </div>
         </Layout>
+        </>
       )}
 
-      {/* Dashboard Creation Modal */}
-      <DashboardCreationModal
-        isOpen={showDashboardModal}
-        onClose={() => setShowDashboardModal(false)}
-        onSave={handleCreateDashboard}
-        forms={forms}
-        formEntries={formEntries}
-        currentUserId={user?.id || ''}
-        agencyId={user?.agencyId || ''}
-      />
 
 
       {/* Coming Soon Modal */}
@@ -848,75 +913,11 @@ export const DirecteurDashboard: React.FC = () => {
           setShowLimitModal(false);
           navigate('/packages/manage');
         }}
-        onPayAsYouGo={async (type, quantity) => {
-          // Handle pay-as-you-go purchase
-          try {
-            if (!user?.id) {
-              throw new Error('Données utilisateur manquantes');
-            }
-
-            // Get pricing for the selected option based on type
-            const getPricingForType = (type: 'forms' | 'dashboards' | 'users') => {
-              switch (type) {
-                case 'forms':
-                  return [
-                    { quantity: 1, price: 2000 },
-                    { quantity: 3, price: 5000 },
-                    { quantity: 5, price: 8000 }
-                  ];
-                case 'dashboards':
-                  return [
-                    { quantity: 1, price: 3000 },
-                    { quantity: 2, price: 5500 },
-                    { quantity: 3, price: 8000 }
-                  ];
-                case 'users':
-                  return [
-                    { quantity: 1, price: 7000 },
-                    { quantity: 2, price: 13000 },
-                    { quantity: 3, price: 20000 }
-                  ];
-                default:
-                  return [];
-              }
-            };
-
-            const pricing = getPricingForType(type);
-            const selectedOption = pricing.find(opt => opt.quantity === quantity);
-            if (!selectedOption) {
-              throw new Error('Option de prix non trouvée');
-            }
-
-            // Simulate payment processing
-            await new Promise(resolve => setTimeout(resolve, 2000));
-            
-            // Use SubscriptionSessionService to add pay-as-you-go resources to the active session
-            const purchase = {
-              itemType: type,
-              quantity: quantity,
-              amountPaid: selectedOption.price,
-              purchaseDate: new Date(),
-              paymentMethod: 'card'
-            };
-            
-            const success = await SubscriptionSessionService.addPayAsYouGoResources(
-              user.id,
-              purchase
-            );
-            
-            if (!success) {
-              throw new Error('Erreur lors de l\'ajout de la ressource');
-            }
-            
-            showSuccess(`${quantity} ${type === 'forms' ? 'formulaire(s)' : type === 'dashboards' ? 'tableau(x) de bord' : 'utilisateur(s)'} supplémentaire(s) ajouté(s) pour ce mois !`);
-            setShowLimitModal(false);
-            
-            // The user data will be automatically updated by the AuthContext
-            // No need to reload the page - the UI will update automatically
-          } catch (error) {
-            console.error('Erreur lors de l\'achat pay-as-you-go:', error);
-            showError('Erreur lors de l\'achat des ressources supplémentaires');
-          }
+        onPayAsYouGo={async () => {
+          // This will be handled by the LimitReachedModal with Campay integration
+          // The modal will create the payment and handle the success/failure
+          // This callback is kept for backward compatibility but won't be used
+          // since the LimitReachedModal now handles the payment flow directly
         }}
       />
 

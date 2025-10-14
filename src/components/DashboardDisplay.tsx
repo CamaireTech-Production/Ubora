@@ -5,7 +5,7 @@ import { Button } from './Button';
 import { MetricCalculator } from '../utils/MetricCalculator';
 import { GraphPreview } from './charts/GraphPreview';
 import { GraphModal } from './charts/GraphModal';
-import { BarChart3, TrendingUp, TrendingDown, Minus, Hash, Type, Mail, Calendar, CheckSquare, Upload, Eye, Edit, Trash2, Crown, User as UserIcon } from 'lucide-react';
+import { BarChart3, TrendingUp, TrendingDown, Minus, Hash, Type, Mail, Calendar, CheckSquare, Upload, Eye, Edit, Trash2, Crown, User as UserIcon, FileBarChart } from 'lucide-react';
 
 interface DashboardDisplayProps {
   dashboard: Dashboard;
@@ -70,6 +70,21 @@ export const DashboardDisplay: React.FC<DashboardDisplayProps> = ({
     }
   };
 
+  // Function to get dashboard icon based on dashboard metrics
+  const getDashboardIcon = (dashboard: Dashboard) => {
+    const hasGraphMetrics = dashboard.metrics.some(metric => metric.metricType === 'graph');
+    const hasCalculatedMetrics = dashboard.metrics.some(metric => metric.metricType === 'calculated');
+    const metricCount = dashboard.metrics.length;
+    
+    // Determine icon based on dashboard characteristics
+    if (hasGraphMetrics) return <BarChart3 className="h-5 w-5 text-blue-600" />;
+    if (hasCalculatedMetrics && metricCount > 3) return <FileBarChart className="h-5 w-5 text-green-600" />;
+    if (metricCount > 5) return <BarChart3 className="h-5 w-5 text-purple-600" />;
+    
+    // Default dashboard icon
+    return <BarChart3 className="h-5 w-5 text-indigo-600" />;
+  };
+
   const getFormTitle = (formId: string) => {
     const form = forms.find(f => f.id === formId);
     return form?.title || 'Formulaire inconnu';
@@ -91,13 +106,13 @@ export const DashboardDisplay: React.FC<DashboardDisplayProps> = ({
   if (minimal) {
     return (
       <div 
-        className="cursor-pointer hover:shadow-md transition-shadow"
+        className="cursor-pointer hover:shadow-md transition-shadow w-80 sm:w-96 h-64"
         onClick={() => onView?.(dashboard)}
       >
-        <Card className="relative">
+        <Card className="relative group hover:shadow-xl transition-all duration-300 hover:-translate-y-1 h-full flex flex-col">
           {/* Delete button in top-right corner */}
           {showActions && onDelete && (
-            <div className="absolute top-2 right-2 z-10">
+            <div className="absolute top-2 right-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
               <Button
                 variant="danger"
                 size="sm"
@@ -105,7 +120,7 @@ export const DashboardDisplay: React.FC<DashboardDisplayProps> = ({
                   e.stopPropagation();
                   handleDelete();
                 }}
-                className="p-1.5 h-8 w-8"
+                className="p-1.5 h-8 w-8 shadow-lg"
               >
                 <Trash2 className="h-3 w-3" />
               </Button>
@@ -114,7 +129,7 @@ export const DashboardDisplay: React.FC<DashboardDisplayProps> = ({
           
           {/* Edit button in top-right corner (below delete if both exist) */}
           {showActions && onEdit && (
-            <div className="absolute top-2 right-12 z-10">
+            <div className="absolute top-2 right-12 z-10 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
               <Button
                 variant="secondary"
                 size="sm"
@@ -122,7 +137,7 @@ export const DashboardDisplay: React.FC<DashboardDisplayProps> = ({
                   e.stopPropagation();
                   onEdit(dashboard);
                 }}
-                className="p-1.5 h-8 w-8"
+                className="p-1.5 h-8 w-8 shadow-lg"
               >
                 <Edit className="h-3 w-3" />
               </Button>
@@ -130,15 +145,30 @@ export const DashboardDisplay: React.FC<DashboardDisplayProps> = ({
           )}
           
           {/* Main content with padding to avoid overlap with buttons */}
-          <div className={`${showActions ? 'pr-20' : ''}`}>
-            <h3 className="text-lg font-semibold text-gray-900 mb-1">
-              {dashboard.name}
-            </h3>
-            <div className="text-sm text-gray-500 space-y-1">
+          <div className={`${showActions ? 'pr-20' : ''} flex-1 flex flex-col`}>
+            {/* Header with icon and title */}
+            <div className="flex items-start space-x-3 mb-3">
+              <div className="flex-shrink-0 mt-1">
+                {getDashboardIcon(dashboard)}
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="text-lg font-semibold text-gray-900 mb-1 leading-tight" style={{
+                  display: '-webkit-box',
+                  WebkitLineClamp: 2,
+                  WebkitBoxOrient: 'vertical',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  lineHeight: '1.3'
+                }}>
+                  {dashboard.name}
+                </h3>
+              </div>
+            </div>
+            
+            {/* Creation date and creator info */}
+            <div className="text-sm text-gray-500 space-y-1 mb-4 flex-1">
               <div className="flex items-center space-x-2">
                 <span>Créé le {dashboard.createdAt.toLocaleDateString()}</span>
-                <span>•</span>
-                <span>{dashboard.metrics.length} métrique{dashboard.metrics.length > 1 ? 's' : ''}</span>
               </div>
               {dashboard.createdByRole === 'directeur' ? (
                 <div className="flex items-center space-x-1">
@@ -152,6 +182,16 @@ export const DashboardDisplay: React.FC<DashboardDisplayProps> = ({
                 </div>
               ) : null}
             </div>
+
+            {/* Metric count in large square box */}
+            <div className="bg-gradient-to-br from-indigo-50 to-indigo-100 rounded-xl p-4 text-center border border-indigo-200 mt-auto">
+              <div className="text-3xl font-bold text-indigo-700 mb-1">
+                {dashboard.metrics.length}
+              </div>
+              <div className="text-sm text-indigo-600 font-medium">
+                métrique{dashboard.metrics.length > 1 ? 's' : ''}
+              </div>
+            </div>
           </div>
         </Card>
       </div>
@@ -161,17 +201,24 @@ export const DashboardDisplay: React.FC<DashboardDisplayProps> = ({
   // Full view for detailed display
   return (
     <Card className="h-full">
-      <div className="flex items-start justify-between mb-4">
+      <div className="flex items-start justify-between mb-6">
         <div className="flex-1">
-          <h3 className="text-lg font-semibold text-gray-900 mb-1">
-            {dashboard.name}
-          </h3>
+          <div className="flex items-start space-x-3 mb-3">
+            <div className="flex-shrink-0 mt-1">
+              {getDashboardIcon(dashboard)}
+            </div>
+            <div className="flex-1 min-w-0">
+              <h3 className="text-xl font-semibold text-gray-900 mb-2">
+                {dashboard.name}
+              </h3>
+            </div>
+          </div>
           {dashboard.description && (
-            <p className="text-sm text-gray-600 mb-2">
+            <p className="text-sm text-gray-600 mb-3">
               {dashboard.description}
             </p>
           )}
-          <div className="flex items-center space-x-2 text-xs text-gray-500">
+          <div className="flex items-center space-x-2 text-sm text-gray-500 mb-4">
             <span>Créé le {dashboard.createdAt.toLocaleDateString()}</span>
             <span>•</span>
             <span>{dashboard.metrics.length} métrique{dashboard.metrics.length > 1 ? 's' : ''}</span>
@@ -309,6 +356,7 @@ export const DashboardDisplay: React.FC<DashboardDisplayProps> = ({
           forms={forms}
         />
       )}
+
     </Card>
   );
 };

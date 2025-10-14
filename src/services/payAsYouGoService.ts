@@ -17,7 +17,7 @@ export class PayAsYouGoService {
    * @param paymentMethod - Méthode de paiement
    * @returns Promise<boolean> - true si l'achat a réussi
    */
-  static async purchaseTokens(userId: string, tokenPackage: TokenPackage, paymentMethod?: string): Promise<boolean> {
+  static async purchaseTokens(userId: string, tokenPackage: TokenPackage, paymentMethod?: string, paymentReference?: string): Promise<boolean> {
     try {
       // Create a new pay-as-you-go session
       const now = new Date();
@@ -60,6 +60,7 @@ export class PayAsYouGoService {
         },
         isActive: true,
         paymentMethod,
+        paymentReference,
         notes: `Pay-as-you-go: ${tokenPackage.tokens.toLocaleString()} tokens achetés`
       });
       

@@ -1,18 +1,25 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { Footer } from '../components/Footer';
+import { LogoutConfirmationModal } from '../components/LogoutConfirmationModal';
 import { Clock, Mail, Building2, LogOut } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
 export const PendingApprovalPage: React.FC = () => {
   const { user, logout } = useAuth();
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   const handleLogout = async () => {
+    setIsLoggingOut(true);
     try {
       await logout();
     } catch (error) {
       console.error('Erreur lors de la déconnexion:', error);
+    } finally {
+      setIsLoggingOut(false);
+      setShowLogoutModal(false);
     }
   };
 
@@ -68,7 +75,7 @@ export const PendingApprovalPage: React.FC = () => {
 
             <Button
               variant="secondary"
-              onClick={handleLogout}
+              onClick={() => setShowLogoutModal(true)}
               className="w-full flex items-center justify-center space-x-2"
             >
               <LogOut className="h-4 w-4" />
@@ -80,6 +87,14 @@ export const PendingApprovalPage: React.FC = () => {
       </div>
       
       <Footer />
+
+      {/* Logout Confirmation Modal */}
+      <LogoutConfirmationModal
+        isOpen={showLogoutModal}
+        onClose={() => setShowLogoutModal(false)}
+        onConfirm={handleLogout}
+        isLoading={isLoggingOut}
+      />
     </div>
   );
 };

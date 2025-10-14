@@ -39,6 +39,8 @@ export class SubscriptionSessionService {
         id: sessionId,
         createdAt: now,
         updatedAt: now,
+        // Ensure amountPaid is not NaN
+        amountPaid: isNaN(sessionData.amountPaid) ? 0 : sessionData.amountPaid,
         
         // Package resources from the selected package
         packageResources: {

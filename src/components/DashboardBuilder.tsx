@@ -1,54 +1,64 @@
-import React, { useState, useEffect } from 'react';
-import { Form, FormField, Dashboard, DashboardMetric, FormEntry } from '../types';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
+import { DashboardMetric, Form, FormField } from '../types';
 import { Button } from './Button';
-import { Card } from './Card';
 import { Input } from './Input';
 import { Textarea } from './Textarea';
 import { Select } from './Select';
+import { Card } from './Card';
+import { Plus, Trash2, AlertCircle, FileText, Hash, Type, Mail, Calendar, CheckSquare, Upload, AlertTriangle } from 'lucide-react';
 import { GraphPreview } from './charts/GraphPreview';
-import { X, Plus, Trash2, BarChart3, FileText, Hash, Type, Mail, Calendar, CheckSquare, Upload, AlertTriangle } from 'lucide-react';
-import { getValidYAxisFields, validateYAxisField, getFieldValidationErrorMessage } from '../utils/GraphFieldValidator';
+import { getValidYAxisFields, validateYAxisField } from '../utils/GraphFieldValidator';
 
-interface DashboardCreationModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onSave: (dashboard: Omit<Dashboard, 'id' | 'createdAt'>) => void;
+interface DashboardBuilderProps {
+  onSave: (dashboard: {
+    name: string;
+    description: string;
+    metrics: Omit<DashboardMetric, 'id' | 'createdAt' | 'createdBy' | 'agencyId'>[];
+  }) => void;
+  onCancel: () => void;
   forms: Form[];
-  formEntries: FormEntry[];
+  formEntries: any[];
   currentUserId: string;
   agencyId: string;
+  isLoading?: boolean;
 }
 
-export const DashboardCreationModal: React.FC<DashboardCreationModalProps> = ({
-  isOpen,
-  onClose,
+export const DashboardBuilder: React.FC<DashboardBuilderProps> = ({
   onSave,
+  onCancel,
   forms,
   formEntries,
   currentUserId,
-  agencyId
+  agencyId,
+  isLoading = false
 }) => {
-  const [dashboardName, setDashboardName] = useState('');
-  const [dashboardDescription, setDashboardDescription] = useState('');
-  const [selectedFormId, setSelectedFormId] = useState<string>('');
+  const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
   const [metrics, setMetrics] = useState<Omit<DashboardMetric, 'id' | 'createdAt' | 'createdBy' | 'agencyId'>[]>([]);
   const [errors, setErrors] = useState<string[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const errorRef = useRef<HTMLDivElement>(null);
   const [showGraphPreviews, setShowGraphPreviews] = useState<Record<number, boolean>>({});
-
-  // Reset form when modal opens/closes
+  
+  // Auto-scroll to errors when they appear (mobile-responsive)
   useEffect(() => {
-    if (isOpen) {
-      setDashboardName('');
-      setDashboardDescription('');
-      setSelectedFormId('');
-      setMetrics([]);
-      setErrors([]);
-      setIsLoading(false);
+    if (errors.length > 0 && errorRef.current) {
+      // Immediate scroll
+      errorRef.current.scrollIntoView({ 
+        behavior: 'smooth', 
+        block: 'nearest' 
+      });
+      
+      // Additional scroll after delay for mobile keyboard animations
+      setTimeout(() => {
+        if (errorRef.current) {
+          errorRef.current.scrollIntoView({ 
+            behavior: 'smooth', 
+            block: 'nearest' 
+          });
+        }
+      }, 100);
     }
-  }, [isOpen]);
-
-  const selectedForm = forms.find(form => form.id === selectedFormId);
+  }, [errors]);
 
   const getFieldIcon = (fieldType: string) => {
     switch (fieldType) {
@@ -94,15 +104,10 @@ export const DashboardCreationModal: React.FC<DashboardCreationModalProps> = ({
   };
 
   const addMetric = () => {
-    if (!selectedFormId) {
-      setErrors(['Veuillez d\'abord sélectionner un formulaire']);
-      return;
-    }
-
     const newMetric: Omit<DashboardMetric, 'id' | 'createdAt' | 'createdBy' | 'agencyId'> = {
       name: '',
       description: '',
-      formId: selectedFormId,
+      formId: '',
       fieldId: '',
       fieldType: 'text',
       calculationType: 'count',
@@ -114,20 +119,20 @@ export const DashboardCreationModal: React.FC<DashboardCreationModalProps> = ({
     setErrors([]);
   };
 
-  const updateMetric = (index: number, updates: Partial<Omit<DashboardMetric, 'id' | 'createdAt' | 'createdBy' | 'agencyId'>>) => {
-    const updatedMetrics = [...metrics];
-    updatedMetrics[index] = { ...updatedMetrics[index], ...updates };
-    setMetrics(updatedMetrics);
-  };
-
   const removeMetric = (index: number) => {
     setMetrics(metrics.filter((_, i) => i !== index));
   };
 
-  const handleSave = async () => {
+  const updateMetric = (index: number, updates: Partial<Omit<DashboardMetric, 'id' | 'createdAt' | 'createdBy' | 'agencyId'>>) => {
+    setMetrics(metrics.map((metric, i) => 
+      i === index ? { ...metric, ...updates } : metric
+    ));
+  };
+
+  const handleSave = useCallback(() => {
     const newErrors: string[] = [];
 
-    if (!dashboardName.trim()) {
+    if (!name.trim()) {
       newErrors.push('Le nom du tableau de bord est requis');
     }
 
@@ -139,6 +144,9 @@ export const DashboardCreationModal: React.FC<DashboardCreationModalProps> = ({
       if (!metric.name.trim()) {
         newErrors.push(`Le nom de la métrique ${index + 1} est requis`);
       }
+      if (!metric.formId) {
+        newErrors.push(`Le formulaire de la métrique ${index + 1} est requis`);
+      }
       if (!metric.fieldId) {
         newErrors.push(`Le champ de la métrique ${index + 1} est requis`);
       }
@@ -149,196 +157,176 @@ export const DashboardCreationModal: React.FC<DashboardCreationModalProps> = ({
       return;
     }
 
-    setIsLoading(true);
-
-    try {
-      const dashboard: Omit<Dashboard, 'id' | 'createdAt'> = {
-        name: dashboardName.trim(),
-        description: dashboardDescription.trim(),
-        metrics: metrics.map(metric => ({
-          ...metric,
-          id: `metric_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-          createdAt: new Date(),
-          createdBy: currentUserId,
-          agencyId: agencyId
-        })),
-        createdBy: currentUserId,
-        agencyId: agencyId
-      };
-
-      await onSave(dashboard);
-    } catch (error) {
-      console.error('Erreur lors de la création du tableau de bord:', error);
-      setErrors(['Erreur lors de la création du tableau de bord. Veuillez réessayer.']);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  if (!isOpen) return null;
+    onSave({
+      name: name.trim(),
+      description: description.trim(),
+      metrics
+    });
+  }, [name, description, metrics, onSave]);
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
-        {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-200">
-          <div className="flex items-center space-x-3">
-            <BarChart3 className="h-6 w-6 text-blue-600" />
-            <h2 className="text-xl font-semibold text-gray-900">Créer un tableau de bord</h2>
-          </div>
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={onClose}
-            className="p-2"
-          >
-            <X className="h-4 w-4" />
-          </Button>
-        </div>
-
-        {/* Content */}
-        <div className="p-6 overflow-y-auto max-h-[calc(90vh-140px)]">
-          {/* Errors */}
-          {errors.length > 0 && (
-            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
-              <h3 className="text-sm font-medium text-red-800 mb-2">Erreurs à corriger :</h3>
+    <div className="space-y-4 sm:space-y-6">
+      {/* Affichage des erreurs de validation */}
+      {errors.length > 0 && (
+        <Card ref={errorRef} className="border-red-200 bg-red-50">
+          <div className="flex items-start space-x-3">
+            <AlertCircle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <h3 className="text-sm font-medium text-red-800 mb-2">
+                Veuillez corriger les erreurs suivantes :
+              </h3>
               <ul className="text-sm text-red-700 space-y-1">
                 {errors.map((error, index) => (
-                  <li key={index}>• {error}</li>
+                  <li key={index} className="flex items-start space-x-1">
+                    <span>•</span>
+                    <span>{error}</span>
+                  </li>
                 ))}
               </ul>
             </div>
-          )}
-
-          {/* Dashboard Info */}
-          <div className="space-y-4 mb-6">
-            <Input
-              label="Nom du tableau de bord *"
-              value={dashboardName}
-              onChange={(e) => setDashboardName(e.target.value)}
-              placeholder="Ex: Tableau de bord des ventes"
-            />
-            
-            <Textarea
-              label="Description (optionnel)"
-              value={dashboardDescription}
-              onChange={(e) => setDashboardDescription(e.target.value)}
-              placeholder="Description du tableau de bord..."
-              rows={3}
-            />
           </div>
+        </Card>
+      )}
 
-          {/* Form Selection */}
-          <div className="mb-6">
-            <Select
-              label="Sélectionner un formulaire *"
-              value={selectedFormId}
-              onChange={(e) => {
-                setSelectedFormId(e.target.value);
-                setMetrics([]); // Reset metrics when form changes
-              }}
-              options={[
-                { value: '', label: 'Choisir un formulaire...' },
-                ...forms.map(form => ({
-                  value: form.id,
-                  label: form.title
-                }))
-              ]}
-            />
-          </div>
+      <Card>
+        <form onSubmit={(e) => { e.preventDefault(); handleSave(); }} className="space-y-4 sm:space-y-6">
+          <Input
+            label="Nom du tableau de bord *"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Ex: Tableau de bord des ventes"
+            required
+          />
+          
+          <Textarea
+            label="Description (optionnel)"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="Description du tableau de bord..."
+            rows={3}
+          />
 
-          {/* Metrics Section */}
-          {selectedForm && (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <h3 className="text-lg font-medium text-gray-900">Métriques</h3>
-                <Button
-                  onClick={addMetric}
-                  size="sm"
-                  className="flex items-center space-x-2"
-                >
-                  <Plus className="h-4 w-4" />
-                  <span>Ajouter une métrique</span>
-                </Button>
-              </div>
+          <div>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-base sm:text-lg font-medium text-gray-900">Métriques du tableau de bord</h3>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={addMetric}
+                className="flex items-center space-x-2"
+              >
+                <Plus className="h-4 w-4" />
+                <span className="hidden sm:inline">Ajouter une métrique</span>
+                <span className="sm:hidden">Ajouter</span>
+              </Button>
+            </div>
 
-              {metrics.length === 0 ? (
-                <Card className="p-6 text-center">
-                  <BarChart3 className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                  <p className="text-gray-500 mb-4">
-                    Aucune métrique ajoutée. Cliquez sur "Ajouter une métrique" pour commencer.
-                  </p>
-                </Card>
-              ) : (
-                <div className="space-y-4">
-                  {metrics.map((metric, index) => (
-                    <Card key={index} className="p-4">
-                      <div className="flex items-start justify-between mb-4">
-                        <h4 className="font-medium text-gray-900">
-                          Métrique {index + 1}
-                        </h4>
-                        <Button
-                          variant="danger"
-                          size="sm"
-                          onClick={() => removeMetric(index)}
-                          className="p-2"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
+            {metrics.length === 0 ? (
+              <p className="text-gray-500 text-center py-6 sm:py-8 bg-gray-50 rounded-lg text-sm sm:text-base">
+                Aucune métrique ajoutée. Cliquez sur "Ajouter une métrique" pour commencer.
+              </p>
+            ) : (
+              <div className="space-y-4">
+                {metrics.map((metric, index) => {
+                  const selectedForm = forms.find(form => form.id === metric.formId);
+                  
+                  return (
+                    <Card key={index} className="border-l-4 border-l-blue-500">
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <h4 className="font-medium text-gray-900">Métrique {index + 1}</h4>
+                            <p className="text-xs text-gray-500 font-mono bg-gray-100 px-2 py-1 rounded mt-1 inline-block">
+                              ID: metric_{index + 1}
+                            </p>
+                          </div>
+                          <Button
+                            type="button"
+                            variant="danger"
+                            size="sm"
+                            onClick={() => removeMetric(index)}
+                            className="flex items-center space-x-1"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
 
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <Input
-                          label="Nom de la métrique *"
-                          value={metric.name}
-                          onChange={(e) => updateMetric(index, { name: e.target.value })}
-                          placeholder="Ex: Nombre de ventes"
-                        />
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <Input
+                            label="Nom de la métrique *"
+                            value={metric.name}
+                            onChange={(e) => updateMetric(index, { name: e.target.value })}
+                            placeholder="Ex: Nombre de ventes"
+                            required
+                          />
 
-                        <Select
-                          label="Champ du formulaire *"
-                          value={metric.fieldId}
-                          onChange={(e) => {
-                            const field = selectedForm.fields.find((f: FormField) => f.id === e.target.value);
-                            updateMetric(index, { 
-                              fieldId: e.target.value,
-                              fieldType: field?.type || 'text'
-                            });
-                          }}
-                          options={[
-                            { value: '', label: 'Choisir un champ...' },
-                            ...selectedForm.fields.map((field: FormField) => ({
-                              value: field.id,
-                              label: `${field.label} (${field.type})`
-                            }))
-                          ]}
-                        />
-                      </div>
-
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Type d'affichage
-                          </label>
                           <Select
-                            value={metric.metricType || 'value'}
+                            label="Formulaire *"
+                            value={metric.formId}
                             onChange={(e) => {
-                              const metricType = e.target.value as 'value' | 'graph';
                               updateMetric(index, { 
-                                metricType,
-                                graphConfig: metricType === 'graph' ? {
-                                  xAxisType: 'time',
-                                  yAxisType: 'count',
-                                  chartType: 'line'
-                                } : undefined
+                                formId: e.target.value,
+                                fieldId: '', // Reset field when form changes
+                                fieldType: 'text'
                               });
                             }}
                             options={[
-                              { value: 'value', label: 'Valeur numérique' },
-                              { value: 'graph', label: 'Graphique' }
+                              { value: '', label: 'Choisir un formulaire...' },
+                              ...forms.map(form => ({
+                                value: form.id,
+                                label: form.title
+                              }))
                             ]}
                           />
                         </div>
+
+                        {selectedForm && (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <Select
+                              label="Champ du formulaire *"
+                              value={metric.fieldId}
+                              onChange={(e) => {
+                                const field = selectedForm.fields.find((f: FormField) => f.id === e.target.value);
+                                updateMetric(index, { 
+                                  fieldId: e.target.value,
+                                  fieldType: field?.type || 'text'
+                                });
+                              }}
+                              options={[
+                                { value: '', label: 'Choisir un champ...' },
+                                ...selectedForm.fields.map((field: FormField) => ({
+                                  value: field.id,
+                                  label: `${field.label} (${field.type})`
+                                }))
+                              ]}
+                            />
+
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-1">
+                                Type d'affichage
+                              </label>
+                              <Select
+                                value={metric.metricType || 'value'}
+                                onChange={(e) => {
+                                  const metricType = e.target.value as 'value' | 'graph';
+                                  updateMetric(index, { 
+                                    metricType,
+                                    graphConfig: metricType === 'graph' ? {
+                                      xAxisType: 'time',
+                                      yAxisType: 'count',
+                                      chartType: 'line'
+                                    } : undefined
+                                  });
+                                }}
+                                options={[
+                                  { value: 'value', label: 'Valeur numérique' },
+                                  { value: 'graph', label: 'Graphique' }
+                                ]}
+                              />
+                            </div>
+                          </div>
+                        )}
 
                         <Input
                           label="Description (optionnel)"
@@ -346,10 +334,9 @@ export const DashboardCreationModal: React.FC<DashboardCreationModalProps> = ({
                           onChange={(e) => updateMetric(index, { description: e.target.value })}
                           placeholder="Description de la métrique..."
                         />
-                      </div>
 
                       {/* Value type configuration */}
-                      {metric.metricType === 'value' && (
+                      {metric.metricType === 'value' && metric.fieldId && (
                         <div className="mt-4">
                           <label className="block text-sm font-medium text-gray-700 mb-1">
                             Type de calcul
@@ -370,7 +357,7 @@ export const DashboardCreationModal: React.FC<DashboardCreationModalProps> = ({
                         <div className="mt-4 space-y-4 p-4 bg-blue-50 rounded-lg">
                           <h5 className="font-medium text-blue-900">Configuration du graphique</h5>
                           
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div>
                               <label className="block text-sm font-medium text-gray-700 mb-1">
                                 Axe X (horizontal)
@@ -414,7 +401,7 @@ export const DashboardCreationModal: React.FC<DashboardCreationModalProps> = ({
                           </div>
 
                           {/* X Axis Field Selection */}
-                          {metric.graphConfig.xAxisType === 'field' && (
+                          {metric.graphConfig.xAxisType === 'field' && selectedForm && (
                             <div>
                               <label className="block text-sm font-medium text-gray-700 mb-1">
                                 Champ pour l'axe X
@@ -439,7 +426,7 @@ export const DashboardCreationModal: React.FC<DashboardCreationModalProps> = ({
                           )}
 
                           {/* Y Axis Field Selection */}
-                          {metric.graphConfig.yAxisType === 'field' && (
+                          {metric.graphConfig.yAxisType === 'field' && selectedForm && (
                             <div>
                               <label className="block text-sm font-medium text-gray-700 mb-1">
                                 Champ pour l'axe Y
@@ -462,8 +449,8 @@ export const DashboardCreationModal: React.FC<DashboardCreationModalProps> = ({
                               />
                               
                               {/* Field validation error message */}
-                              {metric.graphConfig.yAxisFieldId && (() => {
-                                const selectedField = selectedForm.fields.find(f => f.id === metric.graphConfig.yAxisFieldId);
+                              {metric.graphConfig?.yAxisFieldId && (() => {
+                                const selectedField = selectedForm.fields.find(f => f.id === metric.graphConfig?.yAxisFieldId);
                                 if (selectedField) {
                                   const validation = validateYAxisField(selectedField, metric.calculationType, 'field');
                                   if (!validation.isValid) {
@@ -529,11 +516,12 @@ export const DashboardCreationModal: React.FC<DashboardCreationModalProps> = ({
                       )}
 
                       {/* Graph Preview */}
-                      {metric.metricType === 'graph' && metric.graphConfig && (
+                      {metric.metricType === 'graph' && metric.graphConfig && metric.formId && metric.fieldId && (
                         <div className="mt-4 p-4 bg-green-50 rounded-lg">
                           <div className="flex items-center justify-between mb-3">
                             <h5 className="font-medium text-green-900">Aperçu du graphique</h5>
                             <Button
+                              type="button"
                               variant="secondary"
                               size="sm"
                               onClick={() => setShowGraphPreviews(prev => ({
@@ -556,7 +544,7 @@ export const DashboardCreationModal: React.FC<DashboardCreationModalProps> = ({
                                   createdBy: currentUserId,
                                   agencyId: agencyId
                                 }}
-                                formEntries={formEntries.filter(entry => entry.formId === selectedFormId)}
+                                formEntries={formEntries.filter(entry => entry.formId === metric.formId)}
                                 forms={forms}
                                 compact={true}
                               />
@@ -566,7 +554,7 @@ export const DashboardCreationModal: React.FC<DashboardCreationModalProps> = ({
                       )}
 
                       {/* Field Preview */}
-                      {metric.fieldId && (
+                      {metric.fieldId && selectedForm && (
                         <div className="mt-4 p-3 bg-blue-50 rounded-lg">
                           <div className="flex items-center space-x-2 mb-2">
                             <FileText className="h-4 w-4 text-blue-600" />
@@ -587,38 +575,42 @@ export const DashboardCreationModal: React.FC<DashboardCreationModalProps> = ({
                           })()}
                         </div>
                       )}
+                      </div>
                     </Card>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* Footer */}
-        <div className="flex items-center justify-end space-x-3 p-6 border-t border-gray-200 bg-gray-50">
-          <Button
-            variant="secondary"
-            onClick={onClose}
-          >
-            Annuler
-          </Button>
-          <Button
-            onClick={handleSave}
-            disabled={!dashboardName.trim() || metrics.length === 0 || isLoading}
-            className={isLoading ? 'opacity-75 cursor-not-allowed' : ''}
-          >
-            {isLoading ? (
-              <>
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                Création...
-              </>
-            ) : (
-              'Créer le tableau de bord'
+                  );
+                })}
+              </div>
             )}
-          </Button>
-        </div>
-      </div>
+          </div>
+
+          {/* Footer with responsive buttons */}
+          <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 pt-6 border-t border-gray-200">
+            <Button 
+              type="submit" 
+              className="w-full sm:flex-1"
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  Création...
+                </>
+              ) : (
+                'Créer le tableau de bord'
+              )}
+            </Button>
+            <Button 
+              type="button" 
+              variant="secondary" 
+              onClick={onCancel} 
+              className="w-full sm:w-auto"
+              disabled={isLoading}
+            >
+              Annuler
+            </Button>
+          </div>
+        </form>
+      </Card>
     </div>
   );
 };

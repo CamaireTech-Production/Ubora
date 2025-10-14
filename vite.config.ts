@@ -97,6 +97,9 @@ const getPWAConfig = () => {
 };
 
 export default defineConfig({
+  define: {
+    __BUILD_TIME__: JSON.stringify(new Date().toISOString())
+  },
   plugins: [
     react(),
     VitePWA({
@@ -111,6 +114,7 @@ export default defineConfig({
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // 5MB limit
         skipWaiting: true,
         clientsClaim: true,
+        cacheId: `ubora-${Date.now()}`,
         navigateFallback: '/index.html',
         navigateFallbackDenylist: [/^\/api\//],
         runtimeCaching: [

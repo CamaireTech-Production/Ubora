@@ -2,6 +2,11 @@ import React, { useEffect, useState } from 'react';
 import { ArrowRight, UserPlus, Copy, Check } from 'lucide-react';
 import { Button } from './Button';
 import { useAuth } from '../contexts/AuthContext';
+import { usePackageAccess } from '../hooks/usePackageAccess';
+import { useApp } from '../contexts/AppContext';
+import { LimitReachedModal } from './LimitReachedModal';
+import { PaymentModal } from './PaymentModal';
+import { PackageType } from '../config/packageFeatures';
 
 interface WelcomeScreenProps {
   userName?: string;
@@ -17,10 +22,19 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
   show = false
 }) => {
   const { user } = useAuth();
+  const { employees } = useApp();
+  const { canAddUser, getLimit, getPayAsYouGoCapacity, packageType } = usePackageAccess();
   const [isVisible, setIsVisible] = useState(false);
   const [shouldShow, setShouldShow] = useState(false);
   const [showInviteModal, setShowInviteModal] = useState(false);
+  const [showUserLimitModal, setShowUserLimitModal] = useState(false);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
+
+  // Calculate current user count (only approved employees)
+  const currentUserCount = employees.filter(emp => emp.isApproved !== false).length;
+  const maxUsers = getLimit('maxUsers');
+  const payAsYouGoUsers = getPayAsYouGoCapacity('maxUsers');
 
   // Déterminer le message selon l'heure
   const getGreeting = () => {
@@ -95,6 +109,31 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
     } else {
       handleCopyLink();
     }
+  };
+
+  const handleInviteClick = () => {
+    // Check if user can add more users
+    if (canAddUser(currentUserCount)) {
+      setShowInviteModal(true);
+    } else {
+      setShowUserLimitModal(true);
+    }
+  };
+
+  const handleUpgradePackage = () => {
+    setShowUserLimitModal(false);
+    // This will be handled by LimitReachedModal navigation
+  };
+
+  const handlePurchaseUsers = () => {
+    setShowUserLimitModal(false);
+    // This will be handled by LimitReachedModal navigation
+  };
+
+  const handlePurchaseResource = async (option: any) => {
+    // This would be handled by the PaymentModal
+    console.log('Purchase resource:', option);
+    setShowPaymentModal(false);
   };
 
   if (!shouldShow) return null;
@@ -240,9 +279,14 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
           {/* Bouton d'invitation discret */}
           <div className="text-center">
             <button
-              onClick={() => setShowInviteModal(true)}
-              className="text-sm text-gray-500 hover:text-gray-700 transition-colors duration-200 flex items-center justify-center space-x-1 mx-auto"
+              onClick={handleInviteClick}
+              className={`text-sm transition-colors duration-200 flex items-center justify-center space-x-1 mx-auto ${
+                canAddUser(currentUserCount) 
+                  ? 'text-gray-500 hover:text-gray-700' 
+                  : 'text-gray-400 cursor-not-allowed'
+              }`}
               aria-label="Inviter des collaborateurs"
+              disabled={!canAddUser(currentUserCount)}
             >
               <UserPlus className="h-3 w-3" />
               <span>Inviter des collaborateurs</span>
@@ -310,6 +354,26 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
           </div>
         </div>
       )}
+
+      {/* User Limit Modal */}
+      <LimitReachedModal
+        isOpen={showUserLimitModal}
+        onClose={() => setShowUserLimitModal(false)}
+        type="users"
+        current={currentUserCount}
+        limit={maxUsers}
+        onUpgrade={handleUpgradePackage}
+        onPayAsYouGo={handlePurchaseUsers}
+      />
+
+      {/* Payment Modal */}
+      <PaymentModal
+        isOpen={showPaymentModal}
+        onClose={() => setShowPaymentModal(false)}
+        type="users"
+        currentLimit={maxUsers}
+        onPurchase={handlePurchaseResource}
+      />
     </div>
   );
 };

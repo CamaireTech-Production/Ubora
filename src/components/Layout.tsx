@@ -5,8 +5,9 @@ import { Button } from './Button';
 import { Footer } from './Footer';
 import { UserPackageInfo } from './UserPackageInfo';
 import { ProfileDropdown } from './ProfileDropdown';
-import { LogOut, BarChart3, MessageSquare, Menu, X } from 'lucide-react';
+import { BarChart3, MessageSquare, Menu, X, Bell } from 'lucide-react';
 import { ShareCollaboratorButton } from './ShareCollaboratorButton';
+import { useUnreadNotifications } from '../hooks/useUnreadNotifications';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -14,11 +15,12 @@ interface LayoutProps {
 }
 
 export const Layout: React.FC<LayoutProps> = ({ children, title }) => {
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
   const menuRef = React.useRef<HTMLDivElement>(null);
+  const unreadCount = useUnreadNotifications();
   
   const isDirecteur = user?.role === 'directeur';
   const isDashboard = location.pathname === '/directeur/dashboard';
@@ -53,19 +55,26 @@ export const Layout: React.FC<LayoutProps> = ({ children, title }) => {
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white shadow-sm border-b border-gray-200 relative">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-14 sm:h-16">
+          <div className="flex justify-between items-center min-h-14 sm:min-h-16 py-2">
             <div 
-              className="relative flex items-center space-x-2 sm:space-x-3 cursor-pointer hover:opacity-80 transition-opacity group"
+              className="relative flex items-center space-x-2 sm:space-x-3 cursor-pointer hover:opacity-80 transition-opacity group flex-1 min-w-0"
               onClick={() => {
                 if (isDirecteur) {
                   navigate('/directeur/chat');
                 }
               }}
             >
-              <img src="/fav-icons/favicon-96x96.png" alt="Ubora Logo" className="h-8 w-8 text-blue-600" />
-              <div>
-                <h1 className="text-lg sm:text-xl font-bold text-gray-900 truncate max-w-[200px] sm:max-w-none">{title}</h1>
-                <p className="text-xs sm:text-sm text-gray-500 capitalize">{user?.role}</p>
+              <img src="/fav-icons/favicon-96x96.png" alt="Ubora Logo" className="h-8 w-8 text-blue-600 flex-shrink-0" />
+              <div className="min-w-0 flex-1">
+                <h1 className="text-lg sm:text-xl font-bold text-gray-900 leading-tight line-clamp-2 break-words" style={{
+                  display: '-webkit-box',
+                  WebkitLineClamp: 2,
+                  WebkitBoxOrient: 'vertical',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  maxWidth: '100%'
+                }}>{title}</h1>
+                <p className="text-xs sm:text-sm text-gray-500 capitalize truncate">{user?.role}</p>
               </div>
               
               {/* Tooltip pour directeurs */}
@@ -107,7 +116,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, title }) => {
               </div>
             )}
             
-            <div className="flex items-center space-x-2 sm:space-x-4">
+            <div className="flex items-center ml-4 space-x-2 sm:space-x-4">
               {/* Package info pour les directeurs */}
               {isDirecteur && (
                 <div className="hidden md:block">
@@ -127,6 +136,23 @@ export const Layout: React.FC<LayoutProps> = ({ children, title }) => {
                 </Button>
               )}
               
+              {/* Notifications */}
+              <button
+                type="button"
+                onClick={() => navigate('/notifications')}
+                className="relative p-2 rounded-lg hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                aria-label={unreadCount > 0 ? `${unreadCount} notification(s) non lue(s)` : 'Notifications'}
+              >
+                <Bell className="h-5 w-5 text-gray-700" />
+                {unreadCount > 0 && (
+                  <span
+                    className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 bg-red-600 text-white text-[10px] leading-[18px] rounded-full text-center font-semibold"
+                  >
+                    {unreadCount > 99 ? '99+' : unreadCount}
+                  </span>
+                )}
+              </button>
+
               {/* Profile Dropdown */}
               <ProfileDropdown />
             </div>

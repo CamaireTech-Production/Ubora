@@ -1,11 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { DashboardMetric } from '../types';
+import { DashboardMetric, MetricReminder } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { useApp } from '../contexts/AppContext';
 import { Layout } from '../components/Layout';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
+import { ConfirmationModal } from '../components/ConfirmationModal';
 import { Input } from '../components/Input';
 import { Select } from '../components/Select';
 import { MetricCalculator } from '../utils/MetricCalculator';
@@ -17,6 +18,8 @@ import { MetricEditModal } from '../components/MetricEditModal';
 import { GraphPreview } from '../components/charts/GraphPreview';
 import { GraphModal } from '../components/charts/GraphModal';
 import { getValidYAxisFields, validateYAxisField } from '../utils/GraphFieldValidator';
+import { metricReminderService } from '../services/metricReminderService';
+import { ImpersonationHeader } from '../components/ImpersonationHeader';
 import { 
   ArrowLeft, 
   BarChart3, 
@@ -36,7 +39,10 @@ import {
   Plus,
   FileText,
   X,
-  ChevronDown
+  ChevronDown,
+  BellPlus,
+  Bell,
+  Clock
 } from 'lucide-react';
 
 export const DashboardDetailPage: React.FC = () => {
@@ -65,7 +71,29 @@ export const DashboardDetailPage: React.FC = () => {
     graphConfig: undefined
   });
   const [errors, setErrors] = useState<string[]>([]);
+  const errorRef = useRef<HTMLDivElement>(null);
   const [showDeleteDashboardModal, setShowDeleteDashboardModal] = useState(false);
+  
+  // Auto-scroll to errors when they appear (mobile-responsive)
+  useEffect(() => {
+    if (errors.length > 0 && errorRef.current) {
+      // Immediate scroll
+      errorRef.current.scrollIntoView({ 
+        behavior: 'smooth', 
+        block: 'nearest' 
+      });
+      
+      // Additional scroll after delay for mobile keyboard animations
+      setTimeout(() => {
+        if (errorRef.current) {
+          errorRef.current.scrollIntoView({ 
+            behavior: 'smooth', 
+            block: 'nearest' 
+          });
+        }
+      }, 100);
+    }
+  }, [errors]);
   const [showDeleteMetricModal, setShowDeleteMetricModal] = useState(false);
   const [metricToDelete, setMetricToDelete] = useState<{index: number, name: string} | null>(null);
   const [showComingSoonModal, setShowComingSoonModal] = useState(false);
@@ -82,6 +110,44 @@ export const DashboardDetailPage: React.FC = () => {
   // Graph modal state
   const [showGraphModal, setShowGraphModal] = useState(false);
   const [expandedGraphMetric, setExpandedGraphMetric] = useState<DashboardMetric | null>(null);
+  
+  // Reminder modal state
+  const [showReminderModal, setShowReminderModal] = useState<{open: boolean; metric: DashboardMetric | null}>({open: false, metric: null});
+  const [reminderDraft, setReminderDraft] = useState<{ 
+    frequency: 'daily' | 'weekly' | 'monthly';
+    time: string; // HH:MM format
+    note?: string;
+  }>({ 
+    frequency: 'daily',
+    time: '09:00',
+    note: ''
+  });
+  const [isCreatingReminder, setIsCreatingReminder] = useState(false);
+  const [activeReminders, setActiveReminders] = useState<MetricReminder[]>([]);
+  
+  // Confirmation modal state for reminder cancellation
+  const [cancelReminderModal, setCancelReminderModal] = useState<{
+    isOpen: boolean;
+    reminder: MetricReminder | null;
+  }>({ isOpen: false, reminder: null });
+
+  // Load active reminders
+  useEffect(() => {
+    const loadActiveReminders = async () => {
+      if (user?.id && user?.agencyId && dashboardId) {
+        try {
+          const reminders = await metricReminderService.listForDirector(user.id, user.agencyId);
+          // Filter reminders for this dashboard
+          const dashboardReminders = reminders.filter(r => r.dashboardId === dashboardId && r.status === 'pending');
+          setActiveReminders(dashboardReminders);
+        } catch (error) {
+          console.error('Error loading reminders:', error);
+        }
+      }
+    };
+
+    loadActiveReminders();
+  }, [user?.id, user?.agencyId, dashboardId]);
   
   // États pour le filtrage temporel
   const [timeFilter, setTimeFilter] = useState<string>('all');
@@ -416,8 +482,10 @@ export const DashboardDetailPage: React.FC = () => {
   }
 
   return (
-    <Layout title={dashboard.name}>
-      <div className="space-y-6">
+    <>
+      <ImpersonationHeader />
+      <Layout title={dashboard.name}>
+        <div className="space-y-6">
         {/* Header with back button and actions */}
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-4">
@@ -493,6 +561,82 @@ export const DashboardDetailPage: React.FC = () => {
             </div>
           </div>
         </Card>
+
+        {/* Active Reminders */}
+        {activeReminders.length > 0 && (
+          <Card>
+            <div className="flex items-center space-x-3 mb-4">
+              <Bell className="h-5 w-5 text-orange-600" />
+              <h2 className="text-lg font-semibold text-gray-900">Rappels actifs</h2>
+            </div>
+            <div className="space-y-3">
+              {activeReminders.map((reminder) => {
+                const metric = dashboard.metrics.find(m => m.id === reminder.metricId);
+                
+                // Safely convert Firestore Timestamp to Date
+                let nextScheduled: Date;
+                if (reminder.scheduledAt && typeof reminder.scheduledAt === 'object' && 'toDate' in reminder.scheduledAt) {
+                  // Firestore Timestamp
+                  nextScheduled = (reminder.scheduledAt as any).toDate();
+                } else if (reminder.scheduledAt) {
+                  // Regular Date or string
+                  nextScheduled = new Date(reminder.scheduledAt);
+                } else {
+                  // Fallback to current date if no scheduledAt
+                  nextScheduled = new Date();
+                }
+                
+                const frequencyLabel = reminder.frequency === 'daily' ? 'Quotidien' : 
+                                     reminder.frequency === 'weekly' ? 'Hebdomadaire' : 'Mensuel';
+                
+                return (
+                  <div key={reminder.id} className="flex items-center justify-between p-3 bg-orange-50 rounded-lg border border-orange-200">
+                    <div className="flex items-center space-x-3">
+                      <Clock className="h-4 w-4 text-orange-600" />
+                      <div>
+                        <p className="text-sm font-medium text-gray-900">
+                          {metric?.name || 'Métrique supprimée'}
+                        </p>
+                        <p className="text-xs text-gray-600">
+                          {frequencyLabel} à {reminder.time}
+                        </p>
+                        {reminder.note && (
+                          <p className="text-xs text-gray-500 mt-1">{reminder.note}</p>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <span className="text-xs text-gray-500">
+                        {!isNaN(nextScheduled.getTime()) ? (
+                          <>Prochaine: {nextScheduled.toLocaleDateString('fr-FR')} à {nextScheduled.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</>
+                        ) : (
+                          <>Prochaine: Date en cours de calcul</>
+                        )}
+                      </span>
+                      {reminder.id && reminder.id.trim() !== '' ? (
+                        <Button
+                          variant="danger"
+                          size="sm"
+                          onClick={() => {
+                            setCancelReminderModal({ isOpen: true, reminder });
+                          }}
+                          className="p-1"
+                          title="Annuler le rappel"
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
+                      ) : (
+                        <span className="text-xs text-gray-400 px-2" title="Ce rappel ne peut pas être annulé (ID invalide)">
+                          Non annulable
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </Card>
+        )}
 
         {/* Time Filter */}
         <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
@@ -632,18 +776,20 @@ export const DashboardDetailPage: React.FC = () => {
               
               return (
                 <Card key={metric.id || index} className="hover:shadow-lg transition-shadow h-full flex flex-col">
-                  {/* Header with icons, badge and action buttons */}
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center space-x-2">
-                      {getFieldIcon(metric.fieldType)}
-                      {getCalculationIcon(metric.calculationType)}
-                      <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
-                        {getCalculationLabel(metric.calculationType)}
-                      </span>
-                    </div>
-                    
-                    {/* Action buttons */}
+                  {/* Row 1: Action buttons on the right */}
+                  <div className="flex justify-end mb-2">
                     <div className="flex items-center space-x-1">
+                      {user?.role === 'directeur' && (
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => setShowReminderModal({ open: true, metric })}
+                          className="p-1"
+                          title="Programmer un rappel"
+                        >
+                          <BellPlus className="h-3 w-3" />
+                        </Button>
+                      )}
                       <Button
                         variant="secondary"
                         size="sm"
@@ -665,7 +811,7 @@ export const DashboardDetailPage: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Metric name and description */}
+                  {/* Row 2: Metric title */}
                   <div className="mb-3">
                     <h4 className="font-semibold text-gray-900 text-base lg:text-lg mb-1">
                       {metric.name}
@@ -676,6 +822,16 @@ export const DashboardDetailPage: React.FC = () => {
                       </p>
                     )}
                   </div>
+
+                  {/* Row 3: Symbols and type on the left */}
+                  <div className="flex items-center space-x-2 mb-3">
+                    {getFieldIcon(metric.fieldType)}
+                    {getCalculationIcon(metric.calculationType)}
+                    <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
+                      {getCalculationLabel(metric.calculationType)}
+                    </span>
+                  </div>
+
 
                   {/* Metric value and result */}
                   <div className="flex-1 mb-3">
@@ -748,7 +904,7 @@ export const DashboardDetailPage: React.FC = () => {
             <div className="p-6 overflow-y-auto max-h-[calc(90vh-140px)]">
               {/* Errors */}
               {errors.length > 0 && (
-                <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+                <div ref={errorRef} className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
                   <h3 className="text-sm font-medium text-red-800 mb-2">Erreurs à corriger :</h3>
                   <ul className="text-sm text-red-700 space-y-1">
                     {errors.map((error, index) => (
@@ -1260,6 +1416,209 @@ export const DashboardDetailPage: React.FC = () => {
         />
       )}
 
+       {/* Reminder Modal */}
+       {showReminderModal.open && showReminderModal.metric && user && (
+         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 p-2 sm:p-4">
+           <div className="w-full max-w-lg bg-white rounded-t-lg sm:rounded-lg shadow-xl p-4 sm:p-6">
+             <div className="flex items-center justify-between mb-4">
+               <h4 className="text-lg font-semibold">Programmer un rappel</h4>
+               <button
+                 className="text-gray-500 hover:text-gray-700 text-xl"
+                 onClick={() => setShowReminderModal({ open: false, metric: null })}
+               >
+                 ✕
+               </button>
+             </div>
+             
+              <div className="space-y-4">
+                {/* Metric Info */}
+                <div className="bg-blue-50 p-3 rounded-lg">
+                  <p className="text-sm text-blue-800">
+                    <strong>Métrique:</strong> {showReminderModal.metric.name}
+                  </p>
+                  <p className="text-xs text-blue-600 mt-1">
+                    Vous recevrez un rappel périodique avec la valeur de cette métrique
+                  </p>
+                </div>
+
+                {/* Frequency Selection */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Fréquence du rappel</label>
+                  <div className="grid grid-cols-3 gap-2">
+                    <label className="flex flex-col items-center p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
+                      <input
+                        type="radio"
+                        name="frequency"
+                        value="daily"
+                        checked={reminderDraft.frequency === 'daily'}
+                        onChange={(e) => setReminderDraft({ ...reminderDraft, frequency: e.target.value as any })}
+                        className="mb-2"
+                      />
+                      <span className="text-sm font-medium">Quotidien</span>
+                      <span className="text-xs text-gray-500">Chaque jour</span>
+                    </label>
+                    <label className="flex flex-col items-center p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
+                      <input
+                        type="radio"
+                        name="frequency"
+                        value="weekly"
+                        checked={reminderDraft.frequency === 'weekly'}
+                        onChange={(e) => setReminderDraft({ ...reminderDraft, frequency: e.target.value as any })}
+                        className="mb-2"
+                      />
+                      <span className="text-sm font-medium">Hebdomadaire</span>
+                      <span className="text-xs text-gray-500">Chaque semaine</span>
+                    </label>
+                    <label className="flex flex-col items-center p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
+                      <input
+                        type="radio"
+                        name="frequency"
+                        value="monthly"
+                        checked={reminderDraft.frequency === 'monthly'}
+                        onChange={(e) => setReminderDraft({ ...reminderDraft, frequency: e.target.value as any })}
+                        className="mb-2"
+                      />
+                      <span className="text-sm font-medium">Mensuel</span>
+                      <span className="text-xs text-gray-500">Chaque mois</span>
+                    </label>
+                  </div>
+                </div>
+
+                {/* Time Selection */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Heure de notification</label>
+                  <input
+                    type="time"
+                    className="w-full border rounded px-3 py-2 text-sm"
+                    value={reminderDraft.time}
+                    onChange={(e) => setReminderDraft({ ...reminderDraft, time: e.target.value })}
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    L'heure à laquelle vous recevrez le rappel {reminderDraft.frequency === 'daily' ? 'chaque jour' : reminderDraft.frequency === 'weekly' ? 'chaque semaine' : 'chaque mois'}
+                  </p>
+                </div>
+
+                {/* Period Explanation */}
+                <div className="bg-green-50 p-3 rounded-lg">
+                  <p className="text-sm text-green-800">
+                    <strong>Période de la métrique:</strong>
+                  </p>
+                  <ul className="text-xs text-green-700 mt-1 space-y-1">
+                    <li>• <strong>Quotidien:</strong> Valeur de la métrique pour 1 jour</li>
+                    <li>• <strong>Hebdomadaire:</strong> Valeur de la métrique pour 1 semaine</li>
+                    <li>• <strong>Mensuel:</strong> Valeur de la métrique pour 1 mois</li>
+                  </ul>
+                  <p className="text-xs text-green-600 mt-2">
+                    En cliquant sur la notification, vous serez redirigé vers la page détaillée de la métrique avec la période correspondante.
+                  </p>
+                </div>
+
+               {/* Note */}
+               <div>
+                 <label className="block text-sm font-medium text-gray-700 mb-2">Note (optionnel)</label>
+                 <textarea
+                   className="w-full border rounded px-3 py-2 text-sm"
+                   rows={2}
+                   value={reminderDraft.note || ''}
+                   onChange={(e) => setReminderDraft({ ...reminderDraft, note: e.target.value })}
+                   placeholder="Ajoutez une note pour ce rappel..."
+                 />
+               </div>
+             </div>
+
+             <div className="flex justify-end gap-3 mt-6">
+               <button
+                 className="px-4 py-2 text-sm rounded border text-gray-700 hover:bg-gray-50"
+                 onClick={() => setShowReminderModal({ open: false, metric: null })}
+               >
+                 Annuler
+               </button>
+               <button
+                 className="px-4 py-2 text-sm rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                 disabled={isCreatingReminder}
+                 onClick={async () => {
+                   if (!showReminderModal.metric || !user) return;
+                   const dashId = dashboard?.id;
+                   if (!dashId) return;
+                   
+                   setIsCreatingReminder(true);
+                   try {
+                     // Create the reminder with frequency-based scheduling
+                     await metricReminderService.create({
+                       id: '', // ignored by service
+                       agencyId: user.agencyId!,
+                       directorId: user.id,
+                       dashboardId: dashId,
+                       metricId: showReminderModal.metric.id,
+                       scheduledAt: new Date(), // Will be calculated based on frequency
+                       frequency: reminderDraft.frequency,
+                       time: reminderDraft.time,
+                       note: reminderDraft.note,
+                       status: 'pending',
+                       createdAt: new Date(),
+                       createdBy: user.id,
+                     } as any);
+                     setShowReminderModal({ open: false, metric: null });
+                     showSuccess('Rappel programmé avec succès');
+                     
+                     // Refresh active reminders list
+                     const reminders = await metricReminderService.listForDirector(user.id, user.agencyId);
+                     const dashboardReminders = reminders.filter(r => r.dashboardId === dashId && r.status === 'pending');
+                     setActiveReminders(dashboardReminders);
+                   } catch (error) {
+                     console.error('Error creating reminder:', error);
+                     showError('Erreur lors de la création du rappel');
+                   } finally {
+                     setIsCreatingReminder(false);
+                   }
+                 }}
+               >
+                 {isCreatingReminder && (
+                   <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                 )}
+                 {isCreatingReminder ? 'Création...' : 'Enregistrer'}
+               </button>
+             </div>
+           </div>
+         </div>
+      )}
+
+      {/* Cancel Reminder Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={cancelReminderModal.isOpen}
+        onClose={() => setCancelReminderModal({ isOpen: false, reminder: null })}
+        onConfirm={async () => {
+          if (!cancelReminderModal.reminder) {
+            console.error('No reminder selected for cancellation');
+            showError('Aucun rappel sélectionné pour l\'annulation.');
+            return;
+          }
+          
+          if (!cancelReminderModal.reminder.id) {
+            console.error('Reminder has no ID:', cancelReminderModal.reminder);
+            showError('Le rappel n\'a pas d\'identifiant valide.');
+            return;
+          }
+          
+          try {
+            console.log('Cancelling reminder:', cancelReminderModal.reminder.id);
+            console.log('Full reminder object:', cancelReminderModal.reminder);
+            await metricReminderService.cancel(cancelReminderModal.reminder.id);
+            setActiveReminders(prev => prev.filter(r => r.id !== cancelReminderModal.reminder!.id));
+            showSuccess('Rappel annulé avec succès');
+            setCancelReminderModal({ isOpen: false, reminder: null });
+          } catch (error) {
+            console.error('Error cancelling reminder:', error);
+            showError('Erreur lors de l\'annulation du rappel. Veuillez réessayer.');
+          }
+        }}
+        title="Annuler le rappel"
+        message={`Êtes-vous sûr de vouloir annuler le rappel pour "${cancelReminderModal.reminder?.metricId ? dashboard.metrics.find(m => m.id === cancelReminderModal.reminder?.metricId)?.name || 'cette métrique' : 'cette métrique'}" ?`}
+        confirmText="Annuler le rappel"
+        cancelText="Garder le rappel"
+        variant="warning"
+      />
+
       {/* Toast Notification */}
       <Toast
         show={toast.show}
@@ -1267,5 +1626,6 @@ export const DashboardDetailPage: React.FC = () => {
         type={toast.type}
       />
     </Layout>
+    </>
   );
 };

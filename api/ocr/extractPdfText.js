@@ -1,14 +1,11 @@
-const OpenAI = require('openai');
 const pdfParse = require('pdf-parse');
+const crypto = require('crypto');
 
-// Configuration OpenAI
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+// Simple PDF text extraction endpoint - only extraction, no background processing
 
 module.exports = async function handler(req, res) {
   try {
-    // Headers CORS complets
+    // CORS headers
     const corsOrigins = process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',') : ['*'];
     const origin = req.headers.origin;
     const allowedOrigin = corsOrigins.includes('*') ? '*' : 
@@ -18,33 +15,32 @@ module.exports = async function handler(req, res) {
       'Access-Control-Allow-Origin': allowedOrigin,
       'Access-Control-Allow-Methods': 'POST, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-      'Access-Control-Max-Age': '86400' // 24h cache preflight
+      'Access-Control-Max-Age': '86400'
     };
 
-    // Ajouter les headers CORS à toutes les réponses
     Object.entries(corsHeaders).forEach(([key, value]) => {
       res.setHeader(key, value);
     });
 
-    // Gérer les requêtes OPTIONS (preflight CORS)
+    // Handle OPTIONS requests
     if (req.method === 'OPTIONS') {
       return res.status(204).end();
     }
 
-    // Vérifier que la méthode est POST
+    // Only allow POST requests
     if (req.method !== 'POST') {
       return res.status(405).json({ 
-        error: 'Méthode non autorisée',
+        error: 'Method not allowed',
         code: 'METHOD_NOT_ALLOWED'
       });
     }
 
-    // Validation du corps de la requête
-    const { pdfData, model, fileName } = req.body;
+    // Validate request body
+    const { pdfData, fileName } = req.body;
     
     if (!pdfData) {
       return res.status(400).json({ 
-        error: 'Données PDF manquantes',
+        error: 'PDF data is required',
         code: 'MISSING_PDF_DATA'
       });
     }
@@ -59,7 +55,7 @@ module.exports = async function handler(req, res) {
     
     console.log('📦 PDF buffer size:', pdfBuffer.length, 'bytes');
     
-    // Check if PDF is too large and provide feedback
+    // Check file size
     const fileSizeMB = (pdfBuffer.length / (1024 * 1024)).toFixed(2);
     console.log('📏 PDF size:', fileSizeMB, 'MB');
     
@@ -71,13 +67,10 @@ module.exports = async function handler(req, res) {
       console.log('⚠️ Large PDF detected - processing may take 1-2 minutes...');
     }
     
-    // Use reliable pdf-parse + OpenAI formatting method
-    console.log('🔄 Using reliable pdf-parse + OpenAI formatting method...');
-    
-    const processingStartTime = Date.now();
-    
     // Extract text using pdf-parse
     console.log('📖 Extracting text using pdf-parse...');
+    const processingStartTime = Date.now();
+    
     const pdfData_result = await pdfParse(pdfBuffer);
     const rawText = pdfData_result.text;
     
@@ -89,85 +82,33 @@ module.exports = async function handler(req, res) {
       throw new Error('No text could be extracted from the PDF');
     }
     
-    // Use OpenAI to format the extracted text
-    console.log('🤖 Formatting text with OpenAI...');
-    const formatResponse = await openai.chat.completions.create({
-      model: model || 'gpt-4o',
-      messages: [
-        {
-          role: "user",
-          content: `Please format the following extracted PDF text into well-structured markdown format. Pay special attention to:
-
-1. **Tables**: Convert any tabular data to proper markdown table format with headers and rows
-2. **Lists**: Convert numbered and bulleted lists to markdown format
-3. **Headers**: Identify and format section headers with appropriate markdown headers (# ## ###)
-4. **Structure**: Preserve the document structure and hierarchy
-5. **Complex layouts**: Handle multi-column layouts, sidebars, and complex formatting
-6. **Text formatting**: Preserve bold, italic, and other text formatting as markdown
-
-Return only the formatted text in markdown, without any additional commentary or explanations.
-
-Extracted text:
-${rawText}`
-        }
-      ],
-      max_tokens: 6000,
-      temperature: 0.1
-    });
-    
     const processingTime = Date.now() - processingStartTime;
-    const method = 'pdf-parse_openai_formatting';
-    console.log('✅ PDF processing completed');
-    console.log('⏱️ Processing time:', processingTime, 'ms');
+    console.log('⏱️ OCR processing time:', processingTime, 'ms');
     
-    const extractedText = formatResponse.choices[0]?.message?.content || '';
-    
-    // Log des informations de coût (pour monitoring)
-    const usage = formatResponse.usage;
-    console.log('💰 OpenAI API Usage:', {
-      prompt_tokens: usage?.prompt_tokens || 0,
-      completion_tokens: usage?.completion_tokens || 0,
-      total_tokens: usage?.total_tokens || 0,
-      model: model || 'gpt-4o'
-    });
-    
-    console.log('📊 Final extracted text length:', extractedText.length, 'characters');
-    
+    // Return only the extracted text - no background processing
     return res.status(200).json({
       success: true,
-      text: extractedText,
-      extractedText: extractedText,
-      confidence: 90, // High confidence with pdf-parse + OpenAI formatting
-      engine: method,
-      model: model || 'gpt-4o',
-      usage: usage,
+      text: rawText,
+      extractedText: rawText,
       meta: {
         timestamp: new Date().toISOString(),
-        type: 'reliable_pdf_processing',
         fileName: fileName || 'Unknown',
         fileSize: pdfBuffer.length,
         fileSizeMB: fileSizeMB,
-        uploadTime: 0,
         processingTime: processingTime,
-        totalTime: processingTime,
-        method: method
+        pages: pdfData_result.numpages,
+        textLength: rawText.length
       }
     });
 
   } catch (error) {
     console.error('❌ PDF text extraction error:', error);
-    console.error('🔍 Error details:', {
-      message: error.message,
-      stack: error.stack,
-      name: error.name
-    });
     
     return res.status(500).json({
       success: false,
-      error: 'Erreur lors de l\'extraction de texte du PDF',
+      error: 'Error extracting text from PDF',
       code: 'PDF_EXTRACTION_ERROR',
-      details: error.message,
-      engine: 'reliable_pdf_processing'
+      details: error.message
     });
   }
 };

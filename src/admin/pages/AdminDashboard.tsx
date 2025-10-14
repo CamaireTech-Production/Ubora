@@ -8,8 +8,10 @@ import { AdminDashboardStats, AdminUser, AdminActivitySummary, ActivityLog } fro
 import { PushNotificationsTab } from '../../components/PushNotificationsTab';
 import { AppUsageTab } from '../../components/AppUsageTab';
 import { UsersTable } from '../../components/UsersTable';
+import { NotificationManager } from '../../components/NotificationManager';
 import { Card } from '../../components/Card';
 import { Button } from '../../components/Button';
+import { LogoutConfirmationModal } from '../../components/LogoutConfirmationModal';
 import { 
   Users, 
   Building2, 
@@ -30,7 +32,8 @@ import {
   LogOut,
   Menu,
   X,
-  Bell
+  Bell,
+  Send
 } from 'lucide-react';
 
 export const AdminDashboard: React.FC = () => {
@@ -41,8 +44,10 @@ export const AdminDashboard: React.FC = () => {
   const [activitySummary, setActivitySummary] = useState<AdminActivitySummary[]>([]);
   const [systemHealth, setSystemHealth] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'activities' | 'notifications' | 'usage' | 'system'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'activities' | 'notifications' | 'usage' | 'system' | 'fcm'>('overview');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   useEffect(() => {
     loadDashboardData();
@@ -112,7 +117,13 @@ export const AdminDashboard: React.FC = () => {
 
 
   const handleLogout = async () => {
-    await logout();
+    setIsLoggingOut(true);
+    try {
+      await logout();
+    } finally {
+      setIsLoggingOut(false);
+      setShowLogoutModal(false);
+    }
   };
 
   if (isLoading) {
@@ -160,7 +171,7 @@ export const AdminDashboard: React.FC = () => {
                 <span>Exporter</span>
               </Button> */}
               <Button
-                onClick={handleLogout}
+                onClick={() => setShowLogoutModal(true)}
                 variant="secondary"
                 size="sm"
                 className="flex items-center space-x-2 text-red-600 hover:text-red-700"
@@ -201,7 +212,7 @@ export const AdminDashboard: React.FC = () => {
               <span>Exporter</span>
             </Button>
             <Button
-              onClick={handleLogout}
+              onClick={() => setShowLogoutModal(true)}
               variant="secondary"
               size="sm"
               className="w-full flex items-center justify-center space-x-2 text-red-600 hover:text-red-700"
@@ -222,6 +233,7 @@ export const AdminDashboard: React.FC = () => {
               { id: 'users', label: 'Utilisateurs', icon: Users },
               { id: 'activities', label: 'Activités', icon: Activity },
               { id: 'notifications', label: 'Notifications', icon: Bell },
+              { id: 'fcm', label: 'FCM Manager', icon: Send },
               { id: 'usage', label: 'Utilisation', icon: Clock },
               { id: 'system', label: 'Système', icon: Settings }
             ].map((tab) => {
@@ -389,6 +401,11 @@ export const AdminDashboard: React.FC = () => {
           <PushNotificationsTab onRefresh={loadDashboardData} />
         )}
 
+        {/* FCM Manager Tab */}
+        {activeTab === 'fcm' && (
+          <NotificationManager />
+        )}
+
         {/* Usage Tab */}
         {activeTab === 'usage' && (
           <AppUsageTab onRefresh={loadDashboardData} />
@@ -429,6 +446,14 @@ export const AdminDashboard: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* Logout Confirmation Modal */}
+      <LogoutConfirmationModal
+        isOpen={showLogoutModal}
+        onClose={() => setShowLogoutModal(false)}
+        onConfirm={handleLogout}
+        isLoading={isLoggingOut}
+      />
     </div>
   );
 };

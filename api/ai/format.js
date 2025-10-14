@@ -1,0 +1,272 @@
+const { adminDb, admin } = require('../lib/firebaseAdmin');
+const OpenAI = require('openai');
+
+// Initialize OpenAI
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
+
+/**
+ * POST /api/ai/format
+ * Format raw PDF text using OpenAI and update FormEntry
+ */
+async function formatHandler(req, res) {
+  try {
+    // CORS headers
+    const corsOrigins = process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',') : ['*'];
+    const origin = req.headers.origin;
+    const allowedOrigin = corsOrigins.includes('*') ? '*' : 
+                         (origin && corsOrigins.includes(origin)) ? origin : corsOrigins[0];
+    
+    const corsHeaders = {
+      'Access-Control-Allow-Origin': allowedOrigin,
+      'Access-Control-Allow-Methods': 'POST, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+      'Access-Control-Max-Age': '86400'
+    };
+
+    Object.entries(corsHeaders).forEach(([key, value]) => {
+      res.setHeader(key, value);
+    });
+
+    // Handle OPTIONS requests
+    if (req.method === 'OPTIONS') {
+      return res.status(204).end();
+    }
+
+    console.log('🔍 Format endpoint called with method:', req.method);
+    console.log('🔍 Request body:', req.body);
+    console.log('🔍 Request headers:', req.headers);
+    console.log('🔍 Content-Type:', req.headers['content-type']);
+    
+    const { submissionId, formEntryId, rawText, fileName } = req.body;
+
+    console.log('🔄 Format request received:', {
+      submissionId,
+      formEntryId,
+      fileName,
+      rawTextLength: rawText?.length || 0
+    });
+
+    // Validate required fields - accept either submissionId or formEntryId
+    if ((!submissionId && !formEntryId) || !rawText) {
+      console.error('❌ Missing required fields:', {
+        hasSubmissionId: !!submissionId,
+        hasFormEntryId: !!formEntryId,
+        hasRawText: !!rawText,
+        submissionId,
+        formEntryId,
+        rawTextLength: rawText?.length || 0,
+        fullRequestBody: req.body
+      });
+      
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required fields: submissionId (or formEntryId) and rawText are required',
+        details: {
+          hasSubmissionId: !!submissionId,
+          hasFormEntryId: !!formEntryId,
+          hasRawText: !!rawText,
+          receivedBody: req.body
+        }
+      });
+    }
+
+    // Use submissionId if available, otherwise fall back to formEntryId
+    const idToUse = submissionId || formEntryId;
+
+    // Start background formatting (don't wait for it)
+    formatTextInBackground(idToUse, rawText, fileName)
+      .catch(error => {
+        console.error('❌ Background formatting failed:', error);
+      });
+
+    // Return immediately - formatting happens in background
+    res.status(200).json({
+      success: true,
+      message: 'Format request received, processing in background'
+    });
+
+  } catch (error) {
+    console.error('❌ Error in format endpoint:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error'
+    });
+  }
+}
+
+/**
+ * Format text in background and update FormEntry
+ */
+async function formatTextInBackground(formEntryId, rawText, fileName) {
+  try {
+    console.log(`🔄 Starting background formatting for ${fileName}...`);
+
+    // Format text with OpenAI
+    const formattedText = await formatRawWithOpenAI(rawText);
+    
+    console.log(`✅ Text formatted successfully for ${fileName}`);
+
+    // Update FormEntry with formatted text
+    await updateFormEntryWithFormattedText(formEntryId, formattedText, fileName);
+
+    console.log(`✅ FormEntry updated with formatted text for ${fileName}`);
+
+  } catch (error) {
+    console.error(`❌ Background formatting failed for ${fileName}:`, error);
+    
+    // Update FormEntry with error status
+    try {
+      await adminDb.collection('formEntries').doc(formEntryId).update({
+        formattingStatus: 'failed',
+        formattingError: error.message,
+        formattingFailedAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+    } catch (updateError) {
+      console.error('❌ Failed to update FormEntry with error:', updateError);
+    }
+  }
+}
+
+/**
+ * Format raw text with OpenAI
+ */
+async function formatRawWithOpenAI(rawText) {
+  try {
+    console.log('🔄 Formatting raw text with OpenAI...');
+
+    const formatResponse = await openai.chat.completions.create({
+      model: 'gpt-4o',
+      messages: [
+        {
+          role: "user",
+          content: `Please format the following extracted PDF text into well-structured markdown format. Pay special attention to:
+1. **Tables**: Convert any tabular data to proper markdown table format with headers and rows
+2. **Lists**: Convert numbered and bulleted lists to markdown format
+3. **Headers**: Identify and format section headers with appropriate markdown headers (# ## ###)
+4. **Structure**: Preserve the document structure and hierarchy
+5. **Complex layouts**: Handle multi-column layouts, sidebars, and complex formatting
+6. **Text formatting**: Preserve bold, italic, and other text formatting as markdown
+
+Return only the formatted text in markdown, without any additional commentary or explanations.
+
+Extracted text:
+${rawText}`
+        }
+      ],
+      max_tokens: 6000,
+      temperature: 0.1
+    });
+
+    const formattedText = formatResponse.choices[0]?.message?.content || '';
+    console.log('✅ Raw text formatted successfully');
+
+    return formattedText;
+  } catch (error) {
+    console.error('❌ Error formatting raw text with OpenAI:', error);
+    throw error;
+  }
+}
+
+/**
+ * Update FormEntry with formatted text
+ */
+async function updateFormEntryWithFormattedText(submissionId, formattedText, fileName) {
+  try {
+    console.log('📝 Updating FormEntry with formatted text for submission:', submissionId);
+
+    // First try to find FormEntry by submissionId in fileAttachments
+    let formEntryRef = null;
+    let formEntryDoc = null;
+
+    // Try to find FormEntry by searching for the submissionId in fileAttachments
+    // We need to search through all recent FormEntries since Firestore doesn't support
+    // complex queries on array objects
+    const recentEntriesQuery = await adminDb
+      .collection('formEntries')
+      .orderBy('submittedAt', 'desc')
+      .limit(50) // Check last 50 entries
+      .get();
+
+    let foundEntry = null;
+    for (const doc of recentEntriesQuery.docs) {
+      const data = doc.data();
+      if (data.fileAttachments && Array.isArray(data.fileAttachments)) {
+        const hasMatchingSubmissionId = data.fileAttachments.some(att => 
+          att && att.submissionId === submissionId
+        );
+        if (hasMatchingSubmissionId) {
+          foundEntry = doc;
+          break;
+        }
+      }
+    }
+
+    if (foundEntry) {
+      formEntryRef = foundEntry.ref;
+      formEntryDoc = foundEntry;
+      console.log('✅ Found FormEntry by submissionId in fileAttachments');
+    } else {
+      // Fallback: try using submissionId as document ID (for backward compatibility)
+      formEntryRef = adminDb.collection('formEntries').doc(submissionId);
+      formEntryDoc = await formEntryRef.get();
+      
+      if (formEntryDoc.exists) {
+        console.log('✅ Found FormEntry using submissionId as document ID');
+      }
+    }
+
+    if (!formEntryDoc || !formEntryDoc.exists) {
+      throw new Error(`FormEntry not found for submissionId: ${submissionId}`);
+    }
+
+    const formEntryData = formEntryDoc.data();
+    const fileAttachments = Array.isArray(formEntryData.fileAttachments) ? formEntryData.fileAttachments : [];
+
+    // Update the file attachment with the matching submissionId
+    const updatedFileAttachments = fileAttachments.map((attachment) => {
+      if (attachment.submissionId === submissionId) {
+        console.log('📝 Updating attachment with formatted text:', {
+          fileName: attachment.fileName,
+          submissionId: attachment.submissionId
+        });
+        return {
+          ...attachment,
+          rawExtractedText: attachment.extractedText, // Keep raw text
+          extractedText: formattedText, // Update with formatted text
+          formattingStatus: 'completed',
+          formattedAt: new Date().toISOString()
+        };
+      }
+      return attachment;
+    });
+
+    // Check if any attachment was actually updated
+    const wasUpdated = updatedFileAttachments.some((att, index) => 
+      att.submissionId === submissionId && 
+      att.extractedText === formattedText &&
+      att.formattingStatus === 'completed'
+    );
+
+    if (!wasUpdated) {
+      console.warn('⚠️ No attachment was updated - submissionId might not match any attachment');
+      console.log('Available submissionIds:', fileAttachments.map(att => att.submissionId));
+    }
+
+    // Update the FormEntry document
+    await formEntryRef.update({
+      fileAttachments: updatedFileAttachments,
+      formattingStatus: 'completed',
+      formattedAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+
+    console.log('✅ FormEntry updated successfully with formatted text');
+
+  } catch (error) {
+    console.error('❌ Error updating FormEntry with formatted text:', error);
+    throw error;
+  }
+}
+
+module.exports = formatHandler;

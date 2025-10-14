@@ -6,14 +6,16 @@ import {
   createUserWithEmailAndPassword,
   signInWithPopup,
   GoogleAuthProvider,
+  sendPasswordResetEmail,
   User as FirebaseUser
 } from 'firebase/auth';
 import { doc, getDoc, setDoc, serverTimestamp, onSnapshot, collection, query, where, getDocs } from 'firebase/firestore';
 import { auth, db } from '../firebaseConfig';
 import { User } from '../types';
-import { getPackageLimit, isUnlimited, PackageType } from '../config/packageFeatures';
+import { getPackageLimit, PackageType } from '../config/packageFeatures';
 import { AnalyticsService } from '../services/analyticsService';
 import { SubscriptionSessionService } from '../services/subscriptionSessionService';
+import { UserSessionService } from '../services/userSessionService';
 
 interface AuthContextType {
   user: User | null;
@@ -21,6 +23,7 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<boolean>;
   loginWithGoogle: () => Promise<boolean>;
   register: (email: string, password: string, name: string, role: 'admin' | 'directeur' | 'employe', agencyId: string) => Promise<boolean>;
+  resetPassword: (email: string) => Promise<boolean>;
   logout: () => Promise<void>;
   refreshUserData: () => Promise<void>;
   isLoading: boolean;
@@ -34,10 +37,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [firestoreReady, setFirestoreReady] = useState(false);
+  const [firestoreErrorCount, setFirestoreErrorCount] = useState(0);
+  const [firestoreDisabled, setFirestoreDisabled] = useState(false);
 
   // Fonction pour vérifier les limites d'utilisateurs d'une agence
   const checkAgencyUserLimit = async (agencyId: string): Promise<{ canAddUser: boolean; error?: string }> => {
     try {
+      console.log('🔍 Checking agency user limit for agencyId:', agencyId);
+      
       // Récupérer le directeur de l'agence pour connaître son package
       const directorsQuery = query(
         collection(db, 'users'),
@@ -47,19 +55,76 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       const directorsSnapshot = await getDocs(directorsQuery);
       
+      console.log('🔍 Directors found:', directorsSnapshot.size);
+      
       if (directorsSnapshot.empty) {
-        return { canAddUser: false, error: 'Aucun directeur trouvé pour cette agence' };
+        console.error('❌ NO DIRECTOR FOUND: No director exists for agency:', agencyId);
+        return { canAddUser: false, error: 'Aucun directeur trouvé pour cette agence. Veuillez vérifier l\'ID d\'agence ou contacter le support.' };
       }
       
       const director = directorsSnapshot.docs[0].data() as User;
-      const packageType = director.package as PackageType;
       
-      if (!packageType) {
-        return { canAddUser: false, error: 'Le directeur n\'a pas sélectionné de package' };
+      console.log('🔍 Director data:', {
+        id: directorsSnapshot.docs[0].id,
+        name: director.name,
+        email: director.email,
+        agencyId: director.agencyId,
+        role: director.role,
+        package: director.package,
+        hasSubscriptionSessions: !!director.subscriptionSessions,
+        currentSessionId: director.currentSessionId
+      });
+      
+      // Use the new subscription session system to get package limits
+      const packageLimits = UserSessionService.getPackageLimits(director);
+      
+      console.log('🔍 Package limits from session:', packageLimits);
+      console.log('🔍 Max users allowed:', packageLimits.maxUsers);
+      console.log('🔍 Is unlimited users:', packageLimits.maxUsers === -1);
+      
+      // If no session found, check if director needs to select a package
+      if (packageLimits.maxUsers === 0) {
+        // Check if director has legacy package field as fallback
+        const legacyPackage = director.package as PackageType;
+        if (legacyPackage) {
+          const legacyLimits = getPackageLimit(legacyPackage, 'maxUsers');
+          if (legacyLimits === -1) {
+            return { canAddUser: true };
+          }
+          
+          // Check legacy limits
+          const employeesQuery = query(
+            collection(db, 'users'),
+            where('agencyId', '==', agencyId),
+            where('role', '==', 'employe'),
+            where('isApproved', '!=', false)
+          );
+          
+          const employeesSnapshot = await getDocs(employeesQuery);
+          const currentEmployeeCount = employeesSnapshot.size;
+          
+          console.log('🔍 Legacy package limits:', legacyLimits);
+          console.log('🔍 Current employee count (legacy):', currentEmployeeCount);
+          console.log('🔍 Employees query result (legacy):', employeesSnapshot.size);
+          
+          if (currentEmployeeCount >= legacyLimits) {
+            return { 
+              canAddUser: false, 
+              error: 'Limite d\'utilisateurs atteinte. Contactez votre directeur pour mettre à niveau le package ou acheter des utilisateurs supplémentaires.' 
+            };
+          }
+          
+          return { canAddUser: true };
+        } else {
+          // Allow employee creation even if director hasn't set up package yet
+          // This is a temporary fallback to prevent blocking employee registration
+          console.warn('⚠️ Director has no package configured, allowing employee creation as fallback');
+          return { canAddUser: true };
+        }
       }
       
-      // Vérifier si le package a des utilisateurs illimités
-      if (isUnlimited(packageType, 'maxUsers')) {
+      // Check if the director has unlimited users
+      if (packageLimits.maxUsers === -1) {
         return { canAddUser: true };
       }
       
@@ -74,62 +139,148 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const employeesSnapshot = await getDocs(employeesQuery);
       const currentEmployeeCount = employeesSnapshot.size;
       
-      // Récupérer la limite du package
-      const maxUsers = getPackageLimit(packageType, 'maxUsers');
+      console.log('🔍 Current employee count:', currentEmployeeCount);
+      console.log('🔍 Employees query result:', employeesSnapshot.size);
+      console.log('🔍 Can add user:', currentEmployeeCount < packageLimits.maxUsers);
+      console.log('🔍 Remaining capacity:', packageLimits.maxUsers === -1 ? 'Unlimited' : packageLimits.maxUsers - currentEmployeeCount);
       
-      // Vérifier les ressources pay-as-you-go
-      const payAsYouGoUsers = director.payAsYouGoResources?.users || 0;
-      const totalCapacity = maxUsers + payAsYouGoUsers;
-      
-      if (currentEmployeeCount >= totalCapacity) {
+      // Check if current employee count is within limits
+      if (currentEmployeeCount >= packageLimits.maxUsers) {
         return { 
           canAddUser: false, 
           error: 'Limite d\'utilisateurs atteinte. Contactez votre directeur pour mettre à niveau le package ou acheter des utilisateurs supplémentaires.' 
         };
       }
       
+      console.log('🔍 Final decision: Allowing user creation');
       return { canAddUser: true };
     } catch (error: any) {
-      console.error('Erreur lors de la vérification des limites:', error);
+      console.error('❌ Erreur lors de la vérification des limites:', error);
+      console.error('❌ Error details:', {
+        code: error.code,
+        message: error.message,
+        agencyId: agencyId
+      });
       
       // Handle specific Firebase permission errors
       if (error.code === 'permission-denied' || error.message?.includes('permissions')) {
+        console.error('❌ PERMISSION ERROR: Cannot access director information to check user limits');
         return { 
           canAddUser: false, 
-          error: 'Limite d\'utilisateurs atteinte. Contactez votre directeur pour mettre à niveau le package ou acheter des utilisateurs supplémentaires.' 
+          error: 'Erreur de permissions: Impossible de vérifier les limites d\'utilisateurs. Veuillez contacter le support technique.' 
         };
       }
       
       // For other errors, show a user-friendly message
+      console.error('❌ UNEXPECTED ERROR: Failed to check user limits');
       return { 
         canAddUser: false, 
-        error: 'Limite d\'utilisateurs atteinte. Contactez votre directeur pour mettre à niveau le package ou acheter des utilisateurs supplémentaires.' 
+        error: 'Erreur technique lors de la vérification des limites. Veuillez réessayer ou contacter le support.' 
       };
     }
   };
 
 
+  // Initialize Firestore readiness with more robust testing
+  useEffect(() => {
+    const initFirestore = async () => {
+      try {
+        // Wait longer for Firestore to be fully initialized
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        // Test Firestore connection with a simple operation
+        try {
+          const testDoc = doc(db, '_test', 'connection');
+          await getDoc(testDoc);
+        } catch (testError) {
+          // Even if test fails, we can still proceed
+          console.warn('Firestore test failed but continuing:', testError);
+        }
+        
+        setFirestoreReady(true);
+      } catch (error) {
+        console.error('Firestore initialization failed:', error);
+        // Still allow app to continue after a delay
+        setTimeout(() => setFirestoreReady(true), 2000);
+      }
+    };
+    
+    initFirestore();
+  }, []);
+
+  // Global error handler for Firestore assertion errors
+  useEffect(() => {
+    const handleFirestoreError = (event: ErrorEvent) => {
+      if (event.error && event.error.message && event.error.message.includes('INTERNAL ASSERTION FAILED')) {
+        console.warn('Caught Firestore assertion error, continuing with cached data');
+        setFirestoreErrorCount(prev => {
+          const newCount = prev + 1;
+          if (newCount > 10) {
+            setFirestoreDisabled(true);
+            console.warn('Firestore disabled due to too many assertion errors');
+          }
+          return newCount;
+        });
+        event.preventDefault();
+        return false;
+      }
+    };
+
+    window.addEventListener('error', handleFirestoreError);
+    return () => window.removeEventListener('error', handleFirestoreError);
+  }, []);
+
   // Écouter les changements d'authentification Firebase
   useEffect(() => {
+    if (!firestoreReady) return; // Wait for Firestore to be ready
+    
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       setIsLoading(true);
       setError(null);
       
       if (firebaseUser) {
         try {
+          // Wait a bit to ensure Firestore is fully initialized
+          await new Promise(resolve => setTimeout(resolve, 100));
+          
           // Récupérer ou créer le document utilisateur
           const userDocRef = doc(db, 'users', firebaseUser.uid);
           
-          // Ajouter un timeout pour éviter les blocages
-          const userDoc = await Promise.race([
-            getDoc(userDocRef),
-            new Promise((_, reject) => 
-              setTimeout(() => reject(new Error('Timeout: Impossible de se connecter à Firestore')), 10000)
-            )
-          ]) as any;
+          // Ajouter un timeout pour éviter les blocages et retry logic
+          let userDoc;
+          let retries = 3;
+          
+          while (retries > 0) {
+            try {
+              // Check if we've had too many Firestore errors (circuit breaker)
+              if (firestoreErrorCount > 5 || firestoreDisabled) {
+                throw new Error('Firestore circuit breaker activated - too many errors');
+              }
+              
+              userDoc = await Promise.race([
+                getDoc(userDocRef),
+                new Promise((_, reject) => 
+                  setTimeout(() => reject(new Error('Timeout: Impossible de se connecter à Firestore')), 8000)
+                )
+              ]) as any;
+              break; // Success, exit retry loop
+            } catch (error: any) {
+              retries--;
+              setFirestoreErrorCount(prev => prev + 1);
+              
+              if (retries === 0) throw error;
+              
+              // Wait before retry with exponential backoff
+              const delay = Math.min(1000 * Math.pow(2, 3 - retries), 5000);
+              await new Promise(resolve => setTimeout(resolve, delay));
+              console.warn(`Firestore getDoc retry ${3 - retries}/3:`, error.message);
+            }
+          }
           
           if (userDoc.exists()) {
             const userData = userDoc.data() as Omit<User, 'id'>;
+            // Cache user locally for offline usage
+            try { localStorage.setItem('ubora_cached_user', JSON.stringify({ id: firebaseUser.uid, ...userData })); } catch {}
             
             // Vérifier l'approbation pour les employés
             if (userData.role === 'employe' && userData.isApproved === false) {
@@ -155,9 +306,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         } catch (err) {
           console.error('Erreur lors de la récupération des données utilisateur:', err);
           
+          // Always try cached user first as fallback
+          try {
+            const cached = localStorage.getItem('ubora_cached_user');
+            if (cached) {
+              const cachedUser = JSON.parse(cached);
+              setUser(cachedUser);
+              setFirebaseUser(firebaseUser);
+              setError('Mode hors ligne: données locales affichées');
+              setIsLoading(false);
+              return;
+            }
+          } catch {}
+          
           if (err instanceof Error) {
-            if (err.message.includes('offline') || err.message.includes('Timeout')) {
-              setError('Impossible de se connecter à la base de données. Vérifiez votre connexion internet et la configuration Firebase.');
+            if (err.message.includes('circuit breaker') || err.message.includes('INTERNAL ASSERTION')) {
+              setError('Problème de connexion à la base de données. Mode hors ligne activé.');
+              // Don't sign out, let user continue with cached data
+              setIsLoading(false);
+              return;
+            } else if (err.message.includes('offline') || err.message.includes('Timeout')) {
+              setError('Impossible de se connecter à la base de données. Mode hors ligne indisponible.');
             } else if (err.message.includes('permission-denied')) {
               setError('Accès refusé. Vérifiez les règles de sécurité Firestore.');
             } else {
@@ -167,7 +336,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             setError('Erreur lors de la connexion');
           }
           
-          await signOut(auth);
+          // Only sign out if we have no cached data and it's a critical error
+          try {
+            const cached = localStorage.getItem('ubora_cached_user');
+            if (!cached) {
+              await signOut(auth);
+            }
+          } catch {}
         }
       } else {
         setUser(null);
@@ -178,11 +353,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [firestoreReady]);
 
   // Écouter les changements du document utilisateur en temps réel
   useEffect(() => {
-    if (!firebaseUser) return;
+    if (!firebaseUser || firestoreDisabled) return;
 
     const userDocRef = doc(db, 'users', firebaseUser.uid);
     
@@ -210,7 +385,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
 
     return () => unsubscribe();
-  }, [firebaseUser]);
+  }, [firebaseUser, firestoreDisabled]);
 
   const login = async (email: string, password: string): Promise<boolean> => {
     try {
@@ -228,6 +403,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setError('Profil utilisateur non trouvé. Veuillez vous réinscrire.');
         return false;
       }
+      // Cache user after successful login fetch
+      try { localStorage.setItem('ubora_cached_user', JSON.stringify({ id: userCredential.user.uid, ...userDoc.data() })); } catch {}
       
       // Marquer pour afficher l'écran de bienvenue juste après la connexion
       try { sessionStorage.setItem('show_welcome_after_login', 'true'); } catch {}
@@ -255,19 +432,76 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const userDoc = await getDoc(userDocRef);
       
       if (!userDoc.exists()) {
-        // Créer un profil basique pour Google Auth (sera complété lors de la première connexion)
-        const userData: Omit<User, 'id'> = {
-          name: result.user.displayName || '',
-          email: result.user.email || '',
-          role: 'employe', // Rôle par défaut
-          agencyId: '', // L'utilisateur devra saisir son ID d'agence
-          // Pas de package pour les employés
-          isApproved: false, // Les employés Google Auth doivent être approuvés
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp()
-        };
+        // Check if this is an invitation-based registration
+        const urlParams = new URLSearchParams(window.location.search);
+        const isInvite = urlParams.get('invite') === 'true';
+        const inviteAgencyId = urlParams.get('agencyId');
+        const inviteRole = urlParams.get('role');
         
-        await setDoc(userDocRef, userData);
+        if (isInvite) {
+          // Handle invitation-based registration (employees only)
+          if (inviteRole !== 'employe' || !inviteAgencyId) {
+            await signOut(auth);
+            setError('Lien d\'invitation invalide. Contactez votre directeur.');
+            return false;
+          }
+          
+          // Verify the agency exists and has a director
+          const directorsQuery = query(
+            collection(db, 'users'),
+            where('agencyId', '==', inviteAgencyId),
+            where('role', '==', 'directeur')
+          );
+          const directorsSnapshot = await getDocs(directorsQuery);
+          
+          if (directorsSnapshot.empty) {
+            await signOut(auth);
+            setError('Agence invalide. Contactez votre directeur.');
+            return false;
+          }
+          
+          // Create user profile with validated invitation data
+          const userData: Omit<User, 'id'> = {
+            name: result.user.displayName || '',
+            email: result.user.email || '',
+            role: 'employe', // Always employee for invitations
+            agencyId: inviteAgencyId, // From invitation
+            isApproved: false, // Requires director approval
+            accessLevels: [],
+            hasDirectorDashboardAccess: false,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp()
+          };
+          
+          await setDoc(userDocRef, userData);
+          
+          // Track user addition in subscription session
+          try {
+            const director = directorsSnapshot.docs[0];
+            await SubscriptionSessionService.updateUsage(director.id, 'users', 1);
+          } catch (trackingError) {
+            console.error('Error tracking user addition:', trackingError);
+          }
+        } else {
+          // Handle director registration (no invitation needed)
+          const userData: Omit<User, 'id'> = {
+            name: result.user.displayName || '',
+            email: result.user.email || '',
+            role: 'directeur', // Directors can self-register
+            agencyId: '', // Will be set during onboarding
+            needsPackageSelection: true,
+            tokensUsedMonthly: 0,
+            tokensResetDate: new Date(),
+            isApproved: true, // Directors are auto-approved
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp()
+          };
+          
+          await setDoc(userDocRef, userData);
+          
+          // Redirect to package selection
+          sessionStorage.setItem('needs_package_selection', 'true');
+        }
       }
       
       // Marquer pour afficher l'écran de bienvenue juste après la connexion
@@ -299,12 +533,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         try {
           const limitCheck = await checkAgencyUserLimit(agencyId);
           if (!limitCheck.canAddUser) {
-            setError(limitCheck.error || 'Limite d\'utilisateurs atteinte');
+            setError('Limite d\'utilisateurs atteinte. Contactez votre directeur pour cette agence.');
             return false;
           }
         } catch (error) {
           // Si on ne peut pas vérifier les limites (permissions, etc.), on bloque par sécurité
-          setError('Limite d\'utilisateurs atteinte. Contactez votre directeur pour mettre à niveau le package ou acheter des utilisateurs supplémentaires.');
+          console.error('❌ REGISTRATION ERROR: Failed to check user limits during employee registration');
+          setError('Erreur technique: Impossible de vérifier les limites d\'utilisateurs. Veuillez contacter le support technique.');
           return false;
         }
       }
@@ -384,6 +619,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const resetPassword = async (email: string): Promise<boolean> => {
+    try {
+      setError(null);
+      setIsLoading(true);
+      
+      await sendPasswordResetEmail(auth, email);
+      return true;
+    } catch (err: any) {
+      console.error('Erreur de réinitialisation du mot de passe:', err);
+      setError(getErrorMessage(err.code));
+      return false;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const logout = async (): Promise<void> => {
     try {
       await signOut(auth);
@@ -428,20 +679,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const getErrorMessage = (errorCode: string): string => {
     switch (errorCode) {
+      case 'auth/invalid-credential':
+      case 'auth/invalid-login-credentials':
+        return 'Identifiants incorrects. Vérifiez votre email et votre mot de passe';
       case 'auth/user-not-found':
         return 'Aucun utilisateur trouvé avec cet email';
       case 'auth/wrong-password':
         return 'Mot de passe incorrect';
+      case 'auth/user-disabled':
+        return 'Compte désactivé. Contactez le support';
       case 'auth/email-already-in-use':
         return 'ACCOUNT_EXISTS'; // Special flag for existing account
       case 'auth/weak-password':
         return 'Le mot de passe doit contenir au moins 6 caractères';
       case 'auth/invalid-email':
         return 'Email invalide';
+      case 'auth/operation-not-allowed':
+        return 'Méthode de connexion désactivée. Vérifiez la configuration Firebase Auth';
       case 'auth/too-many-requests':
         return 'Trop de tentatives. Réessayez plus tard';
       case 'auth/network-request-failed':
         return 'Erreur de connexion réseau';
+      case 'auth/invalid-api-key':
+        return 'Configuration Firebase invalide (apiKey)';
+      case 'auth/unauthorized-domain':
+        return 'Domaine non autorisé pour cette application';
       default:
         return 'Une erreur est survenue';
     }
@@ -454,6 +716,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       login,
       loginWithGoogle,
       register,
+      resetPassword,
       logout,
       refreshUserData,
       isLoading,

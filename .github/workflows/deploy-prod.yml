@@ -63,6 +63,12 @@ jobs:
         # PWA Configuration for Production
         VITE_APP_ENV=prod
         NODE_ENV=production
+        
+        # Campay Configuration for Production
+        VITE_CAMPAY_ENVIRONMENT=live
+        VITE_CAMPAY_APP_ID=${{ secrets.CAMPAY_APP_ID }}
+        VITE_CAMPAY_DEMO_AMOUNT=10
+        VITE_CAMPAY_REDIRECT_URL=
         EOF
         
     - name: Build application for production

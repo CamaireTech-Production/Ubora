@@ -192,6 +192,45 @@ async function getConversationContext(conversationId) {
   }
 }
 
+// Function to format raw text with OpenAI (missing implementation)
+async function formatRawWithOpenAI(rawText) {
+  try {
+    console.log('🔄 Formatting raw text with OpenAI...');
+    
+    const formatResponse = await openai.chat.completions.create({
+      model: 'gpt-4o',
+      messages: [
+        {
+          role: "user",
+          content: `Please format the following extracted PDF text into well-structured markdown format. Pay special attention to:
+
+1. **Tables**: Convert any tabular data to proper markdown table format with headers and rows
+2. **Lists**: Convert numbered and bulleted lists to markdown format
+3. **Headers**: Identify and format section headers with appropriate markdown headers (# ## ###)
+4. **Structure**: Preserve the document structure and hierarchy
+5. **Complex layouts**: Handle multi-column layouts, sidebars, and complex formatting
+6. **Text formatting**: Preserve bold, italic, and other text formatting as markdown
+
+Return only the formatted text in markdown, without any additional commentary or explanations.
+
+Extracted text:
+${rawText}`
+        }
+      ],
+      max_tokens: 6000,
+      temperature: 0.1
+    });
+    
+    const formattedText = formatResponse.choices[0]?.message?.content || '';
+    console.log('✅ Raw text formatted successfully');
+    
+    return formattedText;
+  } catch (error) {
+    console.error('❌ Error formatting raw text with OpenAI:', error);
+    throw error;
+  }
+}
+
 // Fonction pour charger et agréger les données
 async function loadAndAggregateData(
   agencyId,
@@ -210,22 +249,79 @@ async function loadAndAggregateData(
     .limit(2000) // Increased limit for complete analysis
     .get();
 
+  // Ensure attachments are formatted when needed (on-demand formatting)
+  const ensureFormattedAttachmentsForDoc = async (doc) => {
+    const data = doc.data() || {};
+    const attachments = Array.isArray(data.fileAttachments) ? data.fileAttachments : [];
+    if (attachments.length === 0) return data;
+
+    const updated = [];
+    let changed = false;
+    for (const att of attachments) {
+      if (
+        att &&
+        (att.fileType === 'application/pdf' || (att.fileType && att.fileType.startsWith('image/')))
+      ) {
+        const hasFormatted = typeof att.extractedText === 'string' && att.extractedText.trim().length > 0;
+        const hasRaw = typeof att.rawExtractedText === 'string' && att.rawExtractedText.trim().length > 0;
+        if (!hasFormatted && hasRaw) {
+          // Format raw text synchronously before analysis
+          try {
+            console.log('🔄 Formatting raw text for AI analysis:', att.fileName);
+            const formattedText = await formatRawWithOpenAI(att.rawExtractedText);
+            console.log('✅ Successfully formatted text for AI analysis:', att.fileName);
+            updated.push({
+              ...att,
+              extractedText: formattedText,
+              rawExtractedText: att.rawExtractedText,
+            });
+            changed = true;
+          } catch (e) {
+            console.error('❌ Failed to format raw text for AI analysis:', att.fileName, e.message);
+            // Continue with raw text - better than no text at all
+            updated.push({
+              ...att,
+              rawExtractedText: att.rawExtractedText,
+              extractedText: att.rawExtractedText // Use raw text as fallback
+            });
+            changed = true;
+          }
+          continue;
+        }
+      }
+      updated.push(att);
+    }
+
+    if (changed) {
+      try {
+        await adminDb.collection('formEntries').doc(doc.id).update({ fileAttachments: updated });
+        data.fileAttachments = updated;
+      } catch (e) {
+        // Non-blocking if update fails; continue with in-memory update
+        data.fileAttachments = updated;
+      }
+    }
+
+    return data;
+  };
+
   // Transformer, filtrer par période et filtres optionnels
-  let entries = baseSnapshot.docs.map((doc) => {
+  let entries = await Promise.all(baseSnapshot.docs.map(async (doc) => {
+    const ensured = await ensureFormattedAttachmentsForDoc(doc);
     const data = doc.data();
     const entry = {
       id: doc.id,
-      formId: data.formId || '',
-      userId: data.userId || '',
-      agencyId: data.agencyId || '',
-      submittedAt: data.submittedAt || new Date(),
-      answers: data.answers || {},
-      fileAttachments: data.fileAttachments || [] // Include fileAttachments from Firestore
+      formId: ensured.formId || data.formId || '',
+      userId: ensured.userId || data.userId || '',
+      agencyId: ensured.agencyId || data.agencyId || '',
+      submittedAt: ensured.submittedAt || data.submittedAt || new Date(),
+      answers: ensured.answers || data.answers || {},
+      fileAttachments: ensured.fileAttachments || data.fileAttachments || [] // Include fileAttachments, ensuring formatted when possible
     };
     
     
     return entry;
-  });
+  }));
 
   entries = entries.filter(e => {
     const submittedDate = safeToDate(e.submittedAt);
@@ -1408,20 +1504,20 @@ TOP FORMULAIRES : ${data.formStats.slice(0, 3).map(f => `${f.title} (${f.count} 
 
     // Analyze content types present in the data
     const hasPDFContent = data.submissions.some(s => 
-      s.fileAttachments?.some(att => att.fileType === 'application/pdf' && att.extractedText)
+      s.fileAttachments?.some(att => att.fileType === 'application/pdf' && (att.extractedText || att.rawExtractedText))
     ) || data.submissions.some(s => 
       Object.values(s.answers).some(value => 
-        value && typeof value === 'object' && value.uploaded && value.fileName && value.extractedText
+        value && typeof value === 'object' && value.uploaded && value.fileName && (value.extractedText || value.rawExtractedText)
       )
     );
 
     const hasImageContent = data.submissions.some(s => 
       s.fileAttachments?.some(att => 
-        att.fileType && att.fileType.startsWith('image/') && att.extractedText
+        att.fileType && att.fileType.startsWith('image/') && (att.extractedText || att.rawExtractedText)
       )
     ) || data.submissions.some(s => 
       Object.values(s.answers).some(value => 
-        value && typeof value === 'object' && value.uploaded && value.fileName && value.extractedText && 
+        value && typeof value === 'object' && value.uploaded && value.fileName && (value.extractedText || value.rawExtractedText) && 
         value.fileType && value.fileType.startsWith('image/')
       )
     );
@@ -1458,24 +1554,30 @@ TOP FORMULAIRES : ${data.formStats.slice(0, 3).map(f => `${f.title} (${f.count} 
         let extractedTextSummary = '';
         if (s.fileAttachments && s.fileAttachments.length > 0) {
           const pdfFiles = s.fileAttachments.filter(att => 
-            att.fileType === 'application/pdf' && att.extractedText
+            att.fileType === 'application/pdf' && (att.extractedText || att.rawExtractedText)
           );
           
           const imageFiles = s.fileAttachments.filter(att => 
-            att.fileType && att.fileType.startsWith('image/') && att.extractedText
+            att.fileType && att.fileType.startsWith('image/') && (att.extractedText || att.rawExtractedText)
           );
           
           if (pdfFiles.length > 0) {
             pdfFiles.forEach((file, fileIndex) => {
-              // Include extracted text as additional field data, not as separate section
-              extractedTextSummary += ` | Document PDF: ${file.fileName} (${file.extractedText.substring(0, 1500)}${file.extractedText.length > 1500 ? '...' : ''})`;
+              // Use formatted text if available, otherwise fall back to raw extracted text
+              const textToUse = file.extractedText || file.rawExtractedText || '';
+              if (textToUse) {
+                extractedTextSummary += ` | Document PDF: ${file.fileName} (${textToUse.substring(0, 1500)}${textToUse.length > 1500 ? '...' : ''})`;
+              }
             });
           }
           
           if (imageFiles.length > 0) {
             imageFiles.forEach((file, fileIndex) => {
-              // Include extracted text from images
-              extractedTextSummary += ` | Image: ${file.fileName} (${file.extractedText.substring(0, 1500)}${file.extractedText.length > 1500 ? '...' : ''})`;
+              // Use formatted text if available, otherwise fall back to raw extracted text
+              const textToUse = file.extractedText || file.rawExtractedText || '';
+              if (textToUse) {
+                extractedTextSummary += ` | Image: ${file.fileName} (${textToUse.substring(0, 1500)}${textToUse.length > 1500 ? '...' : ''})`;
+              }
             });
           }
         }

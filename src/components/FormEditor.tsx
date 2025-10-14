@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { FormField, Form } from '../types';
 import { Button } from './Button';
 import { Input } from './Input';
@@ -9,10 +9,11 @@ import { FileTypeSelector } from './FileTypeSelector';
 import { FieldCSVImport } from './FieldCSVImport';
 import { Toast } from './Toast';
 import { useToast } from '../hooks/useToast';
-import { Plus, Trash2, ArrowLeft, CheckSquare, Square, Loader2, Calculator } from 'lucide-react';
+import { Plus, Trash2, ArrowLeft, CheckSquare, Square, Loader2, Calculator, AlertCircle } from 'lucide-react';
 import { FormulaInput } from './FormulaInput';
 import { FormulaParser } from '../utils/FormulaParser';
 import { ConditionalLogicBuilder } from './ConditionalLogicBuilder';
+import { ConfirmationModal } from './ConfirmationModal';
 
 interface FormEditorProps {
   form?: Form; // If provided, we're editing an existing form
@@ -46,10 +47,48 @@ export const FormEditor: React.FC<FormEditorProps> = ({
     endTime?: string;
     allowedDays?: number[];
   }>(form?.timeRestrictions || {});
-  const [useTimeRange, setUseTimeRange] = useState(!!form?.timeRestrictions?.endTime);
+  const [useTimeRange, setUseTimeRange] = useState(
+    !!(form?.timeRestrictions?.startTime && form?.timeRestrictions?.endTime)
+  );
   const [employeeSearchTerm, setEmployeeSearchTerm] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errors, setErrors] = useState<string[]>([]);
+  const errorRef = useRef<HTMLDivElement>(null);
   const { toast, showSuccess, showError } = useToast();
+  
+  // Confirmation modal state
+  const [confirmationModal, setConfirmationModal] = useState<{
+    isOpen: boolean;
+    fieldId: string | null;
+    fieldLabel: string;
+    dependentFields: Array<{ id: string; label: string }>;
+  }>({
+    isOpen: false,
+    fieldId: null,
+    fieldLabel: '',
+    dependentFields: []
+  });
+  
+  // Auto-scroll to errors when they appear (mobile-responsive)
+  useEffect(() => {
+    if (errors.length > 0 && errorRef.current) {
+      // Immediate scroll
+      errorRef.current.scrollIntoView({ 
+        behavior: 'smooth', 
+        block: 'nearest' 
+      });
+      
+      // Additional scroll after delay for mobile keyboard animations
+      setTimeout(() => {
+        if (errorRef.current) {
+          errorRef.current.scrollIntoView({ 
+            behavior: 'smooth', 
+            block: 'nearest' 
+          });
+        }
+      }, 100);
+    }
+  }, [errors]);
 
   // Update state when form prop changes
   useEffect(() => {
@@ -59,7 +98,7 @@ export const FormEditor: React.FC<FormEditorProps> = ({
       setAssignedTo(form.assignedTo || []);
       setFields(form.fields || []);
       setTimeRestrictions(form.timeRestrictions || {});
-      setUseTimeRange(!!form.timeRestrictions?.endTime);
+      setUseTimeRange(!!(form.timeRestrictions?.startTime && form.timeRestrictions?.endTime));
     }
   }, [form]);
 
@@ -75,7 +114,68 @@ export const FormEditor: React.FC<FormEditorProps> = ({
   };
 
   const removeField = (id: string) => {
-    setFields(fields.filter(field => field.id !== id));
+    const fieldToDelete = fields.find(field => field.id === id);
+    if (!fieldToDelete) return;
+
+    // Check for dependencies before deletion
+    const dependentFields = fields.filter(field => 
+      field.type === 'calculated' && 
+      field.dependsOn?.includes(id)
+    );
+    
+    if (dependentFields.length > 0) {
+      // Show confirmation modal
+      setConfirmationModal({
+        isOpen: true,
+        fieldId: id,
+        fieldLabel: fieldToDelete.label,
+        dependentFields: dependentFields.map(field => ({
+          id: field.id,
+          label: field.label
+        }))
+      });
+    } else {
+      // Safe to delete immediately
+      setFields(fields.filter(field => field.id !== id));
+    }
+  };
+
+  const handleConfirmDelete = () => {
+    if (!confirmationModal.fieldId) return;
+
+    const fieldId = confirmationModal.fieldId;
+    
+    // Clean up dependencies in calculated fields
+    setFields(prevFields => 
+      prevFields.map(field => {
+        if (field.type === 'calculated' && field.dependsOn?.includes(fieldId)) {
+          return {
+            ...field,
+            dependsOn: field.dependsOn.filter(depId => depId !== fieldId),
+            calculationFormula: '', // Clear invalid formula
+            userFormula: ''
+          };
+        }
+        return field;
+      }).filter(field => field.id !== fieldId)
+    );
+
+    // Close modal
+    setConfirmationModal({
+      isOpen: false,
+      fieldId: null,
+      fieldLabel: '',
+      dependentFields: []
+    });
+  };
+
+  const handleCancelDelete = () => {
+    setConfirmationModal({
+      isOpen: false,
+      fieldId: null,
+      fieldLabel: '',
+      dependentFields: []
+    });
   };
 
   const updateField = (id: string, updates: Partial<FormField>) => {
@@ -133,10 +233,18 @@ export const FormEditor: React.FC<FormEditorProps> = ({
 
   const handleTimeRangeToggle = (checked: boolean) => {
     setUseTimeRange(checked);
-    if (!checked) {
-      // Clear end time when disabling range
-      setTimeRestrictions(prev => ({ ...prev, endTime: undefined }));
-    }
+    setTimeRestrictions(prev => {
+      // If switching to single-time mode, treat the existing single value as end time
+      if (!checked) {
+        const singleTime = prev.endTime || prev.startTime;
+        return { ...prev, startTime: undefined, endTime: singleTime };
+      }
+      // If switching to range mode and only an end time exists, initialize a start time
+      if (checked && !prev.startTime && prev.endTime) {
+        return { ...prev, startTime: '00:00' };
+      }
+      return prev;
+    });
   };
 
   const handleSelectAllEmployees = () => {
@@ -167,20 +275,57 @@ export const FormEditor: React.FC<FormEditorProps> = ({
     showSuccess('Options importées avec succès');
   };
 
+  const handleFormulaChange = useCallback((fieldId: string, formula: string, fieldIds: string[]) => {
+    // Validate dependencies
+    const invalidDeps = fieldIds.filter(id => 
+      !fields.find(f => f.id === id && ['number', 'calculated'].includes(f.type))
+    );
+    
+    if (invalidDeps.length > 0) {
+      console.warn(`Invalid dependencies detected: ${invalidDeps.join(', ')}`);
+      showError(`Dépendances invalides détectées: ${invalidDeps.join(', ')}`);
+      // Don't update if there are invalid dependencies
+      return;
+    }
+    
+    // Check for circular dependencies
+    if (FormulaParser.hasCircularDependency(fieldId, fieldIds, fields)) {
+      console.warn('Circular dependency detected');
+      showError('Dépendance circulaire détectée');
+      // Don't update if there's a circular dependency
+      return;
+    }
+    
+    updateField(fieldId, { 
+      calculationFormula: formula,
+      dependsOn: fieldIds,
+      userFormula: FormulaParser.convertToUserFormula(formula, fields)
+    });
+  }, [fields, updateField, showError]);
+
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!title || assignedTo.length === 0 || fields.length === 0) {
-      showError('Veuillez remplir tous les champs obligatoires');
-      return;
+    // Validation avec messages d'erreur détaillés
+    const validationErrors: string[] = [];
+    
+    if (!title.trim()) {
+      validationErrors.push('Le titre du formulaire est obligatoire');
+    }
+    
+    if (assignedTo.length === 0) {
+      validationErrors.push('Veuillez sélectionner au moins un employé');
+    }
+    
+    if (fields.length === 0) {
+      validationErrors.push('Veuillez ajouter au moins un champ au formulaire');
     }
 
     // Valider que tous les champs ont un label
     const invalidFields = fields.filter(field => !field.label.trim());
     if (invalidFields.length > 0) {
-      showError('Tous les champs doivent avoir un libellé');
-      return;
+      validationErrors.push(`${invalidFields.length} champ(s) n'ont pas de libellé`);
     }
 
     // Valider que les champs calculés ont une formule
@@ -188,19 +333,54 @@ export const FormEditor: React.FC<FormEditorProps> = ({
       field.type === 'calculated' && (!field.calculationFormula || !field.calculationFormula.trim())
     );
     if (calculatedFieldsWithoutFormula.length > 0) {
-      showError(`${calculatedFieldsWithoutFormula.length} champ(s) calculé(s) n'ont pas de formule`);
+      validationErrors.push(`${calculatedFieldsWithoutFormula.length} champ(s) calculé(s) n'ont pas de formule`);
+    }
+
+    // Valider les dépendances des champs
+    const dependencyErrors = FormulaParser.validateFieldDependencies(fields);
+    validationErrors.push(...dependencyErrors);
+
+    if (validationErrors.length > 0) {
+      setErrors(validationErrors);
       return;
     }
+
+    // Réinitialiser les erreurs si validation OK
+    setErrors([]);
 
     setIsSubmitting(true);
     
     try {
+      // Sanitize time restrictions: in single-time mode, keep only endTime
+      const sanitizedTimeRestrictions = (() => {
+        if (Object.keys(timeRestrictions).length === 0) return undefined;
+        const { startTime, endTime, allowedDays } = timeRestrictions;
+        const hasRange = useTimeRange && startTime && endTime;
+        
+        if (hasRange) {
+          return { 
+            startTime, 
+            endTime, 
+            allowedDays: allowedDays || [] 
+          };
+        }
+        
+        // single-time mode: prefer endTime; if only startTime exists (legacy), treat it as endTime
+        const singleEnd = endTime || startTime;
+        if (!singleEnd && (!allowedDays || allowedDays.length === 0)) return undefined;
+        
+        return { 
+          endTime: singleEnd, 
+          allowedDays: allowedDays || [] 
+        };
+      })();
+
       await onSave({
         title,
         description,
         fields,
         assignedTo,
-        timeRestrictions: Object.keys(timeRestrictions).length > 0 ? timeRestrictions : undefined,
+        timeRestrictions: sanitizedTimeRestrictions,
       });
       
       const successMessage = isEditing ? 'Formulaire mis à jour avec succès' : 'Formulaire créé avec succès';
@@ -232,6 +412,28 @@ export const FormEditor: React.FC<FormEditorProps> = ({
           {isEditing ? 'Modifier le formulaire' : 'Créer un nouveau formulaire'}
         </h2>
       </div>
+
+      {/* Affichage des erreurs de validation */}
+      {errors.length > 0 && (
+        <Card ref={errorRef} className="border-red-200 bg-red-50">
+          <div className="flex items-start space-x-3">
+            <AlertCircle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <h3 className="text-sm font-medium text-red-800 mb-2">
+                Veuillez corriger les erreurs suivantes :
+              </h3>
+              <ul className="text-sm text-red-700 space-y-1">
+                {errors.map((error, index) => (
+                  <li key={index} className="flex items-start space-x-1">
+                    <span>•</span>
+                    <span>{error}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </Card>
+      )}
 
       <Card>
         <form onSubmit={handleSubmit} className="space-y-6">
@@ -349,14 +551,22 @@ export const FormEditor: React.FC<FormEditorProps> = ({
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-600 mb-1">
-                    {useTimeRange ? 'Heure de début' : 'Heure'}
+                    {useTimeRange ? 'Heure de début' : 'Heure limite'}
                   </label>
                   <input
                     type="time"
-                    value={timeRestrictions.startTime || ''}
-                    onChange={(e) => updateTimeRestriction('startTime', e.target.value)}
+                    value={useTimeRange ? (timeRestrictions.startTime || '') : (timeRestrictions.endTime || '')}
+                    onChange={(e) => useTimeRange
+                      ? updateTimeRestriction('startTime', e.target.value)
+                      : updateTimeRestriction('endTime', e.target.value)
+                    }
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
+                  {!useTimeRange && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      Les employés peuvent remplir ce formulaire de 00:00 jusqu'à cette heure
+                    </p>
+                  )}
                 </div>
                 
                 <div className="flex items-center space-x-2">
@@ -383,6 +593,9 @@ export const FormEditor: React.FC<FormEditorProps> = ({
                       onChange={(e) => updateTimeRestriction('endTime', e.target.value)}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
+                    <p className="text-xs text-gray-500 mt-1">
+                      Les employés peuvent remplir ce formulaire entre ces deux heures
+                    </p>
                   </div>
                 )}
               </div>
@@ -563,13 +776,7 @@ export const FormEditor: React.FC<FormEditorProps> = ({
                           
                           <FormulaInput
                                 value={field.calculationFormula || ''}
-                            onChange={(formula, fieldIds) => {
-                              updateField(field.id, { 
-                                calculationFormula: formula,
-                                dependsOn: fieldIds,
-                                userFormula: FormulaParser.convertToUserFormula(formula, fields)
-                              });
-                            }}
+                            onChange={(formula: string, fieldIds: string[]) => handleFormulaChange(field.id, formula, fieldIds)}
                             fields={fields}
                             currentFieldId={field.id}
                           />
@@ -651,6 +858,22 @@ export const FormEditor: React.FC<FormEditorProps> = ({
         show={toast.show}
         message={toast.message}
         type={toast.type}
+      />
+
+      {/* Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={confirmationModal.isOpen}
+        onClose={handleCancelDelete}
+        onConfirm={handleConfirmDelete}
+        title="Confirmer la suppression"
+        message={
+          confirmationModal.dependentFields.length > 0
+            ? `Le champ "${confirmationModal.fieldLabel}" est utilisé dans ${confirmationModal.dependentFields.length} champ(s) calculé(s) :\n\n${confirmationModal.dependentFields.map(field => `• ${field.label}`).join('\n')}\n\nVoulez-vous vraiment le supprimer ? Les formules de ces champs calculés seront invalidées et devront être reconfigurées.`
+            : `Êtes-vous sûr de vouloir supprimer le champ "${confirmationModal.fieldLabel}" ?`
+        }
+        confirmText="Supprimer"
+        cancelText="Annuler"
+        variant={confirmationModal.dependentFields.length > 0 ? 'warning' : 'danger'}
       />
     </div>
   );

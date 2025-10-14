@@ -66,7 +66,7 @@ export const PACKAGE_LIMITS: Record<PackageType, PackageLimits> = {
   premium: {
     maxForms: -1, // illimité
     maxDashboards: -1, // illimité
-    maxUsers: 20,
+    maxUsers: -1, // illimité
     monthlyTokens: 1500000, // 1.5M tokens (1,500 actual OpenAI tokens = ~50 requests/day)
     additionalUserCost: 7000
   },
@@ -259,6 +259,17 @@ export const getPackagePrice = (packageType: PackageType): string => {
     standard: '49 999 FCFA/mois',
     premium: '199 999 FCFA/mois'
     /* custom: 'À partir de 250 000 FCFA/mois' */
+  };
+  return prices[packageType];
+};
+
+// Fonction utilitaire pour obtenir le prix numérique d'un package
+export const getPackagePriceNumeric = (packageType: PackageType): number => {
+  const prices: Record<PackageType, number> = {
+    starter: 35000,
+    standard: 49999,
+    premium: 199999
+    /* custom: 250000 */
   };
   return prices[packageType];
 };

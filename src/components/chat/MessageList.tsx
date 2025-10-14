@@ -30,11 +30,55 @@ export const MessageList: React.FC<MessageListProps> = ({
 }) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const [userHasScrolled, setUserHasScrolled] = useState(false);
   const [lastMessageCount, setLastMessageCount] = useState(messages.length);
   const [isAtTop, setIsAtTop] = useState(false);
   const [autoScrollDisabled, setAutoScrollDisabled] = useState(false);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
+  // Keyboard height is handled at the main chat level
+
+  // Helpers: FR labels for date group headers
+  const formatDateLabel = (d: Date) => {
+    const today = new Date();
+    const yesterday = new Date();
+    yesterday.setDate(today.getDate() - 1);
+
+    const sameDay = (a: Date, b: Date) =>
+      a.getFullYear() === b.getFullYear() &&
+      a.getMonth() === b.getMonth() &&
+      a.getDate() === b.getDate();
+
+    if (sameDay(d, today)) return "Aujourd’hui";
+    if (sameDay(d, yesterday)) return "Hier";
+
+    return new Intl.DateTimeFormat('fr-FR', {
+      weekday: 'long',
+      day: '2-digit',
+      month: 'long',
+      year: 'numeric'
+    }).format(d);
+  };
+
+  // Group messages by day (expects messages sorted asc by timestamp)
+  const groupedMessages = (() => {
+    const groups: { label: string; items: typeof messages }[] = [];
+    let currentLabel: string | null = null;
+    let current: typeof messages = [];
+
+    for (const m of messages) {
+      const label = formatDateLabel(m.timestamp);
+      if (label !== currentLabel) {
+        if (currentLabel) groups.push({ label: currentLabel, items: current });
+        currentLabel = label;
+        current = [m];
+      } else {
+        current.push(m);
+      }
+    }
+    if (currentLabel) groups.push({ label: currentLabel, items: current });
+    return groups;
+  })();
+
+  // Keyboard height is now handled at the main chat level
 
   // Auto-scroll to bottom when new messages arrive (only if auto-scroll is not disabled)
   useEffect(() => {
@@ -55,13 +99,8 @@ export const MessageList: React.FC<MessageListProps> = ({
       return;
     }
     
-    // Only auto-scroll if:
-    // 1. Auto-scroll is not disabled
-    // 2. We have new messages OR user is typing
-    // 3. User is not at the top
-    const shouldAutoScroll = !autoScrollDisabled && 
-                            (hasNewMessages || isTyping) && 
-                            !isAtTop;
+    // Always auto-scroll when new messages are added or when typing
+    const shouldAutoScroll = hasNewMessages || isTyping;
     
     if (shouldAutoScroll && containerRef.current) {
       containerRef.current.scrollTo({
@@ -72,6 +111,11 @@ export const MessageList: React.FC<MessageListProps> = ({
     
     setLastMessageCount(messages.length);
   }, [messages.length, isTyping, autoScrollDisabled, isAtTop, lastMessageCount, isInitialLoad]);
+
+  // Auto-scroll when keyboard opens to keep input visible
+  useEffect(() => {
+    // This will be handled by the main chat component
+  }, []);
 
   // Handle scroll to load more messages and track user scrolling
   const handleScroll = () => {
@@ -95,8 +139,6 @@ export const MessageList: React.FC<MessageListProps> = ({
       setAutoScrollDisabled(false);
     }
     
-    setUserHasScrolled(!isNearBottom);
-    
     // Load more messages when near top
     if (scrollTop < 100 && !isLoadingMore && hasMoreMessages && onLoadMore) {
       onLoadMore();
@@ -107,13 +149,14 @@ export const MessageList: React.FC<MessageListProps> = ({
     <>
       <div 
         ref={containerRef}
-        className="flex-1 overflow-y-auto pt-4 pb-48 px-4 sm:px-6 lg:px-8"
+        className="flex-1 overflow-y-auto pt-4 pb-2 px-4 sm:px-6 lg:px-8"
         onScroll={handleScroll}
         style={{ 
-          maxHeight: 'calc(100vh - 140px)',
+          // Maintain full height and let content scroll naturally
+          height: 'calc(100dvh - 140px)',
           scrollBehavior: 'smooth',
-          // Ensure proper spacing on mobile
-          paddingBottom: 'max(12rem, calc(12rem + env(safe-area-inset-bottom)))'
+          // Minimal padding - no space between last bubble and input
+          paddingBottom: '0'
         }}
       >
       {/* Load more button */}
@@ -156,19 +199,31 @@ export const MessageList: React.FC<MessageListProps> = ({
         </div>
       )}
 
-      {/* Messages */}
-      <div className="space-y-3 sm:space-y-6">
-        {messages.map((message, index) => (
-          <MessageBubble 
-            key={`${message.id}-${message.timestamp.getTime()}-${index}`} 
-            message={message} 
-          />
+      {/* Messages with date grouping */}
+      <div className="space-y-3 sm:space-y-4 pb-0">
+        {groupedMessages.map(group => (
+            <div key={group.label} className="space-y-2 sm:space-y-3">
+            {/* Date separator */}
+            <div className="flex justify-center my-2">
+              <span className="text-xs px-3 py-1 rounded-full bg-gray-100 text-gray-600">
+                {group.label}
+              </span>
+            </div>
+
+            {/* Group messages */}
+            {group.items.map((message, index) => (
+              <MessageBubble
+                key={`${message.id}-${message.timestamp.getTime()}-${index}`}
+                message={message}
+              />
+            ))}
+          </div>
         ))}
       </div>
 
       {/* Typing indicator */}
       {isTyping && (
-        <div className="flex items-start space-x-3 mb-4">
+        <div className="flex items-start space-x-3 mb-8">
           <div className="w-8 h-8 bg-gradient-to-br from-gray-100 to-gray-200 rounded-full flex items-center justify-center">
             <img 
               src="/fav-icons/favicon-32x32.png" 

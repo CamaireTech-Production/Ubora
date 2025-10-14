@@ -19,8 +19,8 @@ jobs:
         node-version: '20'
         cache: 'npm'
         
-    - name: Install dependencies
-      run: npm install
+    - name: Install dependencies (root)
+      run: npm ci
       
     - name: Create environment file for backend
       run: |
@@ -39,11 +39,34 @@ jobs:
         PORT=3001
         NODE_ENV=development
         
-        # CORS Configuration
-        CORS_ORIGIN=https://dev.ubora-app.com,https://apidev.ubora-app.com
+        # CORS Configuration - Match local dev server configuration (including HTTP for dev)
+        CORS_ORIGIN=https://dev.ubora-app.com,https://ubora-app.com,https://my.ubora.com,https://dev.ubora.com,https://apidev.ubora-app.com,https://api.ubora-app.com,https://apidev.ubora.com,https://api.ubora.com,https://admin.ubora-app.com,https://admin.ubora.com,https://studio-gpnfx.firebaseapp.com,https://studio-gpnfx.web.app,http://localhost:5173,http://localhost:3000,http://localhost:4173,https://localhost:5173,https://localhost:3000,http://dev.ubora.com,http://my.ubora.com,http://dev.ubora-app.com,http://ubora-app.com,http://apidev.ubora-app.com
         EOF
         
-    - name: Deploy to VPS
+    - name: Create version stamp
+      run: echo "${GITHUB_SHA}" > VERSION
+
+    - name: Create deployment tarball
+      run: |
+        tar --exclude-vcs -czf deploy.tar.gz \
+          api \
+          server \
+          package.json \
+          package-lock.json \
+          .env \
+          VERSION
+
+    - name: Upload artifact to VPS
+      uses: appleboy/scp-action@v0.1.7
+      with:
+        host: ${{ secrets.VPS_HOST }}
+        username: ${{ secrets.VPS_USERNAME }}
+        password: ${{ secrets.VPS_PASSWORD }}
+        port: ${{ secrets.VPS_PORT }}
+        source: "deploy.tar.gz"
+        target: "/var/www/ubora-backend-dev/uploads/"
+
+    - name: Deploy on VPS (releases + symlink + PM2 + health)
       uses: appleboy/ssh-action@v1.0.3
       with:
         host: ${{ secrets.VPS_HOST }}
@@ -51,63 +74,101 @@ jobs:
         password: ${{ secrets.VPS_PASSWORD }}
         port: ${{ secrets.VPS_PORT }}
         script: |
-          # Create directories if they don't exist
-          mkdir -p /var/www/ubora-backend-dev
-          cd /var/www/ubora-backend-dev
-          
-          # Clone repository if it doesn't exist
-          if [ ! -d ".git" ]; then
-            git clone https://github.com/CamaireTech-Production/Ubora.git .
-            git checkout dev
-          else
-            git pull origin dev
-          fi
-          
-          # Install dependencies from root package.json
-          npm install
-          
-          # Install API dependencies (pdf-parse, etc.)
-          cd api && npm install && cd ..
-          
-          # Create/update .env file
-          cat > .env << 'EOF'
-          FIREBASE_PROJECT_ID=${{ secrets.FIREBASE_PROJECT_ID }}
-          FIREBASE_CLIENT_EMAIL=${{ secrets.FIREBASE_CLIENT_EMAIL }}
-          FIREBASE_PRIVATE_KEY=${{ secrets.FIREBASE_PRIVATE_KEY }}
-          OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
-          PORT=3001
-          NODE_ENV=development
-          CORS_ORIGIN=https://dev.ubora-app.com,https://apidev.ubora-app.com
-          EOF
-          
-          # Stop existing process
+          set -e
+          BASE_DIR=/var/www/ubora-backend-dev
+          RELEASES_DIR=$BASE_DIR/releases
+          UPLOADS_DIR=$BASE_DIR/uploads
+          TS=$(date +%Y%m%d%H%M%S)
+          NEW_RELEASE=$RELEASES_DIR/$TS
+          CURRENT_LINK=$BASE_DIR/current
+
+          mkdir -p $RELEASES_DIR $UPLOADS_DIR
+          echo "📦 Extracting artifact to release $NEW_RELEASE"
+          mkdir -p $NEW_RELEASE
+          tar -xzf $UPLOADS_DIR/deploy.tar.gz -C $NEW_RELEASE
+
+          cd $NEW_RELEASE
+          echo "📥 Installing dependencies (root)"
+          npm ci || npm install
+          echo "📥 Installing dependencies (api)"
+          cd api && npm ci || npm install; cd ..
+
+          echo "🔁 Updating current symlink"
+          ln -sfn $NEW_RELEASE $CURRENT_LINK
+
+          echo "🛑 Restarting PM2"
           pm2 stop ubora-backend-dev || true
           pm2 delete ubora-backend-dev || true
-          
-          # Start fresh with PM2
-          pm2 start server/production-server.js --name ubora-backend-dev
+          pm2 flush || true
+          pm2 kill || true
+          sleep 2
+
+          echo "🚀 Starting app with PM2"
+          pm2 start $CURRENT_LINK/server/production-server.js --name ubora-backend-dev --update-env
           pm2 save
-          
-          # Wait a moment for startup
-          sleep 3
-          
-          # Check if it's running
+
+          echo "⏳ Waiting for app to boot"
+          sleep 10
+          echo "📊 PM2 Status:"
           pm2 list
+
+          echo "🧪 Health check"
+          if curl -fsS http://localhost:3001/health > /dev/null; then
+            echo "✅ Health OK"
+          else
+            echo "❌ Health check failed. Rolling back..."
+            PREV=$(ls -1dt $RELEASES_DIR/* | sed -n '2p')
+            if [ -n "$PREV" ]; then
+              ln -sfn $PREV $CURRENT_LINK
+              pm2 stop ubora-backend-dev || true
+              pm2 delete ubora-backend-dev || true
+              pm2 start $CURRENT_LINK/server/production-server.js --name ubora-backend-dev --update-env
+              pm2 save
+              sleep 8
+              curl -fsS http://localhost:3001/health || true
+            fi
+            exit 1
+          fi
+
+          echo "🧹 Cleaning old releases (keep 5)"
+          ls -1dt $RELEASES_DIR/* | tail -n +6 | xargs -r rm -rf
+
+          # Clean up conflicting Nginx configurations BEFORE creating new ones
+          echo "🧹 Cleaning up conflicting Nginx configurations..."
           
-          # Test the endpoint
-          curl -f http://localhost:3001/health || echo "Health check failed"
+          # Remove conflicting default site if it contains apidev.ubora-app.com
+          if grep -q "apidev.ubora-app.com" /etc/nginx/sites-available/default; then
+            echo "⚠️ Removing apidev.ubora-app.com from default site"
+            sed -i '/apidev.ubora-app.com/d' /etc/nginx/sites-available/default
+            sed -i '/ssl_certificate.*apidev.ubora-app.com/d' /etc/nginx/sites-available/default
+            sed -i '/ssl_certificate_key.*apidev.ubora-app.com/d' /etc/nginx/sites-available/default
+          fi
+          
+          # Remove old api-dev.ubora-app.com if it exists and conflicts
+          if [ -f /etc/nginx/sites-available/api-dev.ubora-app.com ]; then
+            echo "⚠️ Removing conflicting api-dev.ubora-app.com configuration"
+            rm -f /etc/nginx/sites-enabled/api-dev.ubora-app.com
+            rm -f /etc/nginx/sites-available/api-dev.ubora-app.com
+          fi
+          
+          # Disable default site to prevent conflicts
+          rm -f /etc/nginx/sites-enabled/default
           
           # Create Nginx configuration for apidev.ubora-app.com
+          echo "🔧 Creating Nginx configuration for apidev.ubora-app.com..."
           cat > /etc/nginx/sites-available/apidev.ubora-app.com << 'EOF'
           server {
               listen 80;
-              listen 443 ssl;
+              # Temporarily disable SSL until certificates are set up
+              # listen 443 ssl;
               server_name apidev.ubora-app.com;
               
-              ssl_certificate /etc/letsencrypt/live/apidev.ubora-app.com/fullchain.pem;
-              ssl_certificate_key /etc/letsencrypt/live/apidev.ubora-app.com/privkey.pem;
+              # SSL certificates - uncomment when certificates are available
+              # ssl_certificate /etc/letsencrypt/live/apidev.ubora-app.com/fullchain.pem;
+              # ssl_certificate_key /etc/letsencrypt/live/apidev.ubora-app.com/privkey.pem;
               
-              # Increase timeouts for PDF processing
+              # Increase timeouts and body size for PDF processing
+              client_max_body_size 100M;
               proxy_connect_timeout 300s;
               proxy_send_timeout 300s;
               proxy_read_timeout 300s;
@@ -132,10 +193,22 @@ jobs:
           }
           EOF
           
-          # Enable the site
+          # Enable ONLY the apidev.ubora-app.com site
+          echo "🔗 Enabling apidev.ubora-app.com site..."
           ln -sf /etc/nginx/sites-available/apidev.ubora-app.com /etc/nginx/sites-enabled/
           
+          # Ensure api.ubora-app.com is also enabled (for production)
+          if [ -f /etc/nginx/sites-available/api.ubora-app.com ]; then
+            echo "🔗 Ensuring api.ubora-app.com is enabled..."
+            ln -sf /etc/nginx/sites-available/api.ubora-app.com /etc/nginx/sites-enabled/
+          fi
+          
           # Test and reload Nginx
+          echo "🧪 Testing Nginx configuration..."
           nginx -t && systemctl reload nginx
           
-          echo "Development backend deployed successfully"
+          # Verify no conflicts
+          echo "✅ Verifying no server name conflicts..."
+          nginx -T 2>/dev/null | grep -c "server_name apidev.ubora-app.com" || echo "No conflicts found"
+          
+          echo "✅ Development backend deployed successfully"

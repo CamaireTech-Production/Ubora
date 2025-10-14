@@ -32,6 +32,7 @@ interface ConversationContextType {
   loadConversation: (conversationId: string) => Promise<void>;
   createNewConversation: () => Promise<string>;
   updateConversationTitle: (conversationId: string, title: string) => Promise<void>;
+  triggerAutoLoad: () => Promise<void>;
   error: string | null;
 }
 
@@ -102,7 +103,11 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       // Only auto-load if we have conversations, no current conversation, not loading, and not adding a message
       if (conversations.length > 0 && !currentConversation && !isLoading && !isAddingMessage) {
         try {
+          console.groupCollapsed('[Chat] Auto-load most recent conversation');
+          console.debug('Conversations ordered by lastMessageAt desc:', conversations.map(c => ({ id: c.id, title: c.title, lastMessageAt: c.lastMessageAt })));
+          console.debug('Selecting conversation:', { id: conversations[0].id, title: conversations[0].title });
           await loadConversation(conversations[0].id);
+          console.groupEnd();
         } catch (error) {
           console.error('Error auto-loading recent conversation:', error);
         }
@@ -210,8 +215,7 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         throw error;
       }
 
-      // Add message to local state after successful Firebase operations
-      setMessages(prev => [...prev, message]);
+      // Do not optimistically append to local list; the realtime listener will update the UI
       
       // Update local conversation state
       setCurrentConversation(prev => prev ? {
@@ -274,77 +278,18 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         messagesListener();
         setMessagesListener(null);
       }
-      
-      // Load initial messages with pagination
-      const messagesQuery = query(
-        collection(db, 'conversations', conversationId, 'messages'),
-        orderBy('timestamp', 'desc'),
-        limit(20)
-      );
+      // Clean up and reset state before attaching listener
+      setMessages([]);
+      setHasMoreMessages(true);
+      setLastMessageDoc(null);
 
-      const messagesSnapshot = await getDocs(messagesQuery);
-      
-      
-      const messagesData = messagesSnapshot.docs.map(doc => {
-        const data = doc.data();
-        const message: ChatMessage = {
-          id: doc.id,
-          type: data.type,
-          content: data.content,
-          timestamp: data.timestamp?.toDate() || new Date(),
-          responseTime: data.responseTime,
-          contentType: data.contentType,
-          meta: data.meta,
-          tableData: data.tableData,
-          pdfData: data.pdfData,
-          pdfFiles: data.pdfFiles
-        };
-
-        // Validate and clean graph data if present
-        if (data.graphData) {
-          if (data.graphData.data && Array.isArray(data.graphData.data) && data.graphData.data.length > 0) {
-            message.graphData = data.graphData;
-          } else {
-            // Remove invalid graph data
-            message.contentType = message.contentType === 'graph' ? 'text' : message.contentType;
-          }
-        }
-
-        return message;
-      });
-
-      // Remove duplicates based on ID first, then content and timestamp
-      const uniqueMessages = messagesData.filter((message, index, array) => {
-        // First check for exact ID duplicates
-        const idDuplicate = array.findIndex(m => m.id === message.id);
-        if (idDuplicate !== index) {
-          return false;
-        }
-        
-        // Then check for content duplicates within a reasonable time window
-        const contentDuplicate = array.findIndex(m => 
-          m.id !== message.id && // Different ID
-          m.content === message.content && 
-          m.type === message.type && 
-          Math.abs(m.timestamp.getTime() - message.timestamp.getTime()) < 5000 // Within 5 seconds
-        );
-        
-        return contentDuplicate === -1;
-      });
-
-      setMessages(uniqueMessages.reverse()); // Reverse to show oldest first
-      setHasMoreMessages(messagesSnapshot.docs.length === 20);
-      setLastMessageDoc(messagesSnapshot.docs[messagesSnapshot.docs.length - 1]);
-
-      // Set up real-time listener for new messages
+      // Single real-time listener (authoritative): initial + updates
       const messagesListenerQuery = query(
         collection(db, 'conversations', conversationId, 'messages'),
         orderBy('timestamp', 'asc')
       );
-      
 
       const unsubscribe = onSnapshot(messagesListenerQuery, (snapshot) => {
-
         const allMessages = snapshot.docs.map(doc => {
           const data = doc.data();
           const message: ChatMessage = {
@@ -372,27 +317,41 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({ 
           return message;
         });
 
-
         // Remove duplicates based on ID first, then content and timestamp
         const uniqueMessages = allMessages.filter((message, index, array) => {
-          // First check for exact ID duplicates
           const idDuplicate = array.findIndex(m => m.id === message.id);
-          if (idDuplicate !== index) {
-            return false;
-          }
-          
-          // Then check for content duplicates within a reasonable time window
+          if (idDuplicate !== index) return false;
+
           const contentDuplicate = array.findIndex(m => 
-            m.id !== message.id && // Different ID
+            m.id !== message.id &&
             m.content === message.content && 
             m.type === message.type && 
-            Math.abs(m.timestamp.getTime() - message.timestamp.getTime()) < 5000 // Within 5 seconds
+            Math.abs(m.timestamp.getTime() - message.timestamp.getTime()) < 5000
           );
-          
-          return contentDuplicate === -1;
+
+        	return contentDuplicate === -1;
         });
-        
+
         setMessages(uniqueMessages);
+        setHasMoreMessages(false);
+        setLastMessageDoc(snapshot.docs[snapshot.docs.length - 1] || null);
+
+        // Debug: compare expected vs loaded counts, and first/last timestamps
+        try {
+          console.groupCollapsed('[Chat] Messages snapshot');
+          console.debug('Conversation:', {
+            id: conversationId,
+            title: currentConversation?.title,
+            expectedMessageCount: currentConversation?.messageCount
+          });
+          console.debug('Loaded messages:', {
+            snapshotCount: snapshot.size,
+            uniqueAfterCleanup: uniqueMessages.length,
+            firstTimestamp: uniqueMessages[0]?.timestamp,
+            lastTimestamp: uniqueMessages[uniqueMessages.length - 1]?.timestamp
+          });
+          console.groupEnd();
+        } catch {}
       }, (err) => {
         console.error('Error in real-time messages listener:', err);
       });
@@ -506,6 +465,21 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     }
   };
 
+  const triggerAutoLoad = async (): Promise<void> => {
+    // Only auto-load if we have conversations, no current conversation, not loading, and not adding a message
+    if (conversations.length > 0 && !currentConversation && !isLoading && !isAddingMessage) {
+      try {
+        console.groupCollapsed('[Chat] Manual trigger auto-load most recent conversation');
+        console.debug('Conversations ordered by lastMessageAt desc:', conversations.map(c => ({ id: c.id, title: c.title, lastMessageAt: c.lastMessageAt })));
+        console.debug('Selecting conversation:', { id: conversations[0].id, title: conversations[0].title });
+        await loadConversation(conversations[0].id);
+        console.groupEnd();
+      } catch (error) {
+        console.error('Error auto-loading recent conversation:', error);
+      }
+    }
+  };
+
   return (
     <ConversationContext.Provider value={{
       currentConversation,
@@ -520,6 +494,7 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       loadConversation,
       createNewConversation,
       updateConversationTitle,
+      triggerAutoLoad,
       error
     }}>
       {children}

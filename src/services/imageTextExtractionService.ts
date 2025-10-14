@@ -3,6 +3,8 @@
  * Provides excellent OCR for handwritten text and poor quality images
  */
 
+import { enhancedFetch } from '../utils/errorHandling';
+
 export interface ImageTextExtractionResult {
   text: string;
   confidence: number;
@@ -101,18 +103,14 @@ export class ImageTextExtractionService {
         ]
       };
       
-      // Make API request to the dedicated OCR endpoint
-      const response = await fetch(`${ocrEndpoint}/api/ocr/extract`, {
+      // Make API request to the dedicated OCR endpoint with enhanced error handling
+      const response = await enhancedFetch.ocrRequest(`${ocrEndpoint}/api/ocr/extract`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(payload)
       });
-      
-      if (!response.ok) {
-        throw new Error(`OpenAI Vision API error: ${response.status} ${response.statusText}`);
-      }
       
       const result = await response.json();
       
@@ -232,11 +230,11 @@ export class ImageTextExtractionService {
     
     // Check if we're in dev environment (dev.ubora-app.com)
     if (typeof window !== 'undefined' && window.location.hostname === 'dev.ubora-app.com') {
-      return 'https://apidev.ubora-app.com';
+      return 'http://apidev.ubora-app.com';
     }
     
     // Fallback for production
-    return 'https://api.ubora-app.com';
+    return 'http://api.ubora-app.com';
   }
 
   /**

@@ -270,6 +270,81 @@ export class FormulaParser {
   }
 
   /**
+   * Check for circular dependencies in calculated fields
+   * @param fieldId - The field ID to check
+   * @param fieldIds - Dependencies of the field
+   * @param fields - All form fields
+   * @returns True if circular dependency exists
+   */
+  static hasCircularDependency(fieldId: string, fieldIds: string[], fields: FormField[]): boolean {
+    const visited = new Set<string>();
+    const recursionStack = new Set<string>();
+    
+    const hasCycle = (currentFieldId: string): boolean => {
+      if (recursionStack.has(currentFieldId)) {
+        return true; // Circular dependency found
+      }
+      
+      if (visited.has(currentFieldId)) {
+        return false; // Already processed
+      }
+      
+      visited.add(currentFieldId);
+      recursionStack.add(currentFieldId);
+      
+      const field = fields.find(f => f.id === currentFieldId);
+      if (field && field.type === 'calculated' && field.dependsOn) {
+        for (const depId of field.dependsOn) {
+          if (hasCycle(depId)) {
+            return true;
+          }
+        }
+      }
+      
+      recursionStack.delete(currentFieldId);
+      return false;
+    };
+    
+    // Check if any of the dependencies would create a cycle
+    for (const depId of fieldIds) {
+      if (hasCycle(depId)) {
+        return true;
+      }
+    }
+    
+    return false;
+  }
+
+  /**
+   * Validate all field dependencies in a form
+   * @param fields - All form fields
+   * @returns Array of validation errors
+   */
+  static validateFieldDependencies(fields: FormField[]): string[] {
+    const errors: string[] = [];
+    
+    fields.forEach(field => {
+      if (field.type === 'calculated' && field.dependsOn) {
+        field.dependsOn.forEach(depId => {
+          const depField = fields.find(f => f.id === depId);
+          if (!depField) {
+            errors.push(`Le champ "${field.label}" dépend d'un champ supprimé (ID: ${depId})`);
+          } else if (!['number', 'calculated'].includes(depField.type)) {
+            errors.push(`Le champ "${field.label}" dépend d'un champ non numérique ("${depField.label}")`);
+          }
+        });
+        
+        // Check for circular dependencies
+        if (field.dependsOn.length > 0 && this.hasCircularDependency(field.id, field.dependsOn, fields)) {
+          errors.push(`Le champ "${field.label}" a une dépendance circulaire`);
+        }
+      }
+    });
+    
+    return errors;
+  }
+
+  /**
    * Get field suggestions for formula building
    * @param fields - Available form fields
    * @param currentFieldId - Current field ID to exclude

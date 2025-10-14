@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useApp } from '../contexts/AppContext';
 import { useConversation } from '../contexts/ConversationContext';
@@ -14,8 +14,12 @@ import { useToast } from '../hooks/useToast';
 import { usePackageAccess } from '../hooks/usePackageAccess';
 import { TokenCounter } from '../services/tokenCounter';
 import { PayAsYouGoModal } from '../components/PayAsYouGoModal';
-import { PayAsYouGoService } from '../services/payAsYouGoService';
+import { LimitReachedModal } from '../components/LimitReachedModal';
 import { AnalyticsService } from '../services/analyticsService';
+import { LogoutConfirmationModal } from '../components/LogoutConfirmationModal';
+import { ImpersonationHeader } from '../components/ImpersonationHeader';
+import { ConnectionQualityIndicator, useConnectionQuality } from '../components/ConnectionQualityIndicator';
+import { enhancedFetch } from '../utils/errorHandling'; // Enhanced error handling with retry logic
 
 // Remove the old Message interface since we're using ChatMessage from types
 
@@ -28,17 +32,34 @@ interface ChatFilters {
 // Configuration de l'endpoint IA
 const getAIEndpoint = () => {
   if (import.meta.env.VITE_AI_ENDPOINT) {
+    console.log('🔧 Using VITE_AI_ENDPOINT:', import.meta.env.VITE_AI_ENDPOINT);
     return import.meta.env.VITE_AI_ENDPOINT;
   }
   
   if (import.meta.env.DEV) {
+    console.log('🔧 Using local development endpoint');
     return 'http://localhost:3000/api/ai/ask';
   }
   
-  return null;
+  // Fallback for development deployment - TEMPORARILY USE LOCAL BACKEND
+  if (typeof window !== 'undefined' && window.location.hostname === 'dev.ubora-app.com') {
+    console.log('🔧 Using LOCAL backend for testing (dev server is down)');
+    return 'http://localhost:3000/api/ai/ask';
+  }
+  
+  // Fallback for production deployment
+  if (typeof window !== 'undefined' && window.location.hostname === 'my.ubora-app.com') {
+    console.log('🔧 Using production deployment endpoint');
+    return 'http://api.ubora-app.com/api/ai/ask';
+  }
+  
+  // Default fallback
+  console.log('🔧 Using default fallback endpoint');
+  return 'http://apidev.ubora-app.com/api/ai/ask';
 };
 
 const AI_ENDPOINT = getAIEndpoint();
+console.log('🎯 Final AI_ENDPOINT:', AI_ENDPOINT);
 
 if (!AI_ENDPOINT) {
   console.error("❌ Aucun endpoint IA configuré. ARCHA ne fonctionnera pas.");
@@ -47,7 +68,7 @@ if (!AI_ENDPOINT) {
 export const DirecteurChat: React.FC = () => {
   const { user, firebaseUser, isLoading, logout, refreshUserData } = useAuth();
   const { forms, formEntries, employees, isLoading: appLoading } = useApp();
-  const { getMonthlyTokens, hasUnlimitedTokens } = usePackageAccess();
+  const { getMonthlyTokens, hasUnlimitedTokens, packageInfo } = usePackageAccess();
   const { 
     currentConversation, 
     conversations, 
@@ -56,12 +77,16 @@ export const DirecteurChat: React.FC = () => {
     createNewConversation,
     loadConversation,
     loadMoreMessages,
-    addMessageToLocalState
+    addMessageToLocalState,
+    triggerAutoLoad
   } = useConversation();
   
   const { showError } = useToast();
   const [inputMessage, setInputMessage] = useState('');
   const [isTyping, setIsTyping] = useState(false);
+  
+  // Ref for direct input access without re-renders
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const [selectedFormat, setSelectedFormat] = useState<string | null>(null);
   const [selectedFormats, setSelectedFormats] = useState<string[]>([]);
   const [selectedFormIds, setSelectedFormIds] = useState<string[]>([]);
@@ -71,18 +96,71 @@ export const DirecteurChat: React.FC = () => {
     userId: ''
   });
   
+  // Track keyboard height for proper layout adjustment
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+  
+  // Keyboard detection for proper layout adjustment
+  useEffect(() => {
+    const handleViewportChange = () => {
+      if (!window.visualViewport) return;
+      
+      const initialHeight = window.innerHeight;
+      const currentHeight = window.visualViewport.height;
+      const heightDifference = initialHeight - currentHeight;
+      
+      setKeyboardHeight(heightDifference > 30 ? heightDifference : 0);
+    };
+
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', handleViewportChange);
+    } else {
+      window.addEventListener('resize', handleViewportChange);
+    }
+
+    return () => {
+      if (window.visualViewport) {
+        window.visualViewport.removeEventListener('resize', handleViewportChange);
+      } else {
+        window.removeEventListener('resize', handleViewportChange);
+      }
+    };
+  }, []);
+  
+  // Auto-scroll when keyboard opens to keep input visible - immediate
+  useEffect(() => {
+    if (keyboardHeight > 0) {
+      // Immediate scroll when keyboard opens - no delay
+      const messageList = document.querySelector('.flex-1.overflow-y-auto');
+      if (messageList) {
+        messageList.scrollTo({
+          top: messageList.scrollHeight,
+          behavior: 'auto' // Instant scroll, no animation
+        });
+      }
+    }
+  }, [keyboardHeight]);
+  
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   
   // États pour le panneau latéral
   const [panelOpen, setPanelOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'history' | 'forms' | 'employees' | 'entries' | null>(null);
   
+  // Connection quality tracking
+  const { quality, updateQuality } = useConnectionQuality();
+  
   // Track the last message count to detect new messages
   const [lastMessageCount, setLastMessageCount] = useState(0);
   
   // État pour le modal pay-as-you-go
   const [showPayAsYouGoModal, setShowPayAsYouGoModal] = useState(false);
-  const [requiredTokens, setRequiredTokens] = useState(0);
+  
+  // État pour le modal de limite de tokens
+  const [showTokenLimitModal, setShowTokenLimitModal] = useState(false);
+
+  // État pour le modal de confirmation de déconnexion
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   // État pour l'écran de bienvenue (uniquement juste après login)
   const [showWelcome, setShowWelcome] = useState(() => {
@@ -93,30 +171,29 @@ export const DirecteurChat: React.FC = () => {
       return false;
     }
   });
+
+
+  // Memoize package calculations for performance - only recalculate when user changes
+  const packageCalculations = useMemo(() => {
+    const monthlyLimit = getMonthlyTokens();
+    const isUnlimited = hasUnlimitedTokens();
+    return { monthlyLimit, isUnlimited };
+  }, [user?.id, user?.tokensUsedMonthly]);
   const handlePurchaseTokens = async (tokens: number) => {
-    if (!user) return;
-    
+    // This function is now handled by the PayAsYouGoModal with Campay integration
+    // The modal will create the payment and handle the success/failure
+    // This callback is kept for backward compatibility but won't be used
+    // since the PayAsYouGoModal now handles the payment flow directly
+    console.log('Token purchase requested:', tokens);
+  };
+
+  const handleLogout = async () => {
+    setIsLoggingOut(true);
     try {
-      const tokenPackage = PayAsYouGoService.getTokenPackages().find(pkg => pkg.tokens === tokens);
-      if (!tokenPackage) {
-        showError('Package de tokens non trouvé');
-        return;
-      }
-      
-      const success = await PayAsYouGoService.purchaseTokens(user.id, tokenPackage);
-      if (success) {
-        
-        // Update user data locally without page reload
-        if (user) {
-          // Update the user context (you'll need to implement this in your auth context)
-          // For now, we'll trigger a user refresh
-        }
-      } else {
-        showError('Erreur lors de l\'achat des tokens');
-      }
-    } catch (error) {
-      console.error('Error purchasing tokens:', error);
-      showError('Erreur lors de l\'achat des tokens');
+      await logout();
+    } finally {
+      setIsLoggingOut(false);
+      setShowLogoutModal(false);
     }
   };
 
@@ -133,15 +210,40 @@ export const DirecteurChat: React.FC = () => {
     setLastMessageCount(messages.length);
   }, [messages, isTyping, lastMessageCount]);
 
+  // Fallback: Auto-load conversations when component mounts and conversations are available
+  // This ensures chats load even if welcome screen logic fails
+  useEffect(() => {
+    const shouldAutoLoad = !showWelcome && conversations.length > 0 && !currentConversation && !isLoading;
+    if (shouldAutoLoad) {
+      const timeoutId = setTimeout(async () => {
+        try {
+          await triggerAutoLoad();
+        } catch (error) {
+          console.error('Error in fallback auto-load:', error);
+        }
+      }, 500); // Delay to ensure all contexts are properly initialized
+      
+      return () => clearTimeout(timeoutId);
+    }
+  }, [showWelcome, conversations.length, currentConversation, isLoading, triggerAutoLoad]);
+
   const handleSendMessage = async (message?: string) => {
-    const messageToSend = message || inputMessage.trim();
+    // Get message from parameter, state, or direct input access
+    let messageToSend = message;
+    if (!messageToSend) {
+      // Try to get from ChatComposer's local state via ref
+      if (inputRef.current) {
+        messageToSend = inputRef.current.value.trim();
+      } else {
+        messageToSend = inputMessage.trim();
+      }
+    }
+    
     if (!messageToSend || isTyping) return;
 
     // Vérifier les tokens avant d'envoyer
     if (user) {
-      const monthlyLimit = getMonthlyTokens();
-      const isUnlimited = hasUnlimitedTokens();
-      
+      const { isUnlimited } = packageCalculations;
       
       if (!isUnlimited) {
         // Estimate tokens needed for this request
@@ -169,17 +271,20 @@ RÉPONSE :
         // Use same formula as backend: (estimatedTokens * 2.5) / 100
         const userTokensToCharge = Math.min(Math.ceil((estimatedTokens * 2.5) / 100), 3000); // Cap at 3000 tokens
         
+        // Use session-based token checking (same as backend)
+        const currentTokensUsed = packageInfo?.tokensUsed || 0;
+        const totalAvailableTokens = packageInfo?.totalTokens || 0;
         
-        // Check if user has enough tokens (including pay-as-you-go tokens)
-        const currentTokensUsed = user.tokensUsedMonthly || 0;
-        const payAsYouGoTokens = user.payAsYouGoTokens || 0;
-        const totalAvailableTokens = monthlyLimit + payAsYouGoTokens;
-        
+        console.log('🔍 FRONTEND TOKEN CHECK:', {
+          currentTokensUsed,
+          totalAvailableTokens,
+          userTokensToCharge,
+          willExceed: (currentTokensUsed + userTokensToCharge) > totalAvailableTokens
+        });
         
         if (currentTokensUsed + userTokensToCharge > totalAvailableTokens) {
-          // Show pay-as-you-go modal instead of error
-          setRequiredTokens(userTokensToCharge);
-          setShowPayAsYouGoModal(true);
+          // Show limit reached modal instead of pay-as-you-go modal
+          setShowTokenLimitModal(true);
           return;
         }
       }
@@ -238,8 +343,11 @@ RÉPONSE :
       }
     }
 
+    // Clear input after sending
     setInputMessage('');
     setIsTyping(true);
+
+    // Loading indicator will be shown by MessageList component via isTyping prop
 
     try {
       // Vérifier que l'endpoint est configuré
@@ -274,18 +382,11 @@ RÉPONSE :
       };
       
 
-      // Timeout de 90 secondes pour laisser plus de temps au traitement IA
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => {
-        controller.abort();
-      }, 90000);
-
-      
-      let response = await fetch(AI_ENDPOINT, {
+      // Use enhanced fetch with retry logic and better error handling
+      let response = await enhancedFetch.aiRequest(AI_ENDPOINT, {
         method: 'POST',
         headers: makeHeaders(token),
-        body: JSON.stringify(requestData),
-        signal: controller.signal
+        body: JSON.stringify(requestData)
       });
       
 
@@ -294,19 +395,16 @@ RÉPONSE :
         try {
           const freshToken = await firebaseUser?.getIdToken(true);
           if (freshToken) {
-            response = await fetch(AI_ENDPOINT, {
+            response = await enhancedFetch.aiRequest(AI_ENDPOINT, {
               method: 'POST',
               headers: makeHeaders(freshToken),
-              body: JSON.stringify(requestData),
-              signal: controller.signal
+              body: JSON.stringify(requestData)
             });
           }
         } catch (refreshErr) {
           console.error('Failed to refresh token:', refreshErr);
         }
       }
-
-      clearTimeout(timeoutId);
 
       if (!response.ok) {
         // Essayer de récupérer le message d'erreur du serveur
@@ -363,6 +461,20 @@ RÉPONSE :
       
       // Successfully received response, stop loading
       setIsTyping(false);
+      
+      // Update connection quality based on response time
+      const responseTime = Date.now() - startTime;
+      updateQuality(responseTime);
+      
+      // Remove loading message from local state
+      if (currentConversation) {
+        try {
+          // The loading message will be replaced by the actual response from the backend
+          // The real-time listener will handle the replacement automatically
+        } catch (error) {
+          console.error('Error removing loading message:', error);
+        }
+      }
 
     } catch (error) {
       console.error('Erreur lors de l\'envoi du message:', error);
@@ -372,17 +484,21 @@ RÉPONSE :
       let errorContent = '';
       
       if (error instanceof Error) {
-        if (error.name === 'AbortError') {
-          errorContent = `⏱️ **Timeout**\n\nLe serveur IA met trop de temps à répondre (>60s). Cela peut être dû à:\n• Un grand volume de données à analyser\n• Une charge élevée du serveur\n• Un problème de connexion\n\nVeuillez réessayer ou contactez l'administrateur.`;
-        } else if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
-          errorContent = `🌐 **Erreur de connexion**\n\nImpossible de joindre le serveur IA. Vérifiez:\n• Votre connexion internet\n• La configuration de l'endpoint IA\n• Que le serveur est en ligne\n\nEndpoint configuré: ${AI_ENDPOINT}`;
-        } else if (error.message.includes('ARCHA n\'est pas configuré')) {
-          errorContent = `⚙️ **Configuration manquante**\n\n${error.message}`;
-        } else {
-          errorContent = `❌ **Erreur API**\n\n${error.message}\n\nEndpoint: ${AI_ENDPOINT}`;
+        // Use the enhanced error message from our error handler
+        errorContent = error.message;
+        
+        // Add additional context for specific error types
+        if (error.message.includes('Connexion lente détectée')) {
+          errorContent += `\n\n💡 **Conseils:**\n• Vérifiez votre connexion internet\n• Réessayez dans quelques instants\n• Contactez le support si le problème persiste`;
+        } else if (error.message.includes('Problème de connexion réseau')) {
+          errorContent += `\n\n💡 **Solutions:**\n• Vérifiez votre connexion WiFi/4G\n• Redémarrez votre routeur si nécessaire\n• Réessayez dans quelques minutes`;
+        } else if (error.message.includes('Impossible de joindre')) {
+          errorContent += `\n\n💡 **Actions:**\n• Le service est temporairement indisponible\n• Réessayez dans 5-10 minutes\n• Contactez l'administrateur si le problème persiste`;
+        } else if (error.message.includes('Configuration manquante')) {
+          errorContent += `\n\n💡 **Solution:**\n• Contactez l'administrateur système\n• Vérifiez la configuration du serveur`;
         }
       } else {
-        errorContent = `❌ **Erreur inconnue**\n\nUne erreur inattendue s'est produite. Veuillez réessayer.\n\nEndpoint: ${AI_ENDPOINT}`;
+        errorContent = `❌ **Erreur inattendue**\n\nUne erreur inattendue s'est produite. Veuillez réessayer.\n\nEndpoint: ${AI_ENDPOINT}`;
       }
       
       const errorMessage: ChatMessage = {
@@ -409,6 +525,15 @@ RÉPONSE :
         setTimeout(() => {
           if (isTyping) {
             setIsTyping(false);
+            // Remove loading message in case of error
+            if (currentConversation) {
+              try {
+                // The loading message will be replaced by the error message
+                // The real-time listener will handle this automatically
+              } catch (error) {
+                console.error('Error removing loading message on error:', error);
+              }
+            }
           }
         }, 100);
       }
@@ -428,32 +553,42 @@ RÉPONSE :
     }
   };
 
-  const handleFormatChange = (format: string | null) => {
+  const handleFormatChange = useCallback((format: string | null) => {
     setSelectedFormat(format);
     // Clear multi-format when using single format
     if (format) {
       setSelectedFormats([]);
     }
-  };
+  }, []);
 
-  const handleFormatsChange = (formats: string[]) => {
+  const handleFormatsChange = useCallback((formats: string[]) => {
     setSelectedFormats(formats);
     // Clear single format when using multi-format
     if (formats.length > 0) {
       setSelectedFormat(null);
     }
-  };
+  }, []);
 
-  const handleFormSelectionChange = (formIds: string[]) => {
+  const handleFormSelectionChange = useCallback((formIds: string[]) => {
     setSelectedFormIds(formIds);
-  };
+  }, []);
 
 
 
   // Gérer la fermeture de l'écran de bienvenue
-  const handleWelcomeContinue = () => {
+  const handleWelcomeContinue = async () => {
     setShowWelcome(false);
     try { sessionStorage.removeItem('show_welcome_after_login'); } catch {}
+    
+    // Trigger auto-load of conversations after welcome screen is dismissed
+    // This ensures chats are loaded when the user actually sees the chat interface
+    setTimeout(async () => {
+      try {
+        await triggerAutoLoad();
+      } catch (error) {
+        console.error('Error triggering auto-load after welcome screen:', error);
+      }
+    }, 100); // Small delay to ensure state updates are complete
   };
 
   // Afficher uniquement l'écran de bienvenue sans afficher le chat en arrière-plan
@@ -482,9 +617,19 @@ RÉPONSE :
       firebaseUser={firebaseUser}
       message="ARCHA loading..."
     >
+      {/* Connection Quality Indicator */}
+      <ConnectionQualityIndicator quality={quality} />
+      
+      <ImpersonationHeader />
       <div className="min-h-screen bg-gradient-to-b from-blue-50 via-white to-white">
         {/* Container centré pour toute l'interface */}
-        <div className="max-w-7xl mx-auto flex flex-col h-screen px-0 sm:px-6 lg:px-8">
+        <div 
+          className="max-w-7xl mx-auto flex flex-col px-0 sm:px-6 lg:px-8" 
+          style={{ 
+            height: keyboardHeight > 0 ? `calc(100dvh - ${keyboardHeight}px)` : '100dvh',
+            minHeight: keyboardHeight > 0 ? `calc(100dvh - ${keyboardHeight}px)` : '100dvh'
+          }}
+        >
           
           {/* Top bar */}
           <ChatTopBar
@@ -492,7 +637,7 @@ RÉPONSE :
             isConnected={!!AI_ENDPOINT}
             isLoading={isTyping}
             onOpenPanel={() => setPanelOpen(true)}
-            onLogout={logout}
+            onLogout={() => setShowLogoutModal(true)}
           />
 
           {/* Messages list */}
@@ -525,6 +670,7 @@ RÉPONSE :
             showFormatSelector={true}
             showComprehensiveFilter={true}
             allowMultipleFormats={true}
+            inputRef={inputRef}
           />
 
 
@@ -545,6 +691,17 @@ RÉPONSE :
             onGoDashboard={() => (window.location.href = '/directeur/dashboard')}
           />
 
+          {/* Token Limit Modal */}
+          <LimitReachedModal
+            isOpen={showTokenLimitModal}
+            onClose={() => setShowTokenLimitModal(false)}
+            type="tokens"
+            current={packageInfo?.tokensUsed || 0}
+            limit={packageInfo?.totalTokens || 0}
+            onUpgrade={() => setShowTokenLimitModal(false)}
+            onPayAsYouGo={() => setShowTokenLimitModal(false)}
+          />
+
           {/* Pay-as-you-go Modal */}
           <PayAsYouGoModal
             isOpen={showPayAsYouGoModal}
@@ -553,7 +710,15 @@ RÉPONSE :
             currentTokens={user?.tokensUsedMonthly || 0}
             packageLimit={getMonthlyTokens()}
             payAsYouGoTokens={user?.payAsYouGoTokens || 0}
-            requiredTokens={requiredTokens}
+            requiredTokens={0}
+          />
+
+          {/* Logout Confirmation Modal */}
+          <LogoutConfirmationModal
+            isOpen={showLogoutModal}
+            onClose={() => setShowLogoutModal(false)}
+            onConfirm={handleLogout}
+            isLoading={isLoggingOut}
           />
         </div>
       </div>

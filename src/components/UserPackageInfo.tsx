@@ -63,7 +63,7 @@ export const UserPackageInfo: React.FC<UserPackageInfoProps> = ({
 
   return (
     <div 
-      className={`flex items-center space-x-2 ${clickable ? 'cursor-pointer hover:bg-gray-50 rounded-lg p-2 transition-colors' : ''} ${className}`}
+      className={`relative flex flex-col items-center space-y-1 ${clickable ? 'cursor-pointer hover:bg-gray-50 rounded-lg p-2 transition-colors' : ''} ${className}`}
       onClick={handleClick}
     >
       {/* Package info */}
@@ -86,12 +86,11 @@ export const UserPackageInfo: React.FC<UserPackageInfoProps> = ({
               </span>
             )}
           </span>
+          {/* Click indicator moved to tokens */}
+          {clickable && (
+            <ChevronRight className="h-3 w-3 text-gray-400 ml-1" />
+          )}
         </div>
-      )}
-
-      {/* Click indicator */}
-      {clickable && (
-        <ChevronRight className="h-3 w-3 text-gray-400" />
       )}
     </div>
   );

@@ -26,15 +26,40 @@ const PORT = 3000;
 
 // Middleware - CORS configuration for development
 const corsOrigins = [
-  'http://localhost:5173',      // Vite dev server
-  'http://localhost:3000',      // Alternative local port
-  'http://localhost:4173',      // Vite preview
-  'https://dev.ubora.com',      // Development domain
-  'https://my.ubora.com',       // Production domain
-  'http://dev.ubora.com',       // HTTP version of dev domain
-  'http://my.ubora.com',        // HTTP version of prod domain
-  'https://localhost:5173',     // HTTPS localhost
-  'https://localhost:3000',     // HTTPS localhost alternative
+  // Main domains
+  'https://dev.ubora-app.com',     // Development frontend
+  'https://ubora-app.com',         // Production frontend
+  'https://my.ubora.com',          // Alternative production domain
+  'https://dev.ubora.com',         // Alternative dev domain
+  
+  // API subdomains
+  'https://apidev.ubora-app.com',  // API development subdomain
+  'https://api.ubora-app.com',     // API production subdomain
+  'https://apidev.ubora.com',      // Alternative API dev subdomain
+  'https://api.ubora.com',         // Alternative API prod subdomain
+  
+  // Admin subdomains
+  'https://admin.ubora-app.com',   // Admin development
+  'https://admin.ubora.com',       // Admin production
+  
+  // Firebase hosting domains
+  'https://studio-gpnfx.firebaseapp.com',  // Firebase auth domain
+  'https://studio-gpnfx.web.app',          // Firebase hosting domain
+  
+  // Local development
+  'http://localhost:5173',         // Vite dev server
+  'http://localhost:3000',         // Local API server
+  'http://localhost:4173',         // Vite preview
+  'https://localhost:5173',        // HTTPS localhost
+  'https://localhost:3000',        // HTTPS localhost API
+  
+  // HTTP versions (for development)
+  'http://dev.ubora.com',          // HTTP version of dev domain
+  'http://my.ubora.com',           // HTTP version of prod domain
+  'http://dev.ubora-app.com',      // HTTP version of dev app domain
+  'http://ubora-app.com',          // HTTP version of prod app domain
+  
+  // Environment variable overrides
   ...(process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',') : [])
 ];
 
@@ -81,14 +106,47 @@ const require = createRequire(import.meta.url);
 const askHandler = require('../api/ai/ask.js');
 const healthHandler = require('../api/ai/health.js');
 
+console.log('🔄 Loading format handler...');
+let formatHandler;
+try {
+  formatHandler = require('../api/ai/format.js');
+  console.log('✅ Format handler loaded successfully:', typeof formatHandler);
+} catch (error) {
+  console.error('❌ Failed to load format handler:', error);
+  process.exit(1);
+}
+
 // OCR handlers
 const ocrExtractHandler = require('../api/ocr/extractText.js');
 const ocrPdfExtractHandler = require('../api/ocr/extractPdfText.js');
 const ocrHealthHandler = require('../api/ocr/health.js');
 
+// File download handler
+const { downloadHandler } = require('../api/files/download.js');
+
 // Routes
 app.post('/api/ai/ask', askHandler);
 app.get('/api/ai/health', healthHandler);
+app.post('/api/ai/format', formatHandler);
+app.get('/api/files/download', downloadHandler);
+
+// Test endpoint to verify server is running
+app.get('/api/test', (req, res) => {
+  res.json({ message: 'Server is running!', timestamp: new Date().toISOString() });
+});
+
+// Test endpoint for format handler
+app.get('/api/ai/format', (req, res) => {
+  res.json({ 
+    message: 'Format endpoint is working!', 
+    timestamp: new Date().toISOString(),
+    method: 'GET'
+  });
+});
+
+console.log('✅ Format route registered: POST /api/ai/format');
+console.log('✅ Download route registered: GET /api/files/download');
+console.log('✅ Test route registered: GET /api/test');
 
 // OCR routes
 app.post('/api/ocr/extract', ocrExtractHandler);

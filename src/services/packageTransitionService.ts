@@ -3,6 +3,7 @@ import { db } from '../firebaseConfig';
 import { SubscriptionSession, User } from '../types';
 import { SubscriptionSessionService } from './subscriptionSessionService';
 import { PACKAGE_LIMITS, getPackagePrice, PackageLimits } from '../config/packageFeatures';
+import { PaymentService } from './paymentService';
 
 export interface PackageTransitionOptions {
   preserveUnusedPayAsYouGo?: boolean; // Whether to preserve unused pay-as-you-go tokens (default: true)
@@ -162,7 +163,8 @@ export class PackageTransitionService {
     userId: string,
     newPackageType: 'starter' | 'standard' | 'premium' | 'custom',
     options: PackageTransitionOptions = {},
-    paymentMethod?: string
+    paymentMethod?: string,
+    paymentReference?: string
   ): Promise<boolean> {
     try {
       const userDocRef = doc(db, 'users', userId);
@@ -192,7 +194,8 @@ export class PackageTransitionService {
         userId,
         calculation as any,
         options,
-        paymentMethod
+        paymentMethod,
+        paymentReference
       );
 
       if (!transitionSession) {
@@ -226,8 +229,21 @@ export class PackageTransitionService {
    * Get package price
    */
   private static getPackagePrice(packageType: 'starter' | 'standard' | 'premium' /* | 'custom' */): number {
-    const priceStr = getPackagePrice(packageType);
-    return parseInt(priceStr.replace(/[^\d]/g, '')) || 0;
+    try {
+      const priceStr = getPackagePrice(packageType);
+      const parsedPrice = parseInt(priceStr.replace(/[^\d]/g, '')) || 0;
+      
+      // Defensive programming: ensure we don't return NaN
+      if (isNaN(parsedPrice)) {
+        console.warn('Failed to parse package price for', packageType, 'price string:', priceStr);
+        return 0;
+      }
+      
+      return parsedPrice;
+    } catch (error) {
+      console.error('Error parsing package price for', packageType, error);
+      return 0;
+    }
   }
 
   /**
@@ -237,7 +253,8 @@ export class PackageTransitionService {
     userId: string,
     calculation: EnhancedTransitionCalculation,
     options: PackageTransitionOptions,
-    paymentMethod?: string
+    paymentMethod?: string,
+    paymentReference?: string
   ): Promise<boolean> {
     const sessionType = calculation.finalAmountToPay >= 0 ? 'upgrade' : 'downgrade';
     
@@ -248,12 +265,31 @@ export class PackageTransitionService {
     
     const newPackageLimits = PACKAGE_LIMITS[calculation.newPackageType];
     
+    // Get the actual payment amount from the payment document
+    let amountPaid = Math.abs(calculation.finalAmountToPay) || 0;
+    if (paymentReference) {
+      try {
+        const payment = await PaymentService.getPayment(paymentReference);
+        if (payment) {
+          amountPaid = payment.amount; // Use the actual charged amount from payment
+          console.log('PackageTransitionService: Using payment amount for session:', {
+            paymentId: paymentReference,
+            paymentAmount: payment.amount,
+            originalAmount: payment.originalAmount,
+            calculatedAmount: Math.abs(calculation.finalAmountToPay)
+          });
+        }
+      } catch (error) {
+        console.error('PackageTransitionService: Failed to get payment amount, using calculated amount:', error);
+      }
+    }
+    
     return SubscriptionSessionService.createSession(userId, {
       packageType: calculation.newPackageType,
       sessionType,
       startDate: transitionDate, // Start from transition date
       endDate: newEndDate, // End 30 days from transition date
-      amountPaid: Math.abs(calculation.finalAmountToPay), // Use the calculated amount (package price - remaining value)
+      amountPaid: amountPaid, // Use actual payment amount
       durationDays: 30, // Always 30 days for new session
       packageResources: {
         tokensIncluded: calculation.newPackageTokens,
@@ -269,6 +305,7 @@ export class PackageTransitionService {
       },
       isActive: true,
       paymentMethod,
+      paymentReference,
       notes: this.generateEnhancedTransitionNotes(calculation as any, options)
     });
   }
@@ -416,9 +453,18 @@ export class PackageTransitionService {
     currentPackagePrice: number,
     daysRemaining: number
   ): number {
+    // Defensive programming: ensure we have valid numbers
+    if (isNaN(currentPackagePrice) || isNaN(daysRemaining) || currentPackagePrice < 0 || daysRemaining < 0) {
+      console.warn('Invalid values in calculateCostReduction:', { currentPackagePrice, daysRemaining });
+      return 0;
+    }
+    
     const totalDaysInCycle = 30;
     const remainingValue = (currentPackagePrice * daysRemaining) / totalDaysInCycle;
-    return Math.round(remainingValue);
+    const result = Math.round(remainingValue);
+    
+    // Ensure result is not NaN
+    return isNaN(result) ? 0 : result;
   }
 
   /**
@@ -426,8 +472,8 @@ export class PackageTransitionService {
    */
   private static getPayAsYouGoPrice(feature: string): number {
     const prices: Record<string, number> = {
-      forms: 5000, // 5,000 FCFA per form
-      dashboards: 10000, // 10,000 FCFA per dashboard
+      forms: 2000, // 2,000 FCFA per form
+      dashboards: 30000, // 30,000 FCFA per dashboard
       users: 7000, // 7,000 FCFA per user
       tokens: 0.0085 // 8.5 FCFA per 1000 tokens
     };
@@ -582,6 +628,17 @@ export class PackageTransitionService {
       // DOWNGRADE: Industry best practice - no immediate refund, takes effect at next billing cycle
       // For now, we'll allow immediate downgrade but with no immediate payment
       finalAmountToPay = 0; // No immediate payment for downgrades
+    }
+    
+    // Defensive programming: ensure finalAmountToPay is not NaN
+    if (isNaN(finalAmountToPay)) {
+      console.warn('finalAmountToPay is NaN, setting to 0. Values:', {
+        newPackagePrice,
+        currentPackagePrice,
+        currentPackageRemainingValue,
+        daysRemaining
+      });
+      finalAmountToPay = 0;
     }
     
     // Token handling (existing logic)

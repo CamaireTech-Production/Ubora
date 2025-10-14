@@ -8,14 +8,34 @@ import { Card } from './Card';
 import { FileInput } from './FileInput';
 import { FileUploadService, UploadProgress } from '../services/fileUploadService';
 import { useAuth } from '../contexts/AuthContext';
-import { useApp } from '../contexts/AppContext';
 import { db, auth } from '../firebaseConfig';
 import { doc, getDoc } from 'firebase/firestore';
 import { CheckCircle, Clock, AlertTriangle, Loader2, Calculator, Trash2 } from 'lucide-react';
 import { useToast } from '../hooks/useToast';
 import { ExpressionCalculator } from '../utils/ExpressionCalculator';
-import { TextExtractionModal } from './modals/TextExtractionModal';
 import { ConditionalLogicEvaluator } from '../utils/ConditionalLogicEvaluator';
+import { getFileBlobUrl } from '../utils/simpleFileDownload';
+
+// Helper function to convert field IDs back to user-friendly field names in formulas
+const convertFormulaToUserFriendly = (formula: string, fields: FormField[]): string => {
+  if (!formula || !fields) return formula;
+  
+  let userFriendlyFormula = formula;
+  
+  // Replace field IDs with their labels
+  fields.forEach(field => {
+    if (field.id && field.label) {
+      // Create a clean field name for display (remove special characters, make lowercase)
+      const cleanFieldName = field.label.toLowerCase().replace(/[^a-z0-9]/g, '');
+      if (cleanFieldName) {
+        const regex = new RegExp(`\\b${field.id}\\b`, 'g');
+        userFriendlyFormula = userFriendlyFormula.replace(regex, cleanFieldName);
+      }
+    }
+  });
+  
+  return userFriendlyFormula;
+};
 
 interface DynamicFormProps {
   form: Form;
@@ -39,15 +59,16 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
   isLoading = false
 }: DynamicFormProps) => {
   const { user } = useAuth();
-  const { submitFormEntry } = useApp();
   const { showError, showSuccess } = useToast();
   const [answers, setAnswers] = useState<Record<string, unknown>>(initialAnswers);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [fileAttachments, setFileAttachments] = useState<FileAttachment[]>(initialFileAttachments);
-  const [originalFiles, setOriginalFiles] = useState<Map<string, File>>(new Map());
   const [uploadProgress, setUploadProgress] = useState<Record<string, UploadProgress>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [visibleFields, setVisibleFields] = useState<string[]>(form.fields.map((f: FormField) => f.id));
+  
+  // Debug modal state
+  
   
   // Function to update visible fields based on conditional logic
   const updateVisibleFields = useCallback((currentAnswers: Record<string, unknown>) => {
@@ -62,34 +83,6 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
     updateVisibleFields(answers);
   }, [answers, form.fields, updateVisibleFields]);
   
-  // Text extraction modal state
-  const [textExtractionModal, setTextExtractionModal] = useState<{
-    isOpen: boolean;
-    fileName: string;
-    extractedText: string;
-    extractionStatus: 'completed' | 'failed';
-    confidence?: number;
-    error?: string;
-    fileSize: number;
-    engine?: string;
-    pages?: number; // For PDF files
-    fileType?: 'image' | 'pdf'; // To distinguish between image and PDF
-    extractionStats?: {
-      totalCharacters: number;
-      totalWords: number;
-      averageWordsPerPage: number;
-      extractionTime: number;
-      tablesDetected: number;
-    };
-    pendingSubmission?: boolean; // Track if we're waiting for user to proceed
-  }>({
-    isOpen: false,
-    fileName: '',
-    extractedText: '',
-    extractionStatus: 'failed',
-    fileSize: 0,
-    pendingSubmission: false
-  });
   
 
   const formatTimeRestrictions = (restrictions?: {
@@ -105,11 +98,14 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
     
     let timeStr = '';
     if (restrictions.startTime && restrictions.endTime) {
+      // Range mode: between start and end
       timeStr = `entre ${restrictions.startTime} et ${restrictions.endTime}`;
-    } else if (restrictions.startTime) {
-      timeStr = `à partir de ${restrictions.startTime}`;
-    } else if (restrictions.endTime) {
+    } else if (restrictions.endTime && !restrictions.startTime) {
+      // Single-time mode: from 00:00 until endTime
       timeStr = `jusqu'à ${restrictions.endTime}`;
+    } else if (restrictions.startTime && !restrictions.endTime) {
+      // Fallback (shouldn't happen in our UX), treat as from 00:00 until startTime
+      timeStr = `jusqu'à ${restrictions.startTime}`;
     }
 
     let dayStr = '';
@@ -141,12 +137,16 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
     }
 
     // Check time restrictions
-    if (form.timeRestrictions.startTime && form.timeRestrictions.endTime) {
-      return currentTime >= form.timeRestrictions.startTime && currentTime <= form.timeRestrictions.endTime;
-    } else if (form.timeRestrictions.startTime) {
-      return currentTime >= form.timeRestrictions.startTime;
-    } else if (form.timeRestrictions.endTime) {
-      return currentTime <= form.timeRestrictions.endTime;
+    const { startTime, endTime } = form.timeRestrictions;
+    if (startTime && endTime) {
+      // Range mode: between start and end
+      return currentTime >= startTime && currentTime <= endTime;
+    } else if (!startTime && endTime) {
+      // Single-time mode: from 00:00 until endTime
+      return currentTime <= endTime;
+    } else if (startTime && !endTime) {
+      // Fallback: treat startTime as endTime (from 00:00 until startTime)
+      return currentTime <= startTime;
     }
 
     return true;
@@ -254,6 +254,19 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
     if (!file || !user) return;
 
     try {
+      // Get current user info
+      const currentUser = auth.currentUser;
+      if (!currentUser) {
+        throw new Error('User not authenticated');
+      }
+
+      // Get user data to get agencyId
+      const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
+      if (!userDoc.exists()) {
+        throw new Error('User data not found');
+      }
+      const userData = userDoc.data();
+
       // Update progress
       setUploadProgress(prev => ({
         ...prev,
@@ -265,10 +278,8 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
         }
       }));
 
-      // Store original file for later Firebase upload
-      setOriginalFiles(prev => new Map(prev).set(fieldId, file));
 
-      // Process file locally (extract text, no Firebase upload yet)
+      // Process file locally (extract text only)
         const attachment = await FileUploadService.processFile(
           file,
           fieldId,
@@ -279,34 +290,19 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
             }));
           },
           (pdfResult) => {
-            // Show text extraction modal for PDFs as well
-            setTextExtractionModal({
-              isOpen: true,
-              fileName: pdfResult.fileName,
-              extractedText: pdfResult.extractedText,
-              extractionStatus: pdfResult.extractionStatus,
-              error: pdfResult.error,
-              fileSize: pdfResult.fileSize,
-              pages: pdfResult.pages,
-              fileType: 'pdf',
-              extractionStats: pdfResult.extractionStats,
-              pendingSubmission: true // Mark as part of submission flow
-            });
+            // PDF extraction result (success or failure)
+            if (pdfResult.extractionStatus === 'completed') {
+              console.log(`✅ PDF ${pdfResult.fileName} processed successfully`);
+              console.log(`📝 Extracted text length: ${pdfResult.extractedText?.length || 0} characters`);
+            } else if (pdfResult.extractionStatus === 'failed') {
+              console.error(`❌ PDF ${pdfResult.fileName} extraction failed:`, pdfResult.error);
+              // Show user-friendly error message
+              showError(`Erreur d'extraction PDF: ${pdfResult.error || 'Impossible d\'extraire le texte du PDF'}`);
+            }
           },
           (imageResult) => {
-            // Show text extraction modal as part of form submission flow
-            setTextExtractionModal({
-              isOpen: true,
-              fileName: imageResult.fileName,
-              extractedText: imageResult.extractedText,
-              extractionStatus: imageResult.extractionStatus,
-              confidence: imageResult.confidence,
-              error: imageResult.error,
-              fileSize: imageResult.fileSize,
-              engine: imageResult.engine,
-              fileType: 'image',
-              pendingSubmission: true // Mark as part of submission flow
-            });
+            // Image extraction successful
+            console.log(`✅ Image ${imageResult.fileName} processed successfully`);
           }
         );
 
@@ -345,10 +341,22 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
 
     } catch (error) {
       console.error('File upload error:', error);
+      
+      // Show user-friendly error message
+      const errorMessage = error instanceof Error ? error.message : 'Erreur lors du traitement du fichier';
+      showError(`Erreur de fichier: ${errorMessage}`);
+      
       setErrors(prev => ({
         ...prev,
-        [fieldId]: error instanceof Error ? error.message : 'Upload failed'
+        [fieldId]: errorMessage
       }));
+      
+      // Clear progress on error
+      setUploadProgress(prev => {
+        const newProgress = { ...prev };
+        delete newProgress[fieldId];
+        return newProgress;
+      });
     }
   };
 
@@ -356,12 +364,6 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
     // Remove from attachments
     setFileAttachments(prev => prev.filter(att => att.fieldId !== fieldId));
     
-    // Remove from original files
-    setOriginalFiles(prev => {
-      const newFiles = new Map(prev);
-      newFiles.delete(fieldId);
-      return newFiles;
-    });
     
     // Clear answer
     setAnswers(prev => ({
@@ -451,80 +453,8 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
           return;
         }
 
-        // Only submit to Firebase if it's NOT a draft and NOT in edit mode
-        if (!isDraft) {
-          // Get current user info
-          const currentUser = auth.currentUser;
-          if (!currentUser) {
-            throw new Error('User not authenticated');
-          }
-
-          // Get user data to get agencyId
-          const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
-          if (!userDoc.exists()) {
-            throw new Error('User data not found');
-          }
-          const userData = userDoc.data();
-
-          // Upload files to Firebase Storage if there are any
-          let updatedFileAttachments = fileAttachments;
-          if (fileAttachments.length > 0) {
-            
-            // Get files that need to be uploaded (those without downloadUrl)
-            const filesToUpload = fileAttachments
-              .filter(attachment => !attachment.downloadUrl)
-              .map(attachment => {
-                const originalFile = originalFiles.get(attachment.fieldId);
-                if (!originalFile) {
-                  throw new Error(`Original file not found for field ${attachment.fieldId}`);
-                }
-                return {
-                  file: originalFile,
-                  fieldId: attachment.fieldId
-                };
-              });
-
-            if (filesToUpload.length > 0) {
-              // Upload files to Firebase Storage
-              const uploadResults = await FileUploadService.uploadFilesToFirebase(
-                filesToUpload,
-                form.id,
-                currentUser.uid,
-                userData.agencyId,
-                () => {
-                  // Progress callback - could be used for progress indicators in the future
-                }
-              );
-
-              // Update file attachments with Firebase Storage URLs
-              updatedFileAttachments = fileAttachments.map(attachment => {
-                const uploadResult = uploadResults.find(result => result.fieldId === attachment.fieldId);
-                if (uploadResult) {
-                  return {
-                    ...attachment,
-                    downloadUrl: uploadResult.downloadUrl,
-                    storagePath: uploadResult.storagePath
-                  };
-                }
-                return attachment;
-              });
-
-            }
-          }
-
-          // Submit to Firebase via AppContext
-          const formEntryData = {
-            formId: form.id,
-            answers: answers,
-            fileAttachments: updatedFileAttachments
-          };
-
-          // Submit to Firebase via AppContext
-          await submitFormEntry(formEntryData);
-
-        }
-
-        // Always call the onSubmit prop (parent handles draft vs final submission)
+        // ALWAYS treat as draft submission - no direct Firebase upload
+        // The parent component will handle the actual submission
         onSubmit(answers, fileAttachments);
 
       } catch (error) {
@@ -536,13 +466,6 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
     }
   };
 
-  const handleProceedWithSubmission = () => {
-    // Close the modal and allow user to continue filling the form
-    setTextExtractionModal(prev => ({ ...prev, isOpen: false, pendingSubmission: false }));
-    
-    // Show a success message to inform user they can continue
-    showSuccess('Texte extrait avec succès ! Vous pouvez continuer à remplir le formulaire.');
-  };
 
   const renderField = (field: FormField) => {
     const commonProps = {
@@ -716,7 +639,7 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
                 <div className="text-sm text-blue-800">
                   <div className="font-medium mb-2">Calcul automatique :</div>
                   <div className="space-y-1">
-                    <div><span className="font-mono text-xs bg-white px-2 py-1 rounded border">{field.calculationFormula}</span></div>
+                    <div><span className="font-mono text-xs bg-white px-2 py-1 rounded border">{convertFormulaToUserFriendly(field.calculationFormula, form.fields)}</span></div>
                     {dependentFieldValues.length > 0 && (
                       <div className="text-xs">
                         <span className="font-medium">Valeurs actuelles :</span>
@@ -840,9 +763,15 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
                             <span className={`ml-2 px-2 py-1 rounded-full text-xs ${
                               attachment.textExtractionStatus === 'completed' 
                                 ? 'bg-green-100 text-green-700' 
+                                : attachment.textExtractionStatus === 'failed'
+                                ? 'bg-red-100 text-red-700'
                                 : 'bg-yellow-100 text-yellow-700'
                             }`}>
-                              {attachment.textExtractionStatus === 'completed' ? '✅ Texte extrait' : '⏳ Extraction...'}
+                              {attachment.textExtractionStatus === 'completed' 
+                                ? '✅ Texte extrait' 
+                                : attachment.textExtractionStatus === 'failed'
+                                ? '❌ Erreur extraction'
+                                : '⏳ Extraction...'}
                             </span>
                           )}
                         </p>
@@ -850,14 +779,23 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
                     </div>
                     <div className="flex items-center space-x-2">
                       {attachment.downloadUrl && (
-                        <a
-                          href={attachment.downloadUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
+                        <button
+                          onClick={async () => {
+                            try {
+                              const blobUrl = await getFileBlobUrl(attachment);
+                              const link = document.createElement('a');
+                              link.href = blobUrl;
+                              link.download = attachment.fileName;
+                              link.click();
+                              URL.revokeObjectURL(blobUrl);
+                            } catch (error) {
+                              console.error('Download failed:', error);
+                            }
+                          }}
                           className="px-3 py-1 text-xs bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors"
                         >
                           📥 Télécharger
-                        </a>
+                        </button>
                       )}
                     </div>
                   </div>
@@ -905,22 +843,6 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
         </form>
       </Card>
       
-      {/* Text Extraction Modal */}
-      <TextExtractionModal
-        isOpen={textExtractionModal.isOpen}
-        onClose={() => setTextExtractionModal(prev => ({ ...prev, isOpen: false }))}
-        onProceed={handleProceedWithSubmission}
-        fileName={textExtractionModal.fileName}
-        extractedText={textExtractionModal.extractedText}
-        extractionStatus={textExtractionModal.extractionStatus}
-        confidence={textExtractionModal.confidence}
-        error={textExtractionModal.error}
-        fileSize={textExtractionModal.fileSize}
-        engine={textExtractionModal.engine}
-        pages={textExtractionModal.pages}
-        fileType={textExtractionModal.fileType}
-        extractionStats={textExtractionModal.extractionStats}
-      />
       
     </div>
   );

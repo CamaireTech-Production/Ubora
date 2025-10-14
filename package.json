@@ -4,13 +4,15 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "vite --host",
     "dev:server": "node server/dev-server.js",
-    "dev:full": "concurrently \"npm run dev:server\" \"npm run dev\"",
+    "dev:worker": "node api/start-worker.js",
+    "dev:full": "concurrently --names \"SERVER,FRONTEND\" --prefix-colors \"blue,yellow\" \"npm run dev:server\" \"npm run dev\"",
     "prebuild": "node scripts/update-html-meta.js",
     "build": "npm run prebuild && vite build",
     "preview": "vite preview",
     "start": "node server/production-server.js",
+    "start:worker": "node api/start-worker.js",
     "render-build": "npm run build",
     "deploy:dev": "node scripts/deploy-dev.js",
     "deploy:prod": "node scripts/deploy-prod.js",
@@ -20,9 +22,13 @@
     "fix-duplicates:add-ids": "node scripts/fix-duplicate-messages.js --add-ids",
     "create-admin": "node scripts/create-admin.js",
     "complete-admin": "node scripts/complete-admin-setup.js",
-    "add-sample-data": "node scripts/add-sample-data.js"
+    "add-sample-data": "node scripts/add-sample-data.js",
+    "test": "vitest",
+    "test:ui": "vitest --ui",
+    "test:coverage": "vitest --coverage"
   },
   "dependencies": {
+    "@tailwindcss/line-clamp": "^0.4.4",
     "@types/react-router-dom": "^5.3.3",
     "@vitejs/plugin-react": "^4.3.1",
     "autoprefixer": "^10.4.18",
@@ -50,16 +56,22 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.9.1",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.0",
+    "@testing-library/user-event": "^14.6.1",
     "@types/pdfjs-dist": "^2.10.377",
     "@types/react": "^18.3.24",
     "@types/react-dom": "^18.3.0",
+    "@vitest/ui": "^3.2.4",
     "concurrently": "^8.2.2",
     "eslint": "^9.9.1",
     "eslint-plugin-react-hooks": "^5.1.0-rc.0",
     "eslint-plugin-react-refresh": "^0.4.11",
     "globals": "^15.9.0",
+    "jsdom": "^27.0.0",
     "typescript-eslint": "^8.3.0",
     "vite-plugin-pwa": "^1.0.3",
+    "vitest": "^3.2.4",
     "workbox-window": "^7.3.0"
   }
 }

@@ -11,7 +11,7 @@ import {
   doc,
   getDoc,
   serverTimestamp,
-  writeBatch
+  deleteField
 } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 import { Form, FormEntry, User, DraftResponse, Dashboard } from '../types';
@@ -19,9 +19,9 @@ import { DraftService } from '../services/draftService';
 import { useAuth } from './AuthContext';
 import { usePackageAccess } from '../hooks/usePackageAccess';
 import { PermissionManager } from '../utils/PermissionManager';
-import { AnalyticsService } from '../services/analyticsService';
 import { SubscriptionSessionService } from '../services/subscriptionSessionService';
 import { notificationService } from '../services/notificationService';
+import { useToast } from '../hooks/useToast';
 
 interface AppContextType {
   forms: Form[];
@@ -30,7 +30,7 @@ interface AppContextType {
   dashboards: Dashboard[];
   createForm: (form: Omit<Form, 'id' | 'createdAt'>) => Promise<void>;
   updateForm: (formId: string, form: Partial<Omit<Form, 'id' | 'createdAt' | 'createdBy' | 'agencyId'>>) => Promise<void>;
-  submitFormEntry: (entry: Omit<FormEntry, 'id' | 'submittedAt' | 'userId' | 'agencyId'>) => Promise<void>;
+  submitFormEntry: (entry: Omit<FormEntry, 'id' | 'submittedAt' | 'userId' | 'agencyId'>) => Promise<string>;
   updateFormEntry: (entryId: string, entry: Partial<Omit<FormEntry, 'id' | 'submittedAt' | 'userId' | 'agencyId'>>) => Promise<void>;
   submitMultipleFormEntries: (entries: Omit<FormEntry, 'id' | 'submittedAt' | 'userId' | 'agencyId'>[]) => Promise<void>;
   deleteForm: (formId: string) => Promise<void>;
@@ -58,59 +58,11 @@ interface AppContextType {
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // Safely get auth context
-  let user, firebaseUser;
-  try {
-    const authContext = useAuth();
-    user = authContext.user;
-    firebaseUser = authContext.firebaseUser;
-  } catch (error) {
-    // If useAuth fails (context not ready), provide default values
-    user = null;
-    firebaseUser = null;
-  }
-  
-  // Always provide a context value, but with different behavior based on auth state
-  const defaultContextValue = {
-    forms: [],
-    formEntries: [],
-    employees: [],
-    dashboards: [],
-    createForm: async () => {},
-    updateForm: async () => {},
-    submitFormEntry: async () => {},
-    updateFormEntry: async () => {},
-    submitMultipleFormEntries: async () => {},
-    deleteForm: async () => {},
-    getFormsForEmployee: () => [],
-    getEntriesForForm: () => [],
-    getEntriesForEmployee: () => [],
-    getEmployeesForAgency: () => [],
-    getPendingEmployees: () => [],
-    refreshData: () => {},
-    createDashboard: async () => {},
-    updateDashboard: async () => {},
-    deleteDashboard: async () => {},
-    getDashboardsForDirector: () => [],
-    getDraftsForForm: () => [],
-    saveDraft: () => {},
-    deleteDraft: () => {},
-    deleteDraftsForForm: () => {},
-    createDraft: () => ({ id: '', formId: '', userId: '', agencyId: '', answers: {}, fileAttachments: [], isDraft: true as const, createdAt: new Date(), updatedAt: new Date() }),
-    isLoading: true,
-    error: null
-  };
-  
-  // Guard: If not authenticated, provide default context
-  if (!user || !firebaseUser) {
-    return (
-      <AppContext.Provider value={defaultContextValue}>
-        {children}
-      </AppContext.Provider>
-    );
-  }
+  // Access auth context from parent provider (always mounted in App.tsx)
+  const { user, firebaseUser } = useAuth();
+  const { showSuccess } = useToast();
 
-  // Now we can safely use package access since user is authenticated
+  // Always initialize package access hooks and state hooks in stable order
   const { canCreateForm, canCreateDashboard } = usePackageAccess();
   
   const [forms, setForms] = useState<Form[]>([]);
@@ -128,6 +80,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setFormEntries([]);
       setEmployees([]);
       setDashboards([]);
+      setIsLoading(false);
+      setError(null);
       return;
     }
 
@@ -164,13 +118,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       
       // Filtrer les formulaires selon le rôle de l'utilisateur
       let filteredForms = allFormsData;
-      if (user.role === 'employe') {
+      if (user.role === 'employe' && !user.hasDirectorDashboardAccess) {
+        // Regular employees see only forms assigned to them or created by them
         filteredForms = allFormsData.filter(form => 
           form.assignedTo.includes(user.id) || 
           form.createdByEmployeeId === user.id ||
           form.createdBy === user.id
         );
       }
+      // Employees with director dashboard access see ALL forms (same as directors)
       
       setForms(filteredForms);
     }, (err) => {
@@ -188,15 +144,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // Try with orderBy first, fallback to simple query if it fails
     let entriesQuery;
     try {
-      if (user.role === 'directeur') {
-        // Directors can see all entries in their agency
+      if (user.role === 'directeur' || user.hasDirectorDashboardAccess) {
+        // Directors and employees with director access can see all entries in their agency
         entriesQuery = query(
           collection(db, 'formEntries'),
           where('agencyId', '==', user.agencyId),
           orderBy('submittedAt', 'desc')
         );
       } else {
-        // Employees can only see their own entries
+        // Regular employees can only see their own entries
         entriesQuery = query(
           collection(db, 'formEntries'),
           where('agencyId', '==', user.agencyId),
@@ -205,7 +161,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         );
       }
     } catch (orderByError) {
-      if (user.role === 'directeur') {
+      if (user.role === 'directeur' || user.hasDirectorDashboardAccess) {
         entriesQuery = query(
           collection(db, 'formEntries'),
           where('agencyId', '==', user.agencyId)
@@ -328,7 +284,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     // Vérifier les limites du package (pour les directeurs et employés avec accès directeur)
     if ((user.role === 'directeur' || (user.role === 'employe' && user.hasDirectorDashboardAccess)) && !canCreateForm(forms.length)) {
-      throw new Error('Limite de formulaires atteinte pour votre package. Veuillez mettre à niveau votre abonnement.');
+      if (user.role === 'employe') {
+        throw new Error('Limite de formulaires atteinte. Contactez votre directeur pour cette agence.');
+      } else {
+        throw new Error('Limite de formulaires atteinte pour votre package. Veuillez mettre à niveau votre abonnement.');
+      }
     }
 
     try {
@@ -388,7 +348,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const updateForm = async (formId: string, formData: Partial<Omit<Form, 'id' | 'createdAt' | 'createdBy' | 'agencyId'>>) => {
     if (!user || !user.agencyId || !PermissionManager.canUpdateForms(user)) {
-      throw new Error('Seuls les directeurs peuvent modifier des formulaires');
+      throw new Error('Seuls les directeurs et employés avec accès directeur peuvent modifier des formulaires');
     }
 
     try {
@@ -411,13 +371,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (formData.assignedTo !== undefined) updateData.assignedTo = formData.assignedTo;
       if (formData.fields !== undefined) updateData.fields = formData.fields;
       
-      // Handle timeRestrictions properly - only add if it has content, or remove if undefined
+      // Handle timeRestrictions properly - only add if it has content, or remove if empty/undefined
       if (formData.timeRestrictions !== undefined) {
         if (formData.timeRestrictions && Object.keys(formData.timeRestrictions).length > 0) {
           updateData.timeRestrictions = formData.timeRestrictions;
         } else {
-          // If timeRestrictions is undefined or empty, remove the field from Firestore
-          updateData.timeRestrictions = null;
+          // If timeRestrictions is empty, delete the field from Firestore to ensure clean state
+          updateData.timeRestrictions = deleteField();
         }
       }
 
@@ -459,32 +419,247 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try {
       setError(null);
       
-      // Forcer les champs requis selon les spécifications
+      console.log('🔄 Starting form submission with file attachments:', entryData.fileAttachments?.length || 0);
+      
+      // Step 1: Process file attachments (upload to Firebase Storage)
+      let updatedFileAttachments = entryData.fileAttachments || [];
+      
+      if (entryData.fileAttachments && entryData.fileAttachments.length > 0) {
+        console.log('📤 Processing file attachments for submission...');
+        
+        // Import FileUploadService dynamically
+        const { FileUploadService } = await import('../services/fileUploadService');
+        
+        // Process each file attachment
+        const uploadPromises = entryData.fileAttachments.map(async (attachment) => {
+          try {
+            console.log('🔍 Processing attachment:', {
+              fileName: attachment.fileName,
+              hasDownloadUrl: !!attachment.downloadUrl,
+              hasExtractedText: !!attachment.extractedText,
+              hasBase64Data: !!attachment.base64Data,
+              hasSubmissionId: !!attachment.submissionId,
+              submissionId: attachment.submissionId
+            });
+            
+            // If already has download URL, use it
+            if (attachment.downloadUrl) {
+              console.log(`✅ ${attachment.fileName} already has download URL`);
+              return attachment;
+            }
+            
+            // If no base64 data, can't upload the file
+            if (!attachment.base64Data) {
+              console.log(`⚠️ No base64 data for ${attachment.fileName}, skipping upload`);
+              return {
+                ...attachment,
+                downloadUrl: '',
+                storagePath: '',
+                uploadError: 'No base64 data available',
+                uploadStatus: 'skipped'
+              };
+            }
+            
+            // Convert base64 back to File object
+            console.log(`🔄 Converting base64 back to file for ${attachment.fileName}...`);
+            let file: File;
+            
+            try {
+              file = FileUploadService.base64ToFile(
+                attachment.base64Data,
+                attachment.fileName,
+                attachment.fileType
+              );
+              console.log(`✅ File reconstructed successfully:`, {
+                name: file.name,
+                size: file.size,
+                type: file.type
+              });
+            } catch (conversionError) {
+              console.error(`❌ Failed to convert base64 to file:`, conversionError);
+              throw new Error(`Failed to reconstruct file from base64: ${conversionError instanceof Error ? conversionError.message : 'Unknown error'}`);
+            }
+            
+            // Upload to Firebase Storage
+            console.log(`🔄 Uploading ${attachment.fileName} to Firebase Storage...`);
+            const uploadResult = await FileUploadService.uploadFileToFirebase(
+              file,
+              attachment.fieldId,
+              entryData.formId,
+              firebaseUser.uid,
+              user.agencyId
+            );
+            
+            console.log(`✅ ${attachment.fileName} uploaded successfully:`, uploadResult.downloadUrl);
+            
+            // If using Firestore fallback, store the file data in a separate collection
+            if (uploadResult.downloadUrl.startsWith('firestore://')) {
+              console.log(`🔄 Storing file data in Firestore for ${attachment.fileName}...`);
+              
+              // Store file data in a separate Firestore collection
+              const fileDataRef = await addDoc(collection(db, 'fileData'), {
+                fileName: attachment.fileName,
+                fileType: attachment.fileType,
+                fileSize: attachment.fileSize,
+                base64Data: attachment.base64Data,
+                formId: entryData.formId,
+                userId: firebaseUser.uid,
+                agencyId: user.agencyId,
+                fieldId: attachment.fieldId,
+                uploadedAt: new Date(),
+                downloadUrl: uploadResult.downloadUrl,
+                storagePath: uploadResult.storagePath
+              });
+              
+              console.log(`✅ File data stored in Firestore with ID: ${fileDataRef.id}`);
+            }
+            
+            return {
+              ...attachment,
+              downloadUrl: uploadResult.downloadUrl,
+              storagePath: uploadResult.storagePath
+            };
+            
+          } catch (uploadError) {
+            console.error(`❌ Failed to upload ${attachment.fileName}:`, uploadError);
+            
+            // Return attachment with upload error status
+            return {
+              ...attachment,
+              downloadUrl: '', // Keep empty
+              storagePath: '', // Keep empty
+              uploadError: uploadError instanceof Error ? uploadError.message : 'Upload failed',
+              uploadStatus: 'failed'
+            };
+          }
+        });
+        
+        updatedFileAttachments = await Promise.all(uploadPromises);
+        console.log('✅ All files processed');
+      }
+      
+      // Step 2: Create FormEntry in Firebase (clean file attachments for Firestore)
+      const cleanFileAttachments = updatedFileAttachments.map(attachment => ({
+        fieldId: attachment.fieldId,
+        fileName: attachment.fileName,
+        fileSize: attachment.fileSize,
+        fileType: attachment.fileType,
+        downloadUrl: attachment.downloadUrl,
+        storagePath: attachment.storagePath,
+        uploadedAt: attachment.uploadedAt,
+        extractedText: attachment.extractedText,
+        textExtractionStatus: attachment.textExtractionStatus,
+        submissionId: attachment.submissionId
+        // Remove base64Data and any other complex objects that can't be stored in Firestore
+      }));
+
       const docData = {
         formId: entryData.formId,
-        userId: firebaseUser.uid, // Forcer auth.uid
-        agencyId: user.agencyId, // Hérité du user
+        userId: firebaseUser.uid,
+        agencyId: user.agencyId,
         answers: entryData.answers || {},
-        fileAttachments: entryData.fileAttachments || [],
-        submittedAt: serverTimestamp() // Forcer serverTimestamp
+        fileAttachments: cleanFileAttachments,
+        submittedAt: serverTimestamp()
       };
 
-      await addDoc(collection(db, 'formEntries'), docData);
+      console.log('💾 Creating FormEntry in Firebase with data:', {
+        formId: docData.formId,
+        userId: docData.userId,
+        agencyId: docData.agencyId,
+        fileAttachmentsCount: docData.fileAttachments.length,
+        fileAttachments: docData.fileAttachments.map(att => ({
+          fieldId: att.fieldId,
+          fileName: att.fileName,
+          hasDownloadUrl: !!att.downloadUrl,
+          hasStoragePath: !!att.storagePath,
+          hasExtractedText: !!att.extractedText,
+          extractedTextLength: att.extractedText?.length || 0
+        }))
+      });
+
+      const docRef = await addDoc(collection(db, 'formEntries'), docData);
+      console.log('✅ FormEntry created in Firebase with ID:', docRef.id);
       
-      // Track form submission analytics
-      try {
-        // Get form data to get the form title
-        const formDoc = await getDoc(doc(db, 'forms', entryData.formId));
-        const formTitle = formDoc.exists() ? formDoc.data().title : 'Unknown Form';
+      // Step 3: Call format endpoint for each PDF file
+      if (updatedFileAttachments.length > 0) {
+        console.log('🔄 Calling format endpoint for PDF files...');
         
-        await AnalyticsService.logFormSubmission(
-          firebaseUser.uid, 
-          entryData.formId, 
-          formTitle, 
-          user.agencyId
-        );
-      } catch (analyticsError) {
+        const formatPromises = updatedFileAttachments
+          .filter(att => att.extractedText && att.extractedText.trim().length > 0)
+          .map(async (attachment) => {
+            try {
+              console.log(`🔄 Formatting text for ${attachment.fileName}...`);
+              
+              // Get the API endpoint dynamically
+              const apiEndpoint = import.meta.env.VITE_AI_ENDPOINT 
+                ? import.meta.env.VITE_AI_ENDPOINT.replace('/api/ai/ask', '')
+                : import.meta.env.DEV 
+                  ? 'http://localhost:3000'
+                  : 'http://apidev.ubora-app.com';
+              
+              // Check if submissionId exists before making the request
+              if (!attachment.submissionId) {
+                console.warn(`⚠️ No submissionId for ${attachment.fileName}, generating one now`);
+                // Generate a submissionId if missing
+                attachment.submissionId = `sub_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+                console.log(`✅ Generated submissionId: ${attachment.submissionId}`);
+              }
+
+              const requestBody = {
+                submissionId: attachment.submissionId,
+                rawText: attachment.extractedText,
+                fileName: attachment.fileName
+              };
+
+              console.log(`🔄 Sending format request for ${attachment.fileName}:`, {
+                ...requestBody,
+                rawTextLength: requestBody.rawText?.length || 0,
+                hasSubmissionId: !!requestBody.submissionId,
+                hasRawText: !!requestBody.rawText
+              });
+              
+              console.log(`🔍 Full request body:`, JSON.stringify(requestBody, null, 2));
+
+              const response = await fetch(`${apiEndpoint}/api/ai/format`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(requestBody)
+              });
+              
+              if (response.ok) {
+                console.log(`✅ Format request sent for ${attachment.fileName}`);
+              } else {
+                const errorText = await response.text();
+                console.error(`❌ Format request failed for ${attachment.fileName}:`, {
+                  status: response.status,
+                  statusText: response.statusText,
+                  error: errorText,
+                  requestBody: requestBody
+                });
+                
+                // Try to parse the error response as JSON
+                try {
+                  const errorJson = JSON.parse(errorText);
+                  console.error(`❌ Parsed error response:`, errorJson);
+                } catch (parseError) {
+                  console.error(`❌ Could not parse error response as JSON:`, errorText);
+                }
+              }
+            } catch (error) {
+              console.error(`❌ Error calling format endpoint for ${attachment.fileName}:`, error);
+            }
+          });
+        
+        await Promise.all(formatPromises);
+        console.log('✅ All format requests sent');
       }
+      
+      // Show success message
+      showSuccess('Formulaire soumis avec succès!');
+      
+      return docRef.id;
     } catch (err) {
       console.error('Erreur lors de la soumission du formulaire:', err);
       if (err instanceof Error) {
@@ -537,7 +712,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const deleteForm = async (formId: string) => {
     if (!user || !PermissionManager.canDeleteForms(user)) {
-      throw new Error('Seuls les directeurs peuvent supprimer des formulaires');
+      throw new Error('Seuls les directeurs et employés avec accès directeur peuvent supprimer des formulaires');
     }
 
     try {
@@ -551,6 +726,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const getFormsForEmployee = (employeeId: string): Form[] => {
+    // Always return only forms assigned to this specific employee
+    // Director dashboard access only affects what they see on the director dashboard, not employee dashboard
     return forms.filter(form => 
       form.assignedTo && form.assignedTo.includes(employeeId)
     );
@@ -588,24 +765,224 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     try {
       setError(null);
+      console.log('🔄 Starting multiple form submissions:', entries.length);
       
-      const batch = writeBatch(db);
-      
-      entries.forEach((entry) => {
-        const docRef = doc(collection(db, 'formEntries'));
+      // Process each entry individually to handle file uploads and formatting
+      const submissionPromises = entries.map(async (entry) => {
+        console.log('🔄 Processing entry for form:', entry.formId);
+        
+        // Step 1: For draft submissions, convert base64 data back to files and upload to Firebase Storage
+        let updatedFileAttachments = entry.fileAttachments || [];
+        
+        if (entry.fileAttachments && entry.fileAttachments.length > 0) {
+          console.log('📤 Processing file attachments for draft submission...');
+          
+          // Import FileUploadService dynamically
+          const { FileUploadService } = await import('../services/fileUploadService');
+          
+          // Process each file attachment
+          const uploadPromises = entry.fileAttachments.map(async (attachment) => {
+            try {
+              console.log('🔍 Processing attachment:', {
+                fileName: attachment.fileName,
+                hasDownloadUrl: !!attachment.downloadUrl,
+                hasExtractedText: !!attachment.extractedText,
+                hasBase64Data: !!attachment.base64Data,
+                hasSubmissionId: !!attachment.submissionId,
+                submissionId: attachment.submissionId
+              });
+              
+              // If already has download URL, use it
+              if (attachment.downloadUrl) {
+                console.log(`✅ ${attachment.fileName} already has download URL`);
+                return attachment;
+              }
+              
+              // If no base64 data, can't upload the file
+              if (!attachment.base64Data) {
+                console.log(`⚠️ No base64 data for ${attachment.fileName}, skipping upload`);
+                return attachment;
+              }
+              
+              // Convert base64 back to File object
+              console.log(`🔄 Converting base64 back to file for ${attachment.fileName}...`);
+              let file: File;
+              
+              try {
+                file = FileUploadService.base64ToFile(
+                  attachment.base64Data,
+                  attachment.fileName,
+                  attachment.fileType
+                );
+                console.log(`✅ File reconstructed successfully:`, {
+                  name: file.name,
+                  size: file.size,
+                  type: file.type
+                });
+              } catch (conversionError) {
+                console.error(`❌ Failed to convert base64 to file:`, conversionError);
+                throw new Error(`Failed to reconstruct file from base64: ${conversionError instanceof Error ? conversionError.message : 'Unknown error'}`);
+              }
+              
+              // Upload to Firebase Storage
+              console.log(`🔄 Uploading ${attachment.fileName} to Firebase Storage...`);
+              const uploadResult = await FileUploadService.uploadFileToFirebase(
+                file,
+                attachment.fieldId,
+                entry.formId,
+                user.id,
+                user.agencyId
+              );
+              
+              console.log(`✅ ${attachment.fileName} uploaded successfully:`, uploadResult.downloadUrl);
+              
+              return {
+                ...attachment,
+                downloadUrl: uploadResult.downloadUrl,
+                storagePath: uploadResult.storagePath
+              };
+              
+            } catch (uploadError) {
+              console.error(`❌ Failed to upload ${attachment.fileName}:`, uploadError);
+              
+              // For Firebase Storage failures, we'll store the file data in Firestore as a fallback
+              console.log(`🔄 Using fallback storage for ${attachment.fileName} - storing base64 data in Firestore`);
+              
+              // Return attachment with fallback storage info
+              return {
+                ...attachment,
+                downloadUrl: '', // Keep empty for failed uploads
+                storagePath: '', // Keep empty for failed uploads
+                uploadError: uploadError instanceof Error ? uploadError.message : 'Upload failed',
+                uploadStatus: 'failed',
+                // Keep base64 data as fallback for failed uploads
+                fallbackStorage: true,
+                fallbackData: attachment.base64Data
+              };
+            }
+          });
+          
+          updatedFileAttachments = await Promise.all(uploadPromises);
+          console.log('✅ All file attachments processed');
+        }
+        
+        // Step 2: Create FormEntry in Firebase (clean file attachments for Firestore)
+        const cleanFileAttachments = updatedFileAttachments.map(attachment => ({
+          fieldId: attachment.fieldId,
+          fileName: attachment.fileName,
+          fileSize: attachment.fileSize,
+          fileType: attachment.fileType,
+          downloadUrl: attachment.downloadUrl,
+          storagePath: attachment.storagePath,
+          uploadedAt: attachment.uploadedAt,
+          extractedText: attachment.extractedText,
+          textExtractionStatus: attachment.textExtractionStatus,
+          submissionId: attachment.submissionId
+          // Remove base64Data and any other complex objects that can't be stored in Firestore
+        }));
+
         const docData = {
           formId: entry.formId,
           userId: user.id,
           agencyId: user.agencyId,
-          answers: entry.answers,
-          fileAttachments: entry.fileAttachments || [],
+          answers: entry.answers || {},
+          fileAttachments: cleanFileAttachments,
           submittedAt: serverTimestamp()
         };
         
-        batch.set(docRef, docData);
-      });
+        console.log('💾 Creating FormEntry in Firebase with data:', {
+          formId: docData.formId,
+          userId: docData.userId,
+          agencyId: docData.agencyId,
+          fileAttachmentsCount: docData.fileAttachments.length,
+          fileAttachments: docData.fileAttachments.map(att => ({
+            fieldId: att.fieldId,
+            fileName: att.fileName,
+            hasDownloadUrl: !!att.downloadUrl,
+            hasStoragePath: !!att.storagePath,
+            hasExtractedText: !!att.extractedText,
+            extractedTextLength: att.extractedText?.length || 0
+          }))
+        });
 
-      await batch.commit();
+        const docRef = await addDoc(collection(db, 'formEntries'), docData);
+        console.log('✅ FormEntry created in Firebase with ID:', docRef.id);
+        
+        // Step 3: Call format endpoint for each PDF file
+        if (updatedFileAttachments.length > 0) {
+          console.log('🔄 Calling format endpoint for PDF files...');
+          
+          const formatPromises = updatedFileAttachments
+            .filter(att => att.extractedText && att.extractedText.trim().length > 0)
+            .map(async (attachment) => {
+              try {
+                console.log(`🔄 Formatting text for ${attachment.fileName}...`);
+                
+                // Get the API endpoint dynamically
+                const apiEndpoint = import.meta.env.VITE_AI_ENDPOINT 
+                  ? import.meta.env.VITE_AI_ENDPOINT.replace('/api/ai/ask', '')
+                  : import.meta.env.DEV 
+                    ? 'http://localhost:3000'
+                    : 'http://apidev.ubora-app.com';
+                
+                const response = await fetch(`${apiEndpoint}/api/ai/format`, {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                  },
+                  body: JSON.stringify({
+                    submissionId: attachment.submissionId,
+                    rawText: attachment.extractedText,
+                    fileName: attachment.fileName
+                  })
+                });
+                
+                if (response.ok) {
+                  console.log(`✅ Format request sent for ${attachment.fileName}`);
+                } else {
+                  console.error(`❌ Format request failed for ${attachment.fileName}:`, {
+                    status: response.status,
+                    statusText: response.statusText,
+                    endpoint: `${apiEndpoint}/api/ai/format`
+                  });
+                  
+                  // Try alternative endpoint
+                  if (response.status === 404) {
+                    console.log(`🔄 Trying alternative endpoint...`);
+                    const altResponse = await fetch(`http://localhost:3000/api/ai/format`, {
+                      method: 'POST',
+                      headers: {
+                        'Content-Type': 'application/json',
+                      },
+                      body: JSON.stringify({
+                        submissionId: attachment.submissionId,
+                        rawText: attachment.extractedText,
+                        fileName: attachment.fileName
+                      })
+                    });
+                    
+                    if (altResponse.ok) {
+                      console.log(`✅ Format request sent via alternative endpoint for ${attachment.fileName}`);
+                    } else {
+                      console.error(`❌ Alternative endpoint also failed:`, altResponse.statusText);
+                    }
+                  }
+                }
+              } catch (error) {
+                console.error(`❌ Error calling format endpoint for ${attachment.fileName}:`, error);
+              }
+            });
+          
+          await Promise.all(formatPromises);
+          console.log('✅ All format requests sent');
+        }
+        
+        return docRef.id;
+      });
+      
+      await Promise.all(submissionPromises);
+      console.log('✅ All form entries submitted successfully');
+      
     } catch (err) {
       console.error('Erreur lors de la soumission multiple:', err);
       setError('Erreur lors de la soumission des formulaires');
@@ -631,7 +1008,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     // Vérifier les limites du package (pour les directeurs et employés avec accès directeur)
     if ((user.role === 'directeur' || (user.role === 'employe' && user.hasDirectorDashboardAccess)) && !canCreateDashboard(dashboards.length)) {
-      throw new Error('Limite de tableaux de bord atteinte pour votre package. Veuillez mettre à niveau votre abonnement.');
+      if (user.role === 'employe') {
+        throw new Error('Limite de tableaux de bord atteinte. Contactez votre directeur pour cette agence.');
+      } else {
+        throw new Error('Limite de tableaux de bord atteinte pour votre package. Veuillez mettre à niveau votre abonnement.');
+      }
     }
 
     try {
@@ -674,7 +1055,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const updateDashboard = async (dashboardId: string, dashboardData: Partial<Omit<Dashboard, 'id' | 'createdAt' | 'createdBy' | 'agencyId'>>) => {
     if (!user || !user.agencyId || !PermissionManager.canUpdateDashboards(user)) {
-      throw new Error('Seuls les directeurs peuvent modifier des tableaux de bord');
+      throw new Error('Seuls les directeurs et employés avec accès directeur peuvent modifier des tableaux de bord');
     }
 
     try {
@@ -699,7 +1080,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const deleteDashboard = async (dashboardId: string) => {
     if (!user || !PermissionManager.canDeleteDashboards(user)) {
-      throw new Error('Seuls les directeurs peuvent supprimer des tableaux de bord');
+      throw new Error('Seuls les directeurs et employés avec accès directeur peuvent supprimer des tableaux de bord');
     }
 
     try {

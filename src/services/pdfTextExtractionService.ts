@@ -1,9 +1,12 @@
+import { enhancedFetch } from '../utils/errorHandling';
+
 export interface TextExtractionResult {
   text: string;
   pages: number;
   info?: any;
   success: boolean;
   error?: string;
+  submissionId?: string;
   extractionStats?: {
     totalCharacters: number;
     totalWords: number;
@@ -36,18 +39,14 @@ export class PDFTextExtractionService {
         fileName: file.name
       };
       
-      // Make API request to the dedicated PDF extraction endpoint
-      const response = await fetch(`${apiEndpoint}/api/ocr/extractPdfText`, {
+      // Make API request to the dedicated PDF extraction endpoint with enhanced error handling
+      const response = await enhancedFetch.ocrRequest(`${apiEndpoint}/api/ocr/extractPdfText`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(payload)
       });
-      
-      if (!response.ok) {
-        throw new Error(`PDF extraction API error: ${response.status} ${response.statusText}`);
-      }
       
       const result = await response.json();
       
@@ -105,11 +104,11 @@ export class PDFTextExtractionService {
     
     // Check if we're in dev environment (dev.ubora-app.com)
     if (typeof window !== 'undefined' && window.location.hostname === 'dev.ubora-app.com') {
-      return 'https://apidev.ubora-app.com';
+      return 'http://apidev.ubora-app.com';
     }
     
     // Fallback for production
-    return 'https://api.ubora-app.com';
+    return 'http://api.ubora-app.com';
   }
 
   /**

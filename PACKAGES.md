@@ -38,7 +38,7 @@
 - Chat Archa avec analyses croisées et tendances prédictives
 - Branding personnalisé (logo & couleurs sur exports)
 - Support WhatsApp prioritaire
-- 20 utilisateurs inclus
+- Utilisateurs illimités
 - +7 000 FCFA / utilisateur supplémentaire
 
 > Idéal pour groupes d'entreprises ou réseaux multi-sites

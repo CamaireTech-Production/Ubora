@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Campay Payment Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+        #payButton {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-size: 16px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 20px 0;
+        }
+        #payButton:hover {
+            background-color: #0056b3;
+        }
+        .info {
+            margin: 20px 0;
+            padding: 15px;
+            background-color: #e9ecef;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Campay Payment Test</h1>
+        <div class="info">
+            <p><strong>Amount:</strong> 10 XAF</p>
+            <p><strong>Description:</strong> TAKWID GROUP (USSD) — Test Payment</p>
+            <p style="font-size:12px;color:#0b5ed7;background:#e7f1ff;border:1px solid #b6d4fe;border-radius:6px;padding:8px;margin-top:10px">
+                Important: On the USSD screen, you must see the merchant name "TAKWID GROUP". If another name appears, cancel the transaction.
+            </p>
+        </div>
+        <button id="payButton">Pay Now</button>
+        <div id="result"></div>
+    </div>
+
+    <script src="https://www.campay.net/sdk/js?app-id=i37BZvZMnnTySXIcFhcCe2mhcTaDeMXAK_8kzuhqSHZpmeXrL1wK3wI7CaWpuLlMNLbjTv28Id4E-pIP2XQjKg"></script>
+
+    <script>
+        // Wait for the Campay SDK to load
+        document.addEventListener('DOMContentLoaded', function() {
+            // Configure Campay options
+            campay.options({
+                payButtonId: "payButton", // Required
+                description: "TAKWID GROUP (USSD) — Test Payment for Campay Integration", // Required
+                amount: "10", // Required - amount in XAF
+                currency: "XAF", // Required
+                externalReference: "TEST_" + Date.now(), // Optional - unique reference
+                redirectUrl: "", // Optional
+            });
+            
+            // Success callback
+            campay.onSuccess = function (data) { 
+                document.getElementById('result').innerHTML = 
+                    '<div style="color: green; margin-top: 20px; padding: 10px; background-color: #d4edda; border-radius: 5px;">' +
+                    '<strong>Payment Successful!</strong><br>' +
+                    'Status: ' + data.status + '<br>' +
+                    'Reference: ' + data.reference +
+                    '</div>';
+            }
+            
+            // Failure callback
+            campay.onFail = function (data) { 
+                document.getElementById('result').innerHTML = 
+                    '<div style="color: red; margin-top: 20px; padding: 10px; background-color: #f8d7da; border-radius: 5px;">' +
+                    '<strong>Payment Failed!</strong><br>' +
+                    'Status: ' + data.status + '<br>' +
+                    'Reference: ' + data.reference +
+                    '</div>';
+            }
+
+            // Modal close callback
+            campay.onModalClose = function (data) { 
+                document.getElementById('result').innerHTML = 
+                    '<div style="color: orange; margin-top: 20px; padding: 10px; background-color: #fff3cd; border-radius: 5px;">' +
+                    '<strong>Payment Modal Closed</strong><br>' +
+                    'Status: ' + data.status +
+                    '</div>';
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,9 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { usePermissions } from '../hooks/usePermissions';
 import { useUnreadNotifications } from '../hooks/useUnreadNotifications';
 import { Button } from './Button';
+import { LogoutConfirmationModal } from './LogoutConfirmationModal';
 import { 
   User, 
   ChevronDown, 
@@ -26,7 +27,10 @@ export const ProfileDropdown: React.FC<ProfileDropdownProps> = ({ className = ''
   const { hasDirectorDashboardAccess } = usePermissions();
   const unreadCount = useUnreadNotifications();
   const navigate = useNavigate();
+  const location = useLocation();
   const [isOpen, setIsOpen] = useState(false);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Fermer le dropdown quand on clique à l'extérieur
@@ -47,8 +51,14 @@ export const ProfileDropdown: React.FC<ProfileDropdownProps> = ({ className = ''
   }, [isOpen]);
 
   const handleLogout = async () => {
-    await logout();
-    navigate('/login');
+    setIsLoggingOut(true);
+    try {
+      await logout();
+      navigate('/login');
+    } finally {
+      setIsLoggingOut(false);
+      setShowLogoutModal(false);
+    }
   };
 
   const handleSwitchToDirectorDashboard = () => {
@@ -77,6 +87,27 @@ export const ProfileDropdown: React.FC<ProfileDropdownProps> = ({ className = ''
   };
 
   const hasDirectorAccess = hasDirectorDashboardAccess();
+
+  // Determine which menu item is currently active
+  const isActive = (path: string) => {
+    if (path === '/directeur/dashboard') {
+      // Also highlight for dashboard detail pages
+      return location.pathname === path || location.pathname.startsWith('/directeur/dashboards/');
+    }
+    if (path === '/employe/dashboard') {
+      // Also highlight for response detail pages (employee functionality)
+      return location.pathname === path || location.pathname.startsWith('/responses/');
+    }
+    return location.pathname === path;
+  };
+  
+  // Helper function to get active styling
+  const getActiveStyles = (path: string) => {
+    const active = isActive(path);
+    return active 
+      ? "relative bg-blue-50 text-blue-700" 
+      : "text-gray-700 hover:bg-gray-50";
+  };
 
   if (!user) return null;
 
@@ -148,8 +179,11 @@ export const ProfileDropdown: React.FC<ProfileDropdownProps> = ({ className = ''
               {user.role === 'employe' && (
                 <button
                   onClick={handleGoToEmployeeDashboard}
-                  className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center space-x-2"
+                  className={`w-full px-4 py-2 text-left text-sm flex items-center space-x-2 ${getActiveStyles('/employe/dashboard')}`}
                 >
+                  {isActive('/employe/dashboard') && (
+                    <div className="absolute left-0 top-1/2 transform -translate-y-1/2 w-1 h-6 rounded-r-full" style={{ backgroundColor: '#2A6AEE' }}></div>
+                  )}
                   <BarChart3 className="h-4 w-4 text-gray-400" />
                   <span>Mon Dashboard</span>
                 </button>
@@ -159,8 +193,11 @@ export const ProfileDropdown: React.FC<ProfileDropdownProps> = ({ className = ''
               {(user.role === 'directeur' || hasDirectorAccess) && (
                 <button
                   onClick={handleSwitchToDirectorDashboard}
-                  className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center space-x-2"
+                  className={`w-full px-4 py-2 text-left text-sm flex items-center space-x-2 ${getActiveStyles('/directeur/dashboard')}`}
                 >
+                  {isActive('/directeur/dashboard') && (
+                    <div className="absolute left-0 top-1/2 transform -translate-y-1/2 w-1 h-6 rounded-r-full" style={{ backgroundColor: '#2A6AEE' }}></div>
+                  )}
                   <BarChart3 className="h-4 w-4 text-gray-400" />
                   <span>Dashboard Directeur</span>
                 </button>
@@ -173,8 +210,11 @@ export const ProfileDropdown: React.FC<ProfileDropdownProps> = ({ className = ''
                     navigate('/directeur/chat');
                     setIsOpen(false);
                   }}
-                  className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center space-x-2"
+                  className={`w-full px-4 py-2 text-left text-sm flex items-center space-x-2 ${getActiveStyles('/directeur/chat')}`}
                 >
+                  {isActive('/directeur/chat') && (
+                    <div className="absolute left-0 top-1/2 transform -translate-y-1/2 w-1 h-6 rounded-r-full" style={{ backgroundColor: '#2A6AEE' }}></div>
+                  )}
                   <MessageSquare className="h-4 w-4 text-gray-400" />
                   <span>Chat Directeur</span>
                 </button>
@@ -187,8 +227,11 @@ export const ProfileDropdown: React.FC<ProfileDropdownProps> = ({ className = ''
                     navigate('/directeur/employees');
                     setIsOpen(false);
                   }}
-                  className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center space-x-2"
+                  className={`w-full px-4 py-2 text-left text-sm flex items-center space-x-2 ${getActiveStyles('/directeur/employees')}`}
                 >
+                  {isActive('/directeur/employees') && (
+                    <div className="absolute left-0 top-1/2 transform -translate-y-1/2 w-1 h-6 rounded-r-full" style={{ backgroundColor: '#2A6AEE' }}></div>
+                  )}
                   <Users className="h-4 w-4 text-gray-400" />
                   <span>Gérer les Employés</span>
                 </button>
@@ -198,8 +241,11 @@ export const ProfileDropdown: React.FC<ProfileDropdownProps> = ({ className = ''
               {user.role === 'directeur' && (
                 <button
                   onClick={handleGoToPackages}
-                  className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center space-x-2"
+                  className={`w-full px-4 py-2 text-left text-sm flex items-center space-x-2 ${getActiveStyles('/packages/manage')}`}
                 >
+                  {isActive('/packages/manage') && (
+                    <div className="absolute left-0 top-1/2 transform -translate-y-1/2 w-1 h-6 rounded-r-full" style={{ backgroundColor: '#2A6AEE' }}></div>
+                  )}
                   <Package className="h-4 w-4 text-gray-400" />
                   <span>Packages</span>
                 </button>
@@ -209,8 +255,11 @@ export const ProfileDropdown: React.FC<ProfileDropdownProps> = ({ className = ''
               {user.role === 'directeur' && (
                 <button
                   onClick={handleGoToSettings}
-                  className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center space-x-2"
+                  className={`w-full px-4 py-2 text-left text-sm flex items-center space-x-2 ${getActiveStyles('/directeur/settings')}`}
                 >
+                  {isActive('/directeur/settings') && (
+                    <div className="absolute left-0 top-1/2 transform -translate-y-1/2 w-1 h-6 rounded-r-full" style={{ backgroundColor: '#2A6AEE' }}></div>
+                  )}
                   <Settings className="h-4 w-4 text-gray-400" />
                   <span>Paramètres</span>
                 </button>
@@ -219,8 +268,11 @@ export const ProfileDropdown: React.FC<ProfileDropdownProps> = ({ className = ''
               {/* Notifications Settings */}
               <button
                 onClick={handleGoToNotifications}
-                className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center space-x-2 relative"
+                className={`w-full px-4 py-2 text-left text-sm flex items-center space-x-2 relative ${getActiveStyles('/notifications')}`}
               >
+                {isActive('/notifications') && (
+                  <div className="absolute left-0 top-1/2 transform -translate-y-1/2 w-1 h-6 rounded-r-full" style={{ backgroundColor: '#2A6AEE' }}></div>
+                )}
                 <Bell className="h-4 w-4 text-gray-400" />
                 <span>Notifications</span>
                 {unreadCount > 0 && (
@@ -237,7 +289,7 @@ export const ProfileDropdown: React.FC<ProfileDropdownProps> = ({ className = ''
             {/* Déconnexion */}
             <div className="py-2">
               <button
-                onClick={handleLogout}
+                onClick={() => setShowLogoutModal(true)}
                 className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center space-x-2"
               >
                 <LogOut className="h-4 w-4" />
@@ -247,6 +299,14 @@ export const ProfileDropdown: React.FC<ProfileDropdownProps> = ({ className = ''
           </div>
         </div>
       )}
+
+      {/* Logout Confirmation Modal */}
+      <LogoutConfirmationModal
+        isOpen={showLogoutModal}
+        onClose={() => setShowLogoutModal(false)}
+        onConfirm={handleLogout}
+        isLoading={isLoggingOut}
+      />
     </div>
   );
 };
