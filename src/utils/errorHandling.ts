@@ -39,38 +39,21 @@ export class EnhancedErrorHandler {
     let lastError: Error | null = null;
     
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
-      let controller: AbortController | null = null;
-      let timeoutId: NodeJS.Timeout | null = null;
-      
       try {
         console.log(`🔄 Attempt ${attempt + 1}/${maxRetries + 1} for ${url}`);
         
         // Create abort controller for timeout
-        controller = new AbortController();
-        timeoutId = setTimeout(() => {
-          console.log(`⏰ Request timeout after ${timeout}ms on attempt ${attempt + 1}`);
-          controller?.abort();
-        }, timeout);
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), timeout);
 
         const response = await fetch(url, {
           ...options,
           signal: controller.signal
         });
 
-        // Clear timeout immediately after response
-        if (timeoutId) {
-          clearTimeout(timeoutId);
-          timeoutId = null;
-        }
+        clearTimeout(timeoutId);
 
-        // Check if response is ok
         if (!response.ok) {
-          // Don't retry on client errors (4xx) except 408 (timeout)
-          if (response.status >= 400 && response.status < 500 && response.status !== 408) {
-            console.log(`❌ Client error ${response.status}, not retrying`);
-            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-          }
-          // Retry on server errors (5xx) and 408 (timeout)
           throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
 
@@ -78,23 +61,12 @@ export class EnhancedErrorHandler {
         return response;
 
       } catch (error) {
-        // Clear timeout on error
-        if (timeoutId) {
-          clearTimeout(timeoutId);
-          timeoutId = null;
-        }
-        
         lastError = error as Error;
         console.warn(`❌ Attempt ${attempt + 1} failed:`, error);
 
         // Don't retry on the last attempt
         if (attempt === maxRetries) {
           break;
-        }
-
-        // Don't retry on AbortError (timeout) - it's likely a network issue
-        if (error instanceof Error && error.name === 'AbortError') {
-          console.log(`⏰ Request aborted on attempt ${attempt + 1}, will retry`);
         }
 
         // Calculate delay for next retry

@@ -4,7 +4,6 @@
  */
 
 import { enhancedFetch } from '../utils/errorHandling';
-import { getOCRExtractEndpoint } from '../config/api';
 
 export interface ImageTextExtractionResult {
   text: string;
@@ -78,6 +77,9 @@ export class ImageTextExtractionService {
       // Convert file to base64
       const base64Image = await this.fileToBase64(file);
       
+      // Get the OCR endpoint from environment
+      const ocrEndpoint = this.getOCREndpoint();
+      
       // Prepare the request payload
       const payload = {
         model: "gpt-4o", // Use GPT-4o for vision capabilities
@@ -102,7 +104,7 @@ export class ImageTextExtractionService {
       };
       
       // Make API request to the dedicated OCR endpoint with enhanced error handling
-      const response = await enhancedFetch.ocrRequest(getOCRExtractEndpoint(), {
+      const response = await enhancedFetch.ocrRequest(`${ocrEndpoint}/api/ocr/extract`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -213,6 +215,27 @@ export class ImageTextExtractionService {
     }
   }
 
+  /**
+   * Get the OCR endpoint URL
+   */
+  private static getOCREndpoint(): string {
+    if (import.meta.env.VITE_AI_ENDPOINT) {
+      // Extract base URL from AI endpoint (remove /api/ai/ask)
+      return import.meta.env.VITE_AI_ENDPOINT.replace('/api/ai/ask', '');
+    }
+    
+    if (import.meta.env.DEV) {
+      return 'http://localhost:3000';
+    }
+    
+    // Check if we're in dev environment (dev.ubora-app.com)
+    if (typeof window !== 'undefined' && window.location.hostname === 'dev.ubora-app.com') {
+      return 'http://apidev.ubora-app.com';
+    }
+    
+    // Fallback for production
+    return 'http://api.ubora-app.com';
+  }
 
   /**
    * Convert File to base64 string

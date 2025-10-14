@@ -1,15 +1,20 @@
 /**
  * Convert firestore:// URLs to actual HTTP download URLs
  */
-
-import { getFilesDownloadEndpoint } from '../config/api';
 export const convertToDownloadUrl = (firestoreUrl: string): string => {
   if (!firestoreUrl || !firestoreUrl.startsWith('firestore://')) {
     return firestoreUrl; // Return as-is if not a firestore URL
   }
 
+  // Get the API endpoint
+  const apiEndpoint = import.meta.env.VITE_AI_ENDPOINT 
+    ? import.meta.env.VITE_AI_ENDPOINT.replace('/api/ai/ask', '')
+    : import.meta.env.DEV 
+      ? 'http://localhost:3000'
+      : 'http://apidev.ubora-app.com';
+
   // Convert firestore://agencyId/formId/userId/fileId to HTTP URL
-  const httpUrl = `${getFilesDownloadEndpoint()}?downloadUrl=${encodeURIComponent(firestoreUrl)}`;
+  const httpUrl = `${apiEndpoint}/api/files/download?downloadUrl=${encodeURIComponent(firestoreUrl)}`;
   
   return httpUrl;
 };

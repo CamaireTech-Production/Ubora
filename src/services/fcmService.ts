@@ -1,6 +1,5 @@
 import { doc, getDoc, setDoc, collection, addDoc, query, where, getDocs, orderBy, limit } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
-import { getFCMSendEndpoint } from '../config/api';
 
 export interface FCMNotification {
   id?: string;
@@ -50,7 +49,7 @@ class FCMService {
       console.log('🔔 [FCM] Sending notification to token:', { fcmToken: fcmToken.substring(0, 20) + '...', userId });
 
       // Call backend API to send FCM
-      const response = await fetch(getFCMSendEndpoint(), {
+      const response = await fetch('/api/fcm/send', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

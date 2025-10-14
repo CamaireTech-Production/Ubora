@@ -2,8 +2,6 @@
  * Simple file download utility that works with firestore:// URLs
  */
 
-import { getFilesDownloadEndpoint } from '../config/api';
-
 /**
  * Get file data from Firestore and create a blob URL
  */
@@ -29,7 +27,13 @@ export const getFileBlobUrl = async (attachment: any): Promise<string> => {
 
     // If no base64 data, try to fetch from the download endpoint
     console.log('🔄 Fetching file from download endpoint...');
-    const downloadUrl = `${getFilesDownloadEndpoint()}?downloadUrl=${encodeURIComponent(attachment.downloadUrl)}`;
+    const apiEndpoint = import.meta.env.VITE_AI_ENDPOINT 
+      ? import.meta.env.VITE_AI_ENDPOINT.replace('/api/ai/ask', '')
+      : import.meta.env.DEV 
+        ? 'http://localhost:3000'
+        : 'http://apidev.ubora-app.com';
+
+    const downloadUrl = `${apiEndpoint}/api/files/download?downloadUrl=${encodeURIComponent(attachment.downloadUrl)}`;
     
     const response = await fetch(downloadUrl);
     if (!response.ok) {
