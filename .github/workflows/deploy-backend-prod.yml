@@ -132,7 +132,29 @@ jobs:
           echo "🧹 Cleaning old releases (keep 5)"
           ls -1dt $RELEASES_DIR/* | tail -n +6 | xargs -r rm -rf
 
+          # Clean up conflicting Nginx configurations BEFORE creating new ones
+          echo "🧹 Cleaning up conflicting Nginx configurations..."
+          
+          # Remove conflicting default site if it contains api.ubora-app.com
+          if grep -q "api.ubora-app.com" /etc/nginx/sites-available/default; then
+            echo "⚠️ Removing api.ubora-app.com from default site"
+            sed -i '/api.ubora-app.com/d' /etc/nginx/sites-available/default
+            sed -i '/ssl_certificate.*api.ubora-app.com/d' /etc/nginx/sites-available/default
+            sed -i '/ssl_certificate_key.*api.ubora-app.com/d' /etc/nginx/sites-available/default
+          fi
+          
+          # Remove any conflicting apidev configurations from production deployment
+          if [ -f /etc/nginx/sites-available/api-dev.ubora-app.com ]; then
+            echo "⚠️ Removing conflicting api-dev.ubora-app.com configuration"
+            rm -f /etc/nginx/sites-enabled/api-dev.ubora-app.com
+            rm -f /etc/nginx/sites-available/api-dev.ubora-app.com
+          fi
+          
+          # Disable default site to prevent conflicts
+          rm -f /etc/nginx/sites-enabled/default
+          
           # Create Nginx configuration for api.ubora-app.com
+          echo "🔧 Creating Nginx configuration for api.ubora-app.com..."
           cat > /etc/nginx/sites-available/api.ubora-app.com << 'EOF'
           server {
               listen 80;
@@ -168,10 +190,22 @@ jobs:
           }
           EOF
           
-          # Enable the site
+          # Enable ONLY the api.ubora-app.com site
+          echo "🔗 Enabling api.ubora-app.com site..."
           ln -sf /etc/nginx/sites-available/api.ubora-app.com /etc/nginx/sites-enabled/
           
+          # Ensure apidev.ubora-app.com is also enabled (for development)
+          if [ -f /etc/nginx/sites-available/apidev.ubora-app.com ]; then
+            echo "🔗 Ensuring apidev.ubora-app.com is enabled..."
+            ln -sf /etc/nginx/sites-available/apidev.ubora-app.com /etc/nginx/sites-enabled/
+          fi
+          
           # Test and reload Nginx
+          echo "🧪 Testing Nginx configuration..."
           nginx -t && systemctl reload nginx
+          
+          # Verify no conflicts
+          echo "✅ Verifying no server name conflicts..."
+          nginx -T 2>/dev/null | grep -c "server_name api.ubora-app.com" || echo "No conflicts found"
           
           echo "✅ Production backend deployed successfully"
