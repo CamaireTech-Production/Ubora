@@ -616,7 +616,6 @@ RÉPONSE :
           {/* Top bar */}
           <ChatTopBar
             title="ARCHA"
-            isConnected={!!AI_ENDPOINT}
             isLoading={isTyping}
             onOpenPanel={() => setPanelOpen(true)}
             onLogout={() => setShowLogoutModal(true)}
