@@ -65,6 +65,45 @@ export const getAPIConfig = () => {
   return API_CONFIG.DEV;
 };
 
+/**
+ * Test API connectivity and fallback to HTTP if HTTPS fails
+ */
+export const testApiConnectivity = async (baseUrl: string): Promise<string> => {
+  try {
+    // Test HTTPS first
+    const response = await fetch(`${baseUrl}/health`, {
+      method: 'GET',
+      mode: 'cors',
+      cache: 'no-cache'
+    });
+    
+    if (response.ok) {
+      return baseUrl; // HTTPS works
+    }
+  } catch (error) {
+    console.warn(`HTTPS connection failed for ${baseUrl}:`, error);
+  }
+  
+  // Fallback to HTTP
+  const httpUrl = baseUrl.replace('https://', 'http://');
+  try {
+    const response = await fetch(`${httpUrl}/health`, {
+      method: 'GET',
+      mode: 'cors',
+      cache: 'no-cache'
+    });
+    
+    if (response.ok) {
+      console.warn(`Using HTTP fallback for ${httpUrl}`);
+      return httpUrl; // HTTP works
+    }
+  } catch (error) {
+    console.error(`Both HTTPS and HTTP failed for ${baseUrl}:`, error);
+  }
+  
+  return baseUrl; // Return original URL as fallback
+};
+
 // Export the current configuration
 export const API = getAPIConfig();
 

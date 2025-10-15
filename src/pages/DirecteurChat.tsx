@@ -37,7 +37,7 @@ const AI_ENDPOINT = getAIEndpoint();
 console.log('🎯 Final AI_ENDPOINT:', AI_ENDPOINT);
 
 if (!AI_ENDPOINT) {
-  console.error("❌ Aucun endpoint IA configuré. ARCHA ne fonctionnera pas.");
+  console.error("❌ Aucun endpoint ARCHA configuré. ARCHA ne fonctionnera pas.");
 }
 
 export const DirecteurChat: React.FC = () => {
@@ -227,7 +227,7 @@ export const DirecteurChat: React.FC = () => {
       if (!isUnlimited) {
         // Estimate tokens needed for this request
         // Use the full system prompt for accurate estimation
-        const estimatedSystemPrompt = `Tu es ARCHA, assistant IA spécialisé dans l'analyse de données de formulaires d'entreprise.
+        const estimatedSystemPrompt = `Tu es ARCHA, assistant spécialisé dans l'analyse de données de formulaires d'entreprise.
 RÈGLES :
 - Réponds UNIQUEMENT en français
 - Utilise UNIQUEMENT les données fournies
@@ -404,7 +404,7 @@ RÉPONSE :
 
       if (!response.ok) {
         // Essayer de récupérer le message d'erreur du serveur
-        let errorMessage = `Erreur serveur IA (HTTP ${response.status})`;
+        let errorMessage = `Erreur serveur ARCHA (HTTP ${response.status})`;
         try {
           const errorData = await response.json();
           if (errorData.error) {
@@ -493,7 +493,7 @@ RÉPONSE :
         } else if (error.message.includes('Problème de connexion réseau')) {
           errorContent += `\n\n💡 **Solutions:**\n• Vérifiez votre connexion WiFi/4G\n• Redémarrez votre routeur si nécessaire\n• Réessayez dans quelques minutes`;
         } else if (error.message.includes('Impossible de joindre')) {
-          errorContent += `\n\n💡 **Actions:**\n• Le service est temporairement indisponible\n• Réessayez dans 5-10 minutes\n• Contactez l'administrateur si le problème persiste`;
+          errorContent += `\n\n💡 **Actions:**\n• ARCHA est temporairement indisponible\n• Réessayez dans 5-10 minutes\n• Contactez l'administrateur si le problème persiste`;
         } else if (error.message.includes('Configuration manquante')) {
           errorContent += `\n\n💡 **Solution:**\n• Contactez l'administrateur système\n• Vérifiez la configuration du serveur`;
         }
@@ -616,7 +616,6 @@ RÉPONSE :
           {/* Top bar */}
           <ChatTopBar
             title="ARCHA"
-            isConnected={!!AI_ENDPOINT}
             isLoading={isTyping}
             onOpenPanel={() => setPanelOpen(true)}
             onLogout={() => setShowLogoutModal(true)}

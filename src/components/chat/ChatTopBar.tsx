@@ -1,17 +1,15 @@
 import React from 'react';
-import { SlidersHorizontal, Wifi, WifiOff, Loader2, LogOut } from 'lucide-react';
+import { SlidersHorizontal, Loader2, LogOut } from 'lucide-react';
 import { Button } from '../Button';
 
 interface ChatTopBarProps {
   title?: string;
-  isConnected?: boolean;
   isLoading?: boolean;
   onOpenPanel?: () => void;
   onLogout?: () => void;
 }
 
 export const ChatTopBar: React.FC<ChatTopBarProps> = ({
-  isConnected = true,
   isLoading = false,
   onOpenPanel,
   onLogout
@@ -46,16 +44,7 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
                   <span className="text-xs text-blue-600">ARCHA analyse...</span>
                 </>
               ) : (
-                <>
-                  {isConnected ? (
-                    <Wifi className="h-3 w-3 text-green-600" />
-                  ) : (
-                    <WifiOff className="h-3 w-3 text-red-500" />
-                  )}
-                  <span className="text-xs text-gray-500">
-                    {isConnected ? 'ARCHA' : 'Hors ligne'}
-                  </span>
-                </>
+                <span className="text-xs text-gray-500">ARCHA</span>
               )}
             </div>
           </div>

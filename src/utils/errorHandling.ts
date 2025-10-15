@@ -112,17 +112,17 @@ export class EnhancedErrorHandler {
    */
   private static getUserFriendlyMessage(errorType: string, url: string): string {
     const isApiEndpoint = url.includes('/api/');
-    const serviceName = isApiEndpoint ? 'le service IA' : 'le serveur';
+    const serviceName = isApiEndpoint ? 'ARCHA' : 'le serveur';
     
     switch (errorType) {
       case 'timeout':
-        return `⏱️ Le service met plus de temps à répondre que prévu. Veuillez réessayer.`;
+        return `⏱️ ARCHA met plus de temps à répondre que prévu. Veuillez réessayer.`;
       
       case 'network':
         return `🌐 Problème de connexion réseau. Vérifiez votre connexion internet et réessayez.`;
       
       case 'connection':
-        return `🔌 Impossible de joindre ${serviceName}. Le service pourrait être temporairement indisponible.`;
+        return `🔌 Impossible de joindre ${serviceName}. ${serviceName === 'ARCHA' ? 'ARCHA pourrait être temporairement indisponible.' : 'Le service pourrait être temporairement indisponible.'}`;
       
       case 'server':
         return `⚠️ ${serviceName} rencontre des difficultés techniques. Veuillez réessayer dans quelques minutes.`;

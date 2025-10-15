@@ -39,7 +39,7 @@ jobs:
         NODE_ENV=production
         
         # CORS Configuration - Match production server configuration
-        CORS_ORIGIN=https://dev.ubora-app.com,https://ubora-app.com,https://my.ubora.com,https://dev.ubora.com,https://apidev.ubora-app.com,https://api.ubora-app.com,https://apidev.ubora.com,https://api.ubora.com,https://admin.ubora-app.com,https://admin.ubora.com,https://studio-gpnfx.firebaseapp.com,https://studio-gpnfx.web.app,http://localhost:5173,http://localhost:3000,http://localhost:4173,https://localhost:5173,https://localhost:3000
+        CORS_ORIGIN=https://dev.ubora-app.com,https://ubora-app.com,https://my.ubora-app.com,https://my.ubora.com,https://dev.ubora.com,https://apidev.ubora-app.com,https://api.ubora-app.com,https://apidev.ubora.com,https://api.ubora.com,https://admin.ubora-app.com,https://admin.ubora.com,https://studio-gpnfx.firebaseapp.com,https://studio-gpnfx.web.app,http://localhost:5173,http://localhost:3000,http://localhost:4173,https://localhost:5173,https://localhost:3000
         EOF
 
     - name: Create version stamp
@@ -153,43 +153,12 @@ jobs:
           # Disable default site to prevent conflicts
           rm -f /etc/nginx/sites-enabled/default
           
-          # Create Nginx configuration for api.ubora-app.com
-          echo "🔧 Creating Nginx configuration for api.ubora-app.com..."
+          # Create Nginx configuration for api.ubora-app.com (HTTP-only first)
+          echo "🔧 Creating HTTP-only Nginx configuration for api.ubora-app.com..."
           DOMAIN=api.ubora-app.com
-          if [ -f "/etc/letsencrypt/live/$DOMAIN/fullchain.pem" ]; then
-            cat > /etc/nginx/sites-available/$DOMAIN << 'EOF'
-          server {
-              listen 80;
-              listen 443 ssl;
-              server_name api.ubora-app.com;
-              
-              ssl_certificate /etc/letsencrypt/live/api.ubora-app.com/fullchain.pem;
-              ssl_certificate_key /etc/letsencrypt/live/api.ubora-app.com/privkey.pem;
-              
-              client_max_body_size 100M;
-              proxy_connect_timeout 300s;
-              proxy_send_timeout 300s;
-              proxy_read_timeout 300s;
-              send_timeout 300s;
-              
-              location / {
-                  proxy_pass http://localhost:3000;
-                  proxy_http_version 1.1;
-                  proxy_set_header Upgrade $http_upgrade;
-                  proxy_set_header Connection 'upgrade';
-                  proxy_set_header Host $host;
-                  proxy_set_header X-Real-IP $remote_addr;
-                  proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-                  proxy_set_header X-Forwarded-Proto $scheme;
-                  proxy_cache_bypass $http_upgrade;
-                  proxy_connect_timeout 300s;
-                  proxy_send_timeout 300s;
-                  proxy_read_timeout 300s;
-              }
-          }
-          EOF
-          else
-            cat > /etc/nginx/sites-available/$DOMAIN << 'EOF'
+          
+          # Always start with HTTP-only configuration
+          cat > /etc/nginx/sites-available/$DOMAIN << 'EOF'
           server {
               listen 80;
               server_name api.ubora-app.com;
@@ -216,7 +185,6 @@ jobs:
               }
           }
           EOF
-          fi
           
           # Enable ONLY the api.ubora-app.com site
           echo "🔗 Enabling api.ubora-app.com site..."
@@ -234,27 +202,40 @@ jobs:
             apt-get install -y certbot python3-certbot-nginx
           fi
           
-          echo "🔐 Configure SSL certificate for api.ubora-app.com"
-          DOMAIN=api.ubora-app.com
-          if ! grep -q "listen 80" /etc/nginx/sites-available/$DOMAIN; then
-            echo "❌ $DOMAIN config missing listen 80; please ensure port 80 is present."
+          # Test Nginx configuration before SSL setup
+          echo "🧪 Testing Nginx configuration..."
+          nginx -t || {
+            echo "❌ Nginx configuration test failed"
             exit 1
-          fi
+          }
+          
+          # Reload Nginx to ensure HTTP-only config is active
+          systemctl reload nginx
+          
+          echo "🔐 Attempting SSL certificate setup for api.ubora-app.com"
+          DOMAIN=api.ubora-app.com
+          
+          # Try to issue SSL certificate
           if [ ! -f "/etc/letsencrypt/live/$DOMAIN/fullchain.pem" ]; then
-            echo "🔐 Issuing certificate for $DOMAIN"
-            certbot --nginx -d $DOMAIN --non-interactive --agree-tos -m admin@$DOMAIN || true
+            echo "🔐 Issuing new certificate for $DOMAIN"
+            certbot --nginx -d $DOMAIN --non-interactive --agree-tos -m admin@ubora-app.com || {
+              echo "⚠️ SSL certificate issuance failed, continuing with HTTP-only"
+              echo "🔧 You can manually run: certbot --nginx -d $DOMAIN"
+            }
           else
-            echo "🔐 Re-deploying existing certificate for $DOMAIN"
-            certbot install --nginx -d $DOMAIN || true
+            echo "🔐 Certificate exists, updating Nginx configuration"
+            certbot install --nginx -d $DOMAIN || {
+              echo "⚠️ SSL certificate installation failed, continuing with HTTP-only"
+            }
           fi
           
-          echo "♻️ Attempting safe renew"
-          certbot renew --quiet || true
-
-          # If SSL now exists, ensure SSL-enabled config is in place
+          # Verify SSL certificate and update config if successful
           if [ -f "/etc/letsencrypt/live/$DOMAIN/fullchain.pem" ]; then
-            echo "🔧 Writing SSL-enabled config for $DOMAIN"
-            cat > /etc/nginx/sites-available/$DOMAIN << 'EOF'
+            echo "✅ SSL certificate verified, ensuring HTTPS configuration"
+            # Certbot should have already updated the config, but let's verify
+            if ! grep -q "ssl_certificate" /etc/nginx/sites-available/$DOMAIN; then
+              echo "🔧 Adding SSL configuration manually"
+              cat > /etc/nginx/sites-available/$DOMAIN << 'EOF'
           server {
               listen 80;
               listen 443 ssl;
@@ -285,7 +266,13 @@ jobs:
               }
           }
           EOF
+            fi
+          else
+            echo "ℹ️ SSL certificate not available, using HTTP-only configuration"
           fi
+          
+          echo "♻️ Attempting certificate renewal"
+          certbot renew --quiet || true
           
           # Test and reload Nginx
           echo "🧪 Testing Nginx configuration..."
