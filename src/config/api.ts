@@ -6,7 +6,7 @@
 export const API_CONFIG = {
   // Development Environment
   DEV: {
-    BASE_URL: 'http://apidev.ubora-app.com'
+    BASE_URL: 'https://apidev.ubora-app.com'
   },
   
   // Production Environment
