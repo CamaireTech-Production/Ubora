@@ -141,13 +141,22 @@ async function formatRawWithOpenAI(rawText) {
       messages: [
         {
           role: "user",
-          content: `Please format the following extracted PDF text into well-structured markdown format. Pay special attention to:
+          content: `Please format the following extracted PDF text into well-structured markdown format. This appears to be a financial/sales report, so pay special attention to:
+
 1. **Tables**: Convert any tabular data to proper markdown table format with headers and rows
-2. **Lists**: Convert numbered and bulleted lists to markdown format
-3. **Headers**: Identify and format section headers with appropriate markdown headers (# ## ###)
-4. **Structure**: Preserve the document structure and hierarchy
-5. **Complex layouts**: Handle multi-column layouts, sidebars, and complex formatting
-6. **Text formatting**: Preserve bold, italic, and other text formatting as markdown
+2. **Financial Data**: Ensure all monetary values, dates, and quantities are clearly formatted
+3. **Lists**: Convert numbered and bulleted lists to markdown format
+4. **Headers**: Identify and format section headers with appropriate markdown headers (# ## ###)
+5. **Structure**: Preserve the document structure and hierarchy
+6. **Data Types**: Clearly identify and format:
+   - Dates (ISO format preferred)
+   - Currency amounts (with FCFA notation)
+   - Quantities and measurements
+   - Product names and codes
+7. **Complex layouts**: Handle multi-column layouts, sidebars, and complex formatting
+8. **Text formatting**: Preserve bold, italic, and other text formatting as markdown
+
+IMPORTANT: Ensure all table data is properly structured with clear column headers and that no data is lost during formatting. Pay special attention to sales tables, product lists, and financial summaries.
 
 Return only the formatted text in markdown, without any additional commentary or explanations.
 
