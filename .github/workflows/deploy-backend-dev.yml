@@ -108,15 +108,11 @@ jobs:
           pm2 stop ubora-backend-dev || true
           pm2 delete ubora-backend-dev || true
           
-          # Start with enhanced configuration
+          # Start with enhanced configuration (compatible with older PM2 versions)
           pm2 start $CURRENT_LINK/server/production-server.js \
             --name ubora-backend-dev \
             --update-env \
             --max-memory-restart 1G \
-            --min-uptime 10s \
-            --max-restarts 10 \
-            --restart-delay 4000 \
-            --kill-timeout 5000 \
             --log /var/log/pm2/ubora-backend-dev-combined.log \
             --error /var/log/pm2/ubora-backend-dev-error.log \
             --out /var/log/pm2/ubora-backend-dev-out.log
@@ -151,10 +147,7 @@ jobs:
               pm2 start $CURRENT_LINK/server/production-server.js \
                 --name ubora-backend-dev \
                 --update-env \
-                --max-memory-restart 1G \
-                --min-uptime 10s \
-                --max-restarts 10 \
-                --restart-delay 4000
+                --max-memory-restart 1G
               pm2 save
               sleep 10
               curl -fsS http://localhost:3001/health || true
