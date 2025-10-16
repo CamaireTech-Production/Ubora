@@ -311,16 +311,8 @@ RÉPONSE :
       }
     };
 
-    // Add user message to local state for immediate display
-    if (currentConversation) {
-      try {
-        // Add to local state for immediate display
-        // The backend will also save it to Firebase
-        addMessageToLocalState(userMessage);
-      } catch (error) {
-        console.error('Error adding user message to local state:', error);
-      }
-    }
+    // User message will be saved by backend and displayed via real-time listener
+    // No optimistic update to prevent duplicates
 
     // Clear input after sending
     setInputMessage('');
