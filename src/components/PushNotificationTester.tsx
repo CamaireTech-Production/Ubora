@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { usePushNotifications } from '../hooks/usePushNotifications';
+import { showEnhancedNotification, isIOS, checkIOSSupport } from '../utils/notificationOptions';
 // Removed useAuth import for pure frontend notifications
 
 interface TestResult {
@@ -28,13 +29,17 @@ export const PushNotificationTester: React.FC = () => {
     setIsRunningTests(true);
     setTestResults([]);
 
-    // Test 1: Check basic support
+    // Test 1: Enhanced support check with iOS detection
+    const basicSupported = pushNotifications.isSupported;
+    const iosSupported = isIOS() ? checkIOSSupport() : true;
+    const isSupported = basicSupported && iosSupported;
+    
     addTestResult(
       'Basic Support',
-      pushNotifications.isSupported ? 'success' : 'error',
-      pushNotifications.isSupported 
-        ? 'Push notifications are supported' 
-        : `Not supported: ${pushNotifications.error}`
+      isSupported ? 'success' : 'error',
+      isSupported 
+        ? `Push notifications are supported${isIOS() ? ' (iOS 16.4+)' : ''}` 
+        : `Not supported: ${isIOS() ? 'iOS version too old (16.4+ required)' : pushNotifications.error}`
     );
 
     // Test 2: Check platform detection
@@ -44,11 +49,15 @@ export const PushNotificationTester: React.FC = () => {
       `Detected platform: ${pushNotifications.platform} (iOS: ${pushNotifications.isIOS}, Android: ${pushNotifications.isAndroid}, Desktop: ${pushNotifications.isDesktop})`
     );
 
-    // Test 3: Check permission status
+    // Test 3: Enhanced permission check with iOS handling
+    const permissionStatus = pushNotifications.permission.granted ? 'granted' : 
+                            pushNotifications.permission.denied ? 'denied' : 'default';
+    const hasPermission = pushNotifications.permission.granted;
+    
     addTestResult(
       'Permission Status',
-      pushNotifications.permission.granted ? 'success' : 'error',
-      `Permission: ${pushNotifications.permission.granted ? 'Granted' : pushNotifications.permission.denied ? 'Denied' : 'Default'}`
+      hasPermission ? 'success' : 'error',
+      `Permission: ${permissionStatus}${isIOS() ? ' (iOS requires user gesture)' : ''}`
     );
 
     // Test 4: Check FCM token
@@ -90,57 +99,33 @@ export const PushNotificationTester: React.FC = () => {
       );
     }
 
-    // Test 6: Test foreground notification via service worker
-    if (Notification.permission === 'granted') {
-      try {
-        if ('serviceWorker' in navigator) {
-          const registration = await navigator.serviceWorker.getRegistration('/');
-          if (registration) {
-            await registration.showNotification('Test Foreground Notification', {
-              body: 'This is a test notification to verify the system works',
-              icon: '/fav-icons/android-icon-192x192.png',
-              badge: '/fav-icons/android-icon-96x96.png',
-              tag: 'test-foreground-notification',
-              requireInteraction: true,
-              silent: false,
-              data: { 
-                url: '/dashboard',
-                test: true,
-                timestamp: Date.now()
-              }
-            });
-            
-            addTestResult(
-              'Foreground Notification',
-              'success',
-              'Test foreground notification displayed successfully via service worker'
-            );
-          } else {
-            addTestResult(
-              'Foreground Notification',
-              'error',
-              'Service worker registration not found'
-            );
+    // Test 6: Enhanced foreground notification with pop-up behavior
+    try {
+      const success = await showEnhancedNotification(
+        'Test Foreground Notification',
+        'This is a test notification with pop-up behavior and highest priority',
+        {
+          tag: 'test-foreground-notification',
+          data: { 
+            url: '/dashboard',
+            test: true,
+            urgent: true
           }
-        } else {
-          addTestResult(
-            'Foreground Notification',
-            'error',
-            'Service worker not supported'
-          );
         }
-      } catch (error) {
-        addTestResult(
-          'Foreground Notification',
-          'error',
-          `Failed to show test notification: ${error}`
-        );
-      }
-    } else {
+      );
+      
+      addTestResult(
+        'Foreground Notification',
+        success ? 'success' : 'error',
+        success 
+          ? 'Enhanced foreground notification displayed with pop-up behavior and highest priority'
+          : 'Failed to show enhanced foreground notification'
+      );
+    } catch (error) {
       addTestResult(
         'Foreground Notification',
         'error',
-        'Notification permission not granted'
+        `Failed to show enhanced notification: ${error}`
       );
     }
 
@@ -230,46 +215,32 @@ export const PushNotificationTester: React.FC = () => {
 
   const sendTestNotification = async () => {
     try {
-      if ('serviceWorker' in navigator) {
-        const registration = await navigator.serviceWorker.getRegistration('/');
-        if (registration) {
-          await registration.showNotification('Test Push Notification', {
-            body: 'This is a test notification sent from the app',
-            icon: '/fav-icons/android-icon-192x192.png',
-            badge: '/fav-icons/android-icon-96x96.png',
-            requireInteraction: true,
-            tag: `test-notification-${Date.now()}`,
-            data: { 
-              url: '/dashboard',
-              test: true,
-              clickAction: '/dashboard'
-            },
-          });
-          
-          addTestResult(
-            'Test Notification',
-            'success',
-            'Test notification sent successfully via service worker'
-          );
-        } else {
-          addTestResult(
-            'Test Notification',
-            'error',
-            'Service worker registration not found'
-          );
+      const success = await showEnhancedNotification(
+        'Test Push Notification',
+        'This is a test notification with pop-up behavior and highest priority',
+        {
+          tag: `test-notification-${Date.now()}`,
+          data: { 
+            url: '/dashboard',
+            test: true,
+            urgent: true,
+            clickAction: '/dashboard'
+          }
         }
-      } else {
-        addTestResult(
-          'Test Notification',
-          'error',
-          'Service worker not supported'
-        );
-      }
+      );
+      
+      addTestResult(
+        'Test Notification',
+        success ? 'success' : 'error',
+        success 
+          ? 'Enhanced test notification sent with pop-up behavior and highest priority'
+          : 'Failed to send enhanced test notification'
+      );
     } catch (error) {
       addTestResult(
         'Test Notification',
         'error',
-        `Test notification failed: ${error}`
+        `Enhanced test notification failed: ${error}`
       );
     }
   };

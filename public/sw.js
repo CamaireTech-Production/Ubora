@@ -71,7 +71,10 @@ try {
         ...payload.data,
         fcmMessageId: payload.messageId,
         timestamp: Date.now(),
-        url: payload.data?.clickAction || '/'
+        url: payload.data?.clickAction || '/',
+        priority: 'high',
+        urgent: true,
+        persistent: true
       },
       tag: uniqueTag,
       requireInteraction: true, // CRITICAL: Keep notification visible
@@ -124,7 +127,10 @@ self.addEventListener("push", (event) => {
     data: {
       ...data,
       timestamp: Date.now(),
-      url: data.clickAction || '/'
+      url: data.clickAction || '/',
+      priority: 'high',
+      urgent: true,
+      persistent: true
     },
     tag: `ubora-push-${Date.now()}`,
     requireInteraction: true, // CRITICAL for Android

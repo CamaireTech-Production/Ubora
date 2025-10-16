@@ -5,6 +5,7 @@ import { Button } from '../components/Button';
 import { Bell, Timer, ShieldCheck, Smartphone, Monitor, TestTube } from 'lucide-react';
 import { usePushNotifications } from '../hooks/usePushNotifications';
 import { PushNotificationTester } from '../components/PushNotificationTester';
+import { showEnhancedNotification } from '../utils/notificationOptions';
 
 export const PushTestPage: React.FC = () => {
   const { 
@@ -50,75 +51,28 @@ export const PushTestPage: React.FC = () => {
 
   const showLocalNotification = useCallback(async (title: string, body: string) => {
     try {
-      console.log('🔔 [PushTest] Attempting to show notification:', { title, body });
-      console.log('🔔 [PushTest] Notification permission:', Notification.permission);
+      console.log('🔔 [PushTest] Attempting to show enhanced notification:', { title, body });
       
-      if (Notification.permission === 'granted') {
-        console.log('🔔 [PushTest] Permission granted, creating notification...');
-        
-        // Use service worker for better PWA compatibility
-        if ('serviceWorker' in navigator) {
-          const registration = await navigator.serviceWorker.getRegistration('/');
-          if (registration) {
-            await registration.showNotification(title, {
-              body,
-              icon: '/fav-icons/android-icon-192x192.png',
-              badge: '/fav-icons/android-icon-96x96.png',
-              tag: `ubora-push-test-${Date.now()}`,
-              requireInteraction: true,
-              silent: false,
-              data: { 
-                url: '/dashboard',
-                test: true,
-                timestamp: Date.now()
-              },
-            });
-            
-            console.log('🔔 [PushTest] Service worker notification sent successfully');
-            return true;
-          }
+      const success = await showEnhancedNotification(title, body, {
+        tag: `ubora-push-test-${Date.now()}`,
+        data: { 
+          url: '/dashboard',
+          test: true,
+          urgent: true
         }
-        
-        // Fallback to direct Notification API
-        const notification = new Notification(title, {
-          body,
-          icon: '/fav-icons/android-icon-192x192.png',
-          badge: '/fav-icons/android-icon-96x96.png',
-          tag: `ubora-push-test-${Date.now()}`,
-          requireInteraction: true,
-          silent: false
-        });
-        
-        console.log('🔔 [PushTest] Direct notification created:', notification);
-        
-        // Handle notification events
-        notification.onclick = () => {
-          console.log('🔔 [PushTest] Notification clicked');
-          window.focus();
-          notification.close();
-        };
-        
-        notification.onerror = (error) => {
-          console.error('🔔 [PushTest] Notification error:', error);
-        };
-        
-        notification.onshow = () => {
-          console.log('🔔 [PushTest] Notification shown');
-        };
-        
-        notification.onclose = () => {
-          console.log('🔔 [PushTest] Notification closed');
-        };
-        
+      });
+      
+      if (success) {
+        console.log('🔔 [PushTest] Enhanced notification sent successfully');
         return true;
       } else {
-        console.log('🔔 [PushTest] Permission not granted:', Notification.permission);
-        setStatus('Permission non accordée pour les notifications');
+        console.log('🔔 [PushTest] Failed to send enhanced notification');
+        setStatus('Erreur lors de l\'envoi de la notification');
         return false;
       }
-    } catch (e) {
-      console.error('🔔 [PushTest] Error showing notification:', e);
-      setStatus(`Erreur lors de l'affichage de la notification: ${e}`);
+    } catch (error) {
+      console.error('🔔 [PushTest] Failed to show enhanced notification:', error);
+      setStatus('Erreur: ' + error);
       return false;
     }
   }, []);
@@ -224,46 +178,37 @@ export const PushTestPage: React.FC = () => {
             </Button>
             <Button 
               onClick={async () => {
-                console.log('🔔 [PushTest] Direct test - Permission:', Notification.permission);
-                if (Notification.permission === 'granted') {
-                  try {
-                    if ('serviceWorker' in navigator) {
-                      const registration = await navigator.serviceWorker.getRegistration('/');
-                      if (registration) {
-                        await registration.showNotification('Test Direct', {
-                          body: 'Test direct via service worker',
-                          icon: '/fav-icons/android-icon-192x192.png',
-                          badge: '/fav-icons/android-icon-96x96.png',
-                          tag: `test-direct-${Date.now()}`,
-                          requireInteraction: true,
-                          silent: false,
-                          data: { 
-                            url: '/dashboard',
-                            test: true,
-                            timestamp: Date.now()
-                          }
-                        });
-                        console.log('🔔 [PushTest] Direct notification sent via service worker');
-                        setStatus('Test direct envoyé via service worker');
-                      } else {
-                        setStatus('Service worker non trouvé');
+                console.log('🔔 [PushTest] Enhanced direct test');
+                try {
+                  const success = await showEnhancedNotification(
+                    'Test Direct Enhanced',
+                    'Test direct avec pop-up behavior et priorité maximale',
+                    {
+                      tag: `test-direct-${Date.now()}`,
+                      data: { 
+                        url: '/dashboard',
+                        test: true,
+                        urgent: true
                       }
-                    } else {
-                      setStatus('Service worker non supporté');
                     }
-                  } catch (error) {
-                    console.error('🔔 [PushTest] Direct notification error:', error);
-                    setStatus('Erreur: ' + error);
+                  );
+                  
+                  if (success) {
+                    console.log('🔔 [PushTest] Enhanced direct notification sent');
+                    setStatus('Test direct enhanced envoyé avec pop-up behavior');
+                  } else {
+                    setStatus('Échec de l\'envoi du test direct enhanced');
                   }
-                } else {
-                  setStatus('Permission non accordée pour test direct');
+                } catch (error) {
+                  console.error('🔔 [PushTest] Enhanced direct notification error:', error);
+                  setStatus('Erreur: ' + error);
                 }
               }} 
               variant="secondary" 
               className="flex items-center gap-2"
             >
               <Bell className="w-4 h-4" />
-              Test Direct
+              Test Direct Enhanced
             </Button>
             <Button 
               onClick={async () => {
