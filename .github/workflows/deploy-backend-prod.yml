@@ -107,14 +107,11 @@ jobs:
           pm2 stop ubora-backend-prod || true
           pm2 delete ubora-backend-prod || true
           
-          # Start with enhanced configuration (compatible with older PM2 versions)
+          # Start with basic configuration (compatible with older PM2 versions)
           pm2 start $CURRENT_LINK/server/production-server.js \
             --name ubora-backend-prod \
             --update-env \
-            --max-memory-restart 1G \
-            --log /var/log/pm2/ubora-backend-prod-combined.log \
-            --error /var/log/pm2/ubora-backend-prod-error.log \
-            --out /var/log/pm2/ubora-backend-prod-out.log
+            --max-memory-restart 1G
           
           pm2 save
           
