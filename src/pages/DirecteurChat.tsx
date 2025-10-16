@@ -433,10 +433,17 @@ RÉPONSE :
       // Tokens are now deducted on the server side
       if (user && data.meta?.userTokensCharged) {
         // Update user data locally to reflect new token counts
+        // Use a timeout to debounce the refresh and prevent immediate re-renders
         try {
-          await refreshUserData();
+          setTimeout(async () => {
+            try {
+              await refreshUserData();
+            } catch (refreshError) {
+              console.error('❌ FRONTEND: Failed to refresh user data after token deduction:', refreshError);
+            }
+          }, 1000); // 1 second delay to allow UI to settle
         } catch (refreshError) {
-          console.error('❌ FRONTEND: Failed to refresh user data after token deduction:', refreshError);
+          console.error('❌ FRONTEND: Failed to schedule user data refresh:', refreshError);
         }
         
         // Track chat activity analytics
@@ -671,6 +678,7 @@ RÉPONSE :
             onLoadConversation={loadConversation}
             onCreateConversation={createNewConversation}
             onGoDashboard={() => (window.location.href = '/directeur/dashboard')}
+            onGoScheduledQuestions={() => (window.location.href = '/directeur/scheduled-questions')}
           />
 
           {/* Token Limit Modal */}

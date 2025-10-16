@@ -296,7 +296,7 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({ 
             id: doc.id,
             type: data.type,
             content: data.content,
-            timestamp: data.timestamp?.toDate() || new Date(),
+            timestamp: data.timestamp?.toDate() || new Date(data.timestamp?.seconds * 1000) || new Date(),
             responseTime: data.responseTime,
             contentType: data.contentType,
             meta: data.meta,
@@ -332,7 +332,37 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         	return contentDuplicate === -1;
         });
 
-        setMessages(uniqueMessages);
+        // Only update messages if there are actually new messages to prevent unnecessary re-renders
+        setMessages(prevMessages => {
+          // Check if we have new messages that aren't already in the array
+          const newMessages = uniqueMessages.filter(newMsg => 
+            !prevMessages.some(prevMsg => prevMsg.id === newMsg.id)
+          );
+          
+          if (newMessages.length > 0) {
+            // Append new messages and sort by timestamp to maintain order
+            const combined = [...prevMessages, ...newMessages];
+            return combined.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+          }
+          
+          // If no new messages, check if we need to update existing messages (for content changes)
+          const hasContentChanges = uniqueMessages.some(newMsg => {
+            const existingMsg = prevMessages.find(prevMsg => prevMsg.id === newMsg.id);
+            return existingMsg && existingMsg.content !== newMsg.content;
+          });
+          
+          if (hasContentChanges) {
+            // Update existing messages with new content
+            return prevMessages.map(prevMsg => {
+              const updatedMsg = uniqueMessages.find(newMsg => newMsg.id === prevMsg.id);
+              return updatedMsg || prevMsg;
+            });
+          }
+          
+          // No changes needed, return existing array to prevent re-render
+          return prevMessages;
+        });
+        
         setHasMoreMessages(false);
         setLastMessageDoc(snapshot.docs[snapshot.docs.length - 1] || null);
 

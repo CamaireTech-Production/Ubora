@@ -3,7 +3,6 @@ import { User, Clock } from 'lucide-react';
 import { GraphRenderer } from './GraphRenderer';
 import { PDFPreview, TextPDFPreview } from './PDFPreview';
 import { TableRenderer } from './TableRenderer';
-import { ImageFileDisplay } from './ImageFileDisplay';
 import { ChatMessage } from '../../types';
 import { MultiFormatToPDF } from '../../utils/MultiFormatToPDF';
 import { generatePDF } from '../../utils/PDFGenerator';
@@ -763,12 +762,15 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
                     <span>{message.meta.forms} formulaires</span>
                   </span>
                 )}
-                {message.meta.userTokensCharged && (
-                  <span className="flex items-center space-x-1">
-                    <span className="w-1.5 h-1.5 bg-yellow-400 rounded-full"></span>
-                    <span>{message.meta.userTokensCharged} tokens</span>
-                  </span>
-                )}
+                {(() => {
+                  const charged = (message.meta as any)?.['userTokensCharged'];
+                  return charged ? (
+                    <span className="flex items-center space-x-1">
+                      <span className="w-1.5 h-1.5 bg-yellow-400 rounded-full"></span>
+                      <span>{charged} tokens</span>
+                    </span>
+                  ) : null;
+                })()}
               </div>
               
               {/* Additional context information */}
@@ -814,7 +816,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
           {message.responseTime && (
             <span className="flex items-center space-x-1">
               <Clock className="h-3 w-3" />
-              <span>{message.responseTime}ms</span>
+              <span>{Math.ceil(message.responseTime / 1000)}s</span>
             </span>
           )}
         </div>

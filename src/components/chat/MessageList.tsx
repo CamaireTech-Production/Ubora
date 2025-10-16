@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, memo } from 'react';
 import MessageBubble from './MessageBubble';
 import { Bot, Loader2, ChevronUp } from 'lucide-react';
 import { Button } from '../Button';
@@ -22,7 +22,7 @@ interface MessageListProps {
   onLoadMore?: () => void;
 }
 
-export const MessageList: React.FC<MessageListProps> = ({
+export const MessageList: React.FC<MessageListProps> = memo(({
   messages,
   isTyping = false,
   typingMessage,
@@ -112,7 +112,7 @@ export const MessageList: React.FC<MessageListProps> = ({
     }
     
     setLastMessageCount(messages.length);
-  }, [messages.length, isTyping, autoScrollDisabled, isAtTop, lastMessageCount, isInitialLoad]);
+  }, [messages.length, isTyping, lastMessageCount, isInitialLoad]);
 
   // Auto-scroll when keyboard opens to keep input visible
   useEffect(() => {
@@ -215,7 +215,7 @@ export const MessageList: React.FC<MessageListProps> = ({
             {/* Group messages */}
             {group.items.map((message, index) => (
               <MessageBubble
-                key={`${message.id}-${message.timestamp.getTime()}-${index}`}
+                key={message.id}
                 message={message}
               />
             ))}
@@ -255,4 +255,4 @@ export const MessageList: React.FC<MessageListProps> = ({
       />
     </>
   );
-};
+});
