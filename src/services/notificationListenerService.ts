@@ -31,11 +31,14 @@ class NotificationListenerService {
     );
 
     this.unsubscribe = onSnapshot(notificationsQuery, (snapshot) => {
+      console.log('🔔 [NotificationListener] Received snapshot with', snapshot.docChanges().length, 'changes');
       
       snapshot.docChanges().forEach((change) => {
         if (change.type === 'added') {
           const notification = change.doc.data();
           const notificationTime = notification.createdAt?.toDate() || new Date();
+          
+          console.log('🔔 [NotificationListener] New notification:', notification.title);
           
           // Only show notification if it's new (not from initial load)
           if (!this.lastNotificationTime || notificationTime > this.lastNotificationTime) {
@@ -45,12 +48,22 @@ class NotificationListenerService {
         }
       });
     }, (error) => {
-      // Reduce noise: handle permission-denied gracefully
-      const message = (error && (error.code || error.message)) || '';
-      if (typeof message === 'string' && message.includes('permission')) {
-        console.warn('🔔 [NotificationListener] Permission denied for notifications listener');
+      // Handle different types of errors gracefully
+      const errorCode = error?.code || '';
+      const errorMessage = error?.message || '';
+      
+      console.log('🔔 [NotificationListener] Firestore error:', { code: errorCode, message: errorMessage });
+      
+      if (errorCode === 'permission-denied' || errorMessage.includes('permission')) {
+        console.warn('🔔 [NotificationListener] Permission denied for notifications listener - this is normal if user lacks Firestore permissions');
         return;
       }
+      
+      if (errorCode === 'unavailable') {
+        console.warn('🔔 [NotificationListener] Firestore unavailable - will retry automatically');
+        return;
+      }
+      
       console.error('🔔 [NotificationListener] Error listening to notifications:', error);
     });
   }
@@ -70,19 +83,26 @@ class NotificationListenerService {
    */
   private async requestNotificationPermission(): Promise<boolean> {
     if (!('Notification' in window)) {
+      console.log('🔔 [NotificationListener] Notifications not supported');
       return false;
     }
 
+    console.log('🔔 [NotificationListener] Current permission:', Notification.permission);
+
     if (Notification.permission === 'granted') {
+      console.log('🔔 [NotificationListener] Permission already granted');
       return true;
     }
 
     if (Notification.permission === 'denied') {
+      console.log('🔔 [NotificationListener] Permission denied');
       return false;
     }
 
     try {
+      console.log('🔔 [NotificationListener] Requesting permission...');
       const permission = await Notification.requestPermission();
+      console.log('🔔 [NotificationListener] Permission request result:', permission);
       return permission === 'granted';
     } catch (error) {
       console.error('🔔 [NotificationListener] Error requesting notification permission:', error);
