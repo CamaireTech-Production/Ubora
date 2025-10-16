@@ -12,6 +12,8 @@
   "categories": ["productivity", "business"],
   "lang": "fr",
   "dir": "ltr",
+  "gcm_sender_id": "848246677738",
+  "gcm_user_visible_only": true,
   "icons": [
     {
       "src": "/fav-icons/android-icon-192x192.png",

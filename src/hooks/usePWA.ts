@@ -35,18 +35,38 @@ export const usePWA = () => {
       }));
     };
 
-    // Check for updates
+    // Check for updates with enhanced detection
     const checkForUpdates = async () => {
       if ('serviceWorker' in navigator) {
         try {
           const registration = await navigator.serviceWorker.getRegistration();
           if (registration) {
+            // Check if there's already a waiting service worker
+            if (registration.waiting) {
+              setPwaState(prev => ({
+                ...prev,
+                isUpdateAvailable: true,
+              }));
+            }
+            
+            // Listen for new updates
             registration.addEventListener('updatefound', () => {
+              console.log('🔄 [PWA] Update found, new service worker installing...');
               setPwaState(prev => ({
                 ...prev,
                 isUpdateAvailable: true,
               }));
             });
+            
+            // Periodic update check every 5 minutes
+            setInterval(async () => {
+              try {
+                await registration.update();
+                console.log('🔄 [PWA] Periodic update check completed');
+              } catch (error) {
+                console.error('🔄 [PWA] Periodic update check failed:', error);
+              }
+            }, 5 * 60 * 1000); // 5 minutes
           }
         } catch (error) {
           console.error('Error checking for updates:', error);
@@ -72,6 +92,9 @@ export const usePWA = () => {
     // Listen for online/offline events
     window.addEventListener('online', updateOnlineStatus);
     window.addEventListener('offline', updateOnlineStatus);
+    
+    // Check for updates when window gains focus
+    window.addEventListener('focus', checkForUpdates);
 
     // Listen for beforeinstallprompt
     const handleBeforeInstallPrompt = (e: Event) => {
@@ -98,6 +121,7 @@ export const usePWA = () => {
     return () => {
       window.removeEventListener('online', updateOnlineStatus);
       window.removeEventListener('offline', updateOnlineStatus);
+      window.removeEventListener('focus', checkForUpdates);
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
       window.removeEventListener('appinstalled', handleAppInstalled);
     };

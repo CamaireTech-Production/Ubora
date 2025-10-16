@@ -225,6 +225,27 @@ export const PushTestPage: React.FC = () => {
               <Bell className="w-4 h-4" />
               Test Direct
             </Button>
+            <Button 
+              onClick={async () => {
+                try {
+                  if ('serviceWorker' in navigator) {
+                    const registration = await navigator.serviceWorker.getRegistration();
+                    if (registration) {
+                      await registration.update();
+                      setStatus('Vérification de mise à jour effectuée');
+                    }
+                  }
+                } catch (error) {
+                  console.error('Error checking for updates:', error);
+                  setStatus('Erreur lors de la vérification');
+                }
+              }} 
+              variant="secondary" 
+              className="flex items-center gap-2"
+            >
+              <Timer className="w-4 h-4" />
+              Vérifier Mise à Jour
+            </Button>
           </div>
           {status && (
             <div className="text-sm text-gray-600">{status}</div>

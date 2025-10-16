@@ -6,13 +6,42 @@ import { RefreshCw, X, CheckCircle } from 'lucide-react';
 export const PWAUpdateNotification: React.FC = () => {
   const [showUpdatePrompt, setShowUpdatePrompt] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
+  const [autoUpdateTimer, setAutoUpdateTimer] = useState<number | null>(null);
+  const [dismissedUntil, setDismissedUntil] = useState<number | null>(null);
 
   useEffect(() => {
+    // Check if update was dismissed recently (within 1 hour)
+    const dismissed = localStorage.getItem('pwa-update-dismissed');
+    if (dismissed) {
+      const dismissedTime = parseInt(dismissed);
+      const oneHour = 60 * 60 * 1000;
+      if (Date.now() - dismissedTime < oneHour) {
+        setDismissedUntil(dismissedTime + oneHour);
+        return;
+      } else {
+        localStorage.removeItem('pwa-update-dismissed');
+      }
+    }
+
     // Listen for service worker updates
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.addEventListener('controllerchange', () => {
         setShowUpdatePrompt(true);
       });
+
+      // Check for waiting service worker
+      const checkForWaitingSW = async () => {
+        try {
+          const registration = await navigator.serviceWorker.getRegistration();
+          if (registration && registration.waiting) {
+            setShowUpdatePrompt(true);
+          }
+        } catch (error) {
+          console.error('Error checking for waiting service worker:', error);
+        }
+      };
+
+      checkForWaitingSW();
     }
   }, []);
 
@@ -38,9 +67,35 @@ export const PWAUpdateNotification: React.FC = () => {
 
   const handleDismiss = () => {
     setShowUpdatePrompt(false);
+    // Remember dismissal for 1 hour
+    localStorage.setItem('pwa-update-dismissed', Date.now().toString());
+    setDismissedUntil(Date.now() + (60 * 60 * 1000));
+    
+    // Clear auto-update timer if running
+    if (autoUpdateTimer) {
+      clearTimeout(autoUpdateTimer);
+      setAutoUpdateTimer(null);
+    }
   };
 
-  if (!showUpdatePrompt) {
+  // Auto-update after 5 seconds
+  useEffect(() => {
+    if (showUpdatePrompt && !autoUpdateTimer) {
+      const timer = window.setTimeout(() => {
+        handleUpdate();
+      }, 5000);
+      setAutoUpdateTimer(timer);
+    }
+    
+    return () => {
+      if (autoUpdateTimer) {
+        clearTimeout(autoUpdateTimer);
+      }
+    };
+  }, [showUpdatePrompt]);
+
+  // Don't show if dismissed recently
+  if (!showUpdatePrompt || (dismissedUntil && Date.now() < dismissedUntil)) {
     return null;
   }
 
@@ -57,6 +112,11 @@ export const PWAUpdateNotification: React.FC = () => {
                 <h3 className="font-semibold text-white">Mise à jour disponible</h3>
                 <p className="text-green-100 text-sm">
                   Une nouvelle version de l'application est disponible
+                  {autoUpdateTimer && (
+                    <span className="block mt-1 text-xs">
+                      Mise à jour automatique dans 5 secondes...
+                    </span>
+                  )}
                 </p>
               </div>
             </div>
@@ -97,7 +157,7 @@ export const PWAUpdateNotification: React.FC = () => {
                 variant="secondary"
                 className="px-4 text-green-100 hover:text-white hover:bg-green-500/20"
               >
-                Plus tard
+                Plus tard (1h)
               </Button>
             </div>
           </div>

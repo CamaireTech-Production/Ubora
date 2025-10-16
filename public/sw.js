@@ -53,7 +53,7 @@ try {
 
   const messaging = firebase.messaging();
 
-  // Handle FCM background messages with enhanced mobile support
+  // Handle FCM background messages with Android-optimized settings
   messaging.onBackgroundMessage((payload) => {
     console.log('🔔 [SW] FCM background message received:', payload);
     
@@ -61,19 +61,24 @@ try {
     const body = payload.notification?.body || 'Vous avez reçu une nouvelle notification';
     const uniqueTag = `ubora-fcm-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     
+    // Android-optimized notification options
     const options = {
       body: body,
       icon: '/fav-icons/android-icon-192x192.png',
       badge: '/fav-icons/android-icon-96x96.png',
+      image: payload.notification?.image || '/fav-icons/android-icon-512x512.png',
       data: {
         ...payload.data,
         fcmMessageId: payload.messageId,
-        timestamp: Date.now()
+        timestamp: Date.now(),
+        url: payload.data?.clickAction || '/'
       },
       tag: uniqueTag,
-      requireInteraction: false, // Allow auto-dismiss for better UX
+      requireInteraction: true, // CRITICAL: Keep notification visible
       silent: false,
-      vibrate: [200, 100, 200], // Vibration pattern for mobile
+      vibrate: [200, 100, 200, 100, 200], // Enhanced vibration pattern
+      timestamp: Date.now(),
+      renotify: true, // Allow re-notification with same tag
       actions: [
         {
           action: 'open',
@@ -88,21 +93,60 @@ try {
       ]
     };
     
+    console.log('🔔 [SW] Showing notification with options:', options);
     self.registration.showNotification(title, options);
   });
 } catch (e) {
   // Fail silently if Firebase scripts are unavailable
 }
 
-// Listen for push events
-self?.addEventListener("push", (event) => {
-  const data = event.data?.json() ?? {};
-  const title = data.title || "New Notification";
+// Enhanced push event listener for Android
+self.addEventListener("push", (event) => {
+  console.log('🔔 [SW] Push event received:', event);
+  
+  let data = {};
+  if (event.data) {
+    try {
+      data = event.data.json();
+    } catch (e) {
+      data = { title: 'Ubora', body: 'Nouvelle notification' };
+    }
+  }
+  
+  const title = data.title || "Ubora";
+  const body = data.body || "Vous avez reçu une nouvelle notification";
+  
   const options = {
-    body: data.body,
-    icon: "/fav-icons/android-icon-192x192.png",
-    data,
+    body: body,
+    icon: '/fav-icons/android-icon-192x192.png',
+    badge: '/fav-icons/android-icon-96x96.png',
+    image: data.image || '/fav-icons/android-icon-512x512.png',
+    data: {
+      ...data,
+      timestamp: Date.now(),
+      url: data.clickAction || '/'
+    },
+    tag: `ubora-push-${Date.now()}`,
+    requireInteraction: true, // CRITICAL for Android
+    silent: false,
+    vibrate: [200, 100, 200, 100, 200],
+    timestamp: Date.now(),
+    renotify: true,
+    actions: [
+      {
+        action: 'open',
+        title: 'Ouvrir',
+        icon: '/fav-icons/android-icon-48x48.png'
+      },
+      {
+        action: 'dismiss',
+        title: 'Ignorer',
+        icon: '/fav-icons/android-icon-48x48.png'
+      }
+    ]
   };
+  
+  console.log('🔔 [SW] Showing push notification:', { title, options });
   event.waitUntil(self.registration.showNotification(title, options));
 });
 
@@ -168,7 +212,7 @@ self?.addEventListener("notificationclick", (event) => {
   );
 });
 
-// Handle messages from the main thread (for test notifications)
+// Handle messages from the main thread (for test notifications and updates)
 self.addEventListener('message', (event) => {
   if (event.data && event.data.type === 'SHOW_NOTIFICATION') {
     const { payload } = event.data;
@@ -177,12 +221,34 @@ self.addEventListener('message', (event) => {
       body: payload.notification?.body,
       icon: '/fav-icons/android-icon-192x192.png',
       badge: '/fav-icons/android-icon-96x96.png',
-      data: payload.data || {},
+      image: '/fav-icons/android-icon-512x512.png',
+      data: {
+        ...payload.data,
+        timestamp: Date.now(),
+        url: payload.data?.url || '/'
+      },
       tag: `ubora-test-${Date.now()}`,
-      requireInteraction: false,
-      silent: false
+      requireInteraction: true, // CRITICAL for Android
+      silent: false,
+      vibrate: [200, 100, 200, 100, 200],
+      timestamp: Date.now(),
+      renotify: true
     };
     
+    console.log('🔔 [SW] Showing test notification:', { title, options });
     self.registration.showNotification(title, options);
+  }
+  
+  // Handle SKIP_WAITING message for updates
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    console.log('🔄 [SW] Received SKIP_WAITING message, activating new service worker');
+    self.skipWaiting();
+    
+    // Notify all clients that the new service worker is taking control
+    self.clients.matchAll().then(clients => {
+      clients.forEach(client => {
+        client.postMessage({ type: 'SW_UPDATED' });
+      });
+    });
   }
 });
