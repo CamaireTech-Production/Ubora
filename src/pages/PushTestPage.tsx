@@ -56,17 +56,40 @@ export const PushTestPage: React.FC = () => {
       if (Notification.permission === 'granted') {
         console.log('🔔 [PushTest] Permission granted, creating notification...');
         
-        // Always use direct Notification API for foreground notifications
+        // Use service worker for better PWA compatibility
+        if ('serviceWorker' in navigator) {
+          const registration = await navigator.serviceWorker.getRegistration('/');
+          if (registration) {
+            await registration.showNotification(title, {
+              body,
+              icon: '/fav-icons/android-icon-192x192.png',
+              badge: '/fav-icons/android-icon-96x96.png',
+              tag: `ubora-push-test-${Date.now()}`,
+              requireInteraction: true,
+              silent: false,
+              data: { 
+                url: '/dashboard',
+                test: true,
+                timestamp: Date.now()
+              },
+            });
+            
+            console.log('🔔 [PushTest] Service worker notification sent successfully');
+            return true;
+          }
+        }
+        
+        // Fallback to direct Notification API
         const notification = new Notification(title, {
           body,
           icon: '/fav-icons/android-icon-192x192.png',
           badge: '/fav-icons/android-icon-96x96.png',
           tag: `ubora-push-test-${Date.now()}`,
-          requireInteraction: false,
+          requireInteraction: true,
           silent: false
         });
         
-        console.log('🔔 [PushTest] Notification created:', notification);
+        console.log('🔔 [PushTest] Direct notification created:', notification);
         
         // Handle notification events
         notification.onclick = () => {
@@ -86,11 +109,6 @@ export const PushTestPage: React.FC = () => {
         notification.onclose = () => {
           console.log('🔔 [PushTest] Notification closed');
         };
-        
-        // Auto-close after 5 seconds
-        setTimeout(() => {
-          notification.close();
-        }, 5000);
         
         return true;
       } else {

@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { usePushNotifications } from '../hooks/usePushNotifications';
-import { fcmService } from '../services/fcmService';
-import { useAuth } from '../contexts/AuthContext';
+// Removed useAuth import for pure frontend notifications
 
 interface TestResult {
   test: string;
@@ -11,7 +10,7 @@ interface TestResult {
 }
 
 export const PushNotificationTester: React.FC = () => {
-  const { user } = useAuth();
+  // Removed unused user import for pure frontend notifications
   const pushNotifications = usePushNotifications();
   const [testResults, setTestResults] = useState<TestResult[]>([]);
   const [isRunningTests, setIsRunningTests] = useState(false);
@@ -122,38 +121,48 @@ export const PushNotificationTester: React.FC = () => {
       );
     }
 
-    // Test 7: Test FCM service
-    if (user && pushNotifications.token) {
-      try {
-        const testNotification = fcmService.createNotification(
-          'FCM Test',
-          'Testing FCM service integration',
-          { test: true, timestamp: Date.now() }
-        );
-
-        const result = await fcmService.sendToToken(
-          testNotification,
-          pushNotifications.token,
-          user.id
-        );
-
+    // Test 7: Test Direct Service Worker Notification
+    try {
+      if ('serviceWorker' in navigator) {
+        const registration = await navigator.serviceWorker.getRegistration('/');
+        if (registration) {
+          await registration.showNotification('Test Direct Notification', {
+            body: 'This is a direct frontend notification test',
+            icon: '/fav-icons/android-icon-192x192.png',
+            badge: '/fav-icons/android-icon-96x96.png',
+            requireInteraction: true,
+            tag: `direct-test-${Date.now()}`,
+            data: { 
+              url: '/',
+              test: true,
+              timestamp: Date.now()
+            },
+          });
+          
+          addTestResult(
+            'Direct Notification',
+            'success',
+            'Direct service worker notification sent successfully'
+          );
+        } else {
+          addTestResult(
+            'Direct Notification',
+            'error',
+            'Service worker registration not found'
+          );
+        }
+      } else {
         addTestResult(
-          'FCM Service',
-          result.status === 'sent' ? 'success' : 'error',
-          `FCM service test: ${result.status} - ${result.error || 'Success'}`
-        );
-      } catch (error) {
-        addTestResult(
-          'FCM Service',
+          'Direct Notification',
           'error',
-          `FCM service test failed: ${error}`
+          'Service worker not supported'
         );
       }
-    } else {
+    } catch (error) {
       addTestResult(
-        'FCM Service',
+        'Direct Notification',
         'error',
-        'Cannot test FCM service - missing user or token'
+        `Direct notification failed: ${error}`
       );
     }
 
@@ -197,37 +206,42 @@ export const PushNotificationTester: React.FC = () => {
   };
 
   const sendTestNotification = async () => {
-    if (!user || !pushNotifications.token) {
-      addTestResult(
-        'Test Notification',
-        'error',
-        'Cannot send test notification - missing user or token'
-      );
-      return;
-    }
-
     try {
-      const testNotification = fcmService.createNotification(
-        'Test Push Notification',
-        'This is a test notification sent from the app',
-        { 
-          test: true, 
-          timestamp: Date.now(),
-          clickAction: '/dashboard'
+      if ('serviceWorker' in navigator) {
+        const registration = await navigator.serviceWorker.getRegistration('/');
+        if (registration) {
+          await registration.showNotification('Test Push Notification', {
+            body: 'This is a test notification sent from the app',
+            icon: '/fav-icons/android-icon-192x192.png',
+            badge: '/fav-icons/android-icon-96x96.png',
+            requireInteraction: true,
+            tag: `test-notification-${Date.now()}`,
+            data: { 
+              url: '/dashboard',
+              test: true,
+              clickAction: '/dashboard'
+            },
+          });
+          
+          addTestResult(
+            'Test Notification',
+            'success',
+            'Test notification sent successfully via service worker'
+          );
+        } else {
+          addTestResult(
+            'Test Notification',
+            'error',
+            'Service worker registration not found'
+          );
         }
-      );
-
-      const result = await fcmService.sendToToken(
-        testNotification,
-        pushNotifications.token,
-        user.id
-      );
-
-      addTestResult(
-        'Test Notification',
-        result.status === 'sent' ? 'success' : 'error',
-        `Test notification ${result.status}: ${result.error || 'Sent successfully'}`
-      );
+      } else {
+        addTestResult(
+          'Test Notification',
+          'error',
+          'Service worker not supported'
+        );
+      }
     } catch (error) {
       addTestResult(
         'Test Notification',
