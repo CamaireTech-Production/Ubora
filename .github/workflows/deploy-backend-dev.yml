@@ -66,7 +66,7 @@ jobs:
         source: "deploy.tar.gz"
         target: "/var/www/ubora-backend-dev/uploads/"
 
-    - name: Deploy on VPS (releases + symlink + PM2 + health)
+    - name: Deploy on VPS (Enhanced with robust error handling)
       uses: appleboy/ssh-action@v1.0.3
       with:
         host: ${{ secrets.VPS_HOST }}
@@ -75,105 +75,96 @@ jobs:
         port: ${{ secrets.VPS_PORT }}
         script: |
           set -e
+          
+          # Configuration
           BASE_DIR=/var/www/ubora-backend-dev
           RELEASES_DIR=$BASE_DIR/releases
           UPLOADS_DIR=$BASE_DIR/uploads
           TS=$(date +%Y%m%d%H%M%S)
           NEW_RELEASE=$RELEASES_DIR/$TS
           CURRENT_LINK=$BASE_DIR/current
-
-          mkdir -p $RELEASES_DIR $UPLOADS_DIR
+          DOMAIN=apidev.ubora-app.com
+          
+          # Create directories
+          mkdir -p $RELEASES_DIR $UPLOADS_DIR /var/log/pm2
+          
+          # Extract and setup new release
           echo "📦 Extracting artifact to release $NEW_RELEASE"
           mkdir -p $NEW_RELEASE
           tar -xzf $UPLOADS_DIR/deploy.tar.gz -C $NEW_RELEASE
-
+          
           cd $NEW_RELEASE
           echo "📥 Installing dependencies (root)"
-          npm ci || npm install
+          npm ci --production || npm install --production
           echo "📥 Installing dependencies (api)"
-          cd api && npm ci || npm install; cd ..
-
+          cd api && npm ci --production || npm install --production; cd ..
+          
+          # Update symlink
           echo "🔁 Updating current symlink"
           ln -sfn $NEW_RELEASE $CURRENT_LINK
-
-          echo "🛑 Restarting PM2"
+          
+          # Enhanced PM2 management
+          echo "🛑 Managing PM2 processes"
           pm2 stop ubora-backend-dev || true
           pm2 delete ubora-backend-dev || true
-          pm2 flush || true
-          pm2 kill || true
-          sleep 2
-
-          echo "🚀 Starting app with PM2"
-          pm2 start $CURRENT_LINK/server/production-server.js --name ubora-backend-dev --update-env
+          
+          # Start with basic configuration (compatible with older PM2 versions)
+          pm2 start $CURRENT_LINK/server/production-server.js \
+            --name ubora-backend-dev \
+            --update-env \
+            --max-memory-restart 1G
+          
           pm2 save
-
+          
+          # Wait and verify
           echo "⏳ Waiting for app to boot"
-          sleep 10
-          echo "📊 PM2 Status:"
-          pm2 list
-
-          echo "🧪 Health check"
-          if curl -fsS http://localhost:3001/health > /dev/null; then
-            echo "✅ Health OK"
-          else
-            echo "❌ Health check failed. Rolling back..."
+          sleep 15
+          
+          # Enhanced health check with retries
+          echo "🧪 Health check with retries"
+          HEALTH_OK=false
+          for i in {1..5}; do
+            if curl -fsS http://localhost:3001/health > /dev/null; then
+              echo "✅ Health check passed (attempt $i)"
+              HEALTH_OK=true
+              break
+            else
+              echo "⏳ Health check failed (attempt $i), retrying..."
+              sleep 5
+            fi
+          done
+          
+          if [ "$HEALTH_OK" = false ]; then
+            echo "❌ Health check failed after 5 attempts. Rolling back..."
             PREV=$(ls -1dt $RELEASES_DIR/* | sed -n '2p')
             if [ -n "$PREV" ]; then
               ln -sfn $PREV $CURRENT_LINK
               pm2 stop ubora-backend-dev || true
               pm2 delete ubora-backend-dev || true
-              pm2 start $CURRENT_LINK/server/production-server.js --name ubora-backend-dev --update-env
+              pm2 start $CURRENT_LINK/server/production-server.js \
+                --name ubora-backend-dev \
+                --update-env \
+                --max-memory-restart 1G
               pm2 save
-              sleep 8
+              sleep 10
               curl -fsS http://localhost:3001/health || true
             fi
             exit 1
           fi
-
+          
+          # Cleanup old releases
           echo "🧹 Cleaning old releases (keep 5)"
           ls -1dt $RELEASES_DIR/* | tail -n +6 | xargs -r rm -rf
 
-          # Clean up conflicting Nginx configurations BEFORE creating new ones
-          echo "🧹 Cleaning up conflicting Nginx configurations..."
+          # Enhanced SSL and Nginx setup
+          echo "🔧 Setting up enhanced SSL and Nginx configuration"
           
-          # Remove conflicting default site if it contains apidev.ubora-app.com
-          if grep -q "apidev.ubora-app.com" /etc/nginx/sites-available/default; then
-            echo "⚠️ Removing apidev.ubora-app.com from default site"
-            sed -i '/apidev.ubora-app.com/d' /etc/nginx/sites-available/default
-            sed -i '/ssl_certificate.*apidev.ubora-app.com/d' /etc/nginx/sites-available/default
-            sed -i '/ssl_certificate_key.*apidev.ubora-app.com/d' /etc/nginx/sites-available/default
-          fi
-          
-          # Remove old api-dev.ubora-app.com if it exists and conflicts
-          if [ -f /etc/nginx/sites-available/api-dev.ubora-app.com ]; then
-            echo "⚠️ Removing conflicting api-dev.ubora-app.com configuration"
-            rm -f /etc/nginx/sites-enabled/api-dev.ubora-app.com
-            rm -f /etc/nginx/sites-available/api-dev.ubora-app.com
-          fi
-          
-          # Fix broken SSL configurations for both domains
-          echo "🔧 Fixing broken SSL configurations..."
-          
-          # Fix apidev.ubora-app.com if it has broken SSL
-          if [ -f /etc/nginx/sites-available/apidev.ubora-app.com ] && grep -q "ssl_certificate" /etc/nginx/sites-available/apidev.ubora-app.com && [ ! -f "/etc/letsencrypt/live/apidev.ubora-app.com/fullchain.pem" ]; then
-            echo "⚠️ Fixing broken SSL config for apidev.ubora-app.com"
-            rm -f /etc/nginx/sites-enabled/apidev.ubora-app.com
-          fi
-          
-          # Fix api.ubora-app.com if it has broken SSL
-          if [ -f /etc/nginx/sites-available/api.ubora-app.com ] && grep -q "ssl_certificate" /etc/nginx/sites-available/api.ubora-app.com && [ ! -f "/etc/letsencrypt/live/api.ubora-app.com/fullchain.pem" ]; then
-            echo "⚠️ Fixing broken SSL config for api.ubora-app.com"
-            rm -f /etc/nginx/sites-enabled/api.ubora-app.com
-          fi
-          
-          # Disable default site to prevent conflicts
+          # Clean up conflicting configurations
           rm -f /etc/nginx/sites-enabled/default
+          rm -f /etc/nginx/sites-enabled/api-dev.ubora-app.com
           
-          # Create Nginx configuration for apidev.ubora-app.com (HTTP-only first)
-          echo "🔧 Creating HTTP-only Nginx configuration for apidev.ubora-app.com..."
-          DOMAIN=apidev.ubora-app.com
-          
-          # Always start with HTTP-only configuration
+          # Create HTTP-only configuration first
+          echo "🔧 Creating HTTP-only Nginx configuration for $DOMAIN"
           cat > /etc/nginx/sites-available/$DOMAIN << 'EOF'
           server {
               listen 80;
@@ -195,138 +186,57 @@ jobs:
                   proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
                   proxy_set_header X-Forwarded-Proto $scheme;
                   proxy_cache_bypass $http_upgrade;
-                  proxy_connect_timeout 300s;
-                  proxy_send_timeout 300s;
-                  proxy_read_timeout 300s;
+              }
+              
+              # Health check endpoint
+              location /health {
+                  proxy_pass http://localhost:3001/health;
+                  access_log off;
               }
           }
           EOF
           
-          # Enable ONLY the apidev.ubora-app.com site
-          echo "🔗 Enabling apidev.ubora-app.com site..."
-          ln -sf /etc/nginx/sites-available/apidev.ubora-app.com /etc/nginx/sites-enabled/
+          # Enable site
+          ln -sf /etc/nginx/sites-available/$DOMAIN /etc/nginx/sites-enabled/
           
-          # Check if api.ubora-app.com has broken SSL config and fix it
-          if [ -f /etc/nginx/sites-available/api.ubora-app.com ]; then
-            echo "🔍 Checking api.ubora-app.com configuration..."
-            if grep -q "ssl_certificate" /etc/nginx/sites-available/api.ubora-app.com && [ ! -f "/etc/letsencrypt/live/api.ubora-app.com/fullchain.pem" ]; then
-              echo "⚠️ api.ubora-app.com has broken SSL config, creating HTTP-only version..."
-              cat > /etc/nginx/sites-available/api.ubora-app.com << 'EOF'
-          server {
-              listen 80;
-              server_name api.ubora-app.com;
-              
-              client_max_body_size 100M;
-              proxy_connect_timeout 300s;
-              proxy_send_timeout 300s;
-              proxy_read_timeout 300s;
-              send_timeout 300s;
-              
-              location / {
-                  proxy_pass http://localhost:3000;
-                  proxy_http_version 1.1;
-                  proxy_set_header Upgrade $http_upgrade;
-                  proxy_set_header Connection 'upgrade';
-                  proxy_set_header Host $host;
-                  proxy_set_header X-Real-IP $remote_addr;
-                  proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-                  proxy_set_header X-Forwarded-Proto $scheme;
-                  proxy_cache_bypass $http_upgrade;
-                  proxy_connect_timeout 300s;
-                  proxy_send_timeout 300s;
-                  proxy_read_timeout 300s;
-              }
-          }
-          EOF
-            fi
-            echo "🔗 Enabling api.ubora-app.com site..."
-            ln -sf /etc/nginx/sites-available/api.ubora-app.com /etc/nginx/sites-enabled/
-          fi
-          
-          echo "🔐 Ensuring Certbot is installed"
-          if ! command -v certbot >/dev/null 2>&1; then
-            apt-get update -y
-            apt-get install -y certbot python3-certbot-nginx
-          fi
-          
-          # Test Nginx configuration before SSL setup
-          echo "🧪 Testing Nginx configuration..."
+          # Test nginx configuration
           nginx -t || {
             echo "❌ Nginx configuration test failed"
             exit 1
           }
           
-          # Reload Nginx to ensure HTTP-only config is active
+          # Reload nginx
           systemctl reload nginx
           
-          echo "🔐 Attempting SSL certificate setup for apidev.ubora-app.com"
-          DOMAIN=apidev.ubora-app.com
+          # Wait for DNS propagation
+          echo "⏳ Waiting for DNS propagation"
+          sleep 30
           
-          # Try to issue SSL certificate
-          if [ ! -f "/etc/letsencrypt/live/$DOMAIN/fullchain.pem" ]; then
-            echo "🔐 Issuing new certificate for $DOMAIN"
-            certbot --nginx -d $DOMAIN --non-interactive --agree-tos -m admin@ubora-app.com || {
-              echo "⚠️ SSL certificate issuance failed, continuing with HTTP-only"
-              echo "🔧 You can manually run: certbot --nginx -d $DOMAIN"
-            }
-          else
-            echo "🔐 Certificate exists, updating Nginx configuration"
-            certbot install --nginx -d $DOMAIN || {
-              echo "⚠️ SSL certificate installation failed, continuing with HTTP-only"
-            }
+          # Verify domain resolution
+          if ! nslookup $DOMAIN > /dev/null 2>&1; then
+            echo "⚠️ Domain resolution failed, skipping SSL setup"
+            exit 0
           fi
           
-          # Verify SSL certificate and update config if successful
-          if [ -f "/etc/letsencrypt/live/$DOMAIN/fullchain.pem" ]; then
-            echo "✅ SSL certificate verified, ensuring HTTPS configuration"
-            # Certbot should have already updated the config, but let's verify
-            if ! grep -q "ssl_certificate" /etc/nginx/sites-available/$DOMAIN; then
-              echo "🔧 Adding SSL configuration manually"
-              cat > /etc/nginx/sites-available/$DOMAIN << 'EOF'
-          server {
-              listen 80;
-              listen 443 ssl;
-              server_name apidev.ubora-app.com;
-              
-              ssl_certificate /etc/letsencrypt/live/apidev.ubora-app.com/fullchain.pem;
-              ssl_certificate_key /etc/letsencrypt/live/apidev.ubora-app.com/privkey.pem;
-              
-              client_max_body_size 100M;
-              proxy_connect_timeout 300s;
-              proxy_send_timeout 300s;
-              proxy_read_timeout 300s;
-              send_timeout 300s;
-              
-              location / {
-                  proxy_pass http://localhost:3001;
-                  proxy_http_version 1.1;
-                  proxy_set_header Upgrade $http_upgrade;
-                  proxy_set_header Connection 'upgrade';
-                  proxy_set_header Host $host;
-                  proxy_set_header X-Real-IP $remote_addr;
-                  proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-                  proxy_set_header X-Forwarded-Proto $scheme;
-                  proxy_cache_bypass $http_upgrade;
-                  proxy_connect_timeout 300s;
-                  proxy_send_timeout 300s;
-                  proxy_read_timeout 300s;
-              }
+          # Install/update SSL certificate
+          echo "🔐 Setting up SSL certificate"
+          if ! command -v certbot >/dev/null 2>&1; then
+            apt-get update -y
+            apt-get install -y certbot python3-certbot-nginx
+          fi
+          
+          # Issue or renew certificate
+          certbot --nginx -d $DOMAIN --non-interactive --agree-tos -m admin@ubora-app.com --redirect || {
+            echo "⚠️ SSL certificate setup failed, continuing with HTTP-only"
+            echo "🔧 Manual SSL setup: certbot --nginx -d $DOMAIN"
           }
-          EOF
-            fi
-          else
-            echo "ℹ️ SSL certificate not available, using HTTP-only configuration"
-          fi
           
-          echo "♻️ Attempting certificate renewal"
-          certbot renew --quiet || true
-          
-          # Test and reload Nginx
-          echo "🧪 Testing Nginx configuration..."
+          # Final verification
+          echo "🧪 Final verification"
           nginx -t && systemctl reload nginx
           
-          # Verify no conflicts
-          echo "✅ Verifying no server name conflicts..."
-          nginx -T 2>/dev/null | grep -c "server_name apidev.ubora-app.com" || echo "No conflicts found"
+          # Test both HTTP and HTTPS
+          curl -fsS http://$DOMAIN/health > /dev/null && echo "✅ HTTP working"
+          curl -fsS https://$DOMAIN/health > /dev/null && echo "✅ HTTPS working" || echo "⚠️ HTTPS not working"
           
           echo "✅ Development backend deployed successfully"

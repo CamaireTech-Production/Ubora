@@ -722,7 +722,18 @@ ${hasPDFContent ? `
 - OBLIGATOIRE : MENTIONNE EXPLICITEMENT le nom des fichiers PDF que tu utilises comme référence dans ta réponse
 - OBLIGATOIRE : Utilise des phrases comme "Selon le document [nom_fichier]", "Dans le fichier [nom_fichier]", "D'après [nom_fichier]"
 - OBLIGATOIRE : Cite le nom exact du fichier PDF quand tu fais référence à son contenu
-- Le contenu des documents PDF fait partie des données de soumission et doit être traité comme tel` : ''}
+- Le contenu des documents PDF fait partie des données de soumission et doit être traité comme tel
+
+ANALYSE FINANCIÈRE ET COMMERCIALE SPÉCIALISÉE :
+- Si le document contient des données financières (ventes, dépenses, chiffres d'affaires), traite-les comme des données numériques
+- OBLIGATOIRE : Pour toute question sur des produits, articles, ou éléments spécifiques, recherche dans TOUT le contenu du document
+- OBLIGATOIRE : Les tableaux markdown contiennent des données détaillées - analyse-les ligne par ligne si nécessaire
+- OBLIGATOIRE : Calcule automatiquement les totaux, moyennes, et pourcentages quand pertinent
+- OBLIGATOIRE : Identifie les tendances et patterns dans les données temporelles
+- OBLIGATOIRE : Compare les performances entre différentes périodes ou départements
+- OBLIGATOIRE : Extrais les métriques clés (CA total, rentabilité, coûts, etc.)
+- OBLIGATOIRE : Structure tes réponses avec des insights quantitatifs précis
+- OBLIGATOIRE : Si on te demande des informations sur un produit spécifique, recherche dans toutes les sections du document` : ''}
 
 ${hasImageContent ? `
 🖼️ DONNÉES SUPPLÉMENTAIRES IMPORTANTES :
@@ -1375,12 +1386,11 @@ TOP FORMULAIRES : ${data.formStats.slice(0, 3).map(f => `${f.title} (${f.count} 
     // Calculate package limit based on user's package type
     const getPackageLimit = (packageType) => {
       const limits = {
-        starter: 60000,
-        standard: 120000,
-        premium: 300000,
-        custom: -1 // unlimited
+        starter: 300000,    // Updated to match PACKAGES.md
+        standard: 600000,   // Updated to match PACKAGES.md
+        premium: 1500000    // Updated to match PACKAGES.md
       };
-      return limits[packageType] || 60000;
+      return limits[packageType] || 300000;
     };
 
     // Check subscription status and reset tokens if subscription has ended
@@ -1566,7 +1576,8 @@ TOP FORMULAIRES : ${data.formStats.slice(0, 3).map(f => `${f.title} (${f.count} 
               // Use formatted text if available, otherwise fall back to raw extracted text
               const textToUse = file.extractedText || file.rawExtractedText || '';
               if (textToUse) {
-                extractedTextSummary += ` | Document PDF: ${file.fileName} (${textToUse.substring(0, 1500)}${textToUse.length > 1500 ? '...' : ''})`;
+                // Send full content to AI - no truncation needed with increased token limits
+                extractedTextSummary += ` | Document PDF: ${file.fileName} (${textToUse})`;
               }
             });
           }
@@ -1576,7 +1587,8 @@ TOP FORMULAIRES : ${data.formStats.slice(0, 3).map(f => `${f.title} (${f.count} 
               // Use formatted text if available, otherwise fall back to raw extracted text
               const textToUse = file.extractedText || file.rawExtractedText || '';
               if (textToUse) {
-                extractedTextSummary += ` | Image: ${file.fileName} (${textToUse.substring(0, 1500)}${textToUse.length > 1500 ? '...' : ''})`;
+                // Send full content to AI - no truncation needed with increased token limits
+                extractedTextSummary += ` | Image: ${file.fileName} (${textToUse})`;
               }
             });
           }
@@ -1625,7 +1637,13 @@ OBLIGATOIRE : Utilise toutes les informations des documents PDF pour répondre �
 OBLIGATOIRE : Référence le contenu des documents dans ton analyse quand c'est pertinent.
 OBLIGATOIRE : MENTIONNE EXPLICITEMENT le nom des fichiers PDF que tu utilises comme référence.
 OBLIGATOIRE : Utilise des phrases comme "Selon le document [nom_fichier]", "Dans le fichier [nom_fichier]", "D'après [nom_fichier]".
-OBLIGATOIRE : Cite le nom exact du fichier PDF quand tu fais référence à son contenu.` : '';
+OBLIGATOIRE : Cite le nom exact du fichier PDF quand tu fais référence à son contenu.
+
+RECHERCHE DE PRODUITS ET ARTICLES :
+- Si la question concerne un produit, article, ou élément spécifique, recherche dans TOUT le contenu du document
+- Les tableaux de ventes détaillées contiennent des informations sur tous les produits vendus
+- Ne te limite pas aux premières lignes - analyse tout le contenu disponible
+- Les données peuvent être dans différentes sections (ventes, production, etc.)` : '';
 
       const imageContentReminder = hasImageContent ? `
 
@@ -1643,6 +1661,7 @@ OBLIGATOIRE : Cite le nom exact du fichier image quand tu fais référence à so
 
     // Use the complete user message for the AI call
     const userPromptForAI = buildUserMessage();
+    
     
 
 

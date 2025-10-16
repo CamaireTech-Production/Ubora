@@ -239,7 +239,155 @@ sudo tail -f /var/log/nginx/error.log
 
 ## 🛠️ 6. Gestion de l'Application
 
-### Redémarrer l'application
+## 🔄 6.1. Redémarrage des Services Backend
+
+### Commandes Rapides de Redémarrage
+
+#### Redémarrer le Backend de PRODUCTION :
+```bash
+# Méthode recommandée avec PM2
+pm2 restart ubora-backend-prod
+
+# Alternative avec systemd
+sudo systemctl restart ubora-backend-prod
+
+# Redémarrage complet (arrêt + suppression + redémarrage)
+pm2 stop ubora-backend-prod
+pm2 delete ubora-backend-prod
+pm2 start /var/www/ubora-backend-prod/current/server/production-server.js --name ubora-backend-prod --update-env
+pm2 save
+```
+
+#### Redémarrer le Backend de DÉVELOPPEMENT :
+```bash
+# Méthode recommandée avec PM2
+pm2 restart ubora-backend-dev
+
+# Alternative avec systemd
+sudo systemctl restart ubora-backend-dev
+
+# Redémarrage complet (arrêt + suppression + redémarrage)
+pm2 stop ubora-backend-dev
+pm2 delete ubora-backend-dev
+pm2 start /var/www/ubora-backend-dev/current/server/production-server.js --name ubora-backend-dev --update-env
+pm2 save
+```
+
+#### Redémarrer les Deux Environnements :
+```bash
+# Redémarrer production et développement simultanément
+pm2 restart ubora-backend-prod ubora-backend-dev
+
+# Ou redémarrer tous les processus PM2
+pm2 restart all
+```
+
+### Scripts de Redémarrage Automatisés
+
+#### Script pour Redémarrer la Production :
+```bash
+#!/bin/bash
+echo "🔄 Redémarrage du backend de production..."
+pm2 restart ubora-backend-prod
+echo "✅ Backend de production redémarré!"
+pm2 logs ubora-backend-prod --lines 5
+```
+
+#### Script pour Redémarrer le Développement :
+```bash
+#!/bin/bash
+echo "🔄 Redémarrage du backend de développement..."
+pm2 restart ubora-backend-dev
+echo "✅ Backend de développement redémarré!"
+pm2 logs ubora-backend-dev --lines 5
+```
+
+#### Script pour Redémarrer les Deux :
+```bash
+#!/bin/bash
+echo "🔄 Redémarrage des deux environnements..."
+pm2 restart ubora-backend-prod ubora-backend-dev
+echo "✅ Les deux backends ont été redémarrés!"
+pm2 list
+```
+
+### Vérification Post-Redémarrage
+
+#### Vérifier le Statut :
+```bash
+# Vérifier que les services sont actifs
+pm2 list
+
+# Vérifier les ports
+netstat -tlnp | grep :3000  # Production
+netstat -tlnp | grep :3001  # Développement
+
+# Test de santé
+curl http://localhost:3000/health  # Production
+curl http://localhost:3001/health  # Développement
+```
+
+#### Vérifier les Logs :
+```bash
+# Logs de production
+pm2 logs ubora-backend-prod --lines 10
+
+# Logs de développement
+pm2 logs ubora-backend-dev --lines 10
+
+# Logs en temps réel (production)
+pm2 logs ubora-backend-prod -f
+
+# Logs en temps réel (développement)
+pm2 logs ubora-backend-dev -f
+```
+
+### Dépannage des Problèmes de Redémarrage
+
+#### Si le redémarrage échoue :
+```bash
+# Vérifier les erreurs
+pm2 logs ubora-backend-prod --err
+pm2 logs ubora-backend-dev --err
+
+# Forcer l'arrêt et le redémarrage
+pm2 kill
+pm2 start /var/www/ubora-backend-prod/current/server/production-server.js --name ubora-backend-prod --update-env
+pm2 start /var/www/ubora-backend-dev/current/server/production-server.js --name ubora-backend-dev --update-env
+pm2 save
+```
+
+#### Si les fichiers sont manquants :
+```bash
+# Vérifier la structure des répertoires
+ls -la /var/www/ubora-backend-prod/current/
+ls -la /var/www/ubora-backend-dev/current/
+
+# Vérifier les releases disponibles
+ls -1dt /var/www/ubora-backend-prod/releases/* | head -5
+ls -1dt /var/www/ubora-backend-dev/releases/* | head -5
+```
+
+### Redémarrage avec Rollback
+
+#### En cas de problème après redémarrage :
+```bash
+# Rollback production vers release précédente
+cd /var/www/ubora-backend-prod
+PREV_RELEASE=$(ls -1dt releases/* | sed -n '2p')
+ln -sfn $PREV_RELEASE current
+pm2 restart ubora-backend-prod
+
+# Rollback développement vers release précédente
+cd /var/www/ubora-backend-dev
+PREV_RELEASE=$(ls -1dt releases/* | sed -n '2p')
+ln -sfn $PREV_RELEASE current
+pm2 restart ubora-backend-dev
+```
+
+## 🔧 6.2. Gestion Avancée des Services
+
+### Redémarrage de l'application (Méthodes Alternatives)
 
 #### Pour l'environnement de PRODUCTION :
 ```bash
@@ -565,19 +713,60 @@ pm2 logs ubora-backend-dev -f
 pm2 logs ubora-backend-prod -f
 ```
 
-**Redémarrer l'application de développement :**
-```bash
-pm2 restart ubora-backend-dev
-```
+## 🔄 Commandes de Redémarrage Rapides
 
-**Redémarrer l'application de production :**
+**Redémarrer le backend de PRODUCTION :**
 ```bash
 pm2 restart ubora-backend-prod
 ```
 
+**Redémarrer le backend de DÉVELOPPEMENT :**
+```bash
+pm2 restart ubora-backend-dev
+```
+
+**Redémarrer les DEUX environnements :**
+```bash
+pm2 restart ubora-backend-prod ubora-backend-dev
+```
+
+**Redémarrage complet de la production (si problème) :**
+```bash
+pm2 stop ubora-backend-prod
+pm2 delete ubora-backend-prod
+pm2 start /var/www/ubora-backend-prod/current/server/production-server.js --name ubora-backend-prod --update-env
+pm2 save
+```
+
+**Redémarrage complet du développement (si problème) :**
+```bash
+pm2 stop ubora-backend-dev
+pm2 delete ubora-backend-dev
+pm2 start /var/www/ubora-backend-dev/current/server/production-server.js --name ubora-backend-dev --update-env
+pm2 save
+```
+
+## 📊 Commandes de Vérification
+
 **Vérifier le statut de tous les processus :**
 ```bash
 pm2 list
+```
+
+**Vérifier que la production fonctionne :**
+```bash
+curl http://localhost:3000/health
+```
+
+**Vérifier que le développement fonctionne :**
+```bash
+curl http://localhost:3001/health
+```
+
+**Vérifier les ports utilisés :**
+```bash
+netstat -tlnp | grep :3000  # Production
+netstat -tlnp | grep :3001  # Développement
 ```
 
 **Mettre à jour et redémarrer le développement (après déploiement GitHub) :**
