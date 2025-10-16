@@ -1225,9 +1225,7 @@ ${data.userStats.slice(0, 5).map(u => `| ${u.name} | ${u.count} | ${((u.count/da
 - **Période analysée :** ${data.period.label}
 - **Total soumissions :** ${data.totals.entries}
 - **Employés actifs :** ${data.totals.uniqueUsers}/${data.totals.totalUsers}
-- **Formulaires utilisés :** ${data.totals.uniqueForms}/${data.totals.totalForms}
-
-*Note: Réponse générée sans IA (OpenAI non disponible)*`;
+- **Formulaires utilisés :** ${data.totals.uniqueForms}/${data.totals.totalForms}`;
       }
 
       if (hasPDF && hasStats) {
@@ -1273,9 +1271,7 @@ Ce rapport présente une analyse des données de votre agence pour la période $
 
 - **Période analysée :** ${data.period.label}
 - **Total soumissions :** ${data.totals.entries}
-- **Employés actifs :** ${data.totals.uniqueUsers}/${data.totals.totalUsers}
-
-*Note: Réponse générée sans IA (OpenAI non disponible)*`;
+- **Employés actifs :** ${data.totals.uniqueUsers}/${data.totals.totalUsers}`;
       }
 
       if (hasPDF && hasTable) {
@@ -1298,9 +1294,7 @@ ${data.userStats.slice(0, 5).map(u => `| ${u.name} | ${u.count} | ${((u.count/da
 - **Période analysée :** ${data.period.label}
 - **Total soumissions :** ${data.totals.entries}
 - **Employés actifs :** ${data.totals.uniqueUsers}/${data.totals.totalUsers}
-- **Formulaires utilisés :** ${data.totals.uniqueForms}/${data.totals.totalForms}
-
-*Note: Réponse générée sans IA (OpenAI non disponible)*`;
+- **Formulaires utilisés :** ${data.totals.uniqueForms}/${data.totals.totalForms}`;
       }
 
       if (hasStats && hasTable) {
@@ -1344,18 +1338,14 @@ ${data.userStats.slice(0, 5).map(u => `| ${u.name} | ${u.count} | ${((u.count/da
 
 **Période analysée :** ${data.period.label}  
 **Total soumissions :** ${data.totals.entries}  
-**Employés actifs :** ${data.totals.uniqueUsers}/${data.totals.totalUsers}
-
-*Note: Réponse générée sans IA (OpenAI non disponible)*`;
+**Employés actifs :** ${data.totals.uniqueUsers}/${data.totals.totalUsers}`;
       }
 
       return `Analyse des données pour la période ${data.period.label}
 
 **Période analysée :** ${data.period.label}  
 **Total soumissions :** ${data.totals.entries}  
-**Employés actifs :** ${data.totals.uniqueUsers}/${data.totals.totalUsers}
-
-*Note: Réponse générée sans IA (OpenAI non disponible)*`;
+**Employés actifs :** ${data.totals.uniqueUsers}/${data.totals.totalUsers}`;
     };
 
     // Build the actual user message for estimation
@@ -1689,9 +1679,7 @@ ${data.userStats.slice(0, 5).map(u => `| ${u.name} | ${u.count} | ${((u.count/da
 
 **Période analysée :** ${data.period.label}  
 **Total soumissions :** ${data.totals.entries}  
-**Employés actifs :** ${data.totals.uniqueUsers}/${data.totals.totalUsers}
-
-*Note: Réponse générée sans IA (OpenAI non disponible)*`;
+**Employés actifs :** ${data.totals.uniqueUsers}/${data.totals.totalUsers}`;
       } else if (responseFormat === 'pdf') {
         answer = `# Rapport d'analyse - ${data.period.label}
 
@@ -1738,9 +1726,7 @@ ${data.totals.entries} soumissions au total pour ${data.totals.uniqueUsers} empl
 L'employé le plus actif est ${data.userStats[0]?.name || 'N/A'} avec ${data.userStats[0]?.count || 0} soumissions. Le formulaire le plus utilisé est "${data.formStats[0]?.title || 'N/A'}" avec ${data.formStats[0]?.count || 0} soumissions. Le taux d'engagement est de ${((data.totals.uniqueUsers/data.totals.totalUsers)*100).toFixed(1)}% des employés.
 
 **Recommandations :**
-Il serait pertinent de surveiller l'engagement des employés moins actifs et d'analyser les formulaires peu utilisés pour identifier des opportunités d'amélioration. Maintenir la performance des employés les plus productifs est également important.
-
-*Note: Réponse générée sans IA (OpenAI non disponible)*`;
+Il serait pertinent de surveiller l'engagement des employés moins actifs et d'analyser les formulaires peu utilisés pour identifier des opportunités d'amélioration. Maintenir la performance des employés les plus productifs est également important.`;
       
       // Build system prompt for fallback response (needed for token calculation)
       systemPrompt = buildSystemMessage(conversationContext);
@@ -1809,9 +1795,7 @@ ${data.userStats.slice(0, 5).map(u => `| ${u.name} | ${u.count} | ${((u.count/da
 
 **Période analysée :** ${data.period.label}  
 **Total soumissions :** ${data.totals.entries}  
-**Employés actifs :** ${data.totals.uniqueUsers}/${data.totals.totalUsers}
-
-*Note: Réponse générée sans IA (OpenAI non disponible)*`;
+**Employés actifs :** ${data.totals.uniqueUsers}/${data.totals.totalUsers}`;
         } else if (responseFormat === 'pdf') {
           answer = `# Rapport d'analyse - ${data.period.label}
 
@@ -1858,9 +1842,7 @@ ${data.totals.entries} soumissions au total pour ${data.totals.uniqueUsers} empl
 L'employé le plus actif est ${data.userStats[0]?.name || 'N/A'} avec ${data.userStats[0]?.count || 0} soumissions. Le formulaire le plus utilisé est "${data.formStats[0]?.title || 'N/A'}" avec ${data.formStats[0]?.count || 0} soumissions. Le taux d'engagement est de ${((data.totals.uniqueUsers/data.totals.totalUsers)*100).toFixed(1)}% des employés.
 
 **Recommandations :**
-Il serait pertinent de surveiller l'engagement des employés moins actifs et d'analyser les formulaires peu utilisés pour identifier des opportunités d'amélioration. Maintenir la performance des employés les plus productifs est également important.
-
-*Note: Réponse générée sans IA (OpenAI non disponible)*`;
+Il serait pertinent de surveiller l'engagement des employés moins actifs et d'analyser les formulaires peu utilisés pour identifier des opportunités d'amélioration. Maintenir la performance des employés les plus productifs est également important.`;
         }
         
         // Build system prompt for error fallback response (needed for token calculation)
