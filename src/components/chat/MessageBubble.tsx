@@ -814,7 +814,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
           {message.responseTime && (
             <span className="flex items-center space-x-1">
               <Clock className="h-3 w-3" />
-              <span>{message.responseTime}ms</span>
+              <span>{Math.ceil(message.responseTime / 1000)}s</span>
             </span>
           )}
         </div>
