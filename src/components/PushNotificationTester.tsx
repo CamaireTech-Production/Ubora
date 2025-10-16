@@ -90,22 +90,45 @@ export const PushNotificationTester: React.FC = () => {
       );
     }
 
-    // Test 6: Test foreground notification
+    // Test 6: Test foreground notification via service worker
     if (Notification.permission === 'granted') {
       try {
-        const testNotification = new Notification('Test Notification', {
-          body: 'This is a test notification to verify the system works',
-          icon: '/fav-icons/android-icon-192x192.png',
-          tag: 'test-notification'
-        });
-        
-        setTimeout(() => testNotification.close(), 3000);
-        
-        addTestResult(
-          'Foreground Notification',
-          'success',
-          'Test notification displayed successfully'
-        );
+        if ('serviceWorker' in navigator) {
+          const registration = await navigator.serviceWorker.getRegistration('/');
+          if (registration) {
+            await registration.showNotification('Test Foreground Notification', {
+              body: 'This is a test notification to verify the system works',
+              icon: '/fav-icons/android-icon-192x192.png',
+              badge: '/fav-icons/android-icon-96x96.png',
+              tag: 'test-foreground-notification',
+              requireInteraction: true,
+              silent: false,
+              data: { 
+                url: '/dashboard',
+                test: true,
+                timestamp: Date.now()
+              }
+            });
+            
+            addTestResult(
+              'Foreground Notification',
+              'success',
+              'Test foreground notification displayed successfully via service worker'
+            );
+          } else {
+            addTestResult(
+              'Foreground Notification',
+              'error',
+              'Service worker registration not found'
+            );
+          }
+        } else {
+          addTestResult(
+            'Foreground Notification',
+            'error',
+            'Service worker not supported'
+          );
+        }
       } catch (error) {
         addTestResult(
           'Foreground Notification',

@@ -223,16 +223,38 @@ export const PushTestPage: React.FC = () => {
               {showComprehensiveTest ? 'Masquer' : 'Afficher'} Test Complet
             </Button>
             <Button 
-              onClick={() => {
+              onClick={async () => {
                 console.log('🔔 [PushTest] Direct test - Permission:', Notification.permission);
                 if (Notification.permission === 'granted') {
-                  const notif = new Notification('Test Direct', {
-                    body: 'Test direct de l\'API Notification',
-                    icon: '/fav-icons/android-icon-192x192.png'
-                  });
-                  notif.onshow = () => console.log('🔔 [PushTest] Direct notification shown');
-                  notif.onerror = (e) => console.error('🔔 [PushTest] Direct notification error:', e);
-                  setStatus('Test direct envoyé');
+                  try {
+                    if ('serviceWorker' in navigator) {
+                      const registration = await navigator.serviceWorker.getRegistration('/');
+                      if (registration) {
+                        await registration.showNotification('Test Direct', {
+                          body: 'Test direct via service worker',
+                          icon: '/fav-icons/android-icon-192x192.png',
+                          badge: '/fav-icons/android-icon-96x96.png',
+                          tag: `test-direct-${Date.now()}`,
+                          requireInteraction: true,
+                          silent: false,
+                          data: { 
+                            url: '/dashboard',
+                            test: true,
+                            timestamp: Date.now()
+                          }
+                        });
+                        console.log('🔔 [PushTest] Direct notification sent via service worker');
+                        setStatus('Test direct envoyé via service worker');
+                      } else {
+                        setStatus('Service worker non trouvé');
+                      }
+                    } else {
+                      setStatus('Service worker non supporté');
+                    }
+                  } catch (error) {
+                    console.error('🔔 [PushTest] Direct notification error:', error);
+                    setStatus('Erreur: ' + error);
+                  }
                 } else {
                   setStatus('Permission non accordée pour test direct');
                 }
