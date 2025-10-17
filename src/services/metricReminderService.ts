@@ -183,10 +183,10 @@ class MetricReminderService {
         // (no threshold comparison needed - it's a periodic report)
         const periodLabel = this.getPeriodLabel(reminder.frequency);
         
-        await notificationService.sendToUser(reminder.directorId, {
+        await notificationService.sendViaUnified(reminder.directorId, {
           title: `Rappel ${periodLabel}: ${metric.name}`,
           body: `Valeur ${periodLabel.toLowerCase()}: ${numeric}`,
-          type: 'reminder',
+          type: 'metric_reminder',
           data: {
             dashboardId: dash.id,
             metricId: metric.id,

@@ -16,7 +16,7 @@ export const AdminLoginPage: React.FC = () => {
 
   // Redirect if already logged in as admin
   if (user?.role === 'admin') {
-    return <Navigate to="/admin/dashboard" replace />;
+    return <Navigate to="/admin/dashboard" />;
   }
 
   const handleLogin = async (e: React.FormEvent) => {

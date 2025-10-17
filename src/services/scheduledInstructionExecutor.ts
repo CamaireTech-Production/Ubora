@@ -205,18 +205,18 @@ class ScheduledQuestionExecutor {
     try {
       const title = `Réponse disponible pour "${question.title}"`;
       const body = response.status === 'success' 
-        ? 'ARCHA a généré une nouvelle réponse à votre question programmée'
+        ? 'Vos résultats programmés sont prêts'
         : 'Une erreur s\'est produite lors de l\'exécution de votre question programmée';
 
-      await notificationService.sendToUser(question.userId, {
+      await notificationService.sendViaUnified(question.userId, {
         title,
         body,
-        type: 'scheduled_question_response',
+        type: 'program_instruction',
         data: {
           scheduledQuestionId: question.id,
           responseId: response.id,
           status: response.status,
-          url: `/scheduled-questions/${question.id}/chat`
+          clickAction: '/scheduled-questions'
         }
       });
     } catch (error) {

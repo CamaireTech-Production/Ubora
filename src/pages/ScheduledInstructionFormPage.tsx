@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Save, X } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useApp } from '../contexts/AppContext';
-import { LoadingGuard } from '../components/LoadingGuard';
+import { WireframeLoader } from '../components/loading/WireframeLoader';
 import { Button } from '../components/Button';
 import { ChatComposer } from '../components/chat/ChatComposer';
 import { ScheduledDateTimePicker } from '../components/scheduled/ScheduledDateTimePicker';

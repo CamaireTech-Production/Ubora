@@ -6,14 +6,12 @@ import { Layout } from '../components/Layout';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { DynamicForm } from '../components/DynamicForm';
-import { LoadingGuard } from '../components/LoadingGuard';
+import { WireframeLoader } from '../components/loading/WireframeLoader';
 import { Toast } from '../components/Toast';
 import { useToast } from '../hooks/useToast';
-import { FileText, CheckCircle, ArrowLeft, Eye, AlertTriangle, Edit, Trash2, Send, FileEdit, Filter, Calendar, SortAsc, SortDesc, Download, ClipboardList, FileCheck, FileBarChart } from 'lucide-react';
-import { getFileDownloadURL } from '../utils/firebaseStorageUtils';
+import { FileText, CheckCircle, ArrowLeft, Eye, AlertTriangle, Edit, Trash2, Send, FileEdit, Filter, Calendar, SortAsc, SortDesc, Download, ClipboardList, FileBarChart } from 'lucide-react';
 import { PDFViewerModal } from '../components/PDFViewerModal';
 import { downloadFile } from '../utils/downloadUtils';
-import { forceDownloadFromFirebase } from '../utils/firebaseDownloadUtils';
 import { getFileBlobUrl, downloadFileFromBlob } from '../utils/simpleFileDownload';
 import { VideoSection } from '../components/VideoSection';
 import { employeeVideos } from '../data/videoData';
@@ -606,31 +604,6 @@ export const EmployeDashboard: React.FC = () => {
     }
   };
 
-  const handleDownloadFallback = async (fileAttachment: any) => {
-    try {
-      // Use the new utility function to get proper download URL
-      const downloadUrl = getFileDownloadUrl(fileAttachment);
-      
-      if (!downloadUrl) {
-        showError('URL de téléchargement non disponible');
-        return;
-      }
-      
-      await downloadFile({
-        fileName: fileAttachment.fileName,
-        url: downloadUrl,
-        onSuccess: () => {
-          showSuccess('Téléchargement démarré');
-        },
-        onError: (error) => {
-          showError(`Erreur lors du téléchargement: ${error}`);
-        }
-      });
-    } catch (error) {
-      console.error('Fallback download failed:', error);
-      showError('Erreur lors du téléchargement du fichier');
-    }
-  };
 
   const handleClosePdfModal = () => {
     setPdfViewerModal({
@@ -879,13 +852,17 @@ export const EmployeDashboard: React.FC = () => {
     navigate(`/responses/${formId}`);
   };
 
+  // Show wireframe immediately if any loading state
+  if (isLoading || !user || !firebaseUser || appLoading) {
+    return (
+      <Layout title="Dashboard Employé">
+        <WireframeLoader type="dashboard" />
+      </Layout>
+    );
+  }
+
   return (
-    <LoadingGuard 
-      isLoading={isLoading || appLoading} 
-      user={user} 
-      firebaseUser={firebaseUser}
-      message="Chargement du dashboard employé..."
-    >
+    <>
       {(() => {
         const assignedForms = getFormsForEmployee(user?.id || '');
         const myEntries = getEntriesForEmployee(user?.id || '');
@@ -1423,6 +1400,6 @@ export const EmployeDashboard: React.FC = () => {
           });
         }}
       />
-    </LoadingGuard>
+    </>
   );
 };
