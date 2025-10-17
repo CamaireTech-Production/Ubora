@@ -8,8 +8,6 @@ export interface EnhancedNotificationOptions {
   icon: string;
   badge: string;
   requireInteraction: boolean;
-  persistent: boolean;
-  priority: 'high' | 'normal' | 'low';
   silent: boolean;
   tag: string;
   renotify: boolean;
@@ -69,7 +67,7 @@ export const requestEnhancedPermission = async (): Promise<boolean> => {
  * Get enhanced notification options with pop-up behavior and highest priority
  */
 export const getEnhancedNotificationOptions = (
-  title: string,
+  _title: string,
   body: string,
   options: Partial<EnhancedNotificationOptions> = {}
 ): NotificationOptions => {
@@ -80,44 +78,43 @@ export const getEnhancedNotificationOptions = (
     body,
     icon: options.icon || '/fav-icons/android-icon-192x192.png',
     badge: options.badge || '/fav-icons/android-icon-96x96.png',
-    requireInteraction: true,        // Keep for persistence
-    silent: false,                   // Enable default sound
+    requireInteraction: true,        // Keep notification visible longer
+    silent: false,                   // Enable default sound (important for pop-up)
     tag: options.tag || `notification-${Date.now()}`,
     data: {
       url: '/dashboard',
-      priority: 'high',
-      urgent: true,
       timestamp: Date.now(),
       platform: isIOSDevice ? 'ios' : isAndroidDevice ? 'android' : 'desktop',
       ...options.data
     }
   };
 
+  // Ensure icon paths are absolute and valid
+  if (baseOptions.icon && !baseOptions.icon.startsWith('http')) {
+    baseOptions.icon = baseOptions.icon.startsWith('/') ? baseOptions.icon : `/${baseOptions.icon}`;
+  }
+  if (baseOptions.badge && !baseOptions.badge.startsWith('http')) {
+    baseOptions.badge = baseOptions.badge.startsWith('/') ? baseOptions.badge : `/${baseOptions.badge}`;
+  }
+
   // Add platform-specific enhancements
   if (isIOSDevice) {
     // iOS-specific options
     Object.assign(baseOptions, {
-      // iOS handles renotify differently
       renotify: true,
-      // iOS-specific data
       data: {
         ...baseOptions.data,
-        ios: true,
-        priority: 'high',
-        urgent: true
+        ios: true
       }
     });
   } else if (isAndroidDevice) {
     // Android-specific options for pop-up behavior
     Object.assign(baseOptions, {
       renotify: true,
-      // Android-specific data
+      vibrate: [200, 100, 200, 100, 200], // Vibration helps trigger pop-up
       data: {
         ...baseOptions.data,
-        android: true,
-        priority: 'high',
-        urgent: true,
-        persistent: true
+        android: true
       }
     });
   }

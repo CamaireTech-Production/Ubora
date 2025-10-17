@@ -175,3 +175,21 @@ ui-debug.log
 *.zip
 *.tar.gz
 *.rar
+
+# Capacitor
+# Keep android/ and ios/ folders but ignore build artifacts
+android/app/build/
+android/build/
+android/.gradle/
+android/captured_outs/
+android/.idea/
+android/local.properties
+android/app/release/
+android/app/debug/
+ios/App/build/
+ios/build/
+ios/Pods/
+ios/Podfile.lock
+ios/.xcode.env.local
+ios/App/public/
+android/app/src/main/assets/public/

@@ -635,6 +635,9 @@ module.exports = async function handler(req, res) {
       });
     }
 
+    // Initialize savedUserMessage at function scope
+    let savedUserMessage = null;
+
     // 4. Chargement et agrégation des données
     let data;
     try {
@@ -665,7 +668,20 @@ RÈGLES FONDAMENTALES :
 - Utilise UNIQUEMENT les données fournies - ne JAMAIS inventer de données
 - Si données insuffisantes, dis-le clairement
 - Sois clair, concis et actionnable
-- Fournis des insights basés sur les données réelles`;
+- Fournis des insights basés sur les données réelles
+
+PRIORITÉS D'ANALYSE :
+1. HAUTE PRIORITÉ : Chiffres, montants, quantités, dates, pourcentages, métriques financières
+2. PRIORITÉ MOYENNE : Noms de produits, clients, employés, départements, catégories
+3. PRIORITÉ FAIBLE : Descriptions générales, contexte historique, informations secondaires
+
+TECHNIQUES D'EXTRACTION :
+- Recherche par mots-clés dans les documents
+- Identification des tableaux et listes de données
+- Calcul de totaux, moyennes, et pourcentages
+- Comparaison entre périodes ou entités
+- Identification des tendances et patterns
+- Analyse des corrélations et relations`;
 
       const formatInstructions = getFormatInstructions(responseFormat, selectedResponseFormats);
       
@@ -713,39 +729,38 @@ CONTEXTE MÉTIER :
 OBJECTIF : Répondre clairement à la question du directeur avec des insights basés sur les données.
 
 ${hasPDFContent ? `
-📄 DONNÉES SUPPLÉMENTAIRES IMPORTANTES :
-- Certaines soumissions incluent des documents PDF avec leur contenu textuel extrait
-- Ces documents sont marqués par "Document PDF: [nom_fichier] (contenu_extraite)"
-- OBLIGATOIRE : Analyse le contenu textuel de ces documents comme partie intégrante des données de soumission
-- OBLIGATOIRE : Utilise toutes les informations des documents PDF pour répondre précisément à la question
-- OBLIGATOIRE : Référence le contenu des documents dans ton analyse quand c'est pertinent
-- OBLIGATOIRE : MENTIONNE EXPLICITEMENT le nom des fichiers PDF que tu utilises comme référence dans ta réponse
-- OBLIGATOIRE : Utilise des phrases comme "Selon le document [nom_fichier]", "Dans le fichier [nom_fichier]", "D'après [nom_fichier]"
-- OBLIGATOIRE : Cite le nom exact du fichier PDF quand tu fais référence à son contenu
-- Le contenu des documents PDF fait partie des données de soumission et doit être traité comme tel
+📄 ANALYSE DE DOCUMENTS PDF :
+- Les soumissions contiennent des documents PDF avec du contenu textuel extrait et formaté
+- Ces documents sont marqués par "--- Document X: [nom_fichier] ---"
+- OBLIGATOIRE : Analyse le contenu de chaque document en détail, pas seulement les premières lignes
+- OBLIGATOIRE : Extrais les informations pertinentes pour répondre à la question du directeur
+- OBLIGATOIRE : Utilise les données des documents pour enrichir ta réponse
+- OBLIGATOIRE : MENTIONNE le nom du fichier quand tu fais référence à son contenu
+- OBLIGATOIRE : Donne des exemples concrets avec des chiffres précis extraits des documents
+- OBLIGATOIRE : Calcule des totaux, moyennes, et pourcentages quand pertinent
+- OBLIGATOIRE : Compare les données entre différents documents et périodes
+- OBLIGATOIRE : Identifie les tendances et patterns dans les données
+- OBLIGATOIRE : Structure ta réponse avec des insights basés sur l'analyse des documents
 
-ANALYSE FINANCIÈRE ET COMMERCIALE SPÉCIALISÉE :
-- Si le document contient des données financières (ventes, dépenses, chiffres d'affaires), traite-les comme des données numériques
+ANALYSE FINANCIÈRE ET COMMERCIALE :
+- Si le document contient des données financières, traite-les comme des données numériques
 - OBLIGATOIRE : Pour toute question sur des produits, articles, ou éléments spécifiques, recherche dans TOUT le contenu du document
-- OBLIGATOIRE : Les tableaux markdown contiennent des données détaillées - analyse-les ligne par ligne si nécessaire
+- OBLIGATOIRE : Les tableaux contiennent des données détaillées - analyse-les ligne par ligne si nécessaire
 - OBLIGATOIRE : Calcule automatiquement les totaux, moyennes, et pourcentages quand pertinent
 - OBLIGATOIRE : Identifie les tendances et patterns dans les données temporelles
 - OBLIGATOIRE : Compare les performances entre différentes périodes ou départements
 - OBLIGATOIRE : Extrais les métriques clés (CA total, rentabilité, coûts, etc.)
-- OBLIGATOIRE : Structure tes réponses avec des insights quantitatifs précis
-- OBLIGATOIRE : Si on te demande des informations sur un produit spécifique, recherche dans toutes les sections du document` : ''}
+- OBLIGATOIRE : Structure tes réponses avec des insights quantitatifs précis` : ''}
 
 ${hasImageContent ? `
-🖼️ DONNÉES SUPPLÉMENTAIRES IMPORTANTES :
-- Certaines soumissions incluent des images avec leur contenu textuel extrait par OCR
-- Ces images sont marquées par "Image: [nom_fichier] (contenu_extraite)"
-- OBLIGATOIRE : Analyse le contenu textuel de ces images comme partie intégrante des données de soumission
-- OBLIGATOIRE : Utilise toutes les informations des images pour répondre précisément à la question
-- OBLIGATOIRE : Référence le contenu des images dans ton analyse quand c'est pertinent
-- OBLIGATOIRE : MENTIONNE EXPLICITEMENT le nom des fichiers image que tu utilises comme référence dans ta réponse
-- OBLIGATOIRE : Utilise des phrases comme "Selon l'image [nom_fichier]", "Dans l'image [nom_fichier]", "D'après [nom_fichier]"
-- OBLIGATOIRE : Cite le nom exact du fichier image quand tu fais référence à son contenu
-- Le contenu des images fait partie des données de soumission et doit être traité comme tel` : ''}
+🖼️ ANALYSE D'IMAGES :
+- Les soumissions peuvent contenir des images avec du contenu textuel extrait par OCR
+- Ces images sont marquées par "--- Document X: [nom_fichier] ---"
+- OBLIGATOIRE : Analyse le contenu textuel de chaque image en détail
+- OBLIGATOIRE : Extrais les informations pertinentes (tableaux, graphiques, données)
+- OBLIGATOIRE : Utilise les données des images pour enrichir ta réponse
+- OBLIGATOIRE : MENTIONNE le nom du fichier image quand tu fais référence à son contenu
+- OBLIGATOIRE : Donne des exemples précis avec des données extraites des images` : ''}
 
 ${responseFormat === 'table' ? `
 EXEMPLE DE TABLEAU CORRECT :
@@ -1620,33 +1635,71 @@ N'inclus PAS seulement les en-têtes - tu DOIS inclure des lignes de données r�
 
       const pdfContentReminder = hasPDFContent ? `
 
-IMPORTANT : Les soumissions ci-dessous contiennent des documents PDF avec du contenu textuel extrait.
-Ces documents sont marqués par "Document PDF: [nom_fichier] (contenu_extraite)".
-OBLIGATOIRE : Analyse le contenu de ces documents comme partie intégrante des données de soumission.
-OBLIGATOIRE : Utilise toutes les informations des documents PDF pour répondre à la question.
-OBLIGATOIRE : Référence le contenu des documents dans ton analyse quand c'est pertinent.
-OBLIGATOIRE : MENTIONNE EXPLICITEMENT le nom des fichiers PDF que tu utilises comme référence.
-OBLIGATOIRE : Utilise des phrases comme "Selon le document [nom_fichier]", "Dans le fichier [nom_fichier]", "D'après [nom_fichier]".
-OBLIGATOIRE : Cite le nom exact du fichier PDF quand tu fais référence à son contenu.
+ANALYSE DES DOCUMENTS PDF :
+- Chaque soumission peut contenir des documents PDF avec du contenu textuel extrait et formaté
+- Ces documents sont marqués par "--- Document X: [nom_fichier] ---"
+- OBLIGATOIRE : Analyse le contenu de chaque document en détail, pas seulement les premières lignes
+- OBLIGATOIRE : Extrais les informations pertinentes pour répondre à la question du directeur
+- OBLIGATOIRE : Utilise les données des documents pour enrichir ta réponse avec des détails concrets
+- OBLIGATOIRE : MENTIONNE le nom du fichier quand tu fais référence à son contenu
+- OBLIGATOIRE : Utilise des phrases comme "Selon le document [nom_fichier]", "Dans le fichier [nom_fichier]", "D'après [nom_fichier]"
+- OBLIGATOIRE : Donne des exemples précis avec des chiffres réels extraits des documents
+- OBLIGATOIRE : Calcule des totaux, moyennes, et pourcentages quand pertinent
+- OBLIGATOIRE : Compare les données entre différents documents et périodes
+- OBLIGATOIRE : Identifie les tendances et patterns dans les données
 
-RECHERCHE DE PRODUITS ET ARTICLES :
-- Si la question concerne un produit, article, ou élément spécifique, recherche dans TOUT le contenu du document
-- Les tableaux de ventes détaillées contiennent des informations sur tous les produits vendus
-- Ne te limite pas aux premières lignes - analyse tout le contenu disponible
-- Les données peuvent être dans différentes sections (ventes, production, etc.)` : '';
+EXEMPLE DE RÉFÉRENCE CORRECTE :
+"Selon le document sales_report.pdf, le produit A a généré $50,000 de ventes..."
+"D'après le fichier inventory_check.pdf, le stock du produit B est de 150 unités..."` : '';
 
       const imageContentReminder = hasImageContent ? `
 
-IMPORTANT : Les soumissions ci-dessous contiennent des images avec du contenu textuel extrait par OCR.
-Ces images sont marquées par "Image: [nom_fichier] (contenu_extraite)".
-OBLIGATOIRE : Analyse le contenu de ces images comme partie intégrante des données de soumission.
-OBLIGATOIRE : Utilise toutes les informations des images pour répondre à la question.
-OBLIGATOIRE : Référence le contenu des images dans ton analyse quand c'est pertinent.
-OBLIGATOIRE : MENTIONNE EXPLICITEMENT le nom des fichiers image que tu utilises comme référence.
-OBLIGATOIRE : Utilise des phrases comme "Selon l'image [nom_fichier]", "Dans l'image [nom_fichier]", "D'après [nom_fichier]".
-OBLIGATOIRE : Cite le nom exact du fichier image quand tu fais référence à son contenu.` : '';
+ANALYSE DES IMAGES :
+- Les soumissions peuvent contenir des images avec du contenu textuel extrait par OCR
+- Ces images sont marquées par "--- Document X: [nom_fichier] ---"
+- OBLIGATOIRE : Analyse le contenu textuel de chaque image en détail
+- OBLIGATOIRE : Extrais les informations pertinentes (tableaux, graphiques, données)
+- OBLIGATOIRE : Utilise les données des images pour enrichir ta réponse
+- OBLIGATOIRE : MENTIONNE le nom du fichier image quand tu fais référence à son contenu
+- OBLIGATOIRE : Utilise des phrases comme "Selon l'image [nom_fichier]", "Dans l'image [nom_fichier]", "D'après [nom_fichier]"
+- OBLIGATOIRE : Donne des exemples précis avec des données extraites des images` : '';
 
-      return `${questionText}\n\n${dataOverview}\n\n${submissions}${tableFormatReminder}${pdfContentReminder}${imageContentReminder}`;
+      // Add generic process examples and chain of thought instructions
+      const processInstructions = `
+
+PROCESSUS D'ANALYSE À SUIVRE :
+1. IDENTIFICATION : Identifie d'abord le type de question posée (données, tendances, comparaisons, etc.)
+2. RECHERCHE : Recherche dans les documents les informations pertinentes à cette question
+3. EXTRACTION : Extrais les données spécifiques (chiffres, noms, dates, métriques)
+4. ANALYSE : Analyse les données pour identifier les tendances et patterns
+5. SYNTHÈSE : Synthétise les informations en insights actionables
+6. RÉPONSE : Structure ta réponse avec des exemples concrets et des recommandations
+
+EXEMPLES DE MÉTHODOLOGIE D'ANALYSE :
+
+Question: [Question sur l'analyse de données]
+Processus: 1) Identifier les documents pertinents, 2) Extraire les données spécifiques, 3) Calculer les métriques, 4) Référencer les sources
+Réponse: Basé sur [nom_document.pdf], [données_spécifiques] montre [analyse]. Selon [autre_fichier.pdf], [comparaison/tendance].
+
+Question: [Question sur les performances]
+Processus: 1) Localiser les métriques de performance, 2) Comparer les données, 3) Identifier les patterns, 4) Calculer les évolutions
+Réponse: D'après [document_source.pdf], [métrique] s'élève à [valeur]. Comparé à [période_précédente], [évolution] de [pourcentage].
+
+Question: [Question sur les tendances]
+Processus: 1) Extraire les données temporelles, 2) Calculer les évolutions, 3) Identifier les patterns, 4) Projeter les tendances
+Réponse: Selon [rapport_1.pdf] et [rapport_2.pdf], [tendance] avec [données_spécifiques]. [Insight] basé sur [analyse].
+
+INSTRUCTIONS D'ANALYSE SPÉCIFIQUES :
+- Si la question concerne des DONNÉES : recherche dans tous les documents les chiffres, montants, quantités, et métriques
+- Si la question concerne des TENDANCES : compare les données entre différentes périodes et identifie les évolutions
+- Si la question concerne des COMPARAISONS : analyse les différences entre entités, périodes, ou catégories
+- Si la question concerne des PERFORMANCES : évalue les résultats et identifie les facteurs de succès
+- OBLIGATOIRE : Utilise les données des documents pour donner des réponses précises et détaillées
+- OBLIGATOIRE : Cite des exemples concrets extraits des documents
+- OBLIGATOIRE : Calcule des totaux, moyennes, et pourcentages quand pertinent
+- OBLIGATOIRE : Structure ta réponse de manière claire et actionnable`;
+
+      return `${questionText}\n\n${dataOverview}\n\n${submissions}${tableFormatReminder}${pdfContentReminder}${imageContentReminder}${processInstructions}`;
     };
 
     // Use the complete user message for the AI call
@@ -2040,11 +2093,22 @@ Il serait pertinent de surveiller l'engagement des employés moins actifs et d'a
         }
       };
       
+      // Save user message to Firebase and get the saved version
       try {
-        await adminDb.collection('conversations').doc(conversationId).collection('messages').add(userMessage);
+        const userMessageRef = await adminDb.collection('conversations').doc(conversationId).collection('messages').add(userMessage);
+        // Get the saved message with its Firebase ID and timestamp
+        const savedUserMessageDoc = await userMessageRef.get();
+        savedUserMessage = {
+          id: savedUserMessageDoc.id,
+          type: savedUserMessageDoc.data().type,
+          content: savedUserMessageDoc.data().content,
+          timestamp: savedUserMessageDoc.data().timestamp,
+          meta: savedUserMessageDoc.data().meta
+        };
       } catch (saveError) {
         console.error('❌ FIREBASE SAVE ERROR - Failed to save user message:', saveError);
-        throw saveError;
+        // Don't throw error, just log it and continue without savedUserMessage
+        savedUserMessage = null;
       }
 
       // Function to detect which files (PDF and images) are actually referenced in the AI response
@@ -2410,6 +2474,7 @@ Il serait pertinent de surveiller l'engagement des employés moins actifs et d'a
     const response = {
       answer,
       conversationId: req.body.conversationId || conversationId,
+      userMessage: savedUserMessage, // Include the saved user message (null if save failed)
       pdfFiles: referencedPDFFiles,
       imageFiles: referencedImageFiles,
       meta: {

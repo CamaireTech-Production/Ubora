@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Ubora</string>
+    <string name="title_activity_main">Ubora</string>
+    <string name="package_name">com.ubora.app</string>
+    <string name="custom_url_scheme">com.ubora.app</string>
+</resources>

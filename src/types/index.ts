@@ -395,6 +395,60 @@ export interface Conversation {
   };
 }
 
+// Types pour les questions programmées
+export interface ScheduledQuestion {
+  id: string;
+  userId: string;
+  agencyId: string;
+  
+  // Question et configuration
+  question: string;
+  title: string;
+  description?: string;
+  filters: {
+    period: string;
+    formId: string;
+    userId: string;
+  };
+  selectedFormat: string | null;
+  selectedFormats: string[];
+  selectedFormIds: string[];
+  
+  // Programmation
+  scheduledAt: Date;
+  frequency: 'once' | 'daily' | 'weekly' | 'monthly';
+  nextExecution?: Date;
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
+  
+  // Métadonnées
+  createdAt: Date;
+  lastExecutedAt?: Date;
+  executionCount: number;
+  maxExecutions?: number;
+}
+
+export interface ScheduledQuestionResponse {
+  id: string;
+  scheduledQuestionId: string;
+  response: string;
+  executedAt: Date;
+  responseTime: number;
+  tokensUsed: number;
+  status: 'success' | 'error';
+  errorMessage?: string;
+  meta: {
+    period?: string;
+    usedEntries?: number;
+    forms?: number;
+    users?: number;
+    model?: string;
+    selectedFormat?: string;
+    selectedFormats?: string[];
+    selectedFormIds?: string[];
+    selectedFormTitles?: string[];
+  };
+}
+
 // Types pour les tableaux de bord et métriques
 export interface DashboardMetric {
   id: string;

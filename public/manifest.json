@@ -9,6 +9,7 @@
   "scope": "/",
   "start_url": "/",
   "id": "/",
+  "prefer_related_applications": false,
   "categories": ["productivity", "business"],
   "lang": "fr",
   "dir": "ltr",

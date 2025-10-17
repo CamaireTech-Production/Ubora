@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { X, Home, History, FileText, Users, Clipboard, UserPlus, Copy, Check } from 'lucide-react';
+import { X, Home, History, FileText, Users, Clipboard, UserPlus, Copy, Check, Calendar } from 'lucide-react';
 import { Button } from '../Button';
 import { useAuth } from '../../contexts/AuthContext';
 import { usePackageAccess } from '../../hooks/usePackageAccess';
@@ -34,6 +34,7 @@ interface FloatingSidePanelProps {
   onCreateConversation: () => Promise<string | void>;
 
   onGoDashboard: () => void; // nouveau : bouton vers tableau de bord
+  onGoScheduledQuestions?: () => void; // nouveau : bouton vers questions programmées
 }
 
 export const FloatingSidePanel: React.FC<FloatingSidePanelProps> = ({
@@ -49,7 +50,8 @@ export const FloatingSidePanel: React.FC<FloatingSidePanelProps> = ({
   formEntries,
   onLoadConversation,
   onCreateConversation,
-  onGoDashboard
+  onGoDashboard,
+  onGoScheduledQuestions
 }) => {
   const { user } = useAuth();
   const { canAddUser, getLimit, getPayAsYouGoCapacity, packageType } = usePackageAccess();
@@ -115,6 +117,16 @@ export const FloatingSidePanel: React.FC<FloatingSidePanelProps> = ({
       },
       count: null
     },
+    ...(onGoScheduledQuestions ? [{
+      id: 'scheduled-questions' as const,
+      label: 'Questions Programmées',
+      icon: Calendar,
+      onClick: () => {
+        onGoScheduledQuestions();
+        onOpenChange(false);
+      },
+      count: null
+    }] : []),
     {
       id: 'history' as TabId,
       label: 'Historique',

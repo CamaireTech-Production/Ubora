@@ -53,6 +53,7 @@ export const DirecteurChat: React.FC = () => {
     loadConversation,
     loadMoreMessages,
     addMessageToLocalState,
+    replaceOptimisticMessage,
     triggerAutoLoad
   } = useConversation();
   
@@ -311,8 +312,16 @@ RÉPONSE :
       }
     };
 
-    // User message will be saved by backend and displayed via real-time listener
-    // No optimistic update to prevent duplicates
+    // Add user message to local state for immediate display (optimistic update)
+    if (currentConversation) {
+      try {
+        // Add to local state for immediate display
+        // The backend will return the real message to replace this one
+        addMessageToLocalState(userMessage);
+      } catch (error) {
+        console.error('Error adding user message to local state:', error);
+      }
+    }
 
     // Clear input after sending
     setInputMessage('');
@@ -421,6 +430,28 @@ RÉPONSE :
       }
 
       const data = await response.json();
+
+      // Replace optimistic user message with the real one from backend (if available)
+      if (data.userMessage && currentConversation) {
+        try {
+          // Convert the backend message to frontend format
+          const realUserMessage: ChatMessage = {
+            id: data.userMessage.id,
+            type: data.userMessage.type,
+            content: data.userMessage.content,
+            timestamp: data.userMessage.timestamp?.toDate ? data.userMessage.timestamp.toDate() : new Date(data.userMessage.timestamp),
+            meta: data.userMessage.meta
+          };
+          
+          // Replace the optimistic message with the real one
+          replaceOptimisticMessage(userMessage.id, realUserMessage);
+        } catch (error) {
+          console.error('Error replacing optimistic user message:', error);
+        }
+      } else if (!data.userMessage) {
+        // If backend didn't return userMessage, keep the optimistic one
+        console.log('Backend did not return userMessage, keeping optimistic message');
+      }
 
       // Tokens are now deducted on the server side
       if (user && data.meta?.userTokensCharged) {

@@ -5,7 +5,7 @@ import { Button } from './Button';
 import { Footer } from './Footer';
 import { UserPackageInfo } from './UserPackageInfo';
 import { ProfileDropdown } from './ProfileDropdown';
-import { BarChart3, MessageSquare, Menu, X, Bell } from 'lucide-react';
+import { BarChart3, MessageSquare, Menu, X, Bell, TestTube } from 'lucide-react';
 import { ShareCollaboratorButton } from './ShareCollaboratorButton';
 import { useUnreadNotifications } from '../hooks/useUnreadNotifications';
 
@@ -136,6 +136,19 @@ export const Layout: React.FC<LayoutProps> = ({ children, title }) => {
                 </Button>
               )}
               
+              {/* Push Test Button - Only for directeurs */}
+              {isDirecteur && (
+                <button
+                  type="button"
+                  onClick={() => navigate('/dev/push-test')}
+                  className="p-2 rounded-lg hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  aria-label="Test des notifications push"
+                  title="Test des notifications push"
+                >
+                  <TestTube className="h-5 w-5 text-gray-700" />
+                </button>
+              )}
+
               {/* Notifications */}
               <button
                 type="button"
@@ -193,6 +206,19 @@ export const Layout: React.FC<LayoutProps> = ({ children, title }) => {
               >
                 <BarChart3 className="h-4 w-4" />
                 <span>Dashboard</span>
+              </Button>
+              
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => {
+                  navigate('/dev/push-test');
+                  closeMobileMenu();
+                }}
+                className="w-full flex items-center justify-start space-x-2 mx-2 mb-1"
+              >
+                <TestTube className="h-4 w-4" />
+                <span>Test Notifications</span>
               </Button>
               
               {/* Profil utilisateur mobile */}

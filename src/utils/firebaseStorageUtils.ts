@@ -1,5 +1,6 @@
 import { ref, getDownloadURL } from 'firebase/storage';
 import { storage } from '../firebaseConfig';
+import { FirestoreUrlConverter } from '../services/firestoreUrlConverter';
 
 /**
  * Generate a download URL from a Firebase Storage path
@@ -38,14 +39,28 @@ export const isValidDownloadURL = async (url: string): Promise<boolean> => {
  * @returns Promise<string> - The download URL
  */
 export const getFileDownloadURL = async (fileAttachment: any): Promise<string> => {
+  console.log('🔄 getFileDownloadURL called with:', {
+    fileName: fileAttachment.fileName,
+    downloadUrl: fileAttachment.downloadUrl,
+    storagePath: fileAttachment.storagePath,
+    hasBase64Data: !!fileAttachment.base64Data
+  });
+
+  // Handle firestore:// URLs with frontend-only conversion
+  if (fileAttachment.downloadUrl?.startsWith('firestore://')) {
+    console.log('🔄 Detected firestore:// URL, using FirestoreUrlConverter');
+    return await FirestoreUrlConverter.convertToBlobUrl(fileAttachment);
+  }
   
-  // If we already have a download URL, use it
+  // Handle regular HTTP URLs
   if (fileAttachment.downloadUrl) {
+    console.log('✅ Using direct HTTP URL');
     return fileAttachment.downloadUrl;
   }
   
-  // If we have a storage path, generate a download URL
+  // Handle Firebase Storage paths
   if (fileAttachment.storagePath) {
+    console.log('🔄 Using Firebase Storage path');
     return await generateDownloadURL(fileAttachment.storagePath);
   }
   

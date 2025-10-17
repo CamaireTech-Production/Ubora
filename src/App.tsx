@@ -19,9 +19,9 @@ import { PackageManagementPage } from './pages/PackageManagementPage';
 import { PackageSelectionPage } from './pages/PackageSelectionPage';
 import { DirectorSettingsPage } from './pages/DirectorSettingsPage';
 import { NotificationsPage } from './pages/NotificationsPage';
-// import { ScheduledQuestionsPage } from './pages/ScheduledQuestionsPage';
-// import { ScheduledQuestionFormPage } from './pages/ScheduledQuestionFormPage';
-// import { ScheduledQuestionChatPage } from './pages/ScheduledQuestionChatPage';
+import { ScheduledQuestionsPage } from './pages/ScheduledQuestionsPage';
+import { ScheduledQuestionFormPage } from './pages/ScheduledQuestionFormPage';
+import { ScheduledQuestionChatPage } from './pages/ScheduledQuestionChatPage';
 import { AdminLoginPage } from './admin/pages/AdminLoginPage';
 import { AdminPage } from './admin';
 import { UserDetailPage } from './admin/pages/UserDetailPage';
@@ -232,7 +232,7 @@ function App() {
             />
             
             {/* Questions Programmées - Accès Directeur Uniquement */}
-            {/* <Route 
+            <Route 
               path="/directeur/scheduled-questions" 
               element={
                 <ProtectedRoute 
@@ -242,10 +242,10 @@ function App() {
                   <ScheduledQuestionsPage />
                 </ProtectedRoute>
               } 
-            /> */}
+            />
             
             {/* Création d'une nouvelle question programmée */}
-            {/* <Route 
+            <Route 
               path="/directeur/scheduled-questions/new" 
               element={
                 <ProtectedRoute 
@@ -255,10 +255,10 @@ function App() {
                   <ScheduledQuestionFormPage />
                 </ProtectedRoute>
               } 
-            /> */}
+            />
             
             {/* Édition d'une question programmée */}
-            {/* <Route 
+            <Route 
               path="/directeur/scheduled-questions/:id/edit" 
               element={
                 <ProtectedRoute 
@@ -268,10 +268,10 @@ function App() {
                   <ScheduledQuestionFormPage />
                 </ProtectedRoute>
               } 
-            /> */}
+            />
             
             {/* Chat des réponses d'une question programmée */}
-            {/* <Route 
+            <Route 
               path="/directeur/scheduled-questions/:id/chat" 
               element={
                 <ProtectedRoute 
@@ -281,7 +281,7 @@ function App() {
                   <ScheduledQuestionChatPage />
                 </ProtectedRoute>
               } 
-            /> */}
+            />
             {/* Dev/Test: Push Notifications */}
             <Route 
               path="/dev/push-test" 

@@ -5,7 +5,8 @@ import { Button } from '../components/Button';
 import { Bell, Timer, ShieldCheck, Smartphone, Monitor, TestTube } from 'lucide-react';
 import { usePushNotifications } from '../hooks/usePushNotifications';
 import { PushNotificationTester } from '../components/PushNotificationTester';
-import { showEnhancedNotification } from '../utils/notificationOptions';
+import { capacitorNotificationService } from '../services/capacitorNotificationService';
+import { Capacitor } from '@capacitor/core';
 
 export const PushTestPage: React.FC = () => {
   const { 
@@ -51,10 +52,14 @@ export const PushTestPage: React.FC = () => {
 
   const showLocalNotification = useCallback(async (title: string, body: string) => {
     try {
-      console.log('🔔 [PushTest] Attempting to show enhanced notification:', { title, body });
+      console.log('🔔 [PushTest] Attempting to show Capacitor notification:', { title, body });
+      console.log('🔔 [PushTest] Platform:', Capacitor.getPlatform());
+      console.log('🔔 [PushTest] Is Native:', Capacitor.isNativePlatform());
       
-      const success = await showEnhancedNotification(title, body, {
-        tag: `ubora-push-test-${Date.now()}`,
+      // Use Capacitor notification service
+      const success = await capacitorNotificationService.showNotification({
+        title,
+        body,
         data: { 
           url: '/dashboard',
           test: true,
@@ -63,15 +68,16 @@ export const PushTestPage: React.FC = () => {
       });
       
       if (success) {
-        console.log('🔔 [PushTest] Enhanced notification sent successfully');
+        console.log('🔔 [PushTest] Capacitor notification sent successfully');
+        setStatus('Notification Capacitor envoyée avec succès');
         return true;
       } else {
-        console.log('🔔 [PushTest] Failed to send enhanced notification');
-        setStatus('Erreur lors de l\'envoi de la notification');
+        console.log('🔔 [PushTest] Failed to send Capacitor notification');
+        setStatus('Erreur lors de l\'envoi de la notification Capacitor');
         return false;
       }
     } catch (error) {
-      console.error('🔔 [PushTest] Failed to show enhanced notification:', error);
+      console.error('🔔 [PushTest] Failed to show Capacitor notification:', error);
       setStatus('Erreur: ' + error);
       return false;
     }
@@ -135,6 +141,10 @@ export const PushTestPage: React.FC = () => {
               {platformInfo.icon}
               <span>Plateforme: {platformInfo.text}</span>
             </div>
+            <div className="flex items-center gap-2 text-sm text-gray-600">
+              <TestTube className="w-4 h-4" />
+              <span>Capacitor: {Capacitor.getPlatform()} {Capacitor.isNativePlatform() ? '(Native)' : '(Web)'}</span>
+            </div>
             
             <div className="text-sm text-gray-600">
               {platformInfo.note}
@@ -178,29 +188,26 @@ export const PushTestPage: React.FC = () => {
             </Button>
             <Button 
               onClick={async () => {
-                console.log('🔔 [PushTest] Enhanced direct test');
+                console.log('🔔 [PushTest] Capacitor direct test');
                 try {
-                  const success = await showEnhancedNotification(
-                    'Test Direct Enhanced',
-                    'Test direct avec pop-up behavior et priorité maximale',
-                    {
-                      tag: `test-direct-${Date.now()}`,
-                      data: { 
-                        url: '/dashboard',
-                        test: true,
-                        urgent: true
-                      }
+                  const success = await capacitorNotificationService.showNotification({
+                    title: 'Test Capacitor Direct',
+                    body: 'Test direct avec Capacitor - Native ou Web selon la plateforme',
+                    data: { 
+                      url: '/dashboard',
+                      test: true,
+                      urgent: true
                     }
-                  );
+                  });
                   
                   if (success) {
-                    console.log('🔔 [PushTest] Enhanced direct notification sent');
-                    setStatus('Test direct enhanced envoyé avec pop-up behavior');
+                    console.log('🔔 [PushTest] Capacitor direct notification sent');
+                    setStatus('Test Capacitor direct envoyé avec succès');
                   } else {
-                    setStatus('Échec de l\'envoi du test direct enhanced');
+                    setStatus('Échec de l\'envoi du test Capacitor direct');
                   }
                 } catch (error) {
-                  console.error('🔔 [PushTest] Enhanced direct notification error:', error);
+                  console.error('🔔 [PushTest] Capacitor direct notification error:', error);
                   setStatus('Erreur: ' + error);
                 }
               }} 
@@ -208,7 +215,7 @@ export const PushTestPage: React.FC = () => {
               className="flex items-center gap-2"
             >
               <Bell className="w-4 h-4" />
-              Test Direct Enhanced
+              Test Capacitor Direct
             </Button>
             <Button 
               onClick={async () => {

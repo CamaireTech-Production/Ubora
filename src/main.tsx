@@ -3,6 +3,11 @@ import { createRoot } from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
 import { registerServiceWorker } from './utils/pwaRegistration';
+import { Capacitor } from '@capacitor/core';
+
+// Initialize Capacitor
+console.log('🔧 [Capacitor] Platform:', Capacitor.getPlatform());
+console.log('🔧 [Capacitor] Is Native:', Capacitor.isNativePlatform());
 
 // Register service worker with dynamic manifest support
 if ('serviceWorker' in navigator) {

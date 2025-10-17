@@ -71,10 +71,7 @@ try {
         ...payload.data,
         fcmMessageId: payload.messageId,
         timestamp: Date.now(),
-        url: payload.data?.clickAction || '/',
-        priority: 'high',
-        urgent: true,
-        persistent: true
+        url: payload.data?.clickAction || '/'
       },
       tag: uniqueTag,
       requireInteraction: true, // CRITICAL: Keep notification visible
@@ -82,6 +79,9 @@ try {
       vibrate: [200, 100, 200, 100, 200], // Enhanced vibration pattern
       timestamp: Date.now(),
       renotify: true, // Allow re-notification with same tag
+      // Android-specific options for pop-up behavior
+      dir: 'auto',
+      lang: 'fr',
       actions: [
         {
           action: 'open',
@@ -127,10 +127,7 @@ self.addEventListener("push", (event) => {
     data: {
       ...data,
       timestamp: Date.now(),
-      url: data.clickAction || '/',
-      priority: 'high',
-      urgent: true,
-      persistent: true
+      url: data.clickAction || '/'
     },
     tag: `ubora-push-${Date.now()}`,
     requireInteraction: true, // CRITICAL for Android
@@ -138,6 +135,9 @@ self.addEventListener("push", (event) => {
     vibrate: [200, 100, 200, 100, 200],
     timestamp: Date.now(),
     renotify: true,
+    // Android-specific options for pop-up behavior
+    dir: 'auto',
+    lang: 'fr',
     actions: [
       {
         action: 'open',
