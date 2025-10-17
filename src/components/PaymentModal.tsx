@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { X, CreditCard, Users, BarChart3, Brain, Check } from 'lucide-react';
+import { X, CreditCard } from 'lucide-react';
 import { Button } from './Button';
 import { useToast } from '../hooks/useToast';
 import { CampayPayment } from './CampayPayment';
@@ -40,13 +40,11 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
 }) => {
   const { user } = useAuth();
   const { showSuccess, showError } = useToast();
-  const [selectedOption, setSelectedOption] = useState<string | null>(null);
-  const [isProcessing, setIsProcessing] = useState(false);
+  const [quantity, setQuantity] = useState<number>(1);
   const [paymentRequest, setPaymentRequest] = useState<PaymentRequest | null>(null);
   const [currentPaymentId, setCurrentPaymentId] = useState<string | null>(null);
   const [isCreatingPayment, setIsCreatingPayment] = useState(false);
   const [autoOpenPayment, setAutoOpenPayment] = useState(false);
-  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
 
   // All hooks must be called before any conditional returns
   const handlePaymentSuccess = useCallback(async (data: CampayPaymentData) => {
@@ -66,13 +64,13 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       if (result.success) {
         console.log('PaymentModal: Payment successful, processing...');
         
-        // Get the option name from the selected option ID
-        const optionName = selectedOption ? `${selectedOption} acheté(s)` : 'Ressources acheté(s)';
+        // Get the option name from the quantity and type
+        const optionName = `${quantity} ${getUnitName()}${quantity > 1 ? 's' : ''} acheté(s)`;
         showSuccess(`${optionName} avec succès !`);
         
         // Call the original onPurchase callback for UI updates
         // We'll pass a minimal option object since the actual purchase is handled by the service
-        const mockOption = { id: selectedOption || '', name: optionName, price: 0, description: '', unit: 'FCFA', icon: null };
+        const mockOption = { id: `${type}-${quantity}`, name: optionName, price: quantity * getUnitPrice(), description: '', unit: 'FCFA', icon: null };
         await onPurchase(mockOption);
         
         console.log('PaymentModal: Calling handleClose...');
@@ -90,9 +88,8 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       setCurrentPaymentId(null);
       setPaymentRequest(null);
       setAutoOpenPayment(false);
-      setIsPaymentModalOpen(false);
     }
-  }, [currentPaymentId, selectedOption, user, showSuccess, showError, onPurchase]);
+  }, [currentPaymentId, quantity, user, showSuccess, showError, onPurchase]);
 
   const handlePaymentFail = useCallback(async (data: CampayPaymentData) => {
     if (!currentPaymentId) return;
@@ -108,13 +105,11 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       setCurrentPaymentId(null);
       setPaymentRequest(null);
       setAutoOpenPayment(false);
-      setIsPaymentModalOpen(false);
     }
   }, [currentPaymentId, showError]);
 
   const handlePaymentModalClose = useCallback(() => {
     console.log('PaymentModal: Campay modal closed, closing PaymentModal...');
-    setIsPaymentModalOpen(false);
     setAutoOpenPayment(false);
     // Close the main PaymentModal when Campay modal closes
     setCurrentPaymentId(null);
@@ -127,129 +122,40 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
     setCurrentPaymentId(null);
     setPaymentRequest(null);
     setAutoOpenPayment(false);
-    setIsPaymentModalOpen(false);
     onClose();
     console.log('PaymentModal: Modal closed');
   }, [onClose]);
 
   if (!isOpen) return null;
 
-  const getPaymentOptions = (): PaymentOption[] => {
+  // New pricing structure based on user requirements
+  const getUnitPrice = (): number => {
     switch (type) {
       case 'tokens':
-        return [
-          {
-            id: 'tokens-80k',
-            name: '80 000 Tokens Archa',
-            description: 'Pour conversations et analyses supplémentaires',
-            price: 2500,
-            unit: 'FCFA',
-            icon: <Brain className="h-5 w-5" />,
-            popular: true
-          },
-          {
-            id: 'tokens-120k',
-            name: '120 000 Tokens Archa',
-            description: 'Idéal pour usage intensif',
-            price: 5000,
-            unit: 'FCFA',
-            icon: <Brain className="h-5 w-5" />
-          },
-          {
-            id: 'tokens-240k',
-            name: '240 000 Tokens Archa',
-            description: 'Pour équipes importantes',
-            price: 8500,
-            unit: 'FCFA',
-            icon: <Brain className="h-5 w-5" />
-          }
-        ];
+        return 1800; // 35,000 tokens for 1,800 FCFA (per 35k tokens)
       case 'forms':
-        return [
-          {
-            id: 'forms-1',
-            name: '1 Formulaire supplémentaire',
-            description: 'Créez 1 formulaire de plus',
-            price: 15000,
-            unit: 'FCFA',
-            icon: <BarChart3 className="h-5 w-5" />
-          },
-          {
-            id: 'forms-3',
-            name: '3 Formulaires supplémentaires',
-            description: 'Idéal pour les structures en croissance',
-            price: 40000,
-            unit: 'FCFA',
-            icon: <BarChart3 className="h-5 w-5" />,
-            popular: true
-          },
-          {
-            id: 'forms-5',
-            name: '5 Formulaires supplémentaires',
-            description: 'Pour les grandes structures',
-            price: 60000,
-            unit: 'FCFA',
-            icon: <BarChart3 className="h-5 w-5" />
-          }
-        ];
+        return 2000; // 2,000 FCFA per form
       case 'dashboards':
-        return [
-          {
-            id: 'dashboards-1',
-            name: '1 Tableau de bord supplémentaire',
-            description: 'Créez 1 tableau de bord de plus',
-            price: 20000,
-            unit: 'FCFA',
-            icon: <BarChart3 className="h-5 w-5" />
-          },
-          {
-            id: 'dashboards-2',
-            name: '2 Tableaux de bord supplémentaires',
-            description: 'Pour analyses approfondies',
-            price: 35000,
-            unit: 'FCFA',
-            icon: <BarChart3 className="h-5 w-5" />,
-            popular: true
-          },
-          {
-            id: 'dashboards-3',
-            name: '3 Tableaux de bord supplémentaires',
-            description: 'Pour analyses complètes',
-            price: 50000,
-            unit: 'FCFA',
-            icon: <BarChart3 className="h-5 w-5" />
-          }
-        ];
+        return 2100; // 2,100 FCFA per dashboard
       case 'users':
-        return [
-          {
-            id: 'users-1',
-            name: '1 Utilisateur supplémentaire',
-            description: 'Ajoutez 1 utilisateur à votre équipe',
-            price: 21000,
-            unit: 'FCFA',
-            icon: <Users className="h-5 w-5" />
-          },
-          {
-            id: 'users-2',
-            name: '2 Utilisateurs supplémentaires',
-            description: 'Idéal pour les équipes moyennes',
-            price: 40000,
-            unit: 'FCFA',
-            icon: <Users className="h-5 w-5" />,
-            popular: true
-          },
-          {
-            id: 'users-3',
-            name: '3 Utilisateurs supplémentaires',
-            description: 'Pour les grandes équipes',
-            price: 60000,
-            unit: 'FCFA',
-            icon: <Users className="h-5 w-5" />
-          }
-        ];
+        return 0; // No additional user cost mentioned in new structure
       default:
-        return [];
+        return 0;
+    }
+  };
+
+  const getUnitName = (): string => {
+    switch (type) {
+      case 'tokens':
+        return '35 000 tokens';
+      case 'forms':
+        return 'formulaire';
+      case 'dashboards':
+        return 'tableau de bord';
+      case 'users':
+        return 'utilisateur';
+      default:
+        return 'unité';
     }
   };
 
@@ -274,55 +180,47 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   };
 
   const handlePurchase = async () => {
-    if (!selectedOption || !user?.id) {
-      showError('Veuillez sélectionner une option');
+    if (!user?.id || quantity <= 0) {
+      showError('Veuillez entrer une quantité valide');
       return;
     }
 
-    const option = getPaymentOptions().find(opt => opt.id === selectedOption);
-    if (!option) return;
+    const unitPrice = getUnitPrice();
+    if (unitPrice === 0) {
+      showError('Ce type de ressource n\'est pas disponible à l\'achat');
+      return;
+    }
 
     setIsCreatingPayment(true);
     try {
-      // Extract quantity from option ID
-      let quantity: number;
-      if (option.id.startsWith('tokens-')) {
-        // For tokens, the ID format is 'tokens-80k', 'tokens-120k', etc.
-        const tokenAmount = option.id.split('-')[1];
-        if (tokenAmount.endsWith('k')) {
-          quantity = parseInt(tokenAmount.replace('k', '')) * 1000;
-        } else {
-          quantity = parseInt(tokenAmount);
-        }
-      } else {
-        // For other types, the ID format is 'forms-1', 'dashboards-2', etc.
-        quantity = parseInt(option.id.split('-')[1]);
-      }
+      // Calculate total price based on quantity and unit price
+      const totalPrice = quantity * unitPrice;
       
-      if (isNaN(quantity) || quantity <= 0) {
-        throw new Error('Invalid quantity');
+      // For tokens, we need to calculate the actual token amount
+      let actualQuantity = quantity;
+      if (type === 'tokens') {
+        actualQuantity = quantity * 35000; // Each unit is 35,000 tokens
       }
 
       // Create payment request directly like in package payment
       const externalReference = PaymentService.generateExternalReference('PAYGO');
       const paymentReq: PaymentRequest = {
-        amount: option.price,
+        amount: totalPrice,
         currency: 'XAF',
-        description: PayAsYouGoPaymentService.getDescription(type, quantity),
+        description: PayAsYouGoPaymentService.getDescription(type, actualQuantity),
         externalReference,
         metadata: {
           type: 'pay_as_you_go',
           itemType: type,
-          quantity,
-          displayAmount: option.price,
+          quantity: actualQuantity,
+          displayAmount: totalPrice,
           packageInfo: {
-            id: option.id,
-            name: option.name,
-            description: option.description,
-            price: option.price,
-            unit: option.unit,
-            popular: option.popular || false // Ensure boolean value, default to false
-            // Note: Excluding 'icon' as it contains React components that can't be serialized
+            id: `${type}-${quantity}`,
+            name: `${quantity} ${getUnitName()}${quantity > 1 ? 's' : ''}`,
+            description: `Achat de ${quantity} ${getUnitName()}${quantity > 1 ? 's' : ''} à ${unitPrice.toLocaleString()} FCFA l'unité`,
+            price: totalPrice,
+            unit: 'FCFA',
+            popular: false
           }
         }
       };
@@ -357,7 +255,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
         setAutoOpenPayment(true);
       }, 1000);
       
-      showSuccess(`Paiement initialisé (montant: ${option.price.toLocaleString('fr-FR')} FCFA, démo: 10 FCFA). Ouverture du modal de paiement...`);
+      showSuccess(`Paiement initialisé (montant: ${totalPrice.toLocaleString('fr-FR')} FCFA, démo: 10 FCFA). Ouverture du modal de paiement...`);
 
     } catch (error) {
       console.error('Purchase failed:', error);
@@ -368,7 +266,6 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   };
 
 
-  const options = getPaymentOptions();
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" style={{ backdropFilter: 'blur(2px)' }}>
@@ -394,53 +291,75 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
           </button>
         </div>
 
-        {/* Options */}
+        {/* Quantity Input */}
         <div className="p-6">
-          <div className="grid gap-4">
-            {options.map((option) => (
-              <div
-                key={option.id}
-                className={`relative border rounded-lg p-4 cursor-pointer transition-all ${
-                  selectedOption === option.id
-                    ? 'border-blue-500 bg-blue-50'
-                    : 'border-gray-200 hover:border-gray-300'
-                }`}
-                onClick={() => setSelectedOption(option.id)}
-              >
-                {option.popular && (
-                  <div className="absolute -top-2 left-4">
-                    <span className="bg-blue-500 text-white px-2 py-1 rounded-full text-xs font-medium">
-                      Populaire
-                    </span>
-                  </div>
-                )}
-                
-                <div className="flex items-start justify-between">
-                  <div className="flex items-start space-x-3">
-                    <div className="flex-shrink-0 mt-1">
-                      {option.icon}
-                    </div>
-                    <div>
-                      <h3 className="font-medium text-gray-900">
-                        {option.name}
-                      </h3>
-                      <p className="text-sm text-gray-600 mt-1">
-                        {option.description}
-                      </p>
-                    </div>
-                  </div>
-                  
-                  <div className="text-right">
-                    <div className="text-lg font-semibold text-gray-900">
-                      {option.price.toLocaleString()} {option.unit}
-                    </div>
-                    {selectedOption === option.id && (
-                      <Check className="h-5 w-5 text-blue-500 mt-1 ml-auto" />
-                    )}
-                  </div>
+          <div className="space-y-6">
+            {/* Unit Price Display */}
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="font-medium text-blue-900">
+                    Prix unitaire
+                  </h3>
+                  <p className="text-sm text-blue-700 mt-1">
+                    {getUnitName()} à {getUnitPrice().toLocaleString()} FCFA
+                  </p>
+                </div>
+                <div className="text-2xl font-bold text-blue-900">
+                  {getUnitPrice().toLocaleString()} FCFA
                 </div>
               </div>
-            ))}
+            </div>
+
+            {/* Quantity Input */}
+            <div className="space-y-3">
+              <label htmlFor="quantity" className="block text-sm font-medium text-gray-700">
+                Quantité souhaitée
+              </label>
+              <div className="flex items-center space-x-4">
+                <button
+                  type="button"
+                  onClick={() => setQuantity(Math.max(1, quantity - 1))}
+                  className="w-10 h-10 rounded-full border border-gray-300 flex items-center justify-center hover:bg-gray-50 transition-colors"
+                  disabled={quantity <= 1}
+                >
+                  <span className="text-lg font-medium">-</span>
+                </button>
+                <input
+                  id="quantity"
+                  type="number"
+                  min="1"
+                  max="100"
+                  value={quantity}
+                  onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value) || 1))}
+                  className="w-20 text-center border border-gray-300 rounded-lg px-3 py-2 font-medium"
+                />
+                <button
+                  type="button"
+                  onClick={() => setQuantity(quantity + 1)}
+                  className="w-10 h-10 rounded-full border border-gray-300 flex items-center justify-center hover:bg-gray-50 transition-colors"
+                >
+                  <span className="text-lg font-medium">+</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Total Price Display */}
+            <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="font-medium text-green-900">
+                    Total à payer
+                  </h3>
+                  <p className="text-sm text-green-700 mt-1">
+                    {quantity} {getUnitName()}{quantity > 1 ? 's' : ''} × {getUnitPrice().toLocaleString()} FCFA
+                  </p>
+                </div>
+                <div className="text-2xl font-bold text-green-900">
+                  {(quantity * getUnitPrice()).toLocaleString()} FCFA
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -461,7 +380,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
             </Button>
             <Button
               onClick={handlePurchase}
-              disabled={!selectedOption || isCreatingPayment}
+              disabled={quantity <= 0 || isCreatingPayment}
               className="bg-blue-600 hover:bg-blue-700"
             >
               {isCreatingPayment ? (
@@ -472,7 +391,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
               ) : (
                 <div className="flex items-center space-x-2">
                   <CreditCard className="h-4 w-4" />
-                  <span>Acheter</span>
+                  <span>Acheter ({(quantity * getUnitPrice()).toLocaleString()} FCFA)</span>
                 </div>
               )}
             </Button>
@@ -489,7 +408,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
           onModalClose={handlePaymentModalClose}
           autoOpen={autoOpenPayment}
           onAutoOpened={() => setAutoOpenPayment(false)}
-          onModalOpen={() => setIsPaymentModalOpen(true)}
+          onModalOpen={() => {}}
           onModalClosed={handlePaymentModalClose}
         />
       )}

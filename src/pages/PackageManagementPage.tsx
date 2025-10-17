@@ -21,7 +21,6 @@ import {
   Check, 
   X, 
   Star, 
-  Crown, 
   Zap, 
   ArrowLeft,
   CreditCard,
@@ -112,23 +111,21 @@ export const PackageManagementPage: React.FC = () => {
     }
   }, [paymentRequest]);
 
-  const packages: PackageType[] = ['starter', 'standard', 'premium' /* , 'custom' */];
+  const packages: PackageType[] = ['free', 'starter', 'standard'];
 
   const getPackageIcon = (pkg: PackageType) => {
     switch (pkg) {
+      case 'free': return <Check className="h-6 w-6" />;
       case 'starter': return <Zap className="h-6 w-6" />;
       case 'standard': return <Star className="h-6 w-6" />;
-      case 'premium': return <Crown className="h-6 w-6" />;
-      /* case 'custom': return <Shield className="h-6 w-6" />; */
     }
   };
 
   const getPackageColor = (pkg: PackageType) => {
     switch (pkg) {
+      case 'free': return 'text-green-600 bg-green-100';
       case 'starter': return 'text-blue-600 bg-blue-100';
-      case 'standard': return 'text-green-600 bg-green-100';
-      case 'premium': return 'text-purple-600 bg-purple-100';
-      /* case 'custom': return 'text-orange-600 bg-orange-100'; */
+      case 'standard': return 'text-purple-600 bg-purple-100';
     }
   };
 
@@ -165,7 +162,7 @@ export const PackageManagementPage: React.FC = () => {
     // Get enhanced transition preview with current usage
     const preview = PackageTransitionService.getEnhancedTransitionPreview(
       user, 
-      pkg, 
+      pkg as 'starter' | 'standard', 
       currentUsage
     );
     
@@ -1076,7 +1073,7 @@ export const PackageManagementPage: React.FC = () => {
                       Achetez des tokens supplémentaires pour continuer à utiliser ARCHA
                     </p>
                     <div className="text-lg sm:text-xl font-bold text-blue-600 mb-3 sm:mb-4">
-                      À partir de 2 500 FCFA
+                      À partir de 1 800 FCFA
                     </div>
                     {renderPayAsYouGoButton(
                       'tokens',
@@ -1101,7 +1098,7 @@ export const PackageManagementPage: React.FC = () => {
                       Ajoutez des formulaires supplémentaires à votre package
                     </p>
                     <div className="text-lg sm:text-xl font-bold text-green-600 mb-3 sm:mb-4">
-                      À partir de 15 000 FCFA
+                      À partir de 2 000 FCFA
                     </div>
                     {renderPayAsYouGoButton(
                       'forms',
@@ -1126,7 +1123,7 @@ export const PackageManagementPage: React.FC = () => {
                       Créez plus de tableaux de bord pour vos analyses
                     </p>
                     <div className="text-lg sm:text-xl font-bold text-purple-600 mb-3 sm:mb-4">
-                      À partir de 20 000 FCFA
+                      À partir de 2 100 FCFA
                     </div>
                     {renderPayAsYouGoButton(
                       'dashboards',
@@ -1151,7 +1148,7 @@ export const PackageManagementPage: React.FC = () => {
                       Ajoutez des utilisateurs à votre équipe
                     </p>
                     <div className="text-lg sm:text-xl font-bold text-orange-600 mb-3 sm:mb-4">
-                      À partir de 21 000 FCFA
+                      Gratuit
                     </div>
                     {renderPayAsYouGoButton(
                       'users',
@@ -1228,7 +1225,7 @@ export const PackageManagementPage: React.FC = () => {
                 <PackageTransitionPriceExplanation
                   calculation={PackageTransitionService.calculateEnhancedTransition(
                     user!,
-                    selectedPackage!,
+                    selectedPackage! as 'starter' | 'standard',
                     userNeeds
                   )!}
                 />

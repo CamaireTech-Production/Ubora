@@ -1,59 +1,55 @@
 # UBORA - Plans Tarifaires
 
-## Palier 1 – Starter
-**35 000 FCFA / mois**
+## UBORA Gratuit — 0 FCFA / mois
+📋 Découvrez UBORA et ACCÉDEZ AUSSITÔT INVITE d'utilisateurs
+👤 Utilisateurs illimités
+👥 Utilisateurs gratuits
+📊 1 tableau de bord réduit
+⏱️ 25 000 tokens Acha / mois
+🔄 Mise à jour manuelle
+📤 Export PDF 📧
+🖼️ Import de fichiers (PDF, Images) dans des formulaires en 1 simple clic
+🔔 Notifications automatiques des messages de rappel de remplissage
+0 instruction programmée
+📈 ⚙️ 🗂️ non disponibles
 
-- 4 formulaires maximum
-- 1 tableau de bord dynamique
-- Graphiques IA inclus
-- Export PDF & Excel inclus
-- Chat Archa (via système de tokens)
-- 3 utilisateurs inclus
-- +10 000 FCFA / utilisateur supplémentaire
+Envoi et plus :
+Vous pouvez acheter à la carte :
 
-> Idéal pour les petites structures qui veulent tester UBORA
-
----
-
-## Palier 2 – Standard
-**49 999 FCFA / mois**
-
-- Formulaires illimités
-- Tableaux de bord illimités
-- Graphiques et analyses IA avancées
-- Export PDF & Excel inclus
-- Notifications push pour les rapports manquants
-- 7 utilisateurs inclus
-- +7 000 FCFA / utilisateur supplémentaire
-
-> Idéal pour PME avec plusieurs équipes
+Formulaire supplémentaire : 2 000 FCFA
+Tableau de bord supplémentaire: 2 100 FCFA
+Pack de 35 000 tokens : 1800 FCFA
 
 ---
 
-## Palier 3 – Premium
-**199 999 FCFA / mois**
-
-- Formulaires illimités
-- Tableaux de bord illimités
-- Chat Archa avec analyses croisées et tendances prédictives
-- Branding personnalisé (logo & couleurs sur exports)
-- Support WhatsApp prioritaire
-- Utilisateurs illimités
-- +7 000 FCFA / utilisateur supplémentaire
-
-> Idéal pour groupes d'entreprises ou réseaux multi-sites
+## UBORA Starter — 12 900 FCFA / mois
+Pour les dirigeants indépendants ou TPE
+👤 Utilisateurs illimités
+👥 5 utilisateurs
+📊 2 tableaux de bord dynamique
+📤 Export PDF 📧
+🖼️ Import de fichiers en .pdf et image dans les formulaire
+100 000 tokens Actha / mois
+🤖 1 Indicateur push automatisé du tableau de bord
+(+ indicateur)
+1 instruction programmée
+🔔 Notifications automatiques des messages de rappel de remplissage
+📈 Planification et mise analyser automatique de archa et envoie des résultats par messanges push
 
 ---
 
-<!-- ## Palier 4 – Sur mesure
-**À partir de 250 000 FCFA / mois (selon besoins)**
-
-- Formulaires & dashboards illimités
-- Chat Archa avancé avec intégrations (comptabilité, RH, facturation…)
-- Hébergement dédié & sécurisé
-- Formation des équipes et support sur site
-- Utilisateurs illimités ou tarif spécifique selon profil
-- Personnalisation complète (workflows, branding, connecteurs externes) -->
+## UBORA Standard — 35 000 FCFA / mois
+Pour les PME et les multi-équipiers
+👤 Utilisateurs illimités
+👥 15 utilisateurs
+📊 Tableaux de bord illimités
+📤 Export rapport en .PDF et Excel 📧
+🖼️ Importation de rapports PDF / images dans les formulaires
+300 000 tokens Actha / mois
+🤖 Indicateur push illimités via les tableaux de bord
+🔔 Notifications automatiques des messages de rappel de remplissage
+4 instruction programmée
+📈 programmation des analyses automatique de archa et envoie des résultats par Notifications push
 
 ---
 
@@ -65,10 +61,9 @@ Les tokens sont inclus dans chaque abonnement (quota mensuel).
 
 ### Quotas de tokens mensuels :
 
-- **Starter** : 300 000 tokens / mois (≈ 10 requêtes/jour)
-- **Standard** : 600 000 tokens / mois (≈ 20 requêtes/jour)
-- **Premium** : 1 500 000 tokens / mois (≈ 50 requêtes/jour)
-<!-- - **Sur mesure** : tokens à négocier -->
+- **Gratuit** : 25 000 tokens / mois
+- **Starter** : 100 000 tokens / mois
+- **Standard** : 300 000 tokens / mois
 
 > Possibilité d'acheter des tokens additionnels si le quota est dépassé.
 
@@ -76,27 +71,27 @@ Les tokens sont inclus dans chaque abonnement (quota mensuel).
 
 Si vous atteignez les limites de votre package, vous pouvez acheter des ressources supplémentaires :
 
-- **Tokens Archa** : 80 000 tokens (2 500 FCFA), 120 000 tokens (5 000 FCFA), 240 000 tokens (8 500 FCFA)
-- **Formulaires** : 5 formulaires (15 000 FCFA), 10 formulaires (25 000 FCFA), illimités (50 000 FCFA)
-- **Tableaux de bord** : 3 tableaux (20 000 FCFA), 5 tableaux (30 000 FCFA), illimités (60 000 FCFA)
-- **Utilisateurs** : 3 utilisateurs (21 000 FCFA), 5 utilisateurs (35 000 FCFA), 10 utilisateurs (70 000 FCFA)
+- **Tokens Archa** : 35 000 tokens (1 800 FCFA)
+- **Formulaires** : 2 000 FCFA par formulaire
+- **Tableaux de bord** : 2 100 FCFA par tableau de bord
 
 ---
 
 ## Comparaison des Plans
 
-| Fonctionnalité | Starter | Standard | Premium | Sur mesure |
-|---|---|---|---|---|
-| **Prix mensuel** | 35 000 FCFA | 85 000 FCFA | 160 000 FCFA | 250 000+ FCFA |
-| **Formulaires** | 4 max | Illimités | Illimités | Illimités |
-| **Tableaux de bord** | 1 | Illimités | Illimités | Illimités |
-| **Utilisateurs inclus** | 3 | 7 | 20 | Illimités |
-| **Coût utilisateur supp.** | +10 000 FCFA | +7 000 FCFA | +7 000 FCFA | Négociable |
-| **Tokens IA/mois** | 300 000 | 600 000 | 1 500 000 | Négociable |
-| **Chat IA** | Basique | Avancé | Archa + prédictif | Avancé + intégrations |
-| **Branding** | Non | Non | Oui | Oui |
-| **Support** | Standard | Standard | WhatsApp prioritaire | Sur site |
-| **Hébergement** | Partagé | Partagé | Partagé | Dédié |
+| Fonctionnalité | Gratuit | Starter | Standard |
+|---|---|---|---|
+| **Prix mensuel** | 0 FCFA | 12 900 FCFA | 35 000 FCFA |
+| **Formulaires** | 0 | Illimités | Illimités |
+| **Tableaux de bord** | 1 réduit | 2 dynamiques | Illimités |
+| **Utilisateurs inclus** | Illimités | 5 | 15 |
+| **Tokens IA/mois** | 25 000 | 100 000 | 300 000 |
+| **Instructions programmées** | 0 | 1 | 4 |
+| **Indicateurs push automatisés** | 0 | 1 | Illimités |
+| **Export PDF** | Oui | Oui | Oui |
+| **Export Excel** | Non | Oui | Oui |
+| **Notifications automatiques** | Oui | Oui | Oui |
+| **Import fichiers** | Oui | Oui | Oui |
 
 ---
 

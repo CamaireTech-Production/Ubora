@@ -1,10 +1,8 @@
-import React, { useState, useCallback } from 'react';
+import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { X, CreditCard, Zap, CheckCircle, AlertCircle } from 'lucide-react';
+import { X, CreditCard, Zap, AlertCircle } from 'lucide-react';
 import { Button } from './Button';
 import { Card } from './Card';
-import { useAuth } from '../contexts/AuthContext';
-import { useToast } from '../hooks/useToast';
 
 interface PayAsYouGoModalProps {
   isOpen: boolean;
@@ -16,39 +14,16 @@ interface PayAsYouGoModalProps {
   requiredTokens?: number;
 }
 
-const TOKEN_PACKAGES = [
-  {
-    tokens: 80000, // 80k tokens (80 actual OpenAI tokens = ~2-3 requests)
-    price: 2500, // 2500 FCFA
-    popular: true,
-    description: 'Pour conversations et analyses supplémentaires'
-  },
-  {
-    tokens: 120000, // 120k tokens (120 actual OpenAI tokens = ~4 requests)
-    price: 5000, // 5000 FCFA
-    popular: false,
-    description: 'Idéal pour un usage intensif'
-  },
-  {
-    tokens: 240000, // 240k tokens (240 actual OpenAI tokens = ~8 requests)
-    price: 8500, // 8500 FCFA
-    popular: false,
-    description: 'Pour une équipe active'
-  }
-];
 
 export const PayAsYouGoModal: React.FC<PayAsYouGoModalProps> = ({
   isOpen,
   onClose,
-  onPurchase,
   currentTokens,
   packageLimit,
   payAsYouGoTokens,
   requiredTokens = 0
 }) => {
   const navigate = useNavigate();
-  const { user } = useAuth();
-  const { showSuccess, showError } = useToast();
   
 
   if (!isOpen) return null;

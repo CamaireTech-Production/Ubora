@@ -530,27 +530,23 @@ export class PayAsYouGoPaymentService {
     switch (type) {
       case 'forms':
         return [
-          { quantity: 1, price: 2000 },
-          { quantity: 3, price: 5000 },
-          { quantity: 5, price: 8000 }
+          { quantity: 1, price: 2000 }, // 2,000 FCFA per form
+          { quantity: 5, price: 10000 }, // 5 forms for 10,000 FCFA
+          { quantity: 10, price: 20000 } // 10 forms for 20,000 FCFA
         ];
       case 'dashboards':
         return [
-          { quantity: 1, price: 30000 },
-          { quantity: 2, price: 55000 },
-          { quantity: 3, price: 80000 }
+          { quantity: 1, price: 2100 }, // 2,100 FCFA per dashboard
+          { quantity: 5, price: 10500 }, // 5 dashboards for 10,500 FCFA
+          { quantity: 10, price: 21000 } // 10 dashboards for 21,000 FCFA
         ];
       case 'users':
         return [
-          { quantity: 1, price: 7000 },
-          { quantity: 2, price: 13000 },
-          { quantity: 3, price: 20000 }
+          // No additional user cost in new structure
         ];
       case 'tokens':
         return [
-          { quantity: 80000, price: 2500 },
-          { quantity: 120000, price: 5000 },
-          { quantity: 240000, price: 8500 }
+          { quantity: 35000, price: 1800 } // 35,000 tokens for 1,800 FCFA
         ];
       default:
         return [];
