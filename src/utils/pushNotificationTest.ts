@@ -3,7 +3,7 @@
  * This file contains utility functions to test push notification functionality
  */
 
-import { fcmService } from '../services/fcmService';
+// Removed FCM service dependency for pure frontend notifications
 
 export interface TestResult {
   test: string;
@@ -83,19 +83,36 @@ export class PushNotificationTester {
   }
 
   /**
-   * Test FCM service availability
+   * Test Direct Service Worker Notification
    */
-  testFCMService(): TestResult {
-    const test = 'FCM Service';
+  async testDirectNotification(): Promise<TestResult> {
+    const test = 'Direct Notification';
     try {
-      const success = !!fcmService;
-      const message = success 
-        ? 'FCM service is available'
-        : 'FCM service is not available';
-      
-      const result = { test, success, message, timestamp: new Date() };
-      this.results.push(result);
-      return result;
+      if ('serviceWorker' in navigator) {
+        const registration = await navigator.serviceWorker.getRegistration('/');
+        if (registration) {
+          await registration.showNotification('Direct Test Notification', {
+            body: 'This is a direct frontend notification test',
+            icon: '/fav-icons/android-icon-192x192.png',
+            badge: '/fav-icons/android-icon-96x96.png',
+            requireInteraction: true,
+            tag: `direct-test-${Date.now()}`,
+            data: { test: true, timestamp: Date.now() }
+          });
+          
+          const result = { test, success: true, message: 'Direct notification sent successfully', timestamp: new Date() };
+          this.results.push(result);
+          return result;
+        } else {
+          const result = { test, success: false, message: 'Service worker registration not found', timestamp: new Date() };
+          this.results.push(result);
+          return result;
+        }
+      } else {
+        const result = { test, success: false, message: 'Service worker not supported', timestamp: new Date() };
+        this.results.push(result);
+        return result;
+      }
     } catch (error) {
       const result = { test, success: false, message: `Error: ${error}`, timestamp: new Date() };
       this.results.push(result);
@@ -159,12 +176,12 @@ export class PushNotificationTester {
     // Run synchronous tests
     this.testBasicSupport();
     this.testPermission();
-    this.testFCMService();
     this.testPlatformDetection();
     this.testPWAStatus();
     
     // Run asynchronous tests
     await this.testServiceWorker();
+    await this.testDirectNotification();
     
     return this.results;
   }

@@ -541,6 +541,74 @@ service cloud.firestore {
     }
 
     // =============================================================================
+    // COLLECTION SCHEDULED QUESTIONS
+    // Règles pour les questions programmées :
+    // - Seuls les directeurs et employés avec accès dashboard peuvent créer/lire/modifier/supprimer leurs questions
+    // - Les questions sont isolées par agence
+    // - Les utilisateurs peuvent gérer uniquement leurs propres questions
+    // =============================================================================
+    
+    match /scheduledQuestions/{questionId} {
+      // LECTURE des questions programmées
+      allow read: if isAuthenticated() && (
+        isAdmin() ||
+        (hasDirectorDashboardAccess() && isSameAgency(resource.data.agencyId) && resource.data.userId == request.auth.uid)
+      );
+      
+      // CRÉATION de questions programmées
+      allow create: if isAuthenticated() && (
+        isAdmin() ||
+        (hasDirectorDashboardAccess() && 
+         isSameAgency(request.resource.data.agencyId) &&
+         request.resource.data.userId == request.auth.uid &&
+         request.resource.data.keys().hasAll(['userId', 'agencyId', 'question', 'title', 'scheduledAt', 'frequency', 'status', 'filters', 'selectedFormat', 'selectedFormats', 'selectedFormIds']))
+      );
+      
+      // MODIFICATION des questions programmées
+      allow update: if isAuthenticated() && (
+        isAdmin() ||
+        (hasDirectorDashboardAccess() && 
+         isSameAgency(resource.data.agencyId) &&
+         resource.data.userId == request.auth.uid)
+      );
+      
+      // SUPPRESSION des questions programmées
+      allow delete: if isAuthenticated() && (
+        isAdmin() ||
+        (hasDirectorDashboardAccess() && 
+         isSameAgency(resource.data.agencyId) &&
+         resource.data.userId == request.auth.uid)
+      );
+    }
+
+    // =============================================================================
+    // COLLECTION SCHEDULED QUESTION RESPONSES
+    // Règles pour les réponses aux questions programmées :
+    // - Seuls les directeurs et employés avec accès dashboard peuvent lire les réponses
+    // - Les réponses sont isolées par agence
+    // - Les utilisateurs peuvent lire uniquement les réponses de leurs questions
+    // =============================================================================
+    
+    match /scheduledQuestionResponses/{responseId} {
+      // LECTURE des réponses aux questions programmées
+      allow read: if isAuthenticated() && (
+        isAdmin() ||
+        (hasDirectorDashboardAccess() && isSameAgency(resource.data.agencyId))
+      );
+      
+      // CRÉATION de réponses (seulement par le système backend)
+      allow create: if isAuthenticated() && (
+        isAdmin() ||
+        (hasDirectorDashboardAccess() && 
+         isSameAgency(request.resource.data.agencyId) &&
+         request.resource.data.keys().hasAll(['scheduledQuestionId', 'response', 'executedAt', 'status']))
+      );
+      
+      // MODIFICATION et SUPPRESSION interdites pour les utilisateurs
+      allow update, delete: if false;
+    }
+
+    // =============================================================================
     // RÈGLE DE SÉCURITÉ GLOBALE
     // Bloquer tout accès non authentifié par défaut
     // =============================================================================

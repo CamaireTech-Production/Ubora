@@ -3,6 +3,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useApp } from '../contexts/AppContext';
 import { reminderNotificationService } from '../services/reminderNotificationService';
 import { metricReminderService } from '../services/metricReminderService';
+import { scheduledQuestionExecutor } from '../services/scheduledQuestionExecutor';
 
 export const ReminderServiceInitializer: React.FC = () => {
   const { user } = useAuth();
@@ -38,12 +39,17 @@ export const ReminderServiceInitializer: React.FC = () => {
       const intervalId = setInterval(runMetricTick, 60 * 1000);
       // Run once immediately for current minute
       runMetricTick();
+
+      // Start scheduled question executor for this user
+      // Note: Temporarily disabled until backend service is implemented
+      // scheduledQuestionExecutor.start(user.id, user.agencyId);
     }
 
     // Cleanup function to stop the service when component unmounts
     return () => {
       if (user) {
         reminderNotificationService.stopCronjob();
+        // scheduledQuestionExecutor.stop();
       }
       // Clear metric runner
       // Note: intervalId is in closure

@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { X, Download, ExternalLink, ZoomIn, ZoomOut, RotateCw, Maximize2, Minimize2 } from 'lucide-react';
 import { Button } from './Button';
+import { FirestoreUrlConverter } from '../services/firestoreUrlConverter';
 
 interface PDFViewerModalProps {
   isOpen: boolean;
@@ -43,6 +44,15 @@ export const PDFViewerModal: React.FC<PDFViewerModalProps> = ({
       document.body.style.overflow = 'unset';
     };
   }, [isOpen, onClose]);
+
+  // Clean up blob URLs when modal closes
+  useEffect(() => {
+    return () => {
+      if (fileUrl && fileUrl.startsWith('blob:')) {
+        FirestoreUrlConverter.revokeBlobUrl(fileUrl);
+      }
+    };
+  }, [fileUrl]);
 
   if (!isOpen) return null;
 

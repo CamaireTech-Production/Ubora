@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Download, Eye, X, FileImage } from 'lucide-react';
 import { ImageFileReference } from '../../types';
 import { getFileDownloadURL } from '../../utils/firebaseDownloadUtils';
 import { downloadFile } from '../../utils/downloadUtils';
 import { useToast } from '../../hooks/useToast';
+import { FirestoreUrlConverter } from '../../services/firestoreUrlConverter';
 
 interface ImagePreviewProps {
   imageFiles: ImageFileReference[];
@@ -58,12 +59,26 @@ export const ImagePreview: React.FC<ImagePreviewProps> = ({ imageFiles }) => {
   };
 
   const handleCloseImageModal = () => {
+    // Clean up blob URL before closing
+    if (imageViewerModal.fileUrl && imageViewerModal.fileUrl.startsWith('blob:')) {
+      FirestoreUrlConverter.revokeBlobUrl(imageViewerModal.fileUrl);
+    }
+    
     setImageViewerModal({
       isOpen: false,
       fileUrl: '',
       fileName: ''
     });
   };
+
+  // Clean up blob URLs when component unmounts
+  useEffect(() => {
+    return () => {
+      if (imageViewerModal.fileUrl && imageViewerModal.fileUrl.startsWith('blob:')) {
+        FirestoreUrlConverter.revokeBlobUrl(imageViewerModal.fileUrl);
+      }
+    };
+  }, [imageViewerModal.fileUrl]);
 
   if (!imageFiles || imageFiles.length === 0) {
     return null;

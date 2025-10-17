@@ -62,8 +62,18 @@ export const ResponseDetailPage: React.FC = () => {
   // Debug: Log all response data
   React.useEffect(() => {
     if (allResponses.length > 0) {
+      console.log('🔍 All responses loaded:', allResponses.length);
       allResponses.forEach((response, index) => {
-        // Process response data
+        console.log(`🔍 Response ${index + 1}:`, {
+          id: response.id,
+          formId: response.formId,
+          userId: response.userId,
+          hasFileAttachments: !!response.fileAttachments,
+          fileAttachmentsCount: response.fileAttachments?.length || 0,
+          fileAttachments: response.fileAttachments,
+          answersKeys: Object.keys(response.answers || {}),
+          answers: response.answers
+        });
       });
     }
   }, [allResponses]);
@@ -95,35 +105,59 @@ export const ResponseDetailPage: React.FC = () => {
 
   // Helper function to find file attachment for a field
   const findFileAttachment = (response: any, fieldId: string) => {
+    console.log('🔍 findFileAttachment called with:', {
+      fieldId,
+      responseId: response.id,
+      hasFileAttachments: !!response.fileAttachments,
+      fileAttachmentsLength: response.fileAttachments?.length || 0,
+      hasAnswers: !!response.answers,
+      answerKeys: Object.keys(response.answers || {})
+    });
+
     // Try to find in fileAttachments array
     if (response.fileAttachments && Array.isArray(response.fileAttachments)) {
+      console.log('🔍 Searching in fileAttachments array:', response.fileAttachments);
       const attachment = response.fileAttachments.find((att: any) => att.fieldId === fieldId);
       if (attachment) {
+        console.log('✅ Found attachment in fileAttachments array:', attachment);
         return attachment;
       }
     }
 
     // Try to find in answers object (sometimes file data is stored there)
     const answerValue = response.answers?.[fieldId];
+    console.log('🔍 Checking answer value for fieldId:', {
+      fieldId,
+      answerValue,
+      isObject: typeof answerValue === 'object',
+      hasUploaded: answerValue?.uploaded
+    });
+    
     if (answerValue && typeof answerValue === 'object' && answerValue.uploaded) {
       // Create a file attachment object from the answer data
-      return {
+      const constructedAttachment = {
         fieldId,
         fileName: answerValue.fileName,
         fileSize: answerValue.fileSize,
         fileType: answerValue.fileType,
         downloadUrl: answerValue.downloadUrl,
         storagePath: answerValue.storagePath,
-        uploadedAt: answerValue.uploadedAt || new Date()
+        uploadedAt: answerValue.uploadedAt || new Date(),
+        base64Data: answerValue.base64Data // Include base64Data if it exists
       };
+      console.log('✅ Constructed attachment from answer data:', constructedAttachment);
+      return constructedAttachment;
     }
 
+    console.log('❌ No file attachment found for fieldId:', fieldId);
     return null;
   };
 
   const handleViewPDF = async (fileAttachment: FileAttachment) => {
+    console.log('🔄 handleViewPDF called with fileAttachment:', fileAttachment);
     try {
       const downloadUrl = await getFileDownloadURL(fileAttachment);
+      console.log('✅ Got download URL:', downloadUrl);
       
       // Open in PDF viewer modal
       setPdfViewerModal({
@@ -132,7 +166,7 @@ export const ResponseDetailPage: React.FC = () => {
         fileName: fileAttachment.fileName
       });
     } catch (error) {
-      console.error('Error viewing file:', error);
+      console.error('❌ Error viewing file:', error);
       showError('Erreur lors de l\'ouverture du fichier');
     }
   };

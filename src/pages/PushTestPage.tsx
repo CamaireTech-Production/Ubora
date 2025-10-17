@@ -5,6 +5,8 @@ import { Button } from '../components/Button';
 import { Bell, Timer, ShieldCheck, Smartphone, Monitor, TestTube } from 'lucide-react';
 import { usePushNotifications } from '../hooks/usePushNotifications';
 import { PushNotificationTester } from '../components/PushNotificationTester';
+import { capacitorNotificationService } from '../services/capacitorNotificationService';
+import { Capacitor } from '@capacitor/core';
 
 export const PushTestPage: React.FC = () => {
   const { 
@@ -50,57 +52,33 @@ export const PushTestPage: React.FC = () => {
 
   const showLocalNotification = useCallback(async (title: string, body: string) => {
     try {
-      console.log('🔔 [PushTest] Attempting to show notification:', { title, body });
-      console.log('🔔 [PushTest] Notification permission:', Notification.permission);
+      console.log('🔔 [PushTest] Attempting to show Capacitor notification:', { title, body });
+      console.log('🔔 [PushTest] Platform:', Capacitor.getPlatform());
+      console.log('🔔 [PushTest] Is Native:', Capacitor.isNativePlatform());
       
-      if (Notification.permission === 'granted') {
-        console.log('🔔 [PushTest] Permission granted, creating notification...');
-        
-        // Always use direct Notification API for foreground notifications
-        const notification = new Notification(title, {
-          body,
-          icon: '/fav-icons/android-icon-192x192.png',
-          badge: '/fav-icons/android-icon-96x96.png',
-          tag: `ubora-push-test-${Date.now()}`,
-          requireInteraction: false,
-          silent: false
-        });
-        
-        console.log('🔔 [PushTest] Notification created:', notification);
-        
-        // Handle notification events
-        notification.onclick = () => {
-          console.log('🔔 [PushTest] Notification clicked');
-          window.focus();
-          notification.close();
-        };
-        
-        notification.onerror = (error) => {
-          console.error('🔔 [PushTest] Notification error:', error);
-        };
-        
-        notification.onshow = () => {
-          console.log('🔔 [PushTest] Notification shown');
-        };
-        
-        notification.onclose = () => {
-          console.log('🔔 [PushTest] Notification closed');
-        };
-        
-        // Auto-close after 5 seconds
-        setTimeout(() => {
-          notification.close();
-        }, 5000);
-        
+      // Use Capacitor notification service
+      const success = await capacitorNotificationService.showNotification({
+        title,
+        body,
+        data: { 
+          url: '/dashboard',
+          test: true,
+          urgent: true
+        }
+      });
+      
+      if (success) {
+        console.log('🔔 [PushTest] Capacitor notification sent successfully');
+        setStatus('Notification Capacitor envoyée avec succès');
         return true;
       } else {
-        console.log('🔔 [PushTest] Permission not granted:', Notification.permission);
-        setStatus('Permission non accordée pour les notifications');
+        console.log('🔔 [PushTest] Failed to send Capacitor notification');
+        setStatus('Erreur lors de l\'envoi de la notification Capacitor');
         return false;
       }
-    } catch (e) {
-      console.error('🔔 [PushTest] Error showing notification:', e);
-      setStatus(`Erreur lors de l'affichage de la notification: ${e}`);
+    } catch (error) {
+      console.error('🔔 [PushTest] Failed to show Capacitor notification:', error);
+      setStatus('Erreur: ' + error);
       return false;
     }
   }, []);
@@ -163,6 +141,10 @@ export const PushTestPage: React.FC = () => {
               {platformInfo.icon}
               <span>Plateforme: {platformInfo.text}</span>
             </div>
+            <div className="flex items-center gap-2 text-sm text-gray-600">
+              <TestTube className="w-4 h-4" />
+              <span>Capacitor: {Capacitor.getPlatform()} {Capacitor.isNativePlatform() ? '(Native)' : '(Web)'}</span>
+            </div>
             
             <div className="text-sm text-gray-600">
               {platformInfo.note}
@@ -205,25 +187,56 @@ export const PushTestPage: React.FC = () => {
               {showComprehensiveTest ? 'Masquer' : 'Afficher'} Test Complet
             </Button>
             <Button 
-              onClick={() => {
-                console.log('🔔 [PushTest] Direct test - Permission:', Notification.permission);
-                if (Notification.permission === 'granted') {
-                  const notif = new Notification('Test Direct', {
-                    body: 'Test direct de l\'API Notification',
-                    icon: '/fav-icons/android-icon-192x192.png'
+              onClick={async () => {
+                console.log('🔔 [PushTest] Capacitor direct test');
+                try {
+                  const success = await capacitorNotificationService.showNotification({
+                    title: 'Test Capacitor Direct',
+                    body: 'Test direct avec Capacitor - Native ou Web selon la plateforme',
+                    data: { 
+                      url: '/dashboard',
+                      test: true,
+                      urgent: true
+                    }
                   });
-                  notif.onshow = () => console.log('🔔 [PushTest] Direct notification shown');
-                  notif.onerror = (e) => console.error('🔔 [PushTest] Direct notification error:', e);
-                  setStatus('Test direct envoyé');
-                } else {
-                  setStatus('Permission non accordée pour test direct');
+                  
+                  if (success) {
+                    console.log('🔔 [PushTest] Capacitor direct notification sent');
+                    setStatus('Test Capacitor direct envoyé avec succès');
+                  } else {
+                    setStatus('Échec de l\'envoi du test Capacitor direct');
+                  }
+                } catch (error) {
+                  console.error('🔔 [PushTest] Capacitor direct notification error:', error);
+                  setStatus('Erreur: ' + error);
                 }
               }} 
               variant="secondary" 
               className="flex items-center gap-2"
             >
               <Bell className="w-4 h-4" />
-              Test Direct
+              Test Capacitor Direct
+            </Button>
+            <Button 
+              onClick={async () => {
+                try {
+                  if ('serviceWorker' in navigator) {
+                    const registration = await navigator.serviceWorker.getRegistration();
+                    if (registration) {
+                      await registration.update();
+                      setStatus('Vérification de mise à jour effectuée');
+                    }
+                  }
+                } catch (error) {
+                  console.error('Error checking for updates:', error);
+                  setStatus('Erreur lors de la vérification');
+                }
+              }} 
+              variant="secondary" 
+              className="flex items-center gap-2"
+            >
+              <Timer className="w-4 h-4" />
+              Vérifier Mise à Jour
             </Button>
           </div>
           {status && (

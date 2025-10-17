@@ -82,22 +82,10 @@ export class PayAsYouGoService {
   static getTokenPackages(): TokenPackage[] {
     return [
       {
-        tokens: 80000, // 80k tokens (80 actual OpenAI tokens = ~2-3 requests)
-        price: 2500, // 2500 FCFA
+        tokens: 35000, // 35k tokens for 1,800 FCFA
+        price: 1800, // 1800 FCFA
         popular: true,
-        description: 'Pour conversations et analyses supplémentaires'
-      },
-      {
-        tokens: 120000, // 120k tokens (120 actual OpenAI tokens = ~4 requests)
-        price: 5000, // 5000 FCFA
-        popular: false,
-        description: 'Idéal pour un usage intensif'
-      },
-      {
-        tokens: 240000, // 240k tokens (240 actual OpenAI tokens = ~8 requests)
-        price: 8500, // 8500 FCFA
-        popular: false,
-        description: 'Pour une équipe active'
+        description: 'Pack de 35 000 tokens Archa'
       }
     ];
   }

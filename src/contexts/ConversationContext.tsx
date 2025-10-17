@@ -28,6 +28,7 @@ interface ConversationContextType {
   createConversation: (title: string) => Promise<string>;
   addMessage: (message: ChatMessage) => Promise<void>;
   addMessageToLocalState: (message: ChatMessage) => void;
+  replaceOptimisticMessage: (optimisticId: string, realMessage: ChatMessage) => void;
   loadMoreMessages: () => Promise<void>;
   loadConversation: (conversationId: string) => Promise<void>;
   createNewConversation: () => Promise<string>;
@@ -237,12 +238,16 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
   const addMessageToLocalState = (message: ChatMessage): void => {
     setMessages(prev => {
-      // Check if message already exists to prevent duplicates (less aggressive)
-      const exists = prev.some(m => 
-        m.content === message.content && 
-        m.type === message.type && 
-        Math.abs(m.timestamp.getTime() - message.timestamp.getTime()) < 3000 // Within 3 seconds (less aggressive)
-      );
+      // Check if message already exists to prevent duplicates (more aggressive for user messages)
+      const exists = prev.some(m => {
+        if (m.type === 'user' && message.type === 'user') {
+          // For user messages, be more aggressive - check content and time
+          return m.content === message.content && 
+                 Math.abs(m.timestamp.getTime() - message.timestamp.getTime()) < 5000; // Within 5 seconds
+        }
+        // For other message types, check by ID
+        return m.id === message.id;
+      });
       
       if (exists) {
         return prev;
@@ -256,6 +261,17 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     });
   };
 
+  const replaceOptimisticMessage = (optimisticId: string, realMessage: ChatMessage): void => {
+    setMessages(prev => {
+      return prev.map(msg => {
+        // Replace the optimistic message with the real one
+        if (msg.id === optimisticId && msg.type === 'user') {
+          return realMessage;
+        }
+        return msg;
+      });
+    });
+  };
 
   const loadConversation = async (conversationId: string): Promise<void> => {
     if (!user || !PermissionManager.canLoadConversations(user)) {
@@ -332,36 +348,9 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         	return contentDuplicate === -1;
         });
 
-        // Only update messages if there are actually new messages to prevent unnecessary re-renders
-        setMessages(prevMessages => {
-          // Check if we have new messages that aren't already in the array
-          const newMessages = uniqueMessages.filter(newMsg => 
-            !prevMessages.some(prevMsg => prevMsg.id === newMsg.id)
-          );
-          
-          if (newMessages.length > 0) {
-            // Append new messages and sort by timestamp to maintain order
-            const combined = [...prevMessages, ...newMessages];
-            return combined.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
-          }
-          
-          // If no new messages, check if we need to update existing messages (for content changes)
-          const hasContentChanges = uniqueMessages.some(newMsg => {
-            const existingMsg = prevMessages.find(prevMsg => prevMsg.id === newMsg.id);
-            return existingMsg && existingMsg.content !== newMsg.content;
-          });
-          
-          if (hasContentChanges) {
-            // Update existing messages with new content
-            return prevMessages.map(prevMsg => {
-              const updatedMsg = uniqueMessages.find(newMsg => newMsg.id === prevMsg.id);
-              return updatedMsg || prevMsg;
-            });
-          }
-          
-          // No changes needed, return existing array to prevent re-render
-          return prevMessages;
-        });
+        // Simple approach: replace the entire messages array with the unique messages from Firebase
+        // This ensures we always have the authoritative state from Firebase
+        setMessages(uniqueMessages);
         
         setHasMoreMessages(false);
         setLastMessageDoc(snapshot.docs[snapshot.docs.length - 1] || null);
@@ -520,6 +509,7 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       createConversation,
       addMessage,
       addMessageToLocalState,
+      replaceOptimisticMessage,
       loadMoreMessages,
       loadConversation,
       createNewConversation,

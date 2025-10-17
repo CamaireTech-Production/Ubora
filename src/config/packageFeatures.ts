@@ -1,7 +1,7 @@
 // Configuration des fonctionnalités par package UBORA
 // Basé sur les spécifications du fichier PACKAGES.md
 
-export type PackageType = 'starter' | 'standard' | 'premium' /* | 'custom' */;
+export type PackageType = 'free' | 'starter' | 'standard';
 
 export interface PackageLimits {
   maxForms: number;
@@ -9,6 +9,8 @@ export interface PackageLimits {
   maxUsers: number;
   monthlyTokens: number;
   additionalUserCost: number; // en FCFA
+  programmedInstructions: number; // Number of programmed instructions
+  automatedPushIndicators: number; // Number of automated push indicators (-1 for unlimited)
 }
 
 export interface PackageFeatures {
@@ -49,49 +51,84 @@ export interface PackageFeatures {
 }
 
 export const PACKAGE_LIMITS: Record<PackageType, PackageLimits> = {
+  free: {
+    maxForms: 0, // No forms in free package
+    maxDashboards: 1, // 1 reduced dashboard
+    maxUsers: -1, // Unlimited users
+    monthlyTokens: 25000, // 25k tokens
+    additionalUserCost: 0,
+    programmedInstructions: 0, // No programmed instructions
+    automatedPushIndicators: 0 // No automated push indicators
+  },
   starter: {
-    maxForms: 4,
-    maxDashboards: 1,
-    maxUsers: 3,
-    monthlyTokens: 300000, // 300k tokens (300 actual OpenAI tokens = ~10 requests/day)
-    additionalUserCost: 10000
+    maxForms: -1, // Unlimited forms
+    maxDashboards: 2, // 2 dynamic dashboards
+    maxUsers: 5, // 5 users
+    monthlyTokens: 100000, // 100k tokens
+    additionalUserCost: 0, // No additional user cost mentioned
+    programmedInstructions: 1, // 1 programmed instruction
+    automatedPushIndicators: 1 // 1 automated push indicator
   },
   standard: {
-    maxForms: -1, // illimité
-    maxDashboards: -1, // illimité
-    maxUsers: 7,
-    monthlyTokens: 600000, // 600k tokens (600 actual OpenAI tokens = ~20 requests/day)
-    additionalUserCost: 7000
-  },
-  premium: {
-    maxForms: -1, // illimité
-    maxDashboards: -1, // illimité
-    maxUsers: -1, // illimité
-    monthlyTokens: 1500000, // 1.5M tokens (1,500 actual OpenAI tokens = ~50 requests/day)
-    additionalUserCost: 7000
-  },
-  /* custom: {
-    maxForms: -1, // illimité
-    maxDashboards: -1, // illimité
-    maxUsers: -1, // illimité
-    monthlyTokens: -1, // négociable
-    additionalUserCost: 0 // négociable
-  } */
+    maxForms: -1, // Unlimited forms
+    maxDashboards: -1, // Unlimited dashboards
+    maxUsers: 15, // 15 users
+    monthlyTokens: 300000, // 300k tokens
+    additionalUserCost: 0, // No additional user cost mentioned
+    programmedInstructions: 4, // 4 programmed instructions
+    automatedPushIndicators: -1 // Unlimited automated push indicators
+  }
 };
 
 export const PACKAGE_FEATURES: Record<PackageType, PackageFeatures> = {
-  starter: {
+  free: {
     // Fonctionnalités de base
-    basicForms: true,
+    basicForms: false, // No forms in free package
     unlimitedForms: false,
-    basicDashboard: true,
+    basicDashboard: true, // 1 reduced dashboard
     unlimitedDashboards: false,
     basicMetrics: true,
     advancedMetrics: false,
     
     // Fonctionnalités IA
-    basicAI: true,
+    basicAI: true, // Basic AI with limited tokens
     advancedAI: false,
+    predictiveAI: false,
+    customIntegrations: false,
+    
+    // Fonctionnalités d'export
+    pdfExport: true, // PDF export available
+    excelExport: false, // No Excel export in free
+    
+    // Fonctionnalités de communication
+    pushNotifications: true, // Automatic reminder notifications
+    whatsappSupport: false,
+    onSiteSupport: false,
+    
+    // Fonctionnalités de branding
+    customBranding: false,
+    
+    // Fonctionnalités d'hébergement
+    sharedHosting: true,
+    dedicatedHosting: false,
+    
+    // Fonctionnalités avancées
+    customWorkflows: false,
+    externalConnectors: false,
+    teamTraining: false
+  },
+  starter: {
+    // Fonctionnalités de base
+    basicForms: true,
+    unlimitedForms: true, // Unlimited forms
+    basicDashboard: true,
+    unlimitedDashboards: false, // Limited to 2 dashboards
+    basicMetrics: true,
+    advancedMetrics: true, // Dynamic dashboards
+    
+    // Fonctionnalités IA
+    basicAI: true,
+    advancedAI: true, // More tokens and features
     predictiveAI: false,
     customIntegrations: false,
     
@@ -100,7 +137,7 @@ export const PACKAGE_FEATURES: Record<PackageType, PackageFeatures> = {
     excelExport: true,
     
     // Fonctionnalités de communication
-    pushNotifications: false,
+    pushNotifications: true, // Automatic reminder notifications
     whatsappSupport: false,
     onSiteSupport: false,
     
@@ -121,7 +158,7 @@ export const PACKAGE_FEATURES: Record<PackageType, PackageFeatures> = {
     basicForms: true,
     unlimitedForms: true,
     basicDashboard: true,
-    unlimitedDashboards: true,
+    unlimitedDashboards: true, // Unlimited dashboards
     basicMetrics: true,
     advancedMetrics: true,
     
@@ -133,10 +170,10 @@ export const PACKAGE_FEATURES: Record<PackageType, PackageFeatures> = {
     
     // Fonctionnalités d'export
     pdfExport: true,
-    excelExport: true,
+    excelExport: true, // PDF and Excel reports
     
     // Fonctionnalités de communication
-    pushNotifications: true,
+    pushNotifications: true, // Automatic reminder notifications
     whatsappSupport: false,
     onSiteSupport: false,
     
@@ -151,79 +188,7 @@ export const PACKAGE_FEATURES: Record<PackageType, PackageFeatures> = {
     customWorkflows: false,
     externalConnectors: false,
     teamTraining: false
-  },
-  premium: {
-    // Fonctionnalités de base
-    basicForms: true,
-    unlimitedForms: true,
-    basicDashboard: true,
-    unlimitedDashboards: true,
-    basicMetrics: true,
-    advancedMetrics: true,
-    
-    // Fonctionnalités IA
-    basicAI: true,
-    advancedAI: true,
-    predictiveAI: true,
-    customIntegrations: false,
-    
-    // Fonctionnalités d'export
-    pdfExport: true,
-    excelExport: true,
-    
-    // Fonctionnalités de communication
-    pushNotifications: true,
-    whatsappSupport: true,
-    onSiteSupport: false,
-    
-    // Fonctionnalités de branding
-    customBranding: true,
-    
-    // Fonctionnalités d'hébergement
-    sharedHosting: true,
-    dedicatedHosting: false,
-    
-    // Fonctionnalités avancées
-    customWorkflows: false,
-    externalConnectors: false,
-    teamTraining: false
-  },
-  /* custom: {
-    // Fonctionnalités de base
-    basicForms: true,
-    unlimitedForms: true,
-    basicDashboard: true,
-    unlimitedDashboards: true,
-    basicMetrics: true,
-    advancedMetrics: true,
-    
-    // Fonctionnalités IA
-    basicAI: true,
-    advancedAI: true,
-    predictiveAI: true,
-    customIntegrations: true,
-    
-    // Fonctionnalités d'export
-    pdfExport: true,
-    excelExport: true,
-    
-    // Fonctionnalités de communication
-    pushNotifications: true,
-    whatsappSupport: true,
-    onSiteSupport: true,
-    
-    // Fonctionnalités de branding
-    customBranding: true,
-    
-    // Fonctionnalités d'hébergement
-    sharedHosting: false,
-    dedicatedHosting: true,
-    
-    // Fonctionnalités avancées
-    customWorkflows: true,
-    externalConnectors: true,
-    teamTraining: true
-  } */
+  }
 };
 
 // Fonction utilitaire pour vérifier si un package a accès à une fonctionnalité
@@ -244,10 +209,9 @@ export const isUnlimited = (packageType: PackageType, limit: keyof PackageLimits
 // Fonction utilitaire pour obtenir le nom d'affichage d'un package
 export const getPackageDisplayName = (packageType: PackageType): string => {
   const names: Record<PackageType, string> = {
-    starter: 'Starter',
-    standard: 'Standard',
-    premium: 'Premium'
-    /* custom: 'Sur mesure' */
+    free: 'UBORA Gratuit',
+    starter: 'UBORA Starter',
+    standard: 'UBORA Standard'
   };
   return names[packageType];
 };
@@ -255,10 +219,9 @@ export const getPackageDisplayName = (packageType: PackageType): string => {
 // Fonction utilitaire pour obtenir le prix d'un package
 export const getPackagePrice = (packageType: PackageType): string => {
   const prices: Record<PackageType, string> = {
-    starter: '35 000 FCFA/mois',
-    standard: '49 999 FCFA/mois',
-    premium: '199 999 FCFA/mois'
-    /* custom: 'À partir de 250 000 FCFA/mois' */
+    free: '0 FCFA/mois',
+    starter: '12 900 FCFA/mois',
+    standard: '35 000 FCFA/mois'
   };
   return prices[packageType];
 };
@@ -266,10 +229,9 @@ export const getPackagePrice = (packageType: PackageType): string => {
 // Fonction utilitaire pour obtenir le prix numérique d'un package
 export const getPackagePriceNumeric = (packageType: PackageType): number => {
   const prices: Record<PackageType, number> = {
-    starter: 35000,
-    standard: 49999,
-    premium: 199999
-    /* custom: 250000 */
+    free: 0,
+    starter: 12900,
+    standard: 35000
   };
   return prices[packageType];
 };

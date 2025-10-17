@@ -15,9 +15,7 @@ import {
   Check, 
   X, 
   Star, 
-  Crown, 
   Zap, 
-  // Shield, // Unused for now
   Users,
   BarChart3,
   Brain,
@@ -47,23 +45,21 @@ export const PackageSelectionPage: React.FC = () => {
   const [autoOpenPayment, setAutoOpenPayment] = useState(false);
   
 
-  const packages: PackageType[] = ['starter', 'standard', 'premium' /* , 'custom' */];
+  const packages: PackageType[] = ['free', 'starter', 'standard'];
 
   const getPackageIcon = (pkg: PackageType) => {
     switch (pkg) {
+      case 'free': return <CheckCircle className="h-6 w-6" />;
       case 'starter': return <Zap className="h-6 w-6" />;
       case 'standard': return <Star className="h-6 w-6" />;
-      case 'premium': return <Crown className="h-6 w-6" />;
-      /* case 'custom': return <Shield className="h-6 w-6" />; */
     }
   };
 
   const getPackageColor = (pkg: PackageType) => {
     switch (pkg) {
+      case 'free': return 'text-green-600 bg-green-100';
       case 'starter': return 'text-blue-600 bg-blue-100';
-      case 'standard': return 'text-green-600 bg-green-100';
-      case 'premium': return 'text-purple-600 bg-purple-100';
-      /* case 'custom': return 'text-orange-600 bg-orange-100'; */
+      case 'standard': return 'text-purple-600 bg-purple-100';
     }
   };
 
@@ -82,6 +78,30 @@ export const PackageSelectionPage: React.FC = () => {
     }
 
     setSelectedPackage(pkg);
+
+    // Handle free package - no payment required
+    if (pkg === 'free') {
+      try {
+        // Update user package directly for free package
+        const userRef = doc(db, 'users', user.id);
+        await updateDoc(userRef, {
+          package: pkg,
+          updatedAt: serverTimestamp()
+        });
+
+        // Track analytics
+        await AnalyticsService.logPackageSelection(user.id, pkg, user.agencyId);
+
+        showSuccess('Package gratuit activé avec succès !');
+        navigate('/directeur/dashboard');
+        return;
+      } catch (error) {
+        console.error('Error activating free package:', error);
+        showError('Erreur lors de l\'activation du package gratuit');
+        return;
+      }
+    }
+
     setIsCreatingPayment(true);
 
     try {
@@ -216,7 +236,7 @@ export const PackageSelectionPage: React.FC = () => {
       
       // Create subscription session using SubscriptionSessionService
       const sessionCreated = await SubscriptionSessionService.createSession(user.id, {
-        packageType: selectedPackage,
+        packageType: selectedPackage as 'starter' | 'standard',
         sessionType: 'subscription',
         startDate: new Date(),
         endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days from now

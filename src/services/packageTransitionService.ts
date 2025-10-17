@@ -40,7 +40,7 @@ export interface FeatureDowngrade {
 
 export interface TransitionCalculation {
   currentSession: SubscriptionSession;
-  newPackageType: 'starter' | 'standard' | 'premium';
+  newPackageType: 'free' | 'starter' | 'standard';
   daysRemaining: number;
   unusedPackageTokens: number;
   unusedPayAsYouGoTokens: number;
@@ -51,7 +51,7 @@ export interface TransitionCalculation {
 
 export interface EnhancedTransitionCalculation {
   currentSession: SubscriptionSession;
-  newPackageType: 'starter' | 'standard' | 'premium';
+  newPackageType: 'free' | 'starter' | 'standard';
   daysRemaining: number;
   
   // Cost calculations
@@ -118,7 +118,7 @@ export class PackageTransitionService {
    */
   static calculateTransition(
     userData: User,
-    newPackageType: 'starter' | 'standard' | 'premium' /* | 'custom' */,
+    newPackageType: 'free' | 'starter' | 'standard',
     options: PackageTransitionOptions = {}
   ): TransitionCalculation | null {
     const currentSession = SubscriptionSessionService.getCurrentSession(userData);
@@ -135,7 +135,7 @@ export class PackageTransitionService {
     const unusedPayAsYouGoTokens = this.getUnusedPayAsYouGoTokens(userData);
     
     // Calculate new package cost (no proration)
-    const newPackagePrice = this.getPackagePrice(newPackageType);
+    const newPackagePrice = this.getPackagePriceNumeric(newPackageType);
     const totalAmount = newPackagePrice;
     
     // New package tokens (always reset to package limit)
@@ -161,7 +161,7 @@ export class PackageTransitionService {
    */
   static async executeTransition(
     userId: string,
-    newPackageType: 'starter' | 'standard' | 'premium' | 'custom',
+    newPackageType: 'free' | 'starter' | 'standard',
     options: PackageTransitionOptions = {},
     paymentMethod?: string,
     paymentReference?: string
@@ -176,9 +176,9 @@ export class PackageTransitionService {
       }
 
       const userData = userDoc.data() as User;
-      // Ensure newPackageType is valid (exclude 'custom' for now)
-      if (newPackageType === 'custom') {
-        console.error('Custom package type not yet supported');
+      // Ensure newPackageType is valid
+      if (!['free', 'starter', 'standard'].includes(newPackageType)) {
+        console.error('Invalid package type:', newPackageType);
         return false;
       }
       
@@ -226,9 +226,9 @@ export class PackageTransitionService {
 
 
   /**
-   * Get package price
+   * Get package price numeric
    */
-  private static getPackagePrice(packageType: 'starter' | 'standard' | 'premium' /* | 'custom' */): number {
+  private static getPackagePriceNumeric(packageType: 'free' | 'starter' | 'standard'): number {
     try {
       const priceStr = getPackagePrice(packageType);
       const parsedPrice = parseInt(priceStr.replace(/[^\d]/g, '')) || 0;
@@ -285,7 +285,7 @@ export class PackageTransitionService {
     }
     
     return SubscriptionSessionService.createSession(userId, {
-      packageType: calculation.newPackageType,
+      packageType: calculation.newPackageType as 'starter' | 'standard',
       sessionType,
       startDate: transitionDate, // Start from transition date
       endDate: newEndDate, // End 30 days from transition date
@@ -375,7 +375,7 @@ export class PackageTransitionService {
    */
   static getTransitionPreview(
     userData: User,
-    newPackageType: 'starter' | 'standard' | 'premium' /* | 'custom' */,
+    newPackageType: 'free' | 'starter' | 'standard',
     options: PackageTransitionOptions = {}
   ) {
     const calculation = this.calculateTransition(userData, newPackageType, options);
@@ -426,7 +426,7 @@ export class PackageTransitionService {
   /**
    * Get total available tokens (new package + preserved pay-as-you-go)
    */
-  static getTotalAvailableTokens(userData: User, newPackageType: 'starter' | 'standard' | 'premium' /* | 'custom' */): number {
+  static getTotalAvailableTokens(userData: User, newPackageType: 'free' | 'starter' | 'standard'): number {
     const newPackageTokens = PACKAGE_LIMITS[newPackageType].monthlyTokens;
     const preservedPayAsYouGoTokens = this.getUnusedPayAsYouGoTokens(userData);
     
@@ -484,8 +484,8 @@ export class PackageTransitionService {
    * Analyze pay-as-you-go requirements
    */
   private static analyzePayAsYouGo(
-    _currentPackage: 'starter' | 'standard' | 'premium' /* | 'custom' */,
-    newPackage: 'starter' | 'standard' | 'premium' /* | 'custom' */,
+    _currentPackage: 'free' | 'starter' | 'standard',
+    newPackage: 'free' | 'starter' | 'standard',
     userNeeds: UserNeeds = {}
   ): PayAsYouGoItem[] {
     const payAsYouGoItems: PayAsYouGoItem[] = [];
@@ -523,8 +523,8 @@ export class PackageTransitionService {
    * Analyze feature upgrades
    */
   private static analyzeFeatureUpgrades(
-    currentPackage: 'starter' | 'standard' | 'premium' /* | 'custom' */,
-    newPackage: 'starter' | 'standard' | 'premium' /* | 'custom' */
+    currentPackage: 'free' | 'starter' | 'standard',
+    newPackage: 'free' | 'starter' | 'standard'
   ): FeatureUpgrade[] {
     const upgrades: FeatureUpgrade[] = [];
     const features = ['maxForms', 'maxDashboards', 'maxUsers', 'monthlyTokens'] as const;
@@ -564,8 +564,8 @@ export class PackageTransitionService {
    * Analyze feature downgrades
    */
   private static analyzeFeatureDowngrades(
-    currentPackage: 'starter' | 'standard' | 'premium' /* | 'custom' */,
-    newPackage: 'starter' | 'standard' | 'premium' /* | 'custom' */
+    currentPackage: 'free' | 'starter' | 'standard',
+    newPackage: 'free' | 'starter' | 'standard'
   ): FeatureDowngrade[] {
     const downgrades: FeatureDowngrade[] = [];
     const features = ['maxForms', 'maxDashboards', 'maxUsers', 'monthlyTokens'] as const;
@@ -596,7 +596,7 @@ export class PackageTransitionService {
    */
   static calculateEnhancedTransition(
     userData: User,
-    newPackageType: 'starter' | 'standard' | 'premium' /* | 'custom' */,
+    newPackageType: 'free' | 'starter' | 'standard',
     userNeeds: UserNeeds = {},
     options: PackageTransitionOptions = {}
   ): EnhancedTransitionCalculation | null {
@@ -608,14 +608,14 @@ export class PackageTransitionService {
     const daysRemaining = Math.max(0, Math.ceil((endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
     
     // Get package prices
-    const currentPackagePrice = this.getPackagePrice(currentSession.packageType);
-    const newPackagePrice = this.getPackagePrice(newPackageType);
+    const currentPackagePrice = this.getPackagePriceNumeric(currentSession.packageType as 'free' | 'starter' | 'standard');
+    const newPackagePrice = this.getPackagePriceNumeric(newPackageType);
     
     // Calculate cost reduction based on days remaining
     const currentPackageRemainingValue = this.calculateCostReduction(currentPackagePrice, daysRemaining);
     
     // Analyze pay-as-you-go requirements
-    const payAsYouGoItems = this.analyzePayAsYouGo(currentSession.packageType, newPackageType, userNeeds);
+    const payAsYouGoItems = this.analyzePayAsYouGo(currentSession.packageType as 'free' | 'starter' | 'standard', newPackageType, userNeeds);
     const payAsYouGoTotalCost = payAsYouGoItems.reduce((sum, item) => sum + item.totalCost, 0);
     
     // Calculate final amount to pay based on transition type
@@ -648,8 +648,8 @@ export class PackageTransitionService {
     const preservedPayAsYouGoTokens = (options.preserveUnusedPayAsYouGo !== false) ? unusedPayAsYouGoTokens : 0;
     
     // Feature analysis
-    const featureUpgrades = this.analyzeFeatureUpgrades(currentSession.packageType, newPackageType);
-    const featureDowngrades = this.analyzeFeatureDowngrades(currentSession.packageType, newPackageType);
+    const featureUpgrades = this.analyzeFeatureUpgrades(currentSession.packageType as 'free' | 'starter' | 'standard', newPackageType);
+    const featureDowngrades = this.analyzeFeatureDowngrades(currentSession.packageType as 'free' | 'starter' | 'standard', newPackageType);
     
     // Calculate savings based on transition type
     let savings: number;
@@ -694,7 +694,7 @@ export class PackageTransitionService {
    */
   static getEnhancedTransitionPreview(
     userData: User,
-    newPackageType: 'starter' | 'standard' | 'premium' /* | 'custom' */,
+    newPackageType: 'free' | 'starter' | 'standard',
     userNeeds: UserNeeds = {},
     options: PackageTransitionOptions = {}
   ) {

@@ -649,7 +649,7 @@ export const DirecteurDashboard: React.FC = () => {
 
 
             {/* Actions principales */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
               <Button
                 onClick={handleFormButtonClick}
                 className="flex items-center justify-center space-x-2 w-full text-sm sm:text-base"
@@ -665,6 +665,15 @@ export const DirecteurDashboard: React.FC = () => {
               >
                 <BarChart3 className="h-4 w-4 sm:h-5 sm:w-5" />
                 <span className="truncate">Créer un nouveau tableau de bord</span>
+              </Button>
+              
+              <Button
+                onClick={() => navigate('/directeur/scheduled-questions')}
+                variant="secondary"
+                className="flex items-center justify-center space-x-2 w-full text-sm sm:text-base"
+              >
+                <Calendar className="h-4 w-4 sm:h-5 sm:w-5" />
+                <span className="truncate">Instructions Programmées</span>
               </Button>
             </div>
 

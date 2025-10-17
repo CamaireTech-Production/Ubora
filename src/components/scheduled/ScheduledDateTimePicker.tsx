@@ -1,0 +1,193 @@
+import React, { useState, useEffect } from 'react';
+import { Calendar, Clock, Repeat, ChevronDown } from 'lucide-react';
+import { Button } from '../Button';
+
+interface ScheduledDateTimePickerProps {
+  scheduledAt: Date;
+  frequency: 'once' | 'daily' | 'weekly' | 'monthly';
+  onDateTimeChange: (date: Date) => void;
+  onFrequencyChange: (frequency: 'once' | 'daily' | 'weekly' | 'monthly') => void;
+  disabled?: boolean;
+}
+
+export const ScheduledDateTimePicker: React.FC<ScheduledDateTimePickerProps> = ({
+  scheduledAt,
+  frequency,
+  onDateTimeChange,
+  onFrequencyChange,
+  disabled = false
+}) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [localDate, setLocalDate] = useState(scheduledAt.toISOString().split('T')[0]);
+  const [localTime, setLocalTime] = useState(scheduledAt.toTimeString().slice(0, 5));
+
+  // Mettre à jour les valeurs locales quand les props changent
+  useEffect(() => {
+    setLocalDate(scheduledAt.toISOString().split('T')[0]);
+    setLocalTime(scheduledAt.toTimeString().slice(0, 5));
+  }, [scheduledAt]);
+
+  const handleDateChange = (date: string) => {
+    setLocalDate(date);
+    const newDateTime = new Date(`${date}T${localTime}`);
+    onDateTimeChange(newDateTime);
+  };
+
+  const handleTimeChange = (time: string) => {
+    setLocalTime(time);
+    const newDateTime = new Date(`${localDate}T${time}`);
+    onDateTimeChange(newDateTime);
+  };
+
+  const getFrequencyLabel = (freq: string) => {
+    switch (freq) {
+      case 'once': return 'Une seule fois';
+      case 'daily': return 'Quotidien';
+      case 'weekly': return 'Hebdomadaire';
+      case 'monthly': return 'Mensuel';
+      default: return 'Une seule fois';
+    }
+  };
+
+  const getNextExecutionPreview = () => {
+    const now = new Date();
+    const scheduled = new Date(`${localDate}T${localTime}`);
+    
+    if (frequency === 'once') {
+      return scheduled <= now ? 'Date dans le passé' : `Exécution le ${scheduled.toLocaleDateString('fr-FR')} à ${scheduled.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`;
+    }
+
+    // Calculer la prochaine exécution pour les récurrences
+    let nextExecution = new Date(scheduled);
+    
+    if (nextExecution <= now) {
+      switch (frequency) {
+        case 'daily':
+          nextExecution.setDate(nextExecution.getDate() + 1);
+          break;
+        case 'weekly':
+          nextExecution.setDate(nextExecution.getDate() + 7);
+          break;
+        case 'monthly':
+          nextExecution.setMonth(nextExecution.getMonth() + 1);
+          break;
+      }
+    }
+
+    return `Prochaine exécution: ${nextExecution.toLocaleDateString('fr-FR')} à ${nextExecution.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`;
+  };
+
+  const isDateInPast = () => {
+    const now = new Date();
+    const scheduled = new Date(`${localDate}T${localTime}`);
+    return scheduled <= now && frequency === 'once';
+  };
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 p-4 space-y-4">
+      {/* En-tête */}
+      <div className="flex items-center space-x-2 text-gray-700">
+        <Calendar className="h-5 w-5 text-blue-600" />
+        <span className="font-medium">Programmation de la question</span>
+      </div>
+
+      {/* Sélection de la date et heure */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {/* Date */}
+        <div className="space-y-2">
+          <label className="block text-sm font-medium text-gray-700">
+            Date
+          </label>
+          <div className="relative">
+            <input
+              type="date"
+              value={localDate}
+              onChange={(e) => handleDateChange(e.target.value)}
+              disabled={disabled}
+              className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                disabled ? 'bg-gray-100 cursor-not-allowed' : 'bg-white'
+              } ${isDateInPast() ? 'border-red-300 bg-red-50' : 'border-gray-300'}`}
+              min={new Date().toISOString().split('T')[0]}
+            />
+          </div>
+        </div>
+
+        {/* Heure */}
+        <div className="space-y-2">
+          <label className="block text-sm font-medium text-gray-700">
+            Heure
+          </label>
+          <div className="relative">
+            <input
+              type="time"
+              value={localTime}
+              onChange={(e) => handleTimeChange(e.target.value)}
+              disabled={disabled}
+              className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                disabled ? 'bg-gray-100 cursor-not-allowed' : 'bg-white'
+              } ${isDateInPast() ? 'border-red-300 bg-red-50' : 'border-gray-300'}`}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Sélection de la fréquence */}
+      <div className="space-y-2">
+        <label className="block text-sm font-medium text-gray-700">
+          Fréquence
+        </label>
+        <div className="relative">
+          <Button
+            variant="secondary"
+            onClick={() => setIsOpen(!isOpen)}
+            disabled={disabled}
+            className="w-full justify-between px-3 py-2 text-left"
+          >
+            <div className="flex items-center space-x-2">
+              <Repeat className="h-4 w-4 text-gray-500" />
+              <span>{getFrequencyLabel(frequency)}</span>
+            </div>
+            <ChevronDown className={`h-4 w-4 text-gray-500 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+          </Button>
+
+          {isOpen && (
+            <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg">
+              {(['once', 'daily', 'weekly', 'monthly'] as const).map((freq) => (
+                <button
+                  key={freq}
+                  onClick={() => {
+                    onFrequencyChange(freq);
+                    setIsOpen(false);
+                  }}
+                  className={`w-full px-3 py-2 text-left hover:bg-gray-50 first:rounded-t-lg last:rounded-b-lg ${
+                    frequency === freq ? 'bg-blue-50 text-blue-700' : 'text-gray-700'
+                  }`}
+                  disabled={disabled}
+                >
+                  {getFrequencyLabel(freq)}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Aperçu de la prochaine exécution */}
+      <div className="bg-gray-50 rounded-lg p-3">
+        <div className="flex items-center space-x-2 text-sm">
+          <Clock className="h-4 w-4 text-gray-500" />
+          <span className={`${isDateInPast() ? 'text-red-600' : 'text-gray-700'}`}>
+            {getNextExecutionPreview()}
+          </span>
+        </div>
+        {isDateInPast() && (
+          <p className="text-xs text-red-500 mt-1">
+            ⚠️ La date sélectionnée est dans le passé. Veuillez choisir une date future.
+          </p>
+        )}
+      </div>
+    </div>
+  );
+};
+
+

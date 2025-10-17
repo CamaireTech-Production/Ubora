@@ -19,6 +19,9 @@ import { PackageManagementPage } from './pages/PackageManagementPage';
 import { PackageSelectionPage } from './pages/PackageSelectionPage';
 import { DirectorSettingsPage } from './pages/DirectorSettingsPage';
 import { NotificationsPage } from './pages/NotificationsPage';
+import { ScheduledQuestionsPage } from './pages/ScheduledQuestionsPage';
+import { ScheduledQuestionFormPage } from './pages/ScheduledQuestionFormPage';
+import { ScheduledQuestionChatPage } from './pages/ScheduledQuestionChatPage';
 import { AdminLoginPage } from './admin/pages/AdminLoginPage';
 import { AdminPage } from './admin';
 import { UserDetailPage } from './admin/pages/UserDetailPage';
@@ -29,7 +32,7 @@ import { Layout } from './components/Layout';
 import { NotificationListener } from './components/NotificationListener';
 import { ReminderServiceInitializer } from './components/ReminderServiceInitializer';
 import { initializePWAConfig } from './utils/pwaConfig';
-// import { PWAUpdateNotification } from './components/PWAUpdateNotification';
+import { PWAUpdateNotification } from './components/PWAUpdateNotification';
 
 // Component to handle service worker messages
 const ServiceWorkerMessageHandler: React.FC = () => {
@@ -88,6 +91,7 @@ function App() {
             <Router>
               <ServiceWorkerMessageHandler />
               <AuthenticatedServices />
+              <PWAUpdateNotification />
             <Routes>
             {/* Page de connexion */}
             <Route path="/login" element={<LoginPage />} />
@@ -223,6 +227,58 @@ function App() {
               element={
                 <ProtectedRoute allowedRoles={['directeur', 'employe']}>
                   <NotificationsPage />
+                </ProtectedRoute>
+              } 
+            />
+            
+            {/* Questions Programmées - Accès Directeur Uniquement */}
+            <Route 
+              path="/directeur/scheduled-questions" 
+              element={
+                <ProtectedRoute 
+                  allowedRoles={['directeur', 'employe']} 
+                  requireDirectorDashboardAccess={true}
+                >
+                  <ScheduledQuestionsPage />
+                </ProtectedRoute>
+              } 
+            />
+            
+            {/* Création d'une nouvelle question programmée */}
+            <Route 
+              path="/directeur/scheduled-questions/new" 
+              element={
+                <ProtectedRoute 
+                  allowedRoles={['directeur', 'employe']} 
+                  requireDirectorDashboardAccess={true}
+                >
+                  <ScheduledQuestionFormPage />
+                </ProtectedRoute>
+              } 
+            />
+            
+            {/* Édition d'une question programmée */}
+            <Route 
+              path="/directeur/scheduled-questions/:id/edit" 
+              element={
+                <ProtectedRoute 
+                  allowedRoles={['directeur', 'employe']} 
+                  requireDirectorDashboardAccess={true}
+                >
+                  <ScheduledQuestionFormPage />
+                </ProtectedRoute>
+              } 
+            />
+            
+            {/* Chat des réponses d'une question programmée */}
+            <Route 
+              path="/directeur/scheduled-questions/:id/chat" 
+              element={
+                <ProtectedRoute 
+                  allowedRoles={['directeur', 'employe']} 
+                  requireDirectorDashboardAccess={true}
+                >
+                  <ScheduledQuestionChatPage />
                 </ProtectedRoute>
               } 
             />
