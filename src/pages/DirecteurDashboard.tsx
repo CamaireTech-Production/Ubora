@@ -673,7 +673,7 @@ export const DirecteurDashboard: React.FC = () => {
                 className="flex items-center justify-center space-x-2 w-full text-sm sm:text-base"
               >
                 <Calendar className="h-4 w-4 sm:h-5 sm:w-5" />
-                <span className="truncate">Questions Programmées</span>
+                <span className="truncate">Instructions Programmées</span>
               </Button>
             </div>
 

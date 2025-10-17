@@ -119,7 +119,7 @@ export const FloatingSidePanel: React.FC<FloatingSidePanelProps> = ({
     },
     ...(onGoScheduledQuestions ? [{
       id: 'scheduled-questions' as const,
-      label: 'Questions Programmées',
+      label: 'Instructions Programmées',
       icon: Calendar,
       onClick: () => {
         onGoScheduledQuestions();

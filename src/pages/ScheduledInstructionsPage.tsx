@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Filter, Search, Calendar, Clock, MessageSquare, ArrowLeft } from 'lucide-react';
+import { Plus, Filter, Search, Calendar, Clock, MessageSquare } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { LoadingGuard } from '../components/LoadingGuard';
 import { Button } from '../components/Button';
@@ -62,10 +62,6 @@ export const ScheduledQuestionsPage: React.FC = () => {
     navigate('/directeur/scheduled-questions/new');
   };
 
-  const handleBackToDashboard = () => {
-    navigate('/directeur/dashboard');
-  };
-
   const handleEdit = (question: ScheduledQuestion) => {
     navigate(`/directeur/scheduled-questions/${question.id}/edit`);
   };
@@ -77,10 +73,10 @@ export const ScheduledQuestionsPage: React.FC = () => {
 
     try {
       await scheduledQuestionService.delete(questionId);
-      showSuccess('Instruction programmée supprimée avec succès');
+      showSuccess('Question programmée supprimée avec succès');
     } catch (error) {
       console.error('Erreur lors de la suppression:', error);
-      showError('Erreur lors de la suppression de l\'instruction programmée');
+      showError('Erreur lors de la suppression de la question programmée');
     }
   };
 
@@ -95,7 +91,7 @@ export const ScheduledQuestionsPage: React.FC = () => {
       showSuccess('Redirection vers le chat pour exécution manuelle');
     } catch (error) {
       console.error('Erreur lors de l\'exécution:', error);
-      showError('Erreur lors de l\'exécution de l\'instruction');
+      showError('Erreur lors de l\'exécution de la question');
     }
   };
 
@@ -122,20 +118,11 @@ export const ScheduledQuestionsPage: React.FC = () => {
         <div className="bg-white border-b border-gray-200">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex items-center space-x-4">
-                <Button
-                  onClick={handleBackToDashboard}
-                  variant="secondary"
-                  className="p-2"
-                >
-                  <ArrowLeft className="h-4 w-4" />
-                </Button>
-                <div>
-                  <h1 className="text-2xl font-bold text-gray-900">Instructions Programmées</h1>
-                  <p className="mt-1 text-sm text-gray-600">
-                    Gérez vos instructions automatiques à ARCHA
-                  </p>
-                </div>
+              <div>
+                <h1 className="text-2xl font-bold text-gray-900">Questions Programmées</h1>
+                <p className="mt-1 text-sm text-gray-600">
+                  Gérez vos questions automatiques à ARCHA
+                </p>
               </div>
               <div className="mt-4 sm:mt-0">
                 <Button
@@ -143,7 +130,7 @@ export const ScheduledQuestionsPage: React.FC = () => {
                   className="flex items-center space-x-2"
                 >
                   <Plus className="h-4 w-4" />
-                  <span>Nouvelle Instruction</span>
+                  <span>Nouvelle Question</span>
                 </Button>
               </div>
             </div>
@@ -156,8 +143,8 @@ export const ScheduledQuestionsPage: React.FC = () => {
           <div className="flex items-center space-x-2">
             <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
             <p className="text-sm text-yellow-800">
-              <strong>Note :</strong> L'exécution automatique des instructions programmées nécessite un service backend dédié. 
-              Pour l'instant, vous pouvez créer et gérer vos instructions programmées, mais l'exécution automatique sera disponible dans une version future.
+              <strong>Note :</strong> L'exécution automatique des questions programmées nécessite un service backend dédié. 
+              Pour l'instant, vous pouvez créer et gérer vos questions programmées, mais l'exécution automatique sera disponible dans une version future.
             </p>
           </div>
         </div>
@@ -224,7 +211,7 @@ export const ScheduledQuestionsPage: React.FC = () => {
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                 <input
                   type="text"
-                  placeholder="Rechercher une instruction..."
+                  placeholder="Rechercher une question..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -269,18 +256,18 @@ export const ScheduledQuestionsPage: React.FC = () => {
         {filteredQuestions.length === 0 ? (
           <div className="text-center py-12">
             <Calendar className="mx-auto h-12 w-12 text-gray-400" />
-            <h3 className="mt-2 text-sm font-medium text-gray-900">Aucune instruction programmée</h3>
+            <h3 className="mt-2 text-sm font-medium text-gray-900">Aucune question programmée</h3>
             <p className="mt-1 text-sm text-gray-500">
               {questions.length === 0 
-                ? "Commencez par créer votre première instruction programmée."
-                : "Aucune instruction ne correspond à vos filtres."
+                ? "Commencez par créer votre première question programmée."
+                : "Aucune question ne correspond à vos filtres."
               }
             </p>
             {questions.length === 0 && (
               <div className="mt-6">
                 <Button onClick={handleCreateNew}>
                   <Plus className="h-4 w-4 mr-2" />
-                  Créer une instruction programmée
+                  Créer une question programmée
                 </Button>
               </div>
             )}

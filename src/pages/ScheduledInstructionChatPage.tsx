@@ -37,14 +37,14 @@ export const ScheduledQuestionChatPage: React.FC = () => {
       // Charger la question
       const questionData = await scheduledQuestionService.getById(questionId);
       if (!questionData) {
-        showError('Instruction programmée non trouvée');
+        showError('Question programmée non trouvée');
         navigate('/directeur/scheduled-questions');
         return;
       }
 
       // Vérifier les permissions
       if (questionData.userId !== user?.id || questionData.agencyId !== user?.agencyId) {
-        showError('Vous n\'avez pas accès à cette instruction programmée');
+        showError('Vous n\'avez pas accès à cette question programmée');
         navigate('/directeur/scheduled-questions');
         return;
       }
@@ -58,7 +58,7 @@ export const ScheduledQuestionChatPage: React.FC = () => {
       setIsLoadingResponses(false);
     } catch (error) {
       console.error('Erreur lors du chargement:', error);
-      showError('Erreur lors du chargement de l\'instruction programmée');
+      showError('Erreur lors du chargement de la question programmée');
       navigate('/directeur/scheduled-questions');
     }
   };
@@ -160,13 +160,13 @@ export const ScheduledQuestionChatPage: React.FC = () => {
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
           <AlertCircle className="mx-auto h-12 w-12 text-gray-400" />
-          <h3 className="mt-2 text-sm font-medium text-gray-900">Instruction non trouvée</h3>
+          <h3 className="mt-2 text-sm font-medium text-gray-900">Question non trouvée</h3>
           <p className="mt-1 text-sm text-gray-500">
-            L'instruction programmée que vous recherchez n'existe pas.
+            La question programmée que vous recherchez n'existe pas.
           </p>
           <div className="mt-6">
             <Button onClick={() => navigate('/directeur/scheduled-questions')}>
-              Retour aux instructions programmées
+              Retour aux questions programmées
             </Button>
           </div>
         </div>

@@ -71,12 +71,12 @@ export const ScheduledQuestionFormPage: React.FC = () => {
         setSelectedFormIds(questionData.selectedFormIds);
         setFilters(questionData.filters);
       } else {
-        showError('Instruction programmée non trouvée');
+        showError('Question programmée non trouvée');
         navigate('/directeur/scheduled-questions');
       }
     } catch (error) {
       console.error('Erreur lors du chargement de la question:', error);
-      showError('Erreur lors du chargement de l\'instruction');
+      showError('Erreur lors du chargement de la question');
       navigate('/directeur/scheduled-questions');
     } finally {
       setIsLoading(false);
@@ -123,16 +123,16 @@ export const ScheduledQuestionFormPage: React.FC = () => {
 
       if (isEditMode && id) {
         await scheduledQuestionService.update(id, questionData);
-        showSuccess('Instruction programmée mise à jour avec succès');
+        showSuccess('Question programmée mise à jour avec succès');
       } else {
         await scheduledQuestionService.create(questionData);
-        showSuccess('Instruction programmée créée avec succès');
+        showSuccess('Question programmée créée avec succès');
       }
 
       navigate('/directeur/scheduled-questions');
     } catch (error) {
       console.error('Erreur lors de la sauvegarde:', error);
-      showError('Erreur lors de la sauvegarde de l\'instruction programmée');
+      showError('Erreur lors de la sauvegarde de la question programmée');
     } finally {
       setIsSaving(false);
     }
@@ -157,7 +157,7 @@ export const ScheduledQuestionFormPage: React.FC = () => {
   }
 
   return (
-    <Layout title={isEditMode ? 'Modifier l\'instruction programmée' : 'Nouvelle instruction programmée'}>
+    <Layout title={isEditMode ? 'Modifier la question programmée' : 'Nouvelle question programmée'}>
       <div className="min-h-screen bg-gray-50">
       {/* En-tête */}
       <div className="bg-white border-b border-gray-200">
@@ -175,10 +175,10 @@ export const ScheduledQuestionFormPage: React.FC = () => {
               </Button>
               <div>
                 <h1 className="text-xl font-semibold text-gray-900">
-                  {isEditMode ? 'Modifier l\'instruction programmée' : 'Nouvelle instruction programmée'}
+                  {isEditMode ? 'Modifier la question programmée' : 'Nouvelle question programmée'}
                 </h1>
                 <p className="text-sm text-gray-600">
-                  Configurez votre instruction et sa programmation
+                  Configurez votre question et sa programmation
                 </p>
               </div>
             </div>
@@ -212,9 +212,9 @@ export const ScheduledQuestionFormPage: React.FC = () => {
             <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
               {/* En-tête du chat */}
               <div className="border-b border-gray-200 p-4">
-                <h2 className="text-lg font-semibold text-gray-900">Configuration de l'instruction</h2>
+                <h2 className="text-lg font-semibold text-gray-900">Configuration de la question</h2>
                 <p className="text-sm text-gray-600 mt-1">
-                  Saisissez votre instruction et configurez les filtres comme dans le chat normal
+                  Saisissez votre question et configurez les filtres comme dans le chat normal
                 </p>
               </div>
 
@@ -227,7 +227,7 @@ export const ScheduledQuestionFormPage: React.FC = () => {
                   type="text"
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  placeholder="Donnez un titre à votre instruction programmée..."
+                  placeholder="Donnez un titre à votre question programmée..."
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
               </div>
@@ -240,7 +240,7 @@ export const ScheduledQuestionFormPage: React.FC = () => {
                 <textarea
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
-                  placeholder="Ajoutez une description pour cette instruction programmée..."
+                  placeholder="Ajoutez une description pour cette question programmée..."
                   rows={2}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
@@ -293,9 +293,9 @@ export const ScheduledQuestionFormPage: React.FC = () => {
                 </div>
                 
                 <div>
-                  <span className="font-medium text-gray-700">Instruction:</span>
+                  <span className="font-medium text-gray-700">Question:</span>
                   <p className="text-gray-600 mt-1 line-clamp-3">
-                    {question || 'Aucune instruction saisie'}
+                    {question || 'Aucune question saisie'}
                   </p>
                 </div>
                 
