@@ -16,6 +16,7 @@ import { ExpressionCalculator } from '../utils/ExpressionCalculator';
 import { ConditionalLogicEvaluator } from '../utils/ConditionalLogicEvaluator';
 import { getFileBlobUrl } from '../utils/simpleFileDownload';
 import { TextExtractionReviewModal } from './TextExtractionReviewModal';
+import { UserSessionService } from '../services/userSessionService';
 
 // Helper function to convert field IDs back to user-friendly field names in formulas
 const convertFormulaToUserFriendly = (formula: string, fields: FormField[]): string => {
@@ -594,6 +595,20 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
         );
       
       case 'file': {
+        // If current user's package doesn't allow file uploads, render info instead of input
+        const canUpload = user ? UserSessionService.canUseFileUploads(user) : false;
+        if (!canUpload) {
+          return (
+            <div key={field.id} className="space-y-1">
+              <label className="block text-sm font-medium text-gray-700">
+                {field.label + (field.required ? ' *' : '')}
+              </label>
+              <div className="text-sm text-gray-600 bg-gray-50 border border-gray-200 rounded p-3">
+                Téléversement de fichiers indisponible pour votre package actuel. Veuillez contacter votre directeur pour mettre à niveau.
+              </div>
+            </div>
+          );
+        }
         const fileAnswer = answers[field.id] as {
           fileName?: string;
           fileSize?: number;

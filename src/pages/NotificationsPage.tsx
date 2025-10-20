@@ -295,7 +295,7 @@ export const NotificationsPage: React.FC = () => {
         <PushNotificationSettings />
 
         {/* Test Notification Buttons */}
-        <Card className="p-6">
+        {/* <Card className="p-6">
           <div className="flex items-center gap-3 mb-4">
             <MessageSquare className="w-6 h-6 text-green-600" />
             <h3 className="text-lg font-semibold">Tester les notifications</h3>
@@ -341,7 +341,7 @@ export const NotificationsPage: React.FC = () => {
               Test Instruction
             </Button>
           </div>
-        </Card>
+        </Card> */}
 
         {/* Notifications List */}
         <Card className="p-6">
