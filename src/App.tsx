@@ -31,6 +31,7 @@ import { EmployeeManagement } from './components/EmployeeManagement';
 import { Layout } from './components/Layout';
 import { NotificationListener } from './components/NotificationListener';
 import { ReminderServiceInitializer } from './components/ReminderServiceInitializer';
+import { NotificationCronInitializer } from './components/NotificationCronInitializer';
 import { initializePWAConfig } from './utils/pwaConfig';
 import { PWAUpdateNotification } from './components/PWAUpdateNotification';
 
@@ -73,6 +74,7 @@ const AuthenticatedServices: React.FC = () => {
     <>
       <NotificationListener />
       <ReminderServiceInitializer />
+      <NotificationCronInitializer />
     </>
   );
 };

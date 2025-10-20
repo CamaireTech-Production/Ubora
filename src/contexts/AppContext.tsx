@@ -340,6 +340,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           // Don't throw here - form creation should succeed even if notifications fail
         }
       }
+
+      // Schedule form reminders if deadline is set
+      if (formData.deadline) {
+        try {
+          const { formReminderService } = await import('../services/formReminderService');
+          const formWithId = {
+            ...formData,
+            id: formRef.id,
+            createdAt: new Date(),
+          };
+          await formReminderService.scheduleFormReminders(formWithId);
+        } catch (reminderError) {
+          console.error('Error scheduling form reminders:', reminderError);
+          // Don't throw here - form creation should succeed even if reminders fail
+        }
+      }
     } catch (err) {
       console.error('Erreur lors de la création du formulaire:', err);
       setError('Erreur lors de la création du formulaire');

@@ -70,11 +70,11 @@ export const LoginPage: React.FC = () => {
   if (user) {
     if (user.role === 'directeur') {
       if (user.needsPackageSelection) {
-        return <Navigate to="/packages" replace />;
+        return <Navigate to="/packages" />;
       }
-      return <Navigate to="/directeur/chat" replace />;
+      return <Navigate to="/directeur/chat" />;
     } else if (user.role === 'employe') {
-      return <Navigate to="/employe/dashboard" replace />;
+      return <Navigate to="/employe/dashboard" />;
     }
   }
 

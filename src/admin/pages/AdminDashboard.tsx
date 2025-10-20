@@ -35,6 +35,7 @@ import {
   Bell,
   Send
 } from 'lucide-react';
+import { WireframeLoader } from '../../components/loading/WireframeLoader';
 
 export const AdminDashboard: React.FC = () => {
   const { user, logout } = useAuth();
@@ -128,10 +129,9 @@ export const AdminDashboard: React.FC = () => {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <RefreshCw className="h-8 w-8 animate-spin text-blue-600 mx-auto mb-4" />
-          <p className="text-gray-600">Chargement du tableau de bord...</p>
+      <div className="min-h-screen bg-gray-50 p-4">
+        <div className="max-w-7xl mx-auto">
+          <WireframeLoader type="dashboard" />
         </div>
       </div>
     );

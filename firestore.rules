@@ -287,11 +287,12 @@ service cloud.firestore {
     }
 
     // =============================================================================
-    // COLLECTION NOTIFICATIONS
-    // Règles pour les notifications :
+    // COLLECTION NOTIFICATIONS (UNIFIED NOTIFICATION SYSTEM)
+    // Règles pour les notifications unifiées :
     // - Les utilisateurs peuvent lire leurs propres notifications
     // - Les directeurs et employés avec accès directeur peuvent créer des notifications
     // - Les notifications sont isolées par agence
+    // - Support pour les notifications programmées et en temps réel
     // =============================================================================
     
     match /notifications/{notificationId} {
@@ -299,19 +300,28 @@ service cloud.firestore {
       allow read: if isAuthenticated() && (
         isAdmin() ||
         (hasDirectorDashboardAccess() && isSameAgency(resource.data.agencyId)) ||
-        (isEmploye() && resource.data.recipientId == request.auth.uid)
+        (isEmploye() && resource.data.recipientId == request.auth.uid) ||
+        (isDirecteur() && resource.data.recipientId == request.auth.uid)
       );
       
       // CRÉATION de notifications
       allow create: if isAuthenticated() && (
         isAdmin() ||
-        hasDirectorDashboardAccess()
+        hasDirectorDashboardAccess() ||
+        // Allow creation for form assignments, reminders, metrics, and program instructions
+        (request.resource.data.keys().hasAll(['title', 'body', 'type', 'recipientId', 'agencyId', 'read', 'status']) &&
+         request.resource.data.agencyId == getCurrentUser().data.agencyId)
       );
       
       // MODIFICATION des notifications (seuls les admins et les destinataires)
       allow update: if isAuthenticated() && (
         isAdmin() ||
-        (isEmploye() && resource.data.recipientId == request.auth.uid)
+        (isEmploye() && resource.data.recipientId == request.auth.uid) ||
+        (isDirecteur() && resource.data.recipientId == request.auth.uid) ||
+        // Allow status updates for scheduled notifications
+        (resource.data.status == 'scheduled' && 
+         request.resource.data.status in ['sent', 'delayed', 'failed'] &&
+         request.resource.data.agencyId == getCurrentUser().data.agencyId)
       );
       
       // SUPPRESSION des notifications (seuls les admins)

@@ -986,11 +986,19 @@ export const PackageManagementPage: React.FC = () => {
                       <div className="space-y-1">
                         <div className="flex items-center space-x-1.5 sm:space-x-2 text-xs sm:text-sm p-1 sm:p-1.5 rounded-md bg-white/40">
                           {getFeatureIcon(features.advancedAI)}
-                          <span className="text-gray-700">IA Avancée</span>
+                          <span className="text-gray-700">Instructions Archa programmées</span>
                         </div>
                         <div className="flex items-center space-x-1.5 sm:space-x-2 text-xs sm:text-sm p-1 sm:p-1.5 rounded-md bg-white/40">
-                          {getFeatureIcon(features.customBranding)}
-                          <span className="text-gray-700">Branding personnalisé</span>
+                          {getFeatureIcon(features.pushIndicators)}
+                          <span className="text-gray-700">Indicateurs push</span>
+                        </div>
+                        <div className="flex items-center space-x-1.5 sm:space-x-2 text-xs sm:text-sm p-1 sm:p-1.5 rounded-md bg-white/40">
+                          {getFeatureIcon(features.formFillNotifications)}
+                          <span className="text-gray-700">Notifications de remplissage</span>
+                        </div>
+                        <div className="flex items-center space-x-1.5 sm:space-x-2 text-xs sm:text-sm p-1 sm:p-1.5 rounded-md bg-white/40">
+                          {getFeatureIcon(features.fileImport)}
+                          <span className="text-gray-700">Import de fichiers (PDF, Images)</span>
                         </div>
                         <div className="flex items-center space-x-1.5 sm:space-x-2 text-xs sm:text-sm p-1 sm:p-1.5 rounded-md bg-white/40">
                           {getFeatureIcon(features.whatsappSupport)}

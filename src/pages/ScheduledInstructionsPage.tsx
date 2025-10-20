@@ -10,6 +10,7 @@ import { scheduledQuestionExecutor } from '../services/scheduledQuestionExecutor
 import { useToast } from '../hooks/useToast';
 import { ScheduledQuestion } from '../types';
 import { Layout } from '../components/Layout';
+import { WireframeLoader } from '../components/loading/WireframeLoader';
 
 export const ScheduledQuestionsPage: React.FC = () => {
   const { user } = useAuth();
@@ -108,7 +109,11 @@ export const ScheduledQuestionsPage: React.FC = () => {
   const statusCounts = getStatusCounts();
 
   if (isLoading) {
-    return <LoadingGuard />;
+    return (
+      <Layout title="Instructions Programmées">
+        <WireframeLoader type="list" count={5} />
+      </Layout>
+    );
   }
 
   return (

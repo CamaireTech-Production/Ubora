@@ -37,6 +37,13 @@ export interface PackageFeatures {
   whatsappSupport: boolean;
   onSiteSupport: boolean;
   
+  // Fonctionnalités avancées de communication
+  pushIndicators: boolean;
+  formFillNotifications: boolean;
+  
+  // Fonctionnalités d'import
+  fileImport: boolean;
+  
   // Fonctionnalités de branding
   customBranding: boolean;
   
@@ -52,7 +59,7 @@ export interface PackageFeatures {
 
 export const PACKAGE_LIMITS: Record<PackageType, PackageLimits> = {
   free: {
-    maxForms: 0, // No forms in free package
+    maxForms: 2, // 2 forms in free package
     maxDashboards: 1, // 1 reduced dashboard
     maxUsers: -1, // Unlimited users
     monthlyTokens: 25000, // 25k tokens
@@ -61,9 +68,9 @@ export const PACKAGE_LIMITS: Record<PackageType, PackageLimits> = {
     automatedPushIndicators: 0 // No automated push indicators
   },
   starter: {
-    maxForms: -1, // Unlimited forms
+    maxForms: 4, // 4 forms
     maxDashboards: 2, // 2 dynamic dashboards
-    maxUsers: 5, // 5 users
+    maxUsers: -1, // Unlimited users
     monthlyTokens: 100000, // 100k tokens
     additionalUserCost: 0, // No additional user cost mentioned
     programmedInstructions: 1, // 1 programmed instruction
@@ -72,7 +79,7 @@ export const PACKAGE_LIMITS: Record<PackageType, PackageLimits> = {
   standard: {
     maxForms: -1, // Unlimited forms
     maxDashboards: -1, // Unlimited dashboards
-    maxUsers: 15, // 15 users
+    maxUsers: -1, // Unlimited users
     monthlyTokens: 300000, // 300k tokens
     additionalUserCost: 0, // No additional user cost mentioned
     programmedInstructions: 4, // 4 programmed instructions
@@ -83,7 +90,7 @@ export const PACKAGE_LIMITS: Record<PackageType, PackageLimits> = {
 export const PACKAGE_FEATURES: Record<PackageType, PackageFeatures> = {
   free: {
     // Fonctionnalités de base
-    basicForms: false, // No forms in free package
+    basicForms: true, // 2 forms in free package
     unlimitedForms: false,
     basicDashboard: true, // 1 reduced dashboard
     unlimitedDashboards: false,
@@ -105,6 +112,13 @@ export const PACKAGE_FEATURES: Record<PackageType, PackageFeatures> = {
     whatsappSupport: false,
     onSiteSupport: false,
     
+    // Fonctionnalités avancées de communication
+    pushIndicators: false,
+    formFillNotifications: true, // Available to all packages
+    
+    // Fonctionnalités d'import
+    fileImport: false,
+    
     // Fonctionnalités de branding
     customBranding: false,
     
@@ -120,7 +134,7 @@ export const PACKAGE_FEATURES: Record<PackageType, PackageFeatures> = {
   starter: {
     // Fonctionnalités de base
     basicForms: true,
-    unlimitedForms: true, // Unlimited forms
+    unlimitedForms: false, // Limited to 4 forms
     basicDashboard: true,
     unlimitedDashboards: false, // Limited to 2 dashboards
     basicMetrics: true,
@@ -140,6 +154,13 @@ export const PACKAGE_FEATURES: Record<PackageType, PackageFeatures> = {
     pushNotifications: true, // Automatic reminder notifications
     whatsappSupport: false,
     onSiteSupport: false,
+    
+    // Fonctionnalités avancées de communication
+    pushIndicators: true, // Available to Starter and Standard
+    formFillNotifications: true, // Available to all packages
+    
+    // Fonctionnalités d'import
+    fileImport: true, // Available to Starter and Standard
     
     // Fonctionnalités de branding
     customBranding: false,
@@ -166,7 +187,7 @@ export const PACKAGE_FEATURES: Record<PackageType, PackageFeatures> = {
     basicAI: true,
     advancedAI: true,
     predictiveAI: false,
-    customIntegrations: false,
+    customIntegrations: true,
     
     // Fonctionnalités d'export
     pdfExport: true,
@@ -174,8 +195,15 @@ export const PACKAGE_FEATURES: Record<PackageType, PackageFeatures> = {
     
     // Fonctionnalités de communication
     pushNotifications: true, // Automatic reminder notifications
-    whatsappSupport: false,
+    whatsappSupport: true,
     onSiteSupport: false,
+    
+    // Fonctionnalités avancées de communication
+    pushIndicators: true, // Available to Starter and Standard
+    formFillNotifications: true, // Available to all packages
+    
+    // Fonctionnalités d'import
+    fileImport: true, // Available to Starter and Standard
     
     // Fonctionnalités de branding
     customBranding: false,

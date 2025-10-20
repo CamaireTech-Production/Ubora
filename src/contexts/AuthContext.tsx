@@ -40,6 +40,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [firestoreReady, setFirestoreReady] = useState(false);
   const [firestoreErrorCount, setFirestoreErrorCount] = useState(0);
   const [firestoreDisabled, setFirestoreDisabled] = useState(false);
+  const [firestoreCircuitBreaker, setFirestoreCircuitBreaker] = useState(false);
 
   // Fonction pour vérifier les limites d'utilisateurs d'une agence
   const checkAgencyUserLimit = async (agencyId: string): Promise<{ canAddUser: boolean; error?: string }> => {
@@ -186,7 +187,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const initFirestore = async () => {
       try {
         // Wait longer for Firestore to be fully initialized
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        await new Promise(resolve => setTimeout(resolve, 2000));
         
         // Test Firestore connection with a simple operation
         try {
@@ -198,10 +199,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
         
         setFirestoreReady(true);
+        // Reset circuit breaker on successful initialization
+        setFirestoreCircuitBreaker(false);
       } catch (error) {
         console.error('Firestore initialization failed:', error);
         // Still allow app to continue after a delay
-        setTimeout(() => setFirestoreReady(true), 2000);
+        setTimeout(() => setFirestoreReady(true), 3000);
       }
     };
     
@@ -215,6 +218,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.warn('Caught Firestore assertion error, continuing with cached data');
         setFirestoreErrorCount(prev => {
           const newCount = prev + 1;
+          if (newCount > 5) {
+            setFirestoreCircuitBreaker(true);
+            console.warn('Firestore circuit breaker activated due to assertion errors');
+          }
           if (newCount > 10) {
             setFirestoreDisabled(true);
             console.warn('Firestore disabled due to too many assertion errors');
@@ -234,28 +241,48 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     if (!firestoreReady) return; // Wait for Firestore to be ready
     
+    let timeoutId: NodeJS.Timeout;
+    
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      setIsLoading(true);
-      setError(null);
+      // Clear any pending operations to prevent concurrent calls
+      clearTimeout(timeoutId);
       
-      if (firebaseUser) {
-        try {
-          // Wait a bit to ensure Firestore is fully initialized
-          await new Promise(resolve => setTimeout(resolve, 100));
-          
-          // Récupérer ou créer le document utilisateur
-          const userDocRef = doc(db, 'users', firebaseUser.uid);
-          
-          // Ajouter un timeout pour éviter les blocages et retry logic
-          let userDoc;
-          let retries = 3;
-          
-          while (retries > 0) {
-            try {
-              // Check if we've had too many Firestore errors (circuit breaker)
-              if (firestoreErrorCount > 5 || firestoreDisabled) {
-                throw new Error('Firestore circuit breaker activated - too many errors');
+      timeoutId = setTimeout(async () => {
+        setIsLoading(true);
+        setError(null);
+        
+        if (firebaseUser) {
+          try {
+            // Check circuit breaker first
+            if (firestoreCircuitBreaker || firestoreErrorCount > 3) {
+              // Use cached data instead
+              const cached = localStorage.getItem('ubora_cached_user');
+              if (cached) {
+                const cachedUser = JSON.parse(cached);
+                setUser(cachedUser);
+                setFirebaseUser(firebaseUser);
+                setError('Mode hors ligne: données locales affichées');
+                setIsLoading(false);
+                return;
               }
+            }
+            
+            // Wait a bit to ensure Firestore is fully initialized
+            await new Promise(resolve => setTimeout(resolve, 200));
+            
+            // Récupérer ou créer le document utilisateur
+            const userDocRef = doc(db, 'users', firebaseUser.uid);
+            
+            // Ajouter un timeout pour éviter les blocages et retry logic
+            let userDoc;
+            let retries = 3;
+            
+            while (retries > 0) {
+              try {
+                // Check if we've had too many Firestore errors (circuit breaker)
+                if (firestoreErrorCount > 5 || firestoreDisabled) {
+                  throw new Error('Firestore circuit breaker activated - too many errors');
+                }
               
               userDoc = await Promise.race([
                 getDoc(userDocRef),
@@ -344,20 +371,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             }
           } catch {}
         }
-      } else {
-        setUser(null);
-        setFirebaseUser(null);
-      }
-      
-      setIsLoading(false);
+        } else {
+          setUser(null);
+          setFirebaseUser(null);
+        }
+        
+        setIsLoading(false);
+      }, 100); // Small delay to prevent rapid successive calls
     });
 
-    return () => unsubscribe();
-  }, [firestoreReady]);
+    return () => {
+      clearTimeout(timeoutId);
+      unsubscribe();
+    };
+  }, [firestoreReady, firestoreCircuitBreaker, firestoreErrorCount]);
 
   // Écouter les changements du document utilisateur en temps réel
   useEffect(() => {
-    if (!firebaseUser || firestoreDisabled) return;
+    if (!firebaseUser || firestoreDisabled || firestoreCircuitBreaker) return;
 
     const userDocRef = doc(db, 'users', firebaseUser.uid);
     
@@ -385,7 +416,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
 
     return () => unsubscribe();
-  }, [firebaseUser, firestoreDisabled]);
+  }, [firebaseUser, firestoreDisabled, firestoreCircuitBreaker]);
 
   const login = async (email: string, password: string): Promise<boolean> => {
     try {

@@ -9,7 +9,7 @@ import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { FormEditor } from '../components/FormEditor';
 import { FormBuilder } from '../components/FormBuilder';
-import { LoadingGuard } from '../components/LoadingGuard';
+import { WireframeLoader } from '../components/loading/WireframeLoader';
 import { Plus, FileText, Users, Eye, Trash2, Edit, UserCheck, BarChart3, Calendar, ChevronDown, Crown, User as UserIcon, ClipboardList, FileEdit, FileBarChart } from 'lucide-react';
 import { PendingApprovals } from '../components/PendingApprovals';
 import { VideoSection } from '../components/VideoSection';
@@ -414,13 +414,20 @@ export const DirecteurDashboard: React.FC = () => {
     throw new Error('Function not implemented.');
   }
 
+  // Show wireframe immediately if any loading state
+  if (isLoading || !user || !firebaseUser || appLoading) {
+    return (
+      <>
+        <ImpersonationHeader />
+        <Layout title="Dashboard Directeur">
+          <WireframeLoader type="dashboard" />
+        </Layout>
+      </>
+    );
+  }
+
   return (
-    <LoadingGuard 
-      isLoading={isLoading || appLoading} 
-      user={user} 
-      firebaseUser={firebaseUser}
-      message="Chargement du dashboard directeur..."
-    >
+    <>
       {!hasDirectorDashboardAccess() ? (
         <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
           <Card className="max-w-md w-full text-center">
@@ -462,6 +469,9 @@ export const DirecteurDashboard: React.FC = () => {
         <>
           <ImpersonationHeader />
           <Layout title="Dashboard Directeur">
+            {appLoading ? (
+              <WireframeLoader type="dashboard" />
+            ) : (
             <div className="space-y-6 lg:space-y-8">
             {/* Filtre temporel compact */}
             
@@ -897,6 +907,7 @@ export const DirecteurDashboard: React.FC = () => {
             />
 
           </div>
+            )}
         </Layout>
         </>
       )}
@@ -1034,6 +1045,6 @@ export const DirecteurDashboard: React.FC = () => {
         message={toast.message}
         type={toast.type}
       />
-    </LoadingGuard>
+    </>
   );
 };

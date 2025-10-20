@@ -64,12 +64,16 @@ export const db = ((): Firestore => {
     // No local cache in dev to completely avoid IndexedDB issues
     experimentalAutoDetectLongPolling: true,
     // Disable offline persistence completely in dev
-    ignoreUndefinedProperties: true
+    ignoreUndefinedProperties: true,
+    // Disable cache completely in dev to prevent assertion errors
+    cacheSizeBytes: 0
   } : {
     localCache: persistentLocalCache({
       tabManager: persistentMultipleTabManager()
     }),
-    experimentalAutoDetectLongPolling: true
+    experimentalAutoDetectLongPolling: true,
+    // Add stability settings for production
+    ignoreUndefinedProperties: true
   };
   
   try {

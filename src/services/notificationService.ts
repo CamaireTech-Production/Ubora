@@ -1,5 +1,6 @@
 import { collection, addDoc, serverTimestamp, query, where, orderBy, limit, getDocs } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
+import { unifiedNotificationService } from './unifiedNotificationService';
 
 export interface NotificationData {
   id?: string;
@@ -33,6 +34,30 @@ class NotificationService {
       await this.sendPushNotification([userId], notification.title, notification.body, notification.data);
     } catch (error) {
       console.error('🔔 [NotificationService] Error sending to user:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Send notification via unified service (new method)
+   */
+  async sendViaUnified(
+    userId: string, 
+    notification: Omit<NotificationData, 'id' | 'read' | 'createdAt'>, 
+    agencyId?: string
+  ): Promise<string> {
+    try {
+      return await unifiedNotificationService.sendNotification({
+        title: notification.title,
+        body: notification.body,
+        type: notification.type as any,
+        recipientId: userId,
+        recipientRole: notification.recipientRole,
+        agencyId: agencyId || '',
+        data: notification.data,
+      });
+    } catch (error) {
+      console.error('🔔 [NotificationService] Error sending via unified service:', error);
       throw error;
     }
   }
@@ -197,7 +222,7 @@ class NotificationService {
    */
   async notifyFormAssignment(formId: string, formTitle: string, employeeIds: string[], directorName: string, agencyId?: string): Promise<void> {
     const notifications = employeeIds.map(employeeId => 
-      this.sendToUser(employeeId, {
+      this.sendViaUnified(employeeId, {
         title: 'Nouveau formulaire assigné',
         body: `${directorName} vous a assigné le formulaire "${formTitle}"`,
         type: 'form_assignment',
@@ -218,10 +243,10 @@ class NotificationService {
    */
   async notifyFormCreated(formId: string, formTitle: string, employeeIds: string[], directorName: string, agencyId?: string): Promise<void> {
     const notifications = employeeIds.map(employeeId => 
-      this.sendToUser(employeeId, {
+      this.sendViaUnified(employeeId, {
         title: 'Nouveau formulaire créé',
         body: `${directorName} a créé et vous a assigné le formulaire "${formTitle}"`,
-        type: 'form_created',
+        type: 'form_assignment', // Use form_assignment type for consistency
         data: { 
           formId, 
           formTitle, 
@@ -243,7 +268,7 @@ class NotificationService {
     // Notify newly assigned employees
     if (newEmployeeIds.length > 0) {
       const newAssignmentNotifications = newEmployeeIds.map(employeeId => 
-        this.sendToUser(employeeId, {
+        this.sendViaUnified(employeeId, {
           title: 'Formulaire assigné',
           body: `${directorName} vous a assigné le formulaire "${formTitle}"`,
           type: 'form_assignment',
@@ -261,7 +286,7 @@ class NotificationService {
     // Notify removed employees
     if (removedEmployeeIds.length > 0) {
       const removedAssignmentNotifications = removedEmployeeIds.map(employeeId => 
-        this.sendToUser(employeeId, {
+        this.sendViaUnified(employeeId, {
           title: 'Formulaire désassigné',
           body: `Vous n'êtes plus assigné au formulaire "${formTitle}"`,
           type: 'form_assignment',

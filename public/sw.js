@@ -3,6 +3,18 @@
 // Use dynamic imports to avoid module syntax issues in service workers
 importScripts('https://storage.googleapis.com/workbox-cdn/releases/7.0.0/workbox-sw.js');
 
+// Helper function to get appropriate icon for notification type
+function getNotificationIcon(type) {
+  // Use a smaller icon size (96x96) for better display in Android notification bar
+  // The notification bar typically uses smaller icons than the main app icon
+  return '/fav-icons/android-icon-96x96.png';
+}
+
+// Helper function to get appropriate badge for notification type
+function getNotificationBadge(type) {
+  return '/fav-icons/android-icon-96x96.png';
+}
+
 if (workbox) {
   const { registerRoute } = workbox.routing;
   const { StaleWhileRevalidate } = workbox.strategies;
@@ -61,12 +73,13 @@ try {
     const body = payload.notification?.body || 'Vous avez reçu une nouvelle notification';
     const uniqueTag = `ubora-fcm-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     
-    // Android-optimized notification options
-    const options = {
-      body: body,
-      icon: '/fav-icons/android-icon-192x192.png',
-      badge: '/fav-icons/android-icon-96x96.png',
-      image: payload.notification?.image || '/fav-icons/android-icon-512x512.png',
+        // Android-optimized notification options
+        const notificationType = payload.data?.type || 'default';
+        const options = {
+          body: body,
+          icon: getNotificationIcon(notificationType),
+          badge: getNotificationBadge(notificationType),
+          image: payload.notification?.image || '/fav-icons/android-icon-512x512.png',
       data: {
         ...payload.data,
         fcmMessageId: payload.messageId,
@@ -119,11 +132,12 @@ self.addEventListener("push", (event) => {
   const title = data.title || "Ubora";
   const body = data.body || "Vous avez reçu une nouvelle notification";
   
-  const options = {
-    body: body,
-    icon: '/fav-icons/android-icon-192x192.png',
-    badge: '/fav-icons/android-icon-96x96.png',
-    image: data.image || '/fav-icons/android-icon-512x512.png',
+      const notificationType = data.type || 'default';
+      const options = {
+        body: body,
+        icon: getNotificationIcon(notificationType),
+        badge: getNotificationBadge(notificationType),
+        image: data.image || '/fav-icons/android-icon-512x512.png',
     data: {
       ...data,
       timestamp: Date.now(),
@@ -223,11 +237,12 @@ self.addEventListener('message', (event) => {
   if (event.data && event.data.type === 'SHOW_NOTIFICATION') {
     const { payload } = event.data;
     const title = payload.notification?.title || 'Test Notification';
-    const options = {
-      body: payload.notification?.body,
-      icon: '/fav-icons/android-icon-192x192.png',
-      badge: '/fav-icons/android-icon-96x96.png',
-      image: '/fav-icons/android-icon-512x512.png',
+        const notificationType = payload.data?.type || 'default';
+        const options = {
+          body: payload.notification?.body,
+          icon: getNotificationIcon(notificationType),
+          badge: getNotificationBadge(notificationType),
+          image: '/fav-icons/android-icon-512x512.png',
       data: {
         ...payload.data,
         timestamp: Date.now(),
@@ -245,6 +260,17 @@ self.addEventListener('message', (event) => {
     self.registration.showNotification(title, options);
   }
   
+  // Handle SCHEDULE_NOTIFICATION message for delayed notifications
+  if (event.data && event.data.type === 'SCHEDULE_NOTIFICATION') {
+    const { notification, delay } = event.data;
+    console.log('🕐 [SW] Scheduling notification:', notification.title, 'delay:', delay);
+    
+    setTimeout(() => {
+      self.registration.showNotification(notification.title, notification.options);
+      console.log('🔔 [SW] Scheduled notification displayed:', notification.title);
+    }, delay);
+  }
+  
   // Handle SKIP_WAITING message for updates
   if (event.data && event.data.type === 'SKIP_WAITING') {
     console.log('🔄 [SW] Received SKIP_WAITING message, activating new service worker');
@@ -258,3 +284,31 @@ self.addEventListener('message', (event) => {
     });
   }
 });
+
+// Background sync for missed notifications
+self.addEventListener('sync', (event) => {
+  if (event.tag === 'notification-sync') {
+    console.log('🔄 [SW] Background sync triggered for notifications');
+    event.waitUntil(syncMissedNotifications());
+  }
+});
+
+// Function to sync missed notifications
+async function syncMissedNotifications() {
+  try {
+    console.log('🔄 [SW] Syncing missed notifications...');
+    
+    // Get all clients to trigger notification check
+    const clients = await self.clients.matchAll();
+    clients.forEach(client => {
+      client.postMessage({ 
+        type: 'SYNC_MISSED_NOTIFICATIONS',
+        timestamp: Date.now()
+      });
+    });
+    
+    console.log('🔄 [SW] Missed notifications sync completed');
+  } catch (error) {
+    console.error('❌ [SW] Error syncing missed notifications:', error);
+  }
+}

@@ -190,19 +190,24 @@ export const PackageSelectionPage: React.FC = () => {
         icon: <Brain className="h-4 w-4" />
       },
       {
-        name: 'IA Avancée',
+        name: 'Instructions Archa programmées',
         value: features.advancedAI ? 'Incluse' : 'Non incluse',
         icon: getFeatureIcon(features.advancedAI)
       },
       {
-        name: 'IA Prédictive',
-        value: features.predictiveAI ? 'Incluse' : 'Non incluse',
-        icon: getFeatureIcon(features.predictiveAI)
+        name: 'Indicateurs push',
+        value: features.pushIndicators ? 'Incluse' : 'Non incluse',
+        icon: getFeatureIcon(features.pushIndicators)
       },
       {
-        name: 'Notifications Push',
-        value: features.pushNotifications ? 'Incluse' : 'Non incluse',
-        icon: getFeatureIcon(features.pushNotifications)
+        name: 'Notifications de remplissage',
+        value: features.formFillNotifications ? 'Incluse' : 'Non incluse',
+        icon: getFeatureIcon(features.formFillNotifications)
+      },
+      {
+        name: 'Import de fichiers (PDF, Images)',
+        value: features.fileImport ? 'Incluse' : 'Non incluse',
+        icon: getFeatureIcon(features.fileImport)
       },
       {
         name: 'Support WhatsApp',
@@ -210,9 +215,9 @@ export const PackageSelectionPage: React.FC = () => {
         icon: getFeatureIcon(features.whatsappSupport)
       },
       {
-        name: 'Branding personnalisé',
-        value: features.customBranding ? 'Incluse' : 'Non incluse',
-        icon: getFeatureIcon(features.customBranding)
+        name: 'Intégrations personnalisées',
+        value: features.customIntegrations ? 'Incluse' : 'Non incluse',
+        icon: getFeatureIcon(features.customIntegrations)
       }
     ];
   };

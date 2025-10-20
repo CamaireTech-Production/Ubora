@@ -1,15 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Filter, Search, Calendar, Clock, MessageSquare, ArrowLeft } from 'lucide-react';
+import { Plus, Search, Calendar, Clock, MessageSquare, ArrowLeft } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { LoadingGuard } from '../components/LoadingGuard';
 import { Button } from '../components/Button';
 import { ScheduledQuestionCard } from '../components/scheduled/ScheduledQuestionCard';
 import { scheduledQuestionService } from '../services/scheduledQuestionService';
-import { scheduledQuestionExecutor } from '../services/scheduledQuestionExecutor';
 import { useToast } from '../hooks/useToast';
 import { ScheduledQuestion } from '../types';
 import { Layout } from '../components/Layout';
+import { WireframeLoader } from '../components/loading/WireframeLoader';
 
 export const ScheduledQuestionsPage: React.FC = () => {
   const { user } = useAuth();
@@ -49,14 +48,6 @@ export const ScheduledQuestionsPage: React.FC = () => {
     return matchesSearch && matchesStatus && matchesFrequency;
   });
 
-  // Grouper les questions par statut
-  const groupedQuestions = {
-    pending: filteredQuestions.filter(q => q.status === 'pending'),
-    running: filteredQuestions.filter(q => q.status === 'running'),
-    completed: filteredQuestions.filter(q => q.status === 'completed'),
-    failed: filteredQuestions.filter(q => q.status === 'failed'),
-    cancelled: filteredQuestions.filter(q => q.status === 'cancelled')
-  };
 
   const handleCreateNew = () => {
     navigate('/directeur/scheduled-questions/new');
@@ -112,11 +103,15 @@ export const ScheduledQuestionsPage: React.FC = () => {
   const statusCounts = getStatusCounts();
 
   if (isLoading) {
-    return <LoadingGuard />;
+    return (
+      <Layout title="Instructions Programmées">
+        <WireframeLoader type="list" count={5} />
+      </Layout>
+    );
   }
 
   return (
-    <Layout>
+    <Layout title="Instructions Programmées">
       <div className="min-h-screen bg-gray-50">
         {/* En-tête */}
         <div className="bg-white border-b border-gray-200">
