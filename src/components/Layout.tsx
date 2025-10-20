@@ -136,7 +136,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, title }) => {
                 </Button>
               )}
               
-                {/* <button
+                <button
                   type="button"
                   onClick={() => navigate('/dev/push-test')}
                   className="p-2 rounded-lg hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -144,7 +144,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, title }) => {
                   title="Test des notifications push"
                 >
                   <TestTube className="h-5 w-5 text-gray-700" />
-                </button> */}
+                </button>
 
               {/* Notifications */}
               <button
