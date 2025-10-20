@@ -22,6 +22,7 @@ import { NotificationsPage } from './pages/NotificationsPage';
 import { ScheduledQuestionsPage } from './pages/ScheduledQuestionsPage';
 import { ScheduledQuestionFormPage } from './pages/ScheduledQuestionFormPage';
 import { ScheduledQuestionChatPage } from './pages/ScheduledQuestionChatPage';
+import { ProgrammedInstructionsRoute } from './components/ProgrammedInstructionsRoute';
 import { AdminLoginPage } from './admin/pages/AdminLoginPage';
 import { AdminPage } from './admin';
 import { UserDetailPage } from './admin/pages/UserDetailPage';
@@ -241,7 +242,9 @@ function App() {
                   allowedRoles={['directeur', 'employe']} 
                   requireDirectorDashboardAccess={true}
                 >
-                  <ScheduledQuestionsPage />
+                  <ProgrammedInstructionsRoute>
+                    <ScheduledQuestionsPage />
+                  </ProgrammedInstructionsRoute>
                 </ProtectedRoute>
               } 
             />
@@ -254,7 +257,9 @@ function App() {
                   allowedRoles={['directeur', 'employe']} 
                   requireDirectorDashboardAccess={true}
                 >
-                  <ScheduledQuestionFormPage />
+                  <ProgrammedInstructionsRoute>
+                    <ScheduledQuestionFormPage />
+                  </ProgrammedInstructionsRoute>
                 </ProtectedRoute>
               } 
             />
@@ -267,7 +272,9 @@ function App() {
                   allowedRoles={['directeur', 'employe']} 
                   requireDirectorDashboardAccess={true}
                 >
-                  <ScheduledQuestionFormPage />
+                  <ProgrammedInstructionsRoute>
+                    <ScheduledQuestionFormPage />
+                  </ProgrammedInstructionsRoute>
                 </ProtectedRoute>
               } 
             />
@@ -280,7 +287,9 @@ function App() {
                   allowedRoles={['directeur', 'employe']} 
                   requireDirectorDashboardAccess={true}
                 >
-                  <ScheduledQuestionChatPage />
+                  <ProgrammedInstructionsRoute>
+                    <ScheduledQuestionChatPage />
+                  </ProgrammedInstructionsRoute>
                 </ProtectedRoute>
               } 
             />

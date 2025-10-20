@@ -20,6 +20,8 @@ import { GraphModal } from '../components/charts/GraphModal';
 import { getValidYAxisFields, validateYAxisField } from '../utils/GraphFieldValidator';
 import { metricReminderService } from '../services/metricReminderService';
 import { ImpersonationHeader } from '../components/ImpersonationHeader';
+import { UserSessionService } from '../services/userSessionService';
+import { AccessDeniedModal } from '../components/AccessDeniedModal';
 import { 
   ArrowLeft, 
   BarChart3, 
@@ -73,6 +75,7 @@ export const DashboardDetailPage: React.FC = () => {
   const [errors, setErrors] = useState<string[]>([]);
   const errorRef = useRef<HTMLDivElement>(null);
   const [showDeleteDashboardModal, setShowDeleteDashboardModal] = useState(false);
+  const [showAccessDeniedModal, setShowAccessDeniedModal] = useState(false);
   
   // Auto-scroll to errors when they appear (mobile-responsive)
   useEffect(() => {
@@ -368,6 +371,16 @@ export const DashboardDetailPage: React.FC = () => {
 
   const handleEditDashboard = () => {
     setShowEditDashboardModal(true);
+  };
+
+  const handlePushIndicatorClick = (metric: DashboardMetric) => {
+    if (!user) return;
+    
+    if (UserSessionService.hasPushIndicatorsAccess(user)) {
+      setShowReminderModal({ open: true, metric });
+    } else {
+      setShowAccessDeniedModal(true);
+    }
   };
 
   const handleEditMetric = (metricIndex: number) => {
@@ -779,11 +792,11 @@ export const DashboardDetailPage: React.FC = () => {
                   {/* Row 1: Action buttons on the right */}
                   <div className="flex justify-end mb-2">
                     <div className="flex items-center space-x-1">
-                      {user?.role === 'directeur' && (
+                      {user && UserSessionService.hasPushIndicatorsAccess(user) && (
                         <Button
                           variant="secondary"
                           size="sm"
-                          onClick={() => setShowReminderModal({ open: true, metric })}
+                          onClick={() => handlePushIndicatorClick(metric)}
                           className="p-1"
                           title="Programmer un rappel"
                         >
@@ -1624,6 +1637,13 @@ export const DashboardDetailPage: React.FC = () => {
         show={toast.show}
         message={toast.message}
         type={toast.type}
+      />
+
+      {/* Access Denied Modal */}
+      <AccessDeniedModal
+        isOpen={showAccessDeniedModal}
+        onClose={() => setShowAccessDeniedModal(false)}
+        feature="push-indicators"
       />
     </Layout>
     </>

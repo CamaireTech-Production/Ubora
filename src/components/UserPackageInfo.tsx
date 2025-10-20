@@ -27,6 +27,7 @@ export const UserPackageInfo: React.FC<UserPackageInfoProps> = ({
 
   const getPackageIcon = (packageType: string) => {
     switch (packageType) {
+      case 'free': return <Star className="h-4 w-4 text-green-500" />;
       case 'starter': return <Star className="h-4 w-4 text-blue-500" />;
       case 'standard': return <Crown className="h-4 w-4 text-purple-500" />;
       case 'premium': return <Zap className="h-4 w-4 text-yellow-500" />;
@@ -37,6 +38,7 @@ export const UserPackageInfo: React.FC<UserPackageInfoProps> = ({
 
   const getPackageName = (packageType: string) => {
     switch (packageType) {
+      case 'free': return 'Gratuit';
       case 'starter': return 'Starter';
       case 'standard': return 'Standard';
       case 'premium': return 'Premium';
@@ -47,6 +49,7 @@ export const UserPackageInfo: React.FC<UserPackageInfoProps> = ({
 
   const getPackageColor = (packageType: string) => {
     switch (packageType) {
+      case 'free': return 'text-green-600 bg-green-50 border-green-200';
       case 'starter': return 'text-blue-600 bg-blue-50 border-blue-200';
       case 'standard': return 'text-purple-600 bg-purple-50 border-purple-200';
       case 'premium': return 'text-yellow-600 bg-yellow-50 border-yellow-200';

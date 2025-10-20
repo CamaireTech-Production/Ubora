@@ -33,14 +33,22 @@ export class SubscriptionSessionService {
       // Get package limits for the selected package
       const packageLimits = PACKAGE_LIMITS[sessionData.packageType];
       
-      // Create new session with proper structure
+      // Create new session with proper structure (avoid undefined fields for Firestore)
       const newSession: SubscriptionSession = {
-        ...sessionData,
         id: sessionId,
+        packageType: sessionData.packageType as any,
+        sessionType: sessionData.sessionType,
+        startDate: sessionData.startDate,
+        endDate: sessionData.endDate,
+        amountPaid: isNaN(sessionData.amountPaid) ? 0 : sessionData.amountPaid,
+        durationDays: sessionData.durationDays,
+        isActive: sessionData.isActive,
+        // Optional fields only when defined
+        ...(sessionData.paymentMethod ? { paymentMethod: sessionData.paymentMethod } : {}),
+        ...(sessionData.paymentReference ? { paymentReference: sessionData.paymentReference } : {}),
+        ...(sessionData.notes ? { notes: sessionData.notes } : {}),
         createdAt: now,
         updatedAt: now,
-        // Ensure amountPaid is not NaN
-        amountPaid: isNaN(sessionData.amountPaid) ? 0 : sessionData.amountPaid,
         
         // Package resources from the selected package
         packageResources: {

@@ -25,9 +25,13 @@ export class PaymentService {
     ];
     const firstNumber = candidates.find((v: any) => typeof v === 'number' && !isNaN(v));
     const originalAmount = typeof firstNumber === 'number' ? firstNumber : Number(request.amount) || 0;
-    // Effective amount is the real amount to pay (with 5k floor only when payable is 0)
+    // Effective amount: never apply floor for free package transitions
     const requestedAmount = Number(request.amount) || 0;
-    const effectiveAmount = Math.max(requestedAmount, MIN_FEE);
+    const isFreePackage = ((request as any)?.metadata?.packageType === 'free');
+    const enforceMin = (request as any)?.metadata?.enforceMinFee === true;
+    const effectiveAmount = isFreePackage
+      ? 0
+      : (enforceMin && requestedAmount === 0 ? MIN_FEE : requestedAmount);
 
     const now = serverTimestamp();
     const payload: any = {

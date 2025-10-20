@@ -16,6 +16,7 @@ import { getPackageLimit, PackageType } from '../config/packageFeatures';
 import { AnalyticsService } from '../services/analyticsService';
 import { SubscriptionSessionService } from '../services/subscriptionSessionService';
 import { UserSessionService } from '../services/userSessionService';
+import { withFirebaseErrorHandling, FirebaseErrorHandler } from '../services/firebaseErrorHandler';
 
 interface AuthContextType {
   user: User | null;
@@ -211,30 +212,36 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     initFirestore();
   }, []);
 
-  // Global error handler for Firestore assertion errors
+  // Global error handler for Firebase errors with graceful degradation
   useEffect(() => {
-    const handleFirestoreError = (event: ErrorEvent) => {
-      if (event.error && event.error.message && event.error.message.includes('INTERNAL ASSERTION FAILED')) {
-        console.warn('Caught Firestore assertion error, continuing with cached data');
-        setFirestoreErrorCount(prev => {
-          const newCount = prev + 1;
-          if (newCount > 5) {
-            setFirestoreCircuitBreaker(true);
-            console.warn('Firestore circuit breaker activated due to assertion errors');
+    const handleFirebaseError = (event: ErrorEvent) => {
+      if (event.error && event.error.message && 
+          (event.error.message.includes('INTERNAL ASSERTION FAILED') || 
+           event.error.message.includes('Firestore') ||
+           event.error.message.includes('Firebase'))) {
+        
+        console.warn('🔥 [AuthContext] Firebase error detected, using graceful degradation');
+        
+        // Use cached data instead of failing
+        const cached = localStorage.getItem('ubora_cached_user');
+        if (cached) {
+          try {
+            const userData = JSON.parse(cached);
+            setUser(userData);
+            console.info('🔥 [AuthContext] Using cached user data due to Firebase error');
+          } catch (e) {
+            console.warn('🔥 [AuthContext] Failed to parse cached user data');
           }
-          if (newCount > 10) {
-            setFirestoreDisabled(true);
-            console.warn('Firestore disabled due to too many assertion errors');
-          }
-          return newCount;
-        });
+        }
+        
+        // Prevent the error from crashing the app
         event.preventDefault();
         return false;
       }
     };
 
-    window.addEventListener('error', handleFirestoreError);
-    return () => window.removeEventListener('error', handleFirestoreError);
+    window.addEventListener('error', handleFirebaseError);
+    return () => window.removeEventListener('error', handleFirebaseError);
   }, []);
 
   // Écouter les changements d'authentification Firebase
@@ -273,36 +280,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             // Récupérer ou créer le document utilisateur
             const userDocRef = doc(db, 'users', firebaseUser.uid);
             
-            // Ajouter un timeout pour éviter les blocages et retry logic
-            let userDoc;
-            let retries = 3;
-            
-            while (retries > 0) {
-              try {
-                // Check if we've had too many Firestore errors (circuit breaker)
-                if (firestoreErrorCount > 5 || firestoreDisabled) {
-                  throw new Error('Firestore circuit breaker activated - too many errors');
-                }
-              
-              userDoc = await Promise.race([
+            // Use the new error handling system
+            const userDoc = await withFirebaseErrorHandling(async () => {
+              return await Promise.race([
                 getDoc(userDocRef),
                 new Promise((_, reject) => 
                   setTimeout(() => reject(new Error('Timeout: Impossible de se connecter à Firestore')), 8000)
                 )
               ]) as any;
-              break; // Success, exit retry loop
-            } catch (error: any) {
-              retries--;
-              setFirestoreErrorCount(prev => prev + 1);
-              
-              if (retries === 0) throw error;
-              
-              // Wait before retry with exponential backoff
-              const delay = Math.min(1000 * Math.pow(2, 3 - retries), 5000);
-              await new Promise(resolve => setTimeout(resolve, delay));
-              console.warn(`Firestore getDoc retry ${3 - retries}/3:`, error.message);
-            }
-          }
+            }, 3);
           
           if (userDoc.exists()) {
             const userData = userDoc.data() as Omit<User, 'id'>;
@@ -346,22 +332,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             }
           } catch {}
           
-          if (err instanceof Error) {
-            if (err.message.includes('circuit breaker') || err.message.includes('INTERNAL ASSERTION')) {
-              setError('Problème de connexion à la base de données. Mode hors ligne activé.');
-              // Don't sign out, let user continue with cached data
-              setIsLoading(false);
-              return;
-            } else if (err.message.includes('offline') || err.message.includes('Timeout')) {
-              setError('Impossible de se connecter à la base de données. Mode hors ligne indisponible.');
-            } else if (err.message.includes('permission-denied')) {
-              setError('Accès refusé. Vérifiez les règles de sécurité Firestore.');
-            } else {
-              setError('Erreur de connexion à la base de données. Vérifiez votre configuration Firebase.');
-            }
-          } else {
-            setError('Erreur lors de la connexion');
-          }
+          // Use the new error handling system for user-friendly messages
+          const errorMessage = FirebaseErrorHandler.getUserFriendlyMessage(err);
+          setError(errorMessage);
+          
+          // Log the technical error for debugging
+          console.error('🔥 [AuthContext] User authentication error:', err);
           
           // Only sign out if we have no cached data and it's a critical error
           try {

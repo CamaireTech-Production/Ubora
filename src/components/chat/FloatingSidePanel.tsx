@@ -8,6 +8,8 @@ import { LimitReachedModal } from '../LimitReachedModal';
 import { PaymentModal } from '../PaymentModal';
 import { useToast } from '../../hooks/useToast';
 import { PackageType } from '../../config/packageFeatures';
+import { UserSessionService } from '../../services/userSessionService';
+import { AccessDeniedModal } from '../AccessDeniedModal';
 
 type TabId = "history" | "forms" | "employees" | "entries";
 
@@ -61,6 +63,7 @@ export const FloatingSidePanel: React.FC<FloatingSidePanelProps> = ({
   const [showUserLimitModal, setShowUserLimitModal] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
+  const [showAccessDeniedModal, setShowAccessDeniedModal] = useState(false);
 
   // Calculate current user count (only approved employees)
   const currentUserCount = employees.filter(emp => emp.isApproved !== false).length;
@@ -92,6 +95,17 @@ export const FloatingSidePanel: React.FC<FloatingSidePanelProps> = ({
     setShowPaymentModal(false);
   };
 
+  const handleProgrammedInstructionsClick = () => {
+    if (!user) return;
+    
+    if (UserSessionService.hasProgrammedInstructionsAccess(user)) {
+      onGoScheduledQuestions?.();
+      onOpenChange(false);
+    } else {
+      setShowAccessDeniedModal(true);
+    }
+  };
+
   // Fermeture avec Escape
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
@@ -117,14 +131,11 @@ export const FloatingSidePanel: React.FC<FloatingSidePanelProps> = ({
       },
       count: null
     },
-    ...(onGoScheduledQuestions ? [{
+    ...(onGoScheduledQuestions && user && UserSessionService.hasProgrammedInstructionsAccess(user) ? [{
       id: 'scheduled-questions' as const,
       label: 'Instructions Programmées',
       icon: Calendar,
-      onClick: () => {
-        onGoScheduledQuestions();
-        onOpenChange(false);
-      },
+      onClick: handleProgrammedInstructionsClick,
       count: null
     }] : []),
     {
@@ -510,6 +521,13 @@ export const FloatingSidePanel: React.FC<FloatingSidePanelProps> = ({
         type="users"
         currentLimit={maxUsers}
         onPurchase={handlePurchaseResource}
+      />
+
+      {/* Access Denied Modal */}
+      <AccessDeniedModal
+        isOpen={showAccessDeniedModal}
+        onClose={() => setShowAccessDeniedModal(false)}
+        feature="programmed-instructions"
       />
     </>
   );

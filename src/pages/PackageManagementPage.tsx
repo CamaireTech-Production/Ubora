@@ -161,8 +161,8 @@ export const PackageManagementPage: React.FC = () => {
     
     // Get enhanced transition preview with current usage
     const preview = PackageTransitionService.getEnhancedTransitionPreview(
-      user, 
-      pkg as 'starter' | 'standard', 
+      user,
+      pkg as 'free' | 'starter' | 'standard',
       currentUsage
     );
     
@@ -183,6 +183,33 @@ export const PackageManagementPage: React.FC = () => {
     try {
       console.log('Starting package transition for:', selectedPackage);
       console.log('Transition preview:', transitionPreview);
+      // If switching to free or there is nothing to pay, bypass payment flow
+      const isFree = selectedPackage === 'free';
+      const payable = transitionPreview.priceBreakdown?.finalAmount ?? 0;
+      if (isFree || payable === 0) {
+        const ok = await PackageTransitionService.executeTransition(
+          user.id,
+          'free',
+          { preserveUnusedPayAsYouGo: true },
+          'none'
+        );
+        if (ok) {
+          showSuccess('Package gratuit activé avec succès !');
+          // Close modal and navigate back
+          setShowTransitionPreview(false);
+          setTransitionPreview(null);
+          setSelectedPackage(null);
+          setIsCreatingPayment(false);
+          setAutoOpenPayment(false);
+          setIsPaymentModalOpen(false);
+          navigate('/directeur/dashboard');
+          return;
+        } else {
+          showError('Impossible d\'effectuer la transition vers le package gratuit.');
+          setIsCreatingPayment(false);
+          return;
+        }
+      }
       
       // Create payment request
       const externalReference = PaymentService.generateExternalReference('PKG');
@@ -1233,7 +1260,7 @@ export const PackageManagementPage: React.FC = () => {
                 <PackageTransitionPriceExplanation
                   calculation={PackageTransitionService.calculateEnhancedTransition(
                     user!,
-                    selectedPackage! as 'starter' | 'standard',
+                    selectedPackage! as 'free' | 'starter' | 'standard',
                     userNeeds
                   )!}
                 />
@@ -1263,7 +1290,10 @@ export const PackageManagementPage: React.FC = () => {
                       <div className="flex justify-between items-center text-lg">
                         <span className="font-semibold">Montant à payer</span>
                         <span className="font-bold text-green-600">
-                          {Math.max(transitionPreview.priceBreakdown.finalAmount, 5000).toLocaleString('fr-FR')} FCFA
+                          {(selectedPackage === 'free' 
+                            ? 0 
+                            : Math.max(transitionPreview.priceBreakdown.finalAmount, 5000)
+                          ).toLocaleString('fr-FR')} FCFA
                         </span>
                       </div>
                       
@@ -1274,7 +1304,7 @@ export const PackageManagementPage: React.FC = () => {
                         </div>
                       )}
                       
-                      {transitionPreview.priceBreakdown.finalAmount === 0 && (
+                      {selectedPackage !== 'free' && transitionPreview.priceBreakdown.finalAmount === 0 && (
                         <div className="flex justify-between items-center text-sm text-blue-600 mt-2">
                           <span>Montant minimum appliqué</span>
                           <span>5 000 FCFA</span>
@@ -1287,7 +1317,7 @@ export const PackageManagementPage: React.FC = () => {
                   <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
                     <p className="text-sm text-blue-700">
                       <strong>Note:</strong> {transitionPreview.summary}
-                      {transitionPreview.priceBreakdown.finalAmount === 0 && (
+                      {selectedPackage !== 'free' && transitionPreview.priceBreakdown.finalAmount === 0 && (
                         <><br/><strong>Montant minimum:</strong> Un montant minimum de 5 000 FCFA est appliqué pour le traitement du paiement.</>
                       )}
                     </p>
@@ -1333,9 +1363,9 @@ export const PackageManagementPage: React.FC = () => {
                       disabled={isProcessing || isCreatingPayment || isPaymentModalOpen}
                       className="bg-green-600 hover:bg-green-700"
                     >
-                      {isCreatingPayment ? 'Préparation du paiement...' : 
-                       isPaymentModalOpen ? 'Modal de paiement ouvert...' : 
-                       isProcessing ? 'Traitement...' : 'Confirmer et payer'}
+                      {isCreatingPayment ? (selectedPackage === 'free' ? 'Activation...' : 'Préparation du paiement...') :
+                       isPaymentModalOpen ? 'Modal de paiement ouvert...' :
+                       isProcessing ? 'Traitement...' : (selectedPackage === 'free' ? 'Confirmer' : 'Confirmer et payer')}
                     </Button>
                   )}
               </div>
