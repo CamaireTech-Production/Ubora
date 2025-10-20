@@ -392,6 +392,48 @@ service cloud.firestore {
     }
 
     // =============================================================================
+    // COLLECTION PAGE VIEWS
+    // Règles pour le suivi des pages visitées :
+    // - Seuls les admins peuvent lire tous les logs
+    // - Tous les utilisateurs authentifiés peuvent créer des logs
+    // =============================================================================
+    
+    match /pageViews/{pageViewId} {
+      // LECTURE des pages visitées
+      allow read: if isAdmin();
+      
+      // CRÉATION de logs de pages visitées
+      allow create: if isAuthenticated();
+      
+      // MODIFICATION des logs de pages visitées (seuls les admins)
+      allow update: if isAdmin();
+      
+      // SUPPRESSION des logs de pages visitées (seuls les admins)
+      allow delete: if isAdmin();
+    }
+
+    // =============================================================================
+    // COLLECTION USER SESSIONS
+    // Règles pour les sessions utilisateur :
+    // - Seuls les admins peuvent lire tous les logs
+    // - Tous les utilisateurs authentifiés peuvent créer des logs
+    // =============================================================================
+    
+    match /userSessions/{sessionId} {
+      // LECTURE des sessions utilisateur
+      allow read: if isAdmin();
+      
+      // CRÉATION de sessions utilisateur
+      allow create: if isAuthenticated();
+      
+      // MODIFICATION des sessions utilisateur (seuls les admins)
+      allow update: if isAdmin();
+      
+      // SUPPRESSION des sessions utilisateur (seuls les admins)
+      allow delete: if isAdmin();
+    }
+
+    // =============================================================================
     // COLLECTION PAYMENTS
     // Règles pour les paiements :
     // - Les utilisateurs peuvent lire leurs propres paiements

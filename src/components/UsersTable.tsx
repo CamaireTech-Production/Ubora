@@ -48,9 +48,9 @@ export const UsersTable: React.FC<UsersTableProps> = ({ users, onRefresh }) => {
   const filteredUsers = useMemo(() => {
     return users.filter(user => {
       const matchesSearch = 
-        user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        user.agencyId?.toLowerCase().includes(searchTerm.toLowerCase());
+        (user.name && user.name.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (user.email && user.email.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (user.agencyId && user.agencyId.toLowerCase().includes(searchTerm.toLowerCase()));
       
       const matchesRole = roleFilter === 'all' || user.role === roleFilter;
       const matchesStatus = statusFilter === 'all' || user.subscriptionStatus === statusFilter;
@@ -292,6 +292,9 @@ export const UsersTable: React.FC<UsersTableProps> = ({ users, onRefresh }) => {
                 </div>
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Statut
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Actions
               </th>
             </tr>
@@ -329,10 +332,10 @@ export const UsersTable: React.FC<UsersTableProps> = ({ users, onRefresh }) => {
                   <div className="flex items-center">
                     <Package className="h-4 w-4 text-gray-400 mr-2" />
                     <span className="text-sm text-gray-900">
-                      {user.subscriptionSessions && user.subscriptionSessions.length > 0 
-                        ? user.subscriptionSessions.find(s => s.isActive)?.packageType || 'N/A'
-                        : 'N/A'
-                      }
+                      {user.package || 
+                       (user.subscriptionSessions && user.subscriptionSessions.length > 0 
+                         ? user.subscriptionSessions.find(s => s.isActive)?.packageType || 'N/A'
+                         : 'N/A')}
                     </span>
                   </div>
                 </td>
@@ -382,6 +385,26 @@ export const UsersTable: React.FC<UsersTableProps> = ({ users, onRefresh }) => {
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                   {user.lastLogin ? formatDateTime(user.lastLogin) : 'Jamais'}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <div className="flex items-center space-x-2">
+                    {user.isActive ? (
+                      <span className="px-2 py-1 text-xs font-medium bg-green-100 text-green-800 rounded-full flex items-center space-x-1">
+                        <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                        <span>Actif</span>
+                      </span>
+                    ) : (
+                      <span className="px-2 py-1 text-xs font-medium bg-gray-100 text-gray-800 rounded-full flex items-center space-x-1">
+                        <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
+                        <span>Inactif</span>
+                      </span>
+                    )}
+                    {user.lastActivityDate && (
+                      <span className="text-xs text-gray-500">
+                        {Math.floor((Date.now() - new Date(user.lastActivityDate).getTime()) / (1000 * 60))}min
+                      </span>
+                    )}
+                  </div>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                   <div className="flex items-center space-x-2">
