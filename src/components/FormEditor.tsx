@@ -30,13 +30,15 @@ interface FormEditorProps {
   }) => void;
   onCancel: () => void;
   employees: Array<{ id: string; name: string; email: string }>;
+  currentUser?: { id: string; name: string; email: string; role: string };
 }
 
 export const FormEditor: React.FC<FormEditorProps> = ({
   form,
   onSave,
   onCancel,
-  employees
+  employees,
+  currentUser
 }) => {
   const [title, setTitle] = useState(form?.title || '');
   const [description, setDescription] = useState(form?.description || '');
@@ -501,28 +503,56 @@ export const FormEditor: React.FC<FormEditorProps> = ({
               {(() => {
                 const filteredEmployees = getFilteredEmployees();
                 
-                if (employees.length === 0) {
+                // Show director option first if current user is a director and matches search
+                const showDirectorOption = currentUser?.role === 'directeur' && 
+                  (!employeeSearchTerm || 
+                   currentUser.name.toLowerCase().includes(employeeSearchTerm.toLowerCase()) ||
+                   currentUser.email.toLowerCase().includes(employeeSearchTerm.toLowerCase()) ||
+                   'moi'.includes(employeeSearchTerm.toLowerCase()));
+                
+                if (employees.length === 0 && !showDirectorOption) {
                   return <p className="text-gray-500 text-sm">Aucun employé disponible</p>;
                 }
                 
-                if (filteredEmployees.length === 0) {
+                if (filteredEmployees.length === 0 && !showDirectorOption) {
                   return <p className="text-gray-500 text-sm">Aucun employé trouvé pour "{employeeSearchTerm}"</p>;
                 }
                 
-                return filteredEmployees.map(employee => (
-                  <label key={employee.id} className="flex items-center space-x-3 cursor-pointer hover:bg-gray-50 p-2 rounded">
-                    <input
-                      type="checkbox"
-                      checked={assignedTo.includes(employee.id)}
-                      onChange={() => toggleEmployeeAssignment(employee.id)}
-                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                    />
-                    <div className="flex-1">
-                      <span className="text-sm font-medium text-gray-900">{employee.name}</span>
-                      <span className="text-xs text-gray-500 ml-2">({employee.email})</span>
-                    </div>
-                  </label>
-                ));
+                return (
+                  <>
+                    {/* Show director option first */}
+                    {showDirectorOption && (
+                      <label className="flex items-center space-x-3 cursor-pointer hover:bg-gray-50 p-2 rounded bg-blue-50 border border-blue-200">
+                        <input
+                          type="checkbox"
+                          checked={assignedTo.includes(currentUser.id)}
+                          onChange={() => toggleEmployeeAssignment(currentUser.id)}
+                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                        />
+                        <div className="flex-1">
+                          <span className="text-sm font-medium text-blue-900">Moi ({currentUser.name})</span>
+                          <span className="text-xs text-blue-600 ml-2">({currentUser.email})</span>
+                        </div>
+                      </label>
+                    )}
+                    
+                    {/* Show employees */}
+                    {filteredEmployees.map(employee => (
+                      <label key={employee.id} className="flex items-center space-x-3 cursor-pointer hover:bg-gray-50 p-2 rounded">
+                        <input
+                          type="checkbox"
+                          checked={assignedTo.includes(employee.id)}
+                          onChange={() => toggleEmployeeAssignment(employee.id)}
+                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                        />
+                        <div className="flex-1">
+                          <span className="text-sm font-medium text-gray-900">{employee.name}</span>
+                          <span className="text-xs text-gray-500 ml-2">({employee.email})</span>
+                        </div>
+                      </label>
+                    ))}
+                  </>
+                );
               })()}
             </div>
             

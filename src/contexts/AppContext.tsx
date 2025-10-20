@@ -770,8 +770,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const submitMultipleFormEntries = async (entries: Omit<FormEntry, 'id' | 'submittedAt' | 'userId' | 'agencyId'>[]) => {
-    if (!user || user.role !== 'employe' || !user.agencyId) {
-      throw new Error('Seuls les employés peuvent soumettre des formulaires');
+    if (!user || (user.role !== 'employe' && user.role !== 'directeur') || !user.agencyId) {
+      throw new Error('Seuls les employés et directeurs peuvent soumettre des formulaires');
     }
 
     try {

@@ -308,6 +308,56 @@ export class UserSessionService {
   }
 
   /**
+   * Check if user has access to programmed instructions
+   * Note: Only directors can access programmed instructions
+   */
+  static hasProgrammedInstructionsAccess(user: User): boolean {
+    // Only directors can access programmed instructions
+    if (user.role !== 'directeur') {
+      return false;
+    }
+
+    const currentSession = SubscriptionSessionService.getCurrentSession(user);
+    
+    if (!currentSession) {
+      return false;
+    }
+
+    const packageLimits = PACKAGE_LIMITS[currentSession.packageType];
+    
+    if (!packageLimits) {
+      return false;
+    }
+
+    return packageLimits.programmedInstructions === true;
+  }
+
+  /**
+   * Check if user has access to automated push indicators
+   * Note: Directors and employees with director access can use push indicators
+   */
+  static hasPushIndicatorsAccess(user: User): boolean {
+    // Directors and employees with director access can use push indicators
+    if (user.role !== 'directeur' && !(user.role === 'employe' && user.hasDirectorDashboardAccess)) {
+      return false;
+    }
+
+    const currentSession = SubscriptionSessionService.getCurrentSession(user);
+    
+    if (!currentSession) {
+      return false;
+    }
+
+    const packageLimits = PACKAGE_LIMITS[currentSession.packageType];
+    
+    if (!packageLimits) {
+      return false;
+    }
+
+    return packageLimits.automatedPushIndicators === true;
+  }
+
+  /**
    * Check if user can perform an action based on limits
    * Note: Only directors and employees with director access have subscription sessions
    */

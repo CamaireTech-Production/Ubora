@@ -1,7 +1,7 @@
 // src/firebaseConfig.ts
 import { initializeApp, getApp, getApps } from "firebase/app";
 import { getAuth } from "firebase/auth";
-import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, Firestore } from "firebase/firestore";
+import { getFirestore, connectFirestoreEmulator, Firestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 import { getMessaging, isSupported } from "firebase/messaging";
 import { getAnalytics, isSupported as isAnalyticsSupported } from "firebase/analytics";
@@ -53,46 +53,22 @@ try {
 
 // Initialisation des services
 export const auth = getAuth(app);
-// Firestore singleton with development-safe configuration
+// Firestore singleton with stable configuration
 export const db = ((): Firestore => {
   if (globalForFirebase.__UBORA_FIRESTORE__) return globalForFirebase.__UBORA_FIRESTORE__ as Firestore;
   
-  const isDev = typeof import.meta !== 'undefined' && !!(import.meta as any).env && (import.meta as any).env.DEV;
-  
-  // In development, use minimal configuration to avoid assertion errors
-  const config = isDev ? {
-    // No local cache in dev to completely avoid IndexedDB issues
-    experimentalAutoDetectLongPolling: true,
-    // Disable offline persistence completely in dev
-    ignoreUndefinedProperties: true,
-    // Disable cache completely in dev to prevent assertion errors
-    cacheSizeBytes: 0
-  } : {
-    localCache: persistentLocalCache({
-      tabManager: persistentMultipleTabManager()
-    }),
-    experimentalAutoDetectLongPolling: true,
-    // Add stability settings for production
-    ignoreUndefinedProperties: true
-  };
-  
   try {
-    const instance = initializeFirestore(app, config);
+    const instance = getFirestore(app);
     globalForFirebase.__UBORA_FIRESTORE__ = instance;
+    
+    // Firebase v10.13.2 has offline persistence enabled by default
+    // No need to manually enable it
+    console.log('🔥 [Firebase] Firestore initialized successfully');
+    
     return instance;
   } catch (error) {
     console.error('🔥 [Firebase] Firestore initialization failed:', error);
-    // Final fallback - minimal config
-    try {
-      const fallbackInstance = initializeFirestore(app, {
-        experimentalAutoDetectLongPolling: true
-      });
-      globalForFirebase.__UBORA_FIRESTORE__ = fallbackInstance;
-      return fallbackInstance;
-    } catch (fallbackError) {
-      console.error('🔥 [Firebase] Firestore fallback initialization also failed:', fallbackError);
-      throw new Error('Firestore initialization failed completely');
-    }
+    throw new Error('Firestore initialization failed');
   }
 })();
 export const storage = getStorage(app);

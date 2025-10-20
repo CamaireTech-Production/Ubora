@@ -29,6 +29,7 @@ interface FormBuilderProps {
   }) => void;
   onCancel: () => void;
   employees: Array<{ id: string; name: string; email: string }>;
+  currentUser?: { id: string; name: string; email: string; role: string };
   initialForm?: Pick<Form, 'id' | 'title' | 'description' | 'fields' | 'assignedTo' | 'timeRestrictions'>;
   isLoading?: boolean;
 }
@@ -37,6 +38,7 @@ export const FormBuilder: React.FC<FormBuilderProps> = ({
   onSave,
   onCancel,
   employees,
+  currentUser,
   initialForm,
   isLoading = false
 }) => {
@@ -421,6 +423,23 @@ export const FormBuilder: React.FC<FormBuilderProps> = ({
               Assigner aux employés *
             </label>
             <div className="space-y-2 max-h-32 sm:max-h-40 overflow-y-auto border border-gray-200 rounded-lg p-3">
+              {/* Show director option first if current user is a director */}
+              {currentUser?.role === 'directeur' && (
+                <label className="flex items-start space-x-3 cursor-pointer hover:bg-gray-50 p-2 rounded bg-blue-50 border border-blue-200">
+                  <input
+                    type="checkbox"
+                    checked={assignedTo.includes(currentUser.id)}
+                    onChange={() => toggleEmployeeAssignment(currentUser.id)}
+                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 mt-0.5"
+                  />
+                  <div className="flex-1">
+                    <span className="text-sm font-medium text-blue-900 break-words">Moi ({currentUser.name})</span>
+                    <span className="text-xs text-blue-600 block sm:inline sm:ml-2 break-all">({currentUser.email})</span>
+                  </div>
+                </label>
+              )}
+              
+              {/* Show employees */}
               {employees.length === 0 ? (
                 <p className="text-gray-500 text-sm">Aucun employé disponible</p>
               ) : (

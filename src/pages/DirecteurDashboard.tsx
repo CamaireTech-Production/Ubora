@@ -9,8 +9,9 @@ import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { FormEditor } from '../components/FormEditor';
 import { FormBuilder } from '../components/FormBuilder';
+import { DynamicForm } from '../components/DynamicForm';
 import { WireframeLoader } from '../components/loading/WireframeLoader';
-import { Plus, FileText, Users, Eye, Trash2, Edit, UserCheck, BarChart3, Calendar, ChevronDown, Crown, User as UserIcon, ClipboardList, FileEdit, FileBarChart } from 'lucide-react';
+import { Plus, FileText, Users, Eye, Trash2, Edit, UserCheck, BarChart3, Calendar, ChevronDown, Crown, User as UserIcon, ClipboardList, FileEdit, FileBarChart, ArrowLeft, Send } from 'lucide-react';
 import { PendingApprovals } from '../components/PendingApprovals';
 import { VideoSection } from '../components/VideoSection';
 import { directorVideos } from '../data/videoData';
@@ -22,6 +23,8 @@ import { Toast } from '../components/Toast';
 import { usePackageAccess } from '../hooks/usePackageAccess';
 import { LimitReachedModal } from '../components/LimitReachedModal';
 import { ImpersonationHeader } from '../components/ImpersonationHeader';
+import { UserSessionService } from '../services/userSessionService';
+import { AccessDeniedModal } from '../components/AccessDeniedModal';
 
 export const DirecteurDashboard: React.FC = () => {
   const navigate = useNavigate();
@@ -36,6 +39,14 @@ export const DirecteurDashboard: React.FC = () => {
     createForm, 
     updateForm,
     deleteForm,
+    // Draft workflow and submissions
+    getDraftsForForm,
+    saveDraft,
+    deleteDraft,
+    deleteDraftsForForm,
+    createDraft,
+    submitMultipleFormEntries,
+    submitFormEntry,
     getEntriesForForm,
     getPendingEmployees,
     createDashboard,
@@ -63,6 +74,12 @@ export const DirecteurDashboard: React.FC = () => {
   const [limitModalType, setLimitModalType] = useState<'forms' | 'dashboards' | 'users'>('forms');
   const [isCreatingForm, setIsCreatingForm] = useState(false);
   const [isCreatingDashboard, setIsCreatingDashboard] = useState(false);
+  const [showAccessDeniedModal, setShowAccessDeniedModal] = useState(false);
+  const [accessDeniedFeature, setAccessDeniedFeature] = useState<'programmed-instructions' | 'push-indicators'>('programmed-instructions');
+  const [selectedFormForFilling, setSelectedFormForFilling] = useState<Form | null>(null);
+  const [editingDraftId, setEditingDraftId] = useState<string | null>(null);
+  const [isSavingDraft, setIsSavingDraft] = useState(false);
+  const [isSubmittingDrafts, setIsSubmittingDrafts] = useState(false);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   
   // États pour le filtrage temporel
@@ -180,6 +197,87 @@ export const DirecteurDashboard: React.FC = () => {
     setShowFormBuilder(false);
   };
 
+  const handleFillForm = (form: Form) => {
+    setSelectedFormForFilling(form);
+  };
+
+  const handleCancelFillForm = () => {
+    setSelectedFormForFilling(null);
+    setEditingDraftId(null);
+  };
+
+  // Draft helpers (mirror employee flow)
+  const handleAddResponse = async (formId: string, answers: Record<string, any>, fileAttachments: any[] = []) => {
+    if (!user?.id || !user?.agencyId) return;
+    setIsSavingDraft(true);
+    try {
+      const newDraft = createDraft(formId, user.id, user.agencyId, answers, fileAttachments);
+      saveDraft(newDraft);
+      showSuccess('Réponse ajoutée aux brouillons');
+      setEditingDraftId(null);
+    } catch (error) {
+      console.error('Error adding response:', error);
+      showError('Erreur lors de l\'ajout de la réponse');
+    } finally {
+      setIsSavingDraft(false);
+    }
+  };
+
+  const handleSaveDraft = async (draftId: string, answers: Record<string, any>, fileAttachments: any[] = []) => {
+    if (!user?.id || !user?.agencyId || !selectedFormForFilling) return;
+    setIsSavingDraft(true);
+    try {
+      const drafts = getDraftsForForm(user.id, selectedFormForFilling.id);
+      const draft = drafts.find(d => d.id === draftId);
+      if (draft) {
+        const updatedDraft = { ...draft, answers, fileAttachments, updatedAt: new Date() };
+        saveDraft(updatedDraft);
+        showSuccess('Brouillon sauvegardé');
+        setEditingDraftId(null);
+      }
+    } catch (error) {
+      console.error('Error saving draft:', error);
+      showError('Erreur lors de la sauvegarde du brouillon');
+    } finally {
+      setIsSavingDraft(false);
+    }
+  };
+
+  const handleSubmitAllDrafts = async (formId: string) => {
+    if (!user?.id || !user?.agencyId) return;
+    const drafts = getDraftsForForm(user.id, formId);
+    if (drafts.length === 0) {
+      showError('Aucun brouillon à soumettre');
+      return;
+    }
+    setIsSubmittingDrafts(true);
+    try {
+      const entries = drafts.map(draft => ({
+        formId: draft.formId,
+        answers: draft.answers,
+        fileAttachments: draft.fileAttachments || []
+      }));
+      await submitMultipleFormEntries(entries);
+      deleteDraftsForForm(user.id, formId);
+      showSuccess(`${drafts.length} réponse(s) soumise(s) avec succès`);
+      setSelectedFormForFilling(null);
+    } catch (error) {
+      console.error('Error submitting drafts:', error);
+      showError('Erreur lors de la soumission des brouillons');
+    } finally {
+      setIsSubmittingDrafts(false);
+    }
+  };
+
+  const handleDeleteDraft = (draftId: string) => {
+    try {
+      deleteDraft(draftId);
+      showSuccess('Brouillon supprimé');
+    } catch (e) {
+      showError('Erreur lors de la suppression du brouillon');
+    }
+  };
+
   const handleCancelDashboard = () => {
     setShowDashboardBuilder(false);
   };
@@ -243,6 +341,17 @@ export const DirecteurDashboard: React.FC = () => {
     if (dashboard) {
       setDashboardToDelete({ id: dashboardId, name: dashboard.name });
       setShowDeleteDashboardModal(true);
+    }
+  };
+
+  const handleProgrammedInstructionsClick = () => {
+    if (!user) return;
+    
+    if (UserSessionService.hasProgrammedInstructionsAccess(user)) {
+      navigate('/directeur/scheduled-questions');
+    } else {
+      setAccessDeniedFeature('programmed-instructions');
+      setShowAccessDeniedModal(true);
     }
   };
 
@@ -443,15 +552,137 @@ export const DirecteurDashboard: React.FC = () => {
               onSave={handleUpdateForm}
               onCancel={handleCancelEdit}
               employees={employees}
+              currentUser={user}
             />
           ) : (
             <FormBuilder
               onSave={handleCreateForm}
               onCancel={handleCancelEdit}
               employees={employees}
+              currentUser={user}
               isLoading={isCreatingForm}
             />
           )}
+        </Layout>
+      ) : selectedFormForFilling ? (
+        <Layout title="Remplir le formulaire">
+          <div className="mb-6">
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={handleCancelFillForm}
+              className="flex items-center space-x-2"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              <span>Retour au dashboard</span>
+            </Button>
+          </div>
+
+          {/* Form Display */}
+          <div className="mb-6">
+            <Card>
+              <div className="p-6">
+                <div className="mb-4">
+                  <h2 className="text-xl font-semibold text-gray-900 mb-2">
+                    {selectedFormForFilling.title}
+                  </h2>
+                  <p className="text-sm text-gray-600 mb-4">
+                    {selectedFormForFilling.description}
+                  </p>
+                  
+                  {/* Simple explanation for directors */}
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                    <div className="flex items-start space-x-3">
+                      <div className="flex-shrink-0">
+                        <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                          <span className="text-blue-600 text-sm font-semibold">💡</span>
+                        </div>
+                      </div>
+                      <div className="flex-1">
+                        <h3 className="text-sm font-medium text-blue-900 mb-1">
+                          Instructions pour remplir ce formulaire
+                        </h3>
+                        <p className="text-sm text-blue-700">
+                          Remplissez tous les champs requis et soumettez votre réponse. 
+                          Vous pouvez sauvegarder un brouillon à tout moment.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {(() => {
+                  const drafts = getDraftsForForm(user?.id || '', selectedFormForFilling.id);
+                  const currentDraft = editingDraftId ? drafts.find(d => d.id === editingDraftId) : null;
+                  return (
+                    <>
+                      {currentDraft ? (
+                        <DynamicForm
+                          key={`edit-${currentDraft.id}`}
+                          form={selectedFormForFilling}
+                          onSubmit={(answers, fileAttachments) => handleSaveDraft(currentDraft.id, answers, fileAttachments)}
+                          onCancel={() => setEditingDraftId(null)}
+                          initialAnswers={currentDraft.answers}
+                          initialFileAttachments={currentDraft.fileAttachments}
+                          isDraft={true}
+                          isLoading={isSavingDraft}
+                        />
+                      ) : (
+                        <DynamicForm
+                          key={`new-${selectedFormForFilling.id}-${drafts.length}`}
+                          form={selectedFormForFilling}
+                          onSubmit={(answers, fileAttachments) => handleAddResponse(selectedFormForFilling.id, answers, fileAttachments)}
+                          onCancel={handleCancelFillForm}
+                          initialAnswers={{}}
+                          initialFileAttachments={[]}
+                          isDraft={true}
+                          isLoading={isSavingDraft}
+                        />
+                      )}
+
+                      {/* Draft Responses Section */}
+                      {drafts.length > 0 && (
+                        <div className="mt-6">
+                          <Card>
+                            <div className="p-4">
+                              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
+                                <div>
+                                  <h3 className="text-lg font-semibold text-gray-900 mb-2">Mes réponses en brouillon</h3>
+                                  <p className="text-sm text-gray-600">{drafts.length} réponse(s) sauvegardée(s)</p>
+                                </div>
+                                <Button onClick={() => handleSubmitAllDrafts(selectedFormForFilling.id)} disabled={isSubmittingDrafts} className="flex items-center space-x-2">
+                                  <Send className="h-4 w-4" />
+                                  <span>{isSubmittingDrafts ? 'Soumission en cours...' : `Soumettre mes réponses (${drafts.length})`}</span>
+                                </Button>
+                              </div>
+                              <div className="space-y-3">
+                                {drafts.map((draft: any, index: number) => (
+                                  <div key={draft.id} className={`p-4 rounded-lg border ${editingDraftId === draft.id ? 'border-blue-500 bg-blue-50' : 'border-gray-200 bg-gray-50'}`}>
+                                    <div className="flex items-center justify-between mb-3">
+                                      <div className="flex items-center space-x-3">
+                                        <FileEdit className="h-4 w-4 text-gray-500" />
+                                        <div>
+                                          <p className="text-sm font-medium text-gray-900">Réponse #{index + 1}</p>
+                                        </div>
+                                      </div>
+                                      <div className="flex items-center space-x-2">
+                                        <Button variant="secondary" size="sm" onClick={() => setEditingDraftId(draft.id)}>Modifier</Button>
+                                        <Button variant="danger" size="sm" onClick={() => handleDeleteDraft(draft.id)}>Supprimer</Button>
+                                      </div>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          </Card>
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
+              </div>
+            </Card>
+          </div>
         </Layout>
       ) : showDashboardBuilder ? (
         <Layout title="Créer un tableau de bord">
@@ -677,14 +908,16 @@ export const DirecteurDashboard: React.FC = () => {
                 <span className="truncate">Créer un nouveau tableau de bord</span>
               </Button>
               
-              <Button
-                onClick={() => navigate('/directeur/scheduled-questions')}
-                variant="secondary"
-                className="flex items-center justify-center space-x-2 w-full text-sm sm:text-base"
-              >
-                <Calendar className="h-4 w-4 sm:h-5 sm:w-5" />
-                <span className="truncate">Instructions Programmées</span>
-              </Button>
+              {user && UserSessionService.hasProgrammedInstructionsAccess(user) && (
+                <Button
+                  onClick={handleProgrammedInstructionsClick}
+                  variant="secondary"
+                  className="flex items-center justify-center space-x-2 w-full text-sm sm:text-base"
+                >
+                  <Calendar className="h-4 w-4 sm:h-5 sm:w-5" />
+                  <span className="truncate">Instructions Programmées</span>
+                </Button>
+              )}
             </div>
 
             {/* Liste des formulaires */}
@@ -812,6 +1045,19 @@ export const DirecteurDashboard: React.FC = () => {
                             <Edit className="h-3 w-3" />
                             <span>Modifier</span>
                           </Button>
+                          
+                          {/* Show "Remplir" button if form is assigned to the director */}
+                          {form.assignedTo.includes(user?.id || '') && (
+                            <Button
+                              variant="primary"
+                              size="sm"
+                              onClick={() => handleFillForm(form)}
+                              className="flex-1 flex items-center justify-center space-x-1 text-xs bg-green-500 hover:bg-green-600 text-white border-0 rounded-lg font-medium"
+                            >
+                              <FileEdit className="h-3 w-3" />
+                              <span>Remplir</span>
+                            </Button>
+                          )}
                           
                           <Button
                             variant="secondary"
@@ -1044,6 +1290,13 @@ export const DirecteurDashboard: React.FC = () => {
         show={toast.show}
         message={toast.message}
         type={toast.type}
+      />
+
+      {/* Access Denied Modal */}
+      <AccessDeniedModal
+        isOpen={showAccessDeniedModal}
+        onClose={() => setShowAccessDeniedModal(false)}
+        feature={accessDeniedFeature}
       />
     </>
   );

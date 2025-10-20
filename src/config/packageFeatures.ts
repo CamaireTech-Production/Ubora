@@ -9,8 +9,8 @@ export interface PackageLimits {
   maxUsers: number;
   monthlyTokens: number;
   additionalUserCost: number; // en FCFA
-  programmedInstructions: number; // Number of programmed instructions
-  automatedPushIndicators: number; // Number of automated push indicators (-1 for unlimited)
+  programmedInstructions: boolean; // Access to programmed instructions (true/false)
+  automatedPushIndicators: boolean; // Access to automated push indicators (true/false)
 }
 
 export interface PackageFeatures {
@@ -64,8 +64,8 @@ export const PACKAGE_LIMITS: Record<PackageType, PackageLimits> = {
     maxUsers: -1, // Unlimited users
     monthlyTokens: 25000, // 25k tokens
     additionalUserCost: 0,
-    programmedInstructions: 0, // No programmed instructions
-    automatedPushIndicators: 0 // No automated push indicators
+    programmedInstructions: false, // No access to programmed instructions
+    automatedPushIndicators: false // No access to automated push indicators
   },
   starter: {
     maxForms: 4, // 4 forms
@@ -73,8 +73,8 @@ export const PACKAGE_LIMITS: Record<PackageType, PackageLimits> = {
     maxUsers: -1, // Unlimited users
     monthlyTokens: 100000, // 100k tokens
     additionalUserCost: 0, // No additional user cost mentioned
-    programmedInstructions: 1, // 1 programmed instruction
-    automatedPushIndicators: 1 // 1 automated push indicator
+    programmedInstructions: true, // Access to programmed instructions (unlimited)
+    automatedPushIndicators: true // Access to automated push indicators (unlimited)
   },
   standard: {
     maxForms: -1, // Unlimited forms
@@ -82,8 +82,8 @@ export const PACKAGE_LIMITS: Record<PackageType, PackageLimits> = {
     maxUsers: -1, // Unlimited users
     monthlyTokens: 300000, // 300k tokens
     additionalUserCost: 0, // No additional user cost mentioned
-    programmedInstructions: 4, // 4 programmed instructions
-    automatedPushIndicators: -1 // Unlimited automated push indicators
+    programmedInstructions: true, // Access to programmed instructions (unlimited)
+    automatedPushIndicators: true // Access to automated push indicators (unlimited)
   }
 };
 
