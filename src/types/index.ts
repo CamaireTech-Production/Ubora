@@ -538,6 +538,8 @@ export interface AdminUser {
   // Push notifications
   pushNotificationsSent?: number;
   pushNotificationsClicked?: number;
+  // Subscription sessions for package determination
+  subscriptionSessions?: SubscriptionSession[];
 }
 
 export interface UserDetail {
@@ -564,6 +566,8 @@ export interface UserDetail {
   lastActivityDate?: Date;
   totalFormSubmissions: number;
   totalChatInteractions: number;
+  totalFormCount: number;
+  totalTokenUsage: number;
   // App usage
   totalAppUsageTime: number; // in minutes
   averageSessionDuration: number; // in minutes
@@ -602,6 +606,20 @@ export interface PushNotificationLog {
     agencyId?: string;
     [key: string]: any;
   };
+}
+
+export interface FormSubmissionRecord {
+  id: string;
+  userId: string;
+  formId: string;
+  formName: string;
+  submittedAt: Date;
+  status: 'completed' | 'pending' | 'rejected';
+  data: Record<string, any>;
+  isActive: boolean;
+  duration: number; // in seconds
+  pagesVisited: number;
+  actionsPerformed: number;
 }
 
 export interface AppUsageSession {

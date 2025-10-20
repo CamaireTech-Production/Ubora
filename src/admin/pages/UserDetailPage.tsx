@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { EnhancedAdminService } from '../services/enhancedAdminService';
 import { UserDetail } from '../../types';
+import { PageViewRecord, SessionRecord } from '../../services/pageTrackingService';
+import { FormSubmissionRecord } from '../../types';
 import { Card } from '../../components/Card';
 import { Button } from '../../components/Button';
 import { 
@@ -25,7 +27,10 @@ export const UserDetailPage: React.FC = () => {
   const navigate = useNavigate();
   const [userDetail, setUserDetail] = useState<UserDetail | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'overview' | 'activity' | 'subscription' | 'notifications' | 'usage' | 'purchases' | 'sessions'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'activity' | 'subscription' | 'notifications' | 'usage' | 'purchases' | 'sessions' | 'pageviews'>('overview');
+  const [pageViews, setPageViews] = useState<PageViewRecord[]>([]);
+  const [userSessions, setUserSessions] = useState<SessionRecord[]>([]);
+  const [formSubmissions, setFormSubmissions] = useState<FormSubmissionRecord[]>([]);
 
   useEffect(() => {
     if (userId) {
@@ -38,8 +43,17 @@ export const UserDetailPage: React.FC = () => {
     
     setIsLoading(true);
     try {
-      const detail = await EnhancedAdminService.getUserDetail(userId);
+      const [detail, pageViewsData, sessionsData, formSubmissionsData] = await Promise.all([
+        EnhancedAdminService.getUserDetail(userId),
+        EnhancedAdminService.getUserPageViews(userId, 50),
+        EnhancedAdminService.getUserSessions(userId, 20),
+        EnhancedAdminService.getUserFormSubmissionHistory(userId, 50)
+      ]);
+      
       setUserDetail(detail);
+      setPageViews(pageViewsData);
+      setUserSessions(sessionsData);
+      setFormSubmissions(formSubmissionsData);
     } catch (error) {
       console.error('Error loading user detail:', error);
     } finally {
@@ -158,7 +172,8 @@ export const UserDetailPage: React.FC = () => {
               { id: 'notifications', label: 'Notifications', icon: Bell },
               { id: 'usage', label: 'Utilisation', icon: Clock },
               { id: 'purchases', label: 'Achats', icon: CreditCard },
-              { id: 'sessions', label: 'Sessions', icon: Calendar }
+              { id: 'sessions', label: 'Sessions', icon: Calendar },
+              { id: 'pageviews', label: 'Pages visitées', icon: FileText }
             ].map((tab) => {
               const Icon = tab.icon;
               return (
@@ -209,7 +224,7 @@ export const UserDetailPage: React.FC = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                 <div className="text-center">
                   <p className="text-2xl font-bold text-blue-600">{userDetail.totalLoginCount}</p>
                   <p className="text-sm text-gray-600">Connexions</p>
@@ -219,8 +234,12 @@ export const UserDetailPage: React.FC = () => {
                   <p className="text-sm text-gray-600">Soumissions</p>
                 </div>
                 <div className="text-center">
-                  <p className="text-2xl font-bold text-purple-600">{userDetail.totalChatInteractions}</p>
-                  <p className="text-sm text-gray-600">Interactions IA</p>
+                  <p className="text-2xl font-bold text-purple-600">{userDetail.totalTokenUsage}</p>
+                  <p className="text-sm text-gray-600">Tokens Utilisés</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-2xl font-bold text-orange-600">{userDetail.totalFormCount}</p>
+                  <p className="text-sm text-gray-600">Formulaires</p>
                 </div>
               </div>
             </Card>
@@ -528,49 +547,185 @@ export const UserDetailPage: React.FC = () => {
         {activeTab === 'sessions' && (
           <div className="space-y-6">
             <Card className="p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-6">Sessions d'utilisation</h2>
+              <h2 className="text-lg font-semibold text-gray-900 mb-6">Historique des soumissions</h2>
               
               <div className="space-y-4">
-                {userDetail.appUsageSessions.map((session) => (
+                {formSubmissions.map((submission) => (
+                  <div key={submission.id} className={`p-4 rounded-lg ${
+                    submission.isActive ? 'bg-green-50 border-l-4 border-green-500' : 'bg-gray-50'
+                  }`}>
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center space-x-2 mb-2">
+                          <FileText className="h-4 w-4 text-gray-400" />
+                          <span className="text-sm font-medium text-gray-900">
+                            {submission.formName}
+                          </span>
+                          <span className="text-gray-400">•</span>
+                          <span className="text-sm text-gray-600">
+                            {formatDateTime(submission.submittedAt)}
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-sm">
+                          <div>
+                            <span className="text-gray-600">Statut:</span>
+                            <span className={`ml-2 px-2 py-1 text-xs font-medium rounded-full ${
+                              submission.status === 'completed' ? 'bg-green-100 text-green-800' :
+                              submission.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                              'bg-red-100 text-red-800'
+                            }`}>
+                              {submission.status === 'completed' ? 'Terminé' :
+                               submission.status === 'pending' ? 'En attente' : 'Rejeté'}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-gray-600">Durée:</span>
+                            <span className="ml-2 font-medium">
+                              {Math.floor(submission.duration / 60)}min {submission.duration % 60}s
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-gray-600">Pages visitées:</span>
+                            <span className="ml-2 font-medium">{submission.pagesVisited}</span>
+                          </div>
+                          <div>
+                            <span className="text-gray-600">Actions:</span>
+                            <span className="ml-2 font-medium">{submission.actionsPerformed}</span>
+                          </div>
+                        </div>
+                        <div className="mt-2">
+                          <span className="text-xs text-gray-500">Formulaire ID:</span>
+                          <span className="ml-2 text-xs text-gray-600 font-mono">{submission.formId}</span>
+                        </div>
+                      </div>
+                      <div className="ml-4">
+                        <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                          submission.isActive ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                        }`}>
+                          {submission.isActive ? 'Actif' : 'Inactif'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {formSubmissions.length === 0 && (
+                <div className="text-center py-12">
+                  <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">Aucune soumission</h3>
+                  <p className="text-gray-600">Aucune soumission de formulaire enregistrée.</p>
+                </div>
+              )}
+            </Card>
+          </div>
+        )}
+
+        {/* Page Views Tab */}
+        {activeTab === 'pageviews' && (
+          <div className="space-y-6">
+            <Card className="p-6">
+              <h2 className="text-lg font-semibold text-gray-900 mb-6">Pages visitées</h2>
+              
+              <div className="space-y-4">
+                {pageViews.map((pageView) => (
+                  <div key={pageView.id} className="p-4 bg-gray-50 rounded-lg">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center space-x-2 mb-2">
+                          <FileText className="h-4 w-4 text-gray-400" />
+                          <span className="text-sm font-medium text-gray-900">
+                            {pageView.page}
+                          </span>
+                          <span className="text-gray-400">•</span>
+                          <span className="text-sm text-gray-600">
+                            {formatDateTime(pageView.timestamp)}
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                          <div>
+                            <span className="text-gray-600">Chemin:</span>
+                            <span className="ml-2 font-medium text-blue-600">
+                              {pageView.path}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-gray-600">Durée:</span>
+                            <span className="ml-2 font-medium">
+                              {pageView.duration ? `${pageView.duration}s` : 'N/A'}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-gray-600">Session:</span>
+                            <span className="ml-2 font-medium text-xs">
+                              {pageView.sessionId.substring(0, 8)}...
+                            </span>
+                          </div>
+                        </div>
+                        {pageView.referrer && (
+                          <div className="mt-2">
+                            <span className="text-xs text-gray-500">Référent:</span>
+                            <span className="ml-2 text-xs text-gray-600">{pageView.referrer}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {pageViews.length === 0 && (
+                <div className="text-center py-12">
+                  <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">Aucune page visitée</h3>
+                  <p className="text-gray-600">Aucune page visitée enregistrée. Le suivi des pages sera activé automatiquement.</p>
+                </div>
+              )}
+            </Card>
+
+            {/* Session Summary */}
+            <Card className="p-6">
+              <h2 className="text-lg font-semibold text-gray-900 mb-6">Résumé des sessions</h2>
+              
+              <div className="space-y-4">
+                {userSessions.map((session) => (
                   <div key={session.id} className="p-4 bg-gray-50 rounded-lg">
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
                         <div className="flex items-center space-x-2 mb-2">
                           <Calendar className="h-4 w-4 text-gray-400" />
                           <span className="text-sm font-medium text-gray-900">
-                            {formatDateTime(session.sessionStart)}
+                            Session {session.sessionId.substring(0, 8)}...
                           </span>
-                          {session.sessionEnd && (
-                            <>
-                              <span className="text-gray-400">-</span>
-                              <span className="text-sm text-gray-600">
-                                {formatDateTime(session.sessionEnd)}
-                              </span>
-                            </>
-                          )}
+                          <span className="text-gray-400">•</span>
+                          <span className="text-sm text-gray-600">
+                            {formatDateTime(session.startTime)}
+                          </span>
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
                           <div>
-                            <span className="text-gray-600">Durée:</span>
+                            <span className="text-gray-600">Durée totale:</span>
                             <span className="ml-2 font-medium">
-                              {EnhancedAdminService.formatDuration(session.duration || 0)}
+                              {session.totalDuration ? `${Math.floor(session.totalDuration / 60)}min` : 'N/A'}
                             </span>
                           </div>
                           <div>
                             <span className="text-gray-600">Pages visitées:</span>
-                            <span className="ml-2 font-medium">{session.pagesVisited.length}</span>
+                            <span className="ml-2 font-medium">{session.pages.length}</span>
                           </div>
                           <div>
-                            <span className="text-gray-600">Actions:</span>
-                            <span className="ml-2 font-medium">{session.actionsPerformed}</span>
+                            <span className="text-gray-600">Appareil:</span>
+                            <span className="ml-2 font-medium text-xs">
+                              {session.deviceInfo.platform}
+                            </span>
                           </div>
                         </div>
-                        {session.pagesVisited.length > 0 && (
+                        {session.pages.length > 0 && (
                           <div className="mt-2">
                             <span className="text-xs text-gray-500">Pages:</span>
                             <div className="flex flex-wrap gap-1 mt-1">
-                              {session.pagesVisited.map((page, index) => (
-                                <span key={index} className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded">
+                              {session.pages.map((page, index) => (
+                                <span key={index} className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded">
                                   {page}
                                 </span>
                               ))}
@@ -594,11 +749,11 @@ export const UserDetailPage: React.FC = () => {
                 ))}
               </div>
 
-              {userDetail.appUsageSessions.length === 0 && (
+              {userSessions.length === 0 && (
                 <div className="text-center py-12">
                   <Calendar className="h-12 w-12 text-gray-400 mx-auto mb-4" />
                   <h3 className="text-lg font-medium text-gray-900 mb-2">Aucune session</h3>
-                  <p className="text-gray-600">Aucune session d'utilisation enregistrée.</p>
+                  <p className="text-gray-600">Aucune session enregistrée.</p>
                 </div>
               )}
             </Card>

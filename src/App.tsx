@@ -35,6 +35,7 @@ import { ReminderServiceInitializer } from './components/ReminderServiceInitiali
 import { NotificationCronInitializer } from './components/NotificationCronInitializer';
 import { initializePWAConfig } from './utils/pwaConfig';
 import { PWAUpdateNotification } from './components/PWAUpdateNotification';
+import { usePageTracking } from './hooks/usePageTracking';
 
 // Component to handle service worker messages
 const ServiceWorkerMessageHandler: React.FC = () => {
@@ -65,6 +66,9 @@ const ServiceWorkerMessageHandler: React.FC = () => {
 // Component that only renders notification services for authenticated users
 const AuthenticatedServices: React.FC = () => {
   const { user } = useAuth();
+
+  // Initialize page tracking for authenticated users
+  usePageTracking();
 
   // Only render these services if user is authenticated
   if (!user) {
