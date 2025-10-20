@@ -43,6 +43,8 @@ export interface PackageFeatures {
   
   // Fonctionnalités d'import
   fileImport: boolean;
+  // Téléversement de fichiers dans les formulaires (images/pdf)
+  allowFileUploads: boolean;
   
   // Fonctionnalités de branding
   customBranding: boolean;
@@ -118,6 +120,7 @@ export const PACKAGE_FEATURES: Record<PackageType, PackageFeatures> = {
     
     // Fonctionnalités d'import
     fileImport: false,
+    allowFileUploads: false,
     
     // Fonctionnalités de branding
     customBranding: false,
@@ -161,6 +164,7 @@ export const PACKAGE_FEATURES: Record<PackageType, PackageFeatures> = {
     
     // Fonctionnalités d'import
     fileImport: true, // Available to Starter and Standard
+    allowFileUploads: true,
     
     // Fonctionnalités de branding
     customBranding: false,
@@ -204,6 +208,7 @@ export const PACKAGE_FEATURES: Record<PackageType, PackageFeatures> = {
     
     // Fonctionnalités d'import
     fileImport: true, // Available to Starter and Standard
+    allowFileUploads: true,
     
     // Fonctionnalités de branding
     customBranding: false,

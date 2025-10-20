@@ -358,6 +358,24 @@ export class UserSessionService {
   }
 
   /**
+   * Check if user/package can use file uploads in forms (images/PDF)
+   * Directors and employees with director access inherit director's package
+   */
+  static canUseFileUploads(user: User): boolean {
+    if (user.role !== 'directeur' && !(user.role === 'employe' && user.hasDirectorDashboardAccess)) {
+      return false;
+    }
+
+    const currentSession = SubscriptionSessionService.getCurrentSession(user);
+    if (!currentSession) {
+      return false;
+    }
+
+    const features = PACKAGE_FEATURES[currentSession.packageType];
+    return !!features && (features as any).allowFileUploads === true;
+  }
+
+  /**
    * Check if user can perform an action based on limits
    * Note: Only directors and employees with director access have subscription sessions
    */

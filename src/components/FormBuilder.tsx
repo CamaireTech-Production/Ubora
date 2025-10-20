@@ -13,6 +13,8 @@ import { FormulaParser } from '../utils/FormulaParser';
 import { ConditionalLogicBuilder } from './ConditionalLogicBuilder';
 import { DesktopRecommendationInfo } from './DesktopRecommendationInfo';
 import { ConfirmationModal } from './ConfirmationModal';
+import { useAuth } from '../contexts/AuthContext';
+import { UserSessionService } from '../services/userSessionService';
 
 interface FormBuilderProps {
   onSave: (form: {
@@ -42,6 +44,8 @@ export const FormBuilder: React.FC<FormBuilderProps> = ({
   initialForm,
   isLoading = false
 }) => {
+  const { user } = useAuth();
+  const canUseFileUploads = user ? UserSessionService.canUseFileUploads(user) : false;
   // Initialiser les états avec les valeurs du formulaire existant ou vides
   const [title, setTitle] = useState(initialForm?.title || '');
   const [description, setDescription] = useState(initialForm?.description || '');
@@ -279,6 +283,14 @@ export const FormBuilder: React.FC<FormBuilderProps> = ({
     // Validation avec messages d'erreur détaillés
     const validationErrors: string[] = [];
     
+    // Package-based restriction: block file fields for packages without uploads
+    if (!canUseFileUploads) {
+      const hasFileFields = fields.some(f => f.type === 'file');
+      if (hasFileFields) {
+        validationErrors.push('Votre package actuel ne permet pas les champs de type Fichier. Supprimez-les ou mettez à niveau votre package.');
+      }
+    }
+
     if (!title.trim()) {
       validationErrors.push('Le titre du formulaire est obligatoire');
     }
@@ -585,6 +597,11 @@ export const FormBuilder: React.FC<FormBuilderProps> = ({
               <DesktopRecommendationInfo className="mb-4" />
             )}
 
+            {!canUseFileUploads && (
+              <div className="mb-3 p-3 rounded-lg bg-yellow-50 border border-yellow-200 text-yellow-800 text-sm">
+                Les téléchargements de fichiers (images/PDF) sont disponibles à partir du package Starter. Mettez à niveau pour activer ce type de champ.
+              </div>
+            )}
             {fields.length === 0 ? (
               <p className="text-gray-500 text-center py-6 sm:py-8 bg-gray-50 rounded-lg text-sm sm:text-base">
                 Aucun champ ajouté. Cliquez sur "Ajouter un champ" pour commencer.
@@ -633,7 +650,7 @@ export const FormBuilder: React.FC<FormBuilderProps> = ({
                             { value: 'textarea', label: 'Texte long' },
                             { value: 'select', label: 'Liste déroulante' },
                             { value: 'checkbox', label: 'Case à cocher' },
-                            { value: 'file', label: 'Fichier' },
+                            ...(canUseFileUploads ? [{ value: 'file', label: 'Fichier' }] : []),
                             { value: 'calculated', label: 'Champ calculé' },
                           ]}
                         />
@@ -697,7 +714,7 @@ export const FormBuilder: React.FC<FormBuilderProps> = ({
                         </div>
                       )}
 
-                      {field.type === 'file' && (
+                      {field.type === 'file' && canUseFileUploads && (
                         <FileTypeSelector
                           label="Types de fichiers acceptés"
                           selectedTypes={field.acceptedTypes || []}
