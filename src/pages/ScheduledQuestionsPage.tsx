@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Search, Calendar, Clock, MessageSquare, ArrowLeft } from 'lucide-react';
+import { Plus, Search, Calendar, Clock, MessageSquare, ArrowLeft, Wrench } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from '../components/Button';
 import { ScheduledQuestionCard } from '../components/scheduled/ScheduledQuestionCard';
@@ -20,6 +20,7 @@ export const ScheduledQuestionsPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [frequencyFilter, setFrequencyFilter] = useState<string>('all');
+  const [executingQuestions, setExecutingQuestions] = useState<Set<string>>(new Set());
 
   // Charger les questions programmées
   useEffect(() => {
@@ -81,12 +82,51 @@ export const ScheduledQuestionsPage: React.FC = () => {
 
   const handleExecuteNow = async (questionId: string) => {
     try {
-      // Pour l'instant, rediriger vers le chat pour exécution manuelle
-      navigate(`/directeur/scheduled-questions/${questionId}/chat`);
-      showSuccess('Redirection vers le chat pour exécution manuelle');
+      // Marquer comme en cours d'exécution
+      setExecutingQuestions(prev => new Set(prev).add(questionId));
+      showSuccess('Exécution de l\'instruction en cours...');
+      
+      // Importer le service d'exécution
+      const { scheduledQuestionExecutor } = await import('../services/scheduledQuestionExecutor');
+      
+      // Exécuter l'instruction manuellement
+      await scheduledQuestionExecutor.executeQuestionManually(questionId);
+      
+      showSuccess('Instruction exécutée avec succès ! Vous recevrez une notification avec la réponse.');
+      
+      // Rediriger vers la page de chat pour voir la réponse
+      setTimeout(() => {
+        navigate(`/directeur/scheduled-questions/${questionId}/chat`);
+      }, 1500);
+      
     } catch (error) {
       console.error('Erreur lors de l\'exécution:', error);
-      showError('Erreur lors de l\'exécution de l\'instruction');
+      showError('Erreur lors de l\'exécution de l\'instruction. Veuillez réessayer.');
+    } finally {
+      // Retirer de la liste des exécutions en cours
+      setExecutingQuestions(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(questionId);
+        return newSet;
+      });
+    }
+  };
+
+  const handleFixStuckQuestions = async () => {
+    try {
+      showSuccess('Réparation des questions bloquées en cours...');
+      
+      // Importer le service d'exécution
+      const { scheduledQuestionExecutor } = await import('../services/scheduledQuestionExecutor');
+      
+      // Réparer les questions bloquées
+      await scheduledQuestionExecutor.fixStuckQuestions();
+      
+      showSuccess('Questions bloquées réparées avec succès !');
+      
+    } catch (error) {
+      console.error('Erreur lors de la réparation:', error);
+      showError('Erreur lors de la réparation des questions bloquées. Veuillez réessayer.');
     }
   };
 
@@ -146,16 +186,6 @@ export const ScheduledQuestionsPage: React.FC = () => {
         </div>
 
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        {/* Note sur l'exécution automatique */}
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
-          <div className="flex items-center space-x-2">
-            <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
-            <p className="text-sm text-yellow-800">
-              <strong>Note :</strong> L'exécution automatique des instructions programmées nécessite un service backend dédié. 
-              Pour l'instant, vous pouvez créer et gérer vos instructions programmées, mais l'exécution automatique sera disponible dans une version future.
-            </p>
-          </div>
-        </div>
 
         {/* Statistiques */}
         <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 mb-6">
@@ -257,6 +287,21 @@ export const ScheduledQuestionsPage: React.FC = () => {
                 <option value="monthly">Mensuel</option>
               </select>
             </div>
+            
+            {/* Bouton de réparation pour les questions bloquées */}
+            {statusCounts.running > 0 && (
+              <div className="flex items-center">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleFixStuckQuestions}
+                  className="flex items-center space-x-2 text-orange-600 border-orange-300 hover:bg-orange-50"
+                >
+                  <Wrench className="h-4 w-4" />
+                  <span>Réparer les questions bloquées ({statusCounts.running})</span>
+                </Button>
+              </div>
+            )}
           </div>
         </div>
 
@@ -272,8 +317,8 @@ export const ScheduledQuestionsPage: React.FC = () => {
               }
             </p>
             {questions.length === 0 && (
-              <div className="mt-6">
-                <Button onClick={handleCreateNew}>
+              <div className="mt-6 flex justify-center">
+                <Button onClick={handleCreateNew} className="flex items-center">
                   <Plus className="h-4 w-4 mr-2" />
                   Créer une instruction programmée
                 </Button>
@@ -290,6 +335,7 @@ export const ScheduledQuestionsPage: React.FC = () => {
                 onDelete={handleDelete}
                 onViewResponses={handleViewResponses}
                 onExecuteNow={handleExecuteNow}
+                isExecuting={executingQuestions.has(question.id)}
               />
             ))}
           </div>

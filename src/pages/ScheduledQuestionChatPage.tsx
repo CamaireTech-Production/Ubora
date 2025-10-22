@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Calendar, Clock, Repeat, MessageSquare, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Calendar, Clock, Repeat, MessageSquare, AlertCircle, Play, Loader2 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { LoadingGuard } from '../components/LoadingGuard';
 import { Button } from '../components/Button';
@@ -15,12 +15,13 @@ export const ScheduledQuestionChatPage: React.FC = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
-  const { showError } = useToast();
+  const { showError, showSuccess } = useToast();
   
   const [question, setQuestion] = useState<ScheduledQuestion | null>(null);
   const [responses, setResponses] = useState<ScheduledQuestionResponse[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingResponses, setIsLoadingResponses] = useState(true);
+  const [isExecuting, setIsExecuting] = useState(false);
 
   // Charger la question et ses réponses
   useEffect(() => {
@@ -60,6 +61,38 @@ export const ScheduledQuestionChatPage: React.FC = () => {
       console.error('Erreur lors du chargement:', error);
       showError('Erreur lors du chargement de l\'instruction programmée');
       navigate('/directeur/scheduled-questions');
+    }
+  };
+
+  // Exécuter l'instruction manuellement
+  const handleExecuteNow = async () => {
+    if (!question || isExecuting) return;
+
+    try {
+      setIsExecuting(true);
+      showSuccess('Exécution de l\'instruction en cours...');
+      
+      // Importer le service d'exécution
+      const { scheduledQuestionExecutor } = await import('../services/scheduledQuestionExecutor');
+      
+      // Exécuter l'instruction manuellement
+      await scheduledQuestionExecutor.executeQuestionManually(question.id);
+      
+      showSuccess('Instruction exécutée avec succès ! Vous recevrez une notification avec la réponse.');
+      
+      // Recharger les réponses après un délai
+      setTimeout(async () => {
+        if (question) {
+          const responsesData = await scheduledQuestionService.getResponses(question.id);
+          setResponses(responsesData);
+        }
+      }, 2000);
+      
+    } catch (error) {
+      console.error('Erreur lors de l\'exécution:', error);
+      showError('Erreur lors de l\'exécution de l\'instruction. Veuillez réessayer.');
+    } finally {
+      setIsExecuting(false);
     }
   };
 
@@ -259,12 +292,36 @@ export const ScheduledQuestionChatPage: React.FC = () => {
               <h3 className="mt-2 text-sm font-medium text-gray-900">Aucune réponse</h3>
               <p className="mt-1 text-sm text-gray-500">
                 {question.status === 'pending' 
-                  ? 'Cette question n\'a pas encore été exécutée.'
+                  ? 'Cette instruction n\'a pas encore été exécutée.'
                   : question.status === 'running'
-                  ? 'Cette question est en cours d\'exécution.'
-                  : 'Aucune réponse n\'a été générée pour cette question.'
+                  ? 'Cette instruction est en cours d\'exécution.'
+                  : 'Aucune réponse n\'a été générée pour cette instruction.'
                 }
               </p>
+              {question.status === 'pending' && (
+                <div className="mt-4">
+                  <p className="text-xs text-gray-400 mb-3">
+                    L'exécution automatique aura lieu à l'heure programmée.
+                  </p>
+                  <Button
+                    onClick={handleExecuteNow}
+                    disabled={isExecuting}
+                    className="flex items-center space-x-2"
+                  >
+                    {isExecuting ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        <span>Exécution...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Play className="h-4 w-4" />
+                        <span>Exécuter maintenant</span>
+                      </>
+                    )}
+                  </Button>
+                </div>
+              )}
             </div>
           ) : (
             <MessageList

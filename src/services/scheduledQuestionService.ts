@@ -47,23 +47,38 @@ class ScheduledQuestionService {
    */
   async update(id: string, updates: Partial<ScheduledQuestion>): Promise<void> {
     try {
+      console.log('🔄 [ScheduledQuestionService] Mise à jour de la question:', id);
+      console.log('📊 [ScheduledQuestionService] Données de mise à jour:', updates);
+      
       const docRef = doc(db, this.collectionName, id);
-      const updateData: any = { ...updates };
+      
+      // Filter out undefined values to prevent Firestore errors
+      const filteredUpdates = Object.fromEntries(
+        Object.entries(updates).filter(([_, value]) => value !== undefined)
+      );
+      
+      const updateData: any = { ...filteredUpdates };
       
       // Convertir les dates en Timestamps Firestore
-      if (updates.scheduledAt) {
-        updateData.scheduledAt = Timestamp.fromDate(updates.scheduledAt);
+      if (filteredUpdates.scheduledAt) {
+        updateData.scheduledAt = Timestamp.fromDate(filteredUpdates.scheduledAt);
       }
-      if (updates.nextExecution) {
-        updateData.nextExecution = Timestamp.fromDate(updates.nextExecution);
+      if (filteredUpdates.nextExecution) {
+        updateData.nextExecution = Timestamp.fromDate(filteredUpdates.nextExecution);
       }
-      if (updates.lastExecutedAt) {
-        updateData.lastExecutedAt = Timestamp.fromDate(updates.lastExecutedAt);
+      if (filteredUpdates.lastExecutedAt) {
+        updateData.lastExecutedAt = Timestamp.fromDate(filteredUpdates.lastExecutedAt);
       }
       
+      console.log('📤 [ScheduledQuestionService] Données Firestore à envoyer:', updateData);
+      
       await updateDoc(docRef, updateData);
+      
+      console.log('✅ [ScheduledQuestionService] Question mise à jour avec succès:', id);
     } catch (error) {
-      console.error('Erreur lors de la mise à jour de la question programmée:', error);
+      console.error('❌ [ScheduledQuestionService] Erreur lors de la mise à jour de la question programmée:', error);
+      console.error('📊 [ScheduledQuestionService] ID de la question:', id);
+      console.error('📊 [ScheduledQuestionService] Données qui ont échoué:', updates);
       throw error;
     }
   }
@@ -126,7 +141,10 @@ class ScheduledQuestionService {
   async getDueQuestionsForUser(userId: string, agencyId: string): Promise<ScheduledQuestion[]> {
     try {
       const now = new Date();
-      const q = query(
+      console.log('🔍 [ScheduledQuestionService] Recherche des questions à exécuter pour:', userId, 'à', now.toISOString());
+      
+      // Requête pour les questions avec nextExecution <= maintenant
+      const q1 = query(
         collection(db, this.collectionName),
         where('userId', '==', userId),
         where('agencyId', '==', agencyId),
@@ -136,12 +154,53 @@ class ScheduledQuestionService {
         limit(50)
       );
       
-      const querySnapshot = await getDocs(q);
-      return querySnapshot.docs.map(doc => 
-        this.convertFirestoreToScheduledQuestion(doc.id, doc.data())
+      // Requête pour les questions avec scheduledAt <= maintenant et nextExecution null (première exécution)
+      const q2 = query(
+        collection(db, this.collectionName),
+        where('userId', '==', userId),
+        where('agencyId', '==', agencyId),
+        where('status', '==', 'pending'),
+        where('scheduledAt', '<=', Timestamp.fromDate(now)),
+        orderBy('scheduledAt', 'asc'),
+        limit(50)
       );
+      
+      const [snapshot1, snapshot2] = await Promise.all([
+        getDocs(q1),
+        getDocs(q2)
+      ]);
+      
+      // Combiner les résultats et éviter les doublons
+      const allQuestions = new Map();
+      
+      // Ajouter les questions avec nextExecution
+      snapshot1.docs.forEach(doc => {
+        const question = this.convertFirestoreToScheduledQuestion(doc.id, doc.data());
+        allQuestions.set(doc.id, question);
+      });
+      
+      // Ajouter les questions avec scheduledAt (première exécution)
+      snapshot2.docs.forEach(doc => {
+        const question = this.convertFirestoreToScheduledQuestion(doc.id, doc.data());
+        // Ne l'ajouter que si elle n'est pas déjà présente et si nextExecution est null ou dans le futur
+        if (!allQuestions.has(doc.id) && (!question.nextExecution || question.nextExecution > now)) {
+          allQuestions.set(doc.id, question);
+        }
+      });
+      
+      const dueQuestions = Array.from(allQuestions.values());
+      console.log(`🔍 [ScheduledQuestionService] ${dueQuestions.length} question(s) trouvée(s) à exécuter`);
+      
+      if (dueQuestions.length > 0) {
+        console.log('📋 [ScheduledQuestionService] Questions à exécuter:');
+        dueQuestions.forEach(q => {
+          console.log(`  - ${q.title} (scheduledAt: ${q.scheduledAt.toISOString()}, nextExecution: ${q.nextExecution?.toISOString() || 'null'})`);
+        });
+      }
+      
+      return dueQuestions;
     } catch (error) {
-      console.error('Erreur lors de la récupération des questions à exécuter:', error);
+      console.error('❌ [ScheduledQuestionService] Erreur lors de la récupération des questions à exécuter:', error);
       throw error;
     }
   }
@@ -212,13 +271,28 @@ class ScheduledQuestionService {
    */
   async createResponse(response: Omit<ScheduledQuestionResponse, 'id'>): Promise<string> {
     try {
+      console.log('🔄 [ScheduledQuestionService] Création de la réponse pour la question:', response.scheduledQuestionId);
+      console.log('📊 [ScheduledQuestionService] Données de la réponse:', {
+        scheduledQuestionId: response.scheduledQuestionId,
+        status: response.status,
+        responseLength: response.response?.length || 0,
+        executedAt: response.executedAt.toISOString()
+      });
+      
       const docRef = await addDoc(collection(db, this.responsesCollectionName), {
         ...response,
         executedAt: Timestamp.fromDate(response.executedAt)
       });
+      
+      console.log('✅ [ScheduledQuestionService] Réponse créée avec succès, ID:', docRef.id);
       return docRef.id;
     } catch (error) {
-      console.error('Erreur lors de la création de la réponse:', error);
+      console.error('❌ [ScheduledQuestionService] Erreur lors de la création de la réponse:', error);
+      console.error('📊 [ScheduledQuestionService] Données qui ont échoué:', {
+        scheduledQuestionId: response.scheduledQuestionId,
+        status: response.status,
+        responseLength: response.response?.length || 0
+      });
       throw error;
     }
   }
@@ -228,6 +302,8 @@ class ScheduledQuestionService {
    */
   async getResponses(scheduledQuestionId: string): Promise<ScheduledQuestionResponse[]> {
     try {
+      console.log('🔍 [ScheduledQuestionService] Récupération des réponses pour la question:', scheduledQuestionId);
+      
       const q = query(
         collection(db, this.responsesCollectionName),
         where('scheduledQuestionId', '==', scheduledQuestionId),
@@ -235,7 +311,7 @@ class ScheduledQuestionService {
       );
       
       const querySnapshot = await getDocs(q);
-      return querySnapshot.docs.map(doc => {
+      const responses = querySnapshot.docs.map(doc => {
         const data = doc.data();
         return {
           id: doc.id,
@@ -243,8 +319,18 @@ class ScheduledQuestionService {
           executedAt: data.executedAt?.toDate() || new Date()
         } as ScheduledQuestionResponse;
       });
+      
+      console.log(`🔍 [ScheduledQuestionService] ${responses.length} réponse(s) trouvée(s) pour la question ${scheduledQuestionId}`);
+      return responses;
     } catch (error) {
-      console.error('Erreur lors de la récupération des réponses:', error);
+      console.error('❌ [ScheduledQuestionService] Erreur lors de la récupération des réponses:', error);
+      
+      // Si c'est une erreur de permissions, retourner un tableau vide au lieu de faire échouer
+      if (error instanceof Error && error.message.includes('Missing or insufficient permissions')) {
+        console.warn('⚠️ [ScheduledQuestionService] Permissions insuffisantes pour lire les réponses, retour d\'un tableau vide');
+        return [];
+      }
+      
       throw error;
     }
   }

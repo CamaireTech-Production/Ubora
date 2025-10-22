@@ -46,6 +46,7 @@ interface ChatComposerProps {
   showComprehensiveFilter?: boolean;
   allowMultipleFormats?: boolean; // Enable multi-format selection
   inputRef?: React.RefObject<HTMLTextAreaElement>; // For direct access
+  hideSendButton?: boolean; // Hide the send button (useful for scheduled questions)
 }
 
 export const ChatComposer: React.FC<ChatComposerProps> = ({
@@ -69,7 +70,8 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
   showFormatSelector = true,
   showComprehensiveFilter = true,
   allowMultipleFormats = false,
-  inputRef: externalInputRef
+  inputRef: externalInputRef,
+  hideSendButton = false
 }) => {
   const { user } = useAuth();
   const internalTextareaRef = useRef<HTMLTextAreaElement>(null);
@@ -297,25 +299,27 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
                 />
               </div>
 
-              {/* Send button */}
-              <div className="p-2">
-                <Button
-                  onClick={() => {
-                    // Update parent state with current value before sending
-                    onChange(localValue);
-                    onSend();
-                  }}
-                  disabled={!canSend}
-                  className={`p-2 rounded-full transition-all duration-200 ${
-                    canSend
-                      ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-sm'
-                      : 'bg-blue-300 text-gray-500 cursor-not-allowed border border-blue-300'
-                  }`}
-                  title="Envoyer le message"
-                >
-                  <Send className="h-4 w-4" />
-                </Button>
-              </div>
+              {/* Send button - only show if not hidden */}
+              {!hideSendButton && (
+                <div className="p-2">
+                  <Button
+                    onClick={() => {
+                      // Update parent state with current value before sending
+                      onChange(localValue);
+                      onSend();
+                    }}
+                    disabled={!canSend}
+                    className={`p-2 rounded-full transition-all duration-200 ${
+                      canSend
+                        ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-sm'
+                        : 'bg-blue-300 text-gray-500 cursor-not-allowed border border-blue-300'
+                    }`}
+                    title="Envoyer le message"
+                  >
+                    <Send className="h-4 w-4" />
+                  </Button>
+                </div>
+              )}
             </div>
           </div>
         </div>

@@ -586,10 +586,16 @@ module.exports = async function handler(req, res) {
       });
     }
     
+    // Check if this is a scheduled question execution
+    const isScheduled = req.body.isScheduled === true;
+    console.log('🕐 [SCHEDULED CHECK] Is scheduled question:', isScheduled);
+    
     // Initialize conversationId and retrieve conversation context early
     let conversationId = req.body.conversationId;
     let conversationContext = null;
-    if (conversationId) {
+    
+    // Only retrieve conversation context for regular chat, not scheduled questions
+    if (!isScheduled && conversationId) {
       try {
         conversationContext = await getConversationContext(conversationId);
         console.log('📋 Conversation context retrieved:', {
@@ -637,6 +643,9 @@ module.exports = async function handler(req, res) {
 
     // Initialize savedUserMessage at function scope
     let savedUserMessage = null;
+    
+    // Initialize existingConversationContext at function scope
+    let existingConversationContext = null;
 
     // 4. Chargement et agrégation des données
     let data;
@@ -1926,9 +1935,14 @@ Il serait pertinent de surveiller l'engagement des employés moins actifs et d'a
     // systemPrompt is already initialized above
     
     try {
-      // Get or create conversation with enhanced context
-      
-      if (!conversationId) {
+      // Handle scheduled questions differently from regular conversations
+      if (isScheduled) {
+        console.log('🕐 [SCHEDULED] Processing scheduled question - skipping conversation creation');
+        // For scheduled questions, we don't create conversations, just process and return response
+        // The response will be saved to scheduledQuestionResponses by the frontend
+      } else {
+        // Get or create conversation with enhanced context for regular chat
+        if (!conversationId) {
         // Create new conversation with enhanced metadata
         const conversationData = {
           directorId: uid,
@@ -2050,7 +2064,8 @@ Il serait pertinent de surveiller l'engagement des employés moins actifs et d'a
             throw updateError;
           }
         }
-      }
+      } // End of regular conversation logic
+    }
 
       // Get form titles for the selected forms
       const formTitles = [];
@@ -2093,22 +2108,27 @@ Il serait pertinent de surveiller l'engagement des employés moins actifs et d'a
         }
       };
       
-      // Save user message to Firebase and get the saved version
-      try {
-        const userMessageRef = await adminDb.collection('conversations').doc(conversationId).collection('messages').add(userMessage);
-        // Get the saved message with its Firebase ID and timestamp
-        const savedUserMessageDoc = await userMessageRef.get();
-        savedUserMessage = {
-          id: savedUserMessageDoc.id,
-          type: savedUserMessageDoc.data().type,
-          content: savedUserMessageDoc.data().content,
-          timestamp: savedUserMessageDoc.data().timestamp,
-          meta: savedUserMessageDoc.data().meta
-        };
-      } catch (saveError) {
-        console.error('❌ FIREBASE SAVE ERROR - Failed to save user message:', saveError);
-        // Don't throw error, just log it and continue without savedUserMessage
-        savedUserMessage = null;
+      // Save user message to Firebase and get the saved version (only for regular chat)
+      if (!isScheduled) {
+        try {
+          const userMessageRef = await adminDb.collection('conversations').doc(conversationId).collection('messages').add(userMessage);
+          // Get the saved message with its Firebase ID and timestamp
+          const savedUserMessageDoc = await userMessageRef.get();
+          savedUserMessage = {
+            id: savedUserMessageDoc.id,
+            type: savedUserMessageDoc.data().type,
+            content: savedUserMessageDoc.data().content,
+            timestamp: savedUserMessageDoc.data().timestamp,
+            meta: savedUserMessageDoc.data().meta
+          };
+        } catch (saveError) {
+          console.error('❌ FIREBASE SAVE ERROR - Failed to save user message:', saveError);
+          // Don't throw error, just log it and continue without savedUserMessage
+          savedUserMessage = null;
+        }
+      } else {
+        console.log('🕐 [SCHEDULED] Skipping user message save - will be saved to scheduledQuestionResponses by frontend');
+        savedUserMessage = null; // No user message for scheduled questions
       }
 
       // Function to detect which files (PDF and images) are actually referenced in the AI response
@@ -2316,11 +2336,16 @@ Il serait pertinent de surveiller l'engagement des employés moins actifs et d'a
         imageFiles: referencedImageFiles
       };
       
-      try {
-        await adminDb.collection('conversations').doc(conversationId).collection('messages').add(assistantMessage);
-      } catch (saveError) {
-        console.error('❌ FIREBASE SAVE ERROR - Failed to save assistant message:', saveError);
-        throw saveError;
+      // Only save messages to conversations for regular chat, not scheduled questions
+      if (!isScheduled) {
+        try {
+          await adminDb.collection('conversations').doc(conversationId).collection('messages').add(assistantMessage);
+        } catch (saveError) {
+          console.error('❌ FIREBASE SAVE ERROR - Failed to save assistant message:', saveError);
+          throw saveError;
+        }
+      } else {
+        console.log('🕐 [SCHEDULED] Skipping conversation message save - will be saved to scheduledQuestionResponses by frontend');
       }
 
       // Debug: Log package information
@@ -2450,15 +2475,20 @@ Il serait pertinent de surveiller l'engagement des employés moins actifs et d'a
         });
       }
       
-      try {
-        await adminDb.collection('conversations').doc(conversationId).update({
-          lastMessageAt: admin.firestore.FieldValue.serverTimestamp(),
-          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-          messageCount: admin.firestore.FieldValue.increment(2)
-        });
-      } catch (updateError) {
-        console.error('❌ FIREBASE SAVE ERROR - Failed to update conversation metadata:', updateError);
-        throw updateError;
+      // Only update conversation metadata for regular chat, not scheduled questions
+      if (!isScheduled) {
+        try {
+          await adminDb.collection('conversations').doc(conversationId).update({
+            lastMessageAt: admin.firestore.FieldValue.serverTimestamp(),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            messageCount: admin.firestore.FieldValue.increment(2)
+          });
+        } catch (updateError) {
+          console.error('❌ FIREBASE SAVE ERROR - Failed to update conversation metadata:', updateError);
+          throw updateError;
+        }
+      } else {
+        console.log('🕐 [SCHEDULED] Skipping conversation metadata update');
       }
 
     } catch (storeError) {
@@ -2473,7 +2503,8 @@ Il serait pertinent de surveiller l'engagement des employés moins actifs et d'a
     // 8. Enhanced response with context
     const response = {
       answer,
-      conversationId: req.body.conversationId || conversationId,
+      // Only include conversationId for regular chat, not scheduled questions
+      ...(isScheduled ? {} : { conversationId: req.body.conversationId || conversationId }),
       userMessage: savedUserMessage, // Include the saved user message (null if save failed)
       pdfFiles: referencedPDFFiles,
       imageFiles: referencedImageFiles,

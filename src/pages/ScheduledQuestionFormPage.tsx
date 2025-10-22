@@ -5,7 +5,9 @@ import { useAuth } from '../contexts/AuthContext';
 import { useApp } from '../contexts/AppContext';
 import { WireframeLoader } from '../components/loading/WireframeLoader';
 import { Button } from '../components/Button';
-import { ChatComposer } from '../components/chat/ChatComposer';
+import { SimpleInstructionInput } from '../components/scheduled/SimpleInstructionInput';
+import { SimpleFormatSelector } from '../components/scheduled/SimpleFormatSelector';
+import { SimpleFilterSelector } from '../components/scheduled/SimpleFilterSelector';
 import { ScheduledDateTimePicker } from '../components/scheduled/ScheduledDateTimePicker';
 import { scheduledQuestionService } from '../services/scheduledQuestionService';
 import { useToast } from '../hooks/useToast';
@@ -35,17 +37,13 @@ export const ScheduledQuestionFormPage: React.FC = () => {
   const [scheduledAt, setScheduledAt] = useState(new Date());
   const [frequency, setFrequency] = useState<'once' | 'daily' | 'weekly' | 'monthly'>('once');
   
-  // Filtres et formats (identique au chat)
+  // Filtres et formats (simplifiés)
   const [selectedFormat, setSelectedFormat] = useState<string | null>(null);
-  const [selectedFormats, setSelectedFormats] = useState<string[]>([]);
-  const [selectedFormIds, setSelectedFormIds] = useState<string[]>([]);
   const [filters, setFilters] = useState<ChatFilters>({
     period: 'all',
     formId: '',
     userId: ''
   });
-
-  const inputRef = useRef<HTMLTextAreaElement>(null);
   const isEditMode = Boolean(id);
 
   // Charger la question existante en mode édition
@@ -67,8 +65,6 @@ export const ScheduledQuestionFormPage: React.FC = () => {
         setScheduledAt(questionData.scheduledAt);
         setFrequency(questionData.frequency);
         setSelectedFormat(questionData.selectedFormat);
-        setSelectedFormats(questionData.selectedFormats);
-        setSelectedFormIds(questionData.selectedFormIds);
         setFilters(questionData.filters);
       } else {
         showError('Instruction programmée non trouvée');
@@ -110,15 +106,15 @@ export const ScheduledQuestionFormPage: React.FC = () => {
         agencyId: user.agencyId,
         question: question.trim(),
         title: title.trim(),
-        description: description.trim() || undefined,
+        description: description.trim() || null,
         scheduledAt,
         frequency,
         nextExecution: scheduledQuestionService.calculateNextExecution(scheduledAt, frequency),
         status: 'pending',
         filters,
-        selectedFormat,
-        selectedFormats,
-        selectedFormIds
+        selectedFormat: selectedFormat || null,
+        selectedFormats: [],
+        selectedFormIds: []
       };
 
       if (isEditMode && id) {
@@ -151,6 +147,9 @@ export const ScheduledQuestionFormPage: React.FC = () => {
       setTitle(words.join(' ') + (value.trim().split(' ').length > 6 ? '...' : ''));
     }
   };
+
+  // Validation du formulaire
+  const isFormValid = title.trim() && question.trim();
 
   if (isLoading) {
     return (
@@ -198,11 +197,24 @@ export const ScheduledQuestionFormPage: React.FC = () => {
               </Button>
               <Button
                 onClick={handleSave}
-                disabled={isSaving || !title.trim() || !question.trim()}
-                className="flex items-center space-x-2"
+                disabled={isSaving || !isFormValid}
+                className={`flex items-center space-x-2 ${
+                  !isSaving && isFormValid 
+                    ? 'bg-blue-600 hover:bg-blue-700 text-white' 
+                    : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                }`}
+                title={
+                  !isFormValid 
+                    ? `Champs manquants: ${!title.trim() ? 'Titre' : ''} ${!question.trim() ? 'Instruction' : ''}`.trim()
+                    : 'Sauvegarder l\'instruction programmée'
+                }
               >
                 <Save className="h-4 w-4" />
-                <span>{isSaving ? 'Sauvegarde...' : 'Sauvegarder'}</span>
+                <span>
+                  {isSaving ? 'Sauvegarde...' : 
+                   !isFormValid ? 'Champs requis manquants' : 
+                   'Sauvegarder'}
+                </span>
               </Button>
             </div>
           </div>
@@ -250,28 +262,27 @@ export const ScheduledQuestionFormPage: React.FC = () => {
                 />
               </div>
 
-              {/* Interface de chat */}
-              <div className="p-4">
-                <ChatComposer
+              {/* Interface simplifiée */}
+              <div className="p-4 space-y-6">
+                {/* Instruction */}
+                <SimpleInstructionInput
                   value={question}
                   onChange={handleQuestionChange}
-                  onSend={() => {}} // Pas d'envoi direct
+                  placeholder="Écrivez votre instruction pour ARCHA..."
+                />
+
+                {/* Format de réponse */}
+                <SimpleFormatSelector
                   selectedFormat={selectedFormat}
-                  selectedFormats={selectedFormats}
                   onFormatChange={setSelectedFormat}
-                  onFormatsChange={setSelectedFormats}
-                  forms={forms}
-                  employees={employees}
+                />
+
+                {/* Filtres */}
+                <SimpleFilterSelector
                   filters={filters}
                   onFiltersChange={setFilters}
-                  selectedFormIds={selectedFormIds}
-                  onFormSelectionChange={setSelectedFormIds}
-                  disabled={false}
-                  placeholder="Écrivez votre question pour ARCHA..."
-                  showFormatSelector={true}
-                  showComprehensiveFilter={true}
-                  allowMultipleFormats={true}
-                  inputRef={inputRef}
+                  forms={forms}
+                  employees={employees}
                 />
               </div>
             </div>
@@ -287,29 +298,93 @@ export const ScheduledQuestionFormPage: React.FC = () => {
             />
 
             {/* Aperçu de la configuration */}
-            <div className="mt-6 bg-white rounded-xl border border-gray-200 p-4">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Aperçu</h3>
+            <div className="mt-6 bg-white rounded-xl border border-gray-200 p-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-6">Aperçu</h3>
               
-              <div className="space-y-3 text-sm">
+              <div className="space-y-4 text-sm">
                 <div>
-                  <span className="font-medium text-gray-700">Titre:</span>
-                  <p className="text-gray-600 mt-1">{title || 'Non défini'}</p>
+                  <span className="font-medium text-gray-700 block mb-2">Titre:</span>
+                  <p className="text-gray-600 bg-gray-50 p-3 rounded-lg border">
+                    {title || 'Non défini'}
+                  </p>
                 </div>
                 
+                {description && (
+                  <div>
+                    <span className="font-medium text-gray-700 block mb-2">Description:</span>
+                    <p className="text-gray-600 bg-gray-50 p-3 rounded-lg border">
+                      {description}
+                    </p>
+                  </div>
+                )}
+                
                 <div>
-                  <span className="font-medium text-gray-700">Instruction:</span>
-                  <p className="text-gray-600 mt-1 line-clamp-3">
-                    {question || 'Aucune instruction saisie'}
+                  <span className="font-medium text-gray-700 block mb-2">Instruction:</span>
+                  <p className={`p-3 rounded-lg border min-h-[60px] ${
+                    question.trim() 
+                      ? 'text-gray-600 bg-gray-50' 
+                      : 'text-red-500 bg-red-50 border-red-200'
+                  }`}>
+                    {question.trim() || '⚠️ Aucune instruction saisie'}
                   </p>
                 </div>
                 
                 <div>
-                  <span className="font-medium text-gray-700">Filtres:</span>
-                  <div className="text-gray-600 mt-1 space-y-1">
-                    <div>Période: {filters.period}</div>
-                    {filters.formId && <div>Formulaire: {filters.formId}</div>}
-                    {filters.userId && <div>Utilisateur: {filters.userId}</div>}
-                    {selectedFormat && <div>Format: {selectedFormat}</div>}
+                  <span className="font-medium text-gray-700 block mb-2">Configuration:</span>
+                  <div className="bg-gray-50 p-3 rounded-lg border space-y-2">
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">Période:</span>
+                      <span className="text-gray-700 font-medium">{filters.period}</span>
+                    </div>
+                    
+                    {filters.formId && (
+                      <div className="flex justify-between">
+                        <span className="text-gray-500">Formulaire:</span>
+                        <span className="text-gray-700 font-medium">{filters.formId}</span>
+                      </div>
+                    )}
+                    
+                    {filters.userId && (
+                      <div className="flex justify-between">
+                        <span className="text-gray-500">Utilisateur:</span>
+                        <span className="text-gray-700 font-medium">{filters.userId}</span>
+                      </div>
+                    )}
+                    
+                    {selectedFormat && (
+                      <div className="flex justify-between">
+                        <span className="text-gray-500">Format:</span>
+                        <span className="text-gray-700 font-medium">{selectedFormat}</span>
+                      </div>
+                    )}
+                    
+                  </div>
+                </div>
+                
+                <div>
+                  <span className="font-medium text-gray-700 block mb-2">Programmation:</span>
+                  <div className="bg-gray-50 p-3 rounded-lg border space-y-2">
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">Date:</span>
+                      <span className="text-gray-700 font-medium">
+                        {scheduledAt.toLocaleDateString('fr-FR')}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">Heure:</span>
+                      <span className="text-gray-700 font-medium">
+                        {scheduledAt.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">Fréquence:</span>
+                      <span className="text-gray-700 font-medium">
+                        {frequency === 'once' ? 'Une seule fois' :
+                         frequency === 'daily' ? 'Quotidien' :
+                         frequency === 'weekly' ? 'Hebdomadaire' :
+                         frequency === 'monthly' ? 'Mensuel' : frequency}
+                      </span>
+                    </div>
                   </div>
                 </div>
               </div>

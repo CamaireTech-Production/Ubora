@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useApp } from '../contexts/AppContext';
 import { metricReminderService } from '../services/metricReminderService';
+import { scheduledQuestionExecutor } from '../services/scheduledQuestionExecutor';
 
 export const ReminderServiceInitializer: React.FC = () => {
   const { user } = useAuth();
@@ -26,12 +27,13 @@ export const ReminderServiceInitializer: React.FC = () => {
       runMetricTick();
 
       // Start scheduled question executor for this user
-      // Note: Temporarily disabled until backend service is implemented
-      // scheduledQuestionExecutor.start(user.id, user.agencyId);
+      console.log('🚀 [ReminderServiceInitializer] Starting scheduled question executor for user:', user.id);
+      scheduledQuestionExecutor.start(user.id, user.agencyId);
 
       // Cleanup function to stop the service when component unmounts
       return () => {
-        // scheduledQuestionExecutor.stop();
+        console.log('⏹️ [ReminderServiceInitializer] Stopping scheduled question executor');
+        scheduledQuestionExecutor.stop();
         // Clear metric runner
         clearInterval(intervalId);
       };

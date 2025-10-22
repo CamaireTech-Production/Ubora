@@ -127,6 +127,8 @@ export const NotificationsPage: React.FC = () => {
         return <BarChart3 className="w-5 h-5 text-blue-500" />;
       case 'program_instruction':
         return <MessageSquare className="w-5 h-5 text-green-500" />;
+      case 'scheduled_instruction':
+        return <MessageSquare className="w-5 h-5 text-indigo-500" />;
       case 'form_submission':
         return <CheckCircle className="w-5 h-5 text-green-500" />;
       case 'director_message':
@@ -191,7 +193,12 @@ export const NotificationsPage: React.FC = () => {
     } else if (notification.data?.dashboardId) {
       window.location.href = '/directeur/dashboard';
     } else if (notification.data?.scheduledQuestionId) {
-      window.location.href = '/scheduled-questions';
+      // Redirect to the specific scheduled question chat page
+      if (notification.data.url) {
+        window.location.href = notification.data.url;
+      } else {
+        window.location.href = '/directeur/scheduled-questions';
+      }
     }
   };
 
@@ -282,6 +289,30 @@ export const NotificationsPage: React.FC = () => {
         }
       });
       alert('Notification de test "Instruction programmée" envoyée !');
+    } catch (error) {
+      console.error('Error sending test notification:', error);
+      alert('Erreur lors de l\'envoi de la notification de test');
+    }
+  };
+
+  const testScheduledInstruction = async () => {
+    try {
+      await unifiedNotificationService.sendNotification({
+        title: "Réponse disponible pour \"Analyse des ventes Q1\"",
+        body: "ARCHA a généré une nouvelle réponse à votre instruction programmée",
+        type: 'scheduled_instruction',
+        recipientId: user?.id || '',
+        recipientRole: user?.role as 'directeur' | 'employe',
+        agencyId: user?.agencyId || '',
+        data: {
+          scheduledQuestionId: 'test-scheduled-123',
+          responseId: 'test-response-456',
+          status: 'success',
+          url: '/directeur/scheduled-questions/test-scheduled-123/chat',
+          questionTitle: 'Analyse des ventes Q1'
+        }
+      });
+      alert('Notification de test "Instruction programmée (réponse)" envoyée !');
     } catch (error) {
       console.error('Error sending test notification:', error);
       alert('Erreur lors de l\'envoi de la notification de test');
@@ -394,6 +425,7 @@ export const NotificationsPage: React.FC = () => {
                 <option value="form_reminder">Rappel formulaire</option>
                 <option value="metric_reminder">Rappel métrique</option>
                 <option value="program_instruction">Instruction programmée</option>
+                <option value="scheduled_instruction">Instruction programmée (réponse)</option>
               </select>
             </div>
             

@@ -23,6 +23,7 @@ interface ScheduledQuestionCardProps {
   onViewResponses: (questionId: string) => void;
   onExecuteNow?: (questionId: string) => void;
   disabled?: boolean;
+  isExecuting?: boolean;
 }
 
 export const ScheduledQuestionCard: React.FC<ScheduledQuestionCardProps> = ({
@@ -31,7 +32,8 @@ export const ScheduledQuestionCard: React.FC<ScheduledQuestionCardProps> = ({
   onDelete,
   onViewResponses,
   onExecuteNow,
-  disabled = false
+  disabled = false,
+  isExecuting = false
 }) => {
   const getStatusIcon = () => {
     switch (question.status) {
@@ -122,7 +124,7 @@ export const ScheduledQuestionCard: React.FC<ScheduledQuestionCardProps> = ({
   };
 
   const canExecuteNow = () => {
-    return question.status === 'pending' && onExecuteNow;
+    return (question.status === 'pending' || question.status === 'failed') && onExecuteNow && !isExecuting;
   };
 
   const canEdit = () => {
@@ -221,11 +223,20 @@ export const ScheduledQuestionCard: React.FC<ScheduledQuestionCardProps> = ({
             variant="secondary"
             size="sm"
             onClick={() => onExecuteNow!(question.id)}
-            disabled={disabled}
+            disabled={disabled || isExecuting}
             className="flex items-center space-x-1"
           >
-            <Play className="h-4 w-4" />
-            <span>Exécuter</span>
+            {isExecuting ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <span>Exécution...</span>
+              </>
+            ) : (
+              <>
+                <Play className="h-4 w-4" />
+                <span>{question.status === 'failed' ? 'Réessayer' : 'Exécuter'}</span>
+              </>
+            )}
           </Button>
         )}
 

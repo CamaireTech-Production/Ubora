@@ -11,7 +11,6 @@ class NotificationCronService {
    */
   start(userId: string, agencyId: string): void {
     if (this.isRunning && this.currentUserId === userId) {
-      console.log('🕐 [NotificationCron] Service already running for user:', userId);
       return;
     }
 
@@ -20,7 +19,6 @@ class NotificationCronService {
       this.stop();
     }
 
-    console.log('🚀 [NotificationCron] Starting smart cron job for user:', userId);
     this.isRunning = true;
     this.currentUserId = userId;
     this.currentAgencyId = agencyId;
@@ -41,7 +39,6 @@ class NotificationCronService {
     this.isRunning = false;
     this.currentUserId = null;
     this.currentAgencyId = null;
-    console.log('🛑 [NotificationCron] Smart cron job stopped');
   }
 
   /**
@@ -58,8 +55,6 @@ class NotificationCronService {
         this.scheduleNextCheck();
       }
     }, nextInterval);
-
-    console.log(`🕐 [NotificationCron] Next check in ${nextInterval}ms (${Math.round(nextInterval / 1000)}s)`);
   }
 
   /**
@@ -67,27 +62,20 @@ class NotificationCronService {
    */
   private async checkScheduledNotifications(): Promise<void> {
     try {
-      console.log('🔍 [NotificationCron] Checking for due notifications...');
-      
       if (!this.currentAgencyId) {
-        console.log('🔍 [NotificationCron] No agency ID, skipping check');
         return;
       }
       
       const dueNotifications = await unifiedNotificationService.getDueNotifications(this.currentAgencyId);
       
       if (dueNotifications.length === 0) {
-        console.log('🔍 [NotificationCron] No due notifications found');
         return;
       }
-
-      console.log(`🔍 [NotificationCron] Found ${dueNotifications.length} due notifications`);
 
       // Send all due notifications
       for (const notification of dueNotifications) {
         try {
           await unifiedNotificationService.sendScheduledNotification(notification);
-          console.log(`✅ [NotificationCron] Sent notification: ${notification.title}`);
         } catch (error) {
           console.error(`❌ [NotificationCron] Failed to send notification: ${notification.title}`, error);
         }
@@ -147,7 +135,6 @@ class NotificationCronService {
       // For long-term notifications, check every 30 minutes
       return 30 * 60 * 1000; // 30 minutes
     } catch (error) {
-      console.error('❌ [NotificationCron] Error calculating next interval:', error);
       return 5 * 60 * 1000; // 5 minutes fallback
     }
   }
@@ -167,7 +154,6 @@ class NotificationCronService {
    * Force check for due notifications (for testing)
    */
   async forceCheck(): Promise<void> {
-    console.log('🔍 [NotificationCron] Force checking for due notifications...');
     await this.checkScheduledNotifications();
   }
 }
