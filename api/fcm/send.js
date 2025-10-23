@@ -67,37 +67,72 @@ module.exports = async (req, res) => {
       notification: {
         title: notification.title,
         body: notification.body,
+        // Add image for better mobile display
+        imageUrl: notification.data?.imageUrl || '/fav-icons/android-icon-512x512.png'
       },
       data: {
         ...stringifiedData,
         type: String(notification.data?.type || 'general'),
         recipientId: String(userId || 'unknown'),
         timestamp: Date.now().toString(),
+        // Add click action for mobile
+        click_action: notification.redirectUrl || '/',
+        // Add notification channel for Android 8+
+        channel_id: 'ubora_notifications',
+        // Add priority for mobile
+        priority: 'high'
       },
       android: {
         priority: 'high',
+        ttl: 86400000, // 24 hours
         notification: {
+          title: notification.title,
+          body: notification.body,
           sound: 'default',
           icon: '/fav-icons/android-icon-96x96.png',
-          color: '#FF6B35'
+          color: '#FF6B35',
+          channel_id: 'ubora_notifications',
+          click_action: notification.redirectUrl || '/',
+          tag: `ubora_${notification.data?.type || 'general'}_${Date.now()}`,
+          // Add image for Android
+          image: notification.data?.imageUrl || '/fav-icons/android-icon-512x512.png',
+          // Add actions for Android
+          actions: [
+            { action: 'open', title: 'Ouvrir' },
+            { action: 'dismiss', title: 'Ignorer' }
+          ]
         }
       },
       apns: {
         payload: {
           aps: {
+            alert: {
+              title: notification.title,
+              body: notification.body
+            },
             sound: 'default',
-            badge: 1
+            badge: 1,
+            category: 'UBORA_NOTIFICATION',
+            'mutable-content': 1,
+            'content-available': 1
           }
+        },
+        fcm_options: {
+          image: notification.data?.imageUrl || '/fav-icons/android-icon-512x512.png'
         }
       },
       webpush: {
         notification: {
+          title: notification.title,
+          body: notification.body,
           icon: '/fav-icons/android-icon-192x192.png',
           badge: '/fav-icons/android-icon-96x96.png',
+          image: notification.data?.imageUrl || '/fav-icons/android-icon-512x512.png',
           vibrate: [200, 100, 200],
+          requireInteraction: true,
           actions: [
-            { action: 'open', title: 'Ouvrir' },
-            { action: 'dismiss', title: 'Ignorer' }
+            { action: 'open', title: 'Ouvrir', icon: '/fav-icons/android-icon-48x48.png' },
+            { action: 'dismiss', title: 'Ignorer', icon: '/fav-icons/android-icon-48x48.png' }
           ]
         },
         fcmOptions: {

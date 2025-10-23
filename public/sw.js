@@ -68,9 +68,11 @@ try {
   // Handle FCM background messages with unified notification support
   messaging.onBackgroundMessage((payload) => {
     console.log('🔔 [SW] FCM background message received:', payload);
+    console.log('🔔 [SW] Payload notification:', payload.notification);
+    console.log('🔔 [SW] Payload data:', payload.data);
     
-    const title = payload.notification?.title || 'Ubora';
-    const body = payload.notification?.body || 'Vous avez reçu une nouvelle notification';
+    const title = payload.notification?.title || payload.data?.title || 'Ubora';
+    const body = payload.notification?.body || payload.data?.body || 'Vous avez reçu une nouvelle notification';
     const uniqueTag = `ubora-fcm-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     
     // Android-optimized notification options with unified notification support
@@ -79,12 +81,12 @@ try {
       body: body,
       icon: getNotificationIcon(notificationType),
       badge: getNotificationBadge(notificationType),
-      image: payload.notification?.image || '/fav-icons/android-icon-512x512.png',
+      image: payload.notification?.image || payload.data?.image || '/fav-icons/android-icon-512x512.png',
       data: {
         ...payload.data,
         fcmMessageId: payload.messageId,
         timestamp: Date.now(),
-        url: payload.data?.redirectUrl || payload.data?.clickAction || '/',
+        url: payload.data?.redirectUrl || payload.data?.clickAction || payload.data?.click_action || '/',
         // Include highlighting data for unified notifications
         highlightData: getHighlightData(payload.data)
       },
@@ -97,6 +99,8 @@ try {
       // Android-specific options for pop-up behavior
       dir: 'auto',
       lang: 'fr',
+      // Add mobile-specific options
+      sticky: true, // Keep notification until user interacts
       actions: [
         {
           action: 'open',
@@ -112,7 +116,17 @@ try {
     };
     
     console.log('🔔 [SW] Showing notification with options:', options);
-    self.registration.showNotification(title, options);
+    console.log('🔔 [SW] Notification title:', title);
+    console.log('🔔 [SW] Notification body:', body);
+    
+    // Show the notification
+    return self.registration.showNotification(title, options)
+      .then(() => {
+        console.log('🔔 [SW] Notification displayed successfully');
+      })
+      .catch((error) => {
+        console.error('🔔 [SW] Error displaying notification:', error);
+      });
   });
 } catch (e) {
   // Fail silently if Firebase scripts are unavailable
@@ -121,18 +135,24 @@ try {
 // Enhanced push event listener for unified notifications
 self.addEventListener("push", (event) => {
   console.log('🔔 [SW] Push event received:', event);
+  console.log('🔔 [SW] Push event data:', event.data);
   
   let data = {};
   if (event.data) {
     try {
       data = event.data.json();
+      console.log('🔔 [SW] Parsed push data:', data);
     } catch (e) {
+      console.log('🔔 [SW] Error parsing push data, using default:', e);
       data = { title: 'Ubora', body: 'Nouvelle notification' };
     }
   }
   
   const title = data.title || "Ubora";
   const body = data.body || "Vous avez reçu une nouvelle notification";
+  
+  console.log('🔔 [SW] Push notification title:', title);
+  console.log('🔔 [SW] Push notification body:', body);
   
   const notificationType = data.type || 'default';
   const options = {
@@ -143,7 +163,7 @@ self.addEventListener("push", (event) => {
     data: {
       ...data,
       timestamp: Date.now(),
-      url: data.redirectUrl || data.clickAction || '/',
+      url: data.redirectUrl || data.clickAction || data.click_action || '/',
       // Include highlighting data for unified notifications
       highlightData: getHighlightData(data)
     },
@@ -156,6 +176,8 @@ self.addEventListener("push", (event) => {
     // Android-specific options for pop-up behavior
     dir: 'auto',
     lang: 'fr',
+    // Add mobile-specific options
+    sticky: true, // Keep notification until user interacts
     actions: [
       {
         action: 'open',
