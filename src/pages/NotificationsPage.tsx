@@ -3,15 +3,17 @@ import { Layout } from '../components/Layout';
 import { PushNotificationSettings } from '../components/PushNotificationSettings';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
-import { Bell, CheckCircle, XCircle, Clock, Trash2, BarChart3, MessageSquare } from 'lucide-react';
+import { Bell, CheckCircle, XCircle, Clock, Trash2, BarChart3, MessageSquare, AlertCircle, Settings } from 'lucide-react';
 import { WireframeLoader } from '../components/loading/WireframeLoader';
 import { unifiedNotificationService, UnifiedNotification } from '../services/unifiedNotificationService';
 import { useAuth } from '../contexts/AuthContext';
+import { usePushNotifications } from '../hooks/usePushNotifications';
 import { doc, collection, query, where, orderBy, limit, onSnapshot, writeBatch } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 
 export const NotificationsPage: React.FC = () => {
   const { user } = useAuth();
+  const { permission, isSupported, requestPermission } = usePushNotifications();
   const [notifications, setNotifications] = useState<UnifiedNotification[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [filterType, setFilterType] = useState<string>('all');
@@ -277,7 +279,7 @@ export const NotificationsPage: React.FC = () => {
       await unifiedNotificationService.sendNotification({
         title: "Instruction programmée",
         body: "Nouvelle instruction: Veuillez mettre à jour vos informations de contact dans votre profil avant le 20 mars.",
-        type: 'program_instruction',
+        type: 'programmed_instruction',
         recipientId: user?.id || '',
         recipientRole: user?.role as 'directeur' | 'employe',
         agencyId: user?.agencyId || '',
@@ -300,7 +302,7 @@ export const NotificationsPage: React.FC = () => {
       await unifiedNotificationService.sendNotification({
         title: "Réponse disponible pour \"Analyse des ventes Q1\"",
         body: "ARCHA a généré une nouvelle réponse à votre instruction programmée",
-        type: 'scheduled_instruction',
+        type: 'programmed_instruction',
         recipientId: user?.id || '',
         recipientRole: user?.role as 'directeur' | 'employe',
         agencyId: user?.agencyId || '',
@@ -379,7 +381,31 @@ export const NotificationsPage: React.FC = () => {
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-3">
               <Bell className="w-6 h-6 text-blue-600" />
-              <h3 className="text-lg font-semibold">Historique des notifications</h3>
+              <div>
+                <h3 className="text-lg font-semibold">Historique des notifications</h3>
+                {/* Notification permission status */}
+                {!isSupported ? (
+                  <div className="flex items-center gap-1 mt-1">
+                    <XCircle className="w-4 h-4 text-red-500" />
+                    <span className="text-xs text-red-600">Notifications non supportées</span>
+                  </div>
+                ) : permission.denied ? (
+                  <div className="flex items-center gap-1 mt-1">
+                    <XCircle className="w-4 h-4 text-red-500" />
+                    <span className="text-xs text-red-600">Notifications désactivées</span>
+                  </div>
+                ) : permission.default ? (
+                  <div className="flex items-center gap-1 mt-1">
+                    <AlertCircle className="w-4 h-4 text-yellow-500" />
+                    <span className="text-xs text-yellow-600">Notifications non autorisées</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1 mt-1">
+                    <CheckCircle className="w-4 h-4 text-green-500" />
+                    <span className="text-xs text-green-600">Notifications activées</span>
+                  </div>
+                )}
+              </div>
               {unreadCount > 0 && (
                 <span className="bg-red-100 text-red-800 text-xs font-medium px-2.5 py-0.5 rounded-full">
                   {unreadCount} non lues
@@ -449,13 +475,98 @@ export const NotificationsPage: React.FC = () => {
             <WireframeLoader type="notification" count={5} />
           ) : filteredNotifications.length === 0 ? (
             <div className="text-center py-8">
-              <Bell className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-              <p className="text-gray-500">
-                {notifications.length === 0 
-                  ? 'Aucune notification pour le moment' 
-                  : 'Aucune notification correspondant aux filtres'
-                }
-              </p>
+              {!isSupported ? (
+                // Browser doesn't support notifications
+                <div className="max-w-md mx-auto">
+                  <Bell className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                  <h3 className="text-lg font-medium text-gray-700 mb-2">Notifications non supportées</h3>
+                  <p className="text-gray-500 mb-4">
+                    Votre navigateur ne supporte pas les notifications push. 
+                    Veuillez utiliser un navigateur moderne comme Chrome, Firefox ou Edge.
+                  </p>
+                </div>
+              ) : permission.denied ? (
+                // Permission denied
+                <div className="max-w-md mx-auto">
+                  <XCircle className="w-12 h-12 text-red-300 mx-auto mb-4" />
+                  <h3 className="text-lg font-medium text-gray-700 mb-2">Notifications désactivées</h3>
+                  <p className="text-gray-500 mb-4">
+                    Les notifications ont été refusées. Pour les réactiver :
+                  </p>
+                  <div className="text-left bg-gray-50 p-4 rounded-lg mb-4">
+                    <ol className="list-decimal list-inside space-y-1 text-sm text-gray-600">
+                      <li>Cliquez sur l'icône de cadenas dans la barre d'adresse</li>
+                      <li>Sélectionnez "Autoriser" pour les notifications</li>
+                      <li>Rechargez la page</li>
+                    </ol>
+                  </div>
+                  <Button
+                    onClick={() => window.location.reload()}
+                    variant="secondary"
+                    className="flex items-center gap-2 mx-auto"
+                  >
+                    <Settings className="w-4 h-4" />
+                    Recharger la page
+                  </Button>
+                </div>
+              ) : permission.default ? (
+                // Permission not requested yet
+                <div className="max-w-md mx-auto">
+                  <AlertCircle className="w-12 h-12 text-yellow-300 mx-auto mb-4" />
+                  <h3 className="text-lg font-medium text-gray-700 mb-2">Activer les notifications</h3>
+                  <p className="text-gray-500 mb-4">
+                    Autorisez les notifications pour recevoir des alertes importantes 
+                    sur vos formulaires, rappels et instructions.
+                  </p>
+                  <Button
+                    onClick={requestPermission}
+                    className="flex items-center gap-2 mx-auto"
+                  >
+                    <Bell className="w-4 h-4" />
+                    Autoriser les notifications
+                  </Button>
+                </div>
+              ) : notifications.length === 0 ? (
+                // No notifications yet
+                <div className="max-w-md mx-auto">
+                  <Bell className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                  <h3 className="text-lg font-medium text-gray-700 mb-2">Aucune notification</h3>
+                  <p className="text-gray-500 mb-4">
+                    Vous n'avez pas encore reçu de notifications. 
+                    Elles apparaîtront ici lorsqu'un formulaire vous sera assigné 
+                    ou qu'un rappel sera programmé.
+                  </p>
+                  <div className="text-sm text-gray-400">
+                    <p>Types de notifications que vous recevrez :</p>
+                    <ul className="list-disc list-inside mt-2 space-y-1">
+                      <li>Assignation de formulaires</li>
+                      <li>Rappels de formulaires</li>
+                      <li>Rappels de métriques (directeurs)</li>
+                      <li>Instructions programmées (directeurs)</li>
+                    </ul>
+                  </div>
+                </div>
+              ) : (
+                // No notifications matching filters
+                <div className="max-w-md mx-auto">
+                  <Bell className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                  <h3 className="text-lg font-medium text-gray-700 mb-2">Aucune notification correspondant aux filtres</h3>
+                  <p className="text-gray-500 mb-4">
+                    Aucune notification ne correspond aux filtres sélectionnés. 
+                    Essayez de modifier les critères de recherche.
+                  </p>
+                  <Button
+                    onClick={() => {
+                      setFilterType('all');
+                      setFilterStatus('all');
+                    }}
+                    variant="secondary"
+                    className="flex items-center gap-2 mx-auto"
+                  >
+                    Réinitialiser les filtres
+                  </Button>
+                </div>
+              )}
             </div>
           ) : (
             <div 

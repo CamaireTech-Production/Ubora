@@ -1,7 +1,27 @@
 import { unifiedNotificationService } from './unifiedNotificationService';
 import { Form } from '../types';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '../firebaseConfig';
 
 class FormReminderService {
+  /**
+   * Get user role from database
+   */
+  private async getUserRole(userId: string): Promise<'directeur' | 'employe'> {
+    try {
+      const userDoc = await getDoc(doc(db, 'users', userId));
+      if (userDoc.exists()) {
+        const userData = userDoc.data();
+        return userData.role || 'employe'; // Default to employee if role not found
+      }
+      console.warn(`📅 [FormReminder] User ${userId} not found, defaulting to employee role`);
+      return 'employe';
+    } catch (error) {
+      console.error(`📅 [FormReminder] Error getting user role for ${userId}:`, error);
+      return 'employe'; // Default to employee on error
+    }
+  }
+
   /**
    * Schedule form reminders for a form with deadline
    */
@@ -17,8 +37,13 @@ class FormReminderService {
       const deadlineDate = new Date(`${form.deadline.date}T${form.deadline.time}`);
       const reminderIntervals = [60, 30, 15, 5]; // minutes before deadline
 
-      // Schedule reminders for each assigned employee
-      for (const employeeId of form.assignedTo) {
+      // Schedule reminders for each assigned user (employees and directors)
+      for (const userId of form.assignedTo) {
+        // Determine user role - we need to check if this is a director or employee
+        // For now, we'll assume all assigned users can be either role
+        // In a real implementation, you'd query the user's role from the database
+        const userRole = await this.getUserRole(userId);
+        
         for (const intervalMinutes of reminderIntervals) {
           const reminderTime = new Date(deadlineDate.getTime() - intervalMinutes * 60 * 1000);
           
@@ -28,19 +53,21 @@ class FormReminderService {
               title: 'Rappel de formulaire',
               body: `N'oubliez pas de remplir le formulaire "${form.title}" (${intervalMinutes}min restantes)`,
               type: 'form_reminder',
-              recipientId: employeeId,
-              recipientRole: 'employe',
+              recipientId: userId,
+              recipientRole: userRole,
               agencyId: form.agencyId,
+              redirectUrl: userRole === 'directeur' ? '/directeur/dashboard' : '/employe/dashboard',
               data: {
                 formId: form.id,
                 formTitle: form.title,
                 deadline: form.deadline,
                 minutesBeforeDeadline: intervalMinutes,
-                action: 'form_reminder'
+                action: 'fill_form',
+                reminderType: `${intervalMinutes}min`
               }
             }, reminderTime);
 
-            console.log(`📅 [FormReminder] Scheduled ${intervalMinutes}min reminder for employee ${employeeId} at ${reminderTime}`);
+            console.log(`📅 [FormReminder] Scheduled ${intervalMinutes}min reminder for ${userRole} ${userId} at ${reminderTime}`);
           } else {
             console.log(`📅 [FormReminder] Skipping ${intervalMinutes}min reminder (time in past):`, reminderTime);
           }
@@ -74,7 +101,7 @@ class FormReminderService {
   /**
    * Cancel form reminders when form is deleted or deadline removed
    */
-  async cancelFormReminders(formId: string, employeeIds: string[]): Promise<void> {
+  async cancelFormReminders(formId: string): Promise<void> {
     try {
       console.log('📅 [FormReminder] Cancelling reminders for form:', formId);
       
@@ -91,7 +118,7 @@ class FormReminderService {
   /**
    * Get reminder status for a form
    */
-  async getFormReminderStatus(formId: string): Promise<{
+  async getFormReminderStatus(): Promise<{
     totalReminders: number;
     scheduledReminders: number;
     sentReminders: number;

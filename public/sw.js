@@ -65,7 +65,7 @@ try {
 
   const messaging = firebase.messaging();
 
-  // Handle FCM background messages with Android-optimized settings
+  // Handle FCM background messages with unified notification support
   messaging.onBackgroundMessage((payload) => {
     console.log('🔔 [SW] FCM background message received:', payload);
     
@@ -73,18 +73,20 @@ try {
     const body = payload.notification?.body || 'Vous avez reçu une nouvelle notification';
     const uniqueTag = `ubora-fcm-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     
-        // Android-optimized notification options
-        const notificationType = payload.data?.type || 'default';
-        const options = {
-          body: body,
-          icon: getNotificationIcon(notificationType),
-          badge: getNotificationBadge(notificationType),
-          image: payload.notification?.image || '/fav-icons/android-icon-512x512.png',
+    // Android-optimized notification options with unified notification support
+    const notificationType = payload.data?.type || 'default';
+    const options = {
+      body: body,
+      icon: getNotificationIcon(notificationType),
+      badge: getNotificationBadge(notificationType),
+      image: payload.notification?.image || '/fav-icons/android-icon-512x512.png',
       data: {
         ...payload.data,
         fcmMessageId: payload.messageId,
         timestamp: Date.now(),
-        url: payload.data?.clickAction || '/'
+        url: payload.data?.redirectUrl || payload.data?.clickAction || '/',
+        // Include highlighting data for unified notifications
+        highlightData: getHighlightData(payload.data)
       },
       tag: uniqueTag,
       requireInteraction: true, // CRITICAL: Keep notification visible
@@ -116,7 +118,7 @@ try {
   // Fail silently if Firebase scripts are unavailable
 }
 
-// Enhanced push event listener for Android
+// Enhanced push event listener for unified notifications
 self.addEventListener("push", (event) => {
   console.log('🔔 [SW] Push event received:', event);
   
@@ -132,16 +134,18 @@ self.addEventListener("push", (event) => {
   const title = data.title || "Ubora";
   const body = data.body || "Vous avez reçu une nouvelle notification";
   
-      const notificationType = data.type || 'default';
-      const options = {
-        body: body,
-        icon: getNotificationIcon(notificationType),
-        badge: getNotificationBadge(notificationType),
-        image: data.image || '/fav-icons/android-icon-512x512.png',
+  const notificationType = data.type || 'default';
+  const options = {
+    body: body,
+    icon: getNotificationIcon(notificationType),
+    badge: getNotificationBadge(notificationType),
+    image: data.image || '/fav-icons/android-icon-512x512.png',
     data: {
       ...data,
       timestamp: Date.now(),
-      url: data.clickAction || '/'
+      url: data.redirectUrl || data.clickAction || '/',
+      // Include highlighting data for unified notifications
+      highlightData: getHighlightData(data)
     },
     tag: `ubora-push-${Date.now()}`,
     requireInteraction: true, // CRITICAL for Android
@@ -170,7 +174,7 @@ self.addEventListener("push", (event) => {
   event.waitUntil(self.registration.showNotification(title, options));
 });
 
-// Handle notification click with action support
+// Handle notification click with action support for unified notifications
 self?.addEventListener("notificationclick", (event) => {
   console.log('🔔 [SW] Notification clicked:', event);
   
@@ -181,33 +185,49 @@ self?.addEventListener("notificationclick", (event) => {
     return;
   }
 
-  // Determine the URL to open based on notification data
+  // Determine the URL to open based on unified notification types
   let urlToOpen = '/';
   const notificationData = event.notification.data;
   
   if (notificationData) {
-    // Handle form-related notifications
-    if (notificationData.formId) {
-      if (notificationData.action === 'form_assigned' || notificationData.action === 'form_created') {
+    // Handle unified notification types
+    switch (notificationData.type) {
+      case 'form_assignment':
         urlToOpen = '/forms';
-      } else if (notificationData.action === 'form_submission') {
-        urlToOpen = '/dashboard';
-      } else if (notificationData.action === 'form_reminder') {
-        urlToOpen = '/forms';
-      }
-    }
-    
-    // Handle other notification types
-    if (notificationData.type === 'director_message') {
-      urlToOpen = '/notifications';
-    } else if (notificationData.type === 'system_alert') {
-      urlToOpen = '/dashboard';
-    } else if (notificationData.type === 'reminder') {
-      urlToOpen = '/forms';
-    } else if (notificationData.url) {
-      urlToOpen = notificationData.url;
+        break;
+      case 'form_reminder':
+        // Redirect to specific form filling interface
+        if (notificationData.formId) {
+          // Determine correct dashboard based on user role
+          // For now, default to directeur dashboard - this should be improved to detect user role
+          urlToOpen = '/directeur/dashboard';
+        } else {
+          urlToOpen = '/forms';
+        }
+        break;
+      case 'metric_reminder':
+        // Redirect to specific dashboard
+        if (notificationData.dashboardId) {
+          urlToOpen = `/dashboard/${notificationData.dashboardId}`;
+        } else {
+          urlToOpen = '/dashboard';
+        }
+        break;
+      case 'programmed_instruction':
+        // Redirect to instruction response interface
+        if (notificationData.instructionId) {
+          urlToOpen = `/instructions/${notificationData.instructionId}/response`;
+        } else {
+          urlToOpen = '/dashboard';
+        }
+        break;
+      default:
+        // Fallback to redirectUrl or default
+        urlToOpen = notificationData.redirectUrl || notificationData.url || '/';
     }
   }
+
+  console.log('🔔 [SW] Redirecting to:', urlToOpen, 'with data:', notificationData);
 
   // Open the app
   event.waitUntil(
@@ -215,11 +235,13 @@ self?.addEventListener("notificationclick", (event) => {
       // If app is already open, focus it and navigate to the specific page
       for (const client of clientList) {
         if (client.url.includes(self.location.origin) && 'focus' in client) {
-          // Send a message to the client to navigate to the specific page
+          // Send a message to the client to navigate to the specific page with highlighting data
           client.postMessage({
             type: 'NOTIFICATION_CLICK',
             data: notificationData,
-            url: urlToOpen
+            url: urlToOpen,
+            notificationType: notificationData.type,
+            highlightData: getHighlightData(notificationData)
           });
           return client.focus();
         }
@@ -231,6 +253,41 @@ self?.addEventListener("notificationclick", (event) => {
     })
   );
 });
+
+// Helper function to extract highlighting data for each notification type
+function getHighlightData(notificationData) {
+  if (!notificationData) return null;
+
+  switch (notificationData.type) {
+    case 'form_assignment':
+      return {
+        formId: notificationData.formId,
+        action: 'highlight_form',
+        scrollToForm: true
+      };
+    case 'form_reminder':
+      return {
+        formId: notificationData.formId,
+        action: 'fill_form',
+        autoFill: true
+      };
+    case 'metric_reminder':
+      return {
+        dashboardId: notificationData.dashboardId,
+        metricId: notificationData.metricId,
+        action: 'highlight_metric',
+        scrollToMetric: true
+      };
+    case 'programmed_instruction':
+      return {
+        instructionId: notificationData.instructionId,
+        action: 'show_response',
+        autoOpen: true
+      };
+    default:
+      return null;
+  }
+}
 
 // Handle messages from the main thread (for test notifications and updates)
 self.addEventListener('message', (event) => {

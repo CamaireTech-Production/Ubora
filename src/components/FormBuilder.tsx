@@ -432,7 +432,7 @@ export const FormBuilder: React.FC<FormBuilderProps> = ({
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-3">
-              Assigner aux employés *
+              Assigner aux utilisateurs *
             </label>
             <div className="space-y-2 max-h-32 sm:max-h-40 overflow-y-auto border border-gray-200 rounded-lg p-3">
               {/* Show director option first if current user is a director */}

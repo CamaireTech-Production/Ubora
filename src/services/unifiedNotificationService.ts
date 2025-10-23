@@ -5,7 +5,7 @@ export interface UnifiedNotification {
   id?: string;
   title: string;
   body: string;
-  type: 'form_assignment' | 'form_reminder' | 'metric_reminder' | 'program_instruction' | 'scheduled_instruction';
+  type: 'form_assignment' | 'form_reminder' | 'metric_reminder' | 'programmed_instruction';
   recipientId: string;
   recipientRole?: 'directeur' | 'employe';
   agencyId: string;
@@ -15,6 +15,10 @@ export interface UnifiedNotification {
   scheduledFor?: Date;
   createdAt?: Date;
   sentAt?: Date;
+  // Redirect URL for notification click
+  redirectUrl?: string;
+  // FCM token for push notification delivery
+  fcmToken?: string;
 }
 
 class UnifiedNotificationService {
@@ -27,9 +31,16 @@ class UnifiedNotificationService {
     try {
       console.log('🔔 [UnifiedNotification] Sending notification:', notification.title);
 
-      // Store notification in Firestore
+      // Store notification in Firestore (without fcmToken field)
       const notificationData = {
-        ...notification,
+        title: notification.title,
+        body: notification.body,
+        type: notification.type,
+        recipientId: notification.recipientId,
+        recipientRole: notification.recipientRole,
+        agencyId: notification.agencyId,
+        data: notification.data,
+        redirectUrl: notification.redirectUrl,
         read: false,
         status: 'sent' as const,
         createdAt: serverTimestamp(),
@@ -37,6 +48,17 @@ class UnifiedNotificationService {
       };
 
       const docRef = await addDoc(collection(db, this.collectionName), notificationData);
+      
+      // Send FCM push notification if fcmToken is provided
+      if (notification.fcmToken) {
+        await this.sendFCMPushNotification({
+          ...notification,
+          read: false,
+          status: 'sent',
+          createdAt: new Date(),
+          sentAt: new Date(),
+        });
+      }
       
       // Display notification via service worker
       await this.displayNotification({
@@ -55,7 +77,14 @@ class UnifiedNotificationService {
       // Store as failed notification
       try {
         const failedNotification = {
-          ...notification,
+          title: notification.title,
+          body: notification.body,
+          type: notification.type,
+          recipientId: notification.recipientId,
+          recipientRole: notification.recipientRole,
+          agencyId: notification.agencyId,
+          data: notification.data,
+          redirectUrl: notification.redirectUrl,
           read: false,
           status: 'failed' as const,
           createdAt: serverTimestamp(),
@@ -80,7 +109,14 @@ class UnifiedNotificationService {
       console.log('🔔 [UnifiedNotification] Scheduling notification:', notification.title, 'for:', scheduledFor);
 
       const notificationData = {
-        ...notification,
+        title: notification.title,
+        body: notification.body,
+        type: notification.type,
+        recipientId: notification.recipientId,
+        recipientRole: notification.recipientRole,
+        agencyId: notification.agencyId,
+        data: notification.data,
+        redirectUrl: notification.redirectUrl,
         read: false,
         status: 'scheduled' as const,
         scheduledFor: scheduledFor,
@@ -231,57 +267,67 @@ class UnifiedNotificationService {
     }
   }
 
-  /**
-   * Get appropriate icon for notification type
-   */
-  private getNotificationIcon(_type: string): string {
-    // Use a smaller icon size (96x96) for better display in Android notification bar
-    // The notification bar typically uses smaller icons than the main app icon
-    return '/fav-icons/android-icon-96x96.png';
-  }
 
   /**
-   * Get appropriate badge icon for notification type
+   * Send FCM push notification using existing FCM service
    */
-  private getNotificationBadge(_type: string): string {
-    // Use consistent badge but could be customized per type if needed
-    return '/fav-icons/android-icon-96x96.png';
-  }
-
-  /**
-   * Display notification via service worker
-   */
-  private async displayNotification(notification: Omit<UnifiedNotification, 'id'>): Promise<void> {
+  private async sendFCMPushNotification(notification: Omit<UnifiedNotification, 'id'>): Promise<void> {
     try {
-      if (!('serviceWorker' in navigator)) {
-        console.warn('🔔 [UnifiedNotification] Service worker not supported');
+      if (!notification.fcmToken) {
+        console.warn('🔔 [UnifiedNotification] No FCM token provided for push notification');
         return;
       }
 
-      const registration = await navigator.serviceWorker.ready;
-      
-      const notificationOptions: NotificationOptions = {
+      console.log('🔔 [UnifiedNotification] Sending FCM push notification to token:', notification.fcmToken.substring(0, 20) + '...');
+
+      // Import the existing FCM service
+      const { fcmService } = await import('./fcmService');
+
+      // Create FCM notification object
+      const fcmNotification = {
+        title: notification.title,
         body: notification.body,
-        icon: this.getNotificationIcon(notification.type),
-        badge: this.getNotificationBadge(notification.type),
-        tag: `ubora-${notification.type}-${Date.now()}`,
         data: {
           ...notification.data,
           type: notification.type,
           recipientId: notification.recipientId,
           agencyId: notification.agencyId,
+          redirectUrl: notification.redirectUrl || '/',
+          timestamp: Date.now().toString(),
         },
-        requireInteraction: true,
-        silent: false,
-        dir: 'auto',
-        lang: 'fr'
+        clickAction: notification.redirectUrl || '/',
+        redirectUrl: notification.redirectUrl || '/',
+        priority: 'high' as const,
+        ttl: 86400 // 24 hours
       };
 
-      await registration.showNotification(notification.title, notificationOptions);
-      console.log('🔔 [UnifiedNotification] Displayed notification:', notification.title);
+      // Send using existing FCM service
+      const result = await fcmService.sendToToken(fcmNotification, notification.fcmToken, notification.recipientId);
+      
+      if (result && result.status === 'sent') {
+        console.log('🔔 [UnifiedNotification] FCM push notification sent successfully');
+      } else {
+        console.warn('🔔 [UnifiedNotification] FCM push notification may have failed:', result?.error);
+        
+        // If token is invalid, try to regenerate it
+        if (result?.error && (result.error.includes('Invalid FCM token') || result.error.includes('token-not-registered'))) {
+          console.log('🔔 [UnifiedNotification] Attempting to regenerate FCM token for user:', notification.recipientId);
+          // The token regeneration will happen automatically on the next notification attempt
+        }
+      }
     } catch (error) {
-      console.error('🔔 [UnifiedNotification] Error displaying notification:', error);
+      console.error('🔔 [UnifiedNotification] Error sending FCM push notification:', error);
+      // Don't throw error - notification should still be saved to Firestore even if FCM fails
     }
+  }
+
+  /**
+   * Display notification via service worker (disabled - using FCM push notifications only)
+   */
+  private async displayNotification(_notification: Omit<UnifiedNotification, 'id'>): Promise<void> {
+    // Disabled - we're using FCM push notifications instead of browser notifications
+    console.log('🔔 [UnifiedNotification] Browser notification disabled - using FCM push notifications only');
+    return;
   }
 
   /**
@@ -341,6 +387,141 @@ class UnifiedNotificationService {
       console.error('🔔 [UnifiedNotification] Error getting unread count:', error);
       return 0;
     }
+  }
+
+  /**
+   * Create form assignment notification
+   */
+  async createFormAssignmentNotification(
+    formId: string,
+    formTitle: string,
+    recipientId: string,
+    recipientRole: 'directeur' | 'employe',
+    agencyId: string,
+    action: 'assigned' | 'unassigned',
+    assignedByName: string,
+    fcmToken?: string
+  ): Promise<string> {
+    const isAssigned = action === 'assigned';
+    const title = isAssigned ? 'Nouveau formulaire assigné' : 'Formulaire désassigné';
+    const body = isAssigned 
+      ? `${assignedByName} vous a assigné le formulaire "${formTitle}"`
+      : `Vous n'êtes plus assigné au formulaire "${formTitle}"`;
+
+    return await this.sendNotification({
+      title,
+      body,
+      type: 'form_assignment',
+      recipientId,
+      recipientRole,
+      agencyId,
+      redirectUrl: '/forms',
+      fcmToken,
+      data: {
+        formId,
+        formTitle,
+        assignedByName,
+        action,
+        highlightForm: true
+      }
+    });
+  }
+
+  /**
+   * Create form reminder notification
+   */
+  async createFormReminderNotification(
+    formId: string,
+    formTitle: string,
+    recipientId: string,
+    recipientRole: 'directeur' | 'employe',
+    agencyId: string,
+    reminderType: '1h' | '30min' | '15min' | '5min',
+    fcmToken?: string
+  ): Promise<string> {
+    const title = 'Rappel de formulaire';
+    const body = `N'oubliez pas de remplir: "${formTitle}" (${reminderType} restant)`;
+
+    return await this.sendNotification({
+      title,
+      body,
+      type: 'form_reminder',
+      recipientId,
+      recipientRole,
+      agencyId,
+      redirectUrl: recipientRole === 'directeur' ? '/directeur/dashboard' : '/employe/dashboard',
+      fcmToken,
+      data: {
+        formId,
+        formTitle,
+        reminderType,
+        action: 'fill_form'
+      }
+    });
+  }
+
+  /**
+   * Create metric reminder notification
+   */
+  async createMetricReminderNotification(
+    dashboardId: string,
+    metricId: string,
+    metricName: string,
+    metricValue: number,
+    recipientId: string,
+    agencyId: string,
+    fcmToken?: string
+  ): Promise<string> {
+    const title = 'Rappel de métrique';
+    const body = `Métrique "${metricName}": ${metricValue}`;
+
+    return await this.sendNotification({
+      title,
+      body,
+      type: 'metric_reminder',
+      recipientId,
+      recipientRole: 'directeur',
+      agencyId,
+      redirectUrl: `/dashboard/${dashboardId}`,
+      fcmToken,
+      data: {
+        dashboardId,
+        metricId,
+        metricName,
+        metricValue,
+        action: 'highlight_metric'
+      }
+    });
+  }
+
+  /**
+   * Create programmed instruction notification
+   */
+  async createProgrammedInstructionNotification(
+    instructionId: string,
+    instructionTitle: string,
+    recipientId: string,
+    agencyId: string,
+    fcmToken?: string
+  ): Promise<string> {
+    const title = 'Instruction programmée exécutée';
+    const body = `L'instruction "${instructionTitle}" a été exécutée et la réponse est disponible`;
+
+    return await this.sendNotification({
+      title,
+      body,
+      type: 'programmed_instruction',
+      recipientId,
+      recipientRole: 'directeur',
+      agencyId,
+      redirectUrl: `/instructions/${instructionId}/response`,
+      fcmToken,
+      data: {
+        instructionId,
+        instructionTitle,
+        action: 'show_response'
+      }
+    });
   }
 }
 

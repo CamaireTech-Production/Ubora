@@ -124,11 +124,15 @@ const ocrHealthHandler = require('../api/ocr/health.js');
 // File download handler
 const { downloadHandler } = require('../api/files/download.js');
 
+// FCM handler
+const fcmSendHandler = require('../api/fcm/send.js');
+
 // Routes
 app.post('/api/ai/ask', askHandler);
 app.get('/api/ai/health', healthHandler);
 app.post('/api/ai/format', formatHandler);
 app.get('/api/files/download', downloadHandler);
+app.post('/api/fcm/send', fcmSendHandler);
 
 // Test endpoint to verify server is running
 app.get('/api/test', (req, res) => {
@@ -146,6 +150,7 @@ app.get('/api/ai/format', (req, res) => {
 
 console.log('✅ Format route registered: POST /api/ai/format');
 console.log('✅ Download route registered: GET /api/files/download');
+console.log('✅ FCM route registered: POST /api/fcm/send');
 console.log('✅ Test route registered: GET /api/test');
 
 // OCR routes
@@ -201,6 +206,8 @@ app.listen(PORT, () => {
   console.log(`📡 AI endpoints available at:`);
   console.log(`   - POST http://localhost:${PORT}/api/ai/ask`);
   console.log(`   - GET  http://localhost:${PORT}/api/ai/health`);
+  console.log(`📡 FCM endpoints available at:`);
+  console.log(`   - POST http://localhost:${PORT}/api/fcm/send`);
   console.log(`📡 OCR endpoints available at:`);
   console.log(`   - POST http://localhost:${PORT}/api/ocr/extract`);
   console.log(`   - POST http://localhost:${PORT}/api/ocr/extractPdfText`);

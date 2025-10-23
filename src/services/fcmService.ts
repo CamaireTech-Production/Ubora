@@ -1,6 +1,6 @@
-import { doc, getDoc, setDoc, collection, addDoc, query, where, getDocs, orderBy, limit } from 'firebase/firestore';
+import { doc, getDoc, collection, addDoc, query, where, getDocs, orderBy, limit } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
-import { getFCMSendEndpoint } from '../config/api';
+import { buildApiUrl } from '../config/api';
 
 export interface FCMNotification {
   id?: string;
@@ -9,6 +9,7 @@ export interface FCMNotification {
   data?: Record<string, any>;
   imageUrl?: string;
   clickAction?: string;
+  redirectUrl?: string;
   priority?: 'high' | 'normal';
   ttl?: number; // Time to live in seconds
 }
@@ -48,9 +49,12 @@ class FCMService {
   async sendToToken(notification: FCMNotification, fcmToken: string, userId?: string): Promise<FCMDeliveryLog> {
     try {
       console.log('🔔 [FCM] Sending notification to token:', { fcmToken: fcmToken.substring(0, 20) + '...', userId });
+      console.log('🔔 [FCM] Full token length:', fcmToken.length);
+      console.log('🔔 [FCM] Token starts with:', fcmToken.substring(0, 10));
+      console.log('🔔 [FCM] Token ends with:', fcmToken.substring(fcmToken.length - 10));
 
       // Call backend API to send FCM
-      const response = await fetch(getFCMSendEndpoint(), {
+      const response = await fetch(buildApiUrl('/api/fcm/send'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -63,6 +67,49 @@ class FCMService {
       });
 
       if (!response.ok) {
+        const errorText = await response.text();
+        console.error('🔔 [FCM] API Error Response:', errorText);
+        
+        // Handle specific FCM errors
+        if (response.status === 400 || response.status === 500) {
+          try {
+            const errorData = JSON.parse(errorText);
+            if (errorData.error && (errorData.error.includes('FCM token appears to be invalid') || 
+                                   errorData.error.includes('FCM token is not registered') ||
+                                   errorData.code === 'token-not-registered')) {
+              console.warn('🔔 [FCM] FCM token is invalid/expired, attempting to regenerate...');
+              
+              // Clear the expired token first
+              if (userId) {
+                await this.clearExpiredFCMToken(userId);
+              }
+              
+              // Try to regenerate the token
+              const newToken = await this.regenerateFCMToken(userId);
+              if (newToken) {
+                console.log('🔔 [FCM] Regenerated FCM token, retrying notification...');
+                // Retry with new token
+                return await this.sendToToken(notification, newToken, userId);
+              } else {
+                console.warn('🔔 [FCM] Failed to regenerate FCM token, notification will be skipped');
+                return {
+                  id: `delivery_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+                  notificationId: notification.id || 'unknown',
+                  userId: userId || 'unknown',
+                  fcmToken,
+                  platform: 'unknown',
+                  status: 'failed',
+                  error: 'Invalid FCM token - regeneration failed',
+                  timestamp: new Date(),
+                  response: { success: false, error: 'Invalid FCM token - regeneration failed' }
+                };
+              }
+            }
+          } catch (parseError) {
+            // Continue with original error handling
+          }
+        }
+        
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
 
@@ -76,9 +123,9 @@ class FCMService {
         fcmToken,
         platform: 'unknown', // Will be updated from user data
         status: result.success ? 'sent' : 'failed',
-        error: result.error,
+        error: result.error || null,
         timestamp: new Date(),
-        response: result
+        response: result || {}
       };
 
       await this.logDelivery(deliveryLog);
@@ -206,6 +253,94 @@ class FCMService {
   }
 
   /**
+   * Regenerate FCM token for user
+   */
+  private async regenerateFCMToken(userId?: string): Promise<string | null> {
+    try {
+      if (!userId) {
+        console.warn('🔔 [FCM] No userId provided for token regeneration');
+        return null;
+      }
+
+      // Import the push notification hook to get a fresh token
+      const { getToken } = await import('firebase/messaging');
+      const { messaging } = await import('../firebaseConfig');
+      
+      const messagingInstance = await messaging;
+      if (!messagingInstance) {
+        console.warn(`🔔 [FCM] Messaging not available for user ${userId}`);
+        return null;
+      }
+
+      const vapidKey = import.meta.env.VITE_FIREBASE_VAPID_KEY;
+      if (!vapidKey || vapidKey === 'YOUR_VAPID_KEY_HERE') {
+        console.warn(`🔔 [FCM] VAPID key not configured for user ${userId}`);
+        return null;
+      }
+
+      // Get fresh FCM token
+      const newToken = await getToken(messagingInstance, {
+        vapidKey: vapidKey,
+        serviceWorkerRegistration: await navigator.serviceWorker.getRegistration('/')
+      });
+
+      if (newToken) {
+        console.log(`🔔 [FCM] Generated new FCM token for user ${userId}:`, {
+          length: newToken.length,
+          startsWith: newToken.substring(0, 10),
+          endsWith: newToken.substring(newToken.length - 10)
+        });
+
+        // Save new token to user profile
+        await this.saveFCMTokenToUser(userId, newToken);
+        return newToken;
+      } else {
+        console.warn(`🔔 [FCM] Failed to generate FCM token for user ${userId}`);
+        return null;
+      }
+    } catch (error) {
+      console.error(`🔔 [FCM] Error regenerating FCM token for user ${userId}:`, error);
+      return null;
+    }
+  }
+
+  /**
+   * Save FCM token to user profile
+   */
+  private async saveFCMTokenToUser(userId: string, fcmToken: string): Promise<void> {
+    try {
+      const { updateDoc, doc } = await import('firebase/firestore');
+      const { db } = await import('../firebaseConfig');
+      
+      await updateDoc(doc(db, 'users', userId), {
+        fcmToken: fcmToken,
+        fcmTokenUpdatedAt: new Date().toISOString()
+      });
+      console.log(`🔔 [FCM] Saved new FCM token for user ${userId}`);
+    } catch (error) {
+      console.error(`🔔 [FCM] Error saving FCM token for user ${userId}:`, error);
+    }
+  }
+
+  /**
+   * Clear expired FCM token from user profile
+   */
+  private async clearExpiredFCMToken(userId: string): Promise<void> {
+    try {
+      const { updateDoc, doc } = await import('firebase/firestore');
+      const { db } = await import('../firebaseConfig');
+      
+      await updateDoc(doc(db, 'users', userId), {
+        fcmToken: null,
+        fcmTokenClearedAt: new Date().toISOString()
+      });
+      console.log(`🔔 [FCM] Cleared expired FCM token for user ${userId}`);
+    } catch (error) {
+      console.error(`🔔 [FCM] Error clearing FCM token for user ${userId}:`, error);
+    }
+  }
+
+  /**
    * Log FCM delivery attempt
    */
   private async logDelivery(deliveryLog: FCMDeliveryLog): Promise<void> {
@@ -265,7 +400,7 @@ class FCMService {
     data?: Record<string, any>,
     options?: Partial<FCMNotification>
   ): FCMNotification {
-    return {
+    const notification: FCMNotification = {
       id: `notif_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
       title,
       body,
@@ -274,60 +409,157 @@ class FCMService {
       ttl: 86400, // 24 hours
       ...options
     };
+
+    // Set clickAction from redirectUrl if not explicitly provided
+    if (notification.redirectUrl && !notification.clickAction) {
+      notification.clickAction = notification.redirectUrl;
+    }
+
+    return notification;
   }
 
   /**
-   * Send form-related notification
+   * Send unified notification for form assignment
    */
-  async sendFormNotification(
-    type: 'assigned' | 'created' | 'submission' | 'reminder',
+  async sendFormAssignmentNotification(
     formId: string,
     formTitle: string,
-    targetUserId?: string,
-    targetRole?: string
-  ): Promise<FCMDeliveryLog[]> {
-    const notifications: Record<string, { title: string; body: string; data: any }> = {
-      assigned: {
-        title: 'Nouveau formulaire assigné',
-        body: `Vous avez un nouveau formulaire: ${formTitle}`,
-        data: { formId, action: 'form_assigned', type: 'form' }
-      },
-      created: {
-        title: 'Formulaire créé',
-        body: `Le formulaire "${formTitle}" a été créé`,
-        data: { formId, action: 'form_created', type: 'form' }
-      },
-      submission: {
-        title: 'Nouvelle soumission',
-        body: `Nouvelle soumission pour: ${formTitle}`,
-        data: { formId, action: 'form_submission', type: 'form' }
-      },
-      reminder: {
-        title: 'Rappel de formulaire',
-        body: `N'oubliez pas de remplir: ${formTitle}`,
-        data: { formId, action: 'form_reminder', type: 'reminder' }
-      }
-    };
-
-    const notificationData = notifications[type];
-    if (!notificationData) {
-      throw new Error(`Unknown form notification type: ${type}`);
-    }
+    recipientId: string,
+    action: 'assigned' | 'unassigned',
+    assignedByName: string
+  ): Promise<FCMDeliveryLog | null> {
+    const isAssigned = action === 'assigned';
+    const title = isAssigned ? 'Nouveau formulaire assigné' : 'Formulaire désassigné';
+    const body = isAssigned 
+      ? `${assignedByName} vous a assigné le formulaire "${formTitle}"`
+      : `Vous n'êtes plus assigné au formulaire "${formTitle}"`;
 
     const notification = this.createNotification(
-      notificationData.title,
-      notificationData.body,
-      notificationData.data
+      title,
+      body,
+      {
+        formId,
+        formTitle,
+        assignedByName,
+        action,
+        type: 'form_assignment',
+        redirectUrl: '/forms',
+        clickAction: '/forms',
+        highlightForm: true
+      }
     );
 
-    if (targetUserId) {
-      const result = await this.sendToUser(notification, targetUserId);
-      return result ? [result] : [];
-    } else if (targetRole) {
-      return await this.sendToRole(notification, targetRole);
-    } else {
-      throw new Error('Either targetUserId or targetRole must be specified');
-    }
+    return await this.sendToUser(notification, recipientId);
+  }
+
+  /**
+   * Send unified notification for form reminder
+   */
+  async sendFormReminderNotification(
+    formId: string,
+    formTitle: string,
+    recipientId: string,
+    recipientRole: 'directeur' | 'employe',
+    reminderType: '1h' | '30min' | '15min' | '5min'
+  ): Promise<FCMDeliveryLog | null> {
+    const title = 'Rappel de formulaire';
+    const body = `N'oubliez pas de remplir: "${formTitle}" (${reminderType} restant)`;
+
+    const notification = this.createNotification(
+      title,
+      body,
+      {
+        formId,
+        formTitle,
+        reminderType,
+        type: 'form_reminder',
+        redirectUrl: recipientRole === 'directeur' ? '/directeur/dashboard' : '/employe/dashboard',
+        clickAction: recipientRole === 'directeur' ? '/directeur/dashboard' : '/employe/dashboard',
+        action: 'fill_form'
+      }
+    );
+
+    return await this.sendToUser(notification, recipientId);
+  }
+
+  /**
+   * Send unified notification for metric reminder
+   */
+  async sendMetricReminderNotification(
+    dashboardId: string,
+    metricId: string,
+    metricName: string,
+    metricValue: number,
+    recipientId: string
+  ): Promise<FCMDeliveryLog | null> {
+    const title = 'Rappel de métrique';
+    const body = `Métrique "${metricName}": ${metricValue}`;
+
+    const notification = this.createNotification(
+      title,
+      body,
+      {
+        dashboardId,
+        metricId,
+        metricName,
+        metricValue,
+        type: 'metric_reminder',
+        redirectUrl: `/dashboard/${dashboardId}`,
+        clickAction: `/dashboard/${dashboardId}`,
+        action: 'highlight_metric'
+      }
+    );
+
+    return await this.sendToUser(notification, recipientId);
+  }
+
+  /**
+   * Send unified notification for programmed instruction
+   */
+  async sendProgrammedInstructionNotification(
+    instructionId: string,
+    instructionTitle: string,
+    recipientId: string
+  ): Promise<FCMDeliveryLog | null> {
+    const title = 'Instruction programmée exécutée';
+    const body = `L'instruction "${instructionTitle}" a été exécutée et la réponse est disponible`;
+
+    const notification = this.createNotification(
+      title,
+      body,
+      {
+        instructionId,
+        instructionTitle,
+        type: 'programmed_instruction',
+        redirectUrl: `/instructions/${instructionId}/response`,
+        clickAction: `/instructions/${instructionId}/response`,
+        action: 'show_response'
+      }
+    );
+
+    return await this.sendToUser(notification, recipientId);
+  }
+
+  /**
+   * Send unified notification (generic method for all 4 types)
+   */
+  async sendUnifiedNotification(
+    type: 'form_assignment' | 'form_reminder' | 'metric_reminder' | 'programmed_instruction',
+    recipientId: string,
+    data: Record<string, any>
+  ): Promise<FCMDeliveryLog | null> {
+    const notification = this.createNotification(
+      data.title,
+      data.body,
+      {
+        ...data,
+        type,
+        redirectUrl: data.redirectUrl,
+        clickAction: data.redirectUrl
+      }
+    );
+
+    return await this.sendToUser(notification, recipientId);
   }
 }
 

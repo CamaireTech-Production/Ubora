@@ -30,9 +30,7 @@ import PushTestPage from './pages/PushTestPage';
 import { HybridPWAManager } from './components/HybridPWAManager';
 import { EmployeeManagement } from './components/EmployeeManagement';
 import { Layout } from './components/Layout';
-import { NotificationListener } from './components/NotificationListener';
 import { ReminderServiceInitializer } from './components/ReminderServiceInitializer';
-import { NotificationCronInitializer } from './components/NotificationCronInitializer';
 import { initializePWAConfig } from './utils/pwaConfig';
 import { PWAUpdateNotification } from './components/PWAUpdateNotification';
 import { usePageTracking } from './hooks/usePageTracking';
@@ -44,10 +42,23 @@ const ServiceWorkerMessageHandler: React.FC = () => {
   useEffect(() => {
     const handleServiceWorkerMessage = (event: MessageEvent) => {
       if (event.data && event.data.type === 'NOTIFICATION_CLICK') {
+        const { url, notificationType, highlightData, data } = event.data;
         
+        console.log('🔔 [App] Handling notification click:', {
+          url,
+          notificationType,
+          highlightData,
+          data
+        });
+
         // Navigate to the specified URL
-        if (event.data.url) {
-          navigate(event.data.url);
+        if (url && url !== window.location.pathname) {
+          navigate(url);
+        }
+
+        // Handle highlighting based on notification type
+        if (highlightData) {
+          handleHighlighting(notificationType, highlightData);
         }
       }
     };
@@ -61,6 +72,108 @@ const ServiceWorkerMessageHandler: React.FC = () => {
   }, [navigate]);
 
   return null;
+};
+
+/**
+ * Handle highlighting for different notification types
+ */
+const handleHighlighting = (notificationType: string, highlightData: any) => {
+  console.log('🔔 [App] Handling highlighting:', { notificationType, highlightData });
+
+  switch (notificationType) {
+    case 'form_assignment':
+      handleFormAssignmentHighlighting(highlightData);
+      break;
+    case 'form_reminder':
+      handleFormReminderHighlighting(highlightData);
+      break;
+    case 'metric_reminder':
+      handleMetricReminderHighlighting(highlightData);
+      break;
+    case 'programmed_instruction':
+      handleProgrammedInstructionHighlighting(highlightData);
+      break;
+    default:
+      console.log('🔔 [App] Unknown notification type:', notificationType);
+  }
+};
+
+/**
+ * Handle form assignment highlighting
+ */
+const handleFormAssignmentHighlighting = (highlightData: any) => {
+  if (highlightData.formId && highlightData.scrollToForm) {
+    setTimeout(() => {
+      const formElement = document.querySelector(`[data-form-id="${highlightData.formId}"]`);
+      if (formElement) {
+        formElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        formElement.classList.add('notification-highlight');
+        setTimeout(() => {
+          formElement.classList.remove('notification-highlight');
+        }, 3000);
+      }
+    }, 500);
+  }
+};
+
+/**
+ * Handle form reminder highlighting
+ */
+const handleFormReminderHighlighting = (highlightData: any) => {
+  if (highlightData.formId && highlightData.autoFill) {
+    setTimeout(() => {
+      const firstInput = document.querySelector('form input, form textarea, form select');
+      if (firstInput) {
+        (firstInput as HTMLElement).focus();
+        const formElement = firstInput.closest('form');
+        if (formElement) {
+          formElement.classList.add('notification-highlight');
+          setTimeout(() => {
+            formElement.classList.remove('notification-highlight');
+          }, 3000);
+        }
+      }
+    }, 500);
+  }
+};
+
+/**
+ * Handle metric reminder highlighting
+ */
+const handleMetricReminderHighlighting = (highlightData: any) => {
+  if (highlightData.metricId && highlightData.scrollToMetric) {
+    setTimeout(() => {
+      const metricElement = document.querySelector(`[data-metric-id="${highlightData.metricId}"]`);
+      if (metricElement) {
+        metricElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        metricElement.classList.add('notification-highlight');
+        setTimeout(() => {
+          metricElement.classList.remove('notification-highlight');
+        }, 3000);
+      }
+    }, 500);
+  }
+};
+
+/**
+ * Handle programmed instruction highlighting
+ */
+const handleProgrammedInstructionHighlighting = (highlightData: any) => {
+  if (highlightData.instructionId && highlightData.autoOpen) {
+    setTimeout(() => {
+      const responseElement = document.querySelector(`[data-instruction-id="${highlightData.instructionId}"]`);
+      if (responseElement) {
+        const responseButton = responseElement.querySelector('[data-action="show-response"]');
+        if (responseButton) {
+          (responseButton as HTMLElement).click();
+        }
+        responseElement.classList.add('notification-highlight');
+        setTimeout(() => {
+          responseElement.classList.remove('notification-highlight');
+        }, 3000);
+      }
+    }, 500);
+  }
 };
 
 // Component that only renders notification services for authenticated users
@@ -77,9 +190,7 @@ const AuthenticatedServices: React.FC = () => {
 
   return (
     <>
-      <NotificationListener />
       <ReminderServiceInitializer />
-      <NotificationCronInitializer />
     </>
   );
 };

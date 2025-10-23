@@ -456,7 +456,7 @@ export const FormEditor: React.FC<FormEditorProps> = ({
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-3">
-              Assigner aux employés *
+              Assigner aux utilisateurs *
             </label>
             
             {/* Search and Select All Controls */}

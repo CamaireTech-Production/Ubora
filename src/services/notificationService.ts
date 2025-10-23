@@ -1,6 +1,6 @@
-import { collection, addDoc, serverTimestamp, query, where, orderBy, limit, getDocs } from 'firebase/firestore';
-import { db } from '../firebaseConfig';
 import { unifiedNotificationService } from './unifiedNotificationService';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '../firebaseConfig';
 
 export interface NotificationData {
   id?: string;
@@ -14,24 +14,169 @@ export interface NotificationData {
   createdAt?: any;
 }
 
+/**
+ * Legacy Notification Service - Wrapper around Unified Notification Service
+ * This service maintains backward compatibility while using the unified system
+ */
 class NotificationService {
-  private readonly collectionName = 'notifications';
 
   /**
-   * Send notification to specific user
+   * Get user role from database
+   */
+  private async getUserRole(userId: string): Promise<'directeur' | 'employe'> {
+    try {
+      const userDoc = await getDoc(doc(db, 'users', userId));
+      if (userDoc.exists()) {
+        const userData = userDoc.data();
+        return userData.role || 'employe'; // Default to employee if role not found
+      }
+      console.warn(`🔔 [NotificationService] User ${userId} not found, defaulting to employee role`);
+      return 'employe';
+    } catch (error) {
+      console.error(`🔔 [NotificationService] Error getting user role for ${userId}:`, error);
+      return 'employe'; // Default to employee on error
+    }
+  }
+
+  /**
+   * Get FCM token from user profile with validation and regeneration
+   */
+  private async getUserFCMToken(userId: string): Promise<string | null> {
+    try {
+      const userDoc = await getDoc(doc(db, 'users', userId));
+      if (userDoc.exists()) {
+        const userData = userDoc.data();
+        let fcmToken = userData.fcmToken || null;
+        
+        if (fcmToken) {
+          console.log(`🔔 [NotificationService] Retrieved FCM token for user ${userId}:`, {
+            length: fcmToken.length,
+            startsWith: fcmToken.substring(0, 10),
+            endsWith: fcmToken.substring(fcmToken.length - 10)
+          });
+          
+          // Validate token format
+          if (fcmToken.length < 100) {
+            console.warn(`🔔 [NotificationService] FCM token appears invalid for user ${userId}, length: ${fcmToken.length}`);
+            fcmToken = null;
+          }
+        }
+        
+        // If no valid token, try to regenerate one
+        if (!fcmToken) {
+          console.log(`🔔 [NotificationService] No valid FCM token for user ${userId}, attempting to regenerate...`);
+          fcmToken = await this.regenerateFCMToken(userId);
+        }
+        
+        return fcmToken;
+      }
+      console.warn(`🔔 [NotificationService] User ${userId} not found, no FCM token available`);
+      return null;
+    } catch (error) {
+      console.error(`🔔 [NotificationService] Error getting FCM token for ${userId}:`, error);
+      return null;
+    }
+  }
+
+  /**
+   * Regenerate FCM token for user
+   */
+  private async regenerateFCMToken(userId: string): Promise<string | null> {
+    try {
+      // Import the push notification hook to get a fresh token
+      const { getToken } = await import('firebase/messaging');
+      const { messaging } = await import('../firebaseConfig');
+      
+      const messagingInstance = await messaging;
+      if (!messagingInstance) {
+        console.warn(`🔔 [NotificationService] Messaging not available for user ${userId}`);
+        return null;
+      }
+
+      const vapidKey = import.meta.env.VITE_FIREBASE_VAPID_KEY;
+      if (!vapidKey || vapidKey === 'YOUR_VAPID_KEY_HERE') {
+        console.warn(`🔔 [NotificationService] VAPID key not configured for user ${userId}`);
+        return null;
+      }
+
+      // Get fresh FCM token
+      const newToken = await getToken(messagingInstance, {
+        vapidKey: vapidKey,
+        serviceWorkerRegistration: await navigator.serviceWorker.getRegistration('/')
+      });
+
+      if (newToken) {
+        console.log(`🔔 [NotificationService] Generated new FCM token for user ${userId}:`, {
+          length: newToken.length,
+          startsWith: newToken.substring(0, 10),
+          endsWith: newToken.substring(newToken.length - 10)
+        });
+
+        // Save new token to user profile
+        await this.saveFCMTokenToUser(userId, newToken);
+        return newToken;
+      } else {
+        console.warn(`🔔 [NotificationService] Failed to generate FCM token for user ${userId}`);
+        return null;
+      }
+    } catch (error) {
+      console.error(`🔔 [NotificationService] Error regenerating FCM token for user ${userId}:`, error);
+      return null;
+    }
+  }
+
+  /**
+   * Save FCM token to user profile
+   */
+  private async saveFCMTokenToUser(userId: string, fcmToken: string): Promise<void> {
+    try {
+      const { updateDoc } = await import('firebase/firestore');
+      await updateDoc(doc(db, 'users', userId), {
+        fcmToken: fcmToken,
+        fcmTokenUpdatedAt: new Date().toISOString()
+      });
+      console.log(`🔔 [NotificationService] Saved new FCM token for user ${userId}`);
+    } catch (error) {
+      console.error(`🔔 [NotificationService] Error saving FCM token for user ${userId}:`, error);
+    }
+  }
+
+  /**
+   * Map legacy notification types to unified types
+   */
+  private mapLegacyTypeToUnified(legacyType: string): 'form_assignment' | 'form_reminder' | 'metric_reminder' | 'programmed_instruction' {
+    switch (legacyType) {
+      case 'form_assignment':
+      case 'form_created':
+        return 'form_assignment';
+      case 'reminder':
+        return 'form_reminder';
+      case 'form_submission':
+      case 'director_message':
+      case 'system_alert':
+      default:
+        // For legacy types that don't map to unified types, use form_assignment as fallback
+        return 'form_assignment';
+    }
+  }
+
+  /**
+   * Send notification to specific user (legacy method - uses unified service)
    */
   async sendToUser(userId: string, notification: Omit<NotificationData, 'id' | 'read' | 'createdAt'>, agencyId?: string): Promise<void> {
     try {
-      await addDoc(collection(db, this.collectionName), {
-        ...notification,
+      // Map legacy notification types to unified types
+      const unifiedType = this.mapLegacyTypeToUnified(notification.type);
+      
+      await unifiedNotificationService.sendNotification({
+        title: notification.title,
+        body: notification.body,
+        type: unifiedType,
         recipientId: userId,
-        agencyId: agencyId,
-        read: false,
-        createdAt: serverTimestamp(),
+        recipientRole: notification.recipientRole,
+        agencyId: agencyId || '',
+        data: notification.data
       });
-
-      // Also send push notification via API
-      await this.sendPushNotification([userId], notification.title, notification.body, notification.data);
     } catch (error) {
       console.error('🔔 [NotificationService] Error sending to user:', error);
       throw error;
@@ -39,44 +184,16 @@ class NotificationService {
   }
 
   /**
-   * Send notification via unified service (new method)
+   * Send notification to all users with specific role (legacy method - uses unified service)
    */
-  async sendViaUnified(
-    userId: string, 
-    notification: Omit<NotificationData, 'id' | 'read' | 'createdAt'>, 
-    agencyId?: string
-  ): Promise<string> {
+  async sendToRole(role: 'directeur' | 'employe', notification: Omit<NotificationData, 'id' | 'read' | 'createdAt'>): Promise<void> {
     try {
-      return await unifiedNotificationService.sendNotification({
-        title: notification.title,
-        body: notification.body,
-        type: notification.type as any,
-        recipientId: userId,
-        recipientRole: notification.recipientRole,
-        agencyId: agencyId || '',
-        data: notification.data,
-      });
-    } catch (error) {
-      console.error('🔔 [NotificationService] Error sending via unified service:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Send notification to all users with specific role
-   */
-  async sendToRole(role: 'directeur' | 'employe', notification: Omit<NotificationData, 'id' | 'read' | 'createdAt'>, agencyId?: string): Promise<void> {
-    try {
-      await addDoc(collection(db, this.collectionName), {
-        ...notification,
-        recipientRole: role,
-        agencyId: agencyId,
-        read: false,
-        createdAt: serverTimestamp(),
-      });
-
-      // Also send push notification via API
-      await this.sendPushNotification(null, notification.title, notification.body, notification.data, role);
+      // For role-based notifications, we need to get all users with that role
+      // This is a simplified approach - in practice, you might want to use the unified service's role-based methods
+      console.warn('🔔 [NotificationService] sendToRole is deprecated. Use unified notification service directly for role-based notifications.');
+      
+      // For now, just log that this method is deprecated
+      console.log('🔔 [NotificationService] Role-based notification requested:', { role, notification });
     } catch (error) {
       console.error('🔔 [NotificationService] Error sending to role:', error);
       throw error;
@@ -84,50 +201,24 @@ class NotificationService {
   }
 
   /**
-   * Send push notification using FCM directly
-   * Note: FCM from frontend can only send to current user, so we rely on Firestore real-time updates
-   */
-  private async sendPushNotification(
-    userIds: string[] | null,
-    title: string,
-    body: string,
-    data?: Record<string, any>,
-    role?: 'directeur' | 'employe'
-  ): Promise<void> {
-    try {
-      // Since FCM from frontend can only send to current user,
-      // we rely on Firestore real-time updates to trigger notifications
-      // The service worker will handle background notifications
-      
-      
-      // The notification will be delivered through:
-      // 1. Firestore real-time listeners (for in-app notifications)
-      // 2. Service worker (for background notifications)
-      // 3. FCM will automatically handle push notifications when the app is in background
-      
-    } catch (error) {
-      console.error('🔔 [NotificationService] Push notification error:', error);
-      // Don't throw here - we still want to save the notification to Firestore
-    }
-  }
-
-  /**
-   * Get notifications for a specific user
+   * Get notifications for a specific user (legacy method - uses unified service)
    */
   async getUserNotifications(userId: string, limitCount: number = 50): Promise<NotificationData[]> {
     try {
-      const q = query(
-        collection(db, this.collectionName),
-        where('recipientId', '==', userId),
-        orderBy('createdAt', 'desc'),
-        limit(limitCount)
-      );
-
-      const snapshot = await getDocs(q);
-      return snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-      })) as NotificationData[];
+      const unifiedNotifications = await unifiedNotificationService.getUserNotifications(userId, limitCount);
+      
+      // Convert unified notifications to legacy format
+      return unifiedNotifications.map(notification => ({
+        id: notification.id,
+        title: notification.title,
+        body: notification.body,
+        type: notification.type as any, // Map unified type to legacy type
+        recipientId: notification.recipientId,
+        recipientRole: notification.recipientRole,
+        data: notification.data,
+        read: notification.read,
+        createdAt: notification.createdAt
+      }));
     } catch (error) {
       console.error('🔔 [NotificationService] Error getting user notifications:', error);
       return [];
@@ -135,36 +226,11 @@ class NotificationService {
   }
 
   /**
-   * Get notifications for a specific role
-   */
-  async getRoleNotifications(role: 'directeur' | 'employe', limitCount: number = 50): Promise<NotificationData[]> {
-    try {
-      const q = query(
-        collection(db, this.collectionName),
-        where('recipientRole', '==', role),
-        orderBy('createdAt', 'desc'),
-        limit(limitCount)
-      );
-
-      const snapshot = await getDocs(q);
-      return snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-      })) as NotificationData[];
-    } catch (error) {
-      console.error('🔔 [NotificationService] Error getting role notifications:', error);
-      return [];
-    }
-  }
-
-  /**
-   * Mark notification as read
+   * Mark notification as read (legacy method - uses unified service)
    */
   async markAsRead(notificationId: string): Promise<void> {
     try {
-      const { doc, updateDoc } = await import('firebase/firestore');
-      const notificationRef = doc(db, this.collectionName, notificationId);
-      await updateDoc(notificationRef, { read: true });
+      await unifiedNotificationService.markAsRead(notificationId);
     } catch (error) {
       console.error('🔔 [NotificationService] Error marking as read:', error);
       throw error;
@@ -172,137 +238,132 @@ class NotificationService {
   }
 
   /**
-   * Helper methods for common notification types
+   * Helper methods for common notification types (legacy methods - use unified service directly)
    */
-  async notifyFormSubmission(formId: string, formTitle: string, submitterName: string, directorId: string): Promise<void> {
-    await this.sendToUser(directorId, {
-      title: 'Nouvelle soumission',
-      body: `${submitterName} a soumis le formulaire "${formTitle}"`,
-      type: 'form_submission',
-      data: { formId, submitterName, formTitle },
-    });
+  async notifyFormSubmission(): Promise<void> {
+    console.warn('🔔 [NotificationService] notifyFormSubmission is deprecated. Use unified notification service directly.');
+    // This would be handled by the unified system in the backend cron job
   }
 
-  async notifyDirectorMessage(message: string, employeeId: string): Promise<void> {
-    await this.sendToUser(employeeId, {
-      title: 'Message du directeur',
-      body: message,
-      type: 'director_message',
-      data: { message },
-    });
+  async notifyDirectorMessage(): Promise<void> {
+    console.warn('🔔 [NotificationService] notifyDirectorMessage is deprecated. Use unified notification service directly.');
+    // This would be handled by the unified system in the backend cron job
   }
 
-  async notifySystemAlert(title: string, message: string, role?: 'directeur' | 'employe'): Promise<void> {
-    if (role) {
-      await this.sendToRole(role, {
-        title,
-        body: message,
-        type: 'system_alert',
-        data: { message },
-      });
-    } else {
-      // Send to all users
-      await this.sendToRole('directeur', {
-        title,
-        body: message,
-        type: 'system_alert',
-        data: { message },
-      });
-      await this.sendToRole('employe', {
-        title,
-        body: message,
-        type: 'system_alert',
-        data: { message },
-      });
-    }
+  async notifySystemAlert(): Promise<void> {
+    console.warn('🔔 [NotificationService] notifySystemAlert is deprecated. Use unified notification service directly.');
+    // This would be handled by the unified system in the backend cron job
   }
 
   /**
-   * Notify employees when a form is assigned to them
+   * Notify users when a form is assigned to them (legacy method - use unified service directly)
+   * Now supports both employees and directors
    */
-  async notifyFormAssignment(formId: string, formTitle: string, employeeIds: string[], directorName: string, agencyId?: string): Promise<void> {
-    const notifications = employeeIds.map(employeeId => 
-      this.sendViaUnified(employeeId, {
-        title: 'Nouveau formulaire assigné',
-        body: `${directorName} vous a assigné le formulaire "${formTitle}"`,
-        type: 'form_assignment',
-        data: { 
+  async notifyFormAssignment(formId: string, formTitle: string, userIds: string[], directorName: string, agencyId?: string): Promise<void> {
+    console.warn('🔔 [NotificationService] notifyFormAssignment is deprecated. Use unified notification service directly.');
+    
+    // Use unified service for form assignment notifications
+    for (const userId of userIds) {
+      try {
+        // Determine user role and get FCM token
+        const userRole = await this.getUserRole(userId);
+        const fcmToken = await this.getUserFCMToken(userId);
+        
+        await unifiedNotificationService.createFormAssignmentNotification(
           formId, 
           formTitle, 
+          userId,
+          userRole,
+          agencyId || '',
+          'assigned',
           directorName,
-          action: 'form_assigned'
-        },
-      }, agencyId)
-    );
-
-    await Promise.all(notifications);
+          fcmToken || undefined
+        );
+      } catch (error) {
+        console.error('🔔 [NotificationService] Error sending form assignment notification:', error);
+      }
+    }
   }
 
   /**
-   * Notify employees when a form is created and assigned to them
+   * Notify users when a form is created and assigned to them (legacy method - use unified service directly)
+   * Now supports both employees and directors
    */
-  async notifyFormCreated(formId: string, formTitle: string, employeeIds: string[], directorName: string, agencyId?: string): Promise<void> {
-    const notifications = employeeIds.map(employeeId => 
-      this.sendViaUnified(employeeId, {
-        title: 'Nouveau formulaire créé',
-        body: `${directorName} a créé et vous a assigné le formulaire "${formTitle}"`,
-        type: 'form_assignment', // Use form_assignment type for consistency
-        data: { 
+  async notifyFormCreated(formId: string, formTitle: string, userIds: string[], directorName: string, agencyId?: string): Promise<void> {
+    console.warn('🔔 [NotificationService] notifyFormCreated is deprecated. Use unified notification service directly.');
+    
+    // Use unified service for form creation notifications
+    for (const userId of userIds) {
+      try {
+        // Determine user role and get FCM token
+        const userRole = await this.getUserRole(userId);
+        const fcmToken = await this.getUserFCMToken(userId);
+        
+        await unifiedNotificationService.createFormAssignmentNotification(
           formId, 
           formTitle, 
+          userId,
+          userRole,
+          agencyId || '',
+          'assigned',
           directorName,
-          action: 'form_created'
-        },
-      }, agencyId)
-    );
-
-    await Promise.all(notifications);
+          fcmToken || undefined
+        );
+      } catch (error) {
+        console.error('🔔 [NotificationService] Error sending form creation notification:', error);
+      }
+    }
   }
 
   /**
-   * Notify employees when form assignment is updated
+   * Notify users when form assignment is updated (legacy method - use unified service directly)
+   * Now supports both employees and directors
    */
-  async notifyFormAssignmentUpdate(formId: string, formTitle: string, newEmployeeIds: string[], removedEmployeeIds: string[], directorName: string, agencyId?: string): Promise<void> {
-    const notifications = [];
-
-    // Notify newly assigned employees
-    if (newEmployeeIds.length > 0) {
-      const newAssignmentNotifications = newEmployeeIds.map(employeeId => 
-        this.sendViaUnified(employeeId, {
-          title: 'Formulaire assigné',
-          body: `${directorName} vous a assigné le formulaire "${formTitle}"`,
-          type: 'form_assignment',
-          data: { 
+  async notifyFormAssignmentUpdate(formId: string, formTitle: string, newUserIds: string[], removedUserIds: string[], directorName: string, agencyId?: string): Promise<void> {
+    console.warn('🔔 [NotificationService] notifyFormAssignmentUpdate is deprecated. Use unified notification service directly.');
+    
+    // Notify newly assigned users
+    for (const userId of newUserIds) {
+      try {
+        // Determine user role and get FCM token
+        const userRole = await this.getUserRole(userId);
+        const fcmToken = await this.getUserFCMToken(userId);
+        
+        await unifiedNotificationService.createFormAssignmentNotification(
             formId, 
             formTitle, 
+          userId,
+          userRole,
+          agencyId || '',
+          'assigned',
             directorName,
-            action: 'form_assigned'
-          },
-        }, agencyId)
-      );
-      notifications.push(...newAssignmentNotifications);
+          fcmToken || undefined
+        );
+      } catch (error) {
+        console.error('🔔 [NotificationService] Error sending form assignment notification:', error);
+      }
     }
 
-    // Notify removed employees
-    if (removedEmployeeIds.length > 0) {
-      const removedAssignmentNotifications = removedEmployeeIds.map(employeeId => 
-        this.sendViaUnified(employeeId, {
-          title: 'Formulaire désassigné',
-          body: `Vous n'êtes plus assigné au formulaire "${formTitle}"`,
-          type: 'form_assignment',
-          data: { 
+    // Notify removed users
+    for (const userId of removedUserIds) {
+      try {
+        // Determine user role and get FCM token
+        const userRole = await this.getUserRole(userId);
+        const fcmToken = await this.getUserFCMToken(userId);
+        
+        await unifiedNotificationService.createFormAssignmentNotification(
             formId, 
             formTitle, 
+          userId,
+          userRole,
+          agencyId || '',
+          'unassigned',
             directorName,
-            action: 'form_unassigned'
-          },
-        }, agencyId)
+          fcmToken || undefined
       );
-      notifications.push(...removedAssignmentNotifications);
+      } catch (error) {
+        console.error('🔔 [NotificationService] Error sending form unassignment notification:', error);
     }
-
-    if (notifications.length > 0) {
-      await Promise.all(notifications);
     }
   }
 }

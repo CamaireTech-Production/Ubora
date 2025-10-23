@@ -1,3 +1,6 @@
+/* Import notification highlight styles */
+@import './styles/notification-highlight.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
