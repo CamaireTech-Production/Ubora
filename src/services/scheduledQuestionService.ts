@@ -16,6 +16,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 import { ScheduledQuestion, ScheduledQuestionResponse } from '../types';
+import { getCameroonTime, calculateNextExecutionCameroon } from '../utils/timezoneUtils';
 
 class ScheduledQuestionService {
   private readonly collectionName = 'scheduledQuestions';
@@ -140,27 +141,32 @@ class ScheduledQuestionService {
    */
   async getDueQuestionsForUser(userId: string, agencyId: string): Promise<ScheduledQuestion[]> {
     try {
-      const now = new Date();
-      console.log('🔍 [ScheduledQuestionService] Recherche des questions à exécuter pour:', userId, 'à', now.toISOString());
+      const now = getCameroonTime();
+      // Add 5 minutes tolerance to catch questions that should have been executed
+      const toleranceMinutes = 5;
+      const toleranceTime = new Date(now.getTime() + (toleranceMinutes * 60 * 1000));
       
-      // Requête pour les questions avec nextExecution <= maintenant
+      console.log('🔍 [ScheduledQuestionService] Recherche des questions à exécuter pour:', userId, 'à', now.toISOString(), '(Heure Cameroun)');
+      console.log('⏰ [ScheduledQuestionService] Tolérance de', toleranceMinutes, 'minutes - recherche jusqu\'à:', toleranceTime.toISOString());
+      
+      // Requête pour les questions avec nextExecution <= maintenant + tolérance
       const q1 = query(
         collection(db, this.collectionName),
         where('userId', '==', userId),
         where('agencyId', '==', agencyId),
         where('status', '==', 'pending'),
-        where('nextExecution', '<=', Timestamp.fromDate(now)),
+        where('nextExecution', '<=', Timestamp.fromDate(toleranceTime)),
         orderBy('nextExecution', 'asc'),
         limit(50)
       );
       
-      // Requête pour les questions avec scheduledAt <= maintenant et nextExecution null (première exécution)
+      // Requête pour les questions avec scheduledAt <= maintenant + tolérance et nextExecution null (première exécution)
       const q2 = query(
         collection(db, this.collectionName),
         where('userId', '==', userId),
         where('agencyId', '==', agencyId),
         where('status', '==', 'pending'),
-        where('scheduledAt', '<=', Timestamp.fromDate(now)),
+        where('scheduledAt', '<=', Timestamp.fromDate(toleranceTime)),
         orderBy('scheduledAt', 'asc'),
         limit(50)
       );
@@ -173,23 +179,29 @@ class ScheduledQuestionService {
       // Combiner les résultats et éviter les doublons
       const allQuestions = new Map();
       
-      // Ajouter les questions avec nextExecution
+      // Ajouter les questions avec nextExecution (avec vérification de tolérance)
       snapshot1.docs.forEach(doc => {
         const question = this.convertFirestoreToScheduledQuestion(doc.id, doc.data());
-        allQuestions.set(doc.id, question);
+        // Vérifier que la question est vraiment due (dans la tolérance)
+        if (this.isQuestionDue(question, now, toleranceMinutes)) {
+          allQuestions.set(doc.id, question);
+        }
       });
       
-      // Ajouter les questions avec scheduledAt (première exécution)
+      // Ajouter les questions avec scheduledAt (première exécution) avec vérification de tolérance
       snapshot2.docs.forEach(doc => {
         const question = this.convertFirestoreToScheduledQuestion(doc.id, doc.data());
-        // Ne l'ajouter que si elle n'est pas déjà présente et si nextExecution est null ou dans le futur
-        if (!allQuestions.has(doc.id) && (!question.nextExecution || question.nextExecution > now)) {
+        // Ne l'ajouter que si elle n'est pas déjà présente et si elle est vraiment due
+        if (!allQuestions.has(doc.id) && this.isQuestionDue(question, now, toleranceMinutes)) {
           allQuestions.set(doc.id, question);
         }
       });
       
       const dueQuestions = Array.from(allQuestions.values());
       console.log(`🔍 [ScheduledQuestionService] ${dueQuestions.length} question(s) trouvée(s) à exécuter`);
+      
+      // Vérifier et marquer les questions trop anciennes comme échouées
+      await this.handleOverdueQuestions(userId, agencyId, now, toleranceMinutes);
       
       if (dueQuestions.length > 0) {
         console.log('📋 [ScheduledQuestionService] Questions à exécuter:');
@@ -231,39 +243,104 @@ class ScheduledQuestionService {
   }
 
   /**
-   * Calculer la prochaine exécution basée sur la fréquence
+   * Calculer la prochaine exécution basée sur la fréquence (en utilisant l'heure Cameroun)
    */
   calculateNextExecution(scheduledAt: Date, frequency: ScheduledQuestion['frequency']): Date {
-    const now = new Date();
-    let nextExecution = new Date(scheduledAt);
+    return calculateNextExecutionCameroon(scheduledAt, frequency);
+  }
 
-    switch (frequency) {
-      case 'once':
-        return scheduledAt;
-      
-      case 'daily':
-        // Si l'heure programmée est passée aujourd'hui, programmer pour demain
-        if (nextExecution <= now) {
-          nextExecution.setDate(nextExecution.getDate() + 1);
-        }
-        break;
-      
-      case 'weekly':
-        // Si l'heure programmée est passée cette semaine, programmer pour la semaine prochaine
-        if (nextExecution <= now) {
-          nextExecution.setDate(nextExecution.getDate() + 7);
-        }
-        break;
-      
-      case 'monthly':
-        // Si l'heure programmée est passée ce mois, programmer pour le mois prochain
-        if (nextExecution <= now) {
-          nextExecution.setMonth(nextExecution.getMonth() + 1);
-        }
-        break;
+  /**
+   * Vérifier si une question est vraiment due (dans la tolérance de temps)
+   */
+  private isQuestionDue(question: ScheduledQuestion, now: Date, toleranceMinutes: number): boolean {
+    const toleranceMs = toleranceMinutes * 60 * 1000;
+    
+    // Vérifier nextExecution si disponible
+    if (question.nextExecution) {
+      const timeDiff = now.getTime() - question.nextExecution.getTime();
+      return timeDiff >= 0 && timeDiff <= toleranceMs;
     }
+    
+    // Vérifier scheduledAt pour la première exécution
+    if (question.scheduledAt) {
+      const timeDiff = now.getTime() - question.scheduledAt.getTime();
+      return timeDiff >= 0 && timeDiff <= toleranceMs;
+    }
+    
+    return false;
+  }
 
-    return nextExecution;
+  /**
+   * Récupérer les questions bloquées (en cours d'exécution depuis trop longtemps)
+   */
+  async getStuckQuestions(userId: string, agencyId: string, stuckThreshold: Date): Promise<ScheduledQuestion[]> {
+    try {
+      console.log('🔍 [ScheduledQuestionService] Recherche des questions bloquées pour:', userId, 'avant:', stuckThreshold.toISOString());
+      
+      const stuckQuery = query(
+        collection(db, this.collectionName),
+        where('userId', '==', userId),
+        where('agencyId', '==', agencyId),
+        where('status', '==', 'running'),
+        where('lastExecutedAt', '<=', Timestamp.fromDate(stuckThreshold)),
+        limit(20)
+      );
+      
+      const snapshot = await getDocs(stuckQuery);
+      const stuckQuestions = snapshot.docs.map(doc => 
+        this.convertFirestoreToScheduledQuestion(doc.id, doc.data())
+      );
+      
+      console.log(`🔍 [ScheduledQuestionService] ${stuckQuestions.length} question(s) bloquée(s) trouvée(s)`);
+      return stuckQuestions;
+    } catch (error) {
+      console.error('❌ [ScheduledQuestionService] Erreur lors de la récupération des questions bloquées:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Gérer les questions trop anciennes (au-delà de la tolérance)
+   */
+  private async handleOverdueQuestions(userId: string, agencyId: string, now: Date, toleranceMinutes: number): Promise<void> {
+    try {
+      const toleranceMs = toleranceMinutes * 60 * 1000;
+      const overdueThreshold = new Date(now.getTime() - toleranceMs);
+      
+      // Rechercher les questions en attente qui sont trop anciennes
+      const overdueQuery = query(
+        collection(db, this.collectionName),
+        where('userId', '==', userId),
+        where('agencyId', '==', agencyId),
+        where('status', '==', 'pending'),
+        where('scheduledAt', '<=', Timestamp.fromDate(overdueThreshold)),
+        limit(10)
+      );
+      
+      const overdueSnapshot = await getDocs(overdueQuery);
+      
+      if (overdueSnapshot.docs.length > 0) {
+        console.log(`⚠️ [ScheduledQuestionService] ${overdueSnapshot.docs.length} question(s) trop ancienne(s) détectée(s)`);
+        
+        // Marquer les questions trop anciennes comme échouées
+        const updatePromises = overdueSnapshot.docs.map(async (doc) => {
+          const question = this.convertFirestoreToScheduledQuestion(doc.id, doc.data());
+          console.log(`🔄 [ScheduledQuestionService] Marquage de la question trop ancienne comme échouée: ${question.title}`);
+          
+          await this.update(doc.id, {
+            status: 'failed',
+            executionCount: question.executionCount + 1,
+            lastExecutedAt: now
+          });
+        });
+        
+        await Promise.all(updatePromises);
+        console.log(`✅ [ScheduledQuestionService] ${overdueSnapshot.docs.length} question(s) trop ancienne(s) marquée(s) comme échouée(s)`);
+      }
+    } catch (error) {
+      console.error('❌ [ScheduledQuestionService] Erreur lors de la gestion des questions trop anciennes:', error);
+      // Ne pas faire échouer l'exécution pour cette erreur
+    }
   }
 
   /**

@@ -176,6 +176,25 @@ class NotificationListenerService {
           window.location.href = '/dashboard';
         } else if (notification.type === 'reminder') {
           window.location.href = '/forms';
+        } else if (notification.type === 'scheduled_instruction') {
+          // Handle scheduled instruction notifications
+          if (notification.data?.url) {
+            // Use the specific URL provided in the notification data
+            window.location.href = notification.data.url;
+          } else if (notification.data?.scheduledQuestionId) {
+            // Fallback: navigate to the scheduled question chat page
+            window.location.href = `/directeur/scheduled-questions/${notification.data.scheduledQuestionId}/chat`;
+          } else {
+            // Fallback: navigate to scheduled questions list
+            window.location.href = '/directeur/scheduled-questions';
+          }
+        } else if (notification.type === 'program_instruction') {
+          // Handle legacy program instruction notifications
+          if (notification.data?.scheduledQuestionId) {
+            window.location.href = `/directeur/scheduled-questions/${notification.data.scheduledQuestionId}/chat`;
+          } else {
+            window.location.href = '/directeur/scheduled-questions';
+          }
         }
       };
 

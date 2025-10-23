@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Calendar, Clock, Repeat, ChevronDown } from 'lucide-react';
 import { Button } from '../Button';
+import { getCameroonTime, createCameroonDateTime, formatCameroonTime, getCameroonTimezoneDisplay } from '../../utils/timezoneUtils';
 
 interface ScheduledDateTimePickerProps {
   scheduledAt: Date;
@@ -29,13 +30,13 @@ export const ScheduledDateTimePicker: React.FC<ScheduledDateTimePickerProps> = (
 
   const handleDateChange = (date: string) => {
     setLocalDate(date);
-    const newDateTime = new Date(`${date}T${localTime}`);
+    const newDateTime = createCameroonDateTime(date, localTime);
     onDateTimeChange(newDateTime);
   };
 
   const handleTimeChange = (time: string) => {
     setLocalTime(time);
-    const newDateTime = new Date(`${localDate}T${time}`);
+    const newDateTime = createCameroonDateTime(localDate, time);
     onDateTimeChange(newDateTime);
   };
 
@@ -78,17 +79,22 @@ export const ScheduledDateTimePicker: React.FC<ScheduledDateTimePickerProps> = (
   };
 
   const isDateInPast = () => {
-    const now = new Date();
-    const scheduled = new Date(`${localDate}T${localTime}`);
+    const now = getCameroonTime();
+    const scheduled = createCameroonDateTime(localDate, localTime);
     return scheduled <= now && frequency === 'once';
   };
 
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-4 space-y-4">
       {/* En-tête */}
-      <div className="flex items-center space-x-2 text-gray-700">
-        <Calendar className="h-5 w-5 text-blue-600" />
-        <span className="font-medium">Programmation de la question</span>
+      <div className="flex items-center justify-between text-gray-700">
+        <div className="flex items-center space-x-2">
+          <Calendar className="h-5 w-5 text-blue-600" />
+          <span className="font-medium">Programmation de la question</span>
+        </div>
+        <div className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
+          {getCameroonTimezoneDisplay()}
+        </div>
       </div>
 
       {/* Sélection de la date et heure */}

@@ -1,14 +1,18 @@
 import { scheduledQuestionService } from './scheduledQuestionService';
 import { unifiedNotificationService } from './unifiedNotificationService';
 import { ScheduledQuestion, ScheduledQuestionResponse } from '../types';
+import { getCameroonTime } from '../utils/timezoneUtils';
 import { getAIEndpoint } from '../config/api';
 import { auth } from '../firebaseConfig';
+import { ScheduledQuestionTokenChecker } from './scheduledQuestionTokenChecker';
 
 class ScheduledQuestionExecutor {
   private isRunning = false;
   private intervalId: NodeJS.Timeout | null = null;
   private currentUserId: string | null = null;
   private currentAgencyId: string | null = null;
+  private executingQuestions = new Set<string>(); // Track currently executing questions
+  private executionLock = new Map<string, Promise<void>>(); // Prevent concurrent execution of same question
   private readonly AI_ENDPOINT = getAIEndpoint();
 
   /**
@@ -37,6 +41,11 @@ class ScheduledQuestionExecutor {
     this.intervalId = setInterval(() => {
       this.executeDueQuestions();
     }, 60 * 1000); // 1 minute
+
+    // Check for stuck executions every 5 minutes
+    setInterval(() => {
+      this.handleStuckExecutions();
+    }, 5 * 60 * 1000); // 5 minutes
   }
 
   /**
@@ -50,7 +59,52 @@ class ScheduledQuestionExecutor {
     this.isRunning = false;
     this.currentUserId = null;
     this.currentAgencyId = null;
+    
+    // Clean up execution locks
+    this.executingQuestions.clear();
+    this.executionLock.clear();
+    
     console.log('⏹️ [ScheduledQuestionExecutor] Service d\'exécution automatique arrêté');
+  }
+
+  /**
+   * Handle stuck executions by checking for questions that have been running too long
+   */
+  async handleStuckExecutions(): Promise<void> {
+    if (!this.currentUserId || !this.currentAgencyId) return;
+
+    try {
+      console.log('🔍 [ScheduledQuestionExecutor] Vérification des exécutions bloquées');
+      
+      // Get questions that have been running for more than 10 minutes
+      const stuckThreshold = new Date(Date.now() - 10 * 60 * 1000); // 10 minutes ago
+      
+      const stuckQuestions = await scheduledQuestionService.getStuckQuestions(
+        this.currentUserId, 
+        this.currentAgencyId, 
+        stuckThreshold
+      );
+
+      if (stuckQuestions.length > 0) {
+        console.log(`⚠️ [ScheduledQuestionExecutor] ${stuckQuestions.length} question(s) bloquée(s) détectée(s)`);
+        
+        // Reset stuck questions to pending status
+        const resetPromises = stuckQuestions.map(question => {
+          console.log(`🔄 [ScheduledQuestionExecutor] Réinitialisation de la question bloquée: ${question.title}`);
+          return scheduledQuestionService.update(question.id, {
+            status: 'pending',
+            lastExecutedAt: null
+          });
+        });
+        
+        await Promise.all(resetPromises);
+        console.log(`✅ [ScheduledQuestionExecutor] ${stuckQuestions.length} question(s) bloquée(s) réinitialisée(s)`);
+      } else {
+        console.log('✅ [ScheduledQuestionExecutor] Aucune question bloquée détectée');
+      }
+    } catch (error) {
+      console.error('❌ [ScheduledQuestionExecutor] Erreur lors de la gestion des exécutions bloquées:', error);
+    }
   }
 
   /**
@@ -77,6 +131,33 @@ class ScheduledQuestionExecutor {
 
       console.log(`🔄 [ScheduledQuestionExecutor] ${dueQuestions.length} question(s) à exécuter pour l'utilisateur ${this.currentUserId}`);
 
+      // Pre-check tokens for all questions before execution
+      console.log(`🔍 [ScheduledQuestionExecutor] Vérification des tokens pour ${dueQuestions.length} question(s)`);
+      const questionsWithData = dueQuestions.map(q => ({ question: q.question, hasData: true }));
+      const batchTokenCheck = await ScheduledQuestionTokenChecker.checkTokensForBatchExecution(
+        this.currentUserId, 
+        questionsWithData
+      );
+
+      if (!batchTokenCheck.canExecute) {
+        console.log(`❌ [ScheduledQuestionExecutor] Tokens insuffisants pour l'exécution batch: ${batchTokenCheck.reason}`);
+        
+        // Mark all questions as failed due to insufficient tokens
+        const updatePromises = dueQuestions.map(question => 
+          scheduledQuestionService.update(question.id, {
+            status: 'failed',
+            executionCount: question.executionCount + 1,
+            lastExecutedAt: new Date()
+          })
+        );
+        
+        await Promise.all(updatePromises);
+        console.log(`✅ [ScheduledQuestionExecutor] ${dueQuestions.length} question(s) marquée(s) comme échouée(s) - tokens insuffisants`);
+        return;
+      }
+
+      console.log(`✅ [ScheduledQuestionExecutor] Tokens suffisants pour l'exécution batch (${batchTokenCheck.totalTokens} tokens requis)`);
+
       for (const question of dueQuestions) {
         console.log(`🚀 [ScheduledQuestionExecutor] Début de l'exécution de: ${question.title}`);
         await this.executeQuestion(question);
@@ -93,7 +174,45 @@ class ScheduledQuestionExecutor {
   private async executeQuestion(question: ScheduledQuestion): Promise<void> {
     const startTime = Date.now();
     
+    // Check if question is already being executed
+    if (this.executingQuestions.has(question.id)) {
+      console.log(`⚠️ [ScheduledQuestionExecutor] Question ${question.title} est déjà en cours d'exécution, ignorée`);
+      return;
+    }
+
+    // Check if there's already a lock for this question
+    if (this.executionLock.has(question.id)) {
+      console.log(`⚠️ [ScheduledQuestionExecutor] Question ${question.title} est verrouillée, attente de l'exécution en cours`);
+      try {
+        await this.executionLock.get(question.id);
+        console.log(`✅ [ScheduledQuestionExecutor] Exécution précédente de ${question.title} terminée`);
+        return;
+      } catch (error) {
+        console.log(`❌ [ScheduledQuestionExecutor] Exécution précédente de ${question.title} a échoué, nouvelle tentative`);
+      }
+    }
+
+    // Create execution lock
+    const executionPromise = this.executeQuestionInternal(question, startTime);
+    this.executionLock.set(question.id, executionPromise);
+    
     try {
+      await executionPromise;
+    } finally {
+      // Clean up locks
+      this.executingQuestions.delete(question.id);
+      this.executionLock.delete(question.id);
+    }
+  }
+
+  /**
+   * Internal method to execute a question (with concurrency protection)
+   */
+  private async executeQuestionInternal(question: ScheduledQuestion, startTime: number): Promise<void> {
+    try {
+      // Mark question as executing
+      this.executingQuestions.add(question.id);
+      
       console.log(`🔄 [ScheduledQuestionExecutor] Exécution de la question: ${question.title}`);
       console.log(`📊 [ScheduledQuestionExecutor] Détails de la question:`, {
         id: question.id,
@@ -103,6 +222,46 @@ class ScheduledQuestionExecutor {
         status: question.status,
         executionCount: question.executionCount
       });
+      
+      // Pre-check tokens before execution
+      console.log(`🔍 [ScheduledQuestionExecutor] Vérification des tokens pour: ${question.title}`);
+      const estimatedTokens = ScheduledQuestionTokenChecker.estimateTokensForQuestion(question.question, true);
+      const tokenCheck = await ScheduledQuestionTokenChecker.checkTokensForExecution(question.userId, estimatedTokens);
+      
+      if (!tokenCheck.canExecute) {
+        console.log(`❌ [ScheduledQuestionExecutor] Tokens insuffisants pour: ${question.title} - ${tokenCheck.reason}`);
+        
+        // Mark question as failed due to insufficient tokens
+        await scheduledQuestionService.update(question.id, {
+          status: 'failed',
+          executionCount: question.executionCount + 1,
+          lastExecutedAt: new Date()
+        });
+        
+        // Create error response
+        const errorResponse: Omit<ScheduledQuestionResponse, 'id'> = {
+          scheduledQuestionId: question.id,
+          response: `Exécution annulée: ${tokenCheck.reason}`,
+          executedAt: new Date(),
+          responseTime: Date.now() - startTime,
+          tokensUsed: 0,
+          status: 'error',
+          errorMessage: tokenCheck.reason,
+          meta: {
+            period: question.filters.period,
+            usedEntries: 0,
+            forms: 0,
+            users: 0,
+            model: 'token_check_failed'
+          }
+        };
+        
+        await scheduledQuestionService.createResponse(errorResponse);
+        console.log(`✅ [ScheduledQuestionExecutor] Réponse d'erreur créée pour: ${question.title}`);
+        return;
+      }
+      
+      console.log(`✅ [ScheduledQuestionExecutor] Tokens suffisants pour: ${question.title} (${tokenCheck.availableTokens} disponibles)`);
       
       // Marquer la question comme en cours d'exécution
       console.log(`🔄 [ScheduledQuestionExecutor] Mise à jour du statut vers 'running' pour: ${question.title}`);

@@ -13,6 +13,7 @@ import { scheduledQuestionService } from '../services/scheduledQuestionService';
 import { useToast } from '../hooks/useToast';
 import { ScheduledQuestion } from '../types';
 import { Layout } from '../components/Layout';
+import { getCameroonTime, createCameroonDateTime, formatCameroonTime, getCameroonTimezoneDisplay } from '../utils/timezoneUtils';
 
 interface ChatFilters {
   period: string;
@@ -33,8 +34,8 @@ export const ScheduledQuestionFormPage: React.FC = () => {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   
-  // Programmation
-  const [scheduledAt, setScheduledAt] = useState(new Date());
+  // Programmation (utiliser l'heure Cameroun)
+  const [scheduledAt, setScheduledAt] = useState(getCameroonTime());
   const [frequency, setFrequency] = useState<'once' | 'daily' | 'weekly' | 'monthly'>('once');
   
   // Filtres et formats (simplifiés)
@@ -93,8 +94,8 @@ export const ScheduledQuestionFormPage: React.FC = () => {
       return;
     }
 
-    if (scheduledAt <= new Date() && frequency === 'once') {
-      showError('La date doit être dans le futur pour une exécution unique');
+    if (scheduledAt <= getCameroonTime() && frequency === 'once') {
+      showError('La date doit être dans le futur pour une exécution unique (heure Cameroun)');
       return;
     }
 
