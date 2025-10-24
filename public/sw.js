@@ -52,6 +52,9 @@ importScripts('https://www.gstatic.com/firebasejs/11.0.1/firebase-app-compat.js'
 importScripts('https://www.gstatic.com/firebasejs/11.0.1/firebase-messaging-compat.js');
 
 try {
+  console.log('🔔 [SW] ===== SERVICE WORKER INITIALIZING =====');
+  console.log('🔔 [SW] Firebase scripts loaded, initializing...');
+  
   // Initialize Firebase in the service worker (same config as app)
   // Using explicit values to avoid depending on import.meta in SW context
   firebase.initializeApp({
@@ -63,73 +66,84 @@ try {
     appId: "1:848246677738:web:7612dab5f030c52b227793"
   });
 
+  console.log('🔔 [SW] Firebase app initialized successfully');
+  
   const messaging = firebase.messaging();
+  console.log('🔔 [SW] Firebase messaging instance created');
+  
+  // Configure VAPID key for FCM (must match the key used to generate FCM tokens)
+  const vapidKey = 'BDtb0-pnjhy-iYqqcCmpU7892IDJZ1wozc3v-CvoWYqOnJySqv4HJVnqUbOPiCN9fiW15tUu3z5QnWqi0FUgkvY';
+  console.log('🔔 [SW] VAPID key configured:', vapidKey.substring(0, 20) + '...');
+  console.log('🔔 [SW] VAPID key length:', vapidKey.length);
+  console.log('🔔 [SW] Setting up onBackgroundMessage handler...');
+  
+  // Verify VAPID key matches the one used for token generation
+  console.log('🔔 [SW] VAPID key verification:', {
+    length: vapidKey.length,
+    startsWith: vapidKey.substring(0, 10),
+    endsWith: vapidKey.substring(vapidKey.length - 10)
+  });
 
   // Handle FCM background messages with unified notification support
   messaging.onBackgroundMessage((payload) => {
-    console.log('🔔 [SW] FCM background message received:', payload);
+    console.log('🔔 [SW] ===== FCM MESSAGE RECEIVED =====');
+    console.log('🔔 [SW] Full payload:', JSON.stringify(payload, null, 2));
     console.log('🔔 [SW] Payload notification:', payload.notification);
     console.log('🔔 [SW] Payload data:', payload.data);
+    console.log('🔔 [SW] Message ID:', payload.messageId);
     
     const title = payload.notification?.title || payload.data?.title || 'Ubora';
     const body = payload.notification?.body || payload.data?.body || 'Vous avez reçu une nouvelle notification';
     const uniqueTag = `ubora-fcm-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     
-    // Android-optimized notification options with unified notification support
+    console.log('🔔 [SW] Creating notification with:');
+    console.log('🔔 [SW] - Title:', title);
+    console.log('🔔 [SW] - Body:', body);
+    console.log('🔔 [SW] - Tag:', uniqueTag);
+    
+    // Simplified notification options for better compatibility
     const notificationType = payload.data?.type || 'default';
     const options = {
       body: body,
       icon: getNotificationIcon(notificationType),
       badge: getNotificationBadge(notificationType),
-      image: payload.notification?.image || payload.data?.image || '/fav-icons/android-icon-512x512.png',
       data: {
         ...payload.data,
         fcmMessageId: payload.messageId,
         timestamp: Date.now(),
         url: payload.data?.redirectUrl || payload.data?.clickAction || payload.data?.click_action || '/',
-        // Include highlighting data for unified notifications
         highlightData: getHighlightData(payload.data)
       },
       tag: uniqueTag,
       requireInteraction: true, // CRITICAL: Keep notification visible
       silent: false,
-      vibrate: [200, 100, 200, 100, 200], // Enhanced vibration pattern
+      vibrate: [200, 100, 200, 100, 200],
       timestamp: Date.now(),
-      renotify: true, // Allow re-notification with same tag
-      // Android-specific options for pop-up behavior
+      renotify: true,
       dir: 'auto',
       lang: 'fr',
-      // Add mobile-specific options
-      sticky: true, // Keep notification until user interacts
-      actions: [
-        {
-          action: 'open',
-          title: 'Ouvrir',
-          icon: '/fav-icons/android-icon-48x48.png'
-        },
-        {
-          action: 'dismiss',
-          title: 'Ignorer',
-          icon: '/fav-icons/android-icon-48x48.png'
-        }
-      ]
+      sticky: true
     };
     
-    console.log('🔔 [SW] Showing notification with options:', options);
-    console.log('🔔 [SW] Notification title:', title);
-    console.log('🔔 [SW] Notification body:', body);
+    console.log('🔔 [SW] Notification options:', JSON.stringify(options, null, 2));
     
     // Show the notification
     return self.registration.showNotification(title, options)
       .then(() => {
-        console.log('🔔 [SW] Notification displayed successfully');
+        console.log('🔔 [SW] ✅ Notification displayed successfully!');
+        console.log('🔔 [SW] ===== FCM MESSAGE PROCESSED =====');
       })
       .catch((error) => {
-        console.error('🔔 [SW] Error displaying notification:', error);
+        console.error('🔔 [SW] ❌ Error displaying notification:', error);
+        console.error('🔔 [SW] Error details:', JSON.stringify(error, null, 2));
       });
   });
+  
+  console.log('🔔 [SW] ✅ onBackgroundMessage handler registered successfully');
+  console.log('🔔 [SW] ===== SERVICE WORKER READY =====');
 } catch (e) {
-  // Fail silently if Firebase scripts are unavailable
+  console.error('🔔 [SW] ❌ Firebase initialization failed:', e);
+  console.error('🔔 [SW] Error details:', JSON.stringify(e, null, 2));
 }
 
 // Enhanced push event listener for unified notifications
@@ -159,7 +173,7 @@ self.addEventListener("push", (event) => {
     body: body,
     icon: getNotificationIcon(notificationType),
     badge: getNotificationBadge(notificationType),
-    image: data.image || '/fav-icons/android-icon-512x512.png',
+    // Removed image to avoid validation errors
     data: {
       ...data,
       timestamp: Date.now(),
@@ -177,19 +191,8 @@ self.addEventListener("push", (event) => {
     dir: 'auto',
     lang: 'fr',
     // Add mobile-specific options
-    sticky: true, // Keep notification until user interacts
-    actions: [
-      {
-        action: 'open',
-        title: 'Ouvrir',
-        icon: '/fav-icons/android-icon-48x48.png'
-      },
-      {
-        action: 'dismiss',
-        title: 'Ignorer',
-        icon: '/fav-icons/android-icon-48x48.png'
-      }
-    ]
+    sticky: true // Keep notification until user interacts
+    // Removed actions to avoid browser compatibility issues
   };
   
   console.log('🔔 [SW] Showing push notification:', { title, options });
@@ -353,13 +356,20 @@ self.addEventListener('message', (event) => {
   // Handle SKIP_WAITING message for updates
   if (event.data && event.data.type === 'SKIP_WAITING') {
     console.log('🔄 [SW] Received SKIP_WAITING message, activating new service worker');
-    self.skipWaiting();
     
-    // Notify all clients that the new service worker is taking control
-    self.clients.matchAll().then(clients => {
+    // Skip waiting and take control immediately
+    self.skipWaiting().then(() => {
+      console.log('🔄 [SW] Successfully skipped waiting, new service worker is now active');
+      
+      // Notify all clients that the new service worker is taking control
+      return self.clients.matchAll();
+    }).then(clients => {
       clients.forEach(client => {
         client.postMessage({ type: 'SW_UPDATED' });
       });
+      console.log('🔄 [SW] Notified all clients about service worker update');
+    }).catch(error => {
+      console.error('🔄 [SW] Error during service worker update:', error);
     });
   }
 });
@@ -369,6 +379,20 @@ self.addEventListener('sync', (event) => {
   if (event.tag === 'notification-sync') {
     console.log('🔄 [SW] Background sync triggered for notifications');
     event.waitUntil(syncMissedNotifications());
+  }
+});
+
+// Handle messages from the main thread
+self.addEventListener('message', (event) => {
+  console.log('🔔 [SW] Message received:', event.data);
+  
+  if (event.data.type === 'TEST_SW') {
+    // Respond to service worker test
+    event.ports[0].postMessage({
+      message: 'Service Worker is working!',
+      timestamp: Date.now(),
+      state: self.registration.active?.state || 'unknown'
+    });
   }
 });
 

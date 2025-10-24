@@ -13,6 +13,14 @@ export const PWAUpdateNotification: React.FC = () => {
         setShowUpdatePrompt(true);
       });
 
+      // Listen for service worker messages
+      navigator.serviceWorker.addEventListener('message', (event) => {
+        if (event.data && event.data.type === 'SW_UPDATED') {
+          console.log('Service worker updated successfully');
+          // The page will reload automatically, so we don't need to reset isUpdating here
+        }
+      });
+
       // Check for waiting service worker
       const checkForWaitingSW = async () => {
         try {
@@ -39,9 +47,18 @@ export const PWAUpdateNotification: React.FC = () => {
           // Tell the waiting service worker to skip waiting and become active
           registration.waiting.postMessage({ type: 'SKIP_WAITING' });
           
-          // Reload the page to use the new service worker
-          window.location.reload();
+          // Add a small delay to ensure the message is processed
+          setTimeout(() => {
+            // Reload the page to use the new service worker
+            window.location.reload();
+          }, 100);
+        } else {
+          // No waiting service worker found, reset loading state
+          setIsUpdating(false);
         }
+      } else {
+        // Service worker not supported, reset loading state
+        setIsUpdating(false);
       }
     } catch (error) {
       console.error('Error updating app:', error);
@@ -74,7 +91,7 @@ export const PWAUpdateNotification: React.FC = () => {
             onClick={handleUpdate}
             disabled={isUpdating}
             size="sm"
-            className="bg-white text-blue-700 hover:bg-blue-50 font-medium px-3 py-1.5 text-xs"
+            className="bg-white text-blue-800 hover:bg-blue-50 border border-blue-200 font-semibold px-3 py-1.5 text-xs shadow-sm"
           >
             {isUpdating ? (
               <>

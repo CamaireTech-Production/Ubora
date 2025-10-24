@@ -27,14 +27,27 @@ if (!admin.apps.length) {
  * POST /api/fcm/send
  */
 module.exports = async (req, res) => {
+  console.log('🔔 [FCM API] ===== FCM API REQUEST RECEIVED =====');
+  console.log('🔔 [FCM API] Request method:', req.method);
+  console.log('🔔 [FCM API] Request headers:', req.headers);
+  
   if (req.method !== 'POST') {
+    console.log('🔔 [FCM API] Method not allowed:', req.method);
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
   try {
     const { notification, fcmToken, userId } = req.body;
+    console.log('🔔 [FCM API] Request body received:', {
+      hasNotification: !!notification,
+      hasFcmToken: !!fcmToken,
+      hasUserId: !!userId,
+      notificationTitle: notification?.title,
+      notificationBody: notification?.body
+    });
 
     if (!fcmToken) {
+      console.log('🔔 [FCM API] Missing FCM token');
       return res.status(400).json({ error: 'FCM token is required' });
     }
 
@@ -45,15 +58,24 @@ module.exports = async (req, res) => {
     }
 
     if (!notification || !notification.title || !notification.body) {
+      console.log('🔔 [FCM API] Missing notification data:', {
+        hasNotification: !!notification,
+        hasTitle: !!notification?.title,
+        hasBody: !!notification?.body
+      });
       return res.status(400).json({ error: 'Notification title and body are required' });
     }
 
-    console.log('🔔 [FCM API] Sending notification to token:', fcmToken.substring(0, 20) + '...');
-    console.log('🔔 [FCM API] Full token length:', fcmToken.length);
-    console.log('🔔 [FCM API] Token starts with:', fcmToken.substring(0, 10));
-    console.log('🔔 [FCM API] Token ends with:', fcmToken.substring(fcmToken.length - 10));
+    console.log('🔔 [FCM API] Token validation passed:', {
+      tokenLength: fcmToken.length,
+      tokenStart: fcmToken.substring(0, 10),
+      tokenEnd: fcmToken.substring(fcmToken.length - 10)
+    });
 
     // Create the FCM message
+    console.log('🔔 [FCM API] Creating FCM message...');
+    console.log('🔔 [FCM API] Notification data:', notification.data);
+    
     // Convert all data values to strings (FCM requirement)
     const stringifiedData = {};
     if (notification.data) {
@@ -61,14 +83,15 @@ module.exports = async (req, res) => {
         stringifiedData[key] = String(notification.data[key]);
       });
     }
+    
+    console.log('🔔 [FCM API] Stringified data:', stringifiedData);
 
     const message = {
       token: fcmToken,
       notification: {
         title: notification.title,
-        body: notification.body,
-        // Add image for better mobile display
-        imageUrl: notification.data?.imageUrl || '/fav-icons/android-icon-512x512.png'
+        body: notification.body
+        // Removed imageUrl to avoid validation error - FCM requires absolute URLs
       },
       data: {
         ...stringifiedData,
@@ -93,14 +116,8 @@ module.exports = async (req, res) => {
           color: '#FF6B35',
           channel_id: 'ubora_notifications',
           click_action: notification.redirectUrl || '/',
-          tag: `ubora_${notification.data?.type || 'general'}_${Date.now()}`,
-          // Add image for Android
-          image: notification.data?.imageUrl || '/fav-icons/android-icon-512x512.png',
-          // Add actions for Android
-          actions: [
-            { action: 'open', title: 'Ouvrir' },
-            { action: 'dismiss', title: 'Ignorer' }
-          ]
+          tag: `ubora_${notification.data?.type || 'general'}_${Date.now()}`
+          // Removed image and actions to avoid validation errors
         }
       },
       apns: {
@@ -118,7 +135,7 @@ module.exports = async (req, res) => {
           }
         },
         fcm_options: {
-          image: notification.data?.imageUrl || '/fav-icons/android-icon-512x512.png'
+          // Removed image to avoid validation error
         }
       },
       webpush: {
@@ -127,13 +144,10 @@ module.exports = async (req, res) => {
           body: notification.body,
           icon: '/fav-icons/android-icon-192x192.png',
           badge: '/fav-icons/android-icon-96x96.png',
-          image: notification.data?.imageUrl || '/fav-icons/android-icon-512x512.png',
+          // Removed image to avoid validation error
           vibrate: [200, 100, 200],
-          requireInteraction: true,
-          actions: [
-            { action: 'open', title: 'Ouvrir', icon: '/fav-icons/android-icon-48x48.png' },
-            { action: 'dismiss', title: 'Ignorer', icon: '/fav-icons/android-icon-48x48.png' }
-          ]
+          requireInteraction: true
+          // Removed actions to avoid validation errors
         },
         fcmOptions: {
           link: notification.redirectUrl || '/'
@@ -142,9 +156,13 @@ module.exports = async (req, res) => {
     };
 
     // Send the FCM message
+    console.log('🔔 [FCM API] FCM message created:', JSON.stringify(message, null, 2));
+    console.log('🔔 [FCM API] Sending FCM message to Firebase...');
+    
     const response = await admin.messaging().send(message);
     
-    console.log('🔔 [FCM API] Notification sent successfully:', response);
+    console.log('🔔 [FCM API] ✅ FCM push notification sent successfully:', response);
+    console.log('🔔 [FCM API] ===== FCM API REQUEST COMPLETED =====');
 
     return res.status(200).json({
       success: true,

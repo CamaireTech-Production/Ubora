@@ -47,7 +47,7 @@ export const PushTestPage: React.FC = () => {
         'test-form-123',
         'Formulaire de Test FCM',
         user.id,
-        user.role || 'employe',
+        (user.role === 'admin' || user.role === 'directeur') ? 'directeur' : 'employe',
         user.agencyId || '',
         'assigned',
         'Directeur Test',
@@ -56,7 +56,7 @@ export const PushTestPage: React.FC = () => {
       setStatus('✅ Notification d\'assignation FCM envoyée! Vérifiez votre appareil.');
     } catch (error) {
       console.error('Error testing form assignment:', error);
-      setStatus('❌ Erreur lors de l\'envoi de la notification d\'assignation');
+      setStatus('❌ Erreur lors de l\'envoi de la notification d\'assignation: ' + (error instanceof Error ? error.message : String(error)));
     } finally {
       setIsLoading(false);
     }
@@ -88,16 +88,15 @@ export const PushTestPage: React.FC = () => {
       await unifiedNotificationService.createFormReminderNotification(
         'test-form-123',
         'Formulaire de Test FCM',
-        5, // 5 minutes
         user.id,
-        user.role || 'employe',
+        (user.role === 'admin' || user.role === 'directeur') ? 'directeur' : 'employe',
         user.agencyId || '',
         fcmToken
       );
       setStatus('✅ Notification de rappel FCM envoyée! Vérifiez votre appareil.');
     } catch (error) {
       console.error('Error testing form reminder:', error);
-      setStatus('❌ Erreur lors de l\'envoi de la notification de rappel');
+      setStatus('❌ Erreur lors de l\'envoi de la notification de rappel: ' + (error instanceof Error ? error.message : String(error)));
     } finally {
       setIsLoading(false);
     }
@@ -128,19 +127,17 @@ export const PushTestPage: React.FC = () => {
 
       await unifiedNotificationService.createMetricReminderNotification(
         'test-dashboard-123',
+        'test-metric-123',
         'Métrique de Test FCM',
         85.5,
         user.id,
         user.agencyId || '',
-        'daily',
-        new Date(Date.now() - 24 * 60 * 60 * 1000), // yesterday
-        new Date(), // today
         fcmToken
       );
       setStatus('✅ Notification de métrique FCM envoyée! Vérifiez votre appareil.');
     } catch (error) {
       console.error('Error testing metric reminder:', error);
-      setStatus('❌ Erreur lors de l\'envoi de la notification de métrique');
+      setStatus('❌ Erreur lors de l\'envoi de la notification de métrique: ' + (error instanceof Error ? error.message : String(error)));
     } finally {
       setIsLoading(false);
     }
@@ -172,16 +169,87 @@ export const PushTestPage: React.FC = () => {
       await unifiedNotificationService.createProgrammedInstructionNotification(
         'test-instruction-123',
         'Instruction de Test FCM',
-        'test-response-456',
         user.id,
         user.agencyId || '',
-        'success',
         fcmToken
       );
       setStatus('✅ Notification d\'instruction FCM envoyée! Vérifiez votre appareil.');
     } catch (error) {
       console.error('Error testing programmed instruction:', error);
-      setStatus('❌ Erreur lors de l\'envoi de la notification d\'instruction');
+      setStatus('❌ Erreur lors de l\'envoi de la notification d\'instruction: ' + (error instanceof Error ? error.message : String(error)));
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const testSimpleNotification = async () => {
+    if (!user) {
+      setStatus('❌ Utilisateur non connecté');
+      return;
+    }
+
+    setIsLoading(true);
+    setStatus('🔄 Test de notification simple...');
+    
+    try {
+      console.log('🔔 [PushTest] ===== STARTING FCM TEST =====');
+      console.log('🔔 [PushTest] User ID:', user.id);
+      console.log('🔔 [PushTest] User role:', user.role);
+      
+      // Get FCM token from user profile
+      const { getDoc, doc } = await import('firebase/firestore');
+      const { db } = await import('../firebaseConfig');
+      
+      console.log('🔔 [PushTest] Fetching FCM token from user profile...');
+      const userDoc = await getDoc(doc(db, 'users', user.id));
+      const userData = userDoc.data();
+      const fcmToken = userData?.fcmToken;
+
+      console.log('🔔 [PushTest] User data retrieved:', {
+        hasUserData: !!userData,
+        hasFcmToken: !!fcmToken,
+        tokenLength: fcmToken?.length || 0
+      });
+
+      if (!fcmToken) {
+        setStatus('❌ Aucun token FCM trouvé. Utilisez "Initialiser Token FCM" d\'abord.');
+        return;
+      }
+
+      console.log('🔔 [PushTest] FCM Token found:', fcmToken.substring(0, 20) + '...');
+      console.log('🔔 [PushTest] Full token length:', fcmToken.length);
+
+      // Test direct FCM call
+      console.log('🔔 [PushTest] Importing FCM service...');
+      const { fcmService } = await import('../services/fcmService');
+      
+      const testNotification = {
+        id: `test_${Date.now()}`,
+        title: 'Test Simple FCM',
+        body: 'Ceci est un test de notification FCM simple',
+        data: { 
+          type: 'test',
+          timestamp: Date.now().toString(),
+          redirectUrl: '/'
+        }
+      };
+
+      console.log('🔔 [PushTest] Test notification created:', testNotification);
+      console.log('🔔 [PushTest] Calling FCM service...');
+      
+      const result = await fcmService.sendToToken(testNotification, fcmToken, user.id);
+      
+      console.log('🔔 [PushTest] FCM service result:', result);
+      console.log('🔔 [PushTest] ===== FCM TEST COMPLETED =====');
+      
+      if (result && result.status === 'sent') {
+        setStatus('✅ Notification simple FCM envoyée! Vérifiez votre appareil.');
+      } else {
+        setStatus(`❌ Erreur FCM: ${result?.error || 'Unknown error'}`);
+      }
+    } catch (error) {
+      console.error('Error testing simple notification:', error);
+      setStatus('❌ Erreur lors de l\'envoi de la notification simple: ' + (error instanceof Error ? error.message : String(error)));
     } finally {
       setIsLoading(false);
     }
@@ -219,7 +287,7 @@ export const PushTestPage: React.FC = () => {
       }
     } catch (error) {
       console.error('Error testing cron job:', error);
-      setStatus('❌ Erreur de connexion au cron job: ' + error.message);
+      setStatus('❌ Erreur de connexion au cron job: ' + (error instanceof Error ? error.message : String(error)));
     } finally {
       setIsLoading(false);
     }
@@ -301,7 +369,113 @@ export const PushTestPage: React.FC = () => {
       }
     } catch (error) {
       console.error('Error initializing FCM token:', error);
-      setStatus('❌ Erreur lors de l\'initialisation du token FCM: ' + error.message);
+      setStatus('❌ Erreur lors de l\'initialisation du token FCM: ' + (error instanceof Error ? error.message : String(error)));
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const checkPermissionStatus = async () => {
+    setIsLoading(true);
+    setStatus('🔄 Vérification du statut des permissions...');
+    
+    try {
+      const currentPermission = Notification.permission;
+      const serviceWorkerStatus = 'serviceWorker' in navigator ? 'Disponible' : 'Non disponible';
+      const registration = await navigator.serviceWorker.getRegistration('/');
+      const swStatus = registration ? 'Enregistré' : 'Non enregistré';
+      
+      setStatus(`📊 Statut des permissions:
+        • Permission navigateur: ${currentPermission}
+        • Service Worker: ${swStatus}
+        • Support notifications: ${serviceWorkerStatus}
+        • État hook: ${permission.granted ? 'Accordée' : permission.denied ? 'Refusée' : 'Non demandée'}`);
+        
+    } catch (error) {
+      console.error('Error checking permission status:', error);
+      setStatus('❌ Erreur lors de la vérification: ' + (error instanceof Error ? error.message : String(error)));
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const testServiceWorker = async () => {
+    setIsLoading(true);
+    setStatus('🔄 Test du Service Worker...');
+    
+    try {
+      // Check if service worker is registered
+      const registration = await navigator.serviceWorker.getRegistration('/');
+      if (!registration) {
+        setStatus('❌ Service Worker non enregistré');
+        return;
+      }
+
+      // Check if service worker is active
+      if (!registration.active) {
+        setStatus('❌ Service Worker non actif');
+        return;
+      }
+
+      // Test service worker communication
+      const messageChannel = new MessageChannel();
+      const promise = new Promise<{message?: string; timestamp?: number; state?: string}>((resolve) => {
+        messageChannel.port1.onmessage = (event) => {
+          resolve(event.data);
+        };
+      });
+
+      registration.active.postMessage({ type: 'TEST_SW' }, [messageChannel.port2]);
+      const response = await promise;
+
+      setStatus(`✅ Service Worker actif et fonctionnel
+        • Enregistré: Oui
+        • Actif: Oui  
+        • Réponse: ${response?.message || 'Aucune réponse'}
+        • État: ${registration.active.state}`);
+
+    } catch (error) {
+      console.error('Error testing service worker:', error);
+      setStatus('❌ Erreur lors du test du Service Worker: ' + (error instanceof Error ? error.message : String(error)));
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const testBasicNotification = async () => {
+    setIsLoading(true);
+    setStatus('🔄 Test de notification basique...');
+    
+    try {
+      if (Notification.permission !== 'granted') {
+        setStatus('❌ Permission de notification non accordée');
+        return;
+      }
+
+      // Create a simple test notification
+      const notification = new Notification('Test Ubora', {
+        body: 'Ceci est un test de notification basique',
+        icon: '/fav-icons/android-icon-96x96.png',
+        badge: '/fav-icons/android-icon-48x48.png',
+        tag: 'test-basic-notification',
+        requireInteraction: true
+      });
+
+      notification.onclick = () => {
+        console.log('🔔 Basic notification clicked');
+        notification.close();
+      };
+
+      setStatus('✅ Notification basique créée! Vérifiez si elle apparaît sur votre appareil.');
+      
+      // Auto-close after 5 seconds
+      setTimeout(() => {
+        notification.close();
+      }, 5000);
+
+    } catch (error) {
+      console.error('Error testing basic notification:', error);
+      setStatus('❌ Erreur lors du test de notification: ' + (error instanceof Error ? error.message : String(error)));
     } finally {
       setIsLoading(false);
     }
@@ -378,7 +552,7 @@ export const PushTestPage: React.FC = () => {
         {/* Platform Info */}
         <Card className="p-6">
           <div className="flex items-center gap-3 mb-4">
-            {platformInfo.icon}
+              {platformInfo.icon}
             <h3 className="text-lg font-semibold">Plateforme détectée</h3>
             </div>
           <div className="space-y-2">
@@ -402,6 +576,13 @@ export const PushTestPage: React.FC = () => {
                 <span className="text-yellow-600 font-medium">⚠️ Non demandée</span>
               )}
             </div>
+            <div className="flex items-center gap-2">
+              <span className="text-sm">État réel:</span>
+              <span className="text-blue-600 font-medium">
+                {Notification.permission === 'granted' ? '✅ Accordée' : 
+                 Notification.permission === 'denied' ? '❌ Refusée' : '⚠️ Non demandée'}
+              </span>
+            </div>
             </div>
         </Card>
 
@@ -411,7 +592,7 @@ export const PushTestPage: React.FC = () => {
             <div className="flex items-center gap-3 mb-4">
               <ShieldCheck className="w-6 h-6 text-blue-600" />
               <h3 className="text-lg font-semibold">Autorisation requise</h3>
-            </div>
+              </div>
             <p className="text-sm text-gray-600 mb-4">
               Les notifications push nécessitent votre autorisation pour fonctionner.
             </p>
@@ -495,6 +676,39 @@ export const PushTestPage: React.FC = () => {
               <h4 className="font-medium mb-3">Tests Techniques</h4>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <Button
+                  onClick={testServiceWorker}
+                  disabled={isLoading}
+                  variant="secondary"
+                  size="sm"
+                  className="flex items-center gap-2 justify-center"
+                >
+                  <Settings className="w-4 h-4" />
+                  Test Service Worker
+                </Button>
+                
+                <Button
+                  onClick={testBasicNotification}
+                  disabled={isLoading}
+                  variant="secondary"
+                  size="sm"
+                  className="flex items-center gap-2 justify-center"
+                >
+                  <Bell className="w-4 h-4" />
+                  Test Notification Basique
+                </Button>
+                
+                <Button
+                  onClick={testSimpleNotification}
+                  disabled={isLoading}
+                  variant="primary"
+                  size="sm"
+                  className="flex items-center gap-2 justify-center"
+                >
+                  <Bell className="w-4 h-4" />
+                  Test Simple FCM
+                </Button>
+                
+                <Button
                   onClick={testFCMToken}
                   disabled={isLoading}
                   variant="secondary"
@@ -528,14 +742,36 @@ export const PushTestPage: React.FC = () => {
             </Button>
                 
             <Button 
-                  onClick={resetNotificationPermissions}
+                  onClick={checkPermissionStatus}
                   disabled={isLoading}
               variant="secondary" 
                   size="sm"
                   className="flex items-center gap-2 justify-center"
             >
+                  <AlertCircle className="w-4 h-4" />
+                  📊 Vérifier Statut
+            </Button>
+            
+            <Button 
+                  onClick={requestPermission}
+                  disabled={isLoading || permission.granted}
+              variant="primary" 
+                  size="sm"
+                  className="flex items-center gap-2 justify-center"
+            >
+                  <ShieldCheck className="w-4 h-4" />
+                  {permission.granted ? '✅ Permissions Activées' : '🔓 Activer Permissions'}
+            </Button>
+            
+            <Button 
+                  onClick={resetNotificationPermissions}
+                  disabled={isLoading}
+              variant="danger" 
+                  size="sm"
+                  className="flex items-center gap-2 justify-center"
+            >
                   <Settings className="w-4 h-4" />
-                  Réinitialiser Permissions
+                  🔄 Réinitialiser
             </Button>
           </div>
             </div>
@@ -557,6 +793,51 @@ export const PushTestPage: React.FC = () => {
             </div>
         </Card>
         )}
+
+        {/* Debugging Guide */}
+        <Card className="p-6">
+          <div className="flex items-center gap-3 mb-4">
+            <AlertCircle className="w-6 h-6 text-blue-600" />
+            <h3 className="text-lg font-semibold">Guide de Débogage FCM</h3>
+          </div>
+          <div className="space-y-3 text-sm text-gray-600">
+            <div>
+              <strong>1. Vérifiez la Console du Navigateur:</strong>
+              <ul className="list-disc list-inside ml-4 mt-1 space-y-1">
+                <li>Ouvrez DevTools (F12) → Console</li>
+                <li>Recherchez les erreurs FCM</li>
+                <li>Vérifiez les logs de service worker</li>
+              </ul>
+            </div>
+            <div>
+              <strong>2. Testez les Permissions:</strong>
+              <ul className="list-disc list-inside ml-4 mt-1 space-y-1">
+                <li>Exécutez: <code className="bg-gray-100 px-1 rounded">Notification.permission</code></li>
+                <li>Doit retourner "granted"</li>
+                <li>Testez une notification simple dans la console</li>
+              </ul>
+            </div>
+            <div>
+              <strong>3. Vérifiez le Service Worker:</strong>
+              <ul className="list-disc list-inside ml-4 mt-1 space-y-1">
+                <li>DevTools → Application → Service Workers</li>
+                <li>Doit être "Active" et "Running"</li>
+                <li>Recherchez: "FCM background message received"</li>
+              </ul>
+            </div>
+            <div>
+              <strong>4. Testez l'Endpoint Backend:</strong>
+              <ul className="list-disc list-inside ml-4 mt-1 space-y-1">
+                <li>Vérifiez les logs du serveur backend</li>
+                <li>Recherchez: "FCM push notification sent successfully"</li>
+                <li>Vérifiez l'URL: <code className="bg-gray-100 px-1 rounded">http://localhost:3000/api/fcm/send</code></li>
+              </ul>
+            </div>
+            <div className="bg-yellow-50 p-3 rounded-lg">
+              <strong>💡 Conseil:</strong> Utilisez le bouton "Test Simple FCM" ci-dessus pour tester directement l'envoi de notifications FCM sans passer par le système unifié.
+            </div>
+          </div>
+        </Card>
 
       </div>
     </Layout>

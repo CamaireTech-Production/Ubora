@@ -1,4 +1,4 @@
-import { doc, getDoc, collection, addDoc, query, where, getDocs, orderBy, limit } from 'firebase/firestore';
+import { doc, getDoc, collection, query, where, getDocs, orderBy, limit } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 import { buildApiUrl } from '../config/api';
 
@@ -48,22 +48,44 @@ class FCMService {
    */
   async sendToToken(notification: FCMNotification, fcmToken: string, userId?: string): Promise<FCMDeliveryLog> {
     try {
-      console.log('🔔 [FCM] Sending notification to token:', { fcmToken: fcmToken.substring(0, 20) + '...', userId });
-      console.log('🔔 [FCM] Full token length:', fcmToken.length);
-      console.log('🔔 [FCM] Token starts with:', fcmToken.substring(0, 10));
-      console.log('🔔 [FCM] Token ends with:', fcmToken.substring(fcmToken.length - 10));
+      console.log('🔔 [FCM] ===== STARTING FCM SEND PROCESS =====');
+      console.log('🔔 [FCM] Notification details:', {
+        id: notification.id,
+        title: notification.title,
+        body: notification.body,
+        type: notification.data?.type
+      });
+      console.log('🔔 [FCM] Token details:', { 
+        fcmToken: fcmToken.substring(0, 20) + '...', 
+        userId,
+        tokenLength: fcmToken.length,
+        tokenStart: fcmToken.substring(0, 10),
+        tokenEnd: fcmToken.substring(fcmToken.length - 10)
+      });
+      console.log('🔔 [FCM] API endpoint:', buildApiUrl('/api/fcm/send'));
 
       // Call backend API to send FCM
+      console.log('🔔 [FCM] Making API call to backend...');
+      const requestBody = {
+        notification,
+        fcmToken,
+        userId
+      };
+      console.log('🔔 [FCM] Request body:', JSON.stringify(requestBody, null, 2));
+      
       const response = await fetch(buildApiUrl('/api/fcm/send'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          notification,
-          fcmToken,
-          userId
-        })
+        body: JSON.stringify(requestBody)
+      });
+      
+      console.log('🔔 [FCM] API response received:', {
+        status: response.status,
+        statusText: response.statusText,
+        ok: response.ok,
+        headers: Object.fromEntries(response.headers.entries())
       });
 
       if (!response.ok) {
@@ -114,6 +136,7 @@ class FCMService {
       }
 
       const result = await response.json();
+      console.log('🔔 [FCM] API response body:', JSON.stringify(result, null, 2));
       
       // Log the delivery
       const deliveryLog: FCMDeliveryLog = {
@@ -128,7 +151,14 @@ class FCMService {
         response: result || {}
       };
 
+      console.log('🔔 [FCM] Delivery log created:', deliveryLog);
+      console.log('🔔 [FCM] FCM send status:', result.success ? 'SUCCESS' : 'FAILED');
+      if (result.error) {
+        console.error('🔔 [FCM] FCM error details:', result.error);
+      }
+      
       await this.logDelivery(deliveryLog);
+      console.log('🔔 [FCM] ===== FCM SEND PROCESS COMPLETED =====');
       return deliveryLog;
 
     } catch (error) {
@@ -345,7 +375,9 @@ class FCMService {
    */
   private async logDelivery(deliveryLog: FCMDeliveryLog): Promise<void> {
     try {
-      await addDoc(collection(db, 'fcmDeliveryLogs'), deliveryLog);
+      // Temporarily disabled delivery logging to avoid Firestore permissions error
+      // await addDoc(collection(db, 'fcmDeliveryLogs'), deliveryLog);
+      console.log('🔔 [FCM] Delivery log (not saved to Firestore):', deliveryLog);
     } catch (error) {
       console.error('🔔 [FCM] Error logging delivery:', error);
     }
