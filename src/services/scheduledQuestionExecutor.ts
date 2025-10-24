@@ -486,25 +486,43 @@ class ScheduledQuestionExecutor {
         ? 'ARCHA a généré une nouvelle réponse à votre instruction programmée'
         : 'Une erreur s\'est produite lors de l\'exécution de votre instruction programmée';
 
-      await unifiedNotificationService.sendNotification({
-        title,
-        body,
-        type: 'scheduled_instruction',
-        recipientId: question.userId,
-        agencyId: question.agencyId,
-        data: {
-          scheduledQuestionId: question.id,
-          responseId: response.id,
-          status: response.status,
-          url: `/directeur/scheduled-questions/${question.id}/chat`,
-          questionTitle: question.title
-        }
-      });
+      // Get FCM token for the director
+      const fcmToken = await this.getUserFCMToken(question.userId);
+
+      await unifiedNotificationService.createProgrammedInstructionNotification(
+        question.id,
+        question.title,
+        response.id,
+        question.userId,
+        question.agencyId,
+        response.status,
+        fcmToken || undefined
+      );
       
       console.log('🔔 [ScheduledQuestionExecutor] Notification envoyée pour:', question.title);
     } catch (error) {
       console.error('❌ [ScheduledQuestionExecutor] Erreur lors de l\'envoi de la notification:', error);
       // Ne pas faire échouer l'exécution pour une erreur de notification
+    }
+  }
+
+  /**
+   * Get FCM token from user profile
+   */
+  private async getUserFCMToken(userId: string): Promise<string | null> {
+    try {
+      const { getDoc, doc } = await import('firebase/firestore');
+      const { db } = await import('../firebaseConfig');
+      
+      const userDoc = await getDoc(doc(db, 'users', userId));
+      if (userDoc.exists()) {
+        const userData = userDoc.data();
+        return userData.fcmToken || null;
+      }
+      return null;
+    } catch (error) {
+      console.error(`🔔 [ScheduledQuestionExecutor] Error getting FCM token for ${userId}:`, error);
+      return null;
     }
   }
 

@@ -1,7 +1,7 @@
-import { collection, addDoc, doc, getDocs, query, where, orderBy, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, doc, getDocs, query, where, orderBy, updateDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 import { Dashboard, DashboardMetric, FormEntry, MetricReminder } from '../types';
-import { notificationService } from './notificationService';
+import { unifiedNotificationService } from './unifiedNotificationService';
 import { MetricCalculator } from '../utils/MetricCalculator';
 
 type MetricReminderCreate = Omit<MetricReminder, 'id' | 'status' | 'createdAt' | 'dedupKey' | 'sentAt' | 'lastEvaluatedAt'>;
@@ -10,6 +10,23 @@ class MetricReminderService {
   private readonly collectionName = 'metricReminders';
   private isRunning = false;
   private sentKeys = new Set<string>();
+
+  /**
+   * Get FCM token from user profile
+   */
+  private async getUserFCMToken(userId: string): Promise<string | null> {
+    try {
+      const userDoc = await getDoc(doc(db, 'users', userId));
+      if (userDoc.exists()) {
+        const userData = userDoc.data();
+        return userData.fcmToken || null;
+      }
+      return null;
+    } catch (error) {
+      console.error(`📊 [MetricReminder] Error getting FCM token for ${userId}:`, error);
+      return null;
+    }
+  }
 
   async create(reminder: MetricReminderCreate): Promise<string> {
     // Calculate the next scheduled time based on frequency and time
@@ -183,19 +200,20 @@ class MetricReminderService {
         // (no threshold comparison needed - it's a periodic report)
         const periodLabel = this.getPeriodLabel(reminder.frequency);
         
-        await notificationService.sendViaUnified(reminder.directorId, {
-          title: `Rappel ${periodLabel}: ${metric.name}`,
-          body: `Valeur ${periodLabel.toLowerCase()}: ${numeric}`,
-          type: 'metric_reminder',
-          data: {
-            dashboardId: dash.id,
-            metricId: metric.id,
-            frequency: reminder.frequency,
-            periodStart: periodStart.toISOString(),
-            periodEnd: periodEnd.toISOString(),
-            action: 'metric_reminder'
-          }
-        }, reminder.agencyId);
+        // Get FCM token for the director
+        const fcmToken = await this.getUserFCMToken(reminder.directorId);
+        
+        await unifiedNotificationService.createMetricReminderNotification(
+          dash.id,
+          metric.name,
+          numeric,
+          reminder.directorId,
+          reminder.agencyId,
+          reminder.frequency,
+          periodStart,
+          periodEnd,
+          fcmToken || undefined
+        );
 
         this.sentKeys.add(key);
         

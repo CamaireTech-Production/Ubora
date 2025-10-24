@@ -23,6 +23,23 @@ class FormReminderService {
   }
 
   /**
+   * Get FCM token from user profile
+   */
+  private async getUserFCMToken(userId: string): Promise<string | null> {
+    try {
+      const userDoc = await getDoc(doc(db, 'users', userId));
+      if (userDoc.exists()) {
+        const userData = userDoc.data();
+        return userData.fcmToken || null;
+      }
+      return null;
+    } catch (error) {
+      console.error(`📅 [FormReminder] Error getting FCM token for ${userId}:`, error);
+      return null;
+    }
+  }
+
+  /**
    * Schedule form reminders for a form with deadline
    */
   async scheduleFormReminders(form: Form): Promise<void> {
@@ -39,10 +56,8 @@ class FormReminderService {
 
       // Schedule reminders for each assigned user (employees and directors)
       for (const userId of form.assignedTo) {
-        // Determine user role - we need to check if this is a director or employee
-        // For now, we'll assume all assigned users can be either role
-        // In a real implementation, you'd query the user's role from the database
         const userRole = await this.getUserRole(userId);
+        const fcmToken = await this.getUserFCMToken(userId);
         
         for (const intervalMinutes of reminderIntervals) {
           const reminderTime = new Date(deadlineDate.getTime() - intervalMinutes * 60 * 1000);
@@ -56,7 +71,7 @@ class FormReminderService {
               recipientId: userId,
               recipientRole: userRole,
               agencyId: form.agencyId,
-              redirectUrl: userRole === 'directeur' ? '/directeur/dashboard' : '/employe/dashboard',
+              redirectUrl: `/forms/${form.id}`,
               data: {
                 formId: form.id,
                 formTitle: form.title,
@@ -64,7 +79,8 @@ class FormReminderService {
                 minutesBeforeDeadline: intervalMinutes,
                 action: 'fill_form',
                 reminderType: `${intervalMinutes}min`
-              }
+              },
+              fcmToken: fcmToken || undefined
             }, reminderTime);
 
             console.log(`📅 [FormReminder] Scheduled ${intervalMinutes}min reminder for ${userRole} ${userId} at ${reminderTime}`);

@@ -382,7 +382,7 @@ export const NotificationsPage: React.FC = () => {
             <div className="flex items-center gap-3">
               <Bell className="w-6 h-6 text-blue-600" />
               <div>
-                <h3 className="text-lg font-semibold">Historique des notifications</h3>
+              <h3 className="text-lg font-semibold">Historique des notifications</h3>
                 {/* Notification permission status */}
                 {!isSupported ? (
                   <div className="flex items-center gap-1 mt-1">
@@ -478,7 +478,7 @@ export const NotificationsPage: React.FC = () => {
               {!isSupported ? (
                 // Browser doesn't support notifications
                 <div className="max-w-md mx-auto">
-                  <Bell className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+              <Bell className="w-12 h-12 text-gray-300 mx-auto mb-4" />
                   <h3 className="text-lg font-medium text-gray-700 mb-2">Notifications non supportées</h3>
                   <p className="text-gray-500 mb-4">
                     Votre navigateur ne supporte pas les notifications push. 

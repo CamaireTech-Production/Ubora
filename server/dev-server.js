@@ -126,6 +126,8 @@ const { downloadHandler } = require('../api/files/download.js');
 
 // FCM handler
 const fcmSendHandler = require('../api/fcm/send.js');
+// Cron job handler
+const cronNotificationsHandler = require('../api/cron/notifications.js');
 
 // Routes
 app.post('/api/ai/ask', askHandler);
@@ -133,6 +135,7 @@ app.get('/api/ai/health', healthHandler);
 app.post('/api/ai/format', formatHandler);
 app.get('/api/files/download', downloadHandler);
 app.post('/api/fcm/send', fcmSendHandler);
+app.post('/api/cron/notifications', cronNotificationsHandler);
 
 // Test endpoint to verify server is running
 app.get('/api/test', (req, res) => {
