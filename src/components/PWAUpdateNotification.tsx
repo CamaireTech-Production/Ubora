@@ -1,28 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { Button } from './Button';
-import { Card } from './Card';
-import { RefreshCw, X, CheckCircle } from 'lucide-react';
+import { Download, X, RefreshCw } from 'lucide-react';
 
 export const PWAUpdateNotification: React.FC = () => {
   const [showUpdatePrompt, setShowUpdatePrompt] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
-  const [autoUpdateTimer, setAutoUpdateTimer] = useState<number | null>(null);
-  const [dismissedUntil, setDismissedUntil] = useState<number | null>(null);
 
   useEffect(() => {
-    // Check if update was dismissed recently (within 1 hour)
-    const dismissed = localStorage.getItem('pwa-update-dismissed');
-    if (dismissed) {
-      const dismissedTime = parseInt(dismissed);
-      const oneHour = 60 * 60 * 1000;
-      if (Date.now() - dismissedTime < oneHour) {
-        setDismissedUntil(dismissedTime + oneHour);
-        return;
-      } else {
-        localStorage.removeItem('pwa-update-dismissed');
-      }
-    }
-
     // Listen for service worker updates
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.addEventListener('controllerchange', () => {
@@ -67,108 +51,52 @@ export const PWAUpdateNotification: React.FC = () => {
 
   const handleDismiss = () => {
     setShowUpdatePrompt(false);
-    // Remember dismissal for 1 hour
-    localStorage.setItem('pwa-update-dismissed', Date.now().toString());
-    setDismissedUntil(Date.now() + (60 * 60 * 1000));
-    
-    // Clear auto-update timer if running
-    if (autoUpdateTimer) {
-      clearTimeout(autoUpdateTimer);
-      setAutoUpdateTimer(null);
-    }
   };
 
-  // Auto-update after 5 seconds
-  useEffect(() => {
-    if (showUpdatePrompt && !autoUpdateTimer) {
-      const timer = window.setTimeout(() => {
-        handleUpdate();
-      }, 5000);
-      setAutoUpdateTimer(timer);
-    }
-    
-    return () => {
-      if (autoUpdateTimer) {
-        clearTimeout(autoUpdateTimer);
-      }
-    };
-  }, [showUpdatePrompt]);
-
-  // Don't show if dismissed recently
-  if (!showUpdatePrompt || (dismissedUntil && Date.now() < dismissedUntil)) {
+  if (!showUpdatePrompt) {
     return null;
   }
 
   return (
-    <div className="fixed top-4 left-4 right-4 z-50 max-w-md mx-auto">
-      <Card className="bg-gradient-to-r from-green-600 to-green-700 text-white border-0 shadow-lg">
-        <div className="p-4">
-          <div className="flex items-start justify-between mb-3">
-            <div className="flex items-center space-x-2">
-              <div className="p-2 bg-white/20 rounded-lg">
-                <CheckCircle className="h-5 w-5" />
-              </div>
-              <div>
-                <h3 className="font-semibold text-white">Mise à jour disponible</h3>
-                <p className="text-green-100 text-sm">
-                  Une nouvelle version de l'application est disponible
-                  {autoUpdateTimer && (
-                    <span className="block mt-1 text-xs">
-                      Mise à jour automatique dans 5 secondes...
-                    </span>
-                  )}
-                </p>
-              </div>
-            </div>
-            <button
-              onClick={handleDismiss}
-              className="text-white/70 hover:text-white transition-colors"
-            >
-              <X className="h-4 w-4" />
-            </button>
+    <div className="fixed top-0 left-0 right-0 z-50 bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-lg transform transition-transform duration-300 ease-in-out">
+      <div className="flex items-center justify-between px-4 py-3 max-w-7xl mx-auto">
+        <div className="flex items-center space-x-3">
+          <div className="flex items-center space-x-2">
+            <RefreshCw className="h-4 w-4 text-blue-100" />
+            <span className="text-sm font-medium">Update available</span>
           </div>
-
-          <div className="space-y-3">
-            <p className="text-green-100 text-sm">
-              Mettez à jour pour bénéficier des dernières améliorations et corrections.
-            </p>
-            
-            <div className="flex space-x-2">
-              <Button
-                onClick={handleUpdate}
-                disabled={isUpdating}
-                className="flex-1 bg-white text-green-600 hover:bg-green-50 font-medium disabled:opacity-50"
-              >
-                {isUpdating ? (
-                  <>
-                    <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                    Mise à jour...
-                  </>
-                ) : (
-                  <>
-                    <RefreshCw className="h-4 w-4 mr-2" />
-                    Mettre à jour
-                  </>
-                )}
-              </Button>
-              
-              <Button
-                onClick={handleDismiss}
-                variant="secondary"
-                className="px-4 text-green-100 hover:text-white hover:bg-green-500/20"
-              >
-                Plus tard (1h)
-              </Button>
-            </div>
-          </div>
-
-          <div className="mt-3 pt-3 border-t border-green-500/30">
-            <p className="text-green-200 text-xs">
-              ✓ Améliorations de performance • ✓ Nouvelles fonctionnalités • ✓ Corrections de bugs
-            </p>
-          </div>
+          <span className="text-blue-100 text-sm">•</span>
+          <span className="text-blue-100 text-sm">Download update to get the latest improvements</span>
         </div>
-      </Card>
+        
+        <div className="flex items-center space-x-2">
+          <Button
+            onClick={handleUpdate}
+            disabled={isUpdating}
+            size="sm"
+            className="bg-white text-blue-700 hover:bg-blue-50 font-medium px-3 py-1.5 text-xs"
+          >
+            {isUpdating ? (
+              <>
+                <RefreshCw className="h-3 w-3 mr-1.5 animate-spin" />
+                Updating...
+              </>
+            ) : (
+              <>
+                <Download className="h-3 w-3 mr-1.5" />
+                Update
+              </>
+            )}
+          </Button>
+          <button
+            onClick={handleDismiss}
+            className="text-blue-100 hover:text-white transition-colors p-1 rounded"
+            aria-label="Dismiss update notification"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
     </div>
-      );
+  );
 };
