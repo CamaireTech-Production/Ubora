@@ -27,7 +27,8 @@ export const API_ENDPOINTS = {
   OCR_EXTRACT: '/api/ocr/extract',
   OCR_PDF: '/api/ocr/extractPdfText',
   FILES_DOWNLOAD: '/api/files/download',
-  // FCM_SEND: '/api/fcm/send', // Removed - using pure frontend notifications
+  FCM_SEND: '/api/fcm/send',
+  CRON_NOTIFICATIONS: '/api/cron/notifications',
   HEALTH: '/health',
   TEST: '/test'
 };
@@ -118,6 +119,7 @@ export const getAIFormatEndpoint = (): string => buildApiUrl(API_ENDPOINTS.AI_FO
 export const getOCRExtractEndpoint = (): string => buildApiUrl(API_ENDPOINTS.OCR_EXTRACT);
 export const getOCRPDFEndpoint = (): string => buildApiUrl(API_ENDPOINTS.OCR_PDF);
 export const getFilesDownloadEndpoint = (): string => buildApiUrl(API_ENDPOINTS.FILES_DOWNLOAD);
-// export const getFCMSendEndpoint = (): string => buildApiUrl(API_ENDPOINTS.FCM_SEND); // Removed - using pure frontend notifications
+export const getFCMSendEndpoint = (): string => buildApiUrl(API_ENDPOINTS.FCM_SEND);
+export const getCronNotificationsEndpoint = (): string => buildApiUrl(API_ENDPOINTS.CRON_NOTIFICATIONS);
 export const getHealthEndpoint = (): string => buildApiUrl(API_ENDPOINTS.HEALTH);
 export const getTestEndpoint = (): string => buildApiUrl(API_ENDPOINTS.TEST);

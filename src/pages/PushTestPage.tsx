@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Layout } from '../components/Layout';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
-import { Bell, ShieldCheck, CheckCircle, Clock, BarChart3, MessageSquare, Zap, Smartphone, Monitor, AlertCircle } from 'lucide-react';
+import { Bell, ShieldCheck, CheckCircle, Clock, BarChart3, MessageSquare, Zap, Smartphone, Monitor, AlertCircle, Settings } from 'lucide-react';
 import { usePushNotifications } from '../hooks/usePushNotifications';
 import { unifiedNotificationService } from '../services/unifiedNotificationService';
 import { useAuth } from '../contexts/AuthContext';
@@ -30,6 +30,19 @@ export const PushTestPage: React.FC = () => {
     setStatus('🔄 Envoi de la notification d\'assignation de formulaire...');
     
     try {
+      // Get FCM token from user profile
+      const { getDoc, doc } = await import('firebase/firestore');
+      const { db } = await import('../firebaseConfig');
+      
+      const userDoc = await getDoc(doc(db, 'users', user.id));
+      const userData = userDoc.data();
+      const fcmToken = userData?.fcmToken;
+
+      if (!fcmToken) {
+        setStatus('❌ Aucun token FCM trouvé. Utilisez "Initialiser Token FCM" d\'abord.');
+        return;
+      }
+
       await unifiedNotificationService.createFormAssignmentNotification(
         'test-form-123',
         'Formulaire de Test FCM',
@@ -37,7 +50,8 @@ export const PushTestPage: React.FC = () => {
         user.role || 'employe',
         user.agencyId || '',
         'assigned',
-        'Directeur Test'
+        'Directeur Test',
+        fcmToken
       );
       setStatus('✅ Notification d\'assignation FCM envoyée! Vérifiez votre appareil.');
     } catch (error) {
@@ -58,13 +72,27 @@ export const PushTestPage: React.FC = () => {
     setStatus('🔄 Envoi de la notification de rappel de formulaire...');
     
     try {
+      // Get FCM token from user profile
+      const { getDoc, doc } = await import('firebase/firestore');
+      const { db } = await import('../firebaseConfig');
+      
+      const userDoc = await getDoc(doc(db, 'users', user.id));
+      const userData = userDoc.data();
+      const fcmToken = userData?.fcmToken;
+
+      if (!fcmToken) {
+        setStatus('❌ Aucun token FCM trouvé. Utilisez "Initialiser Token FCM" d\'abord.');
+        return;
+      }
+
       await unifiedNotificationService.createFormReminderNotification(
         'test-form-123',
         'Formulaire de Test FCM',
         5, // 5 minutes
         user.id,
         user.role || 'employe',
-        user.agencyId || ''
+        user.agencyId || '',
+        fcmToken
       );
       setStatus('✅ Notification de rappel FCM envoyée! Vérifiez votre appareil.');
     } catch (error) {
@@ -85,6 +113,19 @@ export const PushTestPage: React.FC = () => {
     setStatus('🔄 Envoi de la notification de rappel de métrique...');
     
     try {
+      // Get FCM token from user profile
+      const { getDoc, doc } = await import('firebase/firestore');
+      const { db } = await import('../firebaseConfig');
+      
+      const userDoc = await getDoc(doc(db, 'users', user.id));
+      const userData = userDoc.data();
+      const fcmToken = userData?.fcmToken;
+
+      if (!fcmToken) {
+        setStatus('❌ Aucun token FCM trouvé. Utilisez "Initialiser Token FCM" d\'abord.');
+        return;
+      }
+
       await unifiedNotificationService.createMetricReminderNotification(
         'test-dashboard-123',
         'Métrique de Test FCM',
@@ -93,7 +134,8 @@ export const PushTestPage: React.FC = () => {
         user.agencyId || '',
         'daily',
         new Date(Date.now() - 24 * 60 * 60 * 1000), // yesterday
-        new Date() // today
+        new Date(), // today
+        fcmToken
       );
       setStatus('✅ Notification de métrique FCM envoyée! Vérifiez votre appareil.');
     } catch (error) {
@@ -114,13 +156,27 @@ export const PushTestPage: React.FC = () => {
     setStatus('🔄 Envoi de la notification d\'instruction programmée...');
     
     try {
+      // Get FCM token from user profile
+      const { getDoc, doc } = await import('firebase/firestore');
+      const { db } = await import('../firebaseConfig');
+      
+      const userDoc = await getDoc(doc(db, 'users', user.id));
+      const userData = userDoc.data();
+      const fcmToken = userData?.fcmToken;
+
+      if (!fcmToken) {
+        setStatus('❌ Aucun token FCM trouvé. Utilisez "Initialiser Token FCM" d\'abord.');
+        return;
+      }
+
       await unifiedNotificationService.createProgrammedInstructionNotification(
         'test-instruction-123',
         'Instruction de Test FCM',
         'test-response-456',
         user.id,
         user.agencyId || '',
-        'success'
+        'success',
+        fcmToken
       );
       setStatus('✅ Notification d\'instruction FCM envoyée! Vérifiez votre appareil.');
     } catch (error) {
@@ -136,22 +192,34 @@ export const PushTestPage: React.FC = () => {
     setStatus('🔄 Test du cron job backend...');
     
     try {
-      const response = await fetch('/api/cron/notifications', {
+      // Use the correct API configuration
+      const { getCronNotificationsEndpoint } = await import('../config/api');
+      const cronJobUrl = getCronNotificationsEndpoint();
+      
+      console.log('🔔 [PushTest] Testing cron job at:', cronJobUrl);
+      
+      const response = await fetch(cronJobUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
+        body: JSON.stringify({
+          test: true,
+          timestamp: new Date().toISOString()
+        })
       });
       
       if (response.ok) {
         const result = await response.json();
         setStatus(`✅ Cron job exécuté: ${result.processed} traitées, ${result.sent} envoyées, ${result.errors} erreurs`);
       } else {
-        setStatus('❌ Erreur lors de l\'exécution du cron job');
+        const errorText = await response.text();
+        console.error('Cron job error response:', errorText);
+        setStatus(`❌ Erreur lors de l'exécution du cron job: ${response.status} ${response.statusText}`);
       }
     } catch (error) {
       console.error('Error testing cron job:', error);
-      setStatus('❌ Erreur de connexion au cron job');
+      setStatus('❌ Erreur de connexion au cron job: ' + error.message);
     } finally {
       setIsLoading(false);
     }
@@ -177,6 +245,104 @@ export const PushTestPage: React.FC = () => {
     } catch (error) {
       console.error('Error checking FCM token:', error);
       setStatus('❌ Erreur lors de la vérification du token FCM');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const initializeFCMToken = async () => {
+    if (!user) {
+      setStatus('❌ Utilisateur non connecté');
+      return;
+    }
+
+    setIsLoading(true);
+    setStatus('🔄 Initialisation du token FCM...');
+    
+    try {
+      // Import the push notification hook to get a fresh token
+      const { getToken } = await import('firebase/messaging');
+      const { messaging } = await import('../firebaseConfig');
+      
+      const messagingInstance = await messaging;
+      if (!messagingInstance) {
+        setStatus('❌ Messaging non disponible');
+        return;
+      }
+
+      const vapidKey = import.meta.env.VITE_FIREBASE_VAPID_KEY;
+      if (!vapidKey || vapidKey === 'YOUR_VAPID_KEY_HERE') {
+        setStatus('❌ VAPID key non configurée');
+        return;
+      }
+
+      // Get fresh FCM token
+      const newToken = await getToken(messagingInstance, {
+        vapidKey: vapidKey,
+        serviceWorkerRegistration: await navigator.serviceWorker.getRegistration('/')
+      });
+
+      if (newToken) {
+        // Save token to localStorage
+        localStorage.setItem('fcm_token', newToken);
+        
+        // Save token to user profile in Firestore
+        const { updateDoc, doc } = await import('firebase/firestore');
+        const { db } = await import('../firebaseConfig');
+        
+        await updateDoc(doc(db, 'users', user.id), {
+          fcmToken: newToken,
+          fcmTokenUpdatedAt: new Date().toISOString()
+        });
+        
+        setStatus(`✅ Token FCM initialisé et sauvegardé: ${newToken.substring(0, 20)}... (${newToken.length} caractères)`);
+      } else {
+        setStatus('❌ Impossible de générer le token FCM');
+      }
+    } catch (error) {
+      console.error('Error initializing FCM token:', error);
+      setStatus('❌ Erreur lors de l\'initialisation du token FCM: ' + error.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const resetNotificationPermissions = async () => {
+    setIsLoading(true);
+    setStatus('🔄 Réinitialisation des permissions...');
+    
+    try {
+      // Clear existing permissions
+      if ('serviceWorker' in navigator) {
+        const registrations = await navigator.serviceWorker.getRegistrations();
+        for (const registration of registrations) {
+          await registration.unregister();
+        }
+      }
+      
+      // Clear FCM token
+      localStorage.removeItem('fcm_token');
+      
+      // Clear user FCM token in Firestore
+      if (user) {
+        const { updateDoc, doc } = await import('firebase/firestore');
+        const { db } = await import('../firebaseConfig');
+        
+        await updateDoc(doc(db, 'users', user.id), {
+          fcmToken: null,
+          fcmTokenClearedAt: new Date().toISOString()
+        });
+      }
+      
+      setStatus('✅ Permissions réinitialisées. Rechargez la page pour recommencer.');
+      
+      // Reload page after 2 seconds
+      setTimeout(() => {
+        window.location.reload();
+      }, 2000);
+    } catch (error) {
+      console.error('Error resetting permissions:', error);
+      setStatus('❌ Erreur lors de la réinitialisation des permissions');
     } finally {
       setIsLoading(false);
     }
@@ -214,7 +380,7 @@ export const PushTestPage: React.FC = () => {
           <div className="flex items-center gap-3 mb-4">
             {platformInfo.icon}
             <h3 className="text-lg font-semibold">Plateforme détectée</h3>
-          </div>
+            </div>
           <div className="space-y-2">
             <p className="font-medium">{platformInfo.text}</p>
             <p className="text-sm text-gray-600">{platformInfo.note}</p>
@@ -236,7 +402,7 @@ export const PushTestPage: React.FC = () => {
                 <span className="text-yellow-600 font-medium">⚠️ Non demandée</span>
               )}
             </div>
-          </div>
+            </div>
         </Card>
 
         {/* Permission Request */}
@@ -282,7 +448,7 @@ export const PushTestPage: React.FC = () => {
                   <div className="font-medium">Test Assignation</div>
                   <div className="text-xs opacity-75">form_assignment</div>
                 </div>
-              </Button>
+            </Button>
               
               <Button
                 onClick={testFormReminder}
@@ -295,12 +461,12 @@ export const PushTestPage: React.FC = () => {
                   <div className="font-medium">Test Rappel</div>
                   <div className="text-xs opacity-75">form_reminder</div>
                 </div>
-              </Button>
+            </Button>
               
-              <Button
+            <Button 
                 onClick={testMetricReminder}
                 disabled={isLoading}
-                variant="secondary"
+              variant="secondary" 
                 className="flex items-center gap-2 justify-center h-auto py-3"
               >
                 <BarChart3 className="w-4 h-4 text-blue-500" />
@@ -308,9 +474,9 @@ export const PushTestPage: React.FC = () => {
                   <div className="font-medium">Test Métrique</div>
                   <div className="text-xs opacity-75">metric_reminder</div>
                 </div>
-              </Button>
+            </Button>
               
-              <Button
+            <Button 
                 onClick={testProgrammedInstruction}
                 disabled={isLoading}
                 variant="secondary"
@@ -327,35 +493,57 @@ export const PushTestPage: React.FC = () => {
             {/* Technical Tests */}
             <div className="border-t pt-4">
               <h4 className="font-medium mb-3">Tests Techniques</h4>
-              <div className="flex flex-wrap gap-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <Button
                   onClick={testFCMToken}
                   disabled={isLoading}
                   variant="secondary"
                   size="sm"
-                  className="flex items-center gap-2"
+                  className="flex items-center gap-2 justify-center"
                 >
                   <Zap className="w-4 h-4" />
                   Vérifier Token FCM
                 </Button>
                 
                 <Button
-                  onClick={testBackendCronJob}
+                  onClick={initializeFCMToken}
                   disabled={isLoading}
                   variant="secondary"
                   size="sm"
-                  className="flex items-center gap-2"
+                  className="flex items-center gap-2 justify-center"
                 >
                   <Bell className="w-4 h-4" />
-                  Test Cron Job
+                  Initialiser Token FCM
                 </Button>
-              </div>
+                
+                <Button
+                  onClick={testBackendCronJob}
+                  disabled={isLoading}
+              variant="secondary" 
+                  size="sm"
+                  className="flex items-center gap-2 justify-center"
+            >
+              <Bell className="w-4 h-4" />
+                  Test Cron Job
+            </Button>
+                
+            <Button 
+                  onClick={resetNotificationPermissions}
+                  disabled={isLoading}
+              variant="secondary" 
+                  size="sm"
+                  className="flex items-center gap-2 justify-center"
+            >
+                  <Settings className="w-4 h-4" />
+                  Réinitialiser Permissions
+            </Button>
+          </div>
             </div>
           </Card>
         )}
 
         {/* Status Display */}
-        {status && (
+          {status && (
           <Card className="p-4">
             <div className="flex items-center gap-2">
               {status.includes('✅') ? (
@@ -367,43 +555,9 @@ export const PushTestPage: React.FC = () => {
               )}
               <span className="text-sm">{status}</span>
             </div>
-          </Card>
+        </Card>
         )}
 
-        {/* Instructions */}
-        <Card className="p-6">
-          <div className="flex items-center gap-3 mb-4">
-            <AlertCircle className="w-6 h-6 text-blue-600" />
-            <h3 className="text-lg font-semibold">Instructions de Test</h3>
-          </div>
-          <div className="space-y-3 text-sm text-gray-600">
-            <div>
-              <strong>1. Test sur Mobile (Recommandé):</strong>
-              <ul className="list-disc list-inside ml-4 mt-1 space-y-1">
-                <li>Utilisez Chrome sur Android ou Safari sur iOS</li>
-                <li>Installez l'app comme PWA (Add to Home Screen)</li>
-                <li>Vérifiez que les notifications sont autorisées</li>
-              </ul>
-            </div>
-            <div>
-              <strong>2. Résultats Attendus:</strong>
-              <ul className="list-disc list-inside ml-4 mt-1 space-y-1">
-                <li>Notification apparaît dans le système de notifications</li>
-                <li>Son de notification joué</li>
-                <li>Popup comme WhatsApp</li>
-                <li>Fonctionne même quand l'app est fermée</li>
-              </ul>
-            </div>
-            <div>
-              <strong>3. Dépannage:</strong>
-              <ul className="list-disc list-inside ml-4 mt-1 space-y-1">
-                <li>Vérifiez les paramètres de notification du navigateur</li>
-                <li>Sur Android: Désactivez l'optimisation de batterie</li>
-                <li>Sur iOS: Assurez-vous que l'app est installée comme PWA</li>
-              </ul>
-            </div>
-          </div>
-        </Card>
       </div>
     </Layout>
   );
