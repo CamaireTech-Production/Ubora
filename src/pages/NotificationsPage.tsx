@@ -3,7 +3,7 @@ import { Layout } from '../components/Layout';
 import { PushNotificationSettings } from '../components/PushNotificationSettings';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
-import { Bell, CheckCircle, XCircle, Clock, Trash2, BarChart3, MessageSquare, AlertCircle, Settings } from 'lucide-react';
+import { Bell, CheckCircle, XCircle, Clock, Trash2, BarChart3, MessageSquare, AlertCircle, Settings, TestTube } from 'lucide-react';
 import { WireframeLoader } from '../components/loading/WireframeLoader';
 import { unifiedNotificationService, UnifiedNotification } from '../services/unifiedNotificationService';
 import { useAuth } from '../contexts/AuthContext';
@@ -204,128 +204,31 @@ export const NotificationsPage: React.FC = () => {
     }
   };
 
-  // Test functions for each notification type
-  const testFormAssignment = async () => {
-    try {
-      await unifiedNotificationService.sendNotification({
-        title: "Nouveau formulaire assigné",
-        body: "Un nouveau formulaire 'Évaluation Q1 2024' vous a été assigné. Veuillez le compléter avant le 15 mars.",
-        type: 'form_assignment',
-        recipientId: user?.id || '',
-        recipientRole: user?.role as 'directeur' | 'employe',
-        agencyId: user?.agencyId || '',
-        data: {
-          formId: 'test-form-123',
-          action: 'form_assigned',
-          formTitle: 'Évaluation Q1 2024',
-          dueDate: '2024-03-15'
-        }
-      });
-      alert('Notification de test "Assignation formulaire" envoyée !');
-    } catch (error) {
-      console.error('Error sending test notification:', error);
-      alert('Erreur lors de l\'envoi de la notification de test');
-    }
-  };
-
-  const testFormReminder = async () => {
-    try {
-      await unifiedNotificationService.sendNotification({
-        title: "Rappel formulaire",
-        body: "N'oubliez pas de compléter le formulaire 'Rapport mensuel' avant la fin de la semaine.",
-        type: 'form_reminder',
-        recipientId: user?.id || '',
-        recipientRole: user?.role as 'directeur' | 'employe',
-        agencyId: user?.agencyId || '',
-        data: {
-          formId: 'test-form-456',
-          action: 'form_reminder',
-          formTitle: 'Rapport mensuel',
-          urgency: 'high'
-        }
-      });
-      alert('Notification de test "Rappel formulaire" envoyée !');
-    } catch (error) {
-      console.error('Error sending test notification:', error);
-      alert('Erreur lors de l\'envoi de la notification de test');
-    }
-  };
-
-  const testMetricReminder = async () => {
-    try {
-      await unifiedNotificationService.sendNotification({
-        title: "Rappel métrique",
-        body: "Vos métriques de performance pour ce mois sont disponibles. Consultez votre dashboard pour plus de détails.",
-        type: 'metric_reminder',
-        recipientId: user?.id || '',
-        recipientRole: user?.role as 'directeur' | 'employe',
-        agencyId: user?.agencyId || '',
-        data: {
-          dashboardId: 'test-dashboard-789',
-          action: 'metric_reminder',
-          period: '2024-03',
-          metrics: ['performance', 'productivity', 'satisfaction']
-        }
-      });
-      alert('Notification de test "Rappel métrique" envoyée !');
-    } catch (error) {
-      console.error('Error sending test notification:', error);
-      alert('Erreur lors de l\'envoi de la notification de test');
-    }
-  };
-
-  const testProgramInstruction = async () => {
-    try {
-      await unifiedNotificationService.sendNotification({
-        title: "Instruction programmée",
-        body: "Nouvelle instruction: Veuillez mettre à jour vos informations de contact dans votre profil avant le 20 mars.",
-        type: 'programmed_instruction',
-        recipientId: user?.id || '',
-        recipientRole: user?.role as 'directeur' | 'employe',
-        agencyId: user?.agencyId || '',
-        data: {
-          scheduledQuestionId: 'test-instruction-101',
-          action: 'program_instruction',
-          instruction: 'Mise à jour des informations de contact',
-          dueDate: '2024-03-20'
-        }
-      });
-      alert('Notification de test "Instruction programmée" envoyée !');
-    } catch (error) {
-      console.error('Error sending test notification:', error);
-      alert('Erreur lors de l\'envoi de la notification de test');
-    }
-  };
-
-  const testScheduledInstruction = async () => {
-    try {
-      await unifiedNotificationService.sendNotification({
-        title: "Réponse disponible pour \"Analyse des ventes Q1\"",
-        body: "ARCHA a généré une nouvelle réponse à votre instruction programmée",
-        type: 'programmed_instruction',
-        recipientId: user?.id || '',
-        recipientRole: user?.role as 'directeur' | 'employe',
-        agencyId: user?.agencyId || '',
-        data: {
-          scheduledQuestionId: 'test-scheduled-123',
-          responseId: 'test-response-456',
-          status: 'success',
-          url: '/directeur/scheduled-questions/test-scheduled-123/chat',
-          questionTitle: 'Analyse des ventes Q1'
-        }
-      });
-      alert('Notification de test "Instruction programmée (réponse)" envoyée !');
-    } catch (error) {
-      console.error('Error sending test notification:', error);
-      alert('Erreur lors de l\'envoi de la notification de test');
-    }
-  };
 
   return (
     <Layout title="Notifications">
       <div className="space-y-6">
         {/* Push Notification Settings */}
         <PushNotificationSettings />
+
+        {/* FCM Test Page Access */}
+        <Card className="p-6">
+          <div className="flex items-center gap-3 mb-4">
+            <TestTube className="w-6 h-6 text-purple-600" />
+            <h3 className="text-lg font-semibold">Tests FCM Push Notifications</h3>
+          </div>
+          <p className="text-sm text-gray-600 mb-4">
+            Testez les notifications FCM réelles sur votre appareil mobile (Android/iOS) 
+            pour vérifier que les notifications apparaissent dans le système de notifications.
+          </p>
+          <Button
+            onClick={() => window.location.href = '/dev/push-test'}
+            className="flex items-center gap-2"
+          >
+            <TestTube className="w-4 h-4" />
+            Ouvrir la page de test FCM
+          </Button>
+        </Card>
 
         {/* Test Notification Buttons */}
         {/* <Card className="p-6">
