@@ -30,7 +30,6 @@ import PushTestPage from './pages/PushTestPage';
 import { HybridPWAManager } from './components/HybridPWAManager';
 import { EmployeeManagement } from './components/EmployeeManagement';
 import { Layout } from './components/Layout';
-import { ReminderServiceInitializer } from './components/ReminderServiceInitializer';
 import { initializePWAConfig } from './utils/pwaConfig';
 import { PWAUpdateNotification } from './components/PWAUpdateNotification';
 import { usePageTracking } from './hooks/usePageTracking';
@@ -188,11 +187,7 @@ const AuthenticatedServices: React.FC = () => {
     return null;
   }
 
-  return (
-    <>
-      <ReminderServiceInitializer />
-    </>
-  );
+  return null;
 };
 
 function App() {
