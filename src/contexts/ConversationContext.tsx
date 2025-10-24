@@ -304,6 +304,7 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       );
 
       const unsubscribe = onSnapshot(messagesListenerQuery, (snapshot) => {
+        
         const allMessages = snapshot.docs.map(doc => {
           const data = doc.data();
           const message: ChatMessage = {
@@ -347,6 +348,7 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         });
 
         // Update messages from Firebase
+        
         setMessages(uniqueMessages);
         
         setHasMoreMessages(false);

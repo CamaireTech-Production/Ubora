@@ -40,16 +40,29 @@ if (!AI_ENDPOINT) {
 }
 
 const DirecteurChat: React.FC = () => {
-  // Component lifecycle tracking removed to prevent rerenders
+  console.log('🚀 DirecteurChat: Component MOUNTING/REMOUNTING', { 
+    timestamp: Date.now(),
+    componentId: Math.random().toString(36).substr(2, 9)
+  });
   
   const { user, firebaseUser, isLoading, logout } = useAuth();
   const { forms, formEntries, employees, isLoading: appLoading } = useApp();
+  
+  console.log('🔍 DirecteurChat: Auth & App state', { 
+    timestamp: Date.now(),
+    isLoading,
+    appLoading,
+    hasUser: !!user,
+    hasFirebaseUser: !!firebaseUser,
+    userId: user?.id,
+    firebaseUserId: firebaseUser?.uid
+  });
   
   // Use ref to track AI state without causing rerenders
   const isAIActiveRef = useRef(false);
   const { getMonthlyTokens, hasUnlimitedTokens, packageInfo } = usePackageAccess();
   
-  // Debug logs removed to prevent rerenders
+  // Debug logs to track rerenders
   const { 
     currentConversation, 
     conversations, 
@@ -62,6 +75,14 @@ const DirecteurChat: React.FC = () => {
     replaceOptimisticMessage,
     triggerAutoLoad
   } = useConversation();
+  
+  console.log('🔍 DirecteurChat: Conversation state', { 
+    timestamp: Date.now(),
+    messagesCount: messages.length,
+    conversationsCount: conversations.length,
+    currentConversationId: currentConversation?.id
+  });
+  
   
   // Conversation state debug removed to prevent rerenders
   
@@ -86,6 +107,19 @@ const DirecteurChat: React.FC = () => {
   
   // Track keyboard height for proper layout adjustment
   const [keyboardHeight, setKeyboardHeight] = useState(0);
+  
+  // Track component lifecycle
+  useEffect(() => {
+    console.log('🚀 DirecteurChat: Component MOUNTED', { 
+      timestamp: Date.now()
+    });
+    
+    return () => {
+      console.log('🚀 DirecteurChat: Component UNMOUNTING', { 
+        timestamp: Date.now()
+      });
+    };
+  }, []);
   
   // Keyboard detection for proper layout adjustment
   useEffect(() => {
@@ -329,8 +363,11 @@ RÉPONSE :
     }
 
     // Clear input after sending
-    // Set AI active to prevent appLoading rerenders
-    isAIActiveRef.current = true;
+        // Set AI active to prevent appLoading rerenders
+        isAIActiveRef.current = true;
+        
+        // Mark AI response as active to prevent context updates
+        sessionStorage.setItem('ai_response_active', 'true');
     
     setInputMessage('');
     setIsTyping(true);
@@ -474,25 +511,40 @@ RÉPONSE :
         // The user will see the updated count on next page refresh or login
         // Tokens charged successfully
         
-        // Track chat activity analytics
-        try {
-          await AnalyticsService.logChatActivity(
-            user.id, 
-            data.meta.userTokensCharged, 
-            user.agencyId
-          );
-        } catch (analyticsError) {
-          console.error('❌ FRONTEND: Failed to log chat activity:', analyticsError);
-        }
+        // Track chat activity analytics - MOVED TO BACKGROUND to prevent context updates
+        console.log('📊 DirecteurChat: Scheduling analytics logging', { 
+          timestamp: Date.now(),
+          userId: user.id,
+          tokensCharged: data.meta.userTokensCharged
+        });
+        
+        // Run analytics in background without blocking the UI
+        Promise.resolve().then(async () => {
+          try {
+            await AnalyticsService.logChatActivity(
+              user.id, 
+              data.meta.userTokensCharged, 
+              user.agencyId
+            );
+            console.log('📊 DirecteurChat: Analytics logging completed', { 
+              timestamp: Date.now()
+            });
+          } catch (analyticsError) {
+            console.error('❌ FRONTEND: Failed to log chat activity:', analyticsError);
+          }
+        });
       }
 
       // Server handles message persistence in Firebase
       // The real-time listener will pick up the message from Firebase
       // No need to add to local state as the listener will handle it
       
-      // Successfully received response, stop loading
-      // Clear AI active state to allow normal appLoading behavior
-      isAIActiveRef.current = false;
+          // Successfully received response, stop loading
+          // Clear AI active state to allow normal appLoading behavior
+          isAIActiveRef.current = false;
+          
+          // Clear AI response flag
+          sessionStorage.removeItem('ai_response_active');
       
       // Skip connection quality update during AI responses to prevent reloads
       
@@ -548,8 +600,11 @@ RÉPONSE :
         }
       }
       
-      // Clear AI active state on error
-      isAIActiveRef.current = false;
+          // Clear AI active state on error
+          isAIActiveRef.current = false;
+          
+          // Clear AI response flag on error
+          sessionStorage.removeItem('ai_response_active');
     } finally {
       // Keep typing bubble until success or explicit error handling
     }
@@ -608,9 +663,16 @@ RÉPONSE :
 
   // Afficher uniquement l'écran de bienvenue sans afficher le chat en arrière-plan
   if (showWelcome) {
+    console.log('🚀 DirecteurChat: Showing welcome screen', { 
+      timestamp: Date.now(),
+      isLoading,
+      appLoading,
+      isAIActive: isAIActiveRef.current,
+      isTyping
+    });
     return (
       <LoadingGuard 
-        isLoading={isLoading || (!isAIActiveRef.current && appLoading)} 
+        isLoading={isLoading || (appLoading && !isAIActiveRef.current && !isTyping)} 
         user={user} 
         firebaseUser={firebaseUser}
         message="Chargement d'Ubora..."
@@ -625,9 +687,18 @@ RÉPONSE :
     );
   }
 
+    console.log('🚀 DirecteurChat: Rendering main chat interface', { 
+      timestamp: Date.now(),
+      isLoading,
+      appLoading,
+      isAIActive: isAIActiveRef.current,
+      isTyping,
+      loadingGuardCondition: isLoading || (appLoading && !isAIActiveRef.current && !isTyping)
+    });
+    
     return (
       <LoadingGuard 
-        isLoading={isLoading || (!isAIActiveRef.current && appLoading)} 
+        isLoading={isLoading || (appLoading && !isAIActiveRef.current && !isTyping)} 
         user={user} 
         firebaseUser={firebaseUser}
         message="ARCHA loading..."

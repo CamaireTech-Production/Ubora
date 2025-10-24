@@ -251,10 +251,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     let timeoutId: NodeJS.Timeout;
     
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      console.log('🔥 AuthContext: onAuthStateChanged triggered', { 
+        timestamp: Date.now(),
+        hasFirebaseUser: !!firebaseUser,
+        firebaseUserId: firebaseUser?.uid,
+        currentUserId: user?.id
+      });
+      
       // Clear any pending operations to prevent concurrent calls
       clearTimeout(timeoutId);
       
       timeoutId = setTimeout(async () => {
+        console.log('🔥 AuthContext: Setting isLoading=true', { 
+          timestamp: Date.now()
+        });
         setIsLoading(true);
         setError(null);
         
@@ -278,6 +288,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             await new Promise(resolve => setTimeout(resolve, 200));
             
             // Récupérer ou créer le document utilisateur
+            
             const userDocRef = doc(db, 'users', firebaseUser.uid);
             
             // Use the new error handling system

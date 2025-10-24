@@ -18,7 +18,8 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   const { hasDirectorDashboardAccess } = usePermissions();
   
 
-  if (isLoading) {
+  // Only show loading skeleton for initial authentication, not during data updates
+  if (isLoading && !user) {
     return (
       <div className="min-h-screen bg-gray-50 p-4">
         <div className="max-w-7xl mx-auto">
