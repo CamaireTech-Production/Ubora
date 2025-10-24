@@ -17,6 +17,7 @@ import { db } from '../firebaseConfig';
 import { Form, FormEntry, User, DraftResponse, Dashboard } from '../types';
 import { DraftService } from '../services/draftService';
 import { useAuth } from './AuthContext';
+import { useAIResponse } from './AIResponseContext';
 import { usePackageAccess } from '../hooks/usePackageAccess';
 import { PermissionManager } from '../utils/PermissionManager';
 import { SubscriptionSessionService } from '../services/subscriptionSessionService';
@@ -61,6 +62,7 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // Access auth context from parent provider (always mounted in App.tsx)
   const { user, firebaseUser } = useAuth();
+  const { isAIResponseActive } = useAIResponse();
   const { showSuccess } = useToast();
 
   // Always initialize package access hooks and state hooks in stable order
@@ -87,7 +89,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     // Skip loading state if this is likely a data refresh during AI response
-    const shouldSkipLoading = sessionStorage.getItem('ai_response_active') === 'true';
+    const shouldSkipLoading = isAIResponseActive;
+    
+    console.log('🔥 AppContext: Checking AI flag', { 
+      timestamp: Date.now(),
+      isAIResponseActive,
+      shouldSkipLoading,
+      agencyId: user.agencyId
+    });
     
     if (!shouldSkipLoading) {
       console.log('🔥 AppContext: Setting isLoading=true', { 

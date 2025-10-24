@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useAuth } from '../contexts/AuthContext';
 import { useApp } from '../contexts/AppContext';
 import { useConversation } from '../contexts/ConversationContext';
+import { useAIResponse } from '../contexts/AIResponseContext';
 import { LoadingGuard } from '../components/LoadingGuard';
 import { WelcomeScreen } from '../components/WelcomeScreen';
 import { ChatTopBar } from '../components/chat/ChatTopBar';
@@ -39,6 +40,7 @@ if (!AI_ENDPOINT) {
   console.error("❌ Aucun endpoint ARCHA configuré. ARCHA ne fonctionnera pas.");
 }
 
+
 const DirecteurChat: React.FC = () => {
   console.log('🚀 DirecteurChat: Component MOUNTING/REMOUNTING', { 
     timestamp: Date.now(),
@@ -47,6 +49,7 @@ const DirecteurChat: React.FC = () => {
   
   const { user, firebaseUser, isLoading, logout } = useAuth();
   const { forms, formEntries, employees, isLoading: appLoading } = useApp();
+  const { setAIResponseActive } = useAIResponse();
   
   console.log('🔍 DirecteurChat: Auth & App state', { 
     timestamp: Date.now(),
@@ -60,6 +63,9 @@ const DirecteurChat: React.FC = () => {
   
   // Use ref to track AI state without causing rerenders
   const isAIActiveRef = useRef(false);
+  
+  // Global flag to prevent AppContext updates during AI responses
+  const aiResponseActiveRef = useRef(false);
   const { getMonthlyTokens, hasUnlimitedTokens, packageInfo } = usePackageAccess();
   
   // Debug logs to track rerenders
@@ -367,7 +373,8 @@ RÉPONSE :
         isAIActiveRef.current = true;
         
         // Mark AI response as active to prevent context updates
-        sessionStorage.setItem('ai_response_active', 'true');
+        aiResponseActiveRef.current = true;
+        setAIResponseActive(true);
     
     setInputMessage('');
     setIsTyping(true);
@@ -511,28 +518,15 @@ RÉPONSE :
         // The user will see the updated count on next page refresh or login
         // Tokens charged successfully
         
-        // Track chat activity analytics - MOVED TO BACKGROUND to prevent context updates
-        console.log('📊 DirecteurChat: Scheduling analytics logging', { 
+        // Track chat activity analytics - DISABLED during AI responses to prevent context updates
+        console.log('📊 DirecteurChat: Skipping analytics during AI response to prevent reloads', { 
           timestamp: Date.now(),
           userId: user.id,
           tokensCharged: data.meta.userTokensCharged
         });
         
-        // Run analytics in background without blocking the UI
-        Promise.resolve().then(async () => {
-          try {
-            await AnalyticsService.logChatActivity(
-              user.id, 
-              data.meta.userTokensCharged, 
-              user.agencyId
-            );
-            console.log('📊 DirecteurChat: Analytics logging completed', { 
-              timestamp: Date.now()
-            });
-          } catch (analyticsError) {
-            console.error('❌ FRONTEND: Failed to log chat activity:', analyticsError);
-          }
-        });
+        // Analytics disabled during AI responses to prevent AppContext reloads
+        // TODO: Re-enable analytics after AI response is complete
       }
 
       // Server handles message persistence in Firebase
@@ -544,7 +538,26 @@ RÉPONSE :
           isAIActiveRef.current = false;
           
           // Clear AI response flag
-          sessionStorage.removeItem('ai_response_active');
+          aiResponseActiveRef.current = false;
+          setAIResponseActive(false);
+          
+          // Now run analytics safely after AI response is complete
+          if (user) {
+            setTimeout(async () => {
+              try {
+                await AnalyticsService.logChatActivity(
+                  user.id, 
+                  data.meta.userTokensCharged, 
+                  user.agencyId
+                );
+                console.log('📊 DirecteurChat: Analytics logging completed after AI response', { 
+                  timestamp: Date.now()
+                });
+              } catch (analyticsError) {
+                console.error('❌ FRONTEND: Failed to log chat activity:', analyticsError);
+              }
+            }, 1000); // 1 second delay to ensure component is stable
+          }
       
       // Skip connection quality update during AI responses to prevent reloads
       
@@ -604,7 +617,8 @@ RÉPONSE :
           isAIActiveRef.current = false;
           
           // Clear AI response flag on error
-          sessionStorage.removeItem('ai_response_active');
+          aiResponseActiveRef.current = false;
+          setAIResponseActive(false);
     } finally {
       // Keep typing bubble until success or explicit error handling
     }

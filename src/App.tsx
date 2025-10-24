@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'r
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { AppProvider } from './contexts/AppContext';
 import { ConversationProvider } from './contexts/ConversationContext';
+import { AIResponseProvider } from './contexts/AIResponseContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { LoginPage } from './pages/LoginPage';
@@ -93,8 +94,9 @@ function App() {
   return (
     <ErrorBoundary>
       <AuthProvider>
-        <AppProvider>
-          <ConversationProvider>
+        <AIResponseProvider>
+          <AppProvider>
+            <ConversationProvider>
             <Router>
               <ServiceWorkerMessageHandler />
               <AuthenticatedServices />
@@ -335,8 +337,9 @@ function App() {
           <HybridPWAManager />
           {/* <PWAUpdateNotification /> */}
             </Router>
-          </ConversationProvider>
-        </AppProvider>
+            </ConversationProvider>
+          </AppProvider>
+        </AIResponseProvider>
       </AuthProvider>
     </ErrorBoundary>
   );
