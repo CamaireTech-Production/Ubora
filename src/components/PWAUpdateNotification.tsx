@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { Button } from './Button';
 import { Download, X, RefreshCw } from 'lucide-react';
 
 export const PWAUpdateNotification: React.FC = () => {
@@ -87,11 +86,10 @@ export const PWAUpdateNotification: React.FC = () => {
         </div>
         
         <div className="flex items-center space-x-2">
-          <Button
+          <button
             onClick={handleUpdate}
             disabled={isUpdating}
-            size="sm"
-            className="bg-white text-blue-800 hover:bg-blue-50 border border-blue-200 font-semibold px-3 py-1.5 text-xs shadow-sm"
+            className="bg-white text-blue-800 hover:bg-blue-50 border border-blue-200 font-semibold px-3 py-1.5 text-xs shadow-sm rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
           >
             {isUpdating ? (
               <>
@@ -104,7 +102,7 @@ export const PWAUpdateNotification: React.FC = () => {
                 Update
               </>
             )}
-          </Button>
+          </button>
           <button
             onClick={handleDismiss}
             className="text-blue-100 hover:text-white transition-colors p-1 rounded"
