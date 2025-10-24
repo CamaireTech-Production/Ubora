@@ -31,14 +31,12 @@ class NotificationListenerService {
     );
 
     this.unsubscribe = onSnapshot(notificationsQuery, (snapshot) => {
-      console.log('🔔 [NotificationListener] Received snapshot with', snapshot.docChanges().length, 'changes');
       
       snapshot.docChanges().forEach((change) => {
         if (change.type === 'added') {
           const notification = change.doc.data();
           const notificationTime = notification.createdAt?.toDate() || new Date();
           
-          console.log('🔔 [NotificationListener] New notification:', notification.title);
           
           // Only show notification if it's new (not from initial load)
           if (!this.lastNotificationTime || notificationTime > this.lastNotificationTime) {
@@ -87,10 +85,8 @@ class NotificationListenerService {
       return false;
     }
 
-    console.log('🔔 [NotificationListener] Current permission:', Notification.permission);
 
     if (Notification.permission === 'granted') {
-      console.log('🔔 [NotificationListener] Permission already granted');
       return true;
     }
 

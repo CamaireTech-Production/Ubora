@@ -104,11 +104,7 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       // Only auto-load if we have conversations, no current conversation, not loading, and not adding a message
       if (conversations.length > 0 && !currentConversation && !isLoading && !isAddingMessage) {
         try {
-          console.groupCollapsed('[Chat] Auto-load most recent conversation');
-          console.debug('Conversations ordered by lastMessageAt desc:', conversations.map(c => ({ id: c.id, title: c.title, lastMessageAt: c.lastMessageAt })));
-          console.debug('Selecting conversation:', { id: conversations[0].id, title: conversations[0].title });
           await loadConversation(conversations[0].id);
-          console.groupEnd();
         } catch (error) {
           console.error('Error auto-loading recent conversation:', error);
         }
@@ -263,13 +259,15 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
   const replaceOptimisticMessage = (optimisticId: string, realMessage: ChatMessage): void => {
     setMessages(prev => {
-      return prev.map(msg => {
+      const updatedMessages = prev.map(msg => {
         // Replace the optimistic message with the real one
         if (msg.id === optimisticId && msg.type === 'user') {
           return realMessage;
         }
         return msg;
       });
+      
+      return updatedMessages;
     });
   };
 
@@ -348,29 +346,11 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         	return contentDuplicate === -1;
         });
 
-        // Simple approach: replace the entire messages array with the unique messages from Firebase
-        // This ensures we always have the authoritative state from Firebase
+        // Update messages from Firebase
         setMessages(uniqueMessages);
         
         setHasMoreMessages(false);
         setLastMessageDoc(snapshot.docs[snapshot.docs.length - 1] || null);
-
-        // Debug: compare expected vs loaded counts, and first/last timestamps
-        try {
-          console.groupCollapsed('[Chat] Messages snapshot');
-          console.debug('Conversation:', {
-            id: conversationId,
-            title: currentConversation?.title,
-            expectedMessageCount: currentConversation?.messageCount
-          });
-          console.debug('Loaded messages:', {
-            snapshotCount: snapshot.size,
-            uniqueAfterCleanup: uniqueMessages.length,
-            firstTimestamp: uniqueMessages[0]?.timestamp,
-            lastTimestamp: uniqueMessages[uniqueMessages.length - 1]?.timestamp
-          });
-          console.groupEnd();
-        } catch {}
       }, (err) => {
         console.error('Error in real-time messages listener:', err);
       });

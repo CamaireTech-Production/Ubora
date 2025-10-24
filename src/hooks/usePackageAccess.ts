@@ -30,6 +30,7 @@ export const usePackageAccess = () => {
 
   // Fetch director's package info for employees with director access
   useEffect(() => {
+    
     const fetchDirectorPackageInfo = async () => {
       if (!user || user.role !== 'employe' || !user.hasDirectorDashboardAccess) {
         return;
@@ -49,12 +50,17 @@ export const usePackageAccess = () => {
         if (!directorsSnapshot.empty) {
           const directorData = directorsSnapshot.docs[0].data() as any;
           const directorPackageInfo = UserSessionService.getUserPackageInfo(directorData);
+          console.log('📦 [DEBUG] Director package info fetched', { 
+            directorId: directorData.id,
+            packageType: directorPackageInfo?.packageType 
+          });
           setDirectorPackageInfo(directorPackageInfo);
         }
       } catch (error) {
         console.error('Error fetching director package info:', error);
       } finally {
         setIsLoadingDirectorInfo(false);
+        console.log('📦 [DEBUG] Director package info fetch completed');
       }
     };
 

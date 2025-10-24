@@ -20,7 +20,7 @@ class NotificationFallbackService {
       this.stop();
     }
 
-    console.log('🚀 [NotificationFallback] Starting fallback service for user:', userId);
+    // console.log('🚀 [NotificationFallback] Starting fallback service for user:', userId);
     this.isRunning = true;
     this.currentUserId = userId;
     this.currentAgencyId = agencyId;
@@ -48,7 +48,7 @@ class NotificationFallbackService {
     this.isRunning = false;
     this.currentUserId = null;
     this.currentAgencyId = null;
-    console.log('🛑 [NotificationFallback] Fallback service stopped');
+    // console.log('🛑 [NotificationFallback] Fallback service stopped');
   }
 
   /**
@@ -56,21 +56,21 @@ class NotificationFallbackService {
    */
   private async checkMissedNotifications(): Promise<void> {
     try {
-      console.log('🔍 [NotificationFallback] Checking for missed notifications...');
+      // console.log('🔍 [NotificationFallback] Checking for missed notifications...');
       
       if (!this.currentAgencyId) {
-        console.log('🔍 [NotificationFallback] No agency ID, skipping check');
+        // console.log('🔍 [NotificationFallback] No agency ID, skipping check');
         return;
       }
       
       const missedNotifications = await unifiedNotificationService.getMissedNotifications(this.currentAgencyId);
       
       if (missedNotifications.length === 0) {
-        console.log('🔍 [NotificationFallback] No missed notifications found');
+        // console.log('🔍 [NotificationFallback] No missed notifications found');
         return;
       }
 
-      console.log(`🔍 [NotificationFallback] Found ${missedNotifications.length} missed notifications`);
+      // console.log(`🔍 [NotificationFallback] Found ${missedNotifications.length} missed notifications`);
 
       // Send all missed notifications
       for (const notification of missedNotifications) {

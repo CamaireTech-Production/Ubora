@@ -9,7 +9,7 @@ import { LoginPage } from './pages/LoginPage';
 import { PasswordResetPage } from './pages/PasswordResetPage';
 import { ProfileCompletionPage } from './pages/ProfileCompletionPage';
 import { DirecteurDashboard } from './pages/DirecteurDashboard';
-import { DirecteurChat } from './pages/DirecteurChat';
+import DirecteurChat from './pages/DirecteurChat';
 import { EmployeDashboard } from './pages/EmployeDashboard';
 import { UnauthorizedPage } from './pages/UnauthorizedPage';
 import { PendingApprovalPage } from './pages/PendingApprovalPage';

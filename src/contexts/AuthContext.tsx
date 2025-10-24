@@ -652,6 +652,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const refreshUserData = async (): Promise<void> => {
+    
     if (!firebaseUser) {
       return;
     }
@@ -672,10 +673,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           return;
         }
         
-        setUser({
+        // Only update if there are actual changes to prevent unnecessary rerenders
+        const newUser = {
           id: firebaseUser.uid,
           ...userData
-        });
+        };
+        
+        // Check if user data has actually changed
+        if (user && 
+            user.tokensUsedMonthly === userData.tokensUsedMonthly && 
+            user.payAsYouGoTokens === userData.payAsYouGoTokens &&
+            user.role === userData.role) {
+          return;
+        }
+        
+        setUser(newUser);
       } else {
         console.error('❌ AUTH: User document not found');
       }

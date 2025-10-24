@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, memo } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import MessageBubble from './MessageBubble';
 import { Bot, Loader2, ChevronUp } from 'lucide-react';
 import { Button } from '../Button';
@@ -22,7 +22,7 @@ interface MessageListProps {
   onLoadMore?: () => void;
 }
 
-export const MessageList: React.FC<MessageListProps> = memo(({
+const MessageList: React.FC<MessageListProps> = ({
   messages,
   isTyping = false,
   typingMessage,
@@ -203,7 +203,7 @@ export const MessageList: React.FC<MessageListProps> = memo(({
 
       {/* Messages with date grouping */}
       <div className="space-y-3 sm:space-y-4 pb-0">
-        {groupedMessages.map(group => (
+        {groupedMessages.map((group) => (
             <div key={group.label} className="space-y-2 sm:space-y-3">
             {/* Date separator */}
             <div className="flex justify-center my-2">
@@ -255,4 +255,6 @@ export const MessageList: React.FC<MessageListProps> = memo(({
       />
     </>
   );
-});
+};
+
+export default React.memo(MessageList);

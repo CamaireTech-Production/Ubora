@@ -20,7 +20,7 @@ class NotificationCronService {
       this.stop();
     }
 
-    console.log('🚀 [NotificationCron] Starting smart cron job for user:', userId);
+    // console.log('🚀 [NotificationCron] Starting smart cron job for user:', userId);
     this.isRunning = true;
     this.currentUserId = userId;
     this.currentAgencyId = agencyId;
@@ -41,7 +41,7 @@ class NotificationCronService {
     this.isRunning = false;
     this.currentUserId = null;
     this.currentAgencyId = null;
-    console.log('🛑 [NotificationCron] Smart cron job stopped');
+    // console.log('🛑 [NotificationCron] Smart cron job stopped');
   }
 
   /**
@@ -59,7 +59,7 @@ class NotificationCronService {
       }
     }, nextInterval);
 
-    console.log(`🕐 [NotificationCron] Next check in ${nextInterval}ms (${Math.round(nextInterval / 1000)}s)`);
+    // console.log(`🕐 [NotificationCron] Next check in ${nextInterval}ms (${Math.round(nextInterval / 1000)}s)`);
   }
 
   /**
@@ -67,21 +67,21 @@ class NotificationCronService {
    */
   private async checkScheduledNotifications(): Promise<void> {
     try {
-      console.log('🔍 [NotificationCron] Checking for due notifications...');
+      // console.log('🔍 [NotificationCron] Checking for due notifications...');
       
       if (!this.currentAgencyId) {
-        console.log('🔍 [NotificationCron] No agency ID, skipping check');
+        // console.log('🔍 [NotificationCron] No agency ID, skipping check');
         return;
       }
       
       const dueNotifications = await unifiedNotificationService.getDueNotifications(this.currentAgencyId);
       
       if (dueNotifications.length === 0) {
-        console.log('🔍 [NotificationCron] No due notifications found');
+        // console.log('🔍 [NotificationCron] No due notifications found');
         return;
       }
 
-      console.log(`🔍 [NotificationCron] Found ${dueNotifications.length} due notifications`);
+      // console.log(`🔍 [NotificationCron] Found ${dueNotifications.length} due notifications`);
 
       // Send all due notifications
       for (const notification of dueNotifications) {
