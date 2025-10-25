@@ -42,24 +42,11 @@ if (!AI_ENDPOINT) {
 
 
 const DirecteurChat: React.FC = () => {
-  console.log('🚀 DirecteurChat: Component MOUNTING/REMOUNTING', { 
-    timestamp: Date.now(),
-    componentId: Math.random().toString(36).substr(2, 9)
-  });
   
   const { user, firebaseUser, isLoading, logout } = useAuth();
   const { forms, formEntries, employees, isLoading: appLoading } = useApp();
   const { setAIResponseActive } = useAIResponse();
   
-  console.log('🔍 DirecteurChat: Auth & App state', { 
-    timestamp: Date.now(),
-    isLoading,
-    appLoading,
-    hasUser: !!user,
-    hasFirebaseUser: !!firebaseUser,
-    userId: user?.id,
-    firebaseUserId: firebaseUser?.uid
-  });
   
   // Use ref to track AI state without causing rerenders
   const isAIActiveRef = useRef(false);
@@ -82,12 +69,6 @@ const DirecteurChat: React.FC = () => {
     triggerAutoLoad
   } = useConversation();
   
-  console.log('🔍 DirecteurChat: Conversation state', { 
-    timestamp: Date.now(),
-    messagesCount: messages.length,
-    conversationsCount: conversations.length,
-    currentConversationId: currentConversation?.id
-  });
   
   
   // Conversation state debug removed to prevent rerenders
@@ -114,18 +95,6 @@ const DirecteurChat: React.FC = () => {
   // Track keyboard height for proper layout adjustment
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   
-  // Track component lifecycle
-  useEffect(() => {
-    console.log('🚀 DirecteurChat: Component MOUNTED', { 
-      timestamp: Date.now()
-    });
-    
-    return () => {
-      console.log('🚀 DirecteurChat: Component UNMOUNTING', { 
-        timestamp: Date.now()
-      });
-    };
-  }, []);
   
   // Keyboard detection for proper layout adjustment
   useEffect(() => {
@@ -519,11 +488,6 @@ RÉPONSE :
         // Tokens charged successfully
         
         // Track chat activity analytics - DISABLED during AI responses to prevent context updates
-        console.log('📊 DirecteurChat: Skipping analytics during AI response to prevent reloads', { 
-          timestamp: Date.now(),
-          userId: user.id,
-          tokensCharged: data.meta.userTokensCharged
-        });
         
         // Analytics disabled during AI responses to prevent AppContext reloads
         // TODO: Re-enable analytics after AI response is complete
@@ -550,9 +514,6 @@ RÉPONSE :
                   data.meta.userTokensCharged, 
                   user.agencyId
                 );
-                console.log('📊 DirecteurChat: Analytics logging completed after AI response', { 
-                  timestamp: Date.now()
-                });
               } catch (analyticsError) {
                 console.error('❌ FRONTEND: Failed to log chat activity:', analyticsError);
               }
@@ -677,13 +638,6 @@ RÉPONSE :
 
   // Afficher uniquement l'écran de bienvenue sans afficher le chat en arrière-plan
   if (showWelcome) {
-    console.log('🚀 DirecteurChat: Showing welcome screen', { 
-      timestamp: Date.now(),
-      isLoading,
-      appLoading,
-      isAIActive: isAIActiveRef.current,
-      isTyping
-    });
     return (
       <LoadingGuard 
         isLoading={isLoading || (appLoading && !isAIActiveRef.current && !isTyping)} 
@@ -701,14 +655,6 @@ RÉPONSE :
     );
   }
 
-    console.log('🚀 DirecteurChat: Rendering main chat interface', { 
-      timestamp: Date.now(),
-      isLoading,
-      appLoading,
-      isAIActive: isAIActiveRef.current,
-      isTyping,
-      loadingGuardCondition: isLoading || (appLoading && !isAIActiveRef.current && !isTyping)
-    });
     
     return (
       <LoadingGuard 
