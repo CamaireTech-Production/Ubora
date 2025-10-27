@@ -1,5 +1,6 @@
 import { collection, addDoc, updateDoc, doc, serverTimestamp, query, where, orderBy, limit, getDocs } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
+import { browserNotificationService } from './browserNotificationService';
 
 export interface UnifiedNotification {
   id?: string;
@@ -49,25 +50,42 @@ class UnifiedNotificationService {
 
       const docRef = await addDoc(collection(db, this.collectionName), notificationData);
       
-      // Send FCM push notification if fcmToken is provided
+      // Try FCM push notification first, then fallback to browser notifications
+      let pushNotificationSent = false;
+      
       if (notification.fcmToken) {
-        await this.sendFCMPushNotification({
-          ...notification,
-          read: false,
-          status: 'sent',
-          createdAt: new Date(),
-          sentAt: new Date(),
-        });
+        try {
+          console.log('🔔 [UnifiedNotification] Attempting FCM push notification...');
+          await this.sendFCMPushNotification({
+            ...notification,
+            read: false,
+            status: 'sent',
+            createdAt: new Date(),
+            sentAt: new Date(),
+          });
+          pushNotificationSent = true;
+          console.log('🔔 [UnifiedNotification] ✅ FCM push notification sent');
+        } catch (fcmError) {
+          console.error('🔔 [UnifiedNotification] ❌ FCM push notification failed:', fcmError);
+        }
       }
       
-      // Display notification via service worker
-      await this.displayNotification({
-        ...notification,
-        read: false,
-        status: 'sent',
-        createdAt: new Date(),
-        sentAt: new Date(),
-      });
+      // Fallback to browser notifications if FCM failed or not available
+      if (!pushNotificationSent) {
+        try {
+          console.log('🔔 [UnifiedNotification] Attempting browser notification...');
+          await this.sendBrowserNotification({
+            ...notification,
+            read: false,
+            status: 'sent',
+            createdAt: new Date(),
+            sentAt: new Date(),
+          });
+          console.log('🔔 [UnifiedNotification] ✅ Browser notification sent');
+        } catch (browserError) {
+          console.error('🔔 [UnifiedNotification] ❌ Browser notification failed:', browserError);
+        }
+      }
       
       console.log('🔔 [UnifiedNotification] Notification sent successfully:', docRef.id);
       return docRef.id;
@@ -282,7 +300,7 @@ class UnifiedNotificationService {
 
       // Import the existing FCM service
       const { fcmService } = await import('./fcmService');
-
+      
       // Create FCM notification object
       const fcmNotification = {
         title: notification.title,
@@ -522,6 +540,89 @@ class UnifiedNotificationService {
         action: 'show_response'
       }
     });
+  }
+
+  /**
+   * Send browser notification using the browser notification service
+   */
+  private async sendBrowserNotification(notification: Omit<UnifiedNotification, 'id'>): Promise<void> {
+    try {
+      console.log('🔔 [UnifiedNotification] Sending browser notification:', notification.title);
+
+      // Check if browser notifications are supported
+      if (!browserNotificationService.isBrowserNotificationSupported()) {
+        console.warn('🔔 [UnifiedNotification] Browser notifications not supported');
+        return;
+      }
+
+      // Check permission
+      const permission = browserNotificationService.getPermissionStatus();
+      if (permission !== 'granted') {
+        console.warn('🔔 [UnifiedNotification] Browser notification permission not granted:', permission);
+        return;
+      }
+
+      // Send browser notification based on type
+      let success = false;
+      
+      switch (notification.type) {
+        case 'form_assignment':
+          success = await browserNotificationService.showFormAssignmentNotification({
+            formId: notification.data?.formId,
+            formName: notification.data?.formName,
+            redirectUrl: notification.redirectUrl
+          });
+          break;
+          
+        case 'form_reminder':
+          success = await browserNotificationService.showFormReminderNotification({
+            formId: notification.data?.formId,
+            formName: notification.data?.formName,
+            timeRemaining: notification.data?.timeRemaining,
+            redirectUrl: notification.redirectUrl
+          });
+          break;
+          
+        case 'metric_reminder':
+          success = await browserNotificationService.showMetricReminderNotification({
+            metricId: notification.data?.metricId,
+            metricName: notification.data?.metricName,
+            redirectUrl: notification.redirectUrl
+          });
+          break;
+          
+        case 'programmed_instruction':
+          success = await browserNotificationService.showProgrammedInstructionNotification({
+            instructionId: notification.data?.instructionId,
+            message: notification.body,
+            redirectUrl: notification.redirectUrl
+          });
+          break;
+          
+        default:
+          // Generic notification
+          success = await browserNotificationService.showNotification({
+            title: notification.title,
+            body: notification.body,
+            data: {
+              ...notification.data,
+              type: notification.type,
+              redirectUrl: notification.redirectUrl
+            }
+          });
+          break;
+      }
+
+      if (success) {
+        console.log('🔔 [UnifiedNotification] ✅ Browser notification sent successfully');
+      } else {
+        console.error('🔔 [UnifiedNotification] ❌ Browser notification failed');
+      }
+
+    } catch (error) {
+      console.error('🔔 [UnifiedNotification] Error sending browser notification:', error);
+      throw error;
+    }
   }
 }
 

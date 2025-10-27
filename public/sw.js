@@ -32,7 +32,7 @@ try {
   // Configure VAPID key for FCM
   const vapidKey = 'BDtb0-pnjhy-iYqqcCmpU7892IDJZ1wozc3v-CvoWYqOnJySqv4HJVnqUbOPiCN9fiW15tUu3z5QnWqi0FUgkvY';
   console.log('🔔 [SW] VAPID key configured');
-  
+
   // Handle FCM background messages
   messaging.onBackgroundMessage((payload) => {
     console.log('🔔 [SW] ===== FCM BACKGROUND MESSAGE RECEIVED =====');
@@ -47,7 +47,7 @@ try {
     
     // Create notification options with native properties
     const notificationOptions = {
-      body: body,
+          body: body,
       icon: icon,
       badge: badge,
       data: {
@@ -103,12 +103,12 @@ self.addEventListener('notificationclick', (event) => {
   console.log('🔔 [SW] Notification clicked:', event);
   
   event.notification.close();
-  
+
   if (event.action === 'dismiss') {
     console.log('🔔 [SW] Notification dismissed');
     return;
   }
-  
+
   // Open the app or focus existing window
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
