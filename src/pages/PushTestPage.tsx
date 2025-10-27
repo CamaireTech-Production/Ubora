@@ -2,9 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { Layout } from '../components/Layout';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
-import { Bell, ShieldCheck, CheckCircle, AlertCircle, Settings, Smartphone, Monitor } from 'lucide-react';
+import { Bell, ShieldCheck, CheckCircle, AlertCircle, Settings, Smartphone, Monitor, Zap } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { cleanFCMService } from '../services/cleanFCMService';
+import { browserNotificationService } from '../services/browserNotificationService';
 
 export const PushTestPage: React.FC = () => {
   const { user } = useAuth();
@@ -14,6 +15,8 @@ export const PushTestPage: React.FC = () => {
   const [permission, setPermission] = useState<NotificationPermission>('default');
   const [fcmToken, setFcmToken] = useState<string | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
+  const [browserPermission, setBrowserPermission] = useState<NotificationPermission>('default');
+  const [browserSupported, setBrowserSupported] = useState(false);
 
   // Add log function
   const addLog = (message: string) => {
@@ -47,7 +50,25 @@ export const PushTestPage: React.FC = () => {
       }
     };
 
+    // Initialize browser notifications
+    const initializeBrowserNotifications = () => {
+      addLog('🌐 Checking browser notification support...');
+      
+      const supported = browserNotificationService.isBrowserNotificationSupported();
+      setBrowserSupported(supported);
+      
+      if (supported) {
+        addLog('✅ Browser notifications supported');
+        const permission = browserNotificationService.getPermissionStatus();
+        setBrowserPermission(permission);
+        addLog(`🔔 Browser permission: ${permission}`);
+      } else {
+        addLog('❌ Browser notifications not supported');
+      }
+    };
+
     initializeFCM();
+    initializeBrowserNotifications();
   }, []);
 
   // Request permission
@@ -172,6 +193,105 @@ export const PushTestPage: React.FC = () => {
     }
   };
 
+  // Browser notification functions
+  const handleRequestBrowserPermission = async () => {
+    setIsLoading(true);
+    addLog('🔓 Requesting browser notification permission...');
+    
+    try {
+      const granted = await browserNotificationService.requestPermission();
+      setBrowserPermission(browserNotificationService.getPermissionStatus());
+      
+      if (granted) {
+        addLog('✅ Browser permission granted!');
+        setStatus('✅ Permission navigateur accordée! Vous pouvez maintenant tester les notifications.');
+      } else {
+        addLog('❌ Browser permission denied');
+        setStatus('❌ Permission navigateur refusée. Les notifications ne fonctionneront pas.');
+      }
+    } catch (error) {
+      addLog(`❌ Browser permission error: ${error}`);
+      setStatus('❌ Erreur lors de la demande de permission navigateur');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleTestBrowserNotification = async () => {
+    setIsLoading(true);
+    addLog('🧪 Testing browser notification...');
+    
+    try {
+      const success = await browserNotificationService.testNotification();
+      
+      if (success) {
+        addLog('✅ Browser notification sent successfully');
+        setStatus('✅ Notification navigateur envoyée! Vérifiez votre appareil.');
+      } else {
+        addLog('❌ Browser notification failed');
+        setStatus('❌ Échec de l\'envoi de la notification navigateur');
+      }
+    } catch (error) {
+      addLog(`❌ Browser test error: ${error}`);
+      setStatus('❌ Erreur lors du test de notification navigateur');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleTestFormAssignment = async () => {
+    setIsLoading(true);
+    addLog('📝 Testing form assignment notification...');
+    
+    try {
+      const success = await browserNotificationService.showFormAssignmentNotification({
+        formId: 'test-form-123',
+        formName: 'Formulaire de Test',
+        redirectUrl: '/forms'
+      });
+      
+      if (success) {
+        addLog('✅ Form assignment notification sent');
+        setStatus('✅ Notification d\'assignation envoyée!');
+      } else {
+        addLog('❌ Form assignment notification failed');
+        setStatus('❌ Échec de la notification d\'assignation');
+      }
+    } catch (error) {
+      addLog(`❌ Form assignment error: ${error}`);
+      setStatus('❌ Erreur lors de la notification d\'assignation');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleTestBrowserNotificationBackend = async () => {
+    if (!user) {
+      setStatus('❌ Utilisateur non connecté');
+      return;
+    }
+
+    setIsLoading(true);
+    addLog('🧪 Testing browser notification via backend...');
+    
+    try {
+      const success = await browserNotificationService.sendTestNotificationViaBackend(user.id, fcmToken || undefined);
+      
+      if (success) {
+        addLog('✅ Browser notification sent via backend');
+        setStatus('✅ Notification navigateur envoyée via backend! Vérifiez votre appareil.');
+      } else {
+        addLog('❌ Browser notification via backend failed');
+        setStatus('❌ Échec de l\'envoi de la notification navigateur via backend');
+      }
+    } catch (error) {
+      addLog(`❌ Browser backend test error: ${error}`);
+      setStatus('❌ Erreur lors du test de notification navigateur via backend');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   // Clear logs
   const clearLogs = () => {
     setLogs([]);
@@ -243,8 +363,88 @@ export const PushTestPage: React.FC = () => {
                 <span className="text-red-600 font-medium">❌ Non disponible</span>
               )}
             </div>
-          </div>
+            <div className="flex items-center gap-2">
+              <span className="text-sm">Notifications Navigateur:</span>
+              {browserSupported ? (
+                browserPermission === 'granted' ? (
+                  <span className="text-green-600 font-medium">✅ Activées</span>
+                ) : browserPermission === 'denied' ? (
+                  <span className="text-red-600 font-medium">❌ Refusées</span>
+                ) : (
+                  <span className="text-yellow-600 font-medium">⚠️ Non demandées</span>
+                )
+              ) : (
+                <span className="text-red-600 font-medium">❌ Non supportées</span>
+              )}
+            </div>
+            </div>
         </Card>
+
+        {/* Browser Notification Permission Request */}
+        {browserSupported && browserPermission !== 'granted' && (
+          <Card className="p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <Zap className="w-6 h-6 text-green-600" />
+              <h3 className="text-lg font-semibold">Notifications Navigateur</h3>
+            </div>
+            <p className="text-sm text-gray-600 mb-4">
+              Les notifications navigateur fonctionnent immédiatement avec pop-up, son et système de notifications.
+            </p>
+            <Button
+              onClick={handleRequestBrowserPermission}
+              disabled={isLoading}
+              className="flex items-center gap-2"
+            >
+              <Zap className="w-4 h-4" />
+              Autoriser les notifications navigateur
+            </Button>
+          </Card>
+        )}
+
+        {/* Browser Notification Tests */}
+        {browserSupported && browserPermission === 'granted' && (
+          <Card className="p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <Zap className="w-6 h-6 text-green-600" />
+              <h3 className="text-lg font-semibold">Tests Notifications Navigateur</h3>
+            </div>
+            <p className="text-sm text-gray-600 mb-6">
+              Testez les notifications navigateur qui apparaissent immédiatement avec pop-up et son.
+            </p>
+            
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <Button
+                onClick={handleTestBrowserNotification}
+                disabled={isLoading}
+                variant="primary"
+                className="flex items-center gap-2 justify-center"
+              >
+                <Zap className="w-4 h-4" />
+                Test Direct
+              </Button>
+              
+              <Button
+                onClick={handleTestBrowserNotificationBackend}
+                disabled={isLoading}
+                variant="secondary"
+                className="flex items-center gap-2 justify-center"
+              >
+                <Settings className="w-4 h-4" />
+                Test Backend
+              </Button>
+              
+              <Button
+                onClick={handleTestFormAssignment}
+                disabled={isLoading}
+                variant="secondary"
+                className="flex items-center gap-2 justify-center"
+              >
+                <Bell className="w-4 h-4" />
+                Test Assignation
+              </Button>
+            </div>
+          </Card>
+        )}
 
         {/* Permission Request */}
         {permission !== 'granted' && (
@@ -252,7 +452,7 @@ export const PushTestPage: React.FC = () => {
             <div className="flex items-center gap-3 mb-4">
               <ShieldCheck className="w-6 h-6 text-blue-600" />
               <h3 className="text-lg font-semibold">Autorisation requise</h3>
-            </div>
+              </div>
             <p className="text-sm text-gray-600 mb-4">
               Les notifications push nécessitent votre autorisation pour fonctionner.
             </p>
@@ -280,36 +480,36 @@ export const PushTestPage: React.FC = () => {
             </p>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Button
+            <Button 
                 onClick={handleGetToken}
                 disabled={isLoading || !isInitialized}
-                variant="secondary"
+              variant="secondary" 
                 className="flex items-center gap-2 justify-center"
-              >
+            >
                 <Settings className="w-4 h-4" />
                 Obtenir Token FCM
-              </Button>
+            </Button>
               
-              <Button
+            <Button 
                 onClick={handleTestNotification}
                 disabled={isLoading || !fcmToken}
                 variant="primary"
                 className="flex items-center gap-2 justify-center"
-              >
-                <Bell className="w-4 h-4" />
+            >
+              <Bell className="w-4 h-4" />
                 Test Notification FCM
-              </Button>
+            </Button>
               
-              <Button
+            <Button 
                 onClick={handleCheckEnvironment}
                 disabled={isLoading}
-                variant="secondary"
+              variant="secondary" 
                 className="flex items-center gap-2 justify-center"
-              >
+            >
                 <AlertCircle className="w-4 h-4" />
                 Vérifier Environnement
-              </Button>
-            </div>
+            </Button>
+          </div>
           </Card>
         )}
 
@@ -334,7 +534,7 @@ export const PushTestPage: React.FC = () => {
                 </div>
               ))}
             </div>
-          </Card>
+        </Card>
         )}
 
         {/* Status Display */}
@@ -349,7 +549,7 @@ export const PushTestPage: React.FC = () => {
                 <Bell className="w-4 h-4 text-blue-500" />
               )}
               <span className="text-sm">{status}</span>
-            </div>
+          </div>
           </Card>
         )}
       </div>
