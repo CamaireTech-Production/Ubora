@@ -1,11 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Layout } from '../components/Layout';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
-import { Bell, ShieldCheck, CheckCircle, Clock, BarChart3, MessageSquare, Zap, Smartphone, Monitor, AlertCircle, Settings } from 'lucide-react';
+import { Bell, ShieldCheck, CheckCircle, Clock, BarChart3, MessageSquare, Zap, Smartphone, Monitor, AlertCircle, Settings, Shield } from 'lucide-react';
 import { usePushNotifications } from '../hooks/usePushNotifications';
 import { unifiedNotificationService } from '../services/unifiedNotificationService';
 import { useAuth } from '../contexts/AuthContext';
+import { onMessage } from 'firebase/messaging';
+import { messaging } from '../firebaseConfig';
 
 export const PushTestPage: React.FC = () => {
   const { 
@@ -18,6 +20,75 @@ export const PushTestPage: React.FC = () => {
   const { user } = useAuth();
   const [status, setStatus] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
+  const [logs, setLogs] = useState<string[]>([]);
+
+  // Add log function for mobile testing
+  const addLog = (message: string) => {
+    const timestamp = new Date().toLocaleTimeString();
+    const logMessage = `[${timestamp}] ${message}`;
+    setLogs(prev => [...prev.slice(-9), logMessage]); // Keep last 10 logs
+    console.log(logMessage);
+  };
+
+  // Set up foreground message handler
+  useEffect(() => {
+    const setupForegroundHandler = async () => {
+      try {
+        const messagingInstance = await messaging;
+        if (messagingInstance) {
+          const unsubscribe = onMessage(messagingInstance, (payload) => {
+            addLog('🔔 FCM message received in foreground');
+            addLog(`📱 Title: ${payload.notification?.title || payload.data?.title || 'Ubora'}`);
+            addLog(`📝 Body: ${payload.notification?.body || payload.data?.body || 'Nouvelle notification'}`);
+            
+            // Show notification when app is in foreground
+            if (Notification.permission === 'granted') {
+              const title = payload.notification?.title || payload.data?.title || 'Ubora';
+              const body = payload.notification?.body || payload.data?.body || 'Nouvelle notification';
+              
+              try {
+                const notification = new Notification(title, {
+                  body: body,
+                  icon: '/fav-icons/android-icon-192x192.png',
+                  badge: '/fav-icons/android-icon-96x96.png',
+                  data: payload.data,
+                  tag: `foreground-${Date.now()}`,
+                  requireInteraction: true,
+                  silent: false
+                });
+                
+                notification.onclick = () => {
+                  addLog('👆 Notification clicked');
+                  window.focus();
+                  notification.close();
+                  
+                  // Navigate to specific page if URL provided
+                  if (payload.data?.redirectUrl) {
+                    addLog(`🔗 Navigating to: ${payload.data.redirectUrl}`);
+                    window.location.href = payload.data.redirectUrl;
+                  }
+                };
+                
+                addLog('✅ Foreground notification displayed successfully');
+              } catch (error) {
+                addLog(`❌ Error displaying notification: ${error}`);
+              }
+            } else {
+              addLog('❌ Notification permission not granted');
+            }
+          });
+          
+          console.log('🔔 [Foreground] Message handler registered');
+          
+          return () => unsubscribe();
+        }
+      } catch (error) {
+        console.error('🔔 [Foreground] Error setting up message handler:', error);
+      }
+    };
+    
+    setupForegroundHandler();
+  }, []);
 
   // FCM Notification Test Functions
   const testFormAssignment = async () => {
@@ -190,37 +261,36 @@ export const PushTestPage: React.FC = () => {
 
     setIsLoading(true);
     setStatus('🔄 Test de notification simple...');
+    addLog('🚀 Starting FCM Simple Test');
     
     try {
-      console.log('🔔 [PushTest] ===== STARTING FCM TEST =====');
-      console.log('🔔 [PushTest] User ID:', user.id);
-      console.log('🔔 [PushTest] User role:', user.role);
+      addLog(`👤 User ID: ${user.id}`);
+      addLog(`🎭 User role: ${user.role}`);
       
       // Get FCM token from user profile
       const { getDoc, doc } = await import('firebase/firestore');
       const { db } = await import('../firebaseConfig');
       
-      console.log('🔔 [PushTest] Fetching FCM token from user profile...');
+      addLog('🔍 Fetching FCM token from user profile...');
       const userDoc = await getDoc(doc(db, 'users', user.id));
       const userData = userDoc.data();
       const fcmToken = userData?.fcmToken;
 
-      console.log('🔔 [PushTest] User data retrieved:', {
-        hasUserData: !!userData,
-        hasFcmToken: !!fcmToken,
-        tokenLength: fcmToken?.length || 0
-      });
+      addLog(`📊 User data: ${!!userData ? 'Found' : 'Not found'}`);
+      addLog(`🔑 FCM Token: ${!!fcmToken ? 'Found' : 'Not found'}`);
+      addLog(`📏 Token length: ${fcmToken?.length || 0}`);
 
       if (!fcmToken) {
+        addLog('❌ No FCM token found - use "Initialize FCM Token" first');
         setStatus('❌ Aucun token FCM trouvé. Utilisez "Initialiser Token FCM" d\'abord.');
         return;
       }
 
-      console.log('🔔 [PushTest] FCM Token found:', fcmToken.substring(0, 20) + '...');
-      console.log('🔔 [PushTest] Full token length:', fcmToken.length);
+      addLog(`🔑 FCM Token: ${fcmToken.substring(0, 20)}...`);
+      addLog(`📏 Full token length: ${fcmToken.length}`);
 
       // Test direct FCM call
-      console.log('🔔 [PushTest] Importing FCM service...');
+      addLog('📦 Importing FCM service...');
       const { fcmService } = await import('../services/fcmService');
       
       const testNotification = {
@@ -234,21 +304,24 @@ export const PushTestPage: React.FC = () => {
         }
       };
 
-      console.log('🔔 [PushTest] Test notification created:', testNotification);
-      console.log('🔔 [PushTest] Calling FCM service...');
+      addLog(`📝 Test notification created: ${testNotification.title}`);
+      addLog(`🆔 Notification ID: ${testNotification.id}`);
+      addLog('🚀 Calling FCM service...');
       
       const result = await fcmService.sendToToken(testNotification, fcmToken, user.id);
       
-      console.log('🔔 [PushTest] FCM service result:', result);
-      console.log('🔔 [PushTest] ===== FCM TEST COMPLETED =====');
+      addLog(`📤 FCM service result: ${result ? 'Success' : 'Failed'}`);
+      addLog('🏁 FCM Test Completed');
       
       if (result && result.status === 'sent') {
+        addLog('✅ Notification sent successfully!');
         setStatus('✅ Notification simple FCM envoyée! Vérifiez votre appareil.');
       } else {
+        addLog(`❌ FCM Error: ${result?.error || 'Unknown error'}`);
         setStatus(`❌ Erreur FCM: ${result?.error || 'Unknown error'}`);
       }
     } catch (error) {
-      console.error('Error testing simple notification:', error);
+      addLog(`❌ Error: ${error instanceof Error ? error.message : String(error)}`);
       setStatus('❌ Erreur lors de l\'envoi de la notification simple: ' + (error instanceof Error ? error.message : String(error)));
     } finally {
       setIsLoading(false);
@@ -346,8 +419,8 @@ export const PushTestPage: React.FC = () => {
 
       // Get fresh FCM token
       const newToken = await getToken(messagingInstance, {
-        vapidKey: vapidKey,
-        serviceWorkerRegistration: await navigator.serviceWorker.getRegistration('/')
+        vapidKey: vapidKey
+        // Removed serviceWorkerRegistration to let Firebase use firebase-messaging-sw.js automatically
       });
 
       if (newToken) {
@@ -437,6 +510,108 @@ export const PushTestPage: React.FC = () => {
     } catch (error) {
       console.error('Error testing service worker:', error);
       setStatus('❌ Erreur lors du test du Service Worker: ' + (error instanceof Error ? error.message : String(error)));
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const testHTTPSRequirement = async () => {
+    setIsLoading(true);
+    setStatus('🔄 Test des exigences HTTPS pour FCM...');
+    addLog('🔒 Starting HTTPS/FCM Compatibility Test');
+    
+    try {
+      const isHTTPS = window.location.protocol === 'https:';
+      const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+      const isSecureContext = window.isSecureContext;
+      
+      addLog(`🌐 Protocol: ${window.location.protocol}`);
+      addLog(`🏠 Hostname: ${window.location.hostname}`);
+      addLog(`🔒 Secure Context: ${isSecureContext ? 'Yes' : 'No'}`);
+      
+      let statusMessage = '';
+      let isCompatible = true;
+      
+      if (isHTTPS) {
+        addLog('✅ HTTPS: Active');
+        statusMessage += '✅ HTTPS: Actif\n';
+      } else if (isLocalhost) {
+        addLog('⚠️ HTTP localhost: FCM may not work');
+        statusMessage += '⚠️ HTTP localhost: FCM peut ne pas fonctionner\n';
+        isCompatible = false;
+      } else {
+        addLog('❌ HTTP: FCM blocked');
+        statusMessage += '❌ HTTP: FCM bloqué\n';
+        isCompatible = false;
+      }
+      
+      statusMessage += `🔒 Secure Context: ${isSecureContext ? '✅' : '❌'}\n`;
+      statusMessage += `🌐 Hostname: ${window.location.hostname}\n`;
+      statusMessage += `🔗 Protocol: ${window.location.protocol}\n`;
+      
+      // Test notification permission
+      if ('Notification' in window) {
+        const permission = Notification.permission;
+        addLog(`🔔 Notification Permission: ${permission}`);
+        statusMessage += `🔔 Notification Permission: ${permission}\n`;
+        
+        if (permission === 'granted') {
+          // Test basic notification
+          try {
+            const testNotification = new Notification('Test HTTPS', {
+              body: 'Ceci est un test de notification basique',
+              icon: '/fav-icons/android-icon-96x96.png'
+            });
+            addLog('✅ Basic notification: Works');
+            statusMessage += '✅ Notification basique: Fonctionne\n';
+            testNotification.close();
+          } catch (error) {
+            addLog('❌ Basic notification: Failed');
+            statusMessage += '❌ Notification basique: Échoué\n';
+            isCompatible = false;
+          }
+        }
+      } else {
+        addLog('❌ Notifications: Not supported');
+        statusMessage += '❌ Notifications: Non supportées\n';
+        isCompatible = false;
+      }
+      
+      // Test service worker
+      if ('serviceWorker' in navigator) {
+        const registration = await navigator.serviceWorker.getRegistration('/');
+        if (registration) {
+          addLog('✅ Service Worker: Registered');
+          addLog(`📄 SW Script: ${registration.active?.scriptURL || 'N/A'}`);
+          statusMessage += '✅ Service Worker: Enregistré\n';
+          statusMessage += `📄 SW Script: ${registration.active?.scriptURL || 'N/A'}\n`;
+        } else {
+          addLog('❌ Service Worker: Not registered');
+          statusMessage += '❌ Service Worker: Non enregistré\n';
+          isCompatible = false;
+        }
+      } else {
+        addLog('❌ Service Worker: Not supported');
+        statusMessage += '❌ Service Worker: Non supporté\n';
+        isCompatible = false;
+      }
+      
+      // Final recommendation
+      if (isCompatible) {
+        addLog('🎉 Environment compatible with FCM!');
+        statusMessage += '\n🎉 Environnement compatible avec FCM!';
+      } else {
+        addLog('⚠️ Environment incompatible with FCM');
+        addLog('💡 Solution: Deploy to HTTPS or use ngrok');
+        statusMessage += '\n⚠️ Environnement incompatible avec FCM.';
+        statusMessage += '\n💡 Solution: Déployer sur HTTPS ou utiliser ngrok';
+      }
+      
+      setStatus(statusMessage);
+      
+    } catch (error) {
+      addLog(`❌ Error: ${error instanceof Error ? error.message : String(error)}`);
+      setStatus('❌ Erreur test HTTPS: ' + (error instanceof Error ? error.message : String(error)));
     } finally {
       setIsLoading(false);
     }
@@ -741,6 +916,17 @@ export const PushTestPage: React.FC = () => {
                   Test Cron Job
             </Button>
                 
+                <Button
+                  onClick={testHTTPSRequirement}
+                  disabled={isLoading}
+                  variant="secondary"
+                  size="sm"
+                  className="flex items-center gap-2 justify-center"
+                >
+                  <Shield className="w-4 h-4" />
+                  Test HTTPS/FCM
+                </Button>
+                
             <Button 
                   onClick={checkPermissionStatus}
                   disabled={isLoading}
@@ -779,7 +965,31 @@ export const PushTestPage: React.FC = () => {
         )}
 
         {/* Status Display */}
-          {status && (
+          {/* Visible Logs for Mobile Testing */}
+        {logs.length > 0 && (
+          <Card className="p-4">
+            <div className="flex items-center justify-between mb-3">
+              <h4 className="font-medium text-sm">📱 Mobile Test Logs</h4>
+              <Button
+                onClick={() => setLogs([])}
+                variant="secondary"
+                size="sm"
+                className="text-xs"
+              >
+                Clear
+              </Button>
+            </div>
+            <div className="bg-gray-900 text-green-400 p-3 rounded text-xs font-mono max-h-60 overflow-y-auto">
+              {logs.map((log, index) => (
+                <div key={index} className="mb-1">
+                  {log}
+                </div>
+              ))}
+            </div>
+          </Card>
+        )}
+
+        {status && (
           <Card className="p-4">
             <div className="flex items-center gap-2">
               {status.includes('✅') ? (
@@ -793,51 +1003,6 @@ export const PushTestPage: React.FC = () => {
             </div>
         </Card>
         )}
-
-        {/* Debugging Guide */}
-        <Card className="p-6">
-          <div className="flex items-center gap-3 mb-4">
-            <AlertCircle className="w-6 h-6 text-blue-600" />
-            <h3 className="text-lg font-semibold">Guide de Débogage FCM</h3>
-          </div>
-          <div className="space-y-3 text-sm text-gray-600">
-            <div>
-              <strong>1. Vérifiez la Console du Navigateur:</strong>
-              <ul className="list-disc list-inside ml-4 mt-1 space-y-1">
-                <li>Ouvrez DevTools (F12) → Console</li>
-                <li>Recherchez les erreurs FCM</li>
-                <li>Vérifiez les logs de service worker</li>
-              </ul>
-            </div>
-            <div>
-              <strong>2. Testez les Permissions:</strong>
-              <ul className="list-disc list-inside ml-4 mt-1 space-y-1">
-                <li>Exécutez: <code className="bg-gray-100 px-1 rounded">Notification.permission</code></li>
-                <li>Doit retourner "granted"</li>
-                <li>Testez une notification simple dans la console</li>
-              </ul>
-            </div>
-            <div>
-              <strong>3. Vérifiez le Service Worker:</strong>
-              <ul className="list-disc list-inside ml-4 mt-1 space-y-1">
-                <li>DevTools → Application → Service Workers</li>
-                <li>Doit être "Active" et "Running"</li>
-                <li>Recherchez: "FCM background message received"</li>
-              </ul>
-            </div>
-            <div>
-              <strong>4. Testez l'Endpoint Backend:</strong>
-              <ul className="list-disc list-inside ml-4 mt-1 space-y-1">
-                <li>Vérifiez les logs du serveur backend</li>
-                <li>Recherchez: "FCM push notification sent successfully"</li>
-                <li>Vérifiez l'URL: <code className="bg-gray-100 px-1 rounded">http://localhost:3000/api/fcm/send</code></li>
-              </ul>
-            </div>
-            <div className="bg-yellow-50 p-3 rounded-lg">
-              <strong>💡 Conseil:</strong> Utilisez le bouton "Test Simple FCM" ci-dessus pour tester directement l'envoi de notifications FCM sans passer par le système unifié.
-            </div>
-          </div>
-        </Card>
 
       </div>
     </Layout>

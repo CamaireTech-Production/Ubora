@@ -101,8 +101,8 @@ class NotificationService {
 
       // Get fresh FCM token
       const newToken = await getToken(messagingInstance, {
-        vapidKey: vapidKey,
-        serviceWorkerRegistration: await navigator.serviceWorker.getRegistration('/')
+        vapidKey: vapidKey
+        // Removed serviceWorkerRegistration to let Firebase use firebase-messaging-sw.js automatically
       });
 
       if (newToken) {

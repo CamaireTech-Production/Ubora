@@ -202,8 +202,8 @@ export const usePushNotifications = () => {
       }
 
       const token = await getToken(messagingInstance, {
-        vapidKey: vapidKey,
-        serviceWorkerRegistration
+        vapidKey: vapidKey
+        // Removed serviceWorkerRegistration to let Firebase use firebase-messaging-sw.js automatically
       });
 
       if (token) {
