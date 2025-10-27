@@ -156,7 +156,7 @@ class FCMService {
       if (result.error) {
         console.error('🔔 [FCM] FCM error details:', result.error);
       }
-      
+
       await this.logDelivery(deliveryLog);
       console.log('🔔 [FCM] ===== FCM SEND PROCESS COMPLETED =====');
       return deliveryLog;
