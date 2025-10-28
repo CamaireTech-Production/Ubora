@@ -1,6 +1,7 @@
 import { collection, addDoc, updateDoc, doc, serverTimestamp, query, where, orderBy, limit, getDocs } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 import { browserNotificationService } from './browserNotificationService';
+import { emailNotificationService } from './emailNotificationService';
 
 export interface UnifiedNotification {
   id?: string;
@@ -20,6 +21,15 @@ export interface UnifiedNotification {
   redirectUrl?: string;
   // FCM token for push notification delivery
   fcmToken?: string;
+  // Email address for email notification delivery
+  emailAddress?: string;
+}
+
+interface NotificationDeliveryResult {
+  browser: { success: boolean; error?: string };
+  fcm: { success: boolean; error?: string };
+  email: { success: boolean; error?: string };
+  overallSuccess: boolean;
 }
 
 class UnifiedNotificationService {
@@ -27,12 +37,21 @@ class UnifiedNotificationService {
 
   /**
    * Send notification immediately (main entry point for all notifications)
+   * Implements triple delivery strategy: Browser → FCM → Email (all methods attempted)
    */
   async sendNotification(notification: Omit<UnifiedNotification, 'id' | 'read' | 'createdAt' | 'status' | 'sentAt'>): Promise<string> {
     try {
-      console.log('🔔 [UnifiedNotification] Sending notification:', notification.title);
+      console.log('🔔 [UnifiedNotification] Starting triple delivery for:', notification.title);
 
-      // Store notification in Firestore (without fcmToken field)
+      // Initialize delivery tracking
+      const deliveryResult: NotificationDeliveryResult = {
+        browser: { success: false },
+        fcm: { success: false },
+        email: { success: false },
+        overallSuccess: false
+      };
+
+      // Store notification in Firestore first
       const notificationData = {
         title: notification.title,
         body: notification.body,
@@ -49,13 +68,11 @@ class UnifiedNotificationService {
       };
 
       const docRef = await addDoc(collection(db, this.collectionName), notificationData);
-      
-      // Try browser notifications first, then fallback to FCM
-      let notificationSent = false;
-      
-      // Primary: Try browser notifications first
+      console.log('🔔 [UnifiedNotification] Notification stored in Firestore:', docRef.id);
+
+      // Method 1: Browser Notification (Primary - Immediate)
       try {
-        console.log('🔔 [UnifiedNotification] Attempting browser notification first...');
+        console.log('🔔 [UnifiedNotification] Method 1: Attempting browser notification...');
         await this.sendBrowserNotification({
           ...notification,
           read: false,
@@ -63,16 +80,17 @@ class UnifiedNotificationService {
           createdAt: new Date(),
           sentAt: new Date(),
         });
-        notificationSent = true;
-        console.log('🔔 [UnifiedNotification] ✅ Browser notification sent successfully');
+        deliveryResult.browser.success = true;
+        console.log('🔔 [UnifiedNotification] ✅ Method 1: Browser notification sent successfully');
       } catch (browserError) {
-        console.error('🔔 [UnifiedNotification] ❌ Browser notification failed:', browserError);
+        deliveryResult.browser.error = browserError instanceof Error ? browserError.message : String(browserError);
+        console.error('🔔 [UnifiedNotification] ❌ Method 1: Browser notification failed:', browserError);
       }
-      
-      // Fallback: Try FCM if browser failed and token is available
-      if (!notificationSent && notification.fcmToken) {
+
+      // Method 2: FCM Push Notification (Secondary - Mobile/Background)
+      if (notification.fcmToken) {
         try {
-          console.log('🔔 [UnifiedNotification] Attempting FCM fallback...');
+          console.log('🔔 [UnifiedNotification] Method 2: Attempting FCM push notification...');
           await this.sendFCMPushNotification({
             ...notification,
             read: false,
@@ -80,16 +98,59 @@ class UnifiedNotificationService {
             createdAt: new Date(),
             sentAt: new Date(),
           });
-          console.log('🔔 [UnifiedNotification] ✅ FCM fallback sent successfully');
+          deliveryResult.fcm.success = true;
+          console.log('🔔 [UnifiedNotification] ✅ Method 2: FCM push notification sent successfully');
         } catch (fcmError) {
-          console.error('🔔 [UnifiedNotification] ❌ FCM fallback also failed:', fcmError);
+          deliveryResult.fcm.error = fcmError instanceof Error ? fcmError.message : String(fcmError);
+          console.error('🔔 [UnifiedNotification] ❌ Method 2: FCM push notification failed:', fcmError);
         }
+      } else {
+        console.log('🔔 [UnifiedNotification] Method 2: Skipping FCM (no token provided)');
       }
-      
-      console.log('🔔 [UnifiedNotification] Notification sent successfully:', docRef.id);
+
+      // Method 3: Email Notification (Tertiary - Universal Delivery)
+      if (notification.emailAddress) {
+        try {
+          console.log('🔔 [UnifiedNotification] Method 3: Attempting email notification...');
+          await this.sendEmailNotification({
+            ...notification,
+            read: false,
+            status: 'sent',
+            createdAt: new Date(),
+            sentAt: new Date(),
+          });
+          deliveryResult.email.success = true;
+          console.log('🔔 [UnifiedNotification] ✅ Method 3: Email notification sent successfully');
+        } catch (emailError) {
+          deliveryResult.email.error = emailError instanceof Error ? emailError.message : String(emailError);
+          console.error('🔔 [UnifiedNotification] ❌ Method 3: Email notification failed:', emailError);
+        }
+      } else {
+        console.log('🔔 [UnifiedNotification] Method 3: Skipping email (no email address provided)');
+      }
+
+      // Determine overall success
+      deliveryResult.overallSuccess = deliveryResult.browser.success || deliveryResult.fcm.success || deliveryResult.email.success;
+
+      // Log final delivery summary
+      console.log('🔔 [UnifiedNotification] Delivery Summary:', {
+        notificationId: docRef.id,
+        title: notification.title,
+        methods: {
+          browser: deliveryResult.browser.success ? '✅' : '❌',
+          fcm: deliveryResult.fcm.success ? '✅' : '❌',
+          email: deliveryResult.email.success ? '✅' : '❌'
+        },
+        overallSuccess: deliveryResult.overallSuccess ? '✅' : '❌'
+      });
+
+      if (!deliveryResult.overallSuccess) {
+        console.warn('🔔 [UnifiedNotification] ⚠️ All delivery methods failed!');
+      }
+
       return docRef.id;
     } catch (error) {
-      console.error('🔔 [UnifiedNotification] Error sending notification:', error);
+      console.error('🔔 [UnifiedNotification] Critical error in sendNotification:', error);
       
       // Store as failed notification
       try {
@@ -417,7 +478,8 @@ class UnifiedNotificationService {
     agencyId: string,
     action: 'assigned' | 'unassigned',
     assignedByName: string,
-    fcmToken?: string
+    fcmToken?: string,
+    emailAddress?: string
   ): Promise<string> {
     const isAssigned = action === 'assigned';
     const title = isAssigned ? 'Nouveau formulaire assigné' : 'Formulaire désassigné';
@@ -434,6 +496,7 @@ class UnifiedNotificationService {
       agencyId,
       redirectUrl: '/forms',
       fcmToken,
+      emailAddress,
       data: {
         formId,
         formTitle,
@@ -454,7 +517,8 @@ class UnifiedNotificationService {
     recipientRole: 'directeur' | 'employe',
     agencyId: string,
     reminderType: '1h' | '30min' | '15min' | '5min',
-    fcmToken?: string
+    fcmToken?: string,
+    emailAddress?: string
   ): Promise<string> {
     const title = 'Rappel de formulaire';
     const body = `N'oubliez pas de remplir: "${formTitle}" (${reminderType} restant)`;
@@ -468,6 +532,7 @@ class UnifiedNotificationService {
       agencyId,
       redirectUrl: recipientRole === 'directeur' ? '/directeur/dashboard' : '/employe/dashboard',
       fcmToken,
+      emailAddress,
       data: {
         formId,
         formTitle,
@@ -487,7 +552,8 @@ class UnifiedNotificationService {
     metricValue: number,
     recipientId: string,
     agencyId: string,
-    fcmToken?: string
+    fcmToken?: string,
+    emailAddress?: string
   ): Promise<string> {
     const title = 'Rappel de métrique';
     const body = `Métrique "${metricName}": ${metricValue}`;
@@ -501,6 +567,7 @@ class UnifiedNotificationService {
       agencyId,
       redirectUrl: `/dashboard/${dashboardId}`,
       fcmToken,
+      emailAddress,
       data: {
         dashboardId,
         metricId,
@@ -519,7 +586,8 @@ class UnifiedNotificationService {
     instructionTitle: string,
     recipientId: string,
     agencyId: string,
-    fcmToken?: string
+    fcmToken?: string,
+    emailAddress?: string
   ): Promise<string> {
     const title = 'Instruction programmée exécutée';
     const body = `L'instruction "${instructionTitle}" a été exécutée et la réponse est disponible`;
@@ -533,6 +601,7 @@ class UnifiedNotificationService {
       agencyId,
       redirectUrl: `/instructions/${instructionId}/response`,
       fcmToken,
+      emailAddress,
       data: {
         instructionId,
         instructionTitle,
@@ -622,6 +691,76 @@ class UnifiedNotificationService {
       console.error('🔔 [UnifiedNotification] Error sending browser notification:', error);
       throw error;
     }
+  }
+
+  /**
+   * Send email notification using the email notification service
+   */
+  private async sendEmailNotification(notification: Omit<UnifiedNotification, 'id'>): Promise<void> {
+    if (!notification.emailAddress) {
+      throw new Error('No email address provided');
+    }
+
+    try {
+      console.log('🔔 [UnifiedNotification] Sending email notification:', notification.title, 'to:', notification.emailAddress);
+
+      // Create email content based on notification type
+      const emailContent = this.createEmailContent(notification);
+      
+      const success = await emailNotificationService.sendEmail({
+        to: notification.emailAddress,
+        subject: emailContent.subject,
+        html: emailContent.html,
+        text: emailContent.text
+      });
+
+      if (!success) {
+        throw new Error('Failed to send email notification');
+      }
+
+      console.log('🔔 [UnifiedNotification] ✅ Email notification sent successfully');
+    } catch (error) {
+      console.error('🔔 [UnifiedNotification] Error sending email notification:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Create email content based on notification type
+   */
+  private createEmailContent(notification: Omit<UnifiedNotification, 'id'>): { subject: string; html: string; text: string } {
+    const subject = `Ubora - ${notification.title}`;
+    
+    // Create HTML content with styling
+    const html = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <div style="background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%); padding: 20px; border-radius: 8px 8px 0 0;">
+          <h1 style="color: white; margin: 0; font-size: 24px;">🔔 Ubora</h1>
+        </div>
+        <div style="background: #f8fafc; padding: 30px; border-radius: 0 0 8px 8px; border: 1px solid #e2e8f0;">
+          <h2 style="color: #1e293b; margin-top: 0;">${notification.title}</h2>
+          <p style="color: #475569; font-size: 16px; line-height: 1.6;">${notification.body}</p>
+          
+          ${notification.redirectUrl ? `
+            <div style="margin: 30px 0;">
+              <a href="${notification.redirectUrl}" style="background: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: 500;">
+                Ouvrir dans Ubora
+              </a>
+            </div>
+          ` : ''}
+          
+          <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 30px 0;">
+          <p style="color: #64748b; font-size: 12px; margin: 0;">
+            📧 Notification ${notification.type.replace('_', ' ')} • Envoyé depuis Ubora App
+          </p>
+        </div>
+      </div>
+    `;
+    
+    // Create plain text version
+    const text = `${notification.title}\n\n${notification.body}\n\n${notification.redirectUrl ? `Ouvrir: ${notification.redirectUrl}\n\n` : ''}Envoyé depuis Ubora App - ${notification.type.replace('_', ' ')}`;
+    
+    return { subject, html, text };
   }
 }
 

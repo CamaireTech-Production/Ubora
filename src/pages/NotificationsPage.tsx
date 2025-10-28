@@ -317,63 +317,64 @@ export const NotificationsPage: React.FC = () => {
 
         {/* Notifications List */}
         <Card className="p-6">
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center gap-3">
-              <Bell className="w-6 h-6 text-blue-600" />
-              <div>
+          {/* Title Row */}
+          <div className="flex items-center gap-3 mb-4">
+            <Bell className="w-6 h-6 text-blue-600" />
+            <div className="flex-1">
               <h3 className="text-lg font-semibold">Historique des notifications</h3>
-                {/* Notification permission status */}
-                {!isSupported ? (
-                  <div className="flex items-center gap-1 mt-1">
-                    <XCircle className="w-4 h-4 text-red-500" />
-                    <span className="text-xs text-red-600">Notifications non supportées</span>
-                  </div>
-                ) : permission.denied ? (
-                  <div className="flex items-center gap-1 mt-1">
-                    <XCircle className="w-4 h-4 text-red-500" />
-                    <span className="text-xs text-red-600">Notifications désactivées</span>
-                  </div>
-                ) : permission.default ? (
-                  <div className="flex items-center gap-1 mt-1">
-                    <AlertCircle className="w-4 h-4 text-yellow-500" />
-                    <span className="text-xs text-yellow-600">Notifications non autorisées</span>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-1 mt-1">
-                    <CheckCircle className="w-4 h-4 text-green-500" />
-                    <span className="text-xs text-green-600">Notifications activées</span>
-                  </div>
-                )}
-              </div>
-              {unreadCount > 0 && (
-                <span className="bg-red-100 text-red-800 text-xs font-medium px-2.5 py-0.5 rounded-full">
-                  {unreadCount} non lues
-                </span>
+              {/* Notification permission status */}
+              {!isSupported ? (
+                <div className="flex items-center gap-1 mt-1">
+                  <XCircle className="w-4 h-4 text-red-500" />
+                  <span className="text-xs text-red-600">Notifications non supportées</span>
+                </div>
+              ) : permission.denied ? (
+                <div className="flex items-center gap-1 mt-1">
+                  <XCircle className="w-4 h-4 text-red-500" />
+                  <span className="text-xs text-red-600">Notifications désactivées</span>
+                </div>
+              ) : permission.default ? (
+                <div className="flex items-center gap-1 mt-1">
+                  <AlertCircle className="w-4 h-4 text-yellow-500" />
+                  <span className="text-xs text-yellow-600">Notifications non autorisées</span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-1 mt-1">
+                  <CheckCircle className="w-4 h-4 text-green-500" />
+                  <span className="text-xs text-green-600">Notifications activées</span>
+                </div>
               )}
             </div>
-            
-            <div className="flex items-center gap-2">
-              {notifications.length > 0 && (
-                <Button
-                  onClick={deleteAllNotifications}
-                  variant="danger"
-                  size="sm"
-                  className="flex items-center gap-2"
-                >
-                  <Trash2 className="w-4 h-4" />
-                  Supprimer tout
-                </Button>
-              )}
-              {unreadCount > 0 && (
-                <Button
-                  onClick={markAllAsRead}
-                  variant="secondary"
-                  size="sm"
-                >
-                  Tout marquer comme lu
-                </Button>
-              )}
-            </div>
+            {unreadCount > 0 && (
+              <span className="bg-red-100 text-red-800 text-xs font-medium px-2.5 py-0.5 rounded-full">
+                {unreadCount} non lues
+              </span>
+            )}
+          </div>
+
+          {/* Action Buttons Row */}
+          <div className="flex flex-wrap items-center gap-2 mb-6">
+            {notifications.length > 0 && (
+              <Button
+                onClick={deleteAllNotifications}
+                variant="danger"
+                size="sm"
+                className="flex items-center gap-2"
+              >
+                <Trash2 className="w-4 h-4" />
+                Supprimer tout
+              </Button>
+            )}
+            {unreadCount > 0 && (
+              <Button
+                onClick={markAllAsRead}
+                variant="secondary"
+                size="sm"
+                className="flex items-center gap-2"
+              >
+                Tout marquer comme lu
+              </Button>
+            )}
           </div>
 
           {/* Filters */}

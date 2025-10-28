@@ -99,7 +99,8 @@ export const PushTestPage: React.FC = () => {
             user.agencyId || 'test-agency',
             'assigned',
             'Test User',
-            undefined // fcmToken
+            undefined, // fcmToken
+            user.email || undefined // emailAddress
           );
           break;
 
@@ -111,7 +112,8 @@ export const PushTestPage: React.FC = () => {
             user.role === 'admin' || user.role === 'directeur' ? 'directeur' : 'employe',
             user.agencyId || 'test-agency',
             '5min',
-            undefined // fcmToken
+            undefined, // fcmToken
+            user.email || undefined // emailAddress
           );
           break;
 
@@ -123,7 +125,8 @@ export const PushTestPage: React.FC = () => {
             100,
             user.id,
             user.agencyId || 'test-agency',
-            undefined // fcmToken
+            undefined, // fcmToken
+            user.email || undefined // emailAddress
           );
           break;
 
@@ -133,7 +136,8 @@ export const PushTestPage: React.FC = () => {
             'Test Instruction',
             user.id,
             user.agencyId || 'test-agency',
-            undefined // fcmToken
+            undefined, // fcmToken
+            user.email || undefined // emailAddress
           );
           break;
       }
@@ -141,9 +145,9 @@ export const PushTestPage: React.FC = () => {
       addLog(`✅ Unified notification sent: ${notificationId}`);
       addLog(`📊 Type: ${type}`);
       addLog(`👤 User: ${user.email || user.id}`);
-      addLog(`🔔 Browser: ${browserPermission === 'granted' ? 'Will try' : 'Skipped'}`);
-      addLog(`📱 FCM: ${'Will try if token available'}`);
-      addLog(`📧 Email: ${user.email ? `Will try (${user.email})` : 'Skipped (no email)'}`);
+      addLog(`🔔 Browser: ${browserPermission === 'granted' ? 'Will attempt' : 'Skipped (no permission)'}`);
+      addLog(`📱 FCM: ${'Will attempt if token available'}`);
+      addLog(`📧 Email: ${user.email ? `Will attempt (${user.email})` : 'Skipped (no email)'}`);
 
     } catch (error) {
       addLog(`❌ Error testing unified notification: ${error}`);
@@ -240,7 +244,7 @@ export const PushTestPage: React.FC = () => {
               <h3 className="text-lg font-semibold">Tests Notifications Unifiées</h3>
           </div>
             <p className="text-sm text-gray-600 mb-6">
-              Testez le système unifié qui essaie Browser → FCM → Email en séquence.
+              Testez le système unifié qui tente Browser → FCM → Email (toutes les méthodes).
             </p>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -306,7 +310,7 @@ export const PushTestPage: React.FC = () => {
               <div className="text-center p-4 bg-orange-50 rounded-lg">
                 <Mail className="w-8 h-8 text-orange-600 mx-auto mb-2" />
                 <h4 className="font-semibold text-orange-800">3. Email</h4>
-                <p className="text-sm text-orange-600">Fallback universel</p>
+                <p className="text-sm text-orange-600">Livraison universelle</p>
               </div>
             </div>
         </Card>

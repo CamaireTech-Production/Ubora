@@ -3,7 +3,6 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { usePermissions } from '../hooks/usePermissions';
 import { useUnreadNotifications } from '../hooks/useUnreadNotifications';
-import { unifiedNotificationService, UnifiedNotification } from '../services/unifiedNotificationService';
 import { Button } from './Button';
 import { LogoutConfirmationModal } from './LogoutConfirmationModal';
 import { 
@@ -32,7 +31,6 @@ export const ProfileDropdown: React.FC<ProfileDropdownProps> = ({ className = ''
   const [isOpen, setIsOpen] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
-  const [recentNotifications, setRecentNotifications] = useState<UnifiedNotification[]>([]);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Fermer le dropdown quand on clique à l'extérieur
@@ -52,20 +50,6 @@ export const ProfileDropdown: React.FC<ProfileDropdownProps> = ({ className = ''
     };
   }, [isOpen]);
 
-  // Load recent notifications when dropdown opens
-  useEffect(() => {
-    if (isOpen && user) {
-      const loadRecentNotifications = async () => {
-        try {
-          const notifications = await unifiedNotificationService.getUserNotifications(user.id, 3);
-          setRecentNotifications(notifications);
-        } catch (error) {
-          console.error('Error loading recent notifications:', error);
-        }
-      };
-      loadRecentNotifications();
-    }
-  }, [isOpen, user]);
 
   const handleLogout = async () => {
     setIsLoggingOut(true);
@@ -299,54 +283,6 @@ export const ProfileDropdown: React.FC<ProfileDropdownProps> = ({ className = ''
                 )}
               </button>
 
-              {/* Recent Notifications Preview */}
-              {recentNotifications.length > 0 && (
-                <div className="px-4 py-2 border-t border-gray-100">
-                  <div className="text-xs text-gray-500 mb-2">Notifications récentes:</div>
-                  <div className="space-y-2 max-h-32 overflow-y-auto">
-                    {recentNotifications.slice(0, 3).map((notification) => (
-                      <div
-                        key={notification.id}
-                        className={`p-2 rounded text-xs cursor-pointer transition-colors ${
-                          notification.read 
-                            ? 'bg-gray-50 hover:bg-gray-100' 
-                            : 'bg-blue-50 hover:bg-blue-100'
-                        }`}
-                        onClick={() => {
-                          if (notification.id) {
-                            unifiedNotificationService.markAsRead(notification.id);
-                          }
-                          handleGoToNotifications();
-                        }}
-                      >
-                        <div className="font-medium text-gray-900 truncate">
-                          {notification.title}
-                        </div>
-                        <div className="text-gray-600 truncate">
-                          {notification.body}
-                        </div>
-                        <div className="text-gray-400 text-xs mt-1">
-                          {notification.createdAt 
-                            ? new Date(notification.createdAt).toLocaleString('fr-FR', {
-                                day: '2-digit',
-                                month: '2-digit',
-                                hour: '2-digit',
-                                minute: '2-digit'
-                              })
-                            : 'Date inconnue'
-                          }
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                  <button
-                    onClick={handleGoToNotifications}
-                    className="w-full mt-2 text-xs text-blue-600 hover:text-blue-800 text-center"
-                  >
-                    Voir tout
-                  </button>
-                </div>
-              )}
             </div>
 
             {/* Séparateur */}
