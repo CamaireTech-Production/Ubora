@@ -113,7 +113,14 @@ export class BrowserNotificationService {
 
     try {
       console.log('🔔 [BrowserNotification] Showing notification:', options.title);
+      console.log('🔔 [BrowserNotification] Browser info:', {
+        userAgent: navigator.userAgent,
+        isSecureContext: window.isSecureContext,
+        documentVisibility: document.visibilityState,
+        windowFocused: document.hasFocus()
+      });
 
+      // Enhanced notification options for better cross-platform support
       const notificationOptions: NotificationOptions = {
         body: options.body,
         icon: options.icon || '/fav-icons/android-icon-192x192.png',
@@ -145,7 +152,20 @@ export class BrowserNotificationService {
 
       console.log('🔔 [BrowserNotification] Notification options:', notificationOptions);
 
+      // Create the notification
       const notification = new Notification(options.title, notificationOptions);
+      
+      // Verify notification was created
+      if (!notification) {
+        throw new Error('Failed to create notification object');
+      }
+
+      console.log('🔔 [BrowserNotification] Notification object created:', {
+        title: notification.title,
+        body: notification.body,
+        tag: notification.tag,
+        data: notification.data
+      });
 
       // Handle notification click
       notification.onclick = (event) => {
@@ -175,11 +195,29 @@ export class BrowserNotificationService {
         console.error('🔔 [BrowserNotification] Notification error:', error);
       };
 
+      // Handle notification show (when it becomes visible)
+      notification.onshow = () => {
+        console.log('🔔 [BrowserNotification] ✅ Notification is now visible');
+      };
+
+      // Auto-close after 10 seconds if not interacted with
+      setTimeout(() => {
+        if (notification) {
+          console.log('🔔 [BrowserNotification] Auto-closing notification after 10 seconds');
+          notification.close();
+        }
+      }, 10000);
+
       console.log('🔔 [BrowserNotification] ✅ Notification displayed successfully');
       return true;
 
     } catch (error) {
       console.error('🔔 [BrowserNotification] ❌ Failed to show notification:', error);
+      console.error('🔔 [BrowserNotification] Error details:', {
+        name: error.name,
+        message: error.message,
+        stack: error.stack
+      });
       return false;
     }
   }

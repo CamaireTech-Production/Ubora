@@ -77,6 +77,59 @@ export const PushTestPage: React.FC = () => {
     }
   };
 
+  const handleEnhancedBrowserTest = async () => {
+    setIsLoading(true);
+    addLog('🔔 Testing enhanced browser notification...');
+    
+    try {
+      // Test browser environment
+      addLog(`🌐 Browser: ${navigator.userAgent.split(' ')[0]}`);
+      addLog(`🔒 Secure Context: ${window.isSecureContext ? 'Yes' : 'No'}`);
+      addLog(`👁️ Document Visibility: ${document.visibilityState}`);
+      addLog(`🎯 Window Focused: ${document.hasFocus() ? 'Yes' : 'No'}`);
+      
+      // Test basic notification first
+      addLog('📱 Testing basic notification...');
+      const basicNotification = new Notification('Basic Test', {
+        body: 'This is a basic notification test',
+        icon: '/fav-icons/android-icon-192x192.png',
+        requireInteraction: true,
+        silent: false
+      });
+      
+      basicNotification.onclick = () => {
+        addLog('✅ Basic notification clicked');
+        basicNotification.close();
+      };
+      
+      basicNotification.onshow = () => {
+        addLog('✅ Basic notification is visible');
+      };
+      
+      basicNotification.onerror = (error) => {
+        addLog(`❌ Basic notification error: ${error}`);
+      };
+      
+      addLog('✅ Basic notification created');
+      
+      // Wait a moment, then test with full service
+      setTimeout(async () => {
+        addLog('🔔 Testing full browser notification service...');
+        const success = await browserNotificationService.testNotification();
+        if (success) {
+          addLog('✅ Full browser notification service test passed');
+        } else {
+          addLog('❌ Full browser notification service test failed');
+        }
+        setIsLoading(false);
+      }, 2000);
+      
+    } catch (error) {
+      addLog(`❌ Error in enhanced browser test: ${error}`);
+      setIsLoading(false);
+    }
+  };
+
   const handleTestUnifiedNotification = async (type: 'form_assignment' | 'form_reminder' | 'metric_reminder' | 'programmed_instruction') => {
     if (!user) {
       addLog('❌ No user logged in');
@@ -232,6 +285,16 @@ export const PushTestPage: React.FC = () => {
                 >
                   <Zap className="w-4 h-4" />
                   Test Direct
+                </Button>
+                
+                <Button
+                  onClick={handleEnhancedBrowserTest}
+                  disabled={isLoading}
+                  variant="secondary"
+                  className="flex items-center gap-2 justify-center"
+                >
+                  <Settings className="w-4 h-4" />
+                  Test Enhanced
                 </Button>
               </div>
             </Card>

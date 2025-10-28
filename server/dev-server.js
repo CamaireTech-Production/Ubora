@@ -128,7 +128,7 @@ const { downloadHandler } = require('../api/files/download.js');
 const fcmSendHandler = require('../api/fcm/send.js');
 // Cron job handler
 const cronNotificationsHandler = require('../api/cron/notifications.js');
-const emailSendHandler = require('../api/email/send.js');
+import emailSendHandler from '../api/email/send.js';
 
 // Routes
 app.post('/api/ai/ask', askHandler);
