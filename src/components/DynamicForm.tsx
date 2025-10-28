@@ -290,6 +290,7 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
         const attachment = await FileUploadService.processFile(
           file,
           fieldId,
+          currentUser.uid, // Pass userId for token charging
           (progress) => {
             setUploadProgress(prev => ({
               ...prev,

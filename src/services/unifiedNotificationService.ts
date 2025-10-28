@@ -50,12 +50,29 @@ class UnifiedNotificationService {
 
       const docRef = await addDoc(collection(db, this.collectionName), notificationData);
       
-      // Try FCM push notification first, then fallback to browser notifications
-      let pushNotificationSent = false;
+      // Try browser notifications first, then fallback to FCM
+      let notificationSent = false;
       
-      if (notification.fcmToken) {
+      // Primary: Try browser notifications first
+      try {
+        console.log('🔔 [UnifiedNotification] Attempting browser notification first...');
+        await this.sendBrowserNotification({
+          ...notification,
+          read: false,
+          status: 'sent',
+          createdAt: new Date(),
+          sentAt: new Date(),
+        });
+        notificationSent = true;
+        console.log('🔔 [UnifiedNotification] ✅ Browser notification sent successfully');
+      } catch (browserError) {
+        console.error('🔔 [UnifiedNotification] ❌ Browser notification failed:', browserError);
+      }
+      
+      // Fallback: Try FCM if browser failed and token is available
+      if (!notificationSent && notification.fcmToken) {
         try {
-          console.log('🔔 [UnifiedNotification] Attempting FCM push notification...');
+          console.log('🔔 [UnifiedNotification] Attempting FCM fallback...');
           await this.sendFCMPushNotification({
             ...notification,
             read: false,
@@ -63,27 +80,9 @@ class UnifiedNotificationService {
             createdAt: new Date(),
             sentAt: new Date(),
           });
-          pushNotificationSent = true;
-          console.log('🔔 [UnifiedNotification] ✅ FCM push notification sent');
+          console.log('🔔 [UnifiedNotification] ✅ FCM fallback sent successfully');
         } catch (fcmError) {
-          console.error('🔔 [UnifiedNotification] ❌ FCM push notification failed:', fcmError);
-        }
-      }
-      
-      // Fallback to browser notifications if FCM failed or not available
-      if (!pushNotificationSent) {
-        try {
-          console.log('🔔 [UnifiedNotification] Attempting browser notification...');
-          await this.sendBrowserNotification({
-            ...notification,
-            read: false,
-            status: 'sent',
-            createdAt: new Date(),
-            sentAt: new Date(),
-          });
-          console.log('🔔 [UnifiedNotification] ✅ Browser notification sent');
-        } catch (browserError) {
-          console.error('🔔 [UnifiedNotification] ❌ Browser notification failed:', browserError);
+          console.error('🔔 [UnifiedNotification] ❌ FCM fallback also failed:', fcmError);
         }
       }
       

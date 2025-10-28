@@ -70,10 +70,18 @@ module.exports = async (req, res) => {
     let methodUsed = 'none';
     let error = null;
 
-    // Try FCM first if token is provided and method allows it
-    if (fcmToken && (method === 'fcm' || method === 'auto')) {
+    // Try browser notifications first, then fallback to FCM
+    if (method === 'browser' || method === 'auto') {
+      console.log('🔔 [UnifiedNotification] Attempting browser notification first...');
+      success = true;
+      methodUsed = 'browser';
+      console.log('🔔 [UnifiedNotification] ✅ Browser notification request processed (frontend will display)');
+    }
+
+    // Fallback to FCM if browser method failed or explicitly requested
+    if (!success && fcmToken && (method === 'fcm' || method === 'auto')) {
       try {
-        console.log('🔔 [UnifiedNotification] Attempting FCM notification...');
+        console.log('🔔 [UnifiedNotification] Attempting FCM fallback...');
         
         const message = {
           notification: {
@@ -115,22 +123,15 @@ module.exports = async (req, res) => {
         };
 
         const response = await messaging.send(message);
-        console.log('🔔 [UnifiedNotification] ✅ FCM notification sent:', response);
+        console.log('🔔 [UnifiedNotification] ✅ FCM fallback sent:', response);
         
         success = true;
         methodUsed = 'fcm';
         
       } catch (fcmError) {
-        console.error('🔔 [UnifiedNotification] ❌ FCM notification failed:', fcmError);
+        console.error('🔔 [UnifiedNotification] ❌ FCM fallback also failed:', fcmError);
         error = fcmError.message;
       }
-    }
-
-    // If FCM failed or method is browser, indicate browser notification should be used
-    if (!success && (method === 'browser' || method === 'auto')) {
-      console.log('🔔 [UnifiedNotification] FCM failed or method is browser, indicating browser notification');
-      success = true;
-      methodUsed = 'browser';
     }
 
     // Log the notification attempt

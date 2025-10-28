@@ -129,9 +129,8 @@ async function processFormReminders(now, oneMinuteFromNow) {
               const fcmToken = userData?.fcmToken;
 
               if (fcmToken) {
-                // Send FCM notification
-                await sendFCMPushNotification({
-                  token: fcmToken,
+                // Use unified notification service (browser first, FCM fallback)
+                const notificationData = {
                   title: 'Rappel de formulaire',
                   body: `N'oubliez pas de remplir le formulaire "${form.title}" (${intervalMinutes}min restantes)`,
                   data: {
@@ -142,10 +141,29 @@ async function processFormReminders(now, oneMinuteFromNow) {
                     redirectUrl: `/forms/${form.id}`,
                     timestamp: now.getTime().toString()
                   }
+                };
+
+                // Call unified notification service
+                const response = await fetch(`${process.env.API_BASE_URL || 'http://localhost:3000'}/api/notifications/send`, {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                  },
+                  body: JSON.stringify({
+                    notification: notificationData,
+                    fcmToken: fcmToken,
+                    userId: userId,
+                    method: 'auto' // Browser first, FCM fallback
+                  })
                 });
-                
-                sent++;
-                console.log(`📅 [Cron] Form reminder sent: ${form.title} (${intervalMinutes}min) to user ${userId}`);
+
+                if (response.ok) {
+                  sent++;
+                  console.log(`📅 [Cron] Form reminder sent: ${form.title} (${intervalMinutes}min) to user ${userId}`);
+                } else {
+                  console.error(`📅 [Cron] Failed to send form reminder to user ${userId}:`, await response.text());
+                  errors++;
+                }
               } else {
                 console.warn(`📅 [Cron] No FCM token for user ${userId}, skipping form reminder`);
               }
@@ -192,9 +210,8 @@ async function processMetricReminders(now, oneMinuteFromNow) {
         const fcmToken = userData?.fcmToken;
 
         if (fcmToken) {
-          // Send FCM notification
-          await sendFCMPushNotification({
-            token: fcmToken,
+          // Use unified notification service (browser first, FCM fallback)
+          const notificationData = {
             title: `Rappel métrique: ${reminder.metricName}`,
             body: `Valeur ${reminder.frequency}: ${reminder.lastValue}`,
             data: {
@@ -205,16 +222,35 @@ async function processMetricReminders(now, oneMinuteFromNow) {
               redirectUrl: `/directeur/dashboards/${reminder.dashboardId}`,
               timestamp: now.getTime().toString()
             }
+          };
+
+          // Call unified notification service
+          const response = await fetch(`${process.env.API_BASE_URL || 'http://localhost:3000'}/api/notifications/send`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              notification: notificationData,
+              fcmToken: fcmToken,
+              userId: reminder.directorId,
+              method: 'auto' // Browser first, FCM fallback
+            })
           });
-          
-          // Update reminder status
-          await db.collection('metricReminders').doc(reminder.id).update({
-            status: 'sent',
-            sentAt: Timestamp.fromDate(now)
-          });
-          
-          sent++;
-          console.log(`📊 [Cron] Metric reminder sent: ${reminder.metricName} to director ${reminder.directorId}`);
+
+          if (response.ok) {
+            // Update reminder status
+            await db.collection('metricReminders').doc(reminder.id).update({
+              status: 'sent',
+              sentAt: Timestamp.fromDate(now)
+            });
+            
+            sent++;
+            console.log(`📊 [Cron] Metric reminder sent: ${reminder.metricName} to director ${reminder.directorId}`);
+          } else {
+            console.error(`📊 [Cron] Failed to send metric reminder to director ${reminder.directorId}:`, await response.text());
+            errors++;
+          }
         } else {
           console.warn(`📊 [Cron] No FCM token for director ${reminder.directorId}, skipping metric reminder`);
         }
@@ -259,9 +295,8 @@ async function processProgrammedInstructions(now, oneMinuteFromNow) {
         const fcmToken = userData?.fcmToken;
 
         if (fcmToken) {
-          // Send FCM notification
-          await sendFCMPushNotification({
-            token: fcmToken,
+          // Use unified notification service (browser first, FCM fallback)
+          const notificationData = {
             title: `Instruction programmée exécutée`,
             body: `Votre instruction "${question.title}" a été exécutée avec succès`,
             data: {
@@ -271,10 +306,29 @@ async function processProgrammedInstructions(now, oneMinuteFromNow) {
               redirectUrl: `/directeur/scheduled-questions/${question.id}/chat`,
               timestamp: now.getTime().toString()
             }
+          };
+
+          // Call unified notification service
+          const response = await fetch(`${process.env.API_BASE_URL || 'http://localhost:3000'}/api/notifications/send`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              notification: notificationData,
+              fcmToken: fcmToken,
+              userId: question.userId,
+              method: 'auto' // Browser first, FCM fallback
+            })
           });
-          
-          sent++;
-          console.log(`🤖 [Cron] Programmed instruction notification sent: ${question.title} to director ${question.userId}`);
+
+          if (response.ok) {
+            sent++;
+            console.log(`🤖 [Cron] Programmed instruction notification sent: ${question.title} to director ${question.userId}`);
+          } else {
+            console.error(`🤖 [Cron] Failed to send instruction notification to director ${question.userId}:`, await response.text());
+            errors++;
+          }
         } else {
           console.warn(`🤖 [Cron] No FCM token for director ${question.userId}, skipping instruction notification`);
         }
@@ -291,58 +345,4 @@ async function processProgrammedInstructions(now, oneMinuteFromNow) {
   return { processed, sent, errors };
 }
 
-/**
- * Send FCM push notification
- */
-async function sendFCMPushNotification(notification) {
-  try {
-    const message = {
-      token: notification.token,
-      notification: {
-        title: notification.title,
-        body: notification.body,
-      },
-      data: {
-        ...notification.data,
-        timestamp: Date.now().toString(),
-      },
-      android: {
-        priority: 'high',
-        notification: {
-          sound: 'default',
-          icon: '/fav-icons/android-icon-96x96.png',
-          color: '#FF6B35'
-        }
-      },
-      apns: {
-        payload: {
-          aps: {
-            sound: 'default',
-            badge: 1
-          }
-        }
-      },
-      webpush: {
-        notification: {
-          icon: '/fav-icons/android-icon-192x192.png',
-          badge: '/fav-icons/android-icon-96x96.png',
-          vibrate: [200, 100, 200],
-          actions: [
-            { action: 'open', title: 'Ouvrir' },
-            { action: 'dismiss', title: 'Ignorer' }
-          ]
-        },
-        fcmOptions: {
-          link: notification.data.redirectUrl || '/'
-        }
-      }
-    };
-
-    const response = await admin.messaging().send(message);
-    console.log('🔔 [Cron] FCM notification sent successfully:', response);
-    return response;
-  } catch (error) {
-    console.error('❌ [Cron] Error sending FCM notification:', error);
-    throw error;
-  }
-}
+// Old FCM function removed - now using unified notification service

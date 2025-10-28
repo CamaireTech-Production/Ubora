@@ -71,6 +71,7 @@ export class FileUploadService {
   static async processFile(
     file: File,
     fieldId: string,
+    userId?: string,
     onProgress?: (progress: UploadProgress) => void,
     onPDFExtraction?: (result: PDFExtractionResult) => void,
     onImageExtraction?: (result: ImageExtractionResult) => void
@@ -136,7 +137,7 @@ export class FileUploadService {
             status: 'extracting'
           });
 
-          const extractionResult = await PDFTextExtractionService.extractTextFromPDF(file);
+          const extractionResult = await PDFTextExtractionService.extractTextFromPDF(file, userId);
           
           if (extractionResult.success) {
             fileAttachment.extractedText = PDFTextExtractionService.cleanExtractedText(extractionResult.text);
@@ -192,7 +193,7 @@ export class FileUploadService {
             status: 'extracting'
           });
 
-          const extractionResult = await ImageTextExtractionService.extractTextFromImage(file);
+          const extractionResult = await ImageTextExtractionService.extractTextFromImage(file, userId);
           
           if (extractionResult.success) {
             fileAttachment.extractedText = ImageTextExtractionService.cleanExtractedText(extractionResult.text);
