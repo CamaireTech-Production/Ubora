@@ -211,49 +211,22 @@ export class BrowserNotificationService {
   }
 
   /**
-   * Send test notification via backend (unified endpoint)
+   * Send test notification directly (frontend only)
    */
-  async sendTestNotificationViaBackend(userId: string, fcmToken?: string): Promise<boolean> {
-    try {
-      console.log('🔔 [BrowserNotification] Sending test notification via backend...');
-      
-      // Use the correct backend API endpoint
-      const apiUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
-      const response = await fetch(`${apiUrl}/api/notifications/send`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          notification: {
-            id: `test_${Date.now()}`,
-            title: 'Test Browser Notification',
-            body: 'Ceci est un test de notification navigateur via backend',
-            data: {
-              type: 'test',
-              timestamp: Date.now().toString(),
-              redirectUrl: '/'
-            }
-          },
-          fcmToken: fcmToken,
-          userId: userId,
-          method: 'browser' // Force browser notification
-        })
-      });
+  async sendTestNotificationDirect(): Promise<boolean> {
+    const testOptions: BrowserNotificationOptions = {
+      title: 'Test Browser Notification',
+      body: 'Ceci est un test de notification navigateur direct',
+      data: {
+        type: 'test',
+        timestamp: Date.now().toString(),
+        redirectUrl: '/'
+      },
+      requireInteraction: true,
+      silent: false
+    };
 
-      if (response.ok) {
-        const result = await response.json();
-        console.log('🔔 [BrowserNotification] ✅ Test notification sent via backend:', result);
-        return true;
-      } else {
-        const error = await response.text();
-        console.error('🔔 [BrowserNotification] ❌ Test notification failed:', error);
-        return false;
-      }
-    } catch (error) {
-      console.error('🔔 [BrowserNotification] ❌ Test notification error:', error);
-      return false;
-    }
+    return await this.showNotification(testOptions);
   }
 
   /**

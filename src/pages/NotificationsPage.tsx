@@ -6,6 +6,7 @@ import { Button } from '../components/Button';
 import { Bell, CheckCircle, XCircle, Clock, Trash2, BarChart3, MessageSquare, AlertCircle, Settings, TestTube } from 'lucide-react';
 import { WireframeLoader } from '../components/loading/WireframeLoader';
 import { unifiedNotificationService, UnifiedNotification } from '../services/unifiedNotificationService';
+import { browserNotificationService } from '../services/browserNotificationService';
 import { useAuth } from '../contexts/AuthContext';
 import { usePushNotifications } from '../hooks/usePushNotifications';
 import { doc, collection, query, where, orderBy, limit, onSnapshot, writeBatch } from 'firebase/firestore';
@@ -45,9 +46,11 @@ export const NotificationsPage: React.FC = () => {
       );
     }
 
+    // Track seen IDs to detect new notifications
+    const seenIds = new Set<string>();
+
     // Set up real-time listener
-    const unsubscribe = onSnapshot(notificationsQuery, (snapshot) => {
-      
+    const unsubscribe = onSnapshot(notificationsQuery, async (snapshot) => {
       const userNotifications: UnifiedNotification[] = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data(),
@@ -55,6 +58,39 @@ export const NotificationsPage: React.FC = () => {
         createdAt: doc.data().createdAt?.toDate(),
         sentAt: doc.data().sentAt?.toDate(),
       } as UnifiedNotification));
+
+      // Detect newly added notifications and trigger browser notification (Option 1 test)
+      try {
+        for (const notif of userNotifications) {
+          if (!notif.id) continue;
+          const isNew = !seenIds.has(notif.id);
+          if (isNew) {
+            seenIds.add(notif.id);
+            // Only show for unread, recently created notifications
+            if (!notif.read) {
+              const permission = browserNotificationService.getPermissionStatus();
+              if (permission === 'granted' && browserNotificationService.isBrowserNotificationSupported()) {
+                // Map UnifiedNotification to browser notification
+                await browserNotificationService.showNotification({
+                  title: notif.title || 'Notification',
+                  body: notif.body || '',
+                  icon: '/fav-icons/android-icon-192x192.png',
+                  badge: '/fav-icons/android-icon-96x96.png',
+                  data: {
+                    redirectUrl: notif.redirectUrl || '/',
+                    type: notif.type,
+                    ...notif.data,
+                  },
+                  requireInteraction: true,
+                  silent: false,
+                });
+              }
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('🔔 [NotificationsPage] Browser notification trigger failed:', e);
+      }
 
       setNotifications(userNotifications);
       setIsLoading(false);

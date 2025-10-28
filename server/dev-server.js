@@ -128,8 +128,7 @@ const { downloadHandler } = require('../api/files/download.js');
 const fcmSendHandler = require('../api/fcm/send.js');
 // Cron job handler
 const cronNotificationsHandler = require('../api/cron/notifications.js');
-// Unified notification handler
-const unifiedNotificationHandler = require('../api/notifications/send.js');
+const emailSendHandler = require('../api/email/send.js');
 
 // Routes
 app.post('/api/ai/ask', askHandler);
@@ -138,7 +137,7 @@ app.post('/api/ai/format', formatHandler);
 app.get('/api/files/download', downloadHandler);
 app.post('/api/fcm/send', fcmSendHandler);
 app.post('/api/cron/notifications', cronNotificationsHandler);
-app.post('/api/notifications/send', unifiedNotificationHandler);
+app.post('/api/email/send', emailSendHandler);
 
 // Test endpoint to verify server is running
 app.get('/api/test', (req, res) => {

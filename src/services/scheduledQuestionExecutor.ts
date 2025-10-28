@@ -486,17 +486,17 @@ class ScheduledQuestionExecutor {
         ? 'ARCHA a généré une nouvelle réponse à votre instruction programmée'
         : 'Une erreur s\'est produite lors de l\'exécution de votre instruction programmée';
 
-      // Get FCM token for the director
+      // Get FCM token and email address for the director
       const fcmToken = await this.getUserFCMToken(question.userId);
+      const emailAddress = await this.getUserEmailAddress(question.userId);
 
       await unifiedNotificationService.createProgrammedInstructionNotification(
         question.id,
         question.title,
-        response.id,
         question.userId,
         question.agencyId,
-        response.status,
-        fcmToken || undefined
+        fcmToken || undefined,
+        emailAddress || undefined
       );
       
       console.log('🔔 [ScheduledQuestionExecutor] Notification envoyée pour:', question.title);
@@ -522,6 +522,26 @@ class ScheduledQuestionExecutor {
       return null;
     } catch (error) {
       console.error(`🔔 [ScheduledQuestionExecutor] Error getting FCM token for ${userId}:`, error);
+      return null;
+    }
+  }
+
+  /**
+   * Get email address from user profile
+   */
+  private async getUserEmailAddress(userId: string): Promise<string | null> {
+    try {
+      const { getDoc, doc } = await import('firebase/firestore');
+      const { db } = await import('../firebaseConfig');
+      
+      const userDoc = await getDoc(doc(db, 'users', userId));
+      if (userDoc.exists()) {
+        const userData = userDoc.data();
+        return userData.email || null;
+      }
+      return null;
+    } catch (error) {
+      console.error(`🔔 [ScheduledQuestionExecutor] Error getting email address for ${userId}:`, error);
       return null;
     }
   }

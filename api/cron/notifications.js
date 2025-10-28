@@ -143,29 +143,49 @@ async function processFormReminders(now, oneMinuteFromNow) {
                   }
                 };
 
-                // Call unified notification service
-                const response = await fetch(`${process.env.API_BASE_URL || 'http://localhost:3000'}/api/notifications/send`, {
-                  method: 'POST',
-                  headers: {
-                    'Content-Type': 'application/json',
-                  },
-                  body: JSON.stringify({
-                    notification: notificationData,
-                    fcmToken: fcmToken,
-                    userId: userId,
-                    method: 'auto' // Browser first, FCM fallback
-                  })
-                });
+                // Store notification in Firestore - frontend unified service will handle delivery
+                const notificationDoc = {
+                  title: notificationData.title,
+                  body: notificationData.body,
+                  type: notificationData.type,
+                  recipientId: userId,
+                  recipientRole: user.role,
+                  agencyId: user.agencyId,
+                  data: notificationData.data,
+                  redirectUrl: notificationData.redirectUrl,
+                  read: false,
+                  status: 'sent',
+                  createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                  sentAt: admin.firestore.FieldValue.serverTimestamp(),
+                  fcmToken: fcmToken,
+                  emailAddress: user.email
+                };
 
-                if (response.ok) {
-                  sent++;
-                  console.log(`📅 [Cron] Form reminder sent: ${form.title} (${intervalMinutes}min) to user ${userId}`);
-                } else {
-                  console.error(`📅 [Cron] Failed to send form reminder to user ${userId}:`, await response.text());
-                  errors++;
-                }
+                await db.collection('notifications').add(notificationDoc);
+                sent++;
+                console.log(`📅 [Cron] Form reminder stored: ${form.title} (${intervalMinutes}min) to user ${userId}`);
               } else {
-                console.warn(`📅 [Cron] No FCM token for user ${userId}, skipping form reminder`);
+                console.warn(`📅 [Cron] No FCM token for user ${userId}, storing notification anyway (frontend will handle delivery)`);
+                
+                // Store notification even without FCM token - frontend unified service will try browser/email
+                const notificationDoc = {
+                  title: notificationData.title,
+                  body: notificationData.body,
+                  type: notificationData.type,
+                  recipientId: userId,
+                  recipientRole: user.role,
+                  agencyId: user.agencyId,
+                  data: notificationData.data,
+                  redirectUrl: notificationData.redirectUrl,
+                  read: false,
+                  status: 'sent',
+                  createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                  sentAt: admin.firestore.FieldValue.serverTimestamp(),
+                  emailAddress: user.email
+                };
+
+                await db.collection('notifications').add(notificationDoc);
+                sent++;
               }
             } catch (error) {
               errors++;
@@ -209,51 +229,42 @@ async function processMetricReminders(now, oneMinuteFromNow) {
         const userData = userDoc.data();
         const fcmToken = userData?.fcmToken;
 
-        if (fcmToken) {
-          // Use unified notification service (browser first, FCM fallback)
-          const notificationData = {
-            title: `Rappel métrique: ${reminder.metricName}`,
-            body: `Valeur ${reminder.frequency}: ${reminder.lastValue}`,
-            data: {
-              type: 'metric_reminder',
-              dashboardId: reminder.dashboardId,
-              metricId: reminder.metricId,
-              frequency: reminder.frequency,
-              redirectUrl: `/directeur/dashboards/${reminder.dashboardId}`,
-              timestamp: now.getTime().toString()
-            }
-          };
+        // Store notification in Firestore - frontend unified service will handle delivery
+        const notificationDoc = {
+          title: `Rappel métrique: ${reminder.metricName}`,
+          body: `Valeur ${reminder.frequency}: ${reminder.lastValue}`,
+          type: 'metric_reminder',
+          recipientId: reminder.directorId,
+          recipientRole: 'directeur',
+          agencyId: userData?.agencyId || 'unknown',
+          data: {
+            dashboardId: reminder.dashboardId,
+            metricId: reminder.metricId,
+            frequency: reminder.frequency,
+            metricName: reminder.metricName,
+            lastValue: reminder.lastValue,
+            redirectUrl: `/directeur/dashboards/${reminder.dashboardId}`,
+            timestamp: now.getTime().toString()
+          },
+          redirectUrl: `/directeur/dashboards/${reminder.dashboardId}`,
+          read: false,
+          status: 'sent',
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          sentAt: admin.firestore.FieldValue.serverTimestamp(),
+          fcmToken: fcmToken,
+          emailAddress: userData?.email
+        };
 
-          // Call unified notification service
-          const response = await fetch(`${process.env.API_BASE_URL || 'http://localhost:3000'}/api/notifications/send`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              notification: notificationData,
-              fcmToken: fcmToken,
-              userId: reminder.directorId,
-              method: 'auto' // Browser first, FCM fallback
-            })
-          });
-
-          if (response.ok) {
-            // Update reminder status
-            await db.collection('metricReminders').doc(reminder.id).update({
-              status: 'sent',
-              sentAt: Timestamp.fromDate(now)
-            });
-            
-            sent++;
-            console.log(`📊 [Cron] Metric reminder sent: ${reminder.metricName} to director ${reminder.directorId}`);
-          } else {
-            console.error(`📊 [Cron] Failed to send metric reminder to director ${reminder.directorId}:`, await response.text());
-            errors++;
-          }
-        } else {
-          console.warn(`📊 [Cron] No FCM token for director ${reminder.directorId}, skipping metric reminder`);
-        }
+        await db.collection('notifications').add(notificationDoc);
+        
+        // Update reminder status
+        await db.collection('metricReminders').doc(reminder.id).update({
+          status: 'sent',
+          sentAt: Timestamp.fromDate(now)
+        });
+        
+        sent++;
+        console.log(`📊 [Cron] Metric reminder stored: ${reminder.metricName} to director ${reminder.directorId}`);
       } catch (error) {
         errors++;
         console.error(`❌ [Cron] Error sending metric reminder:`, error);
@@ -294,44 +305,34 @@ async function processProgrammedInstructions(now, oneMinuteFromNow) {
         const userData = userDoc.data();
         const fcmToken = userData?.fcmToken;
 
-        if (fcmToken) {
-          // Use unified notification service (browser first, FCM fallback)
-          const notificationData = {
-            title: `Instruction programmée exécutée`,
-            body: `Votre instruction "${question.title}" a été exécutée avec succès`,
-            data: {
-              type: 'programmed_instruction',
-              scheduledQuestionId: question.id,
-              questionTitle: question.title,
-              redirectUrl: `/directeur/scheduled-questions/${question.id}/chat`,
-              timestamp: now.getTime().toString()
-            }
-          };
+        // Store notification in Firestore - frontend unified service will handle delivery
+        const notificationDoc = {
+          title: `Instruction programmée exécutée`,
+          body: `Votre instruction "${question.title}" a été exécutée avec succès`,
+          type: 'programmed_instruction',
+          recipientId: question.userId,
+          recipientRole: 'directeur',
+          agencyId: userData?.agencyId || 'unknown',
+          data: {
+            scheduledQuestionId: question.id,
+            questionTitle: question.title,
+            instructionTitle: question.title,
+            redirectUrl: `/directeur/scheduled-questions/${question.id}/chat`,
+            timestamp: now.getTime().toString()
+          },
+          redirectUrl: `/directeur/scheduled-questions/${question.id}/chat`,
+          read: false,
+          status: 'sent',
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          sentAt: admin.firestore.FieldValue.serverTimestamp(),
+          fcmToken: fcmToken,
+          emailAddress: userData?.email
+        };
 
-          // Call unified notification service
-          const response = await fetch(`${process.env.API_BASE_URL || 'http://localhost:3000'}/api/notifications/send`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              notification: notificationData,
-              fcmToken: fcmToken,
-              userId: question.userId,
-              method: 'auto' // Browser first, FCM fallback
-            })
-          });
-
-          if (response.ok) {
-            sent++;
-            console.log(`🤖 [Cron] Programmed instruction notification sent: ${question.title} to director ${question.userId}`);
-          } else {
-            console.error(`🤖 [Cron] Failed to send instruction notification to director ${question.userId}:`, await response.text());
-            errors++;
-          }
-        } else {
-          console.warn(`🤖 [Cron] No FCM token for director ${question.userId}, skipping instruction notification`);
-        }
+        await db.collection('notifications').add(notificationDoc);
+        
+        sent++;
+        console.log(`🤖 [Cron] Programmed instruction notification stored: ${question.title} to director ${question.userId}`);
       } catch (error) {
         errors++;
         console.error(`❌ [Cron] Error sending programmed instruction notification:`, error);
