@@ -127,7 +127,7 @@ const { downloadHandler } = require('../api/files/download.js');
 // FCM handler
 const fcmSendHandler = require('../api/fcm/send.js');
 // Cron job handler
-const cronNotificationsHandler = require('../api/cron/notifications.js');
+import cronNotificationsHandler from '../api/cron/notifications.js';
 import emailSendHandler from '../api/email/send.js';
 
 // Routes
@@ -217,6 +217,8 @@ app.listen(PORT, () => {
   console.log(`   - POST http://localhost:${PORT}/api/ocr/extract`);
   console.log(`   - POST http://localhost:${PORT}/api/ocr/extractPdfText`);
   console.log(`   - GET  http://localhost:${PORT}/api/ocr/health`);
+  console.log(`📡 Cron endpoints available at:`);
+  console.log(`   - POST http://localhost:${PORT}/api/cron/notifications`);
   console.log(`\n🌐 CORS Configuration:`);
   console.log(`   Allowed origins: ${corsOrigins.join(', ')}`);
   console.log(`   Plus any localhost/127.0.0.1 variations`);
@@ -224,8 +226,75 @@ app.listen(PORT, () => {
   console.log(`   npm run dev:full`);
 });
 
-// Graceful shutdown
+// ========================================
+// AUTOMATIC CRON JOB SCHEDULER
+// ========================================
+
+let cronIntervalId = null;
+
+// Start automatic cron job scheduler
+function startCronScheduler() {
+  console.log('🔄 [CronScheduler] Starting automatic cron job scheduler...');
+  
+  // Run immediately on startup (with a small delay to ensure server is ready)
+  setTimeout(() => {
+    runCronJob();
+  }, 5000); // Wait 5 seconds after server startup
+  
+  // Then run every 2 minutes
+  cronIntervalId = setInterval(() => {
+    runCronJob();
+  }, 2 * 60 * 1000); // 2 minutes
+  
+  console.log('✅ [CronScheduler] Automatic cron job scheduler started (every 2 minutes)');
+}
+
+// Stop automatic cron job scheduler
+function stopCronScheduler() {
+  if (cronIntervalId) {
+    clearInterval(cronIntervalId);
+    cronIntervalId = null;
+    console.log('🛑 [CronScheduler] Automatic cron job scheduler stopped');
+  }
+}
+
+// Run the cron job
+async function runCronJob() {
+  try {
+    console.log('🔄 [CronScheduler] Running cron job...');
+    
+    // Create a mock request/response for the cron handler
+    const mockReq = {
+      method: 'POST',
+      body: {},
+      headers: {}
+    };
+    
+    const mockRes = {
+      status: (code) => ({
+        json: (data) => {
+          console.log(`📊 [CronScheduler] Cron job result:`, data);
+          return mockRes;
+        }
+      }),
+      setHeader: () => mockRes,
+      end: () => mockRes
+    };
+    
+    // Call the cron handler
+    await cronNotificationsHandler(mockReq, mockRes);
+    
+  } catch (error) {
+    console.error('❌ [CronScheduler] Error running cron job:', error);
+  }
+}
+
+// Start the scheduler
+startCronScheduler();
+
+// Graceful shutdown - stop scheduler
 process.on('SIGINT', () => {
   console.log('\n🛑 Shutting down development server...');
+  stopCronScheduler();
   process.exit(0);
 });

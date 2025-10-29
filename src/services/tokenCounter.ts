@@ -87,6 +87,66 @@ export class TokenCounter {
     
     return breakdown;
   }
+
+  /**
+   * Estimate tokens for PDF/image extraction based on file size
+   */
+  static estimateExtractionTokens(fileSize: number, fileType: 'pdf' | 'image'): number {
+    console.log('🔍 DEBUG: TokenCounter.estimateExtractionTokens called with:', {
+      fileSize,
+      fileType
+    });
+    
+    const sizeInMB = fileSize / (1024 * 1024);
+    
+    // Base tokens for extraction request
+    const baseTokens = fileType === 'pdf' ? 200 : 150;
+    
+    // Size-based multiplier
+    let sizeMultiplier = 1;
+    if (sizeInMB > 5) sizeMultiplier = 2;
+    else if (sizeInMB > 2) sizeMultiplier = 1.5;
+    else if (sizeInMB > 1) sizeMultiplier = 1.2;
+    
+    // Estimate based on file size (larger files = more content to process)
+    const contentEstimate = Math.ceil(sizeInMB * 50); // ~50 tokens per MB
+    
+    const estimatedTokens = Math.ceil((baseTokens + contentEstimate) * sizeMultiplier);
+    
+    console.log('🔍 DEBUG: TokenCounter.estimateExtractionTokens result:', {
+      sizeInMB,
+      baseTokens,
+      sizeMultiplier,
+      contentEstimate,
+      estimatedTokens
+    });
+    
+    return estimatedTokens;
+  }
+
+  /**
+   * Calculate actual tokens from OpenAI response for extraction
+   */
+  static calculateActualTokens(openaiResponse: any): number {
+    console.log('🔍 DEBUG: TokenCounter.calculateActualTokens called with:', openaiResponse);
+    
+    if (!openaiResponse || !openaiResponse.usage) {
+      console.log('🔍 DEBUG: TokenCounter.calculateActualTokens - No usage data found, returning 0');
+      return 0;
+    }
+    
+    const actualTokens = openaiResponse.usage.total_tokens || 0;
+    // Use same formula as chat system: (actualTokens * 2.5) / 100
+    const userTokensToCharge = Math.ceil((actualTokens * 2.5) / 100);
+    
+    console.log('🔍 DEBUG: TokenCounter.calculateActualTokens result:', {
+      actualTokens,
+      userTokensToCharge,
+      formula: '(actualTokens * 2.5) / 100'
+    });
+    
+    return userTokensToCharge;
+  }
 }
 
 // For production, replace the estimateTokens method with actual tiktoken:

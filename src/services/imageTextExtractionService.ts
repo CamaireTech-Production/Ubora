@@ -5,6 +5,9 @@
 
 import { enhancedFetch } from '../utils/errorHandling';
 import { getOCRExtractEndpoint } from '../config/api';
+import { TokenService } from './tokenService';
+import { SessionConsumptionService } from './sessionConsumptionService';
+import { TokenCounter } from './tokenCounter';
 
 export interface ImageTextExtractionResult {
   text: string;
@@ -12,6 +15,11 @@ export interface ImageTextExtractionResult {
   success: boolean;
   engine?: string;
   error?: string;
+  tokenInfo?: {
+    estimatedTokens: number;
+    actualTokens: number;
+    tokensCharged: boolean;
+  };
   info?: {
     title: string;
     originalFileName: string;
@@ -36,11 +44,11 @@ export class ImageTextExtractionService {
   /**
    * Extract text from an image file using OpenAI Vision API
    */
-  static async extractTextFromImage(file: File): Promise<ImageTextExtractionResult> {
+  static async extractTextFromImage(file: File, userId?: string): Promise<ImageTextExtractionResult> {
     try {
       
       // Try OpenAI Vision API for excellent handwritten text recognition
-      const openaiResult = await this.tryOpenAIVision(file);
+      const openaiResult = await this.tryOpenAIVision(file, userId);
       if (openaiResult.success) {
         return openaiResult;
       }
@@ -72,7 +80,7 @@ export class ImageTextExtractionService {
   /**
    * Try OpenAI Vision API for excellent handwritten text recognition
    */
-  private static async tryOpenAIVision(file: File): Promise<ImageTextExtractionResult> {
+  private static async tryOpenAIVision(file: File, userId?: string): Promise<ImageTextExtractionResult> {
     try {
       
       // Convert file to base64
@@ -123,11 +131,105 @@ export class ImageTextExtractionService {
       const cleanedText = this.cleanExtractedText(extractedText);
       
       if (cleanedText && cleanedText.length > 3) {
+        console.log('🔍 DEBUG: Starting token calculation for image extraction');
+        console.log('🔍 DEBUG: File info:', {
+          name: file.name,
+          size: file.size,
+          type: file.type
+        });
+        console.log('🔍 DEBUG: UserId provided:', userId);
+        console.log('🔍 DEBUG: API Response:', result);
+        
+        // Calculate token information
+        const estimatedTokens = TokenCounter.estimateExtractionTokens(file.size, 'image');
+        console.log('🔍 DEBUG: Estimated tokens:', estimatedTokens);
+        
+        const actualTokens = TokenCounter.calculateActualTokens(result);
+        console.log('🔍 DEBUG: Calculated actual tokens:', actualTokens);
+        
+        // Charge tokens if userId is provided
+        let tokensCharged = false;
+        console.log('🔍 DEBUG: Token charging conditions:', {
+          hasUserId: !!userId,
+          actualTokens,
+          willCharge: !!(userId && actualTokens > 0)
+        });
+        
+        if (userId && actualTokens > 0) {
+          try {
+            console.log(`💳 Charging ${actualTokens} tokens for image extraction: ${file.name}`);
+            
+            // Charge tokens to user account with retry logic
+            let chargeSuccess = false;
+            let retryCount = 0;
+            const maxRetries = 3;
+            
+            while (!chargeSuccess && retryCount < maxRetries) {
+              try {
+                chargeSuccess = await TokenService.subtractTokens(userId, actualTokens);
+                if (chargeSuccess) {
+                  console.log('🔍 DEBUG: TokenService.subtractTokens result:', chargeSuccess);
+                  break;
+                }
+              } catch (tokenError) {
+                retryCount++;
+                console.warn(`⚠️ Token charging attempt ${retryCount} failed:`, tokenError);
+                if (retryCount < maxRetries) {
+                  // Wait 1 second before retry
+                  await new Promise(resolve => setTimeout(resolve, 1000));
+                }
+              }
+            }
+            
+            if (chargeSuccess) {
+              // Track in session consumption with retry logic
+              let sessionSuccess = false;
+              retryCount = 0;
+              
+              while (!sessionSuccess && retryCount < maxRetries) {
+                try {
+                  sessionSuccess = await SessionConsumptionService.trackTextExtraction(userId, 'image', actualTokens);
+                  if (sessionSuccess) {
+                    console.log('🔍 DEBUG: SessionConsumptionService.trackTextExtraction result:', sessionSuccess);
+                    break;
+                  }
+                } catch (sessionError) {
+                  retryCount++;
+                  console.warn(`⚠️ Session tracking attempt ${retryCount} failed:`, sessionError);
+                  if (retryCount < maxRetries) {
+                    // Wait 1 second before retry
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                  }
+                }
+              }
+              
+              tokensCharged = chargeSuccess && sessionSuccess;
+              if (tokensCharged) {
+                console.log(`✅ Successfully charged ${actualTokens} tokens for image extraction`);
+              } else {
+                console.error('❌ Failed to charge tokens or track session for image extraction');
+              }
+            } else {
+              console.error('❌ Failed to charge tokens for image extraction after retries');
+            }
+          } catch (tokenError) {
+            console.error('❌ Error charging tokens for image extraction:', tokenError);
+            // Don't throw the error to prevent UI disruption
+          }
+        } else {
+          console.log('🔍 DEBUG: Skipping token charging - conditions not met');
+        }
+        
         return {
           text: cleanedText,
           confidence: result.confidence || 95,
           success: true,
           engine: result.engine || 'openai_vision',
+          tokenInfo: {
+            estimatedTokens,
+            actualTokens,
+            tokensCharged
+          },
           info: {
             title: file.name.replace(/\.[^/.]+$/, ''),
             originalFileName: file.name,

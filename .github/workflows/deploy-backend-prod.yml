@@ -50,8 +50,10 @@ jobs:
         tar --exclude-vcs -czf deploy.tar.gz \
           api \
           server \
+          scripts \
           package.json \
           package-lock.json \
+          ecosystem.config.js \
           .env \
           VERSION
 
@@ -102,36 +104,54 @@ jobs:
           echo "🔁 Updating current symlink"
           ln -sfn $NEW_RELEASE $CURRENT_LINK
           
-          # Enhanced PM2 management
+          # Enhanced PM2 management with cron worker
           echo "🛑 Managing PM2 processes"
           pm2 stop ubora-backend-prod || true
+          pm2 stop ubora-cron-worker-prod || true
           pm2 delete ubora-backend-prod || true
+          pm2 delete ubora-cron-worker-prod || true
           
-          # Start with basic configuration (compatible with older PM2 versions)
-          pm2 start $CURRENT_LINK/server/production-server.js \
+          # Start backend server
+          pm2 start $CURRENT_LINK/server/dev-server.js \
             --name ubora-backend-prod \
             --update-env \
-            --max-memory-restart 1G
+            --max-memory-restart 1G \
+            --env production
+            
+          # Start cron worker
+          pm2 start $CURRENT_LINK/scripts/cron-worker.js \
+            --name ubora-cron-worker-prod \
+            --update-env \
+            --max-memory-restart 512M \
+            --env production
           
           pm2 save
           
           # Wait and verify
-          echo "⏳ Waiting for app to boot"
+          echo "⏳ Waiting for processes to boot"
           sleep 15
+          
+          # Check PM2 processes
+          echo "📊 Checking PM2 processes"
+          pm2 status
           
           # Enhanced health check with retries
           echo "🧪 Health check with retries"
           HEALTH_OK=false
           for i in {1..5}; do
-            if curl -fsS http://localhost:3000/health > /dev/null; then
-              echo "✅ Health check passed (attempt $i)"
+            if curl -fsS http://localhost:3000/api/test > /dev/null; then
+              echo "✅ Backend health check passed (attempt $i)"
               HEALTH_OK=true
               break
             else
-              echo "⏳ Health check failed (attempt $i), retrying..."
+              echo "⏳ Backend health check failed (attempt $i), retrying..."
               sleep 5
             fi
           done
+          
+          # Check cron worker logs
+          echo "📋 Checking cron worker logs"
+          pm2 logs ubora-cron-worker-prod --lines 10
           
           if [ "$HEALTH_OK" = false ]; then
             echo "❌ Health check failed after 5 attempts. Rolling back..."
@@ -139,11 +159,19 @@ jobs:
             if [ -n "$PREV" ]; then
               ln -sfn $PREV $CURRENT_LINK
               pm2 stop ubora-backend-prod || true
+              pm2 stop ubora-cron-worker-prod || true
               pm2 delete ubora-backend-prod || true
-              pm2 start $CURRENT_LINK/server/production-server.js \
+              pm2 delete ubora-cron-worker-prod || true
+              pm2 start $CURRENT_LINK/server/dev-server.js \
                 --name ubora-backend-prod \
                 --update-env \
-                --max-memory-restart 1G
+                --max-memory-restart 1G \
+                --env production
+              pm2 start $CURRENT_LINK/scripts/cron-worker.js \
+                --name ubora-cron-worker-prod \
+                --update-env \
+                --max-memory-restart 512M \
+                --env production
               pm2 save
               sleep 10
               curl -fsS http://localhost:3000/health || true

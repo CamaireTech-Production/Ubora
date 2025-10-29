@@ -1,5 +1,8 @@
 import { enhancedFetch } from '../utils/errorHandling';
 import { getOCRPDFEndpoint } from '../config/api';
+import { TokenService } from './tokenService';
+import { SessionConsumptionService } from './sessionConsumptionService';
+import { TokenCounter } from './tokenCounter';
 
 export interface TextExtractionResult {
   text: string;
@@ -8,6 +11,11 @@ export interface TextExtractionResult {
   success: boolean;
   error?: string;
   submissionId?: string;
+  tokenInfo?: {
+    estimatedTokens: number;
+    actualTokens: number;
+    tokensCharged: boolean;
+  };
   extractionStats?: {
     totalCharacters: number;
     totalWords: number;
@@ -22,7 +30,7 @@ export class PDFTextExtractionService {
    * Extract text from a PDF file using OpenAI Vision API
    * Provides excellent extraction for complex structures like tables, lists, and multi-column layouts
    */
-  static async extractTextFromPDF(file: File): Promise<TextExtractionResult> {
+  static async extractTextFromPDF(file: File, userId?: string): Promise<TextExtractionResult> {
     const startTime = Date.now();
     
     try {
@@ -62,11 +70,104 @@ export class PDFTextExtractionService {
       const totalWords = cleanedText.split(/\s+/).filter(word => word.length > 0).length;
       const tablesDetected = this.countTablesInMarkdown(cleanedText);
       
+      console.log('🔍 DEBUG: Starting token calculation for PDF extraction');
+      console.log('🔍 DEBUG: File info:', {
+        name: file.name,
+        size: file.size,
+        type: file.type
+      });
+      console.log('🔍 DEBUG: UserId provided:', userId);
+      console.log('🔍 DEBUG: API Response:', result);
+      
+      // Calculate token information
+      const estimatedTokens = TokenCounter.estimateExtractionTokens(file.size, 'pdf');
+      console.log('🔍 DEBUG: Estimated tokens:', estimatedTokens);
+      
+      const actualTokens = result.tokenInfo?.actualTokens || estimatedTokens;
+      console.log('🔍 DEBUG: Calculated actual tokens:', actualTokens);
+      
+      // Charge tokens if userId is provided
+      let tokensCharged = false;
+      console.log('🔍 DEBUG: Token charging conditions:', {
+        hasUserId: !!userId,
+        actualTokens,
+        willCharge: !!(userId && actualTokens > 0)
+      });
+      
+      if (userId && actualTokens > 0) {
+        try {
+          console.log(`💳 Charging ${actualTokens} tokens for PDF extraction: ${file.name}`);
+          
+          // Charge tokens to user account with retry logic
+          let chargeSuccess = false;
+          let retryCount = 0;
+          const maxRetries = 3;
+          
+          while (!chargeSuccess && retryCount < maxRetries) {
+            try {
+              chargeSuccess = await TokenService.subtractTokens(userId, actualTokens);
+              if (chargeSuccess) {
+                console.log('🔍 DEBUG: TokenService.subtractTokens result:', chargeSuccess);
+                break;
+              }
+            } catch (tokenError) {
+              retryCount++;
+              console.warn(`⚠️ Token charging attempt ${retryCount} failed:`, tokenError);
+              if (retryCount < maxRetries) {
+                // Wait 1 second before retry
+                await new Promise(resolve => setTimeout(resolve, 1000));
+              }
+            }
+          }
+          
+          if (chargeSuccess) {
+            // Track in session consumption with retry logic
+            let sessionSuccess = false;
+            retryCount = 0;
+            
+            while (!sessionSuccess && retryCount < maxRetries) {
+              try {
+                sessionSuccess = await SessionConsumptionService.trackTextExtraction(userId, 'pdf', actualTokens);
+                if (sessionSuccess) {
+                  console.log('🔍 DEBUG: SessionConsumptionService.trackTextExtraction result:', sessionSuccess);
+                  break;
+                }
+              } catch (sessionError) {
+                retryCount++;
+                console.warn(`⚠️ Session tracking attempt ${retryCount} failed:`, sessionError);
+                if (retryCount < maxRetries) {
+                  // Wait 1 second before retry
+                  await new Promise(resolve => setTimeout(resolve, 1000));
+                }
+              }
+            }
+            
+            tokensCharged = chargeSuccess && sessionSuccess;
+            if (tokensCharged) {
+              console.log(`✅ Successfully charged ${actualTokens} tokens for PDF extraction`);
+            } else {
+              console.error('❌ Failed to charge tokens or track session for PDF extraction');
+            }
+          } else {
+            console.error('❌ Failed to charge tokens for PDF extraction after retries');
+          }
+        } catch (tokenError) {
+          console.error('❌ Error charging tokens for PDF extraction:', tokenError);
+          // Don't throw the error to prevent UI disruption
+        }
+      } else {
+        console.log('🔍 DEBUG: Skipping token charging - conditions not met');
+      }
       
       return {
         text: cleanedText,
         pages: 1, // OpenAI Vision processes the entire PDF as one image
         success: true,
+        tokenInfo: {
+          estimatedTokens,
+          actualTokens,
+          tokensCharged
+        },
         extractionStats: {
           totalCharacters: cleanedText.length,
           totalWords: totalWords,

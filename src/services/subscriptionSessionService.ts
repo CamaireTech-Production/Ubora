@@ -231,21 +231,37 @@ export class SubscriptionSessionService {
             tokensUsed: 0,
             formsCreated: 0,
             dashboardsCreated: 0,
-            usersAdded: 0
+            usersAdded: 0,
+            lastTokenUsed: null,
+            lastFormCreated: null,
+            lastDashboardCreated: null,
+            lastUserAdded: null
+          };
+          
+          // Ensure all usage fields have proper default values
+          const safeUsage = {
+            tokensUsed: currentUsage.tokensUsed || 0,
+            formsCreated: currentUsage.formsCreated || 0,
+            dashboardsCreated: currentUsage.dashboardsCreated || 0,
+            usersAdded: currentUsage.usersAdded || 0,
+            lastTokenUsed: currentUsage.lastTokenUsed || null,
+            lastFormCreated: currentUsage.lastFormCreated || null,
+            lastDashboardCreated: currentUsage.lastDashboardCreated || null,
+            lastUserAdded: currentUsage.lastUserAdded || null
           };
           
           return {
             ...session,
             usage: {
-              ...currentUsage,
-              tokensUsed: currentUsage.tokensUsed + (usageType === 'tokens' ? quantity : 0),
-              formsCreated: currentUsage.formsCreated + (usageType === 'forms' ? quantity : 0),
-              dashboardsCreated: currentUsage.dashboardsCreated + (usageType === 'dashboards' ? quantity : 0),
-              usersAdded: currentUsage.usersAdded + (usageType === 'users' ? quantity : 0),
-              lastTokenUsed: usageType === 'tokens' ? now : currentUsage.lastTokenUsed,
-              lastFormCreated: usageType === 'forms' ? now : currentUsage.lastFormCreated,
-              lastDashboardCreated: usageType === 'dashboards' ? now : currentUsage.lastDashboardCreated,
-              lastUserAdded: usageType === 'users' ? now : currentUsage.lastUserAdded
+              ...safeUsage,
+              tokensUsed: safeUsage.tokensUsed + (usageType === 'tokens' ? quantity : 0),
+              formsCreated: safeUsage.formsCreated + (usageType === 'forms' ? quantity : 0),
+              dashboardsCreated: safeUsage.dashboardsCreated + (usageType === 'dashboards' ? quantity : 0),
+              usersAdded: safeUsage.usersAdded + (usageType === 'users' ? quantity : 0),
+              lastTokenUsed: usageType === 'tokens' ? now : safeUsage.lastTokenUsed,
+              lastFormCreated: usageType === 'forms' ? now : safeUsage.lastFormCreated,
+              lastDashboardCreated: usageType === 'dashboards' ? now : safeUsage.lastDashboardCreated,
+              lastUserAdded: usageType === 'users' ? now : safeUsage.lastUserAdded
             },
             updatedAt: now
           };
@@ -253,9 +269,21 @@ export class SubscriptionSessionService {
         return session;
       });
       
+      // Filter out undefined values to prevent Firebase errors
+      const cleanSessions = updatedSessions.map(session => {
+        const cleanSession = { ...session };
+        // Remove any undefined fields
+        Object.keys(cleanSession).forEach(key => {
+          if (cleanSession[key] === undefined) {
+            delete cleanSession[key];
+          }
+        });
+        return cleanSession;
+      });
+      
       // Update user document
       await updateDoc(userDocRef, {
-        subscriptionSessions: updatedSessions,
+        subscriptionSessions: cleanSessions,
         updatedAt: serverTimestamp()
       });
       

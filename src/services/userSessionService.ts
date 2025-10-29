@@ -366,13 +366,39 @@ export class UserSessionService {
       return false;
     }
 
-    const currentSession = SubscriptionSessionService.getCurrentSession(user);
-    if (!currentSession) {
-      return false;
+    // For directors, get their own session
+    if (user.role === 'directeur') {
+      const currentSession = SubscriptionSessionService.getCurrentSession(user);
+      if (!currentSession) {
+        return false;
+      }
+      const features = PACKAGE_FEATURES[currentSession.packageType];
+      return !!features && (features as any).allowFileUploads === true;
     }
 
-    const features = PACKAGE_FEATURES[currentSession.packageType];
-    return !!features && (features as any).allowFileUploads === true;
+    // For employees with director access, check if they have legacy package info
+    // This indicates they inherit the director's package permissions
+    if (user.role === 'employe' && user.hasDirectorDashboardAccess) {
+      // Check legacy package field first (fallback for employees with director access)
+      if (user.package && ['starter', 'standard', 'premium'].includes(user.package)) {
+        const features = PACKAGE_FEATURES[user.package as PackageType];
+        return !!features && (features as any).allowFileUploads === true;
+      }
+
+      // If no legacy package info, check if they have their own subscription session
+      const currentSession = SubscriptionSessionService.getCurrentSession(user);
+      if (currentSession) {
+        const features = PACKAGE_FEATURES[currentSession.packageType];
+        return !!features && (features as any).allowFileUploads === true;
+      }
+
+      // If no session found, assume they inherit director's permissions
+      // This is a fallback - in practice, employees with director access should have
+      // either legacy package info or their own session
+      return true; // Allow file uploads as they inherit director's permissions
+    }
+
+    return false;
   }
 
   /**

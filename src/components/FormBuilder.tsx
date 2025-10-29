@@ -287,7 +287,14 @@ export const FormBuilder: React.FC<FormBuilderProps> = ({
     if (!canUseFileUploads) {
       const hasFileFields = fields.some(f => f.type === 'file');
       if (hasFileFields) {
-        validationErrors.push('Votre package actuel ne permet pas les champs de type Fichier. Supprimez-les ou mettez à niveau votre package.');
+        // Role-specific validation errors
+        if (user?.role === 'directeur') {
+          validationErrors.push('Votre package actuel ne permet pas les champs de type Fichier. Supprimez-les ou mettez à niveau votre package vers Starter.');
+        } else if (user?.role === 'employe' && user?.hasDirectorDashboardAccess) {
+          validationErrors.push('Votre package actuel ne permet pas les champs de type Fichier. Contactez votre directeur pour mettre à niveau le package.');
+        } else {
+          validationErrors.push('Les champs de type Fichier ne sont pas disponibles pour votre rôle. Contactez votre directeur.');
+        }
       }
     }
 
@@ -599,7 +606,30 @@ export const FormBuilder: React.FC<FormBuilderProps> = ({
 
             {!canUseFileUploads && (
               <div className="mb-3 p-3 rounded-lg bg-yellow-50 border border-yellow-200 text-yellow-800 text-sm">
-                Les téléchargements de fichiers (images/PDF) sont disponibles à partir du package Starter. Mettez à niveau pour activer ce type de champ.
+                {/* Role-specific messages */}
+                {user?.role === 'directeur' ? (
+                  <>
+                    <strong>📁 Téléversements de fichiers indisponibles :</strong> Les téléchargements de fichiers (images/PDF) sont disponibles à partir du package Starter. 
+                    <div className="mt-2">
+                      <button 
+                        onClick={() => window.location.href = '/packages/manage?section=packages&highlight=starter'}
+                        className="text-blue-600 hover:text-blue-800 underline font-medium"
+                      >
+                        Mettre à niveau vers Starter →
+                      </button>
+                    </div>
+                  </>
+                ) : user?.role === 'employe' && user?.hasDirectorDashboardAccess ? (
+                  <>
+                    <strong>💡 Contactez votre directeur :</strong> En tant qu'employé avec accès directeur, vous ne pouvez pas effectuer de paiements. 
+                    Veuillez contacter votre directeur pour mettre à niveau le package et activer les téléversements de fichiers.
+                  </>
+                ) : (
+                  <>
+                    <strong>📁 Téléversements de fichiers indisponibles :</strong> Cette fonctionnalité n'est pas disponible pour votre rôle actuel. 
+                    Contactez votre directeur pour plus d'informations.
+                  </>
+                )}
               </div>
             )}
             {fields.length === 0 ? (

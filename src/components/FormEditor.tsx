@@ -9,6 +9,8 @@ import { FileTypeSelector } from './FileTypeSelector';
 import { FieldCSVImport } from './FieldCSVImport';
 import { Toast } from './Toast';
 import { useToast } from '../hooks/useToast';
+import { useAuth } from '../contexts/AuthContext';
+import { UserSessionService } from '../services/userSessionService';
 import { Plus, Trash2, ArrowLeft, CheckSquare, Square, Loader2, Calculator, AlertCircle } from 'lucide-react';
 import { FormulaInput } from './FormulaInput';
 import { FormulaParser } from '../utils/FormulaParser';
@@ -57,6 +59,8 @@ export const FormEditor: React.FC<FormEditorProps> = ({
   const [errors, setErrors] = useState<string[]>([]);
   const errorRef = useRef<HTMLDivElement>(null);
   const { toast, showSuccess, showError } = useToast();
+  const { user } = useAuth();
+  const canUseFileUploads = user ? UserSessionService.canUseFileUploads(user) : false;
   
   // Confirmation modal state
   const [confirmationModal, setConfirmationModal] = useState<{
@@ -312,6 +316,21 @@ export const FormEditor: React.FC<FormEditorProps> = ({
     // Validation avec messages d'erreur détaillés
     const validationErrors: string[] = [];
     
+    // Package-based restriction: block file fields for packages without uploads
+    if (!canUseFileUploads) {
+      const hasFileFields = fields.some(f => f.type === 'file');
+      if (hasFileFields) {
+        // Role-specific validation errors
+        if (user?.role === 'directeur') {
+          validationErrors.push('Votre package actuel ne permet pas les champs de type Fichier. Supprimez-les ou mettez à niveau votre package vers Starter.');
+        } else if (user?.role === 'employe' && user?.hasDirectorDashboardAccess) {
+          validationErrors.push('Votre package actuel ne permet pas les champs de type Fichier. Contactez votre directeur pour mettre à niveau le package.');
+        } else {
+          validationErrors.push('Les champs de type Fichier ne sont pas disponibles pour votre rôle. Contactez votre directeur.');
+        }
+      }
+    }
+
     if (!title.trim()) {
       validationErrors.push('Le titre du formulaire est obligatoire');
     }

@@ -347,4 +347,90 @@ export class SessionConsumptionService {
     
     return summary;
   }
+
+  /**
+   * Track text extraction in current session
+   */
+  static async trackTextExtraction(userId: string, extractionType: 'pdf' | 'image', tokensConsumed: number): Promise<boolean> {
+    try {
+      const userDocRef = doc(db, 'users', userId);
+      const userDoc = await getDoc(userDocRef);
+      
+      if (!userDoc.exists()) {
+        console.error('User not found:', userId);
+        return false;
+      }
+      
+      const userData = userDoc.data() as User;
+      const currentSession = SubscriptionSessionService.getCurrentSession(userData);
+      
+      if (!currentSession) {
+        console.error('No active session found for user:', userId);
+        return false;
+      }
+      
+      // Update the current session's usage
+      const updatedSessions = userData.subscriptionSessions?.map(session => {
+        if (session.id === currentSession.id) {
+          const currentUsage = session.usage || {
+            tokensUsed: 0,
+            formsCreated: 0,
+            dashboardsCreated: 0,
+            usersAdded: 0,
+            textExtractions: {
+              pdf: 0,
+              image: 0,
+              tokensUsed: 0
+            }
+          };
+          
+          // Initialize textExtractions if it doesn't exist
+          const textExtractions = currentUsage.textExtractions || {
+            pdf: 0,
+            image: 0,
+            tokensUsed: 0
+          };
+          
+          return {
+            ...session,
+            usage: {
+              ...currentUsage,
+              tokensUsed: currentUsage.tokensUsed + tokensConsumed,
+              textExtractions: {
+                ...textExtractions,
+                [extractionType]: textExtractions[extractionType] + 1,
+                tokensUsed: textExtractions.tokensUsed + tokensConsumed
+              },
+              lastTokenUsed: new Date()
+            },
+            updatedAt: new Date()
+          };
+        }
+        return session;
+      }) || [];
+      
+      // Filter out undefined values to prevent Firebase errors
+      const cleanSessions = updatedSessions.map(session => {
+        const cleanSession = { ...session };
+        // Remove any undefined fields
+        Object.keys(cleanSession).forEach(key => {
+          if (cleanSession[key] === undefined) {
+            delete cleanSession[key];
+          }
+        });
+        return cleanSession;
+      });
+      
+      await updateDoc(userDocRef, {
+        subscriptionSessions: cleanSessions,
+        updatedAt: serverTimestamp()
+      });
+      
+      return true;
+      
+    } catch (error) {
+      console.error('Error tracking text extraction:', error);
+      return false;
+    }
+  }
 }

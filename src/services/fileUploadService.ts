@@ -77,6 +77,14 @@ export class FileUploadService {
     onImageExtraction?: (result: ImageExtractionResult) => void
   ): Promise<FileAttachment> {
     try {
+      console.log('🔍 DEBUG: FileUploadService.processFile called with:', {
+        fileName: file.name,
+        fileSize: file.size,
+        fileType: file.type,
+        fieldId,
+        userId
+      });
+      
       // Validate file
       this.validateFile(file);
 
@@ -138,6 +146,7 @@ export class FileUploadService {
           });
 
           const extractionResult = await PDFTextExtractionService.extractTextFromPDF(file, userId);
+          console.log('🔍 DEBUG: PDF extraction result:', extractionResult);
           
           if (extractionResult.success) {
             fileAttachment.extractedText = PDFTextExtractionService.cleanExtractedText(extractionResult.text);
@@ -194,6 +203,7 @@ export class FileUploadService {
           });
 
           const extractionResult = await ImageTextExtractionService.extractTextFromImage(file, userId);
+          console.log('🔍 DEBUG: Image extraction result:', extractionResult);
           
           if (extractionResult.success) {
             fileAttachment.extractedText = ImageTextExtractionService.cleanExtractedText(extractionResult.text);

@@ -302,9 +302,11 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
             if (pdfResult.extractionStatus === 'completed') {
               console.log(`✅ PDF ${pdfResult.fileName} processed successfully`);
               console.log(`📝 Extracted text length: ${pdfResult.extractedText?.length || 0} characters`);
+              // Show success toast without disrupting form
+              showSuccess(`PDF ${pdfResult.fileName} traité avec succès`);
             } else if (pdfResult.extractionStatus === 'failed') {
               console.error(`❌ PDF ${pdfResult.fileName} extraction failed:`, pdfResult.error);
-              // Show user-friendly error message
+              // Show user-friendly error message without disrupting form
               showError(`Erreur d'extraction PDF: ${pdfResult.error || 'Impossible d\'extraire le texte du PDF'}`);
             }
           },
@@ -357,7 +359,7 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
     } catch (error) {
       console.error('File upload error:', error);
       
-      // Show user-friendly error message
+      // Show user-friendly error message without disrupting form
       const errorMessage = error instanceof Error ? error.message : 'Erreur lors du traitement du fichier';
       showError(`Erreur de fichier: ${errorMessage}`);
       
@@ -372,6 +374,9 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
         delete newProgress[fieldId];
         return newProgress;
       });
+      
+      // Don't throw the error to prevent UI disruption
+      console.warn('File upload failed but continuing form operation');
     }
   };
 
@@ -605,7 +610,30 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
                 {field.label + (field.required ? ' *' : '')}
               </label>
               <div className="text-sm text-gray-600 bg-gray-50 border border-gray-200 rounded p-3">
-                Téléversement de fichiers indisponible pour votre package actuel. Veuillez contacter votre directeur pour mettre à niveau.
+                {/* Role-specific messages */}
+                {user?.role === 'directeur' ? (
+                  <>
+                    <strong>📁 Téléversement de fichiers indisponible :</strong> Cette fonctionnalité est disponible à partir du package Starter. 
+                    <div className="mt-2">
+                      <button 
+                        onClick={() => window.location.href = '/packages/manage?section=packages&highlight=starter'}
+                        className="text-blue-600 hover:text-blue-800 underline font-medium"
+                      >
+                        Mettre à niveau vers Starter →
+                      </button>
+                    </div>
+                  </>
+                ) : user?.role === 'employe' && user?.hasDirectorDashboardAccess ? (
+                  <>
+                    <strong>💡 Contactez votre directeur :</strong> En tant qu'employé avec accès directeur, vous ne pouvez pas effectuer de paiements. 
+                    Veuillez contacter votre directeur pour mettre à niveau le package et activer les téléversements de fichiers.
+                  </>
+                ) : (
+                  <>
+                    <strong>📁 Téléversement de fichiers indisponible :</strong> Cette fonctionnalité n'est pas disponible pour votre rôle actuel. 
+                    Contactez votre directeur pour plus d'informations.
+                  </>
+                )}
               </div>
             </div>
           );

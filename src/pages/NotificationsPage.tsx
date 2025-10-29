@@ -9,7 +9,7 @@ import { unifiedNotificationService, UnifiedNotification } from '../services/uni
 import { browserNotificationService } from '../services/browserNotificationService';
 import { useAuth } from '../contexts/AuthContext';
 import { usePushNotifications } from '../hooks/usePushNotifications';
-import { doc, collection, query, where, orderBy, limit, onSnapshot, writeBatch } from 'firebase/firestore';
+import { doc, collection, query, where, orderBy, limit, onSnapshot, writeBatch, updateDoc } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 
 export const NotificationsPage: React.FC = () => {
@@ -59,37 +59,54 @@ export const NotificationsPage: React.FC = () => {
         sentAt: doc.data().sentAt?.toDate(),
       } as UnifiedNotification));
 
-      // Detect newly added notifications and trigger browser notification (Option 1 test)
+      // Detect newly added notifications and trigger unified triple delivery (Browser → FCM → Email)
       try {
         for (const notif of userNotifications) {
           if (!notif.id) continue;
           const isNew = !seenIds.has(notif.id);
-          if (isNew) {
-            seenIds.add(notif.id);
-            // Only show for unread, recently created notifications
-            if (!notif.read) {
-              const permission = browserNotificationService.getPermissionStatus();
-              if (permission === 'granted' && browserNotificationService.isBrowserNotificationSupported()) {
-                // Map UnifiedNotification to browser notification
-                await browserNotificationService.showNotification({
-                  title: notif.title || 'Notification',
-                  body: notif.body || '',
-                  icon: '/fav-icons/android-icon-192x192.png',
-                  badge: '/fav-icons/android-icon-96x96.png',
-                  data: {
-                    redirectUrl: notif.redirectUrl || '/',
-                    type: notif.type,
-                    ...notif.data,
-                  },
-                  requireInteraction: true,
-                  silent: false,
-                });
-              }
-            }
+          if (!isNew) continue;
+
+          seenIds.add(notif.id);
+
+          // Skip already processed notifications
+          // @ts-expect-error: processed may be present in Firestore doc
+          if ((notif as any).processed === true) continue;
+
+          // Attempt all 3 delivery methods via unified service
+          try {
+            await unifiedNotificationService.sendNotification({
+              title: notif.title || 'Notification',
+              body: notif.body || '',
+              type: notif.type,
+              recipientId: notif.recipientId,
+              recipientRole: notif.recipientRole,
+              agencyId: notif.agencyId,
+              data: notif.data,
+              redirectUrl: notif.redirectUrl,
+              // These may be undefined if not provided by backend cron
+              // @ts-expect-error: fcmToken/emailAddress exist on the stored document
+              fcmToken: (notif as any).fcmToken || undefined,
+              // @ts-expect-error: field can be present on document
+              emailAddress: (notif as any).emailAddress || undefined,
+            });
+          } catch (deliverErr) {
+            console.error('🔔 [NotificationsPage] Unified delivery failed:', deliverErr);
+          }
+
+          // Mark as processed to avoid duplicate attempts
+          try {
+            await updateDoc(doc(db, 'notifications', notif.id), {
+              // flag processed, keep original read flag untouched
+              // processedAt stored as client timestamp is acceptable for UI
+              processed: true,
+              processedAt: new Date()
+            });
+          } catch (markErr) {
+            console.warn('🔔 [NotificationsPage] Failed to mark notification as processed:', markErr);
           }
         }
       } catch (e) {
-        console.warn('🔔 [NotificationsPage] Browser notification trigger failed:', e);
+        console.warn('🔔 [NotificationsPage] Unified notification trigger failed:', e);
       }
 
       setNotifications(userNotifications);

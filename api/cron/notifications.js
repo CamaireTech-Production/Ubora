@@ -1,5 +1,5 @@
-const admin = require('firebase-admin');
-const { getFirestore, Timestamp } = require('firebase-admin/firestore');
+import admin from 'firebase-admin';
+import { getFirestore, Timestamp } from 'firebase-admin/firestore';
 
 // Initialize Firebase Admin if not already initialized
 if (!admin.apps.length) {
@@ -25,6 +25,66 @@ if (!admin.apps.length) {
 
 const db = getFirestore();
 
+// Configuration for concurrent processing
+const MAX_CONCURRENT_PROCESSING = 10; // Process up to 10 notifications concurrently
+const BATCH_SIZE = 5; // Process notifications in batches of 5
+
+/**
+ * Process notifications concurrently in batches
+ */
+async function processNotificationsConcurrently(notifications, processorFunction) {
+  const results = {
+    processed: 0,
+    sent: 0,
+    errors: 0,
+    errorDetails: []
+  };
+
+  // Process notifications in batches for better concurrency
+  const batches = [];
+  for (let i = 0; i < notifications.length; i += BATCH_SIZE) {
+    batches.push(notifications.slice(i, i + BATCH_SIZE));
+  }
+
+  console.log(`🔄 [Cron] Processing ${notifications.length} notifications in ${batches.length} batches`);
+
+  for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
+    const batch = batches[batchIndex];
+    console.log(`📦 [Cron] Processing batch ${batchIndex + 1}/${batches.length} (${batch.length} items)`);
+
+    const batchPromises = batch.map(async (notification, itemIndex) => {
+      try {
+        const result = await processorFunction(notification);
+        results.processed++;
+        results.sent += result.sent || 0;
+        console.log(`✅ [Cron] Batch ${batchIndex + 1}, Item ${itemIndex + 1}: Processed successfully`);
+        return result;
+      } catch (error) {
+        results.errors++;
+        results.errorDetails.push({ 
+          notification: notification.id || 'unknown', 
+          error: error.message,
+          batch: batchIndex + 1,
+          item: itemIndex + 1
+        });
+        console.error(`❌ [Cron] Batch ${batchIndex + 1}, Item ${itemIndex + 1}: Error -`, error.message);
+        return { sent: 0, error: error.message };
+      }
+    });
+
+    // Wait for batch to complete before processing next batch
+    await Promise.allSettled(batchPromises);
+    
+    // Small delay between batches to prevent overwhelming the system
+    if (batchIndex < batches.length - 1) {
+      await new Promise(resolve => setTimeout(resolve, 100)); // 100ms delay
+    }
+  }
+
+  console.log(`📊 [Cron] Batch processing completed: ${results.processed} processed, ${results.sent} sent, ${results.errors} errors`);
+  return results;
+}
+
 /**
  * Unified Cron Job for All Notifications
  * 
@@ -33,7 +93,7 @@ const db = getFirestore();
  * - metric_reminder: Director-programmed metric reminders
  * - programmed_instruction: When scheduled instructions are executed
  */
-module.exports = async (req, res) => {
+export default async (req, res) => {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
