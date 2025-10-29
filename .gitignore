@@ -11,7 +11,16 @@ dist/
 dev-dist/
 build/
 out/oulant
-scripts/
+# Scripts - ignore test/debug scripts but track production scripts
+scripts/test-*.js
+scripts/debug-*.js
+scripts/diagnose-*.js
+scripts/setup-email-env.*
+scripts/generate-test-*.js
+scripts/copy-icons.js
+scripts/update-package-selection.js
+scripts/auto-assign-forms-to-directors.js
+scripts/get-vapid-key.js
 
 # Vite
 .vite/

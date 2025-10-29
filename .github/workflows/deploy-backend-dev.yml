@@ -119,12 +119,16 @@ jobs:
             --max-memory-restart 1G \
             --env development
             
-          # Start cron worker
-          pm2 start $CURRENT_LINK/scripts/cron-worker.js \
-            --name ubora-cron-worker-dev \
-            --update-env \
-            --max-memory-restart 512M \
-            --env development
+          # Start cron worker (if file exists)
+          if [ -f "$CURRENT_LINK/scripts/cron-worker.js" ]; then
+            pm2 start $CURRENT_LINK/scripts/cron-worker.js \
+              --name ubora-cron-worker-dev \
+              --update-env \
+              --max-memory-restart 512M \
+              --env development
+          else
+            echo "⚠️ Warning: cron-worker.js not found, skipping cron worker startup"
+          fi
           
           pm2 save
           
@@ -150,9 +154,13 @@ jobs:
             fi
           done
           
-          # Check cron worker logs
-          echo "📋 Checking cron worker logs"
-          pm2 logs ubora-cron-worker-dev --lines 10
+          # Check cron worker logs (if process exists)
+          if pm2 describe ubora-cron-worker-dev > /dev/null 2>&1; then
+            echo "📋 Checking cron worker logs"
+            pm2 logs ubora-cron-worker-dev --lines 10
+          else
+            echo "⚠️ Cron worker not running (file may not exist)"
+          fi
           
           if [ "$HEALTH_OK" = false ]; then
             echo "❌ Health check failed after 5 attempts. Rolling back..."
@@ -168,11 +176,13 @@ jobs:
                 --update-env \
                 --max-memory-restart 1G \
                 --env development
-              pm2 start $CURRENT_LINK/scripts/cron-worker.js \
-                --name ubora-cron-worker-dev \
-                --update-env \
-                --max-memory-restart 512M \
-                --env development
+              if [ -f "$CURRENT_LINK/scripts/cron-worker.js" ]; then
+                pm2 start $CURRENT_LINK/scripts/cron-worker.js \
+                  --name ubora-cron-worker-dev \
+                  --update-env \
+                  --max-memory-restart 512M \
+                  --env development
+              fi
               pm2 save
               sleep 10
               curl -fsS http://localhost:3001/health || true
