@@ -10,7 +10,7 @@ if (!admin.apps.length) {
     type: "service_account",
     project_id: process.env.FIREBASE_PROJECT_ID || "studio-gpnfx",
     private_key_id: process.env.FIREBASE_PRIVATE_KEY_ID || "49cf718bd7049b5fcc3e2e6fbc583ebcec3b373d",
-    private_key: process.env.FIREBASE_PRIVATE_KEY || "-----BEGIN PRIVATE KEY-----\nMIIEvAIBADANBgkqhkiG9w0BAQEFAASCBKYwggSiAgEAAoIBAQDNUG4k1NBeeCb8\nZ5+S5SAJujgqP85D12CkQqbeP44r9oP3ZyfVZgAuz0YFF0so//kgsn6vaJEqk+vy\nJux5Lb+0QNfsQrTMYkKbQP+pc8KX9VRTz1PUa47h5MgemSMdp/eTaqhdsO6dKbIe\n5Nu0UjlYHXBJ9uPOYzOVZ+Sv0hMuPYyucLHrTiqwG91aCGXxKwSW9Ojipghr4KKG\nqSlUIzt5d20nLPOWz7d9pNac4gLVw0VlZk02ep+xclRnkjDc+qWKbcgr90/Zx4Cx\n+aSIx6d4IOVBaa8cWrAUoE2IUJ/yFk0joMoxN+Iz7gzDwuKbx4eAMyR4SSIRU42J\nXW4dTMIFAgMBAAECggEAVd+FIgyM1mZkz/87ZAJHYyorIaisSf3EYw+poZ1thn/F\n9G2F4KCYBPwWqjxy6EQf3AgsKouO5AMYlaCoGYsD+o2AgkXoPu/+Mdd+104entYy\nnhdCVb9i9KJu/TVJ1baSO2tJ3l4Jf1yYLonERuh5KZyugZEs+P7O7XeV0+AGu7is\nlZGj5AZhEFpwOBUNU5m9SGDqliq5X1iFhoBmFZ+V6QKUHyq/gWqUDx6baBLjGUdd\nWRjJHAVzY1Xjf0jHWs8RvkzMCskolzV5K0IP79REHTDjefeN4CuURy1KcxFHl3jR\nP7OZj2fgEz0gqAAganIDFI1D6onN4IB7Bk4NtB/gJQKBgQDyC55AYsYYvM7SMc/n\nPJ28lY4Vd5NSyQLf3BgkcpBFRcl8fqEQNaP+F53qa7bLCJJTWkglpur6B2LixlfW\nCkxUIzl4gGOeUQqp3/KzKHTPAAi3t6vAxLajZlugl7uLOBjY+UWkGu/yK+ekaQM9\nCkM8hA/ME2f0dPyF2nDo/XNeiwKBgQDZJrDrnrgevQjq0c0sTGPOnAMLgAStRHvu\nqeBGwEq1MdXFYeLqPhBDHnG1pdxftPXvD1QdfEeP/V+wV3kIx+sHGJl/39Qabg38\nJJDa0EDglKnT32R7A4IM3EcbdTjLA3yVSYNvpxyVi4LC+QFfexkxre/Oe3ItMATs\nVJfjFeqDrwKBgDNiZgkzLuzngFy9OG7VvoLfmRdTmFIV3Gdb2UA7lgcuxpSIaXcA\nfD0gFGVE0ryNqErLus9LfUzxLnwIMXN+IjAmfjfnwb5FZCcmJOcF6q5bSn5+HpdA\n66kKvN7991GZ6iR93tv03/1H7AhKRua5fAan3pardAFAqK9d7WR5Efn7AoGAIGUu\nRahjDWrkFqv/8Njglt8lySRrDjJGTt+W7tcnDgsGOjEVOh7SLEExdLp2uuxzOBvQ\nT6nHv0psaRFTpCS3AlMAK1yH9v1uJqyJ06r30sk64LnV8qgeUa7XCNifBWJaxqa1\n7gU/NWwfsNiXBNiHdKrfOK2f5e/g/CTOl/kgCE8CgYBo9fOsnIwlHikxgqpwq+j/\ngiFQUXcDeds6ke2FVu4Bw+jmw5WiDOYz9nUIRVfQQBYCZq/wuGg336xtvRd6bagl\nhEwBb1Bxs0PXOb9OJXfeN0t+i4QHTN+2Yt4fddvksO7kJeNbWCFmho+ebaKBsfey\nkW7wgMnKrF694aVMXaToiw==\n-----END PRIVATE KEY-----\n",
+    private_key: process.env.FIREBASE_PRIVATE_KEY || "-----BEGIN PRIVATE KEY-----\nMIIEvAIBADANBgkqhkiG9w0BAQEFAASCBKYwggSiAgEAAoIBAQDNUG4k1NBeeCb8\nZ5+S5SAJujgqP85D12CkQqbeP44r9oP3ZyfVZgAuz0YFF0so//kgsn6vaJEqk+vy\nJux5Lb+0QNfsQrTMYkKbQP+pc8KX9VRTz1PUa47h5MgemSMdp/eTaqhdsO6dKbIe\n5Nu0UjlYHXBJ9uPOYzOVZ+Sv0hMuPYyucLHrTiqwG91aCGXNETWORKKwSW9Ojipghr4KKG\nqSlUIzt5d20nLPOWz7d9pNac4gLVw0VlZk02ep+xclRnkjDc+qWKbcgr90/Zx4Cx\n+aSIx6d4ClickedVBaa8cWrAUoE2IUJ/yFk0joMoxN+Iz7gzDwuKbx4eAMyR4SSIRU42J\nXW4dTMIFAgMBAAECggEAVd+FIgyM1mZkz/87ZAJHYyorIaisSf3EYw+poZ1thn/F\n9G2F4KCYBPwWqjxy6EQf3AgsKouO5AMYlaCoGYsD+o2AgkXoPu/+Mdd+104entYy\nnhdCVb9i9KJu/TVJ1baSO2tJ3l4Jf1yYLonERuh5KZyugZEs+P7O7XeV0+dsis\nlZGj5AZhEFpwOBUNU5m9SGDqliq5X1iFhoBmFZ+V6QKUHyq/gWqUDx6baBLjGUdd\nWRjJHAVzY1Xjf0jHWs8RvkzMCskolzV5K0IP79REHTDjefeN4CuURy1KcxFHl3jR\nP7OZj2fgEz0gqAAganIDFI1D6onN4IB7Bk4NtB/gJQKBgQDyC55AYsYYvM7SMc/n\nPJ28lY4Vd5NSyQLf3BgkcpBFRcl8fqEQNaP+F53qa7bLCJJTWkglpur6B2LixlfW\nCkxUIzl4gGOeUQqp3/KzKHTPAAi3t6vAxLajZlugl7uLOBjY+UWkGu/yK+ekaQM9\nCkM8hA/ME2f0dPyF2nDo/XNeiwKBgQDZJrDrnrgevQjq0c0sTGPOnAMLgAStRHvu\nqeBGwEq1MdXFYeLqPhBDHnG1pdxftPXvD1QdfEeP/V+wV3kIx+sHGJl/39Qabg38\nJJDa0EDglKnT32R7A4IM3EcbdTjLA3yVSYNvpxyVi4LC+QFfexkxre/Oe3ItMATs\nVJfjFeqDrwKBgDNiZgkzLuzngFy9OG7VvoLfmRdTmFIV3 terapia db2UA7lgcuxpSIaXcA\nfD0gFGVE0ryNqErLus9LfU corpsxLnwIMXN+IjAmfjfnwb5FZCcmJOcF6q5bSn5+HpdA\n66kKvN7991GZ6iR93tv03/1H7AhKRua5fAan3pardAFAqK9d7WR5Efn7AoGAIGUu\nRahjDWrkFqv/8Njglt8lySRrDjJGTt+W7tcnDgsGOjEVOh7SLEExdLp2uuxzOBvQ\nT6nHv0psaRFTpCS3AlMAK1yH9v1uJqyJ06r30sk64LnV8qgeUa7XCNifBWJaxqa1\n7gU/NWwfsNiXBNiHdKrfOK2f5e/g/CTOl/kgCE8CgYBo9fOsnIwlHikxgqpwq+j/\ngiFQUXcDeds6ke2FVu4Bw+jmw5WiDOYz9nUIRVfQQBYCZq/wuGg336xtvRd6bagl\nhEwBb1Bxs0PXOb9OJXfeN0t+i4QHTN+2Yt4fddvksO7kJeNbWCFmho+ebaKBsfey\nkW7wgMnKrF694aVMXaToiw==\n-----END PRIVATE KEY-----\n",
     client_email: process.env.FIREBASE_CLIENT_EMAIL || "firebase-adminsdk-fbsvc@studio-gpnfx.iam.gserviceaccount.com",
     client_id: process.env.FIREBASE_CLIENT_ID || "113149690446202662127",
     auth_uri: "https://accounts.google.com/o/oauth2/auth",
@@ -154,18 +154,16 @@ export default async (req, res) => {
 };
 
 /**
- * Process form reminders (1h, 30min, 15min, 5min before deadline)
+ * Process form reminders (1h, 30min, 15min, 5min before deadline) - CONCURRENT VERSION
  */
 async function processFormReminders(now, oneMinuteFromNow) {
-  let processed = 0;
-  let sent = 0;
-  let errors = 0;
-
   try {
-    // Get all forms with deadlines
+    // Step 1: Collect all form reminders that need to be sent
     const formsSnapshot = await db.collection('forms')
       .where('deadline', '!=', null)
       .get();
+
+    const remindersToProcess = [];
 
     for (const formDoc of formsSnapshot.docs) {
       const form = { id: formDoc.id, ...formDoc.data() };
@@ -183,114 +181,113 @@ async function processFormReminders(now, oneMinuteFromNow) {
           
           // Check if this reminder should be sent now
           if (reminderTime >= now && reminderTime <= oneMinuteFromNow) {
-            processed++;
-            
-            try {
-              // Get user FCM token
-              const userDoc = await db.collection('users').doc(userId).get();
-              const userData = userDoc.data();
-              const fcmToken = userData?.fcmToken;
-
-              if (fcmToken) {
-                // Use unified notification service (browser first, FCM fallback)
-                const notificationData = {
-                  title: 'Rappel de formulaire',
-                  body: `N'oubliez pas de remplir le formulaire "${form.title}" (${intervalMinutes}min restantes)`,
-                  data: {
-                    type: 'form_reminder',
-                    formId: form.id,
-                    formTitle: form.title,
-                    intervalMinutes: intervalMinutes.toString(),
-                    redirectUrl: `/forms/${form.id}`,
-                    timestamp: now.getTime().toString()
-                  }
-                };
-
-                // Store notification in Firestore - frontend unified service will handle delivery
-                const notificationDoc = {
-                  title: notificationData.title,
-                  body: notificationData.body,
-                  type: notificationData.type,
-                  recipientId: userId,
-                  recipientRole: userData?.role || 'employee',
-                  agencyId: userData?.agencyId || 'unknown',
-                  data: notificationData.data,
-                  redirectUrl: notificationData.redirectUrl,
-                  read: false,
-                  status: 'sent',
-                  createdAt: admin.firestore.FieldValue.serverTimestamp(),
-                  sentAt: admin.firestore.FieldValue.serverTimestamp(),
-                  fcmToken: fcmToken,
-                  emailAddress: userData?.email
-                };
-
-                await db.collection('notifications').add(notificationDoc);
-                sent++;
-                console.log(`📅 [Cron] Form reminder stored: ${form.title} (${intervalMinutes}min) to user ${userId}`);
-              } else {
-                console.warn(`📅 [Cron] No FCM token for user ${userId}, storing notification anyway (frontend will handle delivery)`);
-                
-                // Store notification even without FCM token - frontend unified service will try browser/email
-                const notificationDoc = {
-                  title: notificationData.title,
-                  body: notificationData.body,
-                  type: notificationData.type,
-                  recipientId: userId,
-                  recipientRole: userData?.role || 'employee',
-                  agencyId: userData?.agencyId || 'unknown',
-                  data: notificationData.data,
-                  redirectUrl: notificationData.redirectUrl,
-                  read: false,
-                  status: 'sent',
-                  createdAt: admin.firestore.FieldValue.serverTimestamp(),
-                  sentAt: admin.firestore.FieldValue.serverTimestamp(),
-                  emailAddress: userData?.email
-                };
-
-                await db.collection('notifications').add(notificationDoc);
-                sent++;
-              }
-            } catch (error) {
-              errors++;
-              console.error(`❌ [Cron] Error sending form reminder:`, error);
-            }
+            remindersToProcess.push({
+              form,
+              userId,
+              intervalMinutes,
+              reminderTime
+            });
           }
         }
       }
     }
+
+    if (remindersToProcess.length === 0) {
+      return { processed: 0, sent: 0, errors: 0 };
+    }
+
+    console.log(`📅 [Cron] Found ${remindersToProcess.length} form reminders to process`);
+
+    // Step 2: Process reminders concurrently
+    const processorFunction = async (reminderData) => {
+      try {
+        const { form, userId, intervalMinutes } = reminderData;
+        
+        // Get user data
+        const userDoc = await db.collection('users').doc(userId).get();
+        const userData = userDoc.data();
+
+        if (!userData) {
+          throw new Error(`User ${userId} not found`);
+        }
+
+        // Store notification in Firestore - frontend unified service will handle delivery
+        const notificationDoc = {
+          title: 'Rappel de formulaire',
+          body: `N'oubliez pas de remplir le formulaire "${form.title}" (${intervalMinutes}min restantes)`,
+          type: 'form_reminder',
+          recipientId: userId,
+          recipientRole: userData?.role || 'employee',
+          agencyId: userData?.agencyId || 'unknown',
+          data: {
+            type: 'form_reminder',
+            formId: form.id,
+            formTitle: form.title,
+            intervalMinutes: intervalMinutes.toString(),
+            redirectUrl: `/forms/${form.id}`,
+            timestamp: now.getTime().toString()
+          },
+          redirectUrl: `/forms/${form.id}`,
+          read: false,
+          status: 'sent',
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          sentAt: admin.firestore.FieldValue.serverTimestamp(),
+          emailAddress: userData?.email
+        };
+
+        await db.collection('notifications').add(notificationDoc);
+        console.log(`📅 [Cron] Form reminder stored: ${form.title} (${intervalMinutes}min) to user ${userId}`);
+        
+        return { sent: 1 };
+      } catch (error) {
+        console.error(`❌ [Cron] Error processing form reminder:`, error);
+        throw error;
+      }
+    };
+
+    const results = await processNotificationsConcurrently(remindersToProcess, processorFunction);
+    return results;
+
   } catch (error) {
     console.error('❌ [Cron] Error processing form reminders:', error);
-    errors++;
+    return { processed: 0, sent: 0, errors: 1 };
   }
-
-  return { processed, sent, errors };
 }
 
 /**
- * Process metric reminders (director-programmed)
+ * Process metric reminders (director-programmed) - CONCURRENT VERSION
  */
 async function processMetricReminders(now, oneMinuteFromNow) {
-  let processed = 0;
-  let sent = 0;
-  let errors = 0;
-
   try {
-    // Get all metric reminders that are due
+    // Step 1: Collect all metric reminders that are due
     const remindersSnapshot = await db.collection('metricReminders')
       .where('status', '==', 'pending')
       .where('scheduledAt', '>=', Timestamp.fromDate(now))
       .where('scheduledAt', '<=', Timestamp.fromDate(oneMinuteFromNow))
       .get();
 
-    for (const reminderDoc of remindersSnapshot.docs) {
-      const reminder = { id: reminderDoc.id, ...reminderDoc.data() };
-      processed++;
+    const remindersToProcess = remindersSnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data(),
+      scheduledAt: doc.data().scheduledAt?.toDate()
+    }));
 
+    if (remindersToProcess.length === 0) {
+      return { processed: 0, sent: 0, errors: 0 };
+    }
+
+    console.log(`📊 [Cron] Found ${remindersToProcess.length} metric reminders to process`);
+
+    // Step 2: Process reminders concurrently
+    const processorFunction = async (reminder) => {
       try {
-        // Get user FCM token
+        // Get user data
         const userDoc = await db.collection('users').doc(reminder.directorId).get();
         const userData = userDoc.data();
-        const fcmToken = userData?.fcmToken;
+
+        if (!userData) {
+          throw new Error(`User ${reminder.directorId} not found`);
+        }
 
         // Store notification in Firestore - frontend unified service will handle delivery
         const notificationDoc = {
@@ -314,59 +311,71 @@ async function processMetricReminders(now, oneMinuteFromNow) {
           status: 'sent',
           createdAt: admin.firestore.FieldValue.serverTimestamp(),
           sentAt: admin.firestore.FieldValue.serverTimestamp(),
-          fcmToken: fcmToken,
           emailAddress: userData?.email
         };
 
         await db.collection('notifications').add(notificationDoc);
         
-        // Update reminder status
+        // For recurring reminders, update scheduledAt instead of marking as sent
+        const nextScheduledAt = calculateNextScheduledTime(reminder.frequency, reminder.time, now);
         await db.collection('metricReminders').doc(reminder.id).update({
-          status: 'sent',
-          sentAt: Timestamp.fromDate(now)
+          scheduledAt: Timestamp.fromDate(nextScheduledAt),
+          sentAt: Timestamp.fromDate(now),
+          lastEvaluatedAt: Timestamp.fromDate(now)
         });
         
-        sent++;
-        console.log(`📊 [Cron] Metric reminder stored: ${reminder.metricName} to director ${reminder.directorId}`);
+        console.log(`📊 [Cron] Metric reminder stored: ${reminder.metricName || 'Métrique'} to director ${reminder.directorId}`);
+        
+        return { sent: 1 };
       } catch (error) {
-        errors++;
-        console.error(`❌ [Cron] Error sending metric reminder:`, error);
+        console.error(`❌ [Cron] Error processing metric reminder:`, error);
+        throw error;
       }
-    }
+    };
+
+    const results = await processNotificationsConcurrently(remindersToProcess, processorFunction);
+    return results;
+
   } catch (error) {
     console.error('❌ [Cron] Error processing metric reminders:', error);
-    errors++;
+    return { processed: 0, sent: 0, errors: 1 };
   }
-
-  return { processed, sent, errors };
 }
 
 /**
- * Process programmed instructions (when executed)
+ * Process programmed instructions (when executed) - CONCURRENT VERSION
  */
 async function processProgrammedInstructions(now, oneMinuteFromNow) {
-  let processed = 0;
-  let sent = 0;
-  let errors = 0;
-
   try {
-    // Get all scheduled questions that are due for execution
+    // Step 1: Collect all scheduled questions that are due for execution
     const questionsSnapshot = await db.collection('scheduledQuestions')
       .where('status', '==', 'pending')
       .where('scheduledAt', '>=', Timestamp.fromDate(now))
       .where('scheduledAt', '<=', Timestamp.fromDate(oneMinuteFromNow))
       .get();
 
-    for (const questionDoc of questionsSnapshot.docs) {
-      const question = { id: questionDoc.id, ...questionDoc.data() };
-      processed++;
+    const questionsToProcess = questionsSnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data(),
+      scheduledAt: doc.data().scheduledAt?.toDate()
+    }));
 
+    if (questionsToProcess.length === 0) {
+      return { processed: 0, sent: 0, errors: 0 };
+    }
+
+    console.log(`🤖 [Cron] Found ${questionsToProcess.length} programmed instructions to process`);
+
+    // Step 2: Process questions concurrently
+    const processorFunction = async (question) => {
       try {
-        // Execute the scheduled question (this would call the AI service)
-        // For now, we'll just send a notification that it's being processed
+        // Get user data
         const userDoc = await db.collection('users').doc(question.userId).get();
         const userData = userDoc.data();
-        const fcmToken = userData?.fcmToken;
+
+        if (!userData) {
+          throw new Error(`User ${question.userId} not found`);
+        }
 
         // Store notification in Firestore - frontend unified service will handle delivery
         const notificationDoc = {
@@ -388,25 +397,124 @@ async function processProgrammedInstructions(now, oneMinuteFromNow) {
           status: 'sent',
           createdAt: admin.firestore.FieldValue.serverTimestamp(),
           sentAt: admin.firestore.FieldValue.serverTimestamp(),
-          fcmToken: fcmToken,
           emailAddress: userData?.email
         };
 
         await db.collection('notifications').add(notificationDoc);
         
-        sent++;
         console.log(`🤖 [Cron] Programmed instruction notification stored: ${question.title} to director ${question.userId}`);
+        
+        return { sent: 1 };
       } catch (error) {
-        errors++;
-        console.error(`❌ [Cron] Error sending programmed instruction notification:`, error);
+        console.error(`❌ [Cron] Error processing programmed instruction:`, error);
+        throw error;
       }
-    }
+    };
+
+    const results = await processNotificationsConcurrently(questionsToProcess, processorFunction);
+    return results;
+
   } catch (error) {
     console.error('❌ [Cron] Error processing programmed instructions:', error);
-    errors++;
+    return { processed: 0, sent: 0, errors: 1 };
   }
-
-  return { processed, sent, errors };
 }
 
-// Old FCM function removed - now using unified notification service
+/**
+ * Calculate next scheduled time for recurring metric reminders
+ */
+function calculateNextScheduledTime(frequency, time, fromDate) {
+  const now = fromDate || new Date();
+  const [hours, minutes] = time.split(':').map(Number);
+  
+  // Create today's scheduled time
+  const nextScheduled = new Date(now);
+  nextScheduled.setHours(hours, minutes, 0, 0);
+  
+  // If today's time has passed, schedule for next occurrence
+  if (nextScheduled <= now) {
+    switch (frequency) {
+      case 'daily':
+        nextScheduled.setDate(nextScheduled.getDate() + 1);
+        break;
+      case 'weekly':
+        nextScheduled.setDate(nextScheduled.getDate() + 7);
+        break;
+      case 'monthly':
+        nextScheduled.setMonth(nextScheduled.getMonth() + 1);
+        break;
+    }
+  }
+  
+  return nextScheduled;
+}
+
+/**
+ * Get all upcoming notification times for smart interval calculation
+ * This queries forms, metric reminders, and scheduled questions to find the next due time
+ */
+export async function getNextNotificationTime() {
+  try {
+    const now = new Date();
+    const upcomingTimes = [];
+
+    // 1. Get upcoming form reminder times
+    const formsSnapshot = await db.collection('forms')
+      .where('deadline', '!=', null)
+      .get();
+
+    for (const formDoc of formsSnapshot.docs) {
+      const form = formDoc.data();
+      if (!form.deadline || !form.assignedTo || form.assignedTo.length === 0) {
+        continue;
+      }
+
+      const deadlineDate = new Date(`${form.deadline.date}T${form.deadline.time}`);
+      const reminderIntervals = [60, 30, 15, 5]; // minutes before deadline
+
+      for (const intervalMinutes of reminderIntervals) {
+        const reminderTime = new Date(deadlineDate.getTime() - intervalMinutes * 60 * 1000);
+        if (reminderTime > now) {
+          upcomingTimes.push(reminderTime);
+        }
+      }
+    }
+
+    // 2. Get upcoming metric reminder times
+    const metricRemindersSnapshot = await db.collection('metricReminders')
+      .where('status', '==', 'pending')
+      .get();
+
+    for (const reminderDoc of metricRemindersSnapshot.docs) {
+      const reminder = reminderDoc.data();
+      const scheduledAt = reminder.scheduledAt?.toDate ? reminder.scheduledAt.toDate() : reminder.scheduledAt;
+      if (scheduledAt && scheduledAt > now) {
+        upcomingTimes.push(scheduledAt);
+      }
+    }
+
+    // 3. Get upcoming scheduled question times
+    const questionsSnapshot = await db.collection('scheduledQuestions')
+      .where('status', '==', 'pending')
+      .get();
+
+    for (const questionDoc of questionsSnapshot.docs) {
+      const question = questionDoc.data();
+      const scheduledAt = question.scheduledAt?.toDate ? question.scheduledAt.toDate() : question.scheduledAt;
+      if (scheduledAt && scheduledAt > now) {
+        upcomingTimes.push(scheduledAt);
+      }
+    }
+
+    // Find the earliest upcoming time
+    if (upcomingTimes.length === 0) {
+      return null;
+    }
+
+    const nextTime = new Date(Math.min(...upcomingTimes.map(t => t.getTime())));
+    return nextTime;
+  } catch (error) {
+    console.error('❌ [Cron] Error getting next notification time:', error);
+    return null;
+  }
+}

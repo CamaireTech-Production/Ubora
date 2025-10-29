@@ -39,6 +39,28 @@ class NotificationService {
   }
 
   /**
+   * Get user data from Firestore (including email)
+   */
+  private async getUserData(userId: string): Promise<{ email?: string; role?: string; agencyId?: string } | null> {
+    try {
+      const userDoc = await getDoc(doc(db, 'users', userId));
+      if (userDoc.exists()) {
+        const userData = userDoc.data();
+        return {
+          email: userData.email || undefined,
+          role: userData.role,
+          agencyId: userData.agencyId
+        };
+      }
+      console.warn(`🔔 [NotificationService] User ${userId} not found`);
+      return null;
+    } catch (error) {
+      console.error(`🔔 [NotificationService] Error getting user data for ${userId}:`, error);
+      return null;
+    }
+  }
+
+  /**
    * Get FCM token from user profile with validation and regeneration
    */
   private async getUserFCMToken(userId: string): Promise<string | null> {
@@ -265,19 +287,19 @@ class NotificationService {
     // Use unified service for form assignment notifications
     for (const userId of userIds) {
       try {
-        // Determine user role and get FCM token
+        // Get user data (role and email)
         const userRole = await this.getUserRole(userId);
-        const fcmToken = await this.getUserFCMToken(userId);
+        const userData = await this.getUserData(userId);
         
         await unifiedNotificationService.createFormAssignmentNotification(
           formId, 
           formTitle, 
           userId,
           userRole,
-          agencyId || '',
+          agencyId || userData?.agencyId || '',
           'assigned',
           directorName,
-          fcmToken || undefined
+          userData?.email
         );
       } catch (error) {
         console.error('🔔 [NotificationService] Error sending form assignment notification:', error);
@@ -295,19 +317,19 @@ class NotificationService {
     // Use unified service for form creation notifications
     for (const userId of userIds) {
       try {
-        // Determine user role and get FCM token
+        // Get user data (role and email)
         const userRole = await this.getUserRole(userId);
-        const fcmToken = await this.getUserFCMToken(userId);
+        const userData = await this.getUserData(userId);
         
         await unifiedNotificationService.createFormAssignmentNotification(
           formId, 
           formTitle, 
           userId,
           userRole,
-          agencyId || '',
+          agencyId || userData?.agencyId || '',
           'assigned',
           directorName,
-          fcmToken || undefined
+          userData?.email
         );
       } catch (error) {
         console.error('🔔 [NotificationService] Error sending form creation notification:', error);
@@ -325,19 +347,19 @@ class NotificationService {
     // Notify newly assigned users
     for (const userId of newUserIds) {
       try {
-        // Determine user role and get FCM token
+        // Get user data (role and email)
         const userRole = await this.getUserRole(userId);
-        const fcmToken = await this.getUserFCMToken(userId);
+        const userData = await this.getUserData(userId);
         
         await unifiedNotificationService.createFormAssignmentNotification(
-            formId, 
-            formTitle, 
+          formId, 
+          formTitle, 
           userId,
           userRole,
-          agencyId || '',
+          agencyId || userData?.agencyId || '',
           'assigned',
-            directorName,
-          fcmToken || undefined
+          directorName,
+          userData?.email
         );
       } catch (error) {
         console.error('🔔 [NotificationService] Error sending form assignment notification:', error);
@@ -347,23 +369,23 @@ class NotificationService {
     // Notify removed users
     for (const userId of removedUserIds) {
       try {
-        // Determine user role and get FCM token
+        // Get user data (role and email)
         const userRole = await this.getUserRole(userId);
-        const fcmToken = await this.getUserFCMToken(userId);
+        const userData = await this.getUserData(userId);
         
         await unifiedNotificationService.createFormAssignmentNotification(
-            formId, 
-            formTitle, 
+          formId, 
+          formTitle, 
           userId,
           userRole,
-          agencyId || '',
+          agencyId || userData?.agencyId || '',
           'unassigned',
-            directorName,
-          fcmToken || undefined
-      );
+          directorName,
+          userData?.email
+        );
       } catch (error) {
         console.error('🔔 [NotificationService] Error sending form unassignment notification:', error);
-    }
+      }
     }
   }
 }

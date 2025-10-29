@@ -19,15 +19,12 @@ export interface UnifiedNotification {
   sentAt?: Date;
   // Redirect URL for notification click
   redirectUrl?: string;
-  // FCM token for push notification delivery
-  fcmToken?: string;
   // Email address for email notification delivery
   emailAddress?: string;
 }
 
 interface NotificationDeliveryResult {
   browser: { success: boolean; error?: string };
-  fcm: { success: boolean; error?: string };
   email: { success: boolean; error?: string };
   overallSuccess: boolean;
 }
@@ -37,16 +34,15 @@ class UnifiedNotificationService {
 
   /**
    * Send notification immediately (main entry point for all notifications)
-   * Implements triple delivery strategy: Browser → FCM → Email (all methods attempted)
+   * Implements dual delivery strategy: Browser → Email (both methods attempted)
    */
   async sendNotification(notification: Omit<UnifiedNotification, 'id' | 'read' | 'createdAt' | 'status' | 'sentAt'>): Promise<string> {
     try {
-      console.log('🔔 [UnifiedNotification] Starting triple delivery for:', notification.title);
+      console.log('🔔 [UnifiedNotification] Starting dual delivery for:', notification.title);
 
       // Initialize delivery tracking
       const deliveryResult: NotificationDeliveryResult = {
         browser: { success: false },
-        fcm: { success: false },
         email: { success: false },
         overallSuccess: false
       };
@@ -87,31 +83,10 @@ class UnifiedNotificationService {
         console.error('🔔 [UnifiedNotification] ❌ Method 1: Browser notification failed:', browserError);
       }
 
-      // Method 2: FCM Push Notification (Secondary - Mobile/Background)
-      if (notification.fcmToken) {
-        try {
-          console.log('🔔 [UnifiedNotification] Method 2: Attempting FCM push notification...');
-          await this.sendFCMPushNotification({
-            ...notification,
-            read: false,
-            status: 'sent',
-            createdAt: new Date(),
-            sentAt: new Date(),
-          });
-          deliveryResult.fcm.success = true;
-          console.log('🔔 [UnifiedNotification] ✅ Method 2: FCM push notification sent successfully');
-        } catch (fcmError) {
-          deliveryResult.fcm.error = fcmError instanceof Error ? fcmError.message : String(fcmError);
-          console.error('🔔 [UnifiedNotification] ❌ Method 2: FCM push notification failed:', fcmError);
-        }
-      } else {
-        console.log('🔔 [UnifiedNotification] Method 2: Skipping FCM (no token provided)');
-      }
-
-      // Method 3: Email Notification (Tertiary - Universal Delivery)
+      // Method 2: Email Notification (Secondary - Universal Delivery)
       if (notification.emailAddress) {
         try {
-          console.log('🔔 [UnifiedNotification] Method 3: Attempting email notification...');
+          console.log('🔔 [UnifiedNotification] Method 2: Attempting email notification...');
           await this.sendEmailNotification({
             ...notification,
             read: false,
@@ -120,17 +95,17 @@ class UnifiedNotificationService {
             sentAt: new Date(),
           });
           deliveryResult.email.success = true;
-          console.log('🔔 [UnifiedNotification] ✅ Method 3: Email notification sent successfully');
+          console.log('🔔 [UnifiedNotification] ✅ Method 2: Email notification sent successfully');
         } catch (emailError) {
           deliveryResult.email.error = emailError instanceof Error ? emailError.message : String(emailError);
-          console.error('🔔 [UnifiedNotification] ❌ Method 3: Email notification failed:', emailError);
+          console.error('🔔 [UnifiedNotification] ❌ Method 2: Email notification failed:', emailError);
         }
       } else {
-        console.log('🔔 [UnifiedNotification] Method 3: Skipping email (no email address provided)');
+        console.log('🔔 [UnifiedNotification] Method 2: Skipping email (no email address provided)');
       }
 
       // Determine overall success
-      deliveryResult.overallSuccess = deliveryResult.browser.success || deliveryResult.fcm.success || deliveryResult.email.success;
+      deliveryResult.overallSuccess = deliveryResult.browser.success || deliveryResult.email.success;
 
       // Log final delivery summary
       console.log('🔔 [UnifiedNotification] Delivery Summary:', {
@@ -138,7 +113,6 @@ class UnifiedNotificationService {
         title: notification.title,
         methods: {
           browser: deliveryResult.browser.success ? '✅' : '❌',
-          fcm: deliveryResult.fcm.success ? '✅' : '❌',
           email: deliveryResult.email.success ? '✅' : '❌'
         },
         overallSuccess: deliveryResult.overallSuccess ? '✅' : '❌'
@@ -347,65 +321,15 @@ class UnifiedNotificationService {
 
 
   /**
-   * Send FCM push notification using existing FCM service
+   * Display notification via service worker (used for scheduled notifications)
    */
-  private async sendFCMPushNotification(notification: Omit<UnifiedNotification, 'id'>): Promise<void> {
+  private async displayNotification(notification: Omit<UnifiedNotification, 'id'>): Promise<void> {
+    // Use browser notification service for scheduled notifications
     try {
-      if (!notification.fcmToken) {
-        console.warn('🔔 [UnifiedNotification] No FCM token provided for push notification');
-        return;
-      }
-
-      console.log('🔔 [UnifiedNotification] Sending FCM push notification to token:', notification.fcmToken.substring(0, 20) + '...');
-
-      // Import the existing FCM service
-      const { fcmService } = await import('./fcmService');
-      
-      // Create FCM notification object
-      const fcmNotification = {
-        title: notification.title,
-        body: notification.body,
-        data: {
-          ...notification.data,
-          type: notification.type,
-          recipientId: notification.recipientId,
-          agencyId: notification.agencyId,
-          redirectUrl: notification.redirectUrl || '/',
-          timestamp: Date.now().toString(),
-        },
-        clickAction: notification.redirectUrl || '/',
-        redirectUrl: notification.redirectUrl || '/',
-        priority: 'high' as const,
-        ttl: 86400 // 24 hours
-      };
-
-      // Send using existing FCM service
-      const result = await fcmService.sendToToken(fcmNotification, notification.fcmToken, notification.recipientId);
-      
-      if (result && result.status === 'sent') {
-        console.log('🔔 [UnifiedNotification] FCM push notification sent successfully');
-      } else {
-        console.warn('🔔 [UnifiedNotification] FCM push notification may have failed:', result?.error);
-        
-        // If token is invalid, try to regenerate it
-        if (result?.error && (result.error.includes('Invalid FCM token') || result.error.includes('token-not-registered'))) {
-          console.log('🔔 [UnifiedNotification] Attempting to regenerate FCM token for user:', notification.recipientId);
-          // The token regeneration will happen automatically on the next notification attempt
-        }
-      }
+      await this.sendBrowserNotification(notification);
     } catch (error) {
-      console.error('🔔 [UnifiedNotification] Error sending FCM push notification:', error);
-      // Don't throw error - notification should still be saved to Firestore even if FCM fails
+      console.error('🔔 [UnifiedNotification] Error displaying notification:', error);
     }
-  }
-
-  /**
-   * Display notification via service worker (disabled - using FCM push notifications only)
-   */
-  private async displayNotification(_notification: Omit<UnifiedNotification, 'id'>): Promise<void> {
-    // Disabled - we're using FCM push notifications instead of browser notifications
-    console.log('🔔 [UnifiedNotification] Browser notification disabled - using FCM push notifications only');
-    return;
   }
 
   /**
@@ -478,7 +402,6 @@ class UnifiedNotificationService {
     agencyId: string,
     action: 'assigned' | 'unassigned',
     assignedByName: string,
-    fcmToken?: string,
     emailAddress?: string
   ): Promise<string> {
     const isAssigned = action === 'assigned';
@@ -495,7 +418,6 @@ class UnifiedNotificationService {
       recipientRole,
       agencyId,
       redirectUrl: '/forms',
-      fcmToken,
       emailAddress,
       data: {
         formId,
@@ -517,7 +439,6 @@ class UnifiedNotificationService {
     recipientRole: 'directeur' | 'employe',
     agencyId: string,
     reminderType: '1h' | '30min' | '15min' | '5min',
-    fcmToken?: string,
     emailAddress?: string
   ): Promise<string> {
     const title = 'Rappel de formulaire';
@@ -531,7 +452,6 @@ class UnifiedNotificationService {
       recipientRole,
       agencyId,
       redirectUrl: recipientRole === 'directeur' ? '/directeur/dashboard' : '/employe/dashboard',
-      fcmToken,
       emailAddress,
       data: {
         formId,
@@ -552,7 +472,6 @@ class UnifiedNotificationService {
     metricValue: number,
     recipientId: string,
     agencyId: string,
-    fcmToken?: string,
     emailAddress?: string
   ): Promise<string> {
     const title = 'Rappel de métrique';
@@ -566,7 +485,6 @@ class UnifiedNotificationService {
       recipientRole: 'directeur',
       agencyId,
       redirectUrl: `/dashboard/${dashboardId}`,
-      fcmToken,
       emailAddress,
       data: {
         dashboardId,
@@ -586,7 +504,6 @@ class UnifiedNotificationService {
     instructionTitle: string,
     recipientId: string,
     agencyId: string,
-    fcmToken?: string,
     emailAddress?: string
   ): Promise<string> {
     const title = 'Instruction programmée exécutée';
@@ -600,7 +517,6 @@ class UnifiedNotificationService {
       recipientRole: 'directeur',
       agencyId,
       redirectUrl: `/instructions/${instructionId}/response`,
-      fcmToken,
       emailAddress,
       data: {
         instructionId,
