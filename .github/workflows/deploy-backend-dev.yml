@@ -157,8 +157,13 @@ jobs:
           
           # Check cron worker logs (if process exists)
           if pm2 describe ubora-cron-worker-dev > /dev/null 2>&1; then
-            echo "📋 Checking cron worker logs"
-            pm2 logs ubora-cron-worker-dev --lines 10
+            echo "📋 Checking cron worker logs (last 10 lines)"
+            LOG_FILE="$HOME/.pm2/logs/ubora-cron-worker-dev-out.log"
+            if [ -f "$LOG_FILE" ]; then
+              tail -n 10 "$LOG_FILE" || true
+            else
+              echo "⚠️ Log file not found yet"
+            fi
           else
             echo "⚠️ Cron worker not running (file may not exist)"
           fi
