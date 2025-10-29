@@ -1,11 +1,26 @@
 import nodemailer from 'nodemailer';
+import dotenv from 'dotenv';
+import path from 'path';
 
-// Create reusable transporter object using Hostinger Power Titan (Titan Email) SMTP
+// Ensure environment variables are loaded (prefer project root .env.local)
+const loadedLocalEnv = dotenv.config({ path: path.join(process.cwd(), '.env.local') });
+if (!loadedLocalEnv || !loadedLocalEnv.parsed) {
+  dotenv.config({ path: path.join(process.cwd(), '.env') });
+}
+
+// Create reusable transporter object (Titan by default; Gmail supported via env)
 const createTransporter = () => {
+  const host = process.env.EMAIL_HOST || 'smtp.titan.email';
+  const port = parseInt(process.env.EMAIL_PORT, 10) || 587;
+  // If EMAIL_SECURE explicitly set use it, else infer from port 465
+  const secure = typeof process.env.EMAIL_SECURE === 'string'
+    ? process.env.EMAIL_SECURE === 'true'
+    : port === 465;
+
   return nodemailer.createTransport({
-    host: process.env.EMAIL_HOST || 'smtp.titan.email',
-    port: parseInt(process.env.EMAIL_PORT) || 587,
-    secure: process.env.EMAIL_SECURE === 'true' || false, // true for 465, false for other ports
+    host,
+    port,
+    secure,
     auth: {
       user: process.env.EMAIL_USER || 'your-email@yourdomain.com',
       pass: process.env.EMAIL_PASSWORD || 'your-email-password'
@@ -59,8 +74,11 @@ export default async (req, res) => {
     console.log('📧 [Email] SMTP connection verified');
 
     // Email options
+    const fromName = process.env.EMAIL_FROM_NAME || 'Ubora App';
+    // Allow separate from address; fallback to auth user
+    const fromAddress = process.env.EMAIL_FROM || process.env.EMAIL_USER;
     const mailOptions = {
-      from: `"Ubora App" <${process.env.EMAIL_USER}>`,
+      from: fromAddress ? `${fromName} <${fromAddress}>` : undefined,
       to: to,
       subject: subject,
       html: html,

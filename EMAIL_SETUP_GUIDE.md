@@ -5,15 +5,19 @@ The email service is configured to send real emails using Hostinger SMTP. This g
 
 ## Environment Variables Required
 
-Add these environment variables to your `.env.local` file or server environment:
+Add these environment variables to your `.env.local` file (at the project root) or server environment:
 
 ```bash
-# Email Configuration for Hostinger
-EMAIL_USER=your-email@yourdomain.com
-EMAIL_PASSWORD=your-email-password
-EMAIL_HOST=smtp.hostinger.com
-EMAIL_PORT=587
-EMAIL_SECURE=false
+# Common email configuration
+EMAIL_USER=your-email@yourdomain.com        # SMTP auth username
+EMAIL_PASSWORD=your-email-password          # SMTP auth password (Gmail: App Password)
+EMAIL_HOST=smtp.titan.email                 # SMTP host (see providers below)
+EMAIL_PORT=587                              # 587 for TLS, 465 for SSL
+EMAIL_SECURE=false                          # true only if using port 465
+
+# Optional: Customize sender details (defaults to EMAIL_USER and "Ubora App")
+EMAIL_FROM=notifications@yourdomain.com
+EMAIL_FROM_NAME=Ubora App
 ```
 
 ## Hostinger Email Setup Instructions
@@ -25,7 +29,7 @@ EMAIL_SECURE=false
 - Use these as `EMAIL_USER` and `EMAIL_PASSWORD`
 
 ### 2. SMTP Settings
-- **Host**: `smtp.hostinger.com`
+- **Host**: `smtp.hostinger.com` (or `smtp.titan.email` for Titan)
 - **Port**: `587` (for TLS) or `465` (for SSL)
 - **Security**: TLS (recommended) or SSL
 - **Authentication**: Required
@@ -34,9 +38,11 @@ EMAIL_SECURE=false
 ```bash
 EMAIL_USER=your-actual-email@yourdomain.com
 EMAIL_PASSWORD=your-actual-email-password
-EMAIL_HOST=smtp.hostinger.com
+EMAIL_HOST=smtp.titan.email
 EMAIL_PORT=587
 EMAIL_SECURE=false
+EMAIL_FROM=notifications@yourdomain.com
+EMAIL_FROM_NAME=Ubora App
 ```
 
 ## How It Works
@@ -88,39 +94,30 @@ Check server logs for email delivery status:
 📧 [Email] ✅ Email sent successfully: <message-id>
 ```
 
-## Alternative Email Providers
+## Provider Examples
 
-If you prefer other email providers, modify `api/email/send.js`:
-
-### SendGrid
-```javascript
-const transporter = nodemailer.createTransporter({
-  service: 'SendGrid',
-  auth: {
-    user: 'apikey',
-    pass: process.env.SENDGRID_API_KEY
-  }
-});
+### Titan (Hostinger Power Titan)
+```bash
+EMAIL_USER=sender@yourdomain.com
+EMAIL_PASSWORD=your-strong-password
+EMAIL_HOST=smtp.titan.email
+EMAIL_PORT=587
+EMAIL_SECURE=false
+EMAIL_FROM=notifications@yourdomain.com
+EMAIL_FROM_NAME=Ubora App
 ```
 
-### Mailgun
-```javascript
-const transporter = nodemailer.createTransporter({
-  service: 'Mailgun',
-  auth: {
-    user: process.env.MAILGUN_USER,
-    pass: process.env.MAILGUN_PASSWORD
-  }
-});
+### Gmail (use App Password; regular password will fail)
+```bash
+EMAIL_USER=youraccount@gmail.com
+EMAIL_PASSWORD=your-gmail-app-password   # 16-char app password from Google
+EMAIL_HOST=smtp.gmail.com
+EMAIL_PORT=587
+EMAIL_SECURE=false
+EMAIL_FROM=youraccount@gmail.com
+EMAIL_FROM_NAME=Ubora App
 ```
 
-### AWS SES
-```javascript
-const transporter = nodemailer.createTransporter({
-  service: 'SES',
-  auth: {
-    user: process.env.AWS_ACCESS_KEY_ID,
-    pass: process.env.AWS_SECRET_ACCESS_KEY
-  }
-});
-```
+Notes:
+- For Gmail, enable 2FA and create an App Password in Google Account > Security.
+- If using port 465, set `EMAIL_SECURE=true` and `EMAIL_PORT=465`.

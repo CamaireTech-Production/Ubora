@@ -74,6 +74,7 @@ jobs:
         username: ${{ secrets.VPS_USERNAME }}
         key: ${{ secrets.VPS_SSH_KEY }}
         port: ${{ secrets.VPS_PORT }}
+        command_timeout: 20m
         script: |
           set -e
           
@@ -245,35 +246,46 @@ jobs:
           # Reload nginx
           systemctl reload nginx
           
-          # Wait for DNS propagation
-          echo "⏳ Waiting for DNS propagation"
-          sleep 30
+          # SSL setup (non-blocking with timeouts)
+          echo "🔧 Setting up SSL (non-blocking)"
+          set +e  # Allow SSL setup to fail without stopping deployment
           
-          # Verify domain resolution
-          if ! nslookup $DOMAIN > /dev/null 2>&1; then
-            echo "⚠️ Domain resolution failed, skipping SSL setup"
-            exit 0
+          # Wait for DNS propagation (quick check)
+          echo "⏳ Checking domain resolution"
+          if timeout 10 nslookup $DOMAIN > /dev/null 2>&1; then
+            echo "✅ Domain resolves correctly"
+            
+            # Install certbot if needed (with timeout)
+            if ! command -v certbot >/dev/null 2>&1; then
+              echo "📦 Installing certbot (max 2 minutes)..."
+              timeout 120 bash -c 'apt-get update -y && apt-get install -y certbot python3-certbot-nginx' || {
+                echo "⚠️ Certbot installation timeout or failed, skipping SSL setup"
+                set -e
+                echo "✅ Production backend deployed successfully (without SSL)"
+                exit 0
+              }
+            fi
+            
+            # Issue or renew certificate with timeout (max 5 minutes)
+            if command -v certbot >/dev/null 2>&1; then
+              echo "🔐 Attempting SSL certificate setup (max 5 minutes)..."
+              timeout 300 certbot --nginx -d $DOMAIN --non-interactive --agree-tos -m admin@ubora-app.com --redirect --no-eff-email || {
+                echo "⚠️ SSL certificate setup failed or timed out, continuing with HTTP-only"
+                echo "🔧 Manual SSL setup: certbot --nginx -d $DOMAIN"
+              }
+            fi
+          else
+            echo "⚠️ Domain resolution failed or timed out, skipping SSL setup"
           fi
           
-          # Install/update SSL certificate
-          echo "🔐 Setting up SSL certificate"
-          if ! command -v certbot >/dev/null 2>&1; then
-            apt-get update -y
-            apt-get install -y certbot python3-certbot-nginx
-          fi
-          
-          # Issue or renew certificate
-          certbot --nginx -d $DOMAIN --non-interactive --agree-tos -m admin@ubora-app.com --redirect || {
-            echo "⚠️ SSL certificate setup failed, continuing with HTTP-only"
-            echo "🔧 Manual SSL setup: certbot --nginx -d $DOMAIN"
-          }
+          set -e  # Re-enable exit on error for final verification
           
           # Final verification
           echo "🧪 Final verification"
           nginx -t && systemctl reload nginx
           
-          # Test both HTTP and HTTPS
-          curl -fsS http://$DOMAIN/health > /dev/null && echo "✅ HTTP working"
-          curl -fsS https://$DOMAIN/health > /dev/null && echo "✅ HTTPS working" || echo "⚠️ HTTPS not working"
+          # Test HTTP (HTTPS is optional)
+          curl -fsS --max-time 5 http://$DOMAIN/health > /dev/null && echo "✅ HTTP working" || echo "⚠️ HTTP health check failed"
+          curl -fsS --max-time 5 https://$DOMAIN/health > /dev/null && echo "✅ HTTPS working" || echo "⚠️ HTTPS not working (non-critical)"
           
           echo "✅ Production backend deployed successfully"
