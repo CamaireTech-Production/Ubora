@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { 
   collection, 
   addDoc, 
@@ -39,6 +39,23 @@ interface ConversationContextType {
 
 const ConversationContext = createContext<ConversationContextType | undefined>(undefined);
 
+// Shallow comparison utilities to prevent unnecessary state updates
+function sameIds(a: {id: string}[], b: {id: string}[]): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (a[i].id !== b[i].id) return false;
+  }
+  return true;
+}
+
+function sameMessages(a: ChatMessage[], b: ChatMessage[]): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (a[i].id !== b[i].id) return false;
+  }
+  return true;
+}
+
 export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user } = useAuth();
   const [currentConversation, setCurrentConversation] = useState<Conversation | null>(null);
@@ -50,6 +67,11 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   const [error, setError] = useState<string | null>(null);
   const [isAddingMessage, setIsAddingMessage] = useState(false);
   const [messagesListener, setMessagesListener] = useState<any>(null);
+
+  // Refs to track previous state and prevent unnecessary updates
+  const lastConversationsRef = useRef<Conversation[]>([]);
+  const lastMessagesRef = useRef<ChatMessage[]>([]);
+  const debounceTimer = useRef<number | null>(null);
 
   // Load conversations list for the director
   useEffect(() => {
@@ -87,7 +109,11 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         } as Conversation;
       });
       
-      setConversations(conversationsData);
+      // Only update if conversations actually changed
+      if (!sameIds(conversationsData, lastConversationsRef.current)) {
+        lastConversationsRef.current = conversationsData;
+        setConversations(conversationsData);
+      }
       setIsLoading(false);
     }, (err) => {
       console.error('Erreur lors du chargement des conversations:', err);
@@ -127,7 +153,7 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     };
   }, [messagesListener]);
 
-  const createConversation = async (title: string): Promise<string> => {
+  const createConversation = useCallback(async (title: string): Promise<string> => {
     if (!user || !user.agencyId || !PermissionManager.canCreateConversations(user)) {
       throw new Error('Seuls les directeurs peuvent créer des conversations');
     }
@@ -173,9 +199,9 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       setError('Erreur lors de la création de la conversation');
       throw err;
     }
-  };
+  }, [user]);
 
-  const addMessage = async (message: ChatMessage): Promise<void> => {
+  const addMessage = useCallback(async (message: ChatMessage): Promise<void> => {
     if (!currentConversation) {
       throw new Error('Aucune conversation active');
     }
@@ -234,9 +260,9 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     } finally {
       setIsAddingMessage(false);
     }
-  };
+  }, [currentConversation]);
 
-  const addMessageToLocalState = (message: ChatMessage): void => {
+  const addMessageToLocalState = useCallback((message: ChatMessage): void => {
     setMessages(prev => {
       // Check if message already exists to prevent duplicates (more aggressive for user messages)
       const exists = prev.some(m => {
@@ -259,9 +285,9 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       
       return sortedMessages;
     });
-  };
+  }, []);
 
-  const replaceOptimisticMessage = (optimisticId: string, realMessage: ChatMessage): void => {
+  const replaceOptimisticMessage = useCallback((optimisticId: string, realMessage: ChatMessage): void => {
     setMessages(prev => {
       return prev.map(msg => {
         // Replace the optimistic message with the real one
@@ -271,9 +297,9 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         return msg;
       });
     });
-  };
+  }, []);
 
-  const loadConversation = async (conversationId: string): Promise<void> => {
+  const loadConversation = useCallback(async (conversationId: string): Promise<void> => {
     if (!user || !PermissionManager.canLoadConversations(user)) {
       throw new Error('Seuls les directeurs peuvent charger des conversations');
     }
@@ -350,10 +376,17 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
         // Simple approach: replace the entire messages array with the unique messages from Firebase
         // This ensures we always have the authoritative state from Firebase
-        setMessages(uniqueMessages);
-        
-        setHasMoreMessages(false);
-        setLastMessageDoc(snapshot.docs[snapshot.docs.length - 1] || null);
+        // Update messages from Firebase with debouncing to prevent rapid updates
+        if (debounceTimer.current) window.clearTimeout(debounceTimer.current);
+        debounceTimer.current = window.setTimeout(() => {
+          // Only update if messages actually changed
+          if (!sameMessages(uniqueMessages, lastMessagesRef.current)) {
+            lastMessagesRef.current = uniqueMessages;
+            setMessages(uniqueMessages);
+          }
+          setHasMoreMessages(false);
+          setLastMessageDoc(snapshot.docs[snapshot.docs.length - 1] || null);
+        }, 50);
 
         // Debug: compare expected vs loaded counts, and first/last timestamps
         try {
@@ -383,9 +416,9 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       setIsLoading(false);
       throw err;
     }
-  };
+  }, [user]);
 
-  const loadMoreMessages = async (): Promise<void> => {
+  const loadMoreMessages = useCallback(async (): Promise<void> => {
     if (!currentConversation || !hasMoreMessages || isLoading) {
       return;
     }
@@ -443,14 +476,14 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       setError('Erreur lors du chargement des messages supplémentaires');
       setIsLoading(false);
     }
-  };
+  }, [currentConversation, hasMoreMessages, isLoading, lastMessageDoc]);
 
-  const createNewConversation = async (): Promise<string> => {
+  const createNewConversation = useCallback(async (): Promise<string> => {
     const title = `Conversation ${new Date().toLocaleDateString('fr-FR')}`;
     return await createConversation(title);
-  };
+  }, [createConversation]);
 
-  const updateConversationTitle = async (conversationId: string, title: string): Promise<void> => {
+  const updateConversationTitle = useCallback(async (conversationId: string, title: string): Promise<void> => {
     try {
       setError(null);
       
@@ -482,9 +515,9 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       setError('Erreur lors de la mise à jour du titre');
       throw err;
     }
-  };
+  }, [currentConversation]);
 
-  const triggerAutoLoad = async (): Promise<void> => {
+  const triggerAutoLoad = useCallback(async (): Promise<void> => {
     // Only auto-load if we have conversations, no current conversation, not loading, and not adding a message
     if (conversations.length > 0 && !currentConversation && !isLoading && !isAddingMessage) {
       try {
@@ -497,26 +530,45 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         console.error('Error auto-loading recent conversation:', error);
       }
     }
-  };
+  }, [conversations, currentConversation, isLoading, isAddingMessage, loadConversation]);
+
+  // Memoize provider value to prevent unnecessary re-renders
+  const value = useMemo(() => ({
+    currentConversation,
+    conversations,
+    messages,
+    isLoading,
+    hasMoreMessages,
+    createConversation,
+    addMessage,
+    addMessageToLocalState,
+    replaceOptimisticMessage,
+    loadMoreMessages,
+    loadConversation,
+    createNewConversation,
+    updateConversationTitle,
+    triggerAutoLoad,
+    error
+  }), [
+    currentConversation,
+    conversations,
+    messages,
+    isLoading,
+    hasMoreMessages,
+    createConversation,
+    addMessage,
+    addMessageToLocalState,
+    replaceOptimisticMessage,
+    loadMoreMessages,
+    loadConversation,
+    createNewConversation,
+    updateConversationTitle,
+    triggerAutoLoad,
+    error
+  ]);
 
   return (
-    <ConversationContext.Provider value={{
-      currentConversation,
-      conversations,
-      messages,
-      isLoading,
-      hasMoreMessages,
-      createConversation,
-      addMessage,
-      addMessageToLocalState,
-      replaceOptimisticMessage,
-      loadMoreMessages,
-      loadConversation,
-      createNewConversation,
-      updateConversationTitle,
-      triggerAutoLoad,
-      error
-    }}>
+    <ConversationContext.Provider value={value}>
       {children}
     </ConversationContext.Provider>
   );

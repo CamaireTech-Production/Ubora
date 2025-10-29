@@ -1,9 +1,9 @@
-const pdfParse = require('pdf-parse');
-const crypto = require('crypto');
+import pdfParse from 'pdf-parse/lib/pdf-parse.js';
+import crypto from 'crypto';
 
 // Simple PDF text extraction endpoint - only extraction, no background processing
 
-module.exports = async function handler(req, res) {
+export default async function handler(req, res) {
   try {
     // CORS headers
     const corsOrigins = process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',') : ['*'];

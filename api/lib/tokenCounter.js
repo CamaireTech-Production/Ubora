@@ -117,4 +117,4 @@ class TokenCounter {
   }
 }
 
-module.exports = { TokenCounter };
+export { TokenCounter };

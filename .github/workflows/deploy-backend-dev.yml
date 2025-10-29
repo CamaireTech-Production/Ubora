@@ -24,13 +24,13 @@ jobs:
       
     - name: Create environment file for backend
       run: |
-        cat > .env << EOF
+        cat > .env.local << EOF
         # Development Backend Environment Variables
         
         # Firebase Configuration
         FIREBASE_PROJECT_ID=${{ secrets.FIREBASE_PROJECT_ID }}
         FIREBASE_CLIENT_EMAIL=${{ secrets.FIREBASE_CLIENT_EMAIL }}
-        FIREBASE_PRIVATE_KEY=${{ secrets.FIREBASE_PRIVATE_KEY }}
+        FIREBASE_PRIVATE_KEY="${{ secrets.FIREBASE_PRIVATE_KEY }}"
         
         # OpenAI Configuration
         OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
@@ -55,7 +55,7 @@ jobs:
           package.json \
           package-lock.json \
           ecosystem.config.js \
-          .env \
+          .env.local \
           VERSION
 
     - name: Upload artifact to VPS

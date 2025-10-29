@@ -1,7 +1,14 @@
-const { adminAuth, adminDb } = require('../lib/firebaseAdmin.js');
-const admin = require('firebase-admin');
-const OpenAI = require('openai');
-const { TokenCounter } = require('../lib/tokenCounter.js');
+import dotenv from 'dotenv';
+import path from 'path';
+const loadedLocalEnv = dotenv.config({ path: path.join(process.cwd(), '.env.local') });
+if (!loadedLocalEnv || !loadedLocalEnv.parsed) {
+  dotenv.config({ path: path.join(process.cwd(), '.env') });
+}
+
+import { adminAuth, adminDb } from '../lib/firebaseAdmin.js';
+import admin from 'firebase-admin';
+import OpenAI from 'openai';
+import { TokenCounter } from '../lib/tokenCounter.js';
 
 // Configuration OpenAI
 const openai = new OpenAI({
@@ -501,7 +508,7 @@ async function loadAndAggregateData(
   
 }
 
-module.exports = async function handler(req, res) {
+export default async function handler(req, res) {
   
   try {
     const startTime = Date.now(); // Track response time

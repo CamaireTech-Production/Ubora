@@ -28,7 +28,7 @@ interface DirectorPackageOverviewProps {
   className?: string;
 }
 
-export const DirectorPackageOverview: React.FC<DirectorPackageOverviewProps> = ({ 
+const DirectorPackageOverviewComponent: React.FC<DirectorPackageOverviewProps> = ({ 
   className = '' 
 }) => {
   const navigate = useNavigate();
@@ -463,3 +463,6 @@ export const DirectorPackageOverview: React.FC<DirectorPackageOverviewProps> = (
     </div>
   );
 };
+
+// Memoize to minimize re-renders cascading into the form tree
+export const DirectorPackageOverview = React.memo(DirectorPackageOverviewComponent);

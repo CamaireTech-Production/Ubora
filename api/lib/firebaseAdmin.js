@@ -1,6 +1,15 @@
-const admin = require('firebase-admin');
+import dotenv from 'dotenv';
+import path from 'path';
+const loadedLocalEnv = dotenv.config({ path: path.join(process.cwd(), '.env.local') });
+if (!loadedLocalEnv || !loadedLocalEnv.parsed) {
+  dotenv.config({ path: path.join(process.cwd(), '.env') });
+}
 
-// Initialisation idempotente de Firebase Admin
+import admin from 'firebase-admin';
+
+let mockAdmin = null;
+
+// Initialize Firebase Admin if not already initialized
 if (!admin.apps.length) {
   console.log('🔧 Initializing Firebase Admin SDK...');
   
@@ -22,7 +31,7 @@ if (!admin.apps.length) {
       console.warn('⚠️ To fix: Set proper FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, and FIREBASE_PRIVATE_KEY in your .env.local file');
       
       // Create a mock admin object for development
-      const mockAdmin = {
+      mockAdmin = {
         auth: () => ({
           verifyIdToken: () => Promise.reject(new Error('Firebase not configured')),
           createCustomToken: () => Promise.reject(new Error('Firebase not configured'))
@@ -36,97 +45,66 @@ if (!admin.apps.length) {
           })
         })
       };
-      
-      module.exports = {
-        admin: mockAdmin,
-        adminAuth: mockAdmin.auth(),
-        adminDb: mockAdmin.firestore()
-      };
-      return;
     } else {
       throw new Error('Variables d\'environnement Firebase Admin manquantes. Vérifiez FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, et FIREBASE_PRIVATE_KEY.');
     }
-  }
+  } else {
+    // Nettoyer et formater la clé privée
+    let cleanPrivateKey = privateKey;
+    if (cleanPrivateKey && !cleanPrivateKey.includes('\\n')) {
+      cleanPrivateKey = cleanPrivateKey.replace(/\\n/g, '\n');
+    }
 
-  // Nettoyer et formater la clé privée
-  let cleanPrivateKey = privateKey;
-  
-  // Remplacer les \n par de vrais retours à la ligne
-  if (cleanPrivateKey.includes('\\n')) {
-    cleanPrivateKey = cleanPrivateKey.replace(/\\n/g, '\n');
-  }
-  
-  // Nettoyer les espaces et caractères indésirables
-  cleanPrivateKey = cleanPrivateKey.trim();
-  
-  // S'assurer que la clé commence et finit correctement
-  if (!cleanPrivateKey.startsWith('-----BEGIN PRIVATE KEY-----')) {
-    cleanPrivateKey = '-----BEGIN PRIVATE KEY-----\n' + cleanPrivateKey;
-  }
-  if (!cleanPrivateKey.endsWith('-----END PRIVATE KEY-----')) {
-    cleanPrivateKey = cleanPrivateKey + '\n-----END PRIVATE KEY-----';
-  }
-  
-  // S'assurer qu'il y a un retour à la ligne final
-  if (!cleanPrivateKey.endsWith('\n')) {
-    cleanPrivateKey = cleanPrivateKey + '\n';
-  }
-  
-  console.log('🔍 Private key format check:', {
-    startsWithBegin: cleanPrivateKey.startsWith('-----BEGIN PRIVATE KEY-----'),
-    endsWithEnd: cleanPrivateKey.endsWith('-----END PRIVATE KEY-----\n'),
-    length: cleanPrivateKey.length,
-    hasNewlines: cleanPrivateKey.includes('\n')
-  });
+    const serviceAccount = {
+      type: "service_account",
+      project_id: projectId,
+      private_key_id: process.env.FIREBASE_PRIVATE_KEY_ID || "49cf718bd7049b5fcc3e2e6fbc583ebcec3b373d",
+      private_key: cleanPrivateKey,
+      client_email: clientEmail,
+      client_id: process.env.FIREBASE_CLIENT_ID || "113149690446202662127",
+      auth_uri: "https://accounts.google.com/o/oauth2/auth",
+      token_uri: "https://oauth2.googleapis.com/token",
+      auth_provider_x509_cert_url: "https://www.googleapis.com/oauth2/v1/certs",
+      client_x509_cert_url: `https://www.googleapis.com/robot/v1/metadata/x509/${encodeURIComponent(clientEmail)}`,
+      universe_domain: "googleapis.com"
+    };
 
-  const serviceAccount = {
-    projectId: projectId,
-    clientEmail: clientEmail,
-    privateKey: cleanPrivateKey,
-  };
-
-  try {
-    admin.initializeApp({
-      credential: admin.credential.cert(serviceAccount),
-      projectId: projectId
-    });
-    console.log('✅ Firebase Admin SDK initialized successfully');
-  } catch (error) {
-    console.error('❌ Firebase Admin SDK initialization failed:', error);
-    
-    // In development, provide a fallback instead of crashing
-    if (process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'dev' || !process.env.NODE_ENV) {
-      console.warn('⚠️ Using mock Firebase Admin in development mode due to initialization error');
+    try {
+      admin.initializeApp({
+        credential: admin.credential.cert(serviceAccount),
+        projectId: projectId
+      });
+      console.log('✅ Firebase Admin SDK initialized successfully');
+    } catch (error) {
+      console.error('❌ Firebase Admin SDK initialization failed:', error);
       
-      const mockAdmin = {
-        auth: () => ({
-          verifyIdToken: () => Promise.reject(new Error('Firebase not configured')),
-          createCustomToken: () => Promise.reject(new Error('Firebase not configured'))
-        }),
-        firestore: () => ({
-          collection: () => ({
-            doc: () => ({
-              get: () => Promise.reject(new Error('Firebase not configured')),
-              set: () => Promise.reject(new Error('Firebase not configured'))
+      // In development, provide a fallback instead of crashing
+      if (process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'dev' || !process.env.NODE_ENV) {
+        console.warn('⚠️ Using mock Firebase Admin in development mode due to initialization error');
+        
+        mockAdmin = {
+          auth: () => ({
+            verifyIdToken: () => Promise.reject(new Error('Firebase not configured')),
+            createCustomToken: () => Promise.reject(new Error('Firebase not configured'))
+          }),
+          firestore: () => ({
+            collection: () => ({
+              doc: () => ({
+                get: () => Promise.reject(new Error('Firebase not configured')),
+                set: () => Promise.reject(new Error('Firebase not configured'))
+              })
             })
           })
-        })
-      };
-      
-      module.exports = {
-        admin: mockAdmin,
-        adminAuth: mockAdmin.auth(),
-        adminDb: mockAdmin.firestore()
-      };
-      return;
-    } else {
-      throw error;
+        };
+      } else {
+        throw error;
+      }
     }
   }
 }
 
-// Export des services
-const adminAuth = admin.auth();
-const adminDb = admin.firestore();
+// Export des services - use mock if available, otherwise use real admin
+const adminAuth = mockAdmin ? mockAdmin.auth() : admin.auth();
+const adminDb = mockAdmin ? mockAdmin.firestore() : admin.firestore();
 
-module.exports = { adminAuth, adminDb, admin };
+export { adminAuth, adminDb, admin };

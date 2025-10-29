@@ -3,13 +3,16 @@ import { getFirestore, Timestamp } from 'firebase-admin/firestore';
 
 // Initialize Firebase Admin if not already initialized
 if (!admin.apps.length) {
+  console.log('🔧 Initializing Firebase Admin SDK...');
+  
+  // Use environment variables instead of hardcoded values
   const serviceAccount = {
     type: "service_account",
-    project_id: "studio-gpnfx",
-    private_key_id: "49cf718bd7049b5fcc3e2e6fbc583ebcec3b373d",
-    private_key: "-----BEGIN PRIVATE KEY-----\nMIIEvAIBADANBgkqhkiG9w0BAQEFAASCBKYwggSiAgEAAoIBAQDNUG4k1NBeeCb8\nZ5+S5SAJujgqP85D12CkQqbeP44r9oP3ZyfVZgAuz0YFF0so//kgsn6vaJEqk+vy\nJux5Lb+0QNfsQrTMYkKbQP+pc8KX9VRTz1PUa47h5MgemSMdp/eTaqhdsO6dKbIe\n5Nu0UjlYHXBJ9uPOYzOVZ+Sv0hMuPYyucLHrTiqwG91aCGXxKwSW9Ojipghr4KKG\nqSlUIzt5d20nLPOWz7d9pNac4gLVw0VlZk02ep+xclRnkjDc+qWKbcgr90/Zx4Cx\n+aSIx6d4IOVBaa8cWrAUoE2IUJ/yFk0joMoxN+Iz7gzDwuKbx4eAMyR4SSIRU42J\nXW4dTMIFAgMBAAECggEAVd+FIgyM1mZkz/87ZAJHYyorIaisSf3EYw+poZ1thn/F\n9G2F4KCYBPwWqjxy6EQf3AgsKouO5AMYlaCoGYsD+o2AgkXoPu/+Mdd+104entYy\nnhdCVb9i9KJu/TVJ1baSO2tJ3l4Jf1yYLonERuh5KZyugZEs+P7O7XeV0+AGu7is\nlZGj5AZhEFpwOBUNU5m9SGDqliq5X1iFhoBmFZ+V6QKUHyq/gWqUDx6baBLjGUdd\nWRjJHAVzY1Xjf0jHWs8RvkzMCskolzV5K0IP79REHTDjefeN4CuURy1KcxFHl3jR\nP7OZj2fgEz0gqAAganIDFI1D6onN4IB7Bk4NtB/gJQKBgQDyC55AYsYYvM7SMc/n\nPJ28lY4Vd5NSyQLf3BgkcpBFRcl8fqEQNaP+F53qa7bLCJJTWkglpur6B2LixlfW\nCkxUIzl4gGOeUQqp3/KzKHTPAAi3t6vAxLajZlugl7uLOBjY+UWkGu/yK+ekaQM9\nCkM8hA/ME2f0dPyF2nDo/XNeiwKBgQDZJrDrnrgevQjq0c0sTGPOnAMLgAStRHvu\nqeBGwEq1MdXFYeLqPhBDHnG1pdxftPXvD1QdfEeP/V+wV3kIx+sHGJl/39Qabg38\nJJDa0EDglKnT32R7A4IM3EcbdTjLA3yVSYNvpxyVi4LC+QFfexkxre/Oe3ItMATs\nVJfjFeqDrwKBgDNiZgkzLuzngFy9OG7VvoLfmRdTmFIV3Gdb2UA7lgcuxpSIaXcA\nfD0gFGVE0ryNqErLus9LfUzxLnwIMXN+IjAmfjfnwb5FZCcmJOcF6q5bSn5+HpdA\n66kKvN7991GZ6iR93tv03/1H7AhKRua5fAan3pardAFAqK9d7WR5Efn7AoGAIGUu\nRahjDWrkFqv/8Njglt8lySRrDjJGTt+W7tcnDgsGOjEVOh7SLEExdLp2uuxzOBvQ\nT6nHv0psaRFTpCS3AlMAK1yH9v1uJqyJ06r30sk64LnV8qgeUa7XCNifBWJaxqa1\n7gU/NWwfsNiXBNiHdKrfOK2f5e/g/CTOl/kgCE8CgYBo9fOsnIwlHikxgqpwq+j/\ngiFQUXcDeds6ke2FVu4Bw+jmw5WiDOYz9nUIRVfQQBYCZq/wuGg336xtvRd6bagl\nhEwBb1Bxs0PXOb9OJXfeN0t+i4QHTN+2Yt4fddvksO7kJeNbWCFmho+ebaKBsfey\nkW7wgMnKrF694aVMXaToiw==\n-----END PRIVATE KEY-----\n",
-    client_email: "firebase-adminsdk-fbsvc@studio-gpnfx.iam.gserviceaccount.com",
-    client_id: "113149690446202662127",
+    project_id: process.env.FIREBASE_PROJECT_ID || "studio-gpnfx",
+    private_key_id: process.env.FIREBASE_PRIVATE_KEY_ID || "49cf718bd7049b5fcc3e2e6fbc583ebcec3b373d",
+    private_key: process.env.FIREBASE_PRIVATE_KEY || "-----BEGIN PRIVATE KEY-----\nMIIEvAIBADANBgkqhkiG9w0BAQEFAASCBKYwggSiAgEAAoIBAQDNUG4k1NBeeCb8\nZ5+S5SAJujgqP85D12CkQqbeP44r9oP3ZyfVZgAuz0YFF0so//kgsn6vaJEqk+vy\nJux5Lb+0QNfsQrTMYkKbQP+pc8KX9VRTz1PUa47h5MgemSMdp/eTaqhdsO6dKbIe\n5Nu0UjlYHXBJ9uPOYzOVZ+Sv0hMuPYyucLHrTiqwG91aCGXxKwSW9Ojipghr4KKG\nqSlUIzt5d20nLPOWz7d9pNac4gLVw0VlZk02ep+xclRnkjDc+qWKbcgr90/Zx4Cx\n+aSIx6d4IOVBaa8cWrAUoE2IUJ/yFk0joMoxN+Iz7gzDwuKbx4eAMyR4SSIRU42J\nXW4dTMIFAgMBAAECggEAVd+FIgyM1mZkz/87ZAJHYyorIaisSf3EYw+poZ1thn/F\n9G2F4KCYBPwWqjxy6EQf3AgsKouO5AMYlaCoGYsD+o2AgkXoPu/+Mdd+104entYy\nnhdCVb9i9KJu/TVJ1baSO2tJ3l4Jf1yYLonERuh5KZyugZEs+P7O7XeV0+AGu7is\nlZGj5AZhEFpwOBUNU5m9SGDqliq5X1iFhoBmFZ+V6QKUHyq/gWqUDx6baBLjGUdd\nWRjJHAVzY1Xjf0jHWs8RvkzMCskolzV5K0IP79REHTDjefeN4CuURy1KcxFHl3jR\nP7OZj2fgEz0gqAAganIDFI1D6onN4IB7Bk4NtB/gJQKBgQDyC55AYsYYvM7SMc/n\nPJ28lY4Vd5NSyQLf3BgkcpBFRcl8fqEQNaP+F53qa7bLCJJTWkglpur6B2LixlfW\nCkxUIzl4gGOeUQqp3/KzKHTPAAi3t6vAxLajZlugl7uLOBjY+UWkGu/yK+ekaQM9\nCkM8hA/ME2f0dPyF2nDo/XNeiwKBgQDZJrDrnrgevQjq0c0sTGPOnAMLgAStRHvu\nqeBGwEq1MdXFYeLqPhBDHnG1pdxftPXvD1QdfEeP/V+wV3kIx+sHGJl/39Qabg38\nJJDa0EDglKnT32R7A4IM3EcbdTjLA3yVSYNvpxyVi4LC+QFfexkxre/Oe3ItMATs\nVJfjFeqDrwKBgDNiZgkzLuzngFy9OG7VvoLfmRdTmFIV3Gdb2UA7lgcuxpSIaXcA\nfD0gFGVE0ryNqErLus9LfUzxLnwIMXN+IjAmfjfnwb5FZCcmJOcF6q5bSn5+HpdA\n66kKvN7991GZ6iR93tv03/1H7AhKRua5fAan3pardAFAqK9d7WR5Efn7AoGAIGUu\nRahjDWrkFqv/8Njglt8lySRrDjJGTt+W7tcnDgsGOjEVOh7SLEExdLp2uuxzOBvQ\nT6nHv0psaRFTpCS3AlMAK1yH9v1uJqyJ06r30sk64LnV8qgeUa7XCNifBWJaxqa1\n7gU/NWwfsNiXBNiHdKrfOK2f5e/g/CTOl/kgCE8CgYBo9fOsnIwlHikxgqpwq+j/\ngiFQUXcDeds6ke2FVu4Bw+jmw5WiDOYz9nUIRVfQQBYCZq/wuGg336xtvRd6bagl\nhEwBb1Bxs0PXOb9OJXfeN0t+i4QHTN+2Yt4fddvksO7kJeNbWCFmho+ebaKBsfey\nkW7wgMnKrF694aVMXaToiw==\n-----END PRIVATE KEY-----\n",
+    client_email: process.env.FIREBASE_CLIENT_EMAIL || "firebase-adminsdk-fbsvc@studio-gpnfx.iam.gserviceaccount.com",
+    client_id: process.env.FIREBASE_CLIENT_ID || "113149690446202662127",
     auth_uri: "https://accounts.google.com/o/oauth2/auth",
     token_uri: "https://oauth2.googleapis.com/token",
     auth_provider_x509_cert_url: "https://www.googleapis.com/oauth2/v1/certs",
@@ -19,7 +22,7 @@ if (!admin.apps.length) {
 
   admin.initializeApp({
     credential: admin.credential.cert(serviceAccount),
-    projectId: "studio-gpnfx"
+    projectId: process.env.FIREBASE_PROJECT_ID || "studio-gpnfx"
   });
 }
 
@@ -209,8 +212,8 @@ async function processFormReminders(now, oneMinuteFromNow) {
                   body: notificationData.body,
                   type: notificationData.type,
                   recipientId: userId,
-                  recipientRole: user.role,
-                  agencyId: user.agencyId,
+                  recipientRole: userData?.role || 'employee',
+                  agencyId: userData?.agencyId || 'unknown',
                   data: notificationData.data,
                   redirectUrl: notificationData.redirectUrl,
                   read: false,
@@ -218,7 +221,7 @@ async function processFormReminders(now, oneMinuteFromNow) {
                   createdAt: admin.firestore.FieldValue.serverTimestamp(),
                   sentAt: admin.firestore.FieldValue.serverTimestamp(),
                   fcmToken: fcmToken,
-                  emailAddress: user.email
+                  emailAddress: userData?.email
                 };
 
                 await db.collection('notifications').add(notificationDoc);
@@ -233,15 +236,15 @@ async function processFormReminders(now, oneMinuteFromNow) {
                   body: notificationData.body,
                   type: notificationData.type,
                   recipientId: userId,
-                  recipientRole: user.role,
-                  agencyId: user.agencyId,
+                  recipientRole: userData?.role || 'employee',
+                  agencyId: userData?.agencyId || 'unknown',
                   data: notificationData.data,
                   redirectUrl: notificationData.redirectUrl,
                   read: false,
                   status: 'sent',
                   createdAt: admin.firestore.FieldValue.serverTimestamp(),
                   sentAt: admin.firestore.FieldValue.serverTimestamp(),
-                  emailAddress: user.email
+                  emailAddress: userData?.email
                 };
 
                 await db.collection('notifications').add(notificationDoc);
@@ -291,22 +294,22 @@ async function processMetricReminders(now, oneMinuteFromNow) {
 
         // Store notification in Firestore - frontend unified service will handle delivery
         const notificationDoc = {
-          title: `Rappel métrique: ${reminder.metricName}`,
-          body: `Valeur ${reminder.frequency}: ${reminder.lastValue}`,
+          title: `Rappel métrique: ${reminder.metricName || 'Métrique'}`,
+          body: `Valeur ${reminder.frequency || 'daily'}: ${reminder.lastValue || 'N/A'}`,
           type: 'metric_reminder',
           recipientId: reminder.directorId,
           recipientRole: 'directeur',
           agencyId: userData?.agencyId || 'unknown',
           data: {
-            dashboardId: reminder.dashboardId,
-            metricId: reminder.metricId,
-            frequency: reminder.frequency,
-            metricName: reminder.metricName,
-            lastValue: reminder.lastValue,
-            redirectUrl: `/directeur/dashboards/${reminder.dashboardId}`,
+            dashboardId: reminder.dashboardId || '',
+            metricId: reminder.metricId || '',
+            frequency: reminder.frequency || 'daily',
+            metricName: reminder.metricName || 'Métrique',
+            lastValue: reminder.lastValue || 'N/A',
+            redirectUrl: `/directeur/dashboards/${reminder.dashboardId || ''}`,
             timestamp: now.getTime().toString()
           },
-          redirectUrl: `/directeur/dashboards/${reminder.dashboardId}`,
+          redirectUrl: `/directeur/dashboards/${reminder.dashboardId || ''}`,
           read: false,
           status: 'sent',
           createdAt: admin.firestore.FieldValue.serverTimestamp(),

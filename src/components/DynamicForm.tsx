@@ -8,6 +8,7 @@ import { Card } from './Card';
 import { FileInput } from './FileInput';
 import { FileUploadService, UploadProgress } from '../services/fileUploadService';
 import { useAuth } from '../contexts/AuthContext';
+import { useFormDraft } from '../hooks/useFormDraft';
 import { db, auth } from '../firebaseConfig';
 import { doc, getDoc } from 'firebase/firestore';
 import { CheckCircle, Clock, AlertTriangle, Loader2, Calculator, Trash2 } from 'lucide-react';
@@ -76,6 +77,18 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
     fileName?: string;
     text: string;
   }>({ isOpen: false, fieldId: null, fileName: undefined, text: '' });
+
+  // Draft persistence to avoid data loss on re-mounts
+  const { loadDraft, saveDraftDebounced } = useFormDraft<Record<string, unknown>>(form.id, user?.uid);
+
+  // Hydrate from local draft on mount
+  useEffect(() => {
+    const draft = loadDraft();
+    if (draft && Object.keys(draft).length > 0) {
+      setAnswers(prev => ({ ...prev, ...draft }));
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   
   // Function to update visible fields based on conditional logic
   const updateVisibleFields = useCallback((currentAnswers: Record<string, unknown>) => {
@@ -180,6 +193,8 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
         }
       });
       
+      // Persist draft (debounced) to survive possible re-mounts
+      saveDraftDebounced(cleanedAnswers as Record<string, unknown>);
       return cleanedAnswers;
     });
     

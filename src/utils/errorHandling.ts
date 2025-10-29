@@ -215,7 +215,8 @@ export const enhancedFetch = {
     try {
       const { timeout, ...init } = options as any;
       const response = await EnhancedErrorHandler.fetchWithRetry(url, init, {
-        timeout: typeof timeout === 'number' ? timeout : 30000 // OCR requests can take longer
+        // Increase default timeout to reduce false timeouts on large files
+        timeout: typeof timeout === 'number' ? timeout : 60000
       });
 
       return response;

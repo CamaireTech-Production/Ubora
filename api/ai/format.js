@@ -1,5 +1,5 @@
-const { adminDb, admin } = require('../lib/firebaseAdmin');
-const OpenAI = require('openai');
+import { adminDb, admin } from '../lib/firebaseAdmin.js';
+import OpenAI from 'openai';
 
 // Initialize OpenAI
 const openai = new OpenAI({
@@ -278,4 +278,4 @@ async function updateFormEntryWithFormattedText(submissionId, formattedText, fil
   }
 }
 
-module.exports = formatHandler;
+export default formatHandler;

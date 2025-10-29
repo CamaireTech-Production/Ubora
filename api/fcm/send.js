@@ -1,4 +1,4 @@
-const admin = require('firebase-admin');
+import admin from 'firebase-admin';
 
 // Initialize Firebase Admin if not already initialized
 if (!admin.apps.length) {
@@ -26,7 +26,7 @@ if (!admin.apps.length) {
  * FCM Send API Endpoint
  * POST /api/fcm/send
  */
-module.exports = async (req, res) => {
+export default async (req, res) => {
   console.log('🔔 [FCM API] ===== FCM API REQUEST RECEIVED =====');
   console.log('🔔 [FCM API] Request method:', req.method);
   console.log('🔔 [FCM API] Request headers:', req.headers);

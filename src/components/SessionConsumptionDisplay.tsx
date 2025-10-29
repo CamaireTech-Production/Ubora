@@ -18,7 +18,7 @@ interface SessionConsumptionDisplayProps {
   className?: string;
 }
 
-export const SessionConsumptionDisplay: React.FC<SessionConsumptionDisplayProps> = ({
+const SessionConsumptionDisplayComponent: React.FC<SessionConsumptionDisplayProps> = ({
   user,
   showAllSessions = false,
   className = ''
@@ -225,3 +225,6 @@ export const SessionConsumptionDisplay: React.FC<SessionConsumptionDisplayProps>
     </div>
   );
 };
+
+// Memoize to avoid unnecessary re-renders of the form subtree when session data updates
+export const SessionConsumptionDisplay = React.memo(SessionConsumptionDisplayComponent);

@@ -4,12 +4,13 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 
-// Load environment variables from .env.local (if it exists)
-try {
-  dotenv.config({ path: '.env.local' });
-  console.log('✅ Loaded .env.local file');
-} catch (error) {
-  console.log('ℹ️  No .env.local file found, using system environment variables');
+// Prefer .env.local at project root; fallback to .env
+const loadedLocal = dotenv.config({ path: path.join(process.cwd(), '.env.local') });
+if (loadedLocal && loadedLocal.parsed) {
+  console.log('✅ Loaded .env.local');
+} else {
+  const loaded = dotenv.config({ path: path.join(process.cwd(), '.env') });
+  console.log(loaded && loaded.parsed ? '✅ Loaded .env' : 'ℹ️  No .env(.local) found, using system environment variables');
 }
 
 // Debug: Show which environment variables are loaded
@@ -22,7 +23,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 
 // Middleware - CORS configuration for development
 const corsOrigins = [
@@ -99,17 +100,15 @@ app.options('*', (req, res) => {
 app.use(express.json({ limit: '50mb' })); // Increase payload limit for large images
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
-// Import the AI handlers (CommonJS modules)
-import { createRequire } from 'module';
-const require = createRequire(import.meta.url);
-
-const askHandler = require('../api/ai/ask.js');
-const healthHandler = require('../api/ai/health.js');
+// Import the AI handlers (ES modules)
+import askHandler from '../api/ai/ask.js';
+import healthHandler from '../api/ai/health.js';
 
 console.log('🔄 Loading format handler...');
 let formatHandler;
 try {
-  formatHandler = require('../api/ai/format.js');
+  formatHandler = await import('../api/ai/format.js');
+  formatHandler = formatHandler.default;
   console.log('✅ Format handler loaded successfully:', typeof formatHandler);
 } catch (error) {
   console.error('❌ Failed to load format handler:', error);
@@ -117,15 +116,15 @@ try {
 }
 
 // OCR handlers
-const ocrExtractHandler = require('../api/ocr/extractText.js');
-const ocrPdfExtractHandler = require('../api/ocr/extractPdfText.js');
-const ocrHealthHandler = require('../api/ocr/health.js');
+import ocrExtractHandler from '../api/ocr/extractText.js';
+import ocrPdfExtractHandler from '../api/ocr/extractPdfText.js';
+import ocrHealthHandler from '../api/ocr/health.js';
 
 // File download handler
-const { downloadHandler } = require('../api/files/download.js');
+import { downloadHandler } from '../api/files/download.js';
 
 // FCM handler
-const fcmSendHandler = require('../api/fcm/send.js');
+import fcmSendHandler from '../api/fcm/send.js';
 // Cron job handler
 import cronNotificationsHandler from '../api/cron/notifications.js';
 import emailSendHandler from '../api/email/send.js';
