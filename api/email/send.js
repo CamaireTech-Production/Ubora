@@ -70,8 +70,20 @@ export default async (req, res) => {
     const transporter = createTransporter();
 
     // Verify connection configuration
-    await transporter.verify();
-    console.log('📧 [Email] SMTP connection verified');
+    try {
+      await transporter.verify();
+      console.log('📧 [Email] SMTP connection verified');
+    } catch (verifyErr) {
+      // Provide better error messages for verification failures
+      if (verifyErr.message.includes('Invalid login') || verifyErr.message.includes('BadCredentials')) {
+        if (process.env.EMAIL_HOST === 'smtp.gmail.com' || process.env.EMAIL_USER?.endsWith('@gmail.com')) {
+          throw new Error('Gmail authentication failed: You must use a Gmail App Password, not your regular password. Enable 2FA in Google Account settings, then generate an App Password.');
+        } else {
+          throw new Error('SMTP authentication failed: Check your EMAIL_USER and EMAIL_PASSWORD in .env.local');
+        }
+      }
+      throw verifyErr;
+    }
 
     // Email options
     const fromName = process.env.EMAIL_FROM_NAME || 'Ubora App';
@@ -98,10 +110,29 @@ export default async (req, res) => {
 
   } catch (err) {
     console.error('📧 [Email] ❌ Error sending email:', err);
+    
+    // Provide helpful error messages for common issues
+    let errorMessage = 'Email send failed';
+    let helpfulTip = '';
+    
+    if (err.message.includes('Invalid login') || err.message.includes('BadCredentials')) {
+      if (process.env.EMAIL_HOST === 'smtp.gmail.com' || process.env.EMAIL_USER?.endsWith('@gmail.com')) {
+        errorMessage = 'Gmail authentication failed';
+        helpfulTip = 'Gmail requires an App Password, not your regular password. See EMAIL_SETUP_GUIDE.md for instructions.';
+      } else {
+        errorMessage = 'SMTP authentication failed';
+        helpfulTip = 'Check your EMAIL_USER and EMAIL_PASSWORD in .env.local';
+      }
+    } else if (err.message.includes('ECONNREFUSED') || err.message.includes('ETIMEDOUT')) {
+      errorMessage = 'SMTP connection failed';
+      helpfulTip = `Check EMAIL_HOST (${process.env.EMAIL_HOST || 'not set'}) and EMAIL_PORT (${process.env.EMAIL_PORT || 'not set'}) settings`;
+    }
+    
     return res.status(500).json({ 
       success: false, 
-      error: 'Email send failed', 
-      details: err.message 
+      error: errorMessage,
+      details: err.message,
+      tip: helpfulTip
     });
   }
 };

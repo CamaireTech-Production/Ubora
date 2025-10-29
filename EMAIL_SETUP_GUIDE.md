@@ -107,17 +107,45 @@ EMAIL_FROM=notifications@yourdomain.com
 EMAIL_FROM_NAME=Ubora App
 ```
 
-### Gmail (use App Password; regular password will fail)
+### Gmail (REQUIRES App Password - regular password will NOT work)
 ```bash
-EMAIL_USER=youraccount@gmail.com
-EMAIL_PASSWORD=your-gmail-app-password   # 16-char app password from Google
+EMAIL_USER=uboraarcha@gmail.com
+EMAIL_PASSWORD=xxxx xxxx xxxx xxxx   # 16-character App Password (no spaces in .env)
 EMAIL_HOST=smtp.gmail.com
 EMAIL_PORT=587
 EMAIL_SECURE=false
-EMAIL_FROM=youraccount@gmail.com
+EMAIL_FROM=uboraarcha@gmail.com
 EMAIL_FROM_NAME=Ubora App
 ```
 
-Notes:
-- For Gmail, enable 2FA and create an App Password in Google Account > Security.
-- If using port 465, set `EMAIL_SECURE=true` and `EMAIL_PORT=465`.
+**⚠️ IMPORTANT: Gmail App Password Setup (Required)**
+
+Gmail does NOT accept regular passwords for SMTP. You MUST use an App Password:
+
+1. **Enable 2-Step Verification** (required):
+   - Go to: https://myaccount.google.com/security
+   - Enable "2-Step Verification" if not already enabled
+
+2. **Generate App Password**:
+   - Go to: https://myaccount.google.com/apppasswords
+   - Select "Mail" as the app
+   - Select "Other (Custom name)" as device, enter "Ubora SMTP"
+   - Click "Generate"
+   - Copy the 16-character password (it will look like: `abcd efgh ijkl mnop`)
+
+3. **Update .env.local**:
+   - Use the 16-character App Password (you can remove spaces)
+   - Example: `EMAIL_PASSWORD=abcdefghijklmnop` or `EMAIL_PASSWORD=abcd efgh ijkl mnop`
+
+4. **Test the configuration**:
+   ```bash
+   node scripts/test-email.js
+   ```
+
+**Common Errors:**
+- `535-5.7.8 BadCredentials`: You're using your regular password instead of App Password
+- `Invalid login`: Double-check the App Password was copied correctly
+
+**Notes:**
+- If using port 465, set `EMAIL_SECURE=true` and `EMAIL_PORT=465`
+- App Passwords are secure - they only work for SMTP and can be revoked anytime
