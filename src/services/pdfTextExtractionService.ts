@@ -1,6 +1,7 @@
 import { enhancedFetch } from '../utils/errorHandling';
 import { getOCRPDFEndpoint } from '../config/api';
 import { TokenUsageLogService } from './tokenUsageLogService';
+import { TokenStatsService } from './tokenStatsService';
 import { TokenCounter } from './tokenCounter';
 
 export interface TextExtractionResult {
@@ -104,6 +105,11 @@ export class PDFTextExtractionService {
           );
           if (tokensCharged) {
             console.log(`✅ Successfully logged ${actualTokens} tokens for PDF extraction`);
+            try {
+              await TokenStatsService.incrementUsage(userId, actualTokens);
+            } catch (e) {
+              console.warn('⚠️ Failed to increment token stats (non-blocking):', e);
+            }
           } else {
             console.error('❌ Failed to log token usage for PDF extraction');
           }

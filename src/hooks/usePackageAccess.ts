@@ -6,13 +6,15 @@ import {
   PackageLimits,
   PACKAGE_LIMITS
 } from '../config/packageFeatures';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { db } from '../firebaseConfig';
 import { collection, query, where, getDocs } from 'firebase/firestore';
+import { useTokenStats } from './useTokenStats';
 
 // Hook principal pour vérifier l'accès aux fonctionnalités
 export const usePackageAccess = () => {
   const { user } = useAuth();
+  const tokenStats = useTokenStats(user?.id);
   const [directorPackageInfo, setDirectorPackageInfo] = useState<any>(null);
   const [isLoadingDirectorInfo, setIsLoadingDirectorInfo] = useState(false);
 
@@ -61,7 +63,23 @@ export const usePackageAccess = () => {
     fetchDirectorPackageInfo();
   }, [user]);
 
-  const packageInfo = getCurrentPackageInfo();
+  // Merge token stats override into package info so UI reflects live usage without mutating user doc
+  const packageInfo = useMemo(() => {
+    const base = getCurrentPackageInfo();
+    if (!base) return null;
+    if (tokenStats && typeof tokenStats.tokensUsedMonthly === 'number' && base.totalTokens > 0) {
+      // Combine chat usage from active session (base.tokensUsed)
+      // with extraction usage from stats/current (tokenStats.tokensUsedMonthly)
+      const combinedUsed = (base.tokensUsed || 0) + (tokenStats.tokensUsedMonthly || 0);
+      const tokensUsed = Math.max(0, Math.min(base.totalTokens, combinedUsed));
+      return {
+        ...base,
+        tokensUsed,
+        tokensRemaining: Math.max(0, base.totalTokens - tokensUsed)
+      };
+    }
+    return base;
+  }, [JSON.stringify(getCurrentPackageInfo()), tokenStats]);
   const currentPackageType = packageInfo?.packageType || null;
 
   // Vérifier si l'utilisateur a accès à une fonctionnalité spécifique

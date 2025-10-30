@@ -126,6 +126,18 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    // Sous-collection: user token stats (aggregated totals)
+    match /users/{userId}/stats/{docId} {
+      // Read: owner or admin
+      allow read: if isAuthenticated() && (
+        request.auth.uid == userId || isAdmin()
+      );
+      // Create/Update: only owner can maintain their stats document
+      allow create, update: if isAuthenticated() && request.auth.uid == userId;
+      // No deletes from client
+      allow delete: if false;
+    }
+
     // =============================================================================
     // COLLECTION FORMS
     // Règles simplifiées :

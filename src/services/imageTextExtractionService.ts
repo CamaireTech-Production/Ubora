@@ -6,6 +6,7 @@
 import { enhancedFetch } from '../utils/errorHandling';
 import { getOCRExtractEndpoint } from '../config/api';
 import { TokenUsageLogService } from './tokenUsageLogService';
+import { TokenStatsService } from './tokenStatsService';
 import { TokenCounter } from './tokenCounter';
 
 export interface ImageTextExtractionResult {
@@ -165,6 +166,12 @@ export class ImageTextExtractionService {
             );
             if (tokensCharged) {
               console.log(`✅ Successfully logged ${actualTokens} tokens for image extraction`);
+              // Update lightweight stats doc for live UI without touching user root doc
+              try {
+                await TokenStatsService.incrementUsage(userId, actualTokens);
+              } catch (e) {
+                console.warn('⚠️ Failed to increment token stats (non-blocking):', e);
+              }
             } else {
               console.error('❌ Failed to log token usage for image extraction');
             }
