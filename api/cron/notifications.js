@@ -474,6 +474,27 @@ async function processFormReminders(now, oneMinuteFromNow) {
  */
 async function processMetricReminders(now, oneMinuteFromNow) {
   try {
+    // Guard: auto-bump past-due pending reminders forward to the next schedule
+    try {
+      const overdueSnap = await db.collection('metricReminders')
+        .where('status', '==', 'pending')
+        .where('scheduledAt', '<', Timestamp.fromDate(now))
+        .limit(100)
+        .get();
+      if (!overdueSnap.empty) {
+        console.log(`⏱️ [Cron] Found ${overdueSnap.size} overdue metric reminders to bump forward`);
+        const batch = db.batch();
+        overdueSnap.docs.forEach((docRef) => {
+          const r = docRef.data();
+          const nextAt = calculateNextScheduledTime(r.frequency, r.time, now);
+          batch.update(docRef.ref, { scheduledAt: Timestamp.fromDate(nextAt), lastEvaluatedAt: Timestamp.fromDate(now) });
+        });
+        await batch.commit();
+        console.log('⏱️ [Cron] Overdue metric reminders bumped to next schedule');
+      }
+    } catch (guardErr) {
+      console.warn('⏱️ [Cron] Past-due guard failed (non-fatal):', guardErr?.message || guardErr);
+    }
     // Step 1: Collect all metric reminders that are due
     const remindersSnapshot = await db.collection('metricReminders')
       .where('status', '==', 'pending')
@@ -494,6 +515,7 @@ async function processMetricReminders(now, oneMinuteFromNow) {
     console.log(`📊 [Cron] Found ${remindersToProcess.length} metric reminders to process`);
 
     // Step 2: Process reminders concurrently
+    const transporter = makeEmailTransporter();
     const processorFunction = async (reminder) => {
       try {
         // Get user data
@@ -501,7 +523,8 @@ async function processMetricReminders(now, oneMinuteFromNow) {
         const userData = userDoc.data();
 
         if (!userData) {
-          throw new Error(`User ${reminder.directorId} not found`);
+          console.warn(`⏭️ [Cron] Skip metric reminder (user not found):`, { reminderId: reminder.id, directorId: reminder.directorId });
+          return { sent: 0 };
         }
 
         // Store notification in Firestore with idempotent key
@@ -544,6 +567,26 @@ async function processMetricReminders(now, oneMinuteFromNow) {
         });
         
         console.log(`📊 [Cron] Metric reminder stored: ${reminder.metricName || 'Métrique'} to director ${reminder.directorId}`);
+
+        // Attempt email delivery (non-fatal)
+        try {
+          if (userData?.email) {
+            const subject = `Rappel métrique: ${reminder.metricName || 'Métrique'}`;
+            const html = `<p>Bonjour,</p><p>Rappel pour la métrique <strong>${reminder.metricName || 'Métrique'}</strong> (${reminder.frequency || 'daily'}).</p>`;
+            await transporter?.sendMail({
+              from: (process.env.EMAIL_FROM && process.env.EMAIL_FROM_NAME) ? `${process.env.EMAIL_FROM_NAME} <${process.env.EMAIL_FROM}>` : undefined,
+              to: userData.email,
+              subject,
+              html,
+              text: html.replace(/<[^>]*>/g, '')
+            });
+            console.log('📧 [Cron] Metric reminder email sent to', userData.email);
+          } else {
+            console.log('📧 [Cron] Skip metric email (no recipient) for user', reminder.directorId);
+          }
+        } catch (emailErr) {
+          console.warn('📧 [Cron] Metric email send failed (non-fatal):', emailErr?.message || emailErr);
+        }
         
         return { sent: 1 };
       } catch (error) {
