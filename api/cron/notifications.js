@@ -207,7 +207,9 @@ export default async (req, res) => {
     sentCount += metricReminders.sent;
     errorCount += metricReminders.errors;
 
-    // 3. Process programmed instructions (when executed)
+    // 3. Execute due programmed instructions, then notify for ready/completed
+    console.log('🤖 [Cron] Executing due programmed instructions...');
+    await executeDueProgrammedInstructions(now, oneMinuteFromNow);
     console.log('🤖 [Cron] Processing programmed instructions...');
     const instructionReminders = await processProgrammedInstructions(now, oneMinuteFromNow);
     processedCount += instructionReminders.processed;
@@ -475,6 +477,119 @@ async function processFormReminders(now, oneMinuteFromNow) {
     return { processed: 0, sent: 0, errors: 1 };
   }
 }
+// Execute scheduled questions that are due (Option A) and mark them completed/ready
+async function executeDueProgrammedInstructions(now, oneMinuteFromNow) {
+  try {
+    const pendingSnap = await db.collection('scheduledQuestions')
+      .where('status', '==', 'pending')
+      .where('scheduledAt', '>=', Timestamp.fromDate(new Date(now.getTime() - 60 * 1000)))
+      .where('scheduledAt', '<=', Timestamp.fromDate(oneMinuteFromNow))
+      .get();
+
+    if (pendingSnap.empty) return;
+
+    console.log(`🤖 [Cron] Found ${pendingSnap.size} pending instructions to execute`);
+    for (const docRef of pendingSnap.docs) {
+      try {
+        const q = docRef.data() || {};
+        const baseUrl = process.env.API_BASE_URL || process.env.INTERNAL_API_BASE || 'http://localhost:3000';
+        const aiUrl = `${baseUrl}/api/ai/ask`;
+        const body = {
+          question: q.question,
+          filters: q.filters,
+          selectedFormats: q.selectedFormIds || q.selectedFormats || [],
+          responseFormat: q.selectedFormat || 'text',
+          selectedResponseFormats: q.selectedFormats || [],
+          conversationId: null,
+          userId: q.userId,
+          isScheduled: true
+        };
+        const headers = {
+          'Content-Type': 'application/json',
+          'x-internal-token': process.env.INTERNAL_API_KEY || ''
+        };
+        const start = Date.now();
+        const resp = await fetch(aiUrl, { method: 'POST', headers, body: JSON.stringify(body) });
+        const elapsed = Date.now() - start;
+        if (!resp.ok) {
+          const text = await resp.text();
+          throw new Error(`AI ask failed ${resp.status}: ${text}`);
+        }
+        const result = await resp.json();
+        const tokensUsed = result.tokensUsed || result.meta?.tokensUsed || 0;
+
+        // Persist response subdocument
+        const responseData = {
+          scheduledQuestionId: docRef.id,
+          response: result.answer || 'Aucune réponse générée',
+          executedAt: new Date(),
+          responseTime: elapsed,
+          tokensUsed: tokensUsed,
+          status: 'success',
+          meta: {
+            period: q.filters?.period,
+            usedEntries: result.meta?.usedEntries || 0,
+            forms: result.meta?.forms || 0,
+            users: result.meta?.users || 0,
+            model: result.meta?.model || 'gpt-4.1',
+            selectedFormat: q.selectedFormat,
+            selectedFormats: q.selectedFormats || [],
+            selectedFormIds: q.selectedFormIds || [],
+            selectedFormTitles: result.meta?.selectedFormTitles || []
+          }
+        };
+        const respRef = await db.collection('scheduledQuestions').doc(docRef.id).collection('responses').add(responseData);
+
+        // Deduct tokens
+        try {
+          if (tokensUsed > 0 && q.userId) {
+            const userRef = db.collection('users').doc(q.userId);
+            await userRef.update({ tokensUsedMonthly: admin.firestore.FieldValue.increment(tokensUsed), updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+          }
+        } catch (dedErr) {
+          console.warn('🤖 [Cron] Token deduction failed (non-fatal):', dedErr?.message || dedErr);
+        }
+
+        // Compute nextExecution for recurring
+        let status = 'completed';
+        let nextExecution = null;
+        if (q.frequency && q.frequency !== 'once') {
+          const next = calculateNextScheduledTime(q.frequency, q.time || (q.scheduledAt?.toDate ? q.scheduledAt.toDate().toTimeString().slice(0,5) : '09:00'), now);
+          nextExecution = next;
+          status = 'pending';
+        }
+
+        // Update question
+        const updateData = {
+          status,
+          executionCount: (q.executionCount || 0) + 1,
+          executedAt: Timestamp.fromDate(new Date()),
+          lastEvaluatedAt: Timestamp.fromDate(now),
+          nextExecution: nextExecution ? Timestamp.fromDate(nextExecution) : admin.firestore.FieldValue.delete()
+        };
+        await docRef.ref.update(updateData);
+        console.log('🤖 [Cron] Executed instruction and stored response:', { id: docRef.id, responseId: respRef.id, tokensUsed });
+      } catch (e) {
+        console.warn('🤖 [Cron] Failed to execute instruction (will skip notify this round):', docRef.id, e?.message || e);
+        try {
+          await docRef.ref.update({ status: 'failed', lastEvaluatedAt: Timestamp.fromDate(now) });
+          await db.collection('scheduledQuestions').doc(docRef.id).collection('responses').add({
+            scheduledQuestionId: docRef.id,
+            response: 'Erreur lors de l\'exécution de la question',
+            executedAt: new Date(),
+            responseTime: 0,
+            tokensUsed: 0,
+            status: 'error',
+            errorMessage: e?.message || 'Erreur inconnue',
+            meta: { model: 'error' }
+          });
+        } catch {}
+      }
+    }
+  } catch (err) {
+    console.warn('🤖 [Cron] executeDueProgrammedInstructions encountered an error (non-fatal):', err?.message || err);
+  }
+}
 
 /**
  * Process metric reminders (director-programmed) - CONCURRENT VERSION
@@ -624,10 +739,10 @@ async function processMetricReminders(now, oneMinuteFromNow) {
  */
 async function processProgrammedInstructions(now, oneMinuteFromNow) {
   try {
-    // Step 1: Collect all scheduled questions that are due for execution
+    // Step 1: Collect all scheduled questions that are READY to notify
+    // Option B: Execution is handled elsewhere and marks status to 'ready' or 'completed'
     const questionsSnapshot = await db.collection('scheduledQuestions')
-      .where('status', '==', 'pending')
-      .where('scheduledAt', '>=', Timestamp.fromDate(now))
+      .where('status', 'in', ['ready', 'completed'])
       .where('scheduledAt', '<=', Timestamp.fromDate(oneMinuteFromNow))
       .get();
 
@@ -655,11 +770,13 @@ async function processProgrammedInstructions(now, oneMinuteFromNow) {
         }
 
         // Store notification in Firestore with idempotent key
-        const scheduledIso = (question.scheduledAt instanceof Date ? question.scheduledAt : (question.scheduledAt?.toDate ? question.scheduledAt.toDate() : now)).toISOString();
+        const baseDate = (question.scheduledAt instanceof Date ? question.scheduledAt : (question.scheduledAt?.toDate ? question.scheduledAt.toDate() : now));
+        const scheduledIso = baseDate.toISOString();
         const idempotencyKey = `programmed_instruction:${question.id}:${scheduledIso}`;
+        const redirectPath = `/directeur/scheduled-questions/${question.id}/chat`;
         const notificationDoc = {
-          title: `Instruction programmée exécutée`,
-          body: `Votre instruction "${question.title}" a été exécutée avec succès`,
+          title: `Votre instruction est prête`,
+          body: `La réponse pour votre instruction "${question.title || 'Instruction'}" est prête. Cliquez pour voir`,
           type: 'programmed_instruction',
           recipientId: question.userId,
           recipientRole: 'directeur',
@@ -668,10 +785,10 @@ async function processProgrammedInstructions(now, oneMinuteFromNow) {
             scheduledQuestionId: question.id,
             questionTitle: question.title,
             instructionTitle: question.title,
-            redirectUrl: `/directeur/scheduled-questions/${question.id}/chat`,
+            redirectPath,
             timestamp: now.getTime().toString()
           },
-          redirectUrl: `/directeur/scheduled-questions/${question.id}/chat`,
+          redirectUrl: redirectPath,
           read: false,
           status: 'sent',
           createdAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -684,6 +801,32 @@ async function processProgrammedInstructions(now, oneMinuteFromNow) {
         await db.collection('notifications').doc(docId).set(notificationDoc, { merge: true });
         
         console.log(`🤖 [Cron] Programmed instruction notification stored: ${question.title} to director ${question.userId}`);
+
+        // Send email using unified template
+        try {
+          if (userData?.email) {
+            const subject = 'Votre instruction est prête';
+            const abs = buildAbsoluteUrl('directeur', redirectPath);
+            const html = renderEmailTemplate({
+              title: 'Votre instruction est prête',
+              body: `La réponse pour votre instruction <strong>${question.title || 'Instruction'}</strong> est prête.`,
+              ctaLabel: 'Voir la conversation',
+              ctaHref: abs,
+            });
+            await makeEmailTransporter()?.sendMail({
+              from: (process.env.EMAIL_FROM && process.env.EMAIL_FROM_NAME) ? `${process.env.EMAIL_FROM_NAME} <${process.env.EMAIL_FROM}>` : undefined,
+              to: userData.email,
+              subject,
+              html,
+              text: html.replace(/<[^>]*>/g, '')
+            });
+            console.log('📧 [Cron] Programmed instruction email sent to', userData.email);
+          } else {
+            console.log('📧 [Cron] Skip programmed instruction email (no recipient) for user', question.userId);
+          }
+        } catch (emailErr) {
+          console.warn('📧 [Cron] Programmed instruction email failed (non-fatal):', emailErr?.message || emailErr);
+        }
         
         return { sent: 1 };
       } catch (error) {

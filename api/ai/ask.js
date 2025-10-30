@@ -540,28 +540,34 @@ export default async function handler(req, res) {
       return res.status(405).json({ error: 'Méthode non autorisée' });
     }
     
-    // 1. Vérification du token Firebase
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json({ 
-        error: 'Token d\'authentification manquant',
-        code: 'MISSING_TOKEN'
-      });
-    }
-
-    const idToken = authHeader.split('Bearer ')[1];
-    
-    let decodedToken;
+    // 1. Authentification - support internal server-to-server and Firebase token
     let uid;
-    try {
-      decodedToken = await adminAuth.verifyIdToken(idToken);
-      uid = decodedToken.uid;
-    } catch (authError) {
-      return res.status(401).json({ 
-        error: 'Token invalide ou expiré',
-        code: 'INVALID_TOKEN',
-        details: authError.message
-      });
+    const internalToken = req.headers['x-internal-token'];
+    if (internalToken && process.env.INTERNAL_API_KEY && internalToken === process.env.INTERNAL_API_KEY) {
+      // Server-to-server call: trust provided userId for execution context
+      uid = req.body.userId;
+      if (!uid) {
+        return res.status(400).json({ error: 'userId requis pour une exécution interne', code: 'MISSING_USER_ID' });
+      }
+    } else {
+      const authHeader = req.headers.authorization;
+      if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return res.status(401).json({ 
+          error: 'Token d\'authentification manquant',
+          code: 'MISSING_TOKEN'
+        });
+      }
+      const idToken = authHeader.split('Bearer ')[1];
+      try {
+        const decodedToken = await adminAuth.verifyIdToken(idToken);
+        uid = decodedToken.uid;
+      } catch (authError) {
+        return res.status(401).json({ 
+          error: 'Token invalide ou expiré',
+          code: 'INVALID_TOKEN',
+          details: authError.message
+        });
+      }
     }
 
     // 2. Vérification du profil utilisateur
