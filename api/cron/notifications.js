@@ -480,16 +480,38 @@ async function processFormReminders(now, oneMinuteFromNow) {
 // Execute scheduled questions that are due (Option A) and mark them completed/ready
 async function executeDueProgrammedInstructions(now, oneMinuteFromNow) {
   try {
-    const pendingSnap = await db.collection('scheduledQuestions')
+    const toleranceMs = 2 * 60 * 1000; // 2 minutes tolerance
+    const windowStart = new Date(now.getTime() - toleranceMs);
+    const windowEnd = new Date(now.getTime() + toleranceMs);
+
+    // Query by nextExecution (recurring)
+    const nextQuerySnap = await db.collection('scheduledQuestions')
       .where('status', '==', 'pending')
-      .where('scheduledAt', '>=', Timestamp.fromDate(new Date(now.getTime() - 60 * 1000)))
-      .where('scheduledAt', '<=', Timestamp.fromDate(oneMinuteFromNow))
+      .where('nextExecution', '>=', Timestamp.fromDate(windowStart))
+      .where('nextExecution', '<=', Timestamp.fromDate(windowEnd))
       .get();
 
-    if (pendingSnap.empty) return;
+    // Query first-execution where nextExecution is null, use scheduledAt
+    const firstQuerySnap = await db.collection('scheduledQuestions')
+      .where('status', '==', 'pending')
+      .where('scheduledAt', '>=', Timestamp.fromDate(windowStart))
+      .where('scheduledAt', '<=', Timestamp.fromDate(windowEnd))
+      .get();
 
-    console.log(`🤖 [Cron] Found ${pendingSnap.size} pending instructions to execute`);
-    for (const docRef of pendingSnap.docs) {
+    const docsMap = new Map();
+    nextQuerySnap.docs.forEach(d => docsMap.set(d.id, d));
+    firstQuerySnap.docs.forEach(d => docsMap.set(d.id, d));
+    const toExecute = Array.from(docsMap.values());
+
+    if (toExecute.length === 0) {
+      console.log('🤖 [Cron] No pending instructions due in window', { windowStart: windowStart.toISOString(), windowEnd: windowEnd.toISOString() });
+      return;
+    }
+
+    console.log(`🤖 [Cron] Found ${toExecute.length} pending instructions to execute`, {
+      windowStart: windowStart.toISOString(), windowEnd: windowEnd.toISOString()
+    });
+    for (const docRef of toExecute) {
       try {
         const q = docRef.data() || {};
         const baseUrl = process.env.API_BASE_URL || process.env.INTERNAL_API_BASE || 'http://localhost:3000';

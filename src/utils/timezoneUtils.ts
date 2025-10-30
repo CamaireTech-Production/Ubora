@@ -84,35 +84,53 @@ export function calculateNextExecutionCameroon(
   frequency: 'once' | 'daily' | 'weekly' | 'monthly'
 ): Date {
   const now = getCameroonTime();
-  let nextExecution = new Date(scheduledAt);
+  const base = toCameroonTime(scheduledAt);
+  const hh = base.getHours();
+  const mm = base.getMinutes();
 
-  switch (frequency) {
-    case 'once':
-      return scheduledAt;
-    
-    case 'daily':
-      // If the scheduled time is past today, schedule for tomorrow
-      if (nextExecution <= now) {
-        nextExecution.setDate(nextExecution.getDate() + 1);
-      }
-      break;
-    
-    case 'weekly':
-      // If the scheduled time is past this week, schedule for next week
-      if (nextExecution <= now) {
-        nextExecution.setDate(nextExecution.getDate() + 7);
-      }
-      break;
-    
-    case 'monthly':
-      // If the scheduled time is past this month, schedule for next month
-      if (nextExecution <= now) {
-        nextExecution.setMonth(nextExecution.getMonth() + 1);
-      }
-      break;
+  // Helper to construct a Cameroon local date at given day with same HH:mm
+  const makeAt = (date: Date) => {
+    const d = new Date(date);
+    d.setHours(hh, mm, 0, 0);
+    return d;
+  };
+
+  if (frequency === 'once') {
+    return scheduledAt;
   }
 
-  return nextExecution;
+  if (frequency === 'daily') {
+    let candidate = makeAt(now);
+    if (candidate <= now) {
+      candidate.setDate(candidate.getDate() + 1);
+    }
+    return candidate;
+  }
+
+  if (frequency === 'weekly') {
+    // Align to the same weekday as original scheduledAt
+    const targetDow = base.getDay(); // 0-6
+    const current = new Date(now);
+    current.setHours(hh, mm, 0, 0);
+    const diff = (targetDow - now.getDay() + 7) % 7;
+    let candidate = new Date(current);
+    candidate.setDate(now.getDate() + diff);
+    if (candidate <= now) {
+      candidate.setDate(candidate.getDate() + 7);
+    }
+    return candidate;
+  }
+
+  if (frequency === 'monthly') {
+    const day = base.getDate();
+    const candidate = new Date(now.getFullYear(), now.getMonth(), day, hh, mm, 0, 0);
+    if (candidate <= now) {
+      candidate.setMonth(candidate.getMonth() + 1);
+    }
+    return candidate;
+  }
+
+  return scheduledAt;
 }
 
 /**
