@@ -1,5 +1,6 @@
 import admin from 'firebase-admin';
 import { getFirestore, Timestamp } from 'firebase-admin/firestore';
+import nodemailer from 'nodemailer';
 
 // Initialize Firebase Admin if not already initialized
 if (!admin.apps.length) {
@@ -27,6 +28,26 @@ if (!admin.apps.length) {
 }
 
 const db = getFirestore();
+// Lightweight email sender (reuse env used elsewhere). If no creds, skip.
+function makeEmailTransporter() {
+  if (!process.env.EMAIL_USER || !process.env.EMAIL_PASSWORD) return null;
+  const host = process.env.EMAIL_HOST || 'smtp.titan.email';
+  const port = parseInt(process.env.EMAIL_PORT || '587', 10);
+  const secure = typeof process.env.EMAIL_SECURE === 'string'
+    ? process.env.EMAIL_SECURE === 'true'
+    : port === 465;
+  return nodemailer.createTransport({ host, port, secure, auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASSWORD } });
+}
+
+async function sendReminderEmail(transporter, { to, formTitle, intervalMinutes, redirectUrl }) {
+  if (!transporter || !to) return { skipped: true };
+  const fromName = process.env.EMAIL_FROM_NAME || 'Ubora App';
+  const fromAddress = process.env.EMAIL_FROM || process.env.EMAIL_USER;
+  const subject = `Rappel: ${formTitle} (${intervalMinutes} min restantes)`;
+  const html = `<p>Bonjour,</p><p>N'oubliez pas de remplir le formulaire <strong>${formTitle}</strong>.<br/>Il reste ${intervalMinutes} minutes.</p>${redirectUrl ? `<p><a href="${redirectUrl}">Ouvrir le formulaire</a></p>` : ''}`;
+  const info = await transporter.sendMail({ from: fromAddress ? `${fromName} <${fromAddress}>` : undefined, to, subject, html, text: html.replace(/<[^>]*>/g, '') });
+  return { messageId: info.messageId };
+}
 
 // Configuration for concurrent processing
 const MAX_CONCURRENT_PROCESSING = 10; // Process up to 10 notifications concurrently
@@ -65,6 +86,14 @@ function buildTodayDueAtAfricaDouala(endTimeStr) {
   } catch (e) {
     return null;
   }
+}
+
+// Get Africa/Douala weekday number (0=Sunday … 6=Saturday)
+function getAfricaDoualaWeekdayNumber(referenceDate) {
+  const base = referenceDate instanceof Date ? referenceDate : new Date();
+  // Africa/Douala is UTC+1, shift by +1h from UTC and use getUTCDay for stable weekday
+  const doualaShifted = new Date(base.getTime() + 60 * 60 * 1000);
+  return doualaShifted.getUTCDay();
 }
 
 /**
@@ -227,20 +256,26 @@ async function processFormReminders(now, oneMinuteFromNow) {
 
     for (const formDoc of formsSnapshot.docs) {
       const form = { id: formDoc.id, ...formDoc.data() };
-
+      
       const assignedTo = Array.isArray(form.assignedTo) ? form.assignedTo : [];
       const timeRestrictions = form.timeRestrictions || {};
       const allowedDays = Array.isArray(timeRestrictions.allowedDays) ? timeRestrictions.allowedDays : [];
       const endTime = timeRestrictions.endTime;
 
-      if (assignedTo.length === 0 || !endTime) {
+      if (assignedTo.length === 0) {
+        console.log('⏭️ [Cron] Skip form (no assigned users):', { formId: form.id, title: form.title, path: formDoc.ref.path });
+        continue;
+      }
+      if (!endTime) {
+        console.log('⏭️ [Cron] Skip form (missing endTime):', { formId: form.id, title: form.title, path: formDoc.ref.path });
         continue;
       }
 
-      // Check today's weekday is allowed
-      const todayName = new Date().toLocaleDateString('en-US', { weekday: 'long' });
-      const isAllowedToday = allowedDays.length === 0 || allowedDays.includes(todayName) || allowedDays.includes(todayName.toLowerCase());
+      // Check today's weekday is allowed (numeric 0–6 only). Empty means "no reminders".
+      const todayNum = getAfricaDoualaWeekdayNumber(now);
+      const isAllowedToday = Array.isArray(allowedDays) && allowedDays.length > 0 && allowedDays.includes(todayNum);
       if (!isAllowedToday) {
+        console.log('⏭️ [Cron] Skip form (today not allowed):', { formId: form.id, title: form.title, path: formDoc.ref.path, todayNum, allowedDays });
         continue;
       }
 
@@ -248,7 +283,7 @@ async function processFormReminders(now, oneMinuteFromNow) {
       const deadlineDate = buildTodayDueAtAfricaDouala(endTime);
       if (!deadlineDate) continue;
       const reminderIntervals = [60, 30, 15, 5]; // minutes before deadline
-      
+
       console.log(`📅 [Cron] Processing form "${form.title || '(no title)'}" (${form.id}):`, {
         mode: 'timeRestrictions',
         endTime: endTime,
@@ -322,7 +357,8 @@ async function processFormReminders(now, oneMinuteFromNow) {
               form,
               userId,
               intervalMinutes,
-              reminderTime
+              reminderTime,
+              reminderTimeIso: reminderTime.toISOString()
             });
           }
         }
@@ -345,9 +381,10 @@ async function processFormReminders(now, oneMinuteFromNow) {
     console.log(`📅 [Cron] Found ${remindersToProcess.length} form reminders to process`);
 
     // Step 2: Process reminders concurrently
+    const transporter = makeEmailTransporter();
     const processorFunction = async (reminderData) => {
       try {
-        const { form, userId, intervalMinutes } = reminderData;
+        const { form, userId, intervalMinutes, reminderTime, reminderTimeIso } = reminderData;
         
         // Get user data (do not fail hard if missing)
         let userData = null;
@@ -359,8 +396,8 @@ async function processFormReminders(now, oneMinuteFromNow) {
         }
 
         // Store notification in Firestore with idempotent key - frontend will handle browser display
-        const deadlineIso = deadlineDate.toISOString();
-        const idempotencyKey = `form:${form.id}:user:${userId}:reminder:${intervalMinutes}:deadline:${deadlineIso}`;
+        const atIso = reminderTimeIso || (reminderTime instanceof Date ? reminderTime.toISOString() : new Date().toISOString());
+        const idempotencyKey = `form:${form.id}:user:${userId}:reminder:${intervalMinutes}:at:${atIso}`;
         const notificationDoc = {
                   title: 'Rappel de formulaire',
                   body: `N'oubliez pas de remplir le formulaire "${form.title}" (${intervalMinutes}min restantes)`,
@@ -385,7 +422,7 @@ async function processFormReminders(now, oneMinuteFromNow) {
                   idempotencyKey
                 };
 
-        const docId = `form_reminder:${form.id}:${userId}:${intervalMinutes}:${deadlineIso}`;
+        const docId = `form_reminder:${form.id}:${userId}:${intervalMinutes}:${atIso}`;
         await db.collection('notifications').doc(docId).set(notificationDoc, { merge: true });
         console.log(`📅 [Cron] Form reminder stored in Firestore:`, {
           notificationId: docId,
@@ -399,6 +436,22 @@ async function processFormReminders(now, oneMinuteFromNow) {
           notificationData: notificationDoc,
           idempotencyKey
         });
+        // Attempt email delivery (non-fatal)
+        try {
+          if (userData?.email) {
+            await sendReminderEmail(transporter, {
+              to: userData.email,
+              formTitle: form.title,
+              intervalMinutes,
+              redirectUrl: `/forms/${form.id}`
+            });
+            console.log('📧 [Cron] Reminder email sent to', userData.email);
+          } else {
+            console.log('📧 [Cron] Skip email (no recipient) for user', userId);
+          }
+        } catch (emailErr) {
+          console.warn('📧 [Cron] Email send failed (non-fatal):', emailErr?.message || emailErr);
+        }
         
         return { sent: 1 };
             } catch (error) {
@@ -639,8 +692,8 @@ export async function getNextNotificationTime() {
       const endTime = timeRestrictions.endTime;
       if (assignedTo.length === 0 || !endTime) continue;
 
-      const todayName = new Date().toLocaleDateString('en-US', { weekday: 'long' });
-      const isAllowedToday = allowedDays.length === 0 || allowedDays.includes(todayName) || allowedDays.includes(todayName.toLowerCase());
+      const todayNum = getAfricaDoualaWeekdayNumber(now);
+      const isAllowedToday = Array.isArray(allowedDays) && allowedDays.length > 0 && allowedDays.includes(todayNum);
       if (!isAllowedToday) continue;
 
       const deadlineDate = buildTodayDueAtAfricaDouala(endTime);

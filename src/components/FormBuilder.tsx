@@ -360,7 +360,8 @@ export const FormBuilder: React.FC<FormBuilderProps> = ({
             timeRestrictions: { 
               startTime, 
               endTime, 
-              allowedDays: allowedDays || [] 
+              // Default to all days only when allowedDays is undefined (user didn't choose days)
+              allowedDays: allowedDays === undefined ? [0,1,2,3,4,5,6] : allowedDays 
             } 
           };
         }
@@ -372,7 +373,8 @@ export const FormBuilder: React.FC<FormBuilderProps> = ({
         return { 
           timeRestrictions: { 
             endTime: singleEnd, 
-            allowedDays: allowedDays || [] 
+            // Default to all days only when allowedDays is undefined (user didn't choose days)
+            allowedDays: allowedDays === undefined ? [0,1,2,3,4,5,6] : allowedDays 
           } 
         };
       })())
