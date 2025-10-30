@@ -3,13 +3,12 @@ import { Layout } from '../components/Layout';
 import { PushNotificationSettings } from '../components/PushNotificationSettings';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
-import { Bell, CheckCircle, XCircle, Clock, Trash2, BarChart3, MessageSquare, AlertCircle, Settings, TestTube } from 'lucide-react';
+import { Bell, CheckCircle, XCircle, Clock, Trash2, BarChart3, MessageSquare, AlertCircle, Settings } from 'lucide-react';
 import { WireframeLoader } from '../components/loading/WireframeLoader';
 import { unifiedNotificationService, UnifiedNotification } from '../services/unifiedNotificationService';
-import { browserNotificationService } from '../services/browserNotificationService';
 import { useAuth } from '../contexts/AuthContext';
 import { usePushNotifications } from '../hooks/usePushNotifications';
-import { doc, collection, query, where, orderBy, limit, onSnapshot, writeBatch, updateDoc } from 'firebase/firestore';
+import { doc, collection, query, where, orderBy, limit, onSnapshot, writeBatch } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 
 export const NotificationsPage: React.FC = () => {
@@ -243,7 +242,7 @@ export const NotificationsPage: React.FC = () => {
         <PushNotificationSettings />
 
         {/* FCM Test Page Access */}
-        <Card className="p-6">
+        {/* <Card className="p-6">
           <div className="flex items-center gap-3 mb-4">
             <TestTube className="w-6 h-6 text-purple-600" />
             <h3 className="text-lg font-semibold">Tests FCM Push Notifications</h3>
@@ -259,7 +258,7 @@ export const NotificationsPage: React.FC = () => {
             <TestTube className="w-4 h-4" />
             Ouvrir la page de test FCM
           </Button>
-        </Card>
+        </Card> */}
 
         {/* Test Notification Buttons */}
         {/* <Card className="p-6">
