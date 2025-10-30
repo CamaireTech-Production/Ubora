@@ -32,6 +32,26 @@ const db = getFirestore();
 const MAX_CONCURRENT_PROCESSING = 10; // Process up to 10 notifications concurrently
 const BATCH_SIZE = 5; // Process notifications in batches of 5
 
+// Normalize roles to supported set
+function normalizeRole(role) {
+  if (role === 'directeur') return 'directeur';
+  return 'employe';
+}
+
+// Parse date and time strings as Africa/Douala local time (UTC+1, no DST)
+function parseAfricaDoualaLocalDateTime(dateStr, timeStr) {
+  try {
+    const [year, month, day] = dateStr.split('-').map(Number);
+    const [hour, minute] = timeStr.split(':').map(Number);
+    // Construct UTC by subtracting fixed offset (+1h) so that local 10:00 becomes 09:00Z
+    const utcHour = (hour - 1 + 24) % 24;
+    return new Date(Date.UTC(year, (month || 1) - 1, day || 1, utcHour, minute || 0, 0, 0));
+  } catch (e) {
+    // Fallback to native parsing
+    return new Date(`${dateStr}T${timeStr}`);
+  }
+}
+
 /**
  * Process notifications concurrently in batches
  */
@@ -108,6 +128,17 @@ export default async (req, res) => {
     const oneMinuteAgo = new Date(now.getTime() - 60 * 1000);
     const oneMinuteFromNow = new Date(now.getTime() + 60 * 1000);
     
+    // Log timezone info for debugging
+    console.log('⏰ [Cron] Timezone Debug Info:', {
+      serverTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      serverOffset: now.getTimezoneOffset() / -60, // Convert to hours (UTC offset)
+      nowUTC: now.toISOString(),
+      nowLocal: now.toString(),
+      nowUTCString: now.toUTCString(),
+      oneMinuteFromNowUTC: oneMinuteFromNow.toISOString(),
+      oneMinuteFromNowLocal: oneMinuteFromNow.toString()
+    });
+    
     let processedCount = 0;
     let sentCount = 0;
     let errorCount = 0;
@@ -165,6 +196,21 @@ async function processFormReminders(now, oneMinuteFromNow) {
 
     const remindersToProcess = [];
 
+    console.log(`📅 [Cron] Found ${formsSnapshot.docs.length} forms with deadlines to check`);
+    if (formsSnapshot.docs.length > 0) {
+      // Log a concise preview of raw deadline fields for first few forms
+      const preview = formsSnapshot.docs.slice(0, 5).map((d) => {
+        const data = d.data();
+        return {
+          id: d.id,
+          title: data.title || '(no title)',
+          deadlineRaw: data.deadline || null,
+          assignedToCount: Array.isArray(data.assignedTo) ? data.assignedTo.length : 0,
+        };
+      });
+      console.log('🧾 [Cron] Forms deadline preview (first 5):', preview);
+    }
+
     for (const formDoc of formsSnapshot.docs) {
       const form = { id: formDoc.id, ...formDoc.data() };
       
@@ -172,15 +218,75 @@ async function processFormReminders(now, oneMinuteFromNow) {
         continue;
       }
 
-      const deadlineDate = new Date(`${form.deadline.date}T${form.deadline.time}`);
+      // Parse deadline - this is critical for timezone understanding
+      const deadlineString = `${form.deadline.date}T${form.deadline.time}`;
+      const deadlineDate = parseAfricaDoualaLocalDateTime(form.deadline.date, form.deadline.time);
       const reminderIntervals = [60, 30, 15, 5]; // minutes before deadline
+      
+      console.log(`📅 [Cron] Processing form "${form.title}" (${form.id}):`, {
+        deadlineString: deadlineString,
+        deadlineDateLocal: deadlineDate.toString(),
+        deadlineDateUTC: deadlineDate.toISOString(),
+        deadlineDateUTCString: deadlineDate.toUTCString(),
+        assignedUsers: form.assignedTo?.length || 0,
+        timezoneInfo: {
+          parsedAs: 'Interpreted in server timezone',
+          serverTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone
+        }
+      });
+
+      // Extra: show all expected reminder timestamps for this form
+      const allExpectedReminders = reminderIntervals.map((intervalMinutes) => {
+        const rt = new Date(deadlineDate.getTime() - intervalMinutes * 60 * 1000);
+        return {
+          interval: `${intervalMinutes}min`,
+          reminderTimeUTC: rt.toISOString(),
+          reminderTimeLocal: rt.toString(),
+          // Membership against current strict window used by the cron
+          inCurrentWindow: rt >= now && rt <= oneMinuteFromNow,
+          diffFromNowMin: (rt.getTime() - now.getTime()) / (60 * 1000),
+        };
+      });
+      console.log('🧭 [Cron] Expected reminder times for form:', {
+        formId: form.id,
+        title: form.title,
+        reminders: allExpectedReminders,
+        windowNowUTC: now.toISOString(),
+        windowEndUTC: oneMinuteFromNow.toISOString(),
+      });
 
       for (const userId of form.assignedTo) {
         for (const intervalMinutes of reminderIntervals) {
           const reminderTime = new Date(deadlineDate.getTime() - intervalMinutes * 60 * 1000);
           
+          // Detailed logging for each reminder check
+          const shouldSend = reminderTime >= now && reminderTime <= oneMinuteFromNow;
+          // Also compute a tolerance window (not used for sending) to detect near-misses
+          const ninetySeconds = 90 * 1000;
+          const windowStartTolerance = new Date(now.getTime() - ninetySeconds);
+          const windowEndTolerance = new Date(oneMinuteFromNow.getTime() + ninetySeconds);
+          if (shouldSend || intervalMinutes === 5) { // Log 5min reminder checks even if not due
+            console.log(`📅 [Cron] Reminder check for form "${form.title}":`, {
+              intervalMinutes: `${intervalMinutes}min`,
+              deadlineUTC: deadlineDate.toISOString(),
+              reminderTimeUTC: reminderTime.toISOString(),
+              reminderTimeLocal: reminderTime.toString(),
+              nowUTC: now.toISOString(),
+              nowLocal: now.toString(),
+              oneMinuteFromNowUTC: oneMinuteFromNow.toISOString(),
+              timeDiffMinutes: (reminderTime.getTime() - now.getTime()) / (60 * 1000),
+              shouldSend: shouldSend,
+              check: `reminderTime (${reminderTime.toISOString()}) >= now (${now.toISOString()}) && <= oneMinuteFromNow (${oneMinuteFromNow.toISOString()})`,
+              toleranceWindow: {
+                startUTC: windowStartTolerance.toISOString(),
+                endUTC: windowEndTolerance.toISOString(),
+                inTolerance: reminderTime >= windowStartTolerance && reminderTime <= windowEndTolerance,
+              }
+            });
+          }
+          
           // Check if this reminder should be sent now
-          if (reminderTime >= now && reminderTime <= oneMinuteFromNow) {
+          if (shouldSend) {
             remindersToProcess.push({
               form,
               userId,
@@ -192,7 +298,16 @@ async function processFormReminders(now, oneMinuteFromNow) {
       }
     }
 
+    console.log(`📅 [Cron] Reminder collection complete. Total reminders to check: ${remindersToProcess.length}`);
+    
     if (remindersToProcess.length === 0) {
+      console.log('📅 [Cron] No form reminders due at this time. Window checked:', {
+        nowUTC: now.toISOString(),
+        nowLocal: now.toString(),
+        oneMinuteFromNowUTC: oneMinuteFromNow.toISOString(),
+        oneMinuteFromNowLocal: oneMinuteFromNow.toString()
+      });
+      console.log('🧪 [Cron] Hint: If expected reminders are just outside this window, consider widening the check to include a small past tolerance (e.g., now-1min to now+1min) when running every 2 minutes.');
       return { processed: 0, sent: 0, errors: 0 };
     }
 
@@ -203,43 +318,59 @@ async function processFormReminders(now, oneMinuteFromNow) {
       try {
         const { form, userId, intervalMinutes } = reminderData;
         
-        // Get user data
-        const userDoc = await db.collection('users').doc(userId).get();
-        const userData = userDoc.data();
-
-        if (!userData) {
-          throw new Error(`User ${userId} not found`);
+        // Get user data (do not fail hard if missing)
+        let userData = null;
+        try {
+              const userDoc = await db.collection('users').doc(userId).get();
+          userData = userDoc.exists ? userDoc.data() : null;
+        } catch (e) {
+          console.warn(`⚠️ [Cron] Failed to fetch user ${userId}, proceeding with defaults`);
         }
 
-        // Store notification in Firestore - frontend unified service will handle delivery
+        // Store notification in Firestore with idempotent key - frontend will handle browser display
+        const deadlineIso = deadlineDate.toISOString();
+        const idempotencyKey = `form:${form.id}:user:${userId}:reminder:${intervalMinutes}:deadline:${deadlineIso}`;
         const notificationDoc = {
-          title: 'Rappel de formulaire',
-          body: `N'oubliez pas de remplir le formulaire "${form.title}" (${intervalMinutes}min restantes)`,
+                  title: 'Rappel de formulaire',
+                  body: `N'oubliez pas de remplir le formulaire "${form.title}" (${intervalMinutes}min restantes)`,
           type: 'form_reminder',
           recipientId: userId,
-          recipientRole: userData?.role || 'employee',
+          recipientRole: normalizeRole(userData?.role),
           agencyId: userData?.agencyId || 'unknown',
-          data: {
-            type: 'form_reminder',
-            formId: form.id,
-            formTitle: form.title,
-            intervalMinutes: intervalMinutes.toString(),
-            redirectUrl: `/forms/${form.id}`,
-            timestamp: now.getTime().toString()
+                  data: {
+                    type: 'form_reminder',
+                    formId: form.id,
+                    formTitle: form.title,
+                    intervalMinutes: intervalMinutes.toString(),
+                    redirectUrl: `/forms/${form.id}`,
+                    timestamp: now.getTime().toString()
           },
           redirectUrl: `/forms/${form.id}`,
-          read: false,
-          status: 'sent',
-          createdAt: admin.firestore.FieldValue.serverTimestamp(),
-          sentAt: admin.firestore.FieldValue.serverTimestamp(),
-          emailAddress: userData?.email
-        };
+                  read: false,
+                  status: 'sent',
+                  createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                  sentAt: admin.firestore.FieldValue.serverTimestamp(),
+                  emailAddress: userData?.email,
+                  idempotencyKey
+                };
 
-        await db.collection('notifications').add(notificationDoc);
-        console.log(`📅 [Cron] Form reminder stored: ${form.title} (${intervalMinutes}min) to user ${userId}`);
+        const docId = `form_reminder:${form.id}:${userId}:${intervalMinutes}:${deadlineIso}`;
+        await db.collection('notifications').doc(docId).set(notificationDoc, { merge: true });
+        console.log(`📅 [Cron] Form reminder stored in Firestore:`, {
+          notificationId: docId,
+          formTitle: form.title,
+          formId: form.id,
+          intervalMinutes: `${intervalMinutes}min`,
+          userId: userId,
+          recipientRole: normalizeRole(userData?.role),
+          agencyId: userData?.agencyId || 'unknown',
+          emailAddress: userData?.email || 'none',
+          notificationData: notificationDoc,
+          idempotencyKey
+        });
         
         return { sent: 1 };
-      } catch (error) {
+            } catch (error) {
         console.error(`❌ [Cron] Error processing form reminder:`, error);
         throw error;
       }
@@ -289,7 +420,9 @@ async function processMetricReminders(now, oneMinuteFromNow) {
           throw new Error(`User ${reminder.directorId} not found`);
         }
 
-        // Store notification in Firestore - frontend unified service will handle delivery
+        // Store notification in Firestore with idempotent key
+        const scheduledIso = (reminder.scheduledAt instanceof Date ? reminder.scheduledAt : (reminder.scheduledAt?.toDate ? reminder.scheduledAt.toDate() : now)).toISOString();
+        const idempotencyKey = `metric:${reminder.id}:scheduled:${scheduledIso}`;
         const notificationDoc = {
           title: `Rappel métrique: ${reminder.metricName || 'Métrique'}`,
           body: `Valeur ${reminder.frequency || 'daily'}: ${reminder.lastValue || 'N/A'}`,
@@ -311,10 +444,12 @@ async function processMetricReminders(now, oneMinuteFromNow) {
           status: 'sent',
           createdAt: admin.firestore.FieldValue.serverTimestamp(),
           sentAt: admin.firestore.FieldValue.serverTimestamp(),
-          emailAddress: userData?.email
+          emailAddress: userData?.email,
+          idempotencyKey
         };
 
-        await db.collection('notifications').add(notificationDoc);
+        const docId = `metric_reminder:${reminder.id}:${scheduledIso}`;
+        await db.collection('notifications').doc(docId).set(notificationDoc, { merge: true });
         
         // For recurring reminders, update scheduledAt instead of marking as sent
         const nextScheduledAt = calculateNextScheduledTime(reminder.frequency, reminder.time, now);
@@ -377,7 +512,9 @@ async function processProgrammedInstructions(now, oneMinuteFromNow) {
           throw new Error(`User ${question.userId} not found`);
         }
 
-        // Store notification in Firestore - frontend unified service will handle delivery
+        // Store notification in Firestore with idempotent key
+        const scheduledIso = (question.scheduledAt instanceof Date ? question.scheduledAt : (question.scheduledAt?.toDate ? question.scheduledAt.toDate() : now)).toISOString();
+        const idempotencyKey = `programmed_instruction:${question.id}:${scheduledIso}`;
         const notificationDoc = {
           title: `Instruction programmée exécutée`,
           body: `Votre instruction "${question.title}" a été exécutée avec succès`,
@@ -397,10 +534,12 @@ async function processProgrammedInstructions(now, oneMinuteFromNow) {
           status: 'sent',
           createdAt: admin.firestore.FieldValue.serverTimestamp(),
           sentAt: admin.firestore.FieldValue.serverTimestamp(),
-          emailAddress: userData?.email
+          emailAddress: userData?.email,
+          idempotencyKey
         };
 
-        await db.collection('notifications').add(notificationDoc);
+        const docId = `programmed_instruction:${question.id}:${scheduledIso}`;
+        await db.collection('notifications').doc(docId).set(notificationDoc, { merge: true });
         
         console.log(`🤖 [Cron] Programmed instruction notification stored: ${question.title} to director ${question.userId}`);
         
@@ -469,7 +608,7 @@ export async function getNextNotificationTime() {
         continue;
       }
 
-      const deadlineDate = new Date(`${form.deadline.date}T${form.deadline.time}`);
+      const deadlineDate = parseAfricaDoualaLocalDateTime(form.deadline.date, form.deadline.time);
       const reminderIntervals = [60, 30, 15, 5]; // minutes before deadline
 
       for (const intervalMinutes of reminderIntervals) {

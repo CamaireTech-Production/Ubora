@@ -31,6 +31,9 @@ interface NotificationDeliveryResult {
 
 class UnifiedNotificationService {
   private readonly collectionName = 'notifications';
+  private normalizeRole(role?: string): 'directeur' | 'employe' {
+    return role === 'directeur' ? 'directeur' : 'employe';
+  }
 
   /**
    * Send notification immediately (main entry point for all notifications)
@@ -47,13 +50,42 @@ class UnifiedNotificationService {
         overallSuccess: false
       };
 
+      // Build idempotency key to avoid duplicate creations/deliveries on retries
+      const idempotencyKey = JSON.stringify({
+        t: notification.type,
+        r: notification.recipientId,
+        a: notification.agencyId,
+        role: this.normalizeRole(notification.recipientRole),
+        formId: notification.data?.formId,
+        action: notification.data?.action,
+        title: notification.title,
+        body: notification.body,
+      });
+
+      // Idempotency check: reuse existing doc if same key exists recently
+      try {
+        const existingQ = query(
+          collection(db, this.collectionName),
+          where('idempotencyKey', '==', idempotencyKey),
+          limit(1)
+        );
+        const existingSnap = await getDocs(existingQ);
+        if (!existingSnap.empty) {
+          const existing = existingSnap.docs[0];
+          console.log('🔔 [UnifiedNotification] Idempotent hit, skipping duplicate creation:', existing.id);
+          return existing.id;
+        }
+      } catch (idErr) {
+        console.warn('🔔 [UnifiedNotification] Idempotency check failed, proceeding:', idErr);
+      }
+
       // Store notification in Firestore first
       const notificationData = {
         title: notification.title,
         body: notification.body,
         type: notification.type,
         recipientId: notification.recipientId,
-        recipientRole: notification.recipientRole,
+        recipientRole: this.normalizeRole(notification.recipientRole),
         agencyId: notification.agencyId,
         data: notification.data,
         redirectUrl: notification.redirectUrl,
@@ -61,10 +93,19 @@ class UnifiedNotificationService {
         status: 'sent' as const,
         createdAt: serverTimestamp(),
         sentAt: serverTimestamp(),
+        idempotencyKey,
       };
 
       const docRef = await addDoc(collection(db, this.collectionName), notificationData);
       console.log('🔔 [UnifiedNotification] Notification stored in Firestore:', docRef.id);
+      console.log('🔔 [UnifiedNotification] Stored notification details:', {
+        id: docRef.id,
+        recipientId: notification.recipientId,
+        recipientRole: notification.recipientRole,
+        agencyId: notification.agencyId,
+        type: notification.type,
+        title: notification.title
+      });
 
       // Method 1: Browser Notification (Primary - Immediate)
       try {
@@ -337,6 +378,7 @@ class UnifiedNotificationService {
    */
   async getUserNotifications(userId: string, limitCount: number = 50): Promise<UnifiedNotification[]> {
     try {
+      console.log('🔍 [UnifiedNotification] Getting notifications for userId:', userId);
       const q = query(
         collection(db, this.collectionName),
         where('recipientId', '==', userId),
@@ -345,6 +387,19 @@ class UnifiedNotificationService {
       );
 
       const snapshot = await getDocs(q);
+      console.log('🔍 [UnifiedNotification] Query result:', {
+        userId: userId,
+        notificationCount: snapshot.docs.length,
+        notifications: snapshot.docs.map(doc => ({
+          id: doc.id,
+          recipientId: doc.data().recipientId,
+          recipientRole: doc.data().recipientRole,
+          type: doc.data().type,
+          title: doc.data().title,
+          status: doc.data().status
+        }))
+      });
+      
       return snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data(),
@@ -404,18 +459,39 @@ class UnifiedNotificationService {
     assignedByName: string,
     emailAddress?: string
   ): Promise<string> {
+    console.log('🔔 [UnifiedNotification] createFormAssignmentNotification called:', {
+      formId,
+      formTitle,
+      recipientId,
+      recipientRole,
+      agencyId,
+      action,
+      assignedByName,
+      emailAddress: emailAddress || 'none'
+    });
+    
     const isAssigned = action === 'assigned';
     const title = isAssigned ? 'Nouveau formulaire assigné' : 'Formulaire désassigné';
     const body = isAssigned 
       ? `${assignedByName} vous a assigné le formulaire "${formTitle}"`
       : `Vous n'êtes plus assigné au formulaire "${formTitle}"`;
 
-    return await this.sendNotification({
+    console.log('🔔 [UnifiedNotification] Creating notification with:', {
       title,
       body,
       type: 'form_assignment',
       recipientId,
       recipientRole,
+      agencyId,
+      emailAddress: emailAddress || 'none'
+    });
+
+    return await this.sendNotification({
+      title,
+      body,
+      type: 'form_assignment',
+      recipientId,
+      recipientRole: this.normalizeRole(recipientRole),
       agencyId,
       redirectUrl: '/forms',
       emailAddress,
@@ -449,7 +525,7 @@ class UnifiedNotificationService {
       body,
       type: 'form_reminder',
       recipientId,
-      recipientRole,
+      recipientRole: this.normalizeRole(recipientRole),
       agencyId,
       redirectUrl: recipientRole === 'directeur' ? '/directeur/dashboard' : '/employe/dashboard',
       emailAddress,
@@ -681,3 +757,6 @@ class UnifiedNotificationService {
 }
 
 export const unifiedNotificationService = new UnifiedNotificationService();
+
+
+

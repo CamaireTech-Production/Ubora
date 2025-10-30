@@ -1,7 +1,6 @@
 import { enhancedFetch } from '../utils/errorHandling';
 import { getOCRPDFEndpoint } from '../config/api';
-import { TokenService } from './tokenService';
-import { SessionConsumptionService } from './sessionConsumptionService';
+import { TokenUsageLogService } from './tokenUsageLogService';
 import { TokenCounter } from './tokenCounter';
 
 export interface TextExtractionResult {
@@ -86,7 +85,7 @@ export class PDFTextExtractionService {
       const actualTokens = result.tokenInfo?.actualTokens || estimatedTokens;
       console.log('🔍 DEBUG: Calculated actual tokens:', actualTokens);
       
-      // Charge tokens if userId is provided
+      // Log token usage if userId is provided (do not mutate users doc)
       let tokensCharged = false;
       console.log('🔍 DEBUG: Token charging conditions:', {
         hasUserId: !!userId,
@@ -96,63 +95,20 @@ export class PDFTextExtractionService {
       
       if (userId && actualTokens > 0) {
         try {
-          console.log(`💳 Charging ${actualTokens} tokens for PDF extraction: ${file.name}`);
-          
-          // Charge tokens to user account with retry logic
-          let chargeSuccess = false;
-          let retryCount = 0;
-          const maxRetries = 3;
-          
-          while (!chargeSuccess && retryCount < maxRetries) {
-            try {
-              chargeSuccess = await TokenService.subtractTokens(userId, actualTokens);
-              if (chargeSuccess) {
-                console.log('🔍 DEBUG: TokenService.subtractTokens result:', chargeSuccess);
-                break;
-              }
-            } catch (tokenError) {
-              retryCount++;
-              console.warn(`⚠️ Token charging attempt ${retryCount} failed:`, tokenError);
-              if (retryCount < maxRetries) {
-                // Wait 1 second before retry
-                await new Promise(resolve => setTimeout(resolve, 1000));
-              }
-            }
-          }
-          
-          if (chargeSuccess) {
-            // Track in session consumption with retry logic
-            let sessionSuccess = false;
-            retryCount = 0;
-            
-            while (!sessionSuccess && retryCount < maxRetries) {
-              try {
-                sessionSuccess = await SessionConsumptionService.trackTextExtraction(userId, 'pdf', actualTokens);
-                if (sessionSuccess) {
-                  console.log('🔍 DEBUG: SessionConsumptionService.trackTextExtraction result:', sessionSuccess);
-                  break;
-                }
-              } catch (sessionError) {
-                retryCount++;
-                console.warn(`⚠️ Session tracking attempt ${retryCount} failed:`, sessionError);
-                if (retryCount < maxRetries) {
-                  // Wait 1 second before retry
-                  await new Promise(resolve => setTimeout(resolve, 1000));
-                }
-              }
-            }
-            
-            tokensCharged = chargeSuccess && sessionSuccess;
-            if (tokensCharged) {
-              console.log(`✅ Successfully charged ${actualTokens} tokens for PDF extraction`);
-            } else {
-              console.error('❌ Failed to charge tokens or track session for PDF extraction');
-            }
+          console.log(`💳 Logging ${actualTokens} tokens for PDF extraction: ${file.name}`);
+          tokensCharged = await TokenUsageLogService.logTokenUsage(
+            userId,
+            actualTokens,
+            'pdf_extraction',
+            { fileName: file.name, fileSize: file.size, fileType: file.type }
+          );
+          if (tokensCharged) {
+            console.log(`✅ Successfully logged ${actualTokens} tokens for PDF extraction`);
           } else {
-            console.error('❌ Failed to charge tokens for PDF extraction after retries');
+            console.error('❌ Failed to log token usage for PDF extraction');
           }
         } catch (tokenError) {
-          console.error('❌ Error charging tokens for PDF extraction:', tokenError);
+          console.error('❌ Error logging token usage for PDF extraction:', tokenError);
           // Don't throw the error to prevent UI disruption
         }
       } else {

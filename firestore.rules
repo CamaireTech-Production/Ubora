@@ -108,6 +108,24 @@ service cloud.firestore {
                      isAdmin();
     }
 
+    // Sous-collection: token usage logs
+    match /users/{userId}/tokenUsageLogs/{logId} {
+      // Read: owner or admin
+      allow read: if isAuthenticated() && (
+        request.auth.uid == userId || isAdmin()
+      );
+      // Create: only the owner can create logs for themselves with basic validation
+      allow create: if isAuthenticated() &&
+        request.auth.uid == userId &&
+        request.resource.data.keys().hasAll(['userId','amount','usageType','createdAt']) &&
+        request.resource.data.userId == userId &&
+        request.resource.data.amount is number && request.resource.data.amount > 0 &&
+        (request.resource.data.usageType in ['image_extraction','pdf_extraction','other']) &&
+        request.resource.data.createdAt is timestamp;
+      // No updates/deletes from client
+      allow update, delete: if false;
+    }
+
     // =============================================================================
     // COLLECTION FORMS
     // Règles simplifiées :
@@ -304,13 +322,13 @@ service cloud.firestore {
         (isDirecteur() && resource.data.recipientId == request.auth.uid)
       );
       
-      // CRÉATION de notifications
+      // CRÉATION de notifications (exige une clé d'idempotence et l'agence correspondante)
       allow create: if isAuthenticated() && (
         isAdmin() ||
-        hasDirectorDashboardAccess() ||
-        // Allow creation for form assignments, reminders, metrics, and program instructions
-        (request.resource.data.keys().hasAll(['title', 'body', 'type', 'recipientId', 'agencyId', 'read', 'status']) &&
-         request.resource.data.agencyId == getCurrentUser().data.agencyId)
+        (
+          request.resource.data.keys().hasAll(['title', 'body', 'type', 'recipientId', 'agencyId', 'read', 'status', 'idempotencyKey']) &&
+          request.resource.data.agencyId == getCurrentUser().data.agencyId
+        )
       );
       
       // MODIFICATION des notifications (seuls les admins et les destinataires)

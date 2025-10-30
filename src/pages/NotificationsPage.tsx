@@ -29,6 +29,11 @@ export const NotificationsPage: React.FC = () => {
     let notificationsQuery;
     if (user.role === 'directeur') {
       // For directors, get notifications for their role
+      console.log('🔍 [NotificationsPage] Setting up query for directeur:', {
+        role: user.role,
+        userId: user.id,
+        agencyId: user.agencyId
+      });
       notificationsQuery = query(
         collection(db, 'notifications'),
         where('recipientRole', '==', 'directeur'),
@@ -38,6 +43,11 @@ export const NotificationsPage: React.FC = () => {
       );
     } else {
       // For employees, get notifications for their user ID
+      console.log('🔍 [NotificationsPage] Setting up query for employe:', {
+        role: user.role,
+        userId: user.id,
+        recipientId: user.id
+      });
       notificationsQuery = query(
         collection(db, 'notifications'),
         where('recipientId', '==', user.id),
@@ -46,68 +56,36 @@ export const NotificationsPage: React.FC = () => {
       );
     }
 
-    // Track seen IDs to detect new notifications
-    const seenIds = new Set<string>();
-
     // Set up real-time listener
     const unsubscribe = onSnapshot(notificationsQuery, async (snapshot) => {
-      const userNotifications: UnifiedNotification[] = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-        scheduledFor: doc.data().scheduledFor?.toDate(),
-        createdAt: doc.data().createdAt?.toDate(),
-        sentAt: doc.data().sentAt?.toDate(),
-      } as UnifiedNotification));
-
-      // Detect newly added notifications and trigger unified triple delivery (Browser → FCM → Email)
-      try {
-        for (const notif of userNotifications) {
-          if (!notif.id) continue;
-          const isNew = !seenIds.has(notif.id);
-          if (!isNew) continue;
-
-          seenIds.add(notif.id);
-
-          // Skip already processed notifications
-          // @ts-expect-error: processed may be present in Firestore doc
-          if ((notif as any).processed === true) continue;
-
-          // Attempt all 3 delivery methods via unified service
-          try {
-            await unifiedNotificationService.sendNotification({
-              title: notif.title || 'Notification',
-              body: notif.body || '',
-              type: notif.type,
-              recipientId: notif.recipientId,
-              recipientRole: notif.recipientRole,
-              agencyId: notif.agencyId,
-              data: notif.data,
-              redirectUrl: notif.redirectUrl,
-              // These may be undefined if not provided by backend cron
-              // @ts-expect-error: fcmToken/emailAddress exist on the stored document
-              fcmToken: (notif as any).fcmToken || undefined,
-              // @ts-expect-error: field can be present on document
-              emailAddress: (notif as any).emailAddress || undefined,
-            });
-          } catch (deliverErr) {
-            console.error('🔔 [NotificationsPage] Unified delivery failed:', deliverErr);
-          }
-
-          // Mark as processed to avoid duplicate attempts
-          try {
-            await updateDoc(doc(db, 'notifications', notif.id), {
-              // flag processed, keep original read flag untouched
-              // processedAt stored as client timestamp is acceptable for UI
-              processed: true,
-              processedAt: new Date()
-            });
-          } catch (markErr) {
-            console.warn('🔔 [NotificationsPage] Failed to mark notification as processed:', markErr);
-          }
-        }
-      } catch (e) {
-        console.warn('🔔 [NotificationsPage] Unified notification trigger failed:', e);
-      }
+      console.log('🔍 [NotificationsPage] Firestore snapshot received:', {
+        totalDocs: snapshot.docs.length,
+        userRole: user.role,
+        userId: user.id,
+        agencyId: user.agencyId
+      });
+      
+      const userNotifications: UnifiedNotification[] = snapshot.docs.map(doc => {
+        const data = doc.data();
+        console.log('🔍 [NotificationsPage] Notification document:', {
+          id: doc.id,
+          recipientId: data.recipientId,
+          recipientRole: data.recipientRole,
+          agencyId: data.agencyId,
+          type: data.type,
+          title: data.title,
+          status: data.status
+        });
+        return {
+          id: doc.id,
+          ...data,
+          scheduledFor: data.scheduledFor?.toDate(),
+          createdAt: data.createdAt?.toDate(),
+          sentAt: data.sentAt?.toDate(),
+        } as UnifiedNotification;
+      });
+      
+      console.log('🔍 [NotificationsPage] Mapped notifications:', userNotifications.length, 'notifications found');
 
       setNotifications(userNotifications);
       setIsLoading(false);

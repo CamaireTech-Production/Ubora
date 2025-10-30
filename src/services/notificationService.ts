@@ -20,6 +20,10 @@ export interface NotificationData {
  */
 class NotificationService {
 
+  private normalizeRole(role?: string): 'directeur' | 'employe' {
+    return role === 'directeur' ? 'directeur' : 'employe';
+  }
+
   /**
    * Get user role from database
    */
@@ -28,7 +32,7 @@ class NotificationService {
       const userDoc = await getDoc(doc(db, 'users', userId));
       if (userDoc.exists()) {
         const userData = userDoc.data();
-        return userData.role || 'employe'; // Default to employee if role not found
+        return this.normalizeRole(userData.role);
       }
       console.warn(`🔔 [NotificationService] User ${userId} not found, defaulting to employee role`);
       return 'employe';
@@ -48,7 +52,7 @@ class NotificationService {
         const userData = userDoc.data();
         return {
           email: userData.email || undefined,
-          role: userData.role,
+          role: this.normalizeRole(userData.role),
           agencyId: userData.agencyId
         };
       }
@@ -63,6 +67,7 @@ class NotificationService {
   /**
    * Get FCM token from user profile with validation and regeneration
    */
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   private async getUserFCMToken(userId: string): Promise<string | null> {
     try {
       const userDoc = await getDoc(doc(db, 'users', userId));
@@ -283,28 +288,55 @@ class NotificationService {
    */
   async notifyFormAssignment(formId: string, formTitle: string, userIds: string[], directorName: string, agencyId?: string): Promise<void> {
     console.warn('🔔 [NotificationService] notifyFormAssignment is deprecated. Use unified notification service directly.');
+    console.log('🔔 [NotificationService] notifyFormAssignment called:', {
+      formId,
+      formTitle,
+      userIds,
+      directorName,
+      agencyId
+    });
     
-    // Use unified service for form assignment notifications
-    for (const userId of userIds) {
-      try {
-        // Get user data (role and email)
-        const userRole = await this.getUserRole(userId);
-        const userData = await this.getUserData(userId);
-        
-        await unifiedNotificationService.createFormAssignmentNotification(
-          formId, 
-          formTitle, 
-          userId,
-          userRole,
-          agencyId || userData?.agencyId || '',
-          'assigned',
-          directorName,
-          userData?.email
-        );
-      } catch (error) {
-        console.error('🔔 [NotificationService] Error sending form assignment notification:', error);
-      }
-    }
+    // Use unified service for form assignment notifications (batch all users)
+    await Promise.allSettled(
+      userIds.map(async (userId) => {
+        try {
+          const userData = await this.getUserData(userId);
+          const userRole = this.normalizeRole(userData?.role);
+          const agency = agencyId || userData?.agencyId || '';
+          const email = userData?.email;
+
+          console.log('🔔 [NotificationService] Sending form assignment notification:', {
+            formId,
+            formTitle,
+            userId,
+            userRole,
+            agencyId: agency,
+            email: email || 'none'
+          });
+
+          await unifiedNotificationService.createFormAssignmentNotification(
+            formId,
+            formTitle,
+            userId,
+            userRole,
+            agency,
+            'assigned',
+            directorName,
+            email
+          );
+
+          console.log('🔔 [NotificationService] Form assignment notification sent successfully for userId:', userId);
+        } catch (error) {
+          const err: any = error;
+          console.error('🔔 [NotificationService] Error sending form assignment notification:', {
+            userId,
+            formId,
+            error: err?.message || String(error),
+            stack: err?.stack
+          });
+        }
+      })
+    );
   }
 
   /**
@@ -314,27 +346,31 @@ class NotificationService {
   async notifyFormCreated(formId: string, formTitle: string, userIds: string[], directorName: string, agencyId?: string): Promise<void> {
     console.warn('🔔 [NotificationService] notifyFormCreated is deprecated. Use unified notification service directly.');
     
-    // Use unified service for form creation notifications
-    for (const userId of userIds) {
-      try {
-        // Get user data (role and email)
-        const userRole = await this.getUserRole(userId);
-        const userData = await this.getUserData(userId);
-        
-        await unifiedNotificationService.createFormAssignmentNotification(
-          formId, 
-          formTitle, 
-          userId,
-          userRole,
-          agencyId || userData?.agencyId || '',
-          'assigned',
-          directorName,
-          userData?.email
-        );
-      } catch (error) {
-        console.error('🔔 [NotificationService] Error sending form creation notification:', error);
-      }
-    }
+    // Use unified service for form creation notifications (batch all users)
+    await Promise.allSettled(
+      userIds.map(async (userId) => {
+        try {
+          const userData = await this.getUserData(userId);
+          const userRole = this.normalizeRole(userData?.role);
+          const agency = agencyId || userData?.agencyId || '';
+          const email = userData?.email;
+
+          await unifiedNotificationService.createFormAssignmentNotification(
+            formId,
+            formTitle,
+            userId,
+            userRole,
+            agency,
+            'assigned',
+            directorName,
+            email
+          );
+        } catch (error) {
+          const err: any = error;
+          console.error('🔔 [NotificationService] Error sending form creation notification:', err?.message || String(error));
+        }
+      })
+    );
   }
 
   /**
@@ -343,50 +379,100 @@ class NotificationService {
    */
   async notifyFormAssignmentUpdate(formId: string, formTitle: string, newUserIds: string[], removedUserIds: string[], directorName: string, agencyId?: string): Promise<void> {
     console.warn('🔔 [NotificationService] notifyFormAssignmentUpdate is deprecated. Use unified notification service directly.');
+    console.log('🔔 [NotificationService] notifyFormAssignmentUpdate called:', {
+      formId,
+      formTitle,
+      newUserIds,
+      removedUserIds,
+      directorName,
+      agencyId
+    });
     
-    // Notify newly assigned users
-    for (const userId of newUserIds) {
-      try {
-        // Get user data (role and email)
-        const userRole = await this.getUserRole(userId);
-        const userData = await this.getUserData(userId);
-        
-        await unifiedNotificationService.createFormAssignmentNotification(
-          formId, 
-          formTitle, 
-          userId,
-          userRole,
-          agencyId || userData?.agencyId || '',
-          'assigned',
-          directorName,
-          userData?.email
-        );
-      } catch (error) {
-        console.error('🔔 [NotificationService] Error sending form assignment notification:', error);
-      }
-    }
+    // Notify newly assigned users (batch)
+    await Promise.allSettled(
+      newUserIds.map(async (userId) => {
+        try {
+          const userData = await this.getUserData(userId);
+          const userRole = this.normalizeRole(userData?.role);
+          const agency = agencyId || userData?.agencyId || '';
+          const email = userData?.email;
 
-    // Notify removed users
-    for (const userId of removedUserIds) {
-      try {
-        // Get user data (role and email)
-        const userRole = await this.getUserRole(userId);
-        const userData = await this.getUserData(userId);
-        
-        await unifiedNotificationService.createFormAssignmentNotification(
-          formId, 
-          formTitle, 
-          userId,
-          userRole,
-          agencyId || userData?.agencyId || '',
-          'unassigned',
-          directorName,
-          userData?.email
-        );
-      } catch (error) {
-        console.error('🔔 [NotificationService] Error sending form unassignment notification:', error);
-      }
-    }
+          console.log('🔔 [NotificationService] Sending assignment notification:', {
+            formId,
+            formTitle,
+            userId,
+            userRole,
+            agencyId: agency,
+            email: email || 'none',
+            action: 'assigned'
+          });
+
+          await unifiedNotificationService.createFormAssignmentNotification(
+            formId,
+            formTitle,
+            userId,
+            userRole,
+            agency,
+            'assigned',
+            directorName,
+            email
+          );
+
+          console.log('🔔 [NotificationService] Assignment notification sent successfully for userId:', userId);
+        } catch (error) {
+          const err: any = error;
+          console.error('🔔 [NotificationService] Error sending form assignment notification:', {
+            userId,
+            formId,
+            error: err?.message || String(error),
+            stack: err?.stack
+          });
+        }
+      })
+    );
+
+    // Notify removed users (batch)
+    await Promise.allSettled(
+      removedUserIds.map(async (userId) => {
+        try {
+          const userData = await this.getUserData(userId);
+          const userRole = this.normalizeRole(userData?.role);
+          const agency = agencyId || userData?.agencyId || '';
+          const email = userData?.email;
+
+          console.log('🔔 [NotificationService] Sending unassignment notification:', {
+            formId,
+            formTitle,
+            userId,
+            userRole,
+            agencyId: agency,
+            email: email || 'none',
+            action: 'unassigned'
+          });
+
+          await unifiedNotificationService.createFormAssignmentNotification(
+            formId,
+            formTitle,
+            userId,
+            userRole,
+            agency,
+            'unassigned',
+            directorName,
+            email
+          );
+
+          console.log('🔔 [NotificationService] Unassignment notification sent successfully for userId:', userId);
+        } catch (error) {
+          const err: any = error;
+          console.error('🔔 [NotificationService] Error sending form unassignment notification:', {
+            userId,
+            formId,
+            error: err?.message || String(error),
+            stack: err?.stack
+          });
+        }
+      })
+    );
   }
 }
 
