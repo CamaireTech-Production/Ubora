@@ -215,23 +215,11 @@ export const NotificationsPage: React.FC = () => {
       markAsRead(notification.id);
     }
 
-    // Navigate based on notification data
-    if (notification.data?.formId) {
-      if (notification.data.action === 'form_assigned' || notification.data.action === 'form_created') {
-        window.location.href = '/forms';
-      } else if (notification.data.action === 'form_reminder') {
-        window.location.href = '/forms';
-      }
-    } else if (notification.data?.dashboardId) {
-      window.location.href = '/directeur/dashboard';
-    } else if (notification.data?.scheduledQuestionId) {
-      // Redirect to the specific scheduled question chat page
-      if (notification.data.url) {
-        window.location.href = notification.data.url;
-      } else {
-        window.location.href = '/directeur/scheduled-questions';
-      }
-    }
+    // Preferred redirect path from notification
+    const path = notification.data?.redirectPath || notification.redirectUrl || '/';
+    const isAbsolute = /^https?:\/\//i.test(path);
+    const target = isAbsolute ? path : `${window.location.origin}${path}`;
+    window.location.assign(target);
   };
 
 

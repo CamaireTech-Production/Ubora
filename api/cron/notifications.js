@@ -1,6 +1,7 @@
 import admin from 'firebase-admin';
 import { getFirestore, Timestamp } from 'firebase-admin/firestore';
 import nodemailer from 'nodemailer';
+import { buildAbsoluteUrl, renderEmailTemplate } from '../lib/urlEmail.js';
 
 // Initialize Firebase Admin if not already initialized
 if (!admin.apps.length) {
@@ -44,7 +45,12 @@ async function sendReminderEmail(transporter, { to, formTitle, intervalMinutes, 
   const fromName = process.env.EMAIL_FROM_NAME || 'Ubora App';
   const fromAddress = process.env.EMAIL_FROM || process.env.EMAIL_USER;
   const subject = `Rappel: ${formTitle} (${intervalMinutes} min restantes)`;
-  const html = `<p>Bonjour,</p><p>N'oubliez pas de remplir le formulaire <strong>${formTitle}</strong>.<br/>Il reste ${intervalMinutes} minutes.</p>${redirectUrl ? `<p><a href="${redirectUrl}">Ouvrir le formulaire</a></p>` : ''}`;
+  const html = renderEmailTemplate({
+    title: 'Rappel de formulaire',
+    body: `N'oubliez pas de remplir le formulaire <strong>${formTitle}</strong>. Il reste ${intervalMinutes} minutes.`,
+    ctaLabel: 'Ouvrir le formulaire',
+    ctaHref: redirectUrl,
+  });
   const info = await transporter.sendMail({ from: fromAddress ? `${fromName} <${fromAddress}>` : undefined, to, subject, html, text: html.replace(/<[^>]*>/g, '') });
   return { messageId: info.messageId };
 }
@@ -398,6 +404,7 @@ async function processFormReminders(now, oneMinuteFromNow) {
         // Store notification in Firestore with idempotent key - frontend will handle browser display
         const atIso = reminderTimeIso || (reminderTime instanceof Date ? reminderTime.toISOString() : new Date().toISOString());
         const idempotencyKey = `form:${form.id}:user:${userId}:reminder:${intervalMinutes}:at:${atIso}`;
+        const redirectPath = `/forms/${form.id}`;
         const notificationDoc = {
                   title: 'Rappel de formulaire',
                   body: `N'oubliez pas de remplir le formulaire "${form.title}" (${intervalMinutes}min restantes)`,
@@ -410,10 +417,10 @@ async function processFormReminders(now, oneMinuteFromNow) {
                     formId: form.id,
                     formTitle: form.title,
                     intervalMinutes: intervalMinutes.toString(),
-                    redirectUrl: `/forms/${form.id}`,
+            redirectPath,
                     timestamp: now.getTime().toString()
           },
-          redirectUrl: `/forms/${form.id}`,
+          redirectUrl: redirectPath,
                   read: false,
                   status: 'sent',
                   createdAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -443,7 +450,7 @@ async function processFormReminders(now, oneMinuteFromNow) {
               to: userData.email,
               formTitle: form.title,
               intervalMinutes,
-              redirectUrl: `/forms/${form.id}`
+              redirectUrl: buildAbsoluteUrl(normalizeRole(userData?.role), redirectPath)
             });
             console.log('📧 [Cron] Reminder email sent to', userData.email);
           } else {
@@ -531,6 +538,7 @@ async function processMetricReminders(now, oneMinuteFromNow) {
         const scheduledIso = (reminder.scheduledAt instanceof Date ? reminder.scheduledAt : (reminder.scheduledAt?.toDate ? reminder.scheduledAt.toDate() : now)).toISOString();
         const idempotencyKey = `metric:${reminder.id}:scheduled:${scheduledIso}`;
         const metricLabel = reminder.metricName || 'Métrique';
+        const redirectPath = `/directeur/dashboards/${reminder.dashboardId || ''}${reminder.metricId ? `?metricId=${encodeURIComponent(reminder.metricId)}` : ''}`;
         const notificationDoc = {
           title: `Votre métrique est prête`,
           body: `Votre métrique "${metricLabel}" est prête. Cliquez pour analyser`,
@@ -544,10 +552,10 @@ async function processMetricReminders(now, oneMinuteFromNow) {
             frequency: reminder.frequency || 'daily',
             metricName: metricLabel,
             lastValue: reminder.lastValue || 'N/A',
-            redirectUrl: `/directeur/dashboards/${reminder.dashboardId || ''}`,
+            redirectPath,
             timestamp: now.getTime().toString()
           },
-          redirectUrl: `/directeur/dashboards/${reminder.dashboardId || ''}`,
+          redirectUrl: redirectPath,
           read: false,
           status: 'sent',
           createdAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -573,7 +581,13 @@ async function processMetricReminders(now, oneMinuteFromNow) {
         try {
           if (userData?.email) {
             const subject = `Votre métrique est prête`;
-            const html = `<p>Bonjour,</p><p>Votre métrique <strong>${metricLabel}</strong> est prête.</p><p><a href="/directeur/dashboards/${reminder.dashboardId || ''}">Cliquez pour analyser</a></p>`;
+            const abs = buildAbsoluteUrl('directeur', redirectPath);
+            const html = renderEmailTemplate({
+              title: 'Votre métrique est prête',
+              body: `Votre métrique <strong>${metricLabel}</strong> est prête.`,
+              ctaLabel: 'Cliquez pour analyser',
+              ctaHref: abs,
+            });
             await transporter?.sendMail({
               from: (process.env.EMAIL_FROM && process.env.EMAIL_FROM_NAME) ? `${process.env.EMAIL_FROM_NAME} <${process.env.EMAIL_FROM}>` : undefined,
               to: userData.email,

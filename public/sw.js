@@ -122,7 +122,9 @@ self.addEventListener('notificationclick', (event) => {
       
       // If app is not open, open it
       if (clients.openWindow) {
-        const url = event.notification.data?.url || '/';
+        const redirectPath = event.notification.data?.redirectPath;
+        const dataUrl = event.notification.data?.url; // legacy absolute
+        const url = redirectPath ? (self.location.origin + redirectPath) : (dataUrl || '/');
         console.log('🔔 [SW] Opening new window:', url);
         return clients.openWindow(url);
       }

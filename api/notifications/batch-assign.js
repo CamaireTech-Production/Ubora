@@ -1,6 +1,7 @@
 import admin from 'firebase-admin';
 import { getFirestore, Timestamp } from 'firebase-admin/firestore';
 import nodemailer from 'nodemailer';
+import { buildAbsoluteUrl, renderEmailTemplate } from '../lib/urlEmail.js';
 
 // Initialize Firebase Admin if not already initialized
 if (!admin.apps.length) {
@@ -39,7 +40,7 @@ async function fetchUsersData(userIds) {
 }
 
 function buildNotificationDoc({
-  userId, userData, formId, formTitle, directorName, action, redirectUrl, idempotencyKey
+  userId, userData, formId, formTitle, directorName, action, redirectPath, idempotencyKey
 }) {
   return {
     title: action === 'assigned' ? 'Nouveau formulaire assigné' : 'Formulaire désassigné',
@@ -56,8 +57,9 @@ function buildNotificationDoc({
       assignedByName: directorName,
       action,
       highlightForm: true,
+      redirectPath: redirectPath || '/forms',
     },
-    redirectUrl: redirectUrl || '/forms',
+    redirectUrl: redirectPath || '/forms',
     read: false,
     status: 'sent',
     createdAt: Timestamp.now(),
@@ -158,14 +160,15 @@ export default async (req, res) => {
       const batch = db.batch();
       for (const p of chunk) {
         const ref = db.collection('notifications').doc(p.docId);
-        const doc = buildNotificationDoc({
+      const redirectPath = '/forms/' + formId;
+      const doc = buildNotificationDoc({
           userId: p.userId,
           userData: p.userData,
           formId,
           formTitle,
           directorName,
           action: p.action,
-          redirectUrl,
+        redirectPath,
           idempotencyKey: p.idempotencyKey,
         });
         batch.set(ref, doc, { merge: true });
@@ -178,7 +181,16 @@ export default async (req, res) => {
         if (!p.userData.email) return;
         try {
           const subject = docTitleForEmail(p.action, formTitle);
-          const html = docBodyForEmail(p.action, formTitle, directorName, redirectUrl || '/forms');
+          const abs = buildAbsoluteUrl(p.userData.role, '/forms/' + formId);
+          const bodyText = p.action === 'assigned'
+            ? `${directorName} vous a assigné le formulaire "${formTitle}"`
+            : `Vous n'êtes plus assigné au formulaire "${formTitle}"`;
+          const html = renderEmailTemplate({
+            title: subject,
+            body: bodyText,
+            ctaLabel: 'Ouvrir dans Ubora',
+            ctaHref: abs,
+          });
           const res = await sendEmail(transporter, { to: p.userData.email, subject, html });
           if (res.success) emailSent += 1; else emailFailures += 1;
         } catch (e) {
@@ -206,19 +218,6 @@ function docTitleForEmail(action, formTitle) {
   return action === 'assigned' ? 'Nouveau formulaire assigné' : 'Formulaire désassigné';
 }
 
-function docBodyForEmail(action, formTitle, directorName, redirectUrl) {
-  const body = action === 'assigned'
-    ? `${directorName} vous a assigné le formulaire "${formTitle}"`
-    : `Vous n'êtes plus assigné au formulaire "${formTitle}"`;
-  return `
-    <div style="font-family: Arial, sans-serif; max-width:600px; margin:0 auto; padding:20px;">
-      <h2>Ubora</h2>
-      <p>${body}</p>
-      <div style="margin-top:20px;">
-        <a href="${redirectUrl}" style="background:#2563eb; color:#fff; padding:10px 16px; text-decoration:none; border-radius:6px;">Ouvrir dans Ubora</a>
-      </div>
-    </div>
-  `;
-}
+function docBodyForEmail() { return ''; }
 
 
