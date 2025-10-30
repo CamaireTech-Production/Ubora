@@ -530,9 +530,10 @@ async function processMetricReminders(now, oneMinuteFromNow) {
         // Store notification in Firestore with idempotent key
         const scheduledIso = (reminder.scheduledAt instanceof Date ? reminder.scheduledAt : (reminder.scheduledAt?.toDate ? reminder.scheduledAt.toDate() : now)).toISOString();
         const idempotencyKey = `metric:${reminder.id}:scheduled:${scheduledIso}`;
+        const metricLabel = reminder.metricName || 'Métrique';
         const notificationDoc = {
-          title: `Rappel métrique: ${reminder.metricName || 'Métrique'}`,
-          body: `Valeur ${reminder.frequency || 'daily'}: ${reminder.lastValue || 'N/A'}`,
+          title: `Votre métrique est prête`,
+          body: `Votre métrique "${metricLabel}" est prête. Cliquez pour analyser`,
           type: 'metric_reminder',
           recipientId: reminder.directorId,
           recipientRole: 'directeur',
@@ -541,7 +542,7 @@ async function processMetricReminders(now, oneMinuteFromNow) {
             dashboardId: reminder.dashboardId || '',
             metricId: reminder.metricId || '',
             frequency: reminder.frequency || 'daily',
-            metricName: reminder.metricName || 'Métrique',
+            metricName: metricLabel,
             lastValue: reminder.lastValue || 'N/A',
             redirectUrl: `/directeur/dashboards/${reminder.dashboardId || ''}`,
             timestamp: now.getTime().toString()
@@ -566,13 +567,13 @@ async function processMetricReminders(now, oneMinuteFromNow) {
           lastEvaluatedAt: Timestamp.fromDate(now)
         });
         
-        console.log(`📊 [Cron] Metric reminder stored: ${reminder.metricName || 'Métrique'} to director ${reminder.directorId}`);
+        console.log(`📊 [Cron] Metric reminder stored: ${metricLabel} to director ${reminder.directorId}`);
 
         // Attempt email delivery (non-fatal)
         try {
           if (userData?.email) {
-            const subject = `Rappel métrique: ${reminder.metricName || 'Métrique'}`;
-            const html = `<p>Bonjour,</p><p>Rappel pour la métrique <strong>${reminder.metricName || 'Métrique'}</strong> (${reminder.frequency || 'daily'}).</p>`;
+            const subject = `Votre métrique est prête`;
+            const html = `<p>Bonjour,</p><p>Votre métrique <strong>${metricLabel}</strong> est prête.</p><p><a href="/directeur/dashboards/${reminder.dashboardId || ''}">Cliquez pour analyser</a></p>`;
             await transporter?.sendMail({
               from: (process.env.EMAIL_FROM && process.env.EMAIL_FROM_NAME) ? `${process.env.EMAIL_FROM_NAME} <${process.env.EMAIL_FROM}>` : undefined,
               to: userData.email,
