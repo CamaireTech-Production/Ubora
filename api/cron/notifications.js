@@ -52,6 +52,21 @@ function parseAfricaDoualaLocalDateTime(dateStr, timeStr) {
   }
 }
 
+// Build today's due time (Africa/Douala) from an HH:mm string
+function buildTodayDueAtAfricaDouala(endTimeStr) {
+  try {
+    const now = new Date();
+    const [hourStr, minuteStr] = (endTimeStr || '').split(':');
+    const hour = parseInt(hourStr || '0', 10);
+    const minute = parseInt(minuteStr || '0', 10);
+    // Convert Douala local to UTC by subtracting 1 hour
+    const utcHour = (hour - 1 + 24) % 24;
+    return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), utcHour, minute, 0, 0));
+  } catch (e) {
+    return null;
+  }
+}
+
 /**
  * Process notifications concurrently in batches
  */
@@ -190,9 +205,8 @@ export default async (req, res) => {
 async function processFormReminders(now, oneMinuteFromNow) {
   try {
     // Step 1: Collect all form reminders that need to be sent
-    const formsSnapshot = await db.collection('forms')
-      .where('deadline', '!=', null)
-      .get();
+    // Use collection group to support nested form collections
+    const formsSnapshot = await db.collectionGroup('forms').get();
 
     const remindersToProcess = [];
 
@@ -213,22 +227,36 @@ async function processFormReminders(now, oneMinuteFromNow) {
 
     for (const formDoc of formsSnapshot.docs) {
       const form = { id: formDoc.id, ...formDoc.data() };
-      
-      if (!form.deadline || !form.assignedTo || form.assignedTo.length === 0) {
+
+      const assignedTo = Array.isArray(form.assignedTo) ? form.assignedTo : [];
+      const timeRestrictions = form.timeRestrictions || {};
+      const allowedDays = Array.isArray(timeRestrictions.allowedDays) ? timeRestrictions.allowedDays : [];
+      const endTime = timeRestrictions.endTime;
+
+      if (assignedTo.length === 0 || !endTime) {
         continue;
       }
 
-      // Parse deadline - this is critical for timezone understanding
-      const deadlineString = `${form.deadline.date}T${form.deadline.time}`;
-      const deadlineDate = parseAfricaDoualaLocalDateTime(form.deadline.date, form.deadline.time);
+      // Check today's weekday is allowed
+      const todayName = new Date().toLocaleDateString('en-US', { weekday: 'long' });
+      const isAllowedToday = allowedDays.length === 0 || allowedDays.includes(todayName) || allowedDays.includes(todayName.toLowerCase());
+      if (!isAllowedToday) {
+        continue;
+      }
+
+      // Build today's deadline from endTime (Africa/Douala)
+      const deadlineDate = buildTodayDueAtAfricaDouala(endTime);
+      if (!deadlineDate) continue;
       const reminderIntervals = [60, 30, 15, 5]; // minutes before deadline
       
-      console.log(`📅 [Cron] Processing form "${form.title}" (${form.id}):`, {
-        deadlineString: deadlineString,
+      console.log(`📅 [Cron] Processing form "${form.title || '(no title)'}" (${form.id}):`, {
+        mode: 'timeRestrictions',
+        endTime: endTime,
         deadlineDateLocal: deadlineDate.toString(),
         deadlineDateUTC: deadlineDate.toISOString(),
         deadlineDateUTCString: deadlineDate.toUTCString(),
-        assignedUsers: form.assignedTo?.length || 0,
+        allowedDays,
+        assignedUsers: assignedTo.length,
         timezoneInfo: {
           parsedAs: 'Interpreted in server timezone',
           serverTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone
@@ -255,12 +283,16 @@ async function processFormReminders(now, oneMinuteFromNow) {
         windowEndUTC: oneMinuteFromNow.toISOString(),
       });
 
-      for (const userId of form.assignedTo) {
+      // Use widened window for 2-min cadence
+      const windowStart = new Date(now.getTime() - 60 * 1000);
+      const windowEnd = new Date(oneMinuteFromNow.getTime() + 0);
+
+      for (const userId of assignedTo) {
         for (const intervalMinutes of reminderIntervals) {
           const reminderTime = new Date(deadlineDate.getTime() - intervalMinutes * 60 * 1000);
           
           // Detailed logging for each reminder check
-          const shouldSend = reminderTime >= now && reminderTime <= oneMinuteFromNow;
+          const shouldSend = reminderTime >= windowStart && reminderTime <= windowEnd;
           // Also compute a tolerance window (not used for sending) to detect near-misses
           const ninetySeconds = 90 * 1000;
           const windowStartTolerance = new Date(now.getTime() - ninetySeconds);
@@ -271,12 +303,11 @@ async function processFormReminders(now, oneMinuteFromNow) {
               deadlineUTC: deadlineDate.toISOString(),
               reminderTimeUTC: reminderTime.toISOString(),
               reminderTimeLocal: reminderTime.toString(),
-              nowUTC: now.toISOString(),
-              nowLocal: now.toString(),
-              oneMinuteFromNowUTC: oneMinuteFromNow.toISOString(),
+              windowStartUTC: windowStart.toISOString(),
+              windowEndUTC: windowEnd.toISOString(),
               timeDiffMinutes: (reminderTime.getTime() - now.getTime()) / (60 * 1000),
               shouldSend: shouldSend,
-              check: `reminderTime (${reminderTime.toISOString()}) >= now (${now.toISOString()}) && <= oneMinuteFromNow (${oneMinuteFromNow.toISOString()})`,
+              check: `reminderTime (${reminderTime.toISOString()}) ∈ [${windowStart.toISOString()} , ${windowEnd.toISOString()}]`,
               toleranceWindow: {
                 startUTC: windowStartTolerance.toISOString(),
                 endUTC: windowEndTolerance.toISOString(),
@@ -597,18 +628,23 @@ export async function getNextNotificationTime() {
     const now = new Date();
     const upcomingTimes = [];
 
-    // 1. Get upcoming form reminder times
-    const formsSnapshot = await db.collection('forms')
-      .where('deadline', '!=', null)
-      .get();
+    // 1. Get upcoming form reminder times based on timeRestrictions
+    const formsSnapshot = await db.collectionGroup('forms').get();
 
     for (const formDoc of formsSnapshot.docs) {
       const form = formDoc.data();
-      if (!form.deadline || !form.assignedTo || form.assignedTo.length === 0) {
-        continue;
-      }
+      const assignedTo = Array.isArray(form.assignedTo) ? form.assignedTo : [];
+      const timeRestrictions = form.timeRestrictions || {};
+      const allowedDays = Array.isArray(timeRestrictions.allowedDays) ? timeRestrictions.allowedDays : [];
+      const endTime = timeRestrictions.endTime;
+      if (assignedTo.length === 0 || !endTime) continue;
 
-      const deadlineDate = parseAfricaDoualaLocalDateTime(form.deadline.date, form.deadline.time);
+      const todayName = new Date().toLocaleDateString('en-US', { weekday: 'long' });
+      const isAllowedToday = allowedDays.length === 0 || allowedDays.includes(todayName) || allowedDays.includes(todayName.toLowerCase());
+      if (!isAllowedToday) continue;
+
+      const deadlineDate = buildTodayDueAtAfricaDouala(endTime);
+      if (!deadlineDate) continue;
       const reminderIntervals = [60, 30, 15, 5]; // minutes before deadline
 
       for (const intervalMinutes of reminderIntervals) {
