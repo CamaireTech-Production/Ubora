@@ -24,13 +24,17 @@ jobs:
       
     - name: Create environment file for backend
       run: |
+        # Create .env.local with Firebase private key handled separately to avoid quote issues
         cat > .env.local << EOF
         # Development Backend Environment Variables
         
         # Firebase Configuration
         FIREBASE_PROJECT_ID=${{ secrets.FIREBASE_PROJECT_ID }}
         FIREBASE_CLIENT_EMAIL=${{ secrets.FIREBASE_CLIENT_EMAIL }}
-        FIREBASE_PRIVATE_KEY="${{ secrets.FIREBASE_PRIVATE_KEY }}"
+        EOF
+        # Append private key using printf to handle multiline and special characters correctly
+        printf 'FIREBASE_PRIVATE_KEY=%s\n' "${{ secrets.FIREBASE_PRIVATE_KEY }}" >> .env.local
+        cat >> .env.local << EOF
         
         # OpenAI Configuration
         OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
