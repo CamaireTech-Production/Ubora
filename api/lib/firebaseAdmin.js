@@ -49,10 +49,33 @@ if (!admin.apps.length) {
       throw new Error('Variables d\'environnement Firebase Admin manquantes. Vérifiez FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, et FIREBASE_PRIVATE_KEY.');
     }
   } else {
-    // Nettoyer et formater la clé privée
+    // Clean and format the private key - handle various escape formats
     let cleanPrivateKey = privateKey;
-    if (cleanPrivateKey && !cleanPrivateKey.includes('\\n')) {
-      cleanPrivateKey = cleanPrivateKey.replace(/\\n/g, '\n');
+    
+    if (cleanPrivateKey) {
+      // Remove surrounding quotes if present
+      cleanPrivateKey = cleanPrivateKey.trim();
+      if ((cleanPrivateKey.startsWith('"') && cleanPrivateKey.endsWith('"')) ||
+          (cleanPrivateKey.startsWith("'") && cleanPrivateKey.endsWith("'"))) {
+        cleanPrivateKey = cleanPrivateKey.slice(1, -1);
+      }
+      
+      // Check if key already has actual newlines (properly formatted)
+      const hasActualNewlines = cleanPrivateKey.includes('\n') && cleanPrivateKey.includes('BEGIN PRIVATE KEY');
+      
+      if (!hasActualNewlines) {
+        // Key needs newline conversion - handle various escape formats
+        // First: Handle double-escaped newlines (\\\\n -> \n literal -> newline)
+        cleanPrivateKey = cleanPrivateKey.replace(/\\\\n/g, '\n');
+        // Second: Handle single-escaped newlines (\n -> newline) from env files
+        // This covers most common cases where dotenv keeps \n as literal characters
+        cleanPrivateKey = cleanPrivateKey.replace(/\\n/g, '\n');
+      }
+      
+      // Final validation: Ensure key starts with BEGIN PRIVATE KEY (indicates proper PEM format)
+      if (!cleanPrivateKey.includes('BEGIN PRIVATE KEY') || !cleanPrivateKey.includes('END PRIVATE KEY')) {
+        console.warn('⚠️ Warning: Firebase private key format may be incorrect. Expected PEM format with BEGIN/END PRIVATE KEY markers.');
+      }
     }
 
     const serviceAccount = {
@@ -77,6 +100,15 @@ if (!admin.apps.length) {
       console.log('✅ Firebase Admin SDK initialized successfully');
     } catch (error) {
       console.error('❌ Firebase Admin SDK initialization failed:', error);
+      
+      // Provide specific guidance for private key parsing errors
+      if (error.code === 'app/invalid-credential' || error.message?.includes('Invalid PEM') || error.message?.includes('private key')) {
+        console.error('🔑 Private key parsing error detected.');
+        console.error('   - Check that FIREBASE_PRIVATE_KEY contains the full key including BEGIN/END markers');
+        console.error('   - Ensure newlines are properly escaped in your .env file');
+        console.error('   - The key should start with: -----BEGIN PRIVATE KEY-----');
+        console.error('   - Key length (first 100 chars):', cleanPrivateKey?.substring(0, 100) || 'N/A');
+      }
       
       // In development, provide a fallback instead of crashing
       if (process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'dev' || !process.env.NODE_ENV) {
