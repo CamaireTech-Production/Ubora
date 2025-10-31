@@ -6,13 +6,19 @@ if (!loadedLocalEnv || !loadedLocalEnv.parsed) {
 }
 
 import { adminDb, admin } from '../lib/firebaseAdmin.js';
-import { getFirestore, Timestamp } from 'firebase-admin/firestore';
+import { Timestamp } from 'firebase-admin/firestore';
 import nodemailer from 'nodemailer';
 import { buildAbsoluteUrl, renderEmailTemplate } from '../lib/urlEmail.js';
 import { executeAIQuestion } from '../lib/executeAIQuestion.js';
 
 // Use the shared Firebase Admin instance (loads from .env.local via firebaseAdmin.js)
-const db = adminDb || getFirestore();
+// Ensure db is always a proper Firestore instance
+const db = adminDb || admin.firestore();
+
+// Safety check: ensure db is properly initialized
+if (!db || typeof db.collectionGroup !== 'function' || typeof db.collection !== 'function') {
+  throw new Error('Firebase Admin Firestore not properly initialized. Check FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, and FIREBASE_PRIVATE_KEY environment variables.');
+}
 // Lightweight email sender (reuse env used elsewhere). If no creds, skip.
 function makeEmailTransporter() {
   if (!process.env.EMAIL_USER || !process.env.EMAIL_PASSWORD) return null;
