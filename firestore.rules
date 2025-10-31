@@ -695,6 +695,96 @@ service cloud.firestore {
     }
 
     // =============================================================================
+    // COLLECTION UNIVERS
+    // Règles pour les Univers (Univer Ubora) :
+    // - Seuls les directeurs peuvent créer/modifier/supprimer leurs Univers
+    // - Les Univers sont isolés par agence ou globaux (marketplace)
+    // - Les Univers marketplace nécessitent approbation admin
+    // =============================================================================
+    
+    match /univers/{universId} {
+      // LECTURE des Univers
+      allow read: if isAuthenticated() && (
+        isAdmin() ||
+        // Creator can read their own Univers
+        (resource.data.ownership.createdBy == request.auth.uid) ||
+        // Users in same agency can read agency Univers
+        (resource.data.ownership.agencyId != null && 
+         isSameAgency(resource.data.ownership.agencyId) &&
+         resource.data.ownership.isMarketplaceTemplate == false) ||
+        // Everyone can read approved marketplace templates
+        (resource.data.ownership.isMarketplaceTemplate == true &&
+         resource.data.ownership.approvalStatus == 'approved')
+      );
+      
+      // CRÉATION des Univers
+      allow create: if isAuthenticated() && (
+        isAdmin() ||
+        (canCreateForms() && 
+         request.resource.data.ownership.createdBy == request.auth.uid &&
+         request.resource.data.keys().hasAll(['metadata', 'ownership', 'definitions', 'usage']))
+      );
+      
+      // MODIFICATION des Univers
+      allow update: if isAuthenticated() && (
+        isAdmin() ||
+        (canCreateForms() && 
+         isSameAgency(resource.data.ownership.agencyId) &&
+         resource.data.ownership.createdBy == request.auth.uid)
+      );
+      
+      // SUPPRESSION des Univers
+      allow delete: if isAuthenticated() && (
+        isAdmin() ||
+        (canCreateForms() && 
+         isSameAgency(resource.data.ownership.agencyId) &&
+         resource.data.ownership.createdBy == request.auth.uid)
+      );
+    }
+
+    // =============================================================================
+    // COLLECTION UNIVERS INSTANCES
+    // Règles pour les instances Univers (quand un utilisateur utilise un template) :
+    // - Les utilisateurs peuvent créer leurs propres instances
+    // - Les instances sont isolées par agence
+    // =============================================================================
+    
+    match /universInstances/{instanceId} {
+      // LECTURE des instances Univers
+      allow read: if isAuthenticated() && (
+        isAdmin() ||
+        (isSameAgency(resource.data.agencyId) &&
+         resource.data.userId == request.auth.uid) ||
+        (isDirecteur() && isSameAgency(resource.data.agencyId))
+      );
+      
+      // CRÉATION des instances Univers
+      allow create: if isAuthenticated() && (
+        isAdmin() ||
+        (canCreateForms() && 
+         isSameAgency(request.resource.data.agencyId) &&
+         request.resource.data.userId == request.auth.uid &&
+         request.resource.data.keys().hasAll(['universId', 'userId', 'agencyId', 'instances', 'metadata']))
+      );
+      
+      // MODIFICATION des instances Univers (généralement pas nécessaire, mais prévu)
+      allow update: if isAuthenticated() && (
+        isAdmin() ||
+        (canCreateForms() && 
+         isSameAgency(resource.data.agencyId) &&
+         resource.data.userId == request.auth.uid)
+      );
+      
+      // SUPPRESSION des instances Univers
+      allow delete: if isAuthenticated() && (
+        isAdmin() ||
+        (canCreateForms() && 
+         isSameAgency(resource.data.agencyId) &&
+         resource.data.userId == request.auth.uid)
+      );
+    }
+
+    // =============================================================================
     // RÈGLE DE SÉCURITÉ GLOBALE
     // Bloquer tout accès non authentifié par défaut
     // =============================================================================

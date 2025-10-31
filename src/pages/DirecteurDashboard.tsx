@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Form, FormField } from '../types';
 import { useAuth } from '../contexts/AuthContext';
@@ -11,7 +11,7 @@ import { FormEditor } from '../components/FormEditor';
 import { FormBuilder } from '../components/FormBuilder';
 import { DynamicForm } from '../components/DynamicForm';
 import { WireframeLoader } from '../components/loading/WireframeLoader';
-import { Plus, FileText, Users, Eye, Trash2, Edit, UserCheck, BarChart3, Calendar, ChevronDown, Crown, User as UserIcon, ClipboardList, FileEdit, FileBarChart, ArrowLeft, Send } from 'lucide-react';
+import { Plus, FileText, Users, Eye, Trash2, Edit, UserCheck, BarChart3, Calendar, ChevronDown, Crown, User as UserIcon, ClipboardList, FileEdit, FileBarChart, ArrowLeft, Send, Sparkles } from 'lucide-react';
 import { PendingApprovals } from '../components/PendingApprovals';
 import { VideoSection } from '../components/VideoSection';
 import { directorVideos } from '../data/videoData';
@@ -25,6 +25,7 @@ import { LimitReachedModal } from '../components/LimitReachedModal';
 import { ImpersonationHeader } from '../components/ImpersonationHeader';
 import { UserSessionService } from '../services/userSessionService';
 import { AccessDeniedModal } from '../components/AccessDeniedModal';
+import { universService } from '../services/universService';
 
 export const DirecteurDashboard: React.FC = () => {
   const navigate = useNavigate();
@@ -81,6 +82,8 @@ export const DirecteurDashboard: React.FC = () => {
   const [isSavingDraft, setIsSavingDraft] = useState(false);
   const [isSubmittingDrafts, setIsSubmittingDrafts] = useState(false);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const [universCount, setUniversCount] = useState<number>(0);
+  const [showUniversHighlight, setShowUniversHighlight] = useState(false);
   
   // États pour le filtrage temporel
   const [timeFilter, setTimeFilter] = useState<string>('all');
@@ -92,6 +95,34 @@ export const DirecteurDashboard: React.FC = () => {
     end: ''
   });
   const [showCustomDatePicker, setShowCustomDatePicker] = useState(false);
+
+  // Load Univers count
+  useEffect(() => {
+    const loadUniversCount = async () => {
+      if (!user?.id || !user?.agencyId) return;
+      try {
+        const myUnivers = await universService.getByUser(user.id, user.agencyId);
+        setUniversCount(myUnivers.length);
+      } catch (error) {
+        console.error('Erreur lors du chargement du nombre de Univers:', error);
+      }
+    };
+    loadUniversCount();
+  }, [user]);
+
+  // Trigger highlight animation on mount
+  useEffect(() => {
+    setShowUniversHighlight(true);
+    const timer = setTimeout(() => {
+      setShowUniversHighlight(false);
+    }, 2000); // Highlight for 2 seconds
+    return () => clearTimeout(timer);
+  }, []);
+
+  // Handler for Univers button
+  const handleUniversClick = () => {
+    navigate('/univers');
+  };
 
   // Function to get form icon based on form type or content
   const getFormIcon = (form: Form) => {
@@ -704,6 +735,56 @@ export const DirecteurDashboard: React.FC = () => {
               <WireframeLoader type="dashboard" />
             ) : (
             <div className="space-y-6 lg:space-y-8">
+            
+            {/* Univer Ubora Button - Prominent at top */}
+            <div className={`relative overflow-hidden rounded-xl transition-all duration-500 ${
+              showUniversHighlight 
+                ? 'ring-4 ring-blue-400 ring-opacity-50 shadow-2xl transform scale-[1.01]' 
+                : 'shadow-lg'
+            }`}>
+              <button
+                onClick={handleUniversClick}
+                className="relative w-full bg-gradient-to-r from-blue-500 via-indigo-500 via-purple-500 to-blue-600 text-white p-6 sm:p-8 rounded-xl hover:shadow-xl transition-all duration-300 hover:scale-[1.02] group overflow-hidden"
+              >
+                {/* Animated gradient overlay */}
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent transform -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
+                
+                {/* Content */}
+                <div className="relative flex flex-col sm:flex-row items-center justify-between space-y-4 sm:space-y-0">
+                  <div className="flex items-center space-x-4">
+                    {/* Icon */}
+                    <div className="flex-shrink-0">
+                      <div className="bg-white/20 backdrop-blur-sm rounded-xl p-3 sm:p-4 group-hover:bg-white/30 transition-colors">
+                        <Sparkles className="h-6 w-6 sm:h-8 sm:w-8" />
+                      </div>
+                    </div>
+                    
+                    {/* Text */}
+                    <div className="text-left">
+                      <h2 className="text-xl sm:text-2xl font-bold mb-1">
+                        Univer Ubora
+                      </h2>
+                      <p className="text-sm sm:text-base text-blue-100 opacity-90">
+                        Créez et gérez vos Univers - Templates regroupant formulaires, tableaux de bord, instructions et plus
+                      </p>
+                    </div>
+                  </div>
+                  
+                  {/* Count badge */}
+                  <div className="flex items-center space-x-3">
+                    {universCount > 0 && (
+                      <div className="bg-white/20 backdrop-blur-sm rounded-full px-4 py-2 border border-white/30">
+                        <span className="text-sm font-semibold">{universCount} Univers{universCount > 1 ? 's' : ''}</span>
+                      </div>
+                    )}
+                    <div className="bg-white/20 backdrop-blur-sm rounded-full p-2 group-hover:bg-white/30 transition-colors">
+                      <ArrowLeft className="h-5 w-5 rotate-180 group-hover:translate-x-1 transition-transform" />
+                    </div>
+                  </div>
+                </div>
+              </button>
+            </div>
+
             {/* Filtre temporel compact */}
             
             <div className="flex items-center justify-between gap-2 bg-white border border-gray-200 rounded-lg px-3 py-2 shadow-sm">

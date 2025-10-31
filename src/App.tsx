@@ -23,6 +23,7 @@ import { ScheduledQuestionsPage } from './pages/ScheduledQuestionsPage';
 import { ScheduledQuestionFormPage } from './pages/ScheduledQuestionFormPage';
 import { ScheduledQuestionChatPage } from './pages/ScheduledQuestionChatPage';
 import { ProgrammedInstructionsRoute } from './components/ProgrammedInstructionsRoute';
+import { UniversPage } from './pages/UniversPage';
 import { AdminLoginPage } from './admin/pages/AdminLoginPage';
 import { AdminPage } from './admin';
 import { UserDetailPage } from './admin/pages/UserDetailPage';
@@ -403,6 +404,59 @@ function App() {
                 </ProtectedRoute>
               } 
             />
+            
+            {/* Univers (Univer Ubora) - Main page */}
+            <Route 
+              path="/univers" 
+              element={
+                <ProtectedRoute 
+                  allowedRoles={['directeur', 'employe']} 
+                  requireDirectorDashboardAccess={true}
+                >
+                  <UniversPage />
+                </ProtectedRoute>
+              } 
+            />
+            
+            {/* Univers - Create (wizard will be added later) */}
+            <Route 
+              path="/univers/create" 
+              element={
+                <ProtectedRoute 
+                  allowedRoles={['directeur', 'employe']} 
+                  requireDirectorDashboardAccess={true}
+                >
+                  <UniversPage />
+                </ProtectedRoute>
+              } 
+            />
+            
+            {/* Univers - Detail (will be added later) */}
+            <Route 
+              path="/univers/:id" 
+              element={
+                <ProtectedRoute 
+                  allowedRoles={['directeur', 'employe']} 
+                  requireDirectorDashboardAccess={true}
+                >
+                  <UniversPage />
+                </ProtectedRoute>
+              } 
+            />
+            
+            {/* Univers - Edit (will be added later) */}
+            <Route 
+              path="/univers/:id/edit" 
+              element={
+                <ProtectedRoute 
+                  allowedRoles={['directeur', 'employe']} 
+                  requireDirectorDashboardAccess={true}
+                >
+                  <UniversPage />
+                </ProtectedRoute>
+              } 
+            />
+            
             {/* Dev/Test: Push Notifications */}
             <Route 
               path="/dev/push-test" 

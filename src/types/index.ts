@@ -184,6 +184,10 @@ export interface Form {
     reminderIntervals: number[]; // [60, 30, 15] minutes before deadline
     enabled: boolean;
   };
+  // Univers fields (optional - for Univers template system)
+  universId?: string | null; // Reference to Univers template if created from template
+  universInstanceId?: string | null; // Reference to Univers instance group
+  fromUnivers?: boolean; // Flag to identify Univers-originated items
 }
 
 export interface FileAttachment {
@@ -425,6 +429,10 @@ export interface ScheduledQuestion {
   lastExecutedAt?: Date;
   executionCount: number;
   maxExecutions?: number;
+  // Univers fields (optional - for Univers template system)
+  universId?: string | null; // Reference to Univers template if created from template
+  universInstanceId?: string | null; // Reference to Univers instance group
+  fromUnivers?: boolean; // Flag to identify Univers-originated items
 }
 
 export interface ScheduledQuestionResponse {
@@ -483,6 +491,10 @@ export interface Dashboard {
   createdByEmployeeId?: string; // ID de l'employé si créé par un employé
   agencyId: string;
   isDefault?: boolean; // Pour le dashboard par défaut
+  // Univers fields (optional - for Univers template system)
+  universId?: string | null; // Reference to Univers template if created from template
+  universInstanceId?: string | null; // Reference to Univers instance group
+  fromUnivers?: boolean; // Flag to identify Univers-originated items
 }
 
 // Types pour l'état de l'application
