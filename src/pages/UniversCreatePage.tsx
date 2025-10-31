@@ -5,7 +5,9 @@ import { UniversWizardStep1 } from '../components/UniversWizardStep1';
 import { UniversWizardStep2 } from '../components/UniversWizardStep2';
 import { UniversWizardStep3 } from '../components/UniversWizardStep3';
 import { UniversWizardStep4 } from '../components/UniversWizardStep4';
+import { UniversWizardStep5 } from '../components/UniversWizardStep5';
 import { UniversWizardStep6 } from '../components/UniversWizardStep6';
+import { UniversWizardStep7 } from '../components/UniversWizardStep7';
 import { UniversDefinitions, UniversMetadata, UniversOwnership } from '../types';
 import { universService } from '../services/universService';
 import { useAuth } from '../contexts/AuthContext';
@@ -84,14 +86,14 @@ export const UniversCreatePage: React.FC = () => {
         // Dashboards step
         return <UniversWizardStep4 {...props} />;
       case 5:
-        // Instructions step - will be implemented in next task
-        return <ComingSoonStep title="Instructions programmées" description="Cette étape permettra de créer et configurer les instructions programmées du Univers." />;
+        // Instructions step
+        return <UniversWizardStep5 {...props} />;
       case 6:
         // Reports step - Coming Soon
         return <UniversWizardStep6 {...props} />;
       case 7:
-        // Summary step - will be implemented in next task
-        return <ComingSoonStep title="Résumé & Publication" description="Cette étape affichera un résumé complet du Univers et permettra de le publier." />;
+        // Summary step
+        return <UniversWizardStep7 {...props} />;
       default:
         return <div>Étape non reconnue</div>;
     }

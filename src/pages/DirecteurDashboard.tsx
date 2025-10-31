@@ -26,6 +26,7 @@ import { ImpersonationHeader } from '../components/ImpersonationHeader';
 import { UserSessionService } from '../services/userSessionService';
 import { AccessDeniedModal } from '../components/AccessDeniedModal';
 import { universService } from '../services/universService';
+import { UniversBadge } from '../components/UniversBadge';
 
 export const DirecteurDashboard: React.FC = () => {
   const navigate = useNavigate();
@@ -84,6 +85,7 @@ export const DirecteurDashboard: React.FC = () => {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [universCount, setUniversCount] = useState<number>(0);
   const [showUniversHighlight, setShowUniversHighlight] = useState(false);
+  const [universMap, setUniversMap] = useState<Map<string, { name: string }>>(new Map()); // Cache Univers names
   
   // États pour le filtrage temporel
   const [timeFilter, setTimeFilter] = useState<string>('all');
@@ -96,19 +98,30 @@ export const DirecteurDashboard: React.FC = () => {
   });
   const [showCustomDatePicker, setShowCustomDatePicker] = useState(false);
 
-  // Load Univers count
-  useEffect(() => {
-    const loadUniversCount = async () => {
-      if (!user?.id || !user?.agencyId) return;
-      try {
-        const myUnivers = await universService.getByUser(user.id, user.agencyId);
-        setUniversCount(myUnivers.length);
-      } catch (error) {
-        console.error('Erreur lors du chargement du nombre de Univers:', error);
-      }
-    };
-    loadUniversCount();
-  }, [user]);
+         // Load Univers count and cache Univers names
+         useEffect(() => {
+           const loadUniversData = async () => {
+             if (!user?.id || !user?.agencyId) return;
+             try {
+               const [myUnivers, marketplaceUnivers] = await Promise.all([
+                 universService.getByUser(user.id, user.agencyId),
+                 universService.getMarketplaceTemplates()
+               ]);
+
+               // Combine and create map for quick lookup
+               const map = new Map<string, { name: string }>();
+               [...myUnivers, ...marketplaceUnivers].forEach(u => {
+                 map.set(u.id, { name: u.metadata.name });
+               });
+
+               setUniversMap(map);
+               setUniversCount(myUnivers.length);
+             } catch (error) {
+               console.error('Erreur lors du chargement des Univers:', error);
+             }
+           };
+           loadUniversData();
+         }, [user]);
 
   // Trigger highlight animation on mount
   useEffect(() => {
@@ -1065,11 +1078,20 @@ export const DirecteurDashboard: React.FC = () => {
                               </h3>
                             </div>
                           </div>
-                          {form.timeRestrictions && formatTimeRestrictions(form.timeRestrictions) && (
-                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 w-fit">
-                              🕒 {formatTimeRestrictions(form.timeRestrictions)}
-                            </span>
-                          )}
+                          <div className="flex flex-wrap items-center gap-2 mt-2">
+                            {form.fromUnivers && form.universId && universMap.has(form.universId) && (
+                              <UniversBadge
+                                universId={form.universId}
+                                universName={universMap.get(form.universId)?.name}
+                                size="sm"
+                              />
+                            )}
+                            {form.timeRestrictions && formatTimeRestrictions(form.timeRestrictions) && (
+                              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 w-fit">
+                                🕒 {formatTimeRestrictions(form.timeRestrictions)}
+                              </span>
+                            )}
+                          </div>
                         </div>
 
                         {/* Description */}
@@ -1217,6 +1239,7 @@ export const DirecteurDashboard: React.FC = () => {
                             onDelete={handleDeleteDashboard}
                             showActions={true}
                             minimal={true}
+                            universName={dashboard.universId ? universMap.get(dashboard.universId)?.name : undefined}
                           />
                         </div>
                       ))}

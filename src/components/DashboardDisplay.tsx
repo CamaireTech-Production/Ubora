@@ -6,6 +6,7 @@ import { MetricCalculator } from '../utils/MetricCalculator';
 import { GraphPreview } from './charts/GraphPreview';
 import { GraphModal } from './charts/GraphModal';
 import { BarChart3, TrendingUp, TrendingDown, Minus, Hash, Type, Mail, Calendar, CheckSquare, Upload, Eye, Edit, Trash2, Crown, User as UserIcon, FileBarChart } from 'lucide-react';
+import { UniversBadge } from './UniversBadge';
 
 interface DashboardDisplayProps {
   dashboard: Dashboard;
@@ -17,6 +18,7 @@ interface DashboardDisplayProps {
   onView?: (dashboard: Dashboard) => void;
   showActions?: boolean;
   minimal?: boolean;
+  universName?: string; // Optional Univers name for badge
 }
 
 export const DashboardDisplay: React.FC<DashboardDisplayProps> = ({
@@ -28,7 +30,8 @@ export const DashboardDisplay: React.FC<DashboardDisplayProps> = ({
   onDelete,
   onView,
   showActions = true,
-  minimal = false
+  minimal = false,
+  universName
 }) => {
   const [expandedGraph, setExpandedGraph] = useState<DashboardMetric | null>(null);
   const getFieldIcon = (fieldType: string) => {
@@ -162,6 +165,15 @@ export const DashboardDisplay: React.FC<DashboardDisplayProps> = ({
                 }}>
                   {dashboard.name}
                 </h3>
+                {dashboard.fromUnivers && dashboard.universId && (
+                  <div className="mt-2">
+                    <UniversBadge
+                      universId={dashboard.universId}
+                      universName={universName}
+                      size="sm"
+                    />
+                  </div>
+                )}
               </div>
             </div>
             
@@ -211,6 +223,14 @@ export const DashboardDisplay: React.FC<DashboardDisplayProps> = ({
               <h3 className="text-xl font-semibold text-gray-900 mb-2">
                 {dashboard.name}
               </h3>
+              {dashboard.fromUnivers && dashboard.universId && (
+                <div className="mt-2">
+                  <UniversBadge
+                    universId={dashboard.universId}
+                    size="sm"
+                  />
+                </div>
+              )}
             </div>
           </div>
           {dashboard.description && (

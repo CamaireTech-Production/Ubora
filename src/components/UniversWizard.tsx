@@ -170,64 +170,68 @@ export const UniversWizard: React.FC<UniversWizardProps> = ({
   }, [currentStep, markStepSkipped, goToNextStep]);
 
   const handleComplete = useCallback(async () => {
-    if (!user?.id || !user?.agencyId) {
-      console.error('User data missing');
-      return;
-    }
+           if (!user?.id || !user?.agencyId) {
+             console.error('User data missing');
+             return;
+           }
 
-    // Validate minimum requirements
-    if (!wizardData.metadata.name || !wizardData.metadata.name.trim()) {
-      console.error('Univers name is required');
-      return;
-    }
+           // Validate minimum requirements
+           if (!wizardData.metadata.name || !wizardData.metadata.name.trim()) {
+             console.error('Univers name is required');
+             return;
+           }
 
-    // Forms are required (step 3, but validate here)
-    if (!wizardData.definitions.forms || wizardData.definitions.forms.length === 0) {
-      console.error('At least one form is required');
-      return;
-    }
+           // Forms are required (step 3, but validate here)
+           if (!wizardData.definitions.forms || wizardData.definitions.forms.length === 0) {
+             console.error('At least one form is required');
+             return;
+           }
 
-    setIsLoading(true);
-    try {
-      const universMetadata: UniversMetadata = {
-        name: wizardData.metadata.name!,
-        description: wizardData.metadata.description || '',
-        iconUrl: wizardData.metadata.iconUrl,
-        category: wizardData.metadata.category,
-        tags: wizardData.metadata.tags || [],
-        version: 1,
-        createdAt: new Date()
-      };
+           setIsLoading(true);
+           try {
+             // Get publish option from step 7 data if available (stored temporarily in metadata)
+             // Default to 'private' if not set
+             const publishOption = (wizardData.metadata as any).publishOption || 'private';
 
-      const universOwnership: Omit<UniversOwnership, 'approvedBy' | 'approvedAt' | 'rejectionReason'> = {
-        createdBy: user.id,
-        agencyId: user.agencyId,
-        isMarketplaceTemplate: false,
-        approvalStatus: 'pending' as const
-      };
+             const universMetadata: UniversMetadata = {
+               name: wizardData.metadata.name!,
+               description: wizardData.metadata.description || '',
+               iconUrl: wizardData.metadata.iconUrl,
+               category: wizardData.metadata.category,
+               tags: wizardData.metadata.tags || [],
+               version: 1,
+               createdAt: new Date()
+             };
 
-      const universDefinitions: UniversDefinitions = {
-        forms: wizardData.definitions.forms || [],
-        dashboards: wizardData.definitions.dashboards || [],
-        instructions: wizardData.definitions.instructions || [],
-        lists: wizardData.definitions.lists || [],
-        reports: wizardData.definitions.reports || []
-      };
+             const universOwnership: Omit<UniversOwnership, 'approvedBy' | 'approvedAt' | 'rejectionReason'> = {
+               createdBy: user.id,
+               agencyId: publishOption === 'private' ? undefined : user.agencyId,
+               isMarketplaceTemplate: publishOption === 'marketplace',
+               approvalStatus: publishOption === 'marketplace' ? 'pending' as const : 'approved' as const
+             };
 
-      await onComplete({
-        metadata: universMetadata,
-        ownership: universOwnership,
-        definitions: universDefinitions
-      });
+             const universDefinitions: UniversDefinitions = {
+               forms: wizardData.definitions.forms || [],
+               dashboards: wizardData.definitions.dashboards || [],
+               instructions: wizardData.definitions.instructions || [],
+               lists: wizardData.definitions.lists || [], // Can be empty
+               reports: wizardData.definitions.reports || [] // Can be empty
+             };
 
-      // Clear progress on successful completion
-      clearProgress();
-    } catch (error) {
-      console.error('Error completing Univers wizard:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [wizardData, user, onComplete, clearProgress]);
+             await onComplete({
+               metadata: universMetadata,
+               ownership: universOwnership,
+               definitions: universDefinitions
+             });
+
+             // Clear progress on successful completion
+             clearProgress();
+           } catch (error) {
+             console.error('Error completing Univers wizard:', error);
+           } finally {
+             setIsLoading(false);
+           }
+         }, [wizardData, user, onComplete, clearProgress]);
 
   const getStepStatus = (step: number): 'completed' | 'current' | 'skipped' | 'pending' => {
     if (completedSteps.has(step)) return 'completed';

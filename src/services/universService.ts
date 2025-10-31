@@ -75,34 +75,94 @@ class UniversService {
 
   /**
    * Créer un nouveau Univers
+   * 
+   * @param univers - Les données du Univers à créer (sans l'ID qui sera généré)
+   * @returns L'ID du Univers créé
+   * @throws Error si la validation échoue ou si la création échoue
    */
   async create(univers: Omit<Univers, 'id'>): Promise<string> {
     try {
+      // Validation des prérequis
+      if (!univers.metadata?.name || !univers.metadata.name.trim()) {
+        throw new Error('Le nom du Univers est requis');
+      }
+
+      if (!univers.ownership?.createdBy) {
+        throw new Error('Le créateur du Univers est requis');
+      }
+
+      // Validation: au moins un formulaire est requis
+      const forms = univers.definitions?.forms || [];
+      if (forms.length === 0) {
+        throw new Error('Au moins un formulaire est requis pour créer un Univers');
+      }
+
+      // Préparer les définitions avec des tableaux vides pour Lists/Reports si non fournis
+      const definitions: UniversDefinitions = {
+        forms: forms,
+        dashboards: univers.definitions?.dashboards || [],
+        instructions: univers.definitions?.instructions || [],
+        lists: univers.definitions?.lists || [], // Peut être vide (Coming Soon)
+        reports: univers.definitions?.reports || [] // Peut être vide (Coming Soon)
+      };
+
+      // Préparer les métadonnées avec valeurs par défaut
+      const metadata: UniversMetadata = {
+        name: univers.metadata.name.trim(),
+        description: univers.metadata.description?.trim() || '',
+        iconUrl: univers.metadata.iconUrl || undefined,
+        category: univers.metadata.category || undefined,
+        tags: univers.metadata.tags || [],
+        version: univers.metadata.version || 1,
+        createdAt: univers.metadata.createdAt || new Date()
+      };
+
+      // Préparer l'ownership avec valeurs par défaut
+      const ownership: UniversOwnership = {
+        createdBy: univers.ownership.createdBy,
+        agencyId: univers.ownership.agencyId || undefined,
+        isMarketplaceTemplate: univers.ownership.isMarketplaceTemplate || false,
+        approvalStatus: univers.ownership.approvalStatus || 
+          (univers.ownership.isMarketplaceTemplate ? 'pending' : 'approved'),
+        approvedBy: univers.ownership.approvedBy || undefined,
+        approvedAt: univers.ownership.approvedAt || undefined,
+        rejectionReason: univers.ownership.rejectionReason || undefined
+      };
+
+      // Préparer l'usage avec valeurs par défaut
+      const usage: UniversUsage = {
+        totalUsages: univers.usage?.totalUsages || 0,
+        lastUsedAt: univers.usage?.lastUsedAt || undefined
+      };
+
+      // Créer le document dans Firestore
       const docRef = await addDoc(collection(db, this.collectionName), {
         metadata: {
-          ...univers.metadata,
-          createdAt: serverTimestamp()
+          ...metadata,
+          createdAt: Timestamp.fromDate(metadata.createdAt)
         },
         ownership: {
-          ...univers.ownership,
-          approvedAt: univers.ownership.approvedAt ? Timestamp.fromDate(univers.ownership.approvedAt) : null
+          ...ownership,
+          approvedAt: ownership.approvedAt ? Timestamp.fromDate(ownership.approvedAt) : null
         },
-        definitions: univers.definitions || {
-          forms: [],
-          dashboards: [],
-          instructions: [],
-          lists: [],
-          reports: []
-        },
+        definitions: definitions,
         usage: {
-          totalUsages: 0,
-          lastUsedAt: null
+          totalUsages: usage.totalUsages,
+          lastUsedAt: usage.lastUsedAt ? Timestamp.fromDate(usage.lastUsedAt) : null
         }
       });
+
+      console.log(`Univers créé avec succès: ${docRef.id}`);
       return docRef.id;
     } catch (error) {
       console.error('Erreur lors de la création du Univers:', error);
-      throw error;
+      
+      // Re-throw avec un message plus explicite si c'est notre erreur
+      if (error instanceof Error) {
+        throw error;
+      }
+      
+      throw new Error('Erreur lors de la création du Univers. Veuillez réessayer.');
     }
   }
 

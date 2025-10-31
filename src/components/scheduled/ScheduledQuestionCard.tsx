@@ -14,6 +14,7 @@ import {
   Loader2
 } from 'lucide-react';
 import { Button } from '../Button';
+import { UniversBadge } from '../UniversBadge';
 import { ScheduledQuestion } from '../../types';
 
 interface ScheduledQuestionCardProps {
@@ -24,6 +25,7 @@ interface ScheduledQuestionCardProps {
   onExecuteNow?: (questionId: string) => void;
   disabled?: boolean;
   isExecuting?: boolean;
+  universName?: string; // Optional Univers name for badge
 }
 
 export const ScheduledQuestionCard: React.FC<ScheduledQuestionCardProps> = ({
@@ -33,7 +35,8 @@ export const ScheduledQuestionCard: React.FC<ScheduledQuestionCardProps> = ({
   onViewResponses,
   onExecuteNow,
   disabled = false,
-  isExecuting = false
+  isExecuting = false,
+  universName
 }) => {
   const getStatusIcon = () => {
     switch (question.status) {
@@ -143,9 +146,18 @@ export const ScheduledQuestionCard: React.FC<ScheduledQuestionCardProps> = ({
           <h3 className="text-lg font-semibold text-gray-900 mb-1 line-clamp-2">
             {question.title}
           </h3>
-          <p className="text-sm text-gray-600 line-clamp-2">
+          <p className="text-sm text-gray-600 line-clamp-2 mb-2">
             {question.question}
           </p>
+          {question.fromUnivers && question.universId && (
+            <div className="mt-2">
+              <UniversBadge
+                universId={question.universId}
+                universName={universName}
+                size="sm"
+              />
+            </div>
+          )}
         </div>
         <div className={`flex items-center space-x-1 px-2 py-1 rounded-full text-xs font-medium ${getStatusColor()}`}>
           {getStatusIcon()}

@@ -9,6 +9,7 @@ import { useToast } from '../hooks/useToast';
 import { ScheduledQuestion } from '../types';
 import { Layout } from '../components/Layout';
 import { WireframeLoader } from '../components/loading/WireframeLoader';
+import { universService } from '../services/universService';
 
 export const ScheduledQuestionsPage: React.FC = () => {
   const { user } = useAuth();
@@ -21,8 +22,9 @@ export const ScheduledQuestionsPage: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [frequencyFilter, setFrequencyFilter] = useState<string>('all');
   const [executingQuestions, setExecutingQuestions] = useState<Set<string>>(new Set());
+  const [universMap, setUniversMap] = useState<Map<string, { name: string }>>(new Map()); // Cache Univers names
 
-  // Charger les questions programmées
+  // Charger les questions programmées et les Univers
   useEffect(() => {
     if (!user) return;
 
@@ -34,6 +36,28 @@ export const ScheduledQuestionsPage: React.FC = () => {
         setIsLoading(false);
       }
     );
+
+    // Load Univers names for badges
+    const loadUniversData = async () => {
+      if (!user?.id || !user?.agencyId) return;
+      try {
+        const [myUnivers, marketplaceUnivers] = await Promise.all([
+          universService.getByUser(user.id, user.agencyId),
+          universService.getMarketplaceTemplates()
+        ]);
+
+        const map = new Map<string, { name: string }>();
+        [...myUnivers, ...marketplaceUnivers].forEach(u => {
+          map.set(u.id, { name: u.metadata.name });
+        });
+
+        setUniversMap(map);
+      } catch (error) {
+        console.error('Erreur lors du chargement des Univers:', error);
+      }
+    };
+
+    loadUniversData();
 
     return unsubscribe;
   }, [user]);
@@ -327,17 +351,18 @@ export const ScheduledQuestionsPage: React.FC = () => {
           </div>
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-            {filteredQuestions.map((question) => (
-              <ScheduledQuestionCard
-                key={question.id}
-                question={question}
-                onEdit={handleEdit}
-                onDelete={handleDelete}
-                onViewResponses={handleViewResponses}
-                onExecuteNow={handleExecuteNow}
-                isExecuting={executingQuestions.has(question.id)}
-              />
-            ))}
+              {filteredQuestions.map((question) => (
+                <ScheduledQuestionCard
+                  key={question.id}
+                  question={question}
+                  onEdit={handleEdit}
+                  onDelete={handleDelete}
+                  onViewResponses={handleViewResponses}
+                  onExecuteNow={handleExecuteNow}
+                  isExecuting={executingQuestions.has(question.id)}
+                  universName={question.universId ? universMap.get(question.universId)?.name : undefined}
+                />
+              ))}
           </div>
         )}
         </div>
