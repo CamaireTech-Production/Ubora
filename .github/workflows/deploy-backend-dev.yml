@@ -32,8 +32,12 @@ jobs:
         FIREBASE_PROJECT_ID=${{ secrets.FIREBASE_PROJECT_ID }}
         FIREBASE_CLIENT_EMAIL=${{ secrets.FIREBASE_CLIENT_EMAIL }}
         EOF
-        # Append private key using printf to handle multiline and special characters correctly
-        printf 'FIREBASE_PRIVATE_KEY=%s\n' "${{ secrets.FIREBASE_PRIVATE_KEY }}" >> .env.local
+        # Append private key - convert actual newlines to literal \n for .env file
+        # This ensures the entire key stays on one line with \n literals
+        FIREBASE_KEY_ESCAPED="${{ secrets.FIREBASE_PRIVATE_KEY }}"
+        FIREBASE_KEY_ESCAPED="${FIREBASE_KEY_ESCAPED//$'\n'/\\n}"
+        FIREBASE_KEY_ESCAPED="${FIREBASE_KEY_ESCAPED//\"/\\\"}"
+        echo "FIREBASE_PRIVATE_KEY=\"${FIREBASE_KEY_ESCAPED}\"" >> .env.local
         cat >> .env.local << EOF
         
         # OpenAI Configuration
@@ -46,6 +50,25 @@ jobs:
         # CORS Configuration - Match local dev server configuration (including HTTP for dev)
         CORS_ORIGIN=https://dev.ubora-app.com,https://ubora-app.com,https://my.ubora.com,https://dev.ubora.com,https://apidev.ubora-app.com,https://api.ubora-app.com,https://apidev.ubora.com,https://api.ubora.com,https://admin.ubora-app.com,https://admin.ubora.com,https://studio-gpnfx.firebaseapp.com,https://studio-gpnfx.web.app,http://localhost:5173,http://localhost:3000,http://localhost:4173,https://localhost:5173,https://localhost:3000,http://dev.ubora.com,http://my.ubora.com,http://dev.ubora-app.com,http://ubora-app.com,http://apidev.ubora-app.com
         EOF
+        
+    - name: Verify environment file format
+      run: |
+        echo "🔍 Verifying .env.local format..."
+        if grep -q '^FIREBASE_PRIVATE_KEY=""' .env.local; then
+          echo "❌ ERROR: Double quotes detected in FIREBASE_PRIVATE_KEY!"
+          exit 1
+        fi
+        if grep -c '^FIREBASE_PRIVATE_KEY=' .env.local | grep -vq '^1$'; then
+          echo "❌ ERROR: FIREBASE_PRIVATE_KEY appears multiple times or is split across lines!"
+          grep '^FIREBASE_PRIVATE_KEY=' .env.local | head -c 200
+          exit 1
+        fi
+        if ! grep -q '^FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----' .env.local; then
+          echo "⚠️  WARNING: FIREBASE_PRIVATE_KEY format might be incorrect"
+          grep '^FIREBASE_PRIVATE_KEY=' .env.local | head -c 150
+        else
+          echo "✅ FIREBASE_PRIVATE_KEY format looks correct (single line with quotes)"
+        fi
         
     - name: Create version stamp
       run: echo "${GITHUB_SHA}" > VERSION
