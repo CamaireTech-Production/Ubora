@@ -158,7 +158,7 @@ self.addEventListener('message', (event) => {
 // Handle service worker updates
 self.addEventListener('install', (event) => {
   console.log('🔔 [SW] Service worker installing...');
-  self.skipWaiting();
+  // Wait in "waiting" state until the client explicitly requests activation
 });
 
 self.addEventListener('activate', (event) => {

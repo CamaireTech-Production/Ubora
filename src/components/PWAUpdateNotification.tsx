@@ -8,31 +8,39 @@ export const PWAUpdateNotification: React.FC = () => {
   useEffect(() => {
     // Listen for service worker updates
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.addEventListener('controllerchange', () => {
-        setShowUpdatePrompt(true);
-      });
+      let isMounted = true;
 
-      // Listen for service worker messages
-      navigator.serviceWorker.addEventListener('message', (event) => {
-        if (event.data && event.data.type === 'SW_UPDATED') {
-          console.log('Service worker updated successfully');
-          // The page will reload automatically, so we don't need to reset isUpdating here
-        }
-      });
-
-      // Check for waiting service worker
+      // Check for waiting service worker on mount
       const checkForWaitingSW = async () => {
         try {
           const registration = await navigator.serviceWorker.getRegistration();
-          if (registration && registration.waiting) {
+          if (!registration) return;
+
+          if (registration.waiting && isMounted) {
             setShowUpdatePrompt(true);
           }
+
+          // Listen for new updates being found
+          registration.addEventListener('updatefound', () => {
+            const installing = registration.installing;
+            if (!installing) return;
+            installing.addEventListener('statechange', () => {
+              if (installing.state === 'installed' && registration.waiting && isMounted) {
+                setShowUpdatePrompt(true);
+              }
+            });
+          });
         } catch (error) {
           console.error('Error checking for waiting service worker:', error);
         }
       };
 
       checkForWaitingSW();
+
+      // Cleanup flag
+      return () => {
+        isMounted = false;
+      };
     }
   }, []);
 
@@ -46,11 +54,12 @@ export const PWAUpdateNotification: React.FC = () => {
           // Tell the waiting service worker to skip waiting and become active
           registration.waiting.postMessage({ type: 'SKIP_WAITING' });
           
-          // Add a small delay to ensure the message is processed
-          setTimeout(() => {
-            // Reload the page to use the new service worker
+          // Reload the page once the new controller takes over
+          const onControllerChange = () => {
+            navigator.serviceWorker.removeEventListener('controllerchange', onControllerChange);
             window.location.reload();
-          }, 100);
+          };
+          navigator.serviceWorker.addEventListener('controllerchange', onControllerChange);
         } else {
           // No waiting service worker found, reset loading state
           setIsUpdating(false);

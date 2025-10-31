@@ -2,6 +2,7 @@ import admin from 'firebase-admin';
 import { getFirestore, Timestamp } from 'firebase-admin/firestore';
 import nodemailer from 'nodemailer';
 import { buildAbsoluteUrl, renderEmailTemplate } from '../lib/urlEmail.js';
+import { executeAIQuestion } from '../lib/executeAIQuestion.js';
 
 // Initialize Firebase Admin if not already initialized
 if (!admin.apps.length) {
@@ -455,7 +456,7 @@ async function processFormReminders(now, oneMinuteFromNow) {
               redirectUrl: buildAbsoluteUrl(normalizeRole(userData?.role), redirectPath)
             });
             console.log('📧 [Cron] Reminder email sent to', userData.email);
-          } else {
+              } else {
             console.log('📧 [Cron] Skip email (no recipient) for user', userId);
           }
         } catch (emailErr) {
@@ -472,11 +473,12 @@ async function processFormReminders(now, oneMinuteFromNow) {
     const results = await processNotificationsConcurrently(remindersToProcess, processorFunction);
     return results;
 
-  } catch (error) {
+            } catch (error) {
     console.error('❌ [Cron] Error processing form reminders:', error);
     return { processed: 0, sent: 0, errors: 1 };
   }
 }
+
 // Execute scheduled questions that are due (Option A) and mark them completed/ready
 async function executeDueProgrammedInstructions(now, oneMinuteFromNow) {
   try {
@@ -498,6 +500,13 @@ async function executeDueProgrammedInstructions(now, oneMinuteFromNow) {
       .where('scheduledAt', '<=', Timestamp.fromDate(windowEnd))
       .get();
 
+    console.log('🤖 [Cron] execute window', {
+      windowStart: windowStart.toISOString(),
+      windowEnd: windowEnd.toISOString(),
+      nextQueryCount: nextQuerySnap.size,
+      firstQueryCount: firstQuerySnap.size
+    });
+
     const docsMap = new Map();
     nextQuerySnap.docs.forEach(d => docsMap.set(d.id, d));
     firstQuerySnap.docs.forEach(d => docsMap.set(d.id, d));
@@ -509,81 +518,112 @@ async function executeDueProgrammedInstructions(now, oneMinuteFromNow) {
     }
 
     console.log(`🤖 [Cron] Found ${toExecute.length} pending instructions to execute`, {
-      windowStart: windowStart.toISOString(), windowEnd: windowEnd.toISOString()
+      windowStart: windowStart.toISOString(),
+      windowEnd: windowEnd.toISOString(),
+      candidates: toExecute.map(d => {
+        const q = d.data() || {};
+        return {
+          id: d.id,
+          status: q.status,
+          scheduledAt: q.scheduledAt?.toDate ? q.scheduledAt.toDate().toISOString() : q.scheduledAt,
+          nextExecution: q.nextExecution?.toDate ? q.nextExecution.toDate().toISOString() : q.nextExecution,
+          frequency: q.frequency || 'once',
+          userId: q.userId || '(none)'
+        };
+      })
     });
     for (const docRef of toExecute) {
       try {
         const q = docRef.data() || {};
-        const baseUrl = process.env.API_BASE_URL || process.env.INTERNAL_API_BASE || 'http://localhost:3000';
-        const aiUrl = `${baseUrl}/api/ai/ask`;
-        const body = {
+        
+        // Get user data to get agencyId
+        const userDoc = await db.collection('users').doc(q.userId).get();
+        if (!userDoc.exists) {
+          console.warn(`🤖 [Cron] User ${q.userId} not found, skipping instruction ${docRef.id}`);
+          continue;
+        }
+        const userData = userDoc.data();
+        if (!userData.agencyId) {
+          console.warn(`🤖 [Cron] User ${q.userId} has no agencyId, skipping instruction ${docRef.id}`);
+          continue;
+        }
+
+        console.log('🤖 [Cron] Executing instruction directly (no HTTP call needed)', {
+          instructionId: docRef.id,
+          question: q.question?.substring(0, 50) || '(no question)',
+          userId: q.userId,
+          agencyId: userData.agencyId
+        });
+
+        // Call the shared AI execution function directly
+        const start = Date.now();
+        const result = await executeAIQuestion({
+          userId: q.userId,
+          agencyId: userData.agencyId,
           question: q.question,
-          filters: q.filters,
+          filters: q.filters || {},
           selectedFormats: q.selectedFormIds || q.selectedFormats || [],
           responseFormat: q.selectedFormat || 'text',
-          selectedResponseFormats: q.selectedFormats || [],
-          conversationId: null,
-          userId: q.userId,
-          isScheduled: true
-        };
-        const headers = {
-          'Content-Type': 'application/json',
-          'x-internal-token': process.env.INTERNAL_API_KEY || ''
-        };
-        const start = Date.now();
-        const resp = await fetch(aiUrl, { method: 'POST', headers, body: JSON.stringify(body) });
+          selectedResponseFormats: q.selectedFormats || []
+        });
         const elapsed = Date.now() - start;
-        if (!resp.ok) {
-          const text = await resp.text();
-          throw new Error(`AI ask failed ${resp.status}: ${text}`);
-        }
-        const result = await resp.json();
-        const tokensUsed = result.tokensUsed || result.meta?.tokensUsed || 0;
+        const tokensUsed = result.tokensUsed || 0;
 
         // Persist response subdocument
+        const userTokensCharged = Math.ceil((tokensUsed * 2.5) / 100);
         const responseData = {
           scheduledQuestionId: docRef.id,
           response: result.answer || 'Aucune réponse générée',
           executedAt: new Date(),
           responseTime: elapsed,
-          tokensUsed: tokensUsed,
+          tokensUsed: userTokensCharged, // Store user tokens charged, not raw OpenAI tokens
           status: 'success',
           meta: {
-            period: q.filters?.period,
+            period: q.filters?.period || result.meta?.period,
             usedEntries: result.meta?.usedEntries || 0,
             forms: result.meta?.forms || 0,
             users: result.meta?.users || 0,
             model: result.meta?.model || 'gpt-4.1',
-            selectedFormat: q.selectedFormat,
-            selectedFormats: q.selectedFormats || [],
-            selectedFormIds: q.selectedFormIds || [],
+            selectedFormat: q.selectedFormat || result.meta?.selectedFormat,
+            selectedFormats: q.selectedFormats || result.meta?.selectedFormats || [],
+            selectedFormIds: q.selectedFormIds || result.meta?.selectedFormIds || [],
             selectedFormTitles: result.meta?.selectedFormTitles || []
           }
         };
         const respRef = await db.collection('scheduledQuestions').doc(docRef.id).collection('responses').add(responseData);
 
-        // Deduct tokens
+        // Deduct tokens (convert OpenAI tokens to user tokens: (tokensUsed * 2.5) / 100)
         try {
           if (tokensUsed > 0 && q.userId) {
+            const userTokensCharged = Math.ceil((tokensUsed * 2.5) / 100);
+            console.log('💰 [Cron] Deducting tokens:', { 
+              rawTokens: tokensUsed, 
+              userTokensCharged,
+              userId: q.userId 
+            });
             const userRef = db.collection('users').doc(q.userId);
-            await userRef.update({ tokensUsedMonthly: admin.firestore.FieldValue.increment(tokensUsed), updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+            await userRef.update({ 
+              tokensUsedMonthly: admin.firestore.FieldValue.increment(userTokensCharged), 
+              updatedAt: admin.firestore.FieldValue.serverTimestamp() 
+            });
+            console.log('✅ [Cron] Tokens deducted successfully');
           }
         } catch (dedErr) {
           console.warn('🤖 [Cron] Token deduction failed (non-fatal):', dedErr?.message || dedErr);
         }
 
         // Compute nextExecution for recurring
-        let status = 'completed';
+        let nextStatus = 'completed';
         let nextExecution = null;
         if (q.frequency && q.frequency !== 'once') {
           const next = calculateNextScheduledTime(q.frequency, q.time || (q.scheduledAt?.toDate ? q.scheduledAt.toDate().toTimeString().slice(0,5) : '09:00'), now);
           nextExecution = next;
-          status = 'pending';
+          nextStatus = 'pending';
         }
 
         // Update question
         const updateData = {
-          status,
+          status: nextStatus,
           executionCount: (q.executionCount || 0) + 1,
           executedAt: Timestamp.fromDate(new Date()),
           lastEvaluatedAt: Timestamp.fromDate(now),
@@ -593,6 +633,12 @@ async function executeDueProgrammedInstructions(now, oneMinuteFromNow) {
         console.log('🤖 [Cron] Executed instruction and stored response:', { id: docRef.id, responseId: respRef.id, tokensUsed });
       } catch (e) {
         console.warn('🤖 [Cron] Failed to execute instruction (will skip notify this round):', docRef.id, e?.message || e);
+        console.warn('🤖 [Cron] Failed instruction context:', {
+          id: docRef.id,
+          userId: (docRef.data && docRef.data().userId) || '(unknown)',
+          scheduledAt: (docRef.data && docRef.data().scheduledAt?.toDate && docRef.data().scheduledAt.toDate().toISOString()) || undefined,
+          nextExecution: (docRef.data && docRef.data().nextExecution?.toDate && docRef.data().nextExecution.toDate().toISOString()) || undefined
+        });
         try {
           await docRef.ref.update({ status: 'failed', lastEvaluatedAt: Timestamp.fromDate(now) });
           await db.collection('scheduledQuestions').doc(docRef.id).collection('responses').add({

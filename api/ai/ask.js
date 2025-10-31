@@ -550,23 +550,23 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: 'userId requis pour une exécution interne', code: 'MISSING_USER_ID' });
       }
     } else {
-      const authHeader = req.headers.authorization;
-      if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        return res.status(401).json({ 
-          error: 'Token d\'authentification manquant',
-          code: 'MISSING_TOKEN'
-        });
-      }
-      const idToken = authHeader.split('Bearer ')[1];
-      try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ 
+        error: 'Token d\'authentification manquant',
+        code: 'MISSING_TOKEN'
+      });
+    }
+    const idToken = authHeader.split('Bearer ')[1];
+    try {
         const decodedToken = await adminAuth.verifyIdToken(idToken);
-        uid = decodedToken.uid;
-      } catch (authError) {
-        return res.status(401).json({ 
-          error: 'Token invalide ou expiré',
-          code: 'INVALID_TOKEN',
-          details: authError.message
-        });
+      uid = decodedToken.uid;
+    } catch (authError) {
+      return res.status(401).json({ 
+        error: 'Token invalide ou expiré',
+        code: 'INVALID_TOKEN',
+        details: authError.message
+      });
       }
     }
 
