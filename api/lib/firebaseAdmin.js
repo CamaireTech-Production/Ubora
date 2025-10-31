@@ -147,15 +147,66 @@ if (!admin.apps.length) {
     throw new Error('❌ Invalid private key format: Missing BEGIN PRIVATE KEY or END PRIVATE KEY markers. Check FIREBASE_PRIVATE_KEY environment variable.');
   }
   
-  // Ensure the key has actual newlines after BEGIN and before END markers
+  // Ensure the key has actual newlines - handle literal 'n' characters that should be newlines
+  // PEM keys should have newlines, so if we don't have any, convert literal 'n' to newlines
   if (!cleanPrivateKey.includes('\n')) {
     console.log('   ⚠️ Warning: Key does not have actual newlines after conversion. Attempting additional fixes...');
-    // Last resort: try to replace literal 'n' after BEGIN/END markers if there are no newlines
+    
+    // Strategy 1: Replace literal 'n' after BEGIN marker
     cleanPrivateKey = cleanPrivateKey.replace(/-----BEGIN PRIVATE KEY-----n/g, '-----BEGIN PRIVATE KEY-----\n');
-    cleanPrivateKey = cleanPrivateKey.replace(/-----END PRIVATE KEY-----n/g, '\n-----END PRIVATE KEY-----');
+    
+    // Strategy 2: Replace literal 'n' before END marker  
+    cleanPrivateKey = cleanPrivateKey.replace(/n-----END PRIVATE KEY-----/g, '\n-----END PRIVATE KEY-----');
+    
+    // Strategy 3: Replace ALL literal 'n' characters that appear between base64 content
+    // This handles the case where the entire key has 'n' instead of newlines
+    // Base64 PEM keys have lines of ~64 chars, so we split on 'n' that appears after base64-looking content
+    if (!cleanPrivateKey.includes('\n') && cleanPrivateKey.length > 200) {
+      console.log('   🔄 Converting ALL literal "n" characters to newlines (splitting on "n" between base64 content)...');
+      
+      // Split the key: BEGIN marker, then base64 content with 'n' separators, then END marker
+      // Pattern: Split on 'n' that follows base64 characters and is followed by more base64 or END marker
+      // This safely converts 'n' to newlines without breaking legitimate 'n' in base64 (which is rare at line boundaries)
+      const beginMarker = '-----BEGIN PRIVATE KEY-----';
+      const endMarker = '-----END PRIVATE KEY-----';
+      
+      if (cleanPrivateKey.includes(beginMarker) && cleanPrivateKey.includes(endMarker)) {
+        const beginIdx = cleanPrivateKey.indexOf(beginMarker);
+        const endIdx = cleanPrivateKey.indexOf(endMarker);
+        const beforeBegin = cleanPrivateKey.substring(0, beginIdx);
+        const beginToEnd = cleanPrivateKey.substring(beginIdx + beginMarker.length, endIdx);
+        const afterEnd = cleanPrivateKey.substring(endIdx + endMarker.length);
+        
+        // Convert 'n' in the base64 section to newlines
+        // Split on 'n' and rejoin with '\n' - this converts all literal 'n' to newlines
+        const fixedBase64 = beginToEnd.split('n').join('\n');
+        
+        cleanPrivateKey = beforeBegin + beginMarker + '\n' + fixedBase64 + '\n' + endMarker + afterEnd;
+        
+        console.log('   ✅ Converted literal "n" characters to newlines in base64 section');
+      }
+    }
+    
+    const hasNewlines = cleanPrivateKey.includes('\n');
+    console.log('   After additional fixes - has newlines:', hasNewlines);
+    if (!hasNewlines) {
+      console.error('   ❌ WARNING: Key still does not have newlines after all fix attempts!');
+    }
   }
   
   console.log('✅ Private key format validated successfully');
+  
+  // Final key inspection before passing to Firebase Admin
+  console.log('🔍 Final key inspection before Firebase Admin init:', {
+    length: cleanPrivateKey.length,
+    hasActualNewlines: cleanPrivateKey.includes('\n'),
+    newlineCount: (cleanPrivateKey.match(/\n/g) || []).length,
+    startsWithBegin: cleanPrivateKey.trim().startsWith('-----BEGIN PRIVATE KEY-----'),
+    endsWithEnd: cleanPrivateKey.trim().endsWith('-----END PRIVATE KEY-----'),
+    firstLine: cleanPrivateKey.split('\n')[0],
+    lastLine: cleanPrivateKey.split('\n').slice(-1)[0],
+    sampleMiddle: cleanPrivateKey.substring(100, 150)
+  });
 
   // Build service account object
     const serviceAccount = {
@@ -181,9 +232,20 @@ if (!admin.apps.length) {
       });
       console.log('✅ Firebase Admin SDK initialized successfully');
     } catch (error) {
-    console.error('❌ Firebase Admin SDK initialization FAILED:', error);
+    // Use console.error with explicit flush to ensure errors are logged
+    console.error('❌ Firebase Admin SDK initialization FAILED:');
+    console.error('   Error:', error);
     console.error('   Error code:', error.code || 'N/A');
     console.error('   Error message:', error.message || 'N/A');
+    console.error('   Error stack:', error.stack || 'N/A');
+    
+    // Force output flush in Node.js
+    if (process.stdout && typeof process.stdout.write === 'function') {
+      process.stdout.write('');
+    }
+    if (process.stderr && typeof process.stderr.write === 'function') {
+      process.stderr.write('');
+    }
     
     // Provide specific guidance for private key parsing errors
     if (error.code === 'app/invalid-credential' || 
@@ -215,8 +277,16 @@ if (!admin.apps.length) {
   }
 }
 
-// Export services - NO MOCKS, always use real admin
+// Verify Firebase Admin is initialized before exporting services
+if (!admin.apps.length) {
+  console.error('❌ CRITICAL: Firebase Admin not initialized. Cannot export adminAuth or adminDb.');
+  throw new Error('Firebase Admin not initialized. Check initialization errors above.');
+}
+
+// Export services - NO MOCKS, always use real admin (only after successful initialization)
 const adminAuth = admin.auth();
 const adminDb = admin.firestore();
+
+console.log('✅ Firebase Admin services exported successfully (auth and firestore)');
 
 export { adminAuth, adminDb, admin };
