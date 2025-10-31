@@ -83,24 +83,60 @@ if (!admin.apps.length) {
   if (!hasActualNewlines) {
     console.log('   🔄 Converting escaped newlines to actual newlines...');
     const beforeLength = cleanPrivateKey.length;
+    const beforeHasNewlines = cleanPrivateKey.includes('\n');
     
-    // First: Handle double-escaped newlines (\\\\n -> \n literal -> newline)
+    // Handle ALL possible escaped newline formats in order:
+    // 1. Quad-escaped: \\\\n -> \\n -> \n literal -> newline
+    cleanPrivateKey = cleanPrivateKey.replace(/\\\\\\\n/g, '\n');
+    
+    // 2. Triple-escaped: \\\n -> \n literal -> newline (if it exists)
+    cleanPrivateKey = cleanPrivateKey.replace(/\\\\\n/g, '\n');
+    
+    // 3. Double-escaped: \\n -> \n literal -> newline
     cleanPrivateKey = cleanPrivateKey.replace(/\\\\n/g, '\n');
     
-    // Second: Handle single-escaped newlines (\n -> newline) from env files
-    // This covers most common cases where dotenv keeps \n as literal characters
-      cleanPrivateKey = cleanPrivateKey.replace(/\\n/g, '\n');
+    // 4. Single-escaped: \n -> newline (from env files where dotenv keeps \n as literal)
+    cleanPrivateKey = cleanPrivateKey.replace(/\\n/g, '\n');
+    
+    // 5. Handle literal backslash-n sequence (not escaped, just literal backslash + n)
+    // This handles the case where the file has literal backslash + n characters
+    // Use split/join to convert all literal \n sequences to actual newlines
+    if (!cleanPrivateKey.includes('\n')) {
+      console.log('   ⚠️ Still no newlines after escaping. Attempting aggressive conversion of literal backslash-n...');
+      // Count how many literal \n sequences exist
+      const literalNewlineMatches = cleanPrivateKey.match(/\\n/g);
+      const literalNewlineCount = literalNewlineMatches ? literalNewlineMatches.length : 0;
+      
+      if (literalNewlineCount > 0) {
+        console.log(`   Found ${literalNewlineCount} literal \\n sequences. Converting to actual newlines...`);
+        // Split on literal \n and join with actual newlines
+        cleanPrivateKey = cleanPrivateKey.split('\\n').join('\n');
+        console.log(`   ✅ Converted ${literalNewlineCount} literal \\n sequences to actual newlines`);
+      } else {
+        console.log('   No literal \\n sequences found. Key format may be fundamentally broken.');
+      }
+    }
     
     console.log('   After conversion:', {
+      beforeLength,
+      afterLength: cleanPrivateKey.length,
       lengthChanged: cleanPrivateKey.length !== beforeLength,
-      newLength: cleanPrivateKey.length,
-      hasActualNewlines: cleanPrivateKey.includes('\n'),
+      beforeHasNewlines,
+      afterHasNewlines: cleanPrivateKey.includes('\n'),
+      newlineCount: (cleanPrivateKey.match(/\n/g) || []).length,
       includesBegin: cleanPrivateKey.includes('BEGIN PRIVATE KEY') || cleanPrivateKey.includes('BEGINPRIVATEKEY'),
       includesEnd: cleanPrivateKey.includes('END PRIVATE KEY') || cleanPrivateKey.includes('ENDPRIVATEKEY'),
       hasProperBegin: cleanPrivateKey.includes('BEGIN PRIVATE KEY'),
       hasMalformedBegin: cleanPrivateKey.includes('BEGINPRIVATEKEY') && !cleanPrivateKey.includes('BEGIN PRIVATE KEY'),
-      first60Chars: cleanPrivateKey.substring(0, 60)
+      first60Chars: cleanPrivateKey.substring(0, 60).replace(/\n/g, '\\n') // Show newlines as \n for logging
     });
+    
+    // Final check: if we still don't have newlines, log a warning
+    if (!cleanPrivateKey.includes('\n')) {
+      console.error('   ❌ WARNING: Key still does not have actual newlines after all conversion attempts!');
+      console.error('   This will likely cause Firebase Admin initialization to fail.');
+      console.error('   Key sample (first 100 chars):', cleanPrivateKey.substring(0, 100).replace(/\\/g, '\\\\'));
+    }
   }
   
   // Normalize malformed BEGIN/END markers (fix missing spaces)
