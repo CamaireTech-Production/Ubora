@@ -4,6 +4,7 @@ import { UniversWizard } from '../components/UniversWizard';
 import { UniversWizardStep1 } from '../components/UniversWizardStep1';
 import { UniversWizardStep2 } from '../components/UniversWizardStep2';
 import { UniversWizardStep3 } from '../components/UniversWizardStep3';
+import { UniversWizardStep4 } from '../components/UniversWizardStep4';
 import { UniversDefinitions, UniversMetadata, UniversOwnership } from '../types';
 import { universService } from '../services/universService';
 import { useAuth } from '../contexts/AuthContext';
@@ -79,8 +80,8 @@ export const UniversCreatePage: React.FC = () => {
         // Forms step
         return <UniversWizardStep3 {...props} />;
       case 4:
-        // Dashboards step - will be implemented in next task
-        return <ComingSoonStep title="Tableaux de bord" description="Cette étape permettra de créer et configurer les tableaux de bord du Univers." />;
+        // Dashboards step
+        return <UniversWizardStep4 {...props} />;
       case 5:
         // Instructions step - will be implemented in next task
         return <ComingSoonStep title="Instructions programmées" description="Cette étape permettra de créer et configurer les instructions programmées du Univers." />;

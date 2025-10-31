@@ -93,10 +93,10 @@ export const UniversWizard: React.FC<UniversWizardProps> = ({
       const completed = new Set<number>();
       if (saved.metadata?.name) completed.add(1);
       // Step 2: Lists - coming soon, can't be completed yet
+      if (saved.lists && saved.lists.length > 0) completed.add(2); // Lists is now step 2
       if (saved.forms && saved.forms.length > 0) completed.add(3);
       if (saved.dashboards && saved.dashboards.length > 0) completed.add(4);
       if (saved.instructions && saved.instructions.length > 0) completed.add(5);
-      if (saved.lists && saved.lists.length > 0) completed.add(2); // Lists is now step 2
       if (saved.reports && saved.reports.length > 0) completed.add(6);
       setCompletedSteps(completed);
     }
@@ -248,6 +248,13 @@ export const UniversWizard: React.FC<UniversWizardProps> = ({
     // Step 3: Forms - at least 1 required
     if (currentStep === 3) {
       return wizardData.definitions.forms && wizardData.definitions.forms.length > 0;
+    }
+    // Step 4: Dashboards - can be skipped, but if dashboards exist, forms must exist
+    if (currentStep === 4) {
+      const hasDashboards = wizardData.definitions.dashboards && wizardData.definitions.dashboards.length > 0;
+      const hasForms = wizardData.definitions.forms && wizardData.definitions.forms.length > 0;
+      // If no dashboards, can proceed. If dashboards exist, forms must exist
+      return !hasDashboards || hasForms;
     }
     // Other steps can be skipped
     return true;

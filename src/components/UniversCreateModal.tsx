@@ -1,7 +1,6 @@
 import React from 'react';
 import { X, Sparkles, FileText } from 'lucide-react';
 import { Button } from './Button';
-import { Card } from './Card';
 
 interface UniversCreateModalProps {
   isOpen: boolean;
@@ -17,72 +16,79 @@ export const UniversCreateModal: React.FC<UniversCreateModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50" onClick={onClose}>
-      <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full" onClick={(e) => e.stopPropagation()}>
-        <div className="p-6">
-          {/* Header */}
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-2xl font-bold text-gray-900">Créer un Univers</h2>
-            <button
-              onClick={onClose}
-              className="p-2 text-gray-400 hover:text-gray-600 transition-colors rounded-lg hover:bg-gray-100"
-            >
-              <X className="h-5 w-5" />
-            </button>
-          </div>
+    <div 
+      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-3 sm:p-4 z-50"
+      onClick={onClose}
+    >
+      <div 
+        className="bg-white rounded-lg shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="sticky top-0 bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between z-10">
+          <h2 className="text-lg sm:text-xl font-semibold text-gray-900">Créer un Univers</h2>
+          <button
+            onClick={onClose}
+            className="p-1.5 text-gray-400 hover:text-gray-600 transition-colors rounded-md hover:bg-gray-100"
+            aria-label="Fermer"
+          >
+            <X className="h-4 w-4 sm:h-5 sm:w-5" />
+          </button>
+        </div>
 
-          {/* Options */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Option 1: Create from scratch */}
-            <Card className="cursor-pointer hover:shadow-lg transition-all duration-300 border-2 border-transparent hover:border-blue-500" onClick={onCreateFromScratch}>
-              <div className="p-6 text-center">
-                <div className="mx-auto w-16 h-16 bg-gradient-to-br from-blue-100 to-indigo-100 rounded-full flex items-center justify-center mb-4">
-                  <FileText className="h-8 w-8 text-blue-600" />
-                </div>
-                <h3 className="text-xl font-semibold text-gray-900 mb-2">
-                  Créer de 0
+        {/* Options */}
+        <div className="p-4 sm:p-5 space-y-3 sm:space-y-4">
+          {/* Option 1: Create from scratch */}
+          <button
+            onClick={onCreateFromScratch}
+            className="w-full text-left p-4 sm:p-5 rounded-lg border-2 border-transparent hover:border-blue-500 bg-blue-50 hover:bg-blue-100 transition-all duration-200 group"
+          >
+            <div className="flex items-start space-x-3 sm:space-x-4">
+              <div className="flex-shrink-0 w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center group-hover:scale-105 transition-transform">
+                <FileText className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-1">
+                  Créer de zéro
                 </h3>
-                <p className="text-sm text-gray-600 mb-4">
+                <p className="text-xs sm:text-sm text-gray-600 mb-3">
                   Créez un Univers entièrement personnalisé en partant de zéro
                 </p>
-                <Button className="w-full">
+                <Button size="sm" className="w-full sm:w-auto">
                   Commencer
                 </Button>
               </div>
-            </Card>
+            </div>
+          </button>
 
-            {/* Option 2: Create from template */}
-            <Card className="border-2 border-gray-200 relative opacity-75 cursor-not-allowed">
-              <div className="p-6 text-center">
-                <div className="mx-auto w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
-                  <Sparkles className="h-8 w-8 text-gray-400" />
-                </div>
-                <h3 className="text-xl font-semibold text-gray-900 mb-2">
+          {/* Option 2: Create from template */}
+          <div className="p-4 sm:p-5 rounded-lg border-2 border-gray-200 bg-gray-50 opacity-75">
+            <div className="flex items-start space-x-3 sm:space-x-4">
+              <div className="flex-shrink-0 w-10 h-10 sm:w-12 sm:h-12 bg-gray-200 rounded-lg flex items-center justify-center">
+                <Sparkles className="h-5 w-5 sm:h-6 sm:w-6 text-gray-400" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-1">
                   Créer depuis un template
                 </h3>
-                <p className="text-sm text-gray-600 mb-4">
+                <p className="text-xs sm:text-sm text-gray-600 mb-3">
                   Utilisez un template existant du marketplace pour créer rapidement votre Univers
                 </p>
-                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
-                  <p className="text-sm font-medium text-yellow-800">
+                <div className="bg-yellow-50 border border-yellow-200 rounded-md px-2.5 py-1.5 sm:px-3 sm:py-2">
+                  <p className="text-xs sm:text-sm font-medium text-yellow-800">
                     Bientôt disponible
                   </p>
                 </div>
-                <div className="mt-4">
-                  <Button variant="secondary" disabled className="w-full opacity-50 cursor-not-allowed">
-                    Bientôt disponible
-                  </Button>
-                </div>
               </div>
-            </Card>
+            </div>
           </div>
+        </div>
 
-          {/* Footer */}
-          <div className="mt-6 flex justify-end">
-            <Button variant="secondary" onClick={onClose}>
-              Annuler
-            </Button>
-          </div>
+        {/* Footer */}
+        <div className="sticky bottom-0 bg-white border-t border-gray-200 px-4 py-3 flex justify-end z-10">
+          <Button variant="secondary" size="sm" onClick={onClose}>
+            Annuler
+          </Button>
         </div>
       </div>
     </div>
