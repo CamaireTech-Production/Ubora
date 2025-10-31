@@ -31,6 +31,7 @@ export const UniversWizardStep4: React.FC<UniversWizardStepProps> = ({
   );
   const [showDashboardBuilder, setShowDashboardBuilder] = useState(false);
   const [editingDashboardId, setEditingDashboardId] = useState<string | null>(null);
+  const [expandedDashboards, setExpandedDashboards] = useState<Set<string>>(new Set());
 
   // Convert Form definitions to Form objects for DashboardBuilder
   const universForms = useMemo<Form[]>(() => {
@@ -341,44 +342,72 @@ export const UniversWizardStep4: React.FC<UniversWizardStepProps> = ({
                   <div className="text-xs font-medium text-gray-700 mb-1">
                     Métriques ({dashboard.metrics.length}):
                   </div>
-                  <div className="space-y-1">
-                    {dashboard.metrics.slice(0, 3).map((metric, idx) => {
-                      const getMetricTypeLabel = () => {
-                        if (metric.metricType === 'graph') return '📊 Graphique';
-                        const calcLabels: Record<string, string> = {
-                          'sum': 'Somme',
-                          'average': 'Moyenne',
-                          'count': 'Nombre',
-                          'min': 'Minimum',
-                          'max': 'Maximum',
-                          'unique': 'Uniques'
-                        };
-                        return calcLabels[metric.calculationType] || metric.calculationType;
-                      };
+                  {(() => {
+                    const isExpanded = expandedDashboards.has(dashboard.id);
+                    const maxDefault = 2;
+                    const maxExpanded = 3;
+                    const displayedCount = isExpanded ? Math.min(maxExpanded, dashboard.metrics.length) : Math.min(maxDefault, dashboard.metrics.length);
+                    const hasMore = dashboard.metrics.length > displayedCount;
+                    const needsScroll = isExpanded && dashboard.metrics.length > maxExpanded;
 
-                      // Get form name
-                      const form = universForms.find(f => f.id === metric.formId);
-                      const formTitle = form?.title || 'Formulaire inconnu';
-                      
-                      // Get field label
-                      const field = form?.fields.find(f => f.id === metric.fieldId);
-                      const fieldLabel = field?.label || metric.fieldId || 'Champ';
+                    return (
+                      <>
+                        <div 
+                          className={`space-y-1 metrics-preview-container ${needsScroll ? 'max-h-32 overflow-y-auto thin-scrollbar' : ''}`}
+                        >
+                          {dashboard.metrics.slice(0, displayedCount).map((metric, idx) => {
+                            // Get form name
+                            const form = universForms.find(f => f.id === metric.formId);
+                            const formTitle = form?.title || 'Formulaire inconnu';
+                            
+                            // Get field label
+                            const field = form?.fields.find(f => f.id === metric.fieldId);
+                            const fieldLabel = field?.label || metric.fieldId || 'Champ';
 
-                      return (
-                        <div key={idx} className="text-xs text-gray-600 bg-gray-50 rounded px-2 py-1 border border-gray-100">
-                          <div className="font-medium text-gray-700 truncate">{metric.name}</div>
-                          <div className="text-xs text-gray-500 truncate">
-                            {getMetricTypeLabel()} • {formTitle} • {fieldLabel}
-                          </div>
+                            const getMetricTypeLabel = () => {
+                              if (metric.metricType === 'graph') return '📊 Graphique';
+                              const calcLabels: Record<string, string> = {
+                                'sum': 'Somme',
+                                'average': 'Moyenne',
+                                'count': 'Nombre',
+                                'min': 'Minimum',
+                                'max': 'Maximum',
+                                'unique': 'Uniques'
+                              };
+                              return calcLabels[metric.calculationType] || metric.calculationType;
+                            };
+
+                            return (
+                              <div key={idx} className="text-xs text-gray-600 bg-gray-50 rounded px-2 py-1 border border-gray-100">
+                                <div className="font-medium text-gray-700 truncate">{metric.name}</div>
+                                <div className="text-xs text-gray-500 truncate">
+                                  {getMetricTypeLabel()} • {formTitle} • {fieldLabel}
+                                </div>
+                              </div>
+                            );
+                          })}
                         </div>
-                      );
-                    })}
-                    {dashboard.metrics.length > 3 && (
-                      <div className="text-xs text-gray-500 italic">
-                        +{dashboard.metrics.length - 3} autre{dashboard.metrics.length - 3 > 1 ? 's' : ''}
-                      </div>
-                    )}
-                  </div>
+                        {hasMore && (
+                          <button
+                            onClick={() => {
+                              if (isExpanded) {
+                                setExpandedDashboards(prev => {
+                                  const newSet = new Set(prev);
+                                  newSet.delete(dashboard.id);
+                                  return newSet;
+                                });
+                              } else {
+                                setExpandedDashboards(prev => new Set([...prev, dashboard.id]));
+                              }
+                            }}
+                            className="text-xs text-blue-600 hover:text-blue-700 font-medium transition-colors"
+                          >
+                            {isExpanded ? 'Afficher moins' : `Afficher plus (+${dashboard.metrics.length - displayedCount} autre${dashboard.metrics.length - displayedCount > 1 ? 's' : ''})`}
+                          </button>
+                        )}
+                      </>
+                    );
+                  })()}
                 </div>
               )}
 

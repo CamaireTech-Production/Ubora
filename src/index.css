@@ -439,3 +439,27 @@
 .horizontal-scroll-dashboards::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
 }
+
+/* Thin scrollbar for metrics preview */
+.metrics-preview-container {
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 #f1f5f9;
+}
+
+.metrics-preview-container::-webkit-scrollbar {
+  width: 4px;
+}
+
+.metrics-preview-container::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 2px;
+}
+
+.metrics-preview-container::-webkit-scrollbar-thumb {
+  background-color: #cbd5e1;
+  border-radius: 2px;
+}
+
+.metrics-preview-container::-webkit-scrollbar-thumb:hover {
+  background-color: #94a3b8;
+}
