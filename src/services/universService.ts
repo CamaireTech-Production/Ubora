@@ -135,8 +135,24 @@ class UniversService {
         lastUsedAt: univers.usage?.lastUsedAt || undefined
       };
 
-      // Créer le document dans Firestore
-      const docRef = await addDoc(collection(db, this.collectionName), {
+      // Helper function to remove undefined values
+      const removeUndefined = (obj: any): any => {
+        if (obj === null || obj === undefined) return null;
+        if (Array.isArray(obj)) return obj.map(removeUndefined);
+        if (typeof obj === 'object' && obj.constructor === Object) {
+          return Object.keys(obj).reduce((acc, key) => {
+            const value = obj[key];
+            if (value !== undefined) {
+              acc[key] = removeUndefined(value);
+            }
+            return acc;
+          }, {} as any);
+        }
+        return obj;
+      };
+
+      // Créer le document dans Firestore (en omettant les valeurs undefined)
+      const docRef = await addDoc(collection(db, this.collectionName), removeUndefined({
         metadata: {
           ...metadata,
           createdAt: Timestamp.fromDate(metadata.createdAt)
@@ -150,7 +166,7 @@ class UniversService {
           totalUsages: usage.totalUsages,
           lastUsedAt: usage.lastUsedAt ? Timestamp.fromDate(usage.lastUsedAt) : null
         }
-      });
+      }));
 
       console.log(`Univers créé avec succès: ${docRef.id}`);
       return docRef.id;

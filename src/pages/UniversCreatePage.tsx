@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { UniversWizard } from '../components/UniversWizard';
 import { UniversWizardStep1 } from '../components/UniversWizardStep1';
@@ -8,6 +8,7 @@ import { UniversWizardStep4 } from '../components/UniversWizardStep4';
 import { UniversWizardStep5 } from '../components/UniversWizardStep5';
 import { UniversWizardStep6 } from '../components/UniversWizardStep6';
 import { UniversWizardStep7 } from '../components/UniversWizardStep7';
+import { UniversCreationLoading } from '../components/UniversCreationLoading';
 import { UniversDefinitions, UniversMetadata, UniversOwnership } from '../types';
 import { universService } from '../services/universService';
 import { useAuth } from '../contexts/AuthContext';
@@ -35,6 +36,8 @@ export const UniversCreatePage: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { showSuccess, showError } = useToast();
+  const [isCreating, setIsCreating] = useState(false);
+  const [createdUniversId, setCreatedUniversId] = useState<string | null>(null);
 
   const handleComplete = async (universData: {
     metadata: UniversMetadata;
@@ -46,7 +49,13 @@ export const UniversCreatePage: React.FC = () => {
       return;
     }
 
+    // Show loading animation immediately
+    setIsCreating(true);
+
     try {
+      // Small delay to ensure loading UI is visible before async operation
+      await new Promise(resolve => setTimeout(resolve, 100));
+
       // Create Univers in Firestore
       const universId = await universService.create({
         metadata: universData.metadata,
@@ -58,12 +67,23 @@ export const UniversCreatePage: React.FC = () => {
         }
       });
 
-      showSuccess('Univers créé avec succès !');
-      navigate(`/univers/${universId}`);
+      setCreatedUniversId(universId);
+      // The loading component will handle the navigation after animation
     } catch (error) {
       console.error('Error creating Univers:', error);
+      setIsCreating(false);
+      setCreatedUniversId(null);
       showError('Erreur lors de la création du Univers. Veuillez réessayer.');
     }
+  };
+
+  const handleLoadingComplete = () => {
+    if (createdUniversId) {
+      showSuccess('Univers créé avec succès !');
+      navigate(`/univers/${createdUniversId}`);
+    }
+    setIsCreating(false);
+    setCreatedUniversId(null);
   };
 
   const handleCancel = () => {
@@ -100,11 +120,19 @@ export const UniversCreatePage: React.FC = () => {
   };
 
   return (
-    <UniversWizard
-      onComplete={handleComplete}
-      onCancel={handleCancel}
-      renderStep={renderStep}
-    />
+    <>
+      <UniversWizard
+        onComplete={handleComplete}
+        onCancel={handleCancel}
+        renderStep={renderStep}
+      />
+      {isCreating && (
+        <UniversCreationLoading
+          isVisible={isCreating}
+          onComplete={handleLoadingComplete}
+        />
+      )}
+    </>
   );
 };
 
