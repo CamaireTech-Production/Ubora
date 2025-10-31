@@ -15,7 +15,7 @@ interface UniversListProps {
   isLoading?: boolean;
 }
 
-type FilterType = 'all' | 'my' | 'agency' | 'marketplace';
+type FilterType = 'all' | 'my' | 'marketplace';
 
 export const UniversList: React.FC<UniversListProps> = ({
   univers,
@@ -36,12 +36,6 @@ export const UniversList: React.FC<UniversListProps> = ({
     // Filter by ownership type
     if (filterType === 'my') {
       filtered = filtered.filter(u => u.ownership.createdBy === currentUserId);
-    } else if (filterType === 'agency') {
-      filtered = filtered.filter(u => 
-        u.ownership.agencyId && 
-        !u.ownership.isMarketplaceTemplate &&
-        u.ownership.createdBy !== currentUserId // Not my own
-      );
     } else if (filterType === 'marketplace') {
       filtered = filtered.filter(u => 
         u.ownership.isMarketplaceTemplate && 
@@ -106,13 +100,6 @@ export const UniversList: React.FC<UniversListProps> = ({
             onClick={() => setFilterType('my')}
           >
             Mes Univers
-          </Button>
-          <Button
-            variant={filterType === 'agency' ? 'primary' : 'secondary'}
-            size="sm"
-            onClick={() => setFilterType('agency')}
-          >
-            Agence
           </Button>
           <Button
             variant={filterType === 'marketplace' ? 'primary' : 'secondary'}

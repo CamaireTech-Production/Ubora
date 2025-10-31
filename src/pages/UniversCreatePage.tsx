@@ -2,6 +2,8 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { UniversWizard } from '../components/UniversWizard';
 import { UniversWizardStep1 } from '../components/UniversWizardStep1';
+import { UniversWizardStep2 } from '../components/UniversWizardStep2';
+import { UniversWizardStep3 } from '../components/UniversWizardStep3';
 import { UniversDefinitions, UniversMetadata, UniversOwnership } from '../types';
 import { universService } from '../services/universService';
 import { useAuth } from '../contexts/AuthContext';
@@ -71,17 +73,17 @@ export const UniversCreatePage: React.FC = () => {
       case 1:
         return <UniversWizardStep1 {...props} />;
       case 2:
-        // Forms step - will be implemented in next task
-        return <ComingSoonStep title="Formulaires" description="Cette étape permettra de créer et configurer les formulaires du Univers." />;
+        // Lists step - Coming Soon (now step 2)
+        return <UniversWizardStep2 {...props} />;
       case 3:
+        // Forms step
+        return <UniversWizardStep3 {...props} />;
+      case 4:
         // Dashboards step - will be implemented in next task
         return <ComingSoonStep title="Tableaux de bord" description="Cette étape permettra de créer et configurer les tableaux de bord du Univers." />;
-      case 4:
+      case 5:
         // Instructions step - will be implemented in next task
         return <ComingSoonStep title="Instructions programmées" description="Cette étape permettra de créer et configurer les instructions programmées du Univers." />;
-      case 5:
-        // Lists step - Coming Soon
-        return <ComingSoonStep title="Listes" description="Cette fonctionnalité sera disponible prochainement." />;
       case 6:
         // Reports step - Coming Soon
         return <ComingSoonStep title="Rapports" description="Cette fonctionnalité sera disponible prochainement." />;

@@ -8,6 +8,7 @@ import { universService } from '../services/universService';
 import { useToast } from '../hooks/useToast';
 import { Toast } from '../components/Toast';
 import { ConfirmationModal } from '../components/ConfirmationModal';
+import { UniversCreateModal } from '../components/UniversCreateModal';
 
 export const UniversPage: React.FC = () => {
   const navigate = useNavigate();
@@ -18,6 +19,7 @@ export const UniversPage: React.FC = () => {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [universToDelete, setUniversToDelete] = useState<{ id: string; name: string } | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [showCreateModal, setShowCreateModal] = useState(false);
 
   useEffect(() => {
     if (user?.id && user?.agencyId) {
@@ -33,18 +35,16 @@ export const UniversPage: React.FC = () => {
       // Load all Univers the user has access to
       const [
         myUnivers,
-        agencyUnivers,
         marketplaceUnivers
       ] = await Promise.all([
         universService.getByUser(user.id, user.agencyId),
-        universService.getByAgency(user.agencyId),
         universService.getMarketplaceTemplates()
       ]);
 
       // Combine and deduplicate
       const allUnivers = new Map<string, Univers>();
       
-      [...myUnivers, ...agencyUnivers, ...marketplaceUnivers].forEach(u => {
+      [...myUnivers, ...marketplaceUnivers].forEach(u => {
         allUnivers.set(u.id, u);
       });
 
@@ -58,6 +58,11 @@ export const UniversPage: React.FC = () => {
   };
 
   const handleCreate = () => {
+    setShowCreateModal(true);
+  };
+
+  const handleCreateFromScratch = () => {
+    setShowCreateModal(false);
     navigate('/univers/create');
   };
 
@@ -146,6 +151,12 @@ export const UniversPage: React.FC = () => {
         cancelText="Annuler"
         variant="danger"
         isLoading={isDeleting}
+      />
+
+      <UniversCreateModal
+        isOpen={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        onCreateFromScratch={handleCreateFromScratch}
       />
 
       {toast && <Toast {...toast} />}

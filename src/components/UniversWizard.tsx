@@ -25,10 +25,10 @@ const TOTAL_STEPS = 7;
 
 const STEP_LABELS = [
   'Métadonnées',
+  'Listes',
   'Formulaires',
   'Tableaux de bord',
   'Instructions',
-  'Listes',
   'Rapports',
   'Résumé & Publication'
 ];
@@ -92,10 +92,11 @@ export const UniversWizard: React.FC<UniversWizardProps> = ({
       // Mark completed steps
       const completed = new Set<number>();
       if (saved.metadata?.name) completed.add(1);
-      if (saved.forms && saved.forms.length > 0) completed.add(2);
-      if (saved.dashboards && saved.dashboards.length > 0) completed.add(3);
-      if (saved.instructions && saved.instructions.length > 0) completed.add(4);
-      if (saved.lists && saved.lists.length > 0) completed.add(5);
+      // Step 2: Lists - coming soon, can't be completed yet
+      if (saved.forms && saved.forms.length > 0) completed.add(3);
+      if (saved.dashboards && saved.dashboards.length > 0) completed.add(4);
+      if (saved.instructions && saved.instructions.length > 0) completed.add(5);
+      if (saved.lists && saved.lists.length > 0) completed.add(2); // Lists is now step 2
       if (saved.reports && saved.reports.length > 0) completed.add(6);
       setCompletedSteps(completed);
     }
@@ -180,6 +181,7 @@ export const UniversWizard: React.FC<UniversWizardProps> = ({
       return;
     }
 
+    // Forms are required (step 3, but validate here)
     if (!wizardData.definitions.forms || wizardData.definitions.forms.length === 0) {
       console.error('At least one form is required');
       return;
@@ -239,8 +241,12 @@ export const UniversWizard: React.FC<UniversWizardProps> = ({
     if (currentStep === 1) {
       return !!wizardData.metadata.name?.trim();
     }
-    // Step 2: Forms - at least 1 required
+    // Step 2: Lists - can be skipped (coming soon)
     if (currentStep === 2) {
+      return true; // Can always skip lists for now
+    }
+    // Step 3: Forms - at least 1 required
+    if (currentStep === 3) {
       return wizardData.definitions.forms && wizardData.definitions.forms.length > 0;
     }
     // Other steps can be skipped
@@ -254,8 +260,16 @@ export const UniversWizard: React.FC<UniversWizardProps> = ({
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center justify-between mb-4">
             <button
-              onClick={onCancel}
-              className="flex items-center space-x-2 text-gray-600 hover:text-gray-900 transition-colors"
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (onCancel) {
+                  onCancel();
+                }
+              }}
+              className="flex items-center space-x-2 text-gray-600 hover:text-gray-900 transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded-lg px-2 py-1"
+              aria-label="Annuler et retourner"
             >
               <ArrowLeft className="h-5 w-5" />
               <span className="text-sm font-medium">Annuler</span>
