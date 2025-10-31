@@ -33,6 +33,24 @@ export const UniversWizardStep4: React.FC<UniversWizardStepProps> = ({
   const [editingDashboardId, setEditingDashboardId] = useState<string | null>(null);
   const [expandedDashboards, setExpandedDashboards] = useState<Set<string>>(new Set());
 
+  // Sync local state with wizardData when it changes (e.g., after loading from localStorage)
+  useEffect(() => {
+    const savedDashboards = (wizardData.definitions.dashboards as DashboardDefinition[]) || [];
+    // Only update if the saved dashboards are different from current dashboards
+    // Check by length first, then by deep comparison if needed
+    if (savedDashboards.length !== dashboards.length) {
+      setDashboards(savedDashboards);
+    } else if (savedDashboards.length > 0) {
+      // Deep comparison only if arrays have items
+      const savedStr = JSON.stringify(savedDashboards);
+      const currentStr = JSON.stringify(dashboards);
+      if (savedStr !== currentStr) {
+        setDashboards(savedDashboards);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wizardData.definitions.dashboards]);
+
   // Convert Form definitions to Form objects for DashboardBuilder
   const universForms = useMemo<Form[]>(() => {
     const formDefinitions = (wizardData.definitions.forms || []) as any[];

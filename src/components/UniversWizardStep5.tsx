@@ -76,6 +76,24 @@ export const UniversWizardStep5: React.FC<UniversWizardStepProps> = ({
   const [instructionToDelete, setInstructionToDelete] = useState<InstructionDefinition | null>(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
 
+  // Sync local state with wizardData when it changes (e.g., after loading from localStorage)
+  useEffect(() => {
+    const savedInstructions = (wizardData.definitions.instructions as InstructionDefinition[]) || [];
+    // Only update if the saved instructions are different from current instructions
+    // Check by length first, then by deep comparison if needed
+    if (savedInstructions.length !== instructions.length) {
+      setInstructions(savedInstructions);
+    } else if (savedInstructions.length > 0) {
+      // Deep comparison only if arrays have items
+      const savedStr = JSON.stringify(savedInstructions);
+      const currentStr = JSON.stringify(instructions);
+      if (savedStr !== currentStr) {
+        setInstructions(savedInstructions);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wizardData.definitions.instructions]);
+
   // Convert Form definitions to Form objects for filters
   const universForms = useMemo<Form[]>(() => {
     const formDefinitions = (wizardData.definitions.forms || []) as any[];
@@ -409,7 +427,7 @@ export const UniversWizardStep5: React.FC<UniversWizardStepProps> = ({
               Instructions programmées
             </h3>
             <p className="text-sm text-blue-800">
-              Les instructions programmées permettent d'automatiser des questions à l'IA. 
+              Les instructions programmées permettent d'automatiser des questions à Archas. 
               Vous pouvez les baser sur vos formulaires (pour filtrer les données), vos tableaux de bord, listes et rapports.
             </p>
           </div>

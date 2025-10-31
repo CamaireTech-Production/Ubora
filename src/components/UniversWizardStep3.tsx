@@ -48,6 +48,24 @@ export const UniversWizardStep3: React.FC<UniversWizardStepProps> = ({
   const [editingFormId, setEditingFormId] = useState<string | null>(null);
   const [selectedFormId, setSelectedFormId] = useState<string | null>(null);
 
+  // Sync local state with wizardData when it changes (e.g., after loading from localStorage)
+  useEffect(() => {
+    const savedForms = (wizardData.definitions.forms as FormDefinition[]) || [];
+    // Only update if the saved forms are different from current forms
+    // Check by length first, then by deep comparison if needed
+    if (savedForms.length !== forms.length) {
+      setForms(savedForms);
+    } else if (savedForms.length > 0) {
+      // Deep comparison only if arrays have items
+      const savedStr = JSON.stringify(savedForms);
+      const currentStr = JSON.stringify(forms);
+      if (savedStr !== currentStr) {
+        setForms(savedForms);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wizardData.definitions.forms]);
+
   // Update wizard data when forms change
   useEffect(() => {
     updateWizardData({
