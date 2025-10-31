@@ -5,7 +5,7 @@ import { Input } from './Input';
 import { Textarea } from './Textarea';
 import { Select } from './Select';
 import { Card } from './Card';
-import { Plus, Trash2, AlertCircle, FileText, Hash, Type, Mail, Calendar, CheckSquare, Upload, AlertTriangle } from 'lucide-react';
+import { Plus, Trash2, AlertCircle, FileText, Hash, Type, Mail, Calendar, CheckSquare, Upload, AlertTriangle, ArrowLeft } from 'lucide-react';
 import { GraphPreview } from './charts/GraphPreview';
 import { getValidYAxisFields, validateYAxisField } from '../utils/GraphFieldValidator';
 
@@ -21,6 +21,11 @@ interface DashboardBuilderProps {
   currentUserId: string;
   agencyId: string;
   isLoading?: boolean;
+  initialDashboard?: {
+    name: string;
+    description?: string;
+    metrics: Omit<DashboardMetric, 'id' | 'createdAt' | 'createdBy' | 'agencyId'>[];
+  };
 }
 
 export const DashboardBuilder: React.FC<DashboardBuilderProps> = ({
@@ -30,11 +35,12 @@ export const DashboardBuilder: React.FC<DashboardBuilderProps> = ({
   formEntries,
   currentUserId,
   agencyId,
-  isLoading = false
+  isLoading = false,
+  initialDashboard
 }) => {
-  const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
-  const [metrics, setMetrics] = useState<Omit<DashboardMetric, 'id' | 'createdAt' | 'createdBy' | 'agencyId'>[]>([]);
+  const [name, setName] = useState(initialDashboard?.name || '');
+  const [description, setDescription] = useState(initialDashboard?.description || '');
+  const [metrics, setMetrics] = useState<Omit<DashboardMetric, 'id' | 'createdAt' | 'createdBy' | 'agencyId'>[]>(initialDashboard?.metrics || []);
   const [errors, setErrors] = useState<string[]>([]);
   const errorRef = useRef<HTMLDivElement>(null);
   const [showGraphPreviews, setShowGraphPreviews] = useState<Record<number, boolean>>({});
@@ -593,20 +599,21 @@ export const DashboardBuilder: React.FC<DashboardBuilderProps> = ({
               {isLoading ? (
                 <>
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                  Création...
+                  {initialDashboard ? 'Modification...' : 'Création...'}
                 </>
               ) : (
-                'Créer le tableau de bord'
+                initialDashboard ? 'Modifier le tableau de bord' : 'Créer le tableau de bord'
               )}
             </Button>
             <Button 
               type="button" 
               variant="secondary" 
               onClick={onCancel} 
-              className="w-full sm:w-auto"
+              className="w-full sm:w-auto flex items-center justify-center space-x-2"
               disabled={isLoading}
             >
-              Annuler
+              <ArrowLeft className="h-4 w-4" />
+              <span>Annuler</span>
             </Button>
           </div>
         </form>

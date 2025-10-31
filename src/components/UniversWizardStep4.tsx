@@ -198,6 +198,11 @@ export const UniversWizardStep4: React.FC<UniversWizardStepProps> = ({
           currentUserId={user?.id || ''}
           agencyId={user?.agencyId || ''}
           isLoading={false}
+          initialDashboard={editingDashboard ? {
+            name: editingDashboard.name,
+            description: editingDashboard.description,
+            metrics: editingDashboard.metrics
+          } : undefined}
         />
       </div>
     );
@@ -328,6 +333,53 @@ export const UniversWizardStep4: React.FC<UniversWizardStepProps> = ({
                 <p className="text-sm text-gray-600 mb-3 line-clamp-2">
                   {dashboard.description}
                 </p>
+              )}
+
+              {/* Minimal preview of metrics */}
+              {dashboard.metrics.length > 0 && (
+                <div className="mb-3 space-y-2">
+                  <div className="text-xs font-medium text-gray-700 mb-1">
+                    Métriques ({dashboard.metrics.length}):
+                  </div>
+                  <div className="space-y-1">
+                    {dashboard.metrics.slice(0, 3).map((metric, idx) => {
+                      const getMetricTypeLabel = () => {
+                        if (metric.metricType === 'graph') return '📊 Graphique';
+                        const calcLabels: Record<string, string> = {
+                          'sum': 'Somme',
+                          'average': 'Moyenne',
+                          'count': 'Nombre',
+                          'min': 'Minimum',
+                          'max': 'Maximum',
+                          'unique': 'Uniques'
+                        };
+                        return calcLabels[metric.calculationType] || metric.calculationType;
+                      };
+
+                      // Get form name
+                      const form = universForms.find(f => f.id === metric.formId);
+                      const formTitle = form?.title || 'Formulaire inconnu';
+                      
+                      // Get field label
+                      const field = form?.fields.find(f => f.id === metric.fieldId);
+                      const fieldLabel = field?.label || metric.fieldId || 'Champ';
+
+                      return (
+                        <div key={idx} className="text-xs text-gray-600 bg-gray-50 rounded px-2 py-1 border border-gray-100">
+                          <div className="font-medium text-gray-700 truncate">{metric.name}</div>
+                          <div className="text-xs text-gray-500 truncate">
+                            {getMetricTypeLabel()} • {formTitle} • {fieldLabel}
+                          </div>
+                        </div>
+                      );
+                    })}
+                    {dashboard.metrics.length > 3 && (
+                      <div className="text-xs text-gray-500 italic">
+                        +{dashboard.metrics.length - 3} autre{dashboard.metrics.length - 3 > 1 ? 's' : ''}
+                      </div>
+                    )}
+                  </div>
+                </div>
               )}
 
               <div className="flex items-center justify-between pt-3 border-t border-gray-100">
