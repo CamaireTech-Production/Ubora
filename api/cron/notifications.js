@@ -15,10 +15,15 @@ import { executeAIQuestion } from '../lib/executeAIQuestion.js';
 // Ensure db is always a proper Firestore instance
 const db = adminDb || admin.firestore();
 
-// Safety check: ensure db is properly initialized
-if (!db || typeof db.collectionGroup !== 'function' || typeof db.collection !== 'function') {
-  throw new Error('Firebase Admin Firestore not properly initialized. Check FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, and FIREBASE_PRIVATE_KEY environment variables.');
+// Lazy safety check: ensure db is properly initialized (only when cron runs, not at module load)
+function ensureDbInitialized() {
+  if (!db || typeof db.collectionGroup !== 'function' || typeof db.collection !== 'function') {
+    const error = new Error('Firebase Admin Firestore not properly initialized. Check FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, and FIREBASE_PRIVATE_KEY environment variables.');
+    console.error('❌ [Cron] Firestore initialization check failed:', error.message);
+    throw error;
+  }
 }
+
 // Lightweight email sender (reuse env used elsewhere). If no creds, skip.
 function makeEmailTransporter() {
   if (!process.env.EMAIL_USER || !process.env.EMAIL_PASSWORD) return null;
@@ -230,6 +235,7 @@ export default async (req, res) => {
  * Process form reminders (1h, 30min, 15min, 5min before deadline) - CONCURRENT VERSION
  */
 async function processFormReminders(now, oneMinuteFromNow) {
+  ensureDbInitialized(); // Lazy check: ensure Firestore is initialized before use
   try {
     // Step 1: Collect all form reminders that need to be sent
     // Use collection group to support nested form collections
@@ -470,6 +476,7 @@ async function processFormReminders(now, oneMinuteFromNow) {
 
 // Execute scheduled questions that are due (Option A) and mark them completed/ready
 async function executeDueProgrammedInstructions(now, oneMinuteFromNow) {
+  ensureDbInitialized(); // Lazy check: ensure Firestore is initialized before use
   try {
     const toleranceMs = 2 * 60 * 1000; // 2 minutes tolerance
     const windowStart = new Date(now.getTime() - toleranceMs);
@@ -652,6 +659,7 @@ async function executeDueProgrammedInstructions(now, oneMinuteFromNow) {
  * Process metric reminders (director-programmed) - CONCURRENT VERSION
  */
 async function processMetricReminders(now, oneMinuteFromNow) {
+  ensureDbInitialized(); // Lazy check: ensure Firestore is initialized before use
   try {
     // Guard: auto-bump past-due pending reminders forward to the next schedule
     try {
@@ -795,6 +803,7 @@ async function processMetricReminders(now, oneMinuteFromNow) {
  * Process programmed instructions (when executed) - CONCURRENT VERSION
  */
 async function processProgrammedInstructions(now, oneMinuteFromNow) {
+  ensureDbInitialized(); // Lazy check: ensure Firestore is initialized before use
   try {
     // Step 1: Collect all scheduled questions that are READY to notify
     // Option B: Execution is handled elsewhere and marks status to 'ready' or 'completed'
