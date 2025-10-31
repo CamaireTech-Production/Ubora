@@ -427,7 +427,7 @@ export const UniversWizardStep5: React.FC<UniversWizardStepProps> = ({
               Instructions programmées
             </h3>
             <p className="text-sm text-blue-800">
-              Les instructions programmées permettent d'automatiser des questions à Archas. 
+              Les instructions programmées permettent d'automatiser des questions à archa. 
               Vous pouvez les baser sur vos formulaires (pour filtrer les données), vos tableaux de bord, listes et rapports.
             </p>
           </div>
