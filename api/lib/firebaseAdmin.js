@@ -112,7 +112,7 @@ if (!admin.apps.length) {
         // Split on literal \n and join with actual newlines
         cleanPrivateKey = cleanPrivateKey.split('\\n').join('\n');
         console.log(`   ✅ Converted ${literalNewlineCount} literal \\n sequences to actual newlines`);
-      } else {
+    } else {
         console.log('   No literal \\n sequences found. Key format may be fundamentally broken.');
       }
     }
@@ -153,6 +153,59 @@ if (!admin.apps.length) {
     cleanPrivateKey = cleanPrivateKey.replace(/n-----ENDPRIVATEKEY-----/g, '\n-----END PRIVATE KEY-----');
     cleanPrivateKey = cleanPrivateKey.replace(/-----ENDPRIVATEKEY-----/g, '-----END PRIVATE KEY-----');
   }
+  
+  // CRITICAL FIX: Remove trailing backslashes from markers
+  // The workflow's sed command can add literal backslashes to markers
+  // This is a common issue where markers end with `\\` instead of being clean
+  console.log('   🔧 Removing trailing backslashes from markers...');
+  
+  // Match markers followed by one or more backslashes (literal backslash characters)
+  // Use \\\\ to match literal backslash in regex (each \\ becomes one \)
+  cleanPrivateKey = cleanPrivateKey.replace(/-----BEGIN PRIVATE KEY-----\\+/g, '-----BEGIN PRIVATE KEY-----');
+  cleanPrivateKey = cleanPrivateKey.replace(/-----END PRIVATE KEY-----\\+/g, '-----END PRIVATE KEY-----');
+  
+  // Also handle malformed markers with backslashes
+  cleanPrivateKey = cleanPrivateKey.replace(/-----BEGINPRIVATEKEY-----\\+/g, '-----BEGIN PRIVATE KEY-----');
+  cleanPrivateKey = cleanPrivateKey.replace(/-----ENDPRIVATEKEY-----\\+/g, '-----END PRIVATE KEY-----');
+  
+  // More aggressive: strip any backslash immediately after BEGIN marker (before newline)
+  cleanPrivateKey = cleanPrivateKey.replace(/-----BEGIN PRIVATE KEY-----\\(?!\n)/g, '-----BEGIN PRIVATE KEY-----');
+  cleanPrivateKey = cleanPrivateKey.replace(/-----END PRIVATE KEY-----\\(?!\n)/g, '-----END PRIVATE KEY-----');
+  
+  // CRITICAL: Ensure markers are followed by newlines, not backslashes
+  // If marker is followed by backslash (or nothing), add proper newline
+  if (cleanPrivateKey.includes('-----BEGIN PRIVATE KEY-----')) {
+    // Find BEGIN marker position
+    const beginIdx = cleanPrivateKey.indexOf('-----BEGIN PRIVATE KEY-----');
+    if (beginIdx !== -1) {
+      const afterBegin = cleanPrivateKey.substring(beginIdx + '-----BEGIN PRIVATE KEY-----'.length);
+      // If next character is backslash or no newline, fix it
+      if (afterBegin.charAt(0) === '\\' || (afterBegin.charAt(0) !== '\n' && afterBegin.trim().length > 0)) {
+        cleanPrivateKey = cleanPrivateKey.substring(0, beginIdx) + 
+                         '-----BEGIN PRIVATE KEY-----\n' + 
+                         afterBegin.replace(/^\\+/, ''); // Remove leading backslashes
+      }
+    }
+  }
+  
+  // Same for END marker
+  if (cleanPrivateKey.includes('-----END PRIVATE KEY-----')) {
+    const endIdx = cleanPrivateKey.indexOf('-----END PRIVATE KEY-----');
+    if (endIdx !== -1) {
+      const beforeEnd = cleanPrivateKey.substring(0, endIdx);
+      const afterEnd = cleanPrivateKey.substring(endIdx + '-----END PRIVATE KEY-----'.length);
+      // If marker is followed by backslash, remove it
+      if (afterEnd.charAt(0) === '\\') {
+        cleanPrivateKey = beforeEnd + '-----END PRIVATE KEY-----' + afterEnd.substring(1);
+      }
+      // Ensure there's a newline before END marker (if there's content)
+      if (!beforeEnd.endsWith('\n') && beforeEnd.trim().length > 0) {
+        cleanPrivateKey = beforeEnd + '\n-----END PRIVATE KEY-----' + afterEnd;
+      }
+    }
+  }
+  
+  console.log('   After backslash cleanup - markers verified');
   
   // Also handle case where properly formatted markers have literal 'n' instead of newline
   if (cleanPrivateKey.includes('BEGIN PRIVATE KEY') && !cleanPrivateKey.includes('\n')) {

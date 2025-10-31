@@ -32,10 +32,11 @@ jobs:
         FIREBASE_PROJECT_ID=${{ secrets.FIREBASE_PROJECT_ID }}
         FIREBASE_CLIENT_EMAIL=${{ secrets.FIREBASE_CLIENT_EMAIL }}
         EOF
-        # Append private key - convert actual newlines to literal \n for .env file
-        # Pipe secret through sed to escape newlines safely without breaking shell parsing
+        # Append private key - simpler approach that preserves format better
+        # Convert actual newlines to literal \n but don't over-escape
         printf 'FIREBASE_PRIVATE_KEY="' >> .env.local
-        printf '%s' "${{ secrets.FIREBASE_PRIVATE_KEY }}" | sed -z 's/\\/\\\\/g; s/"/\\"/g; s/\n/\\n/g' >> .env.local
+        # Only escape quotes and convert newlines - don't escape backslashes (to avoid double-escaping)
+        printf '%s' "${{ secrets.FIREBASE_PRIVATE_KEY }}" | sed -z 's/"/\\"/g; s/\n/\\n/g' >> .env.local
         printf '"\n' >> .env.local
         cat >> .env.local << EOF
         
