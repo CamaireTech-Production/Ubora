@@ -28,8 +28,8 @@ const STEP_LABELS = [
   'Listes',
   'Formulaires',
   'Tableaux de bord',
-  'Instructions',
   'Rapports',
+  'Instructions',
   'Résumé & Publication'
 ];
 
@@ -96,8 +96,8 @@ export const UniversWizard: React.FC<UniversWizardProps> = ({
       if (saved.lists && saved.lists.length > 0) completed.add(2); // Lists is now step 2
       if (saved.forms && saved.forms.length > 0) completed.add(3);
       if (saved.dashboards && saved.dashboards.length > 0) completed.add(4);
-      if (saved.instructions && saved.instructions.length > 0) completed.add(5);
-      if (saved.reports && saved.reports.length > 0) completed.add(6);
+      if (saved.reports && saved.reports.length > 0) completed.add(5); // Reports is now step 5
+      if (saved.instructions && saved.instructions.length > 0) completed.add(6); // Instructions is now step 6
       setCompletedSteps(completed);
     }
     // Mark initial load as complete after a short delay

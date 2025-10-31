@@ -86,11 +86,11 @@ export const UniversCreatePage: React.FC = () => {
         // Dashboards step
         return <UniversWizardStep4 {...props} />;
       case 5:
-        // Instructions step
-        return <UniversWizardStep5 {...props} />;
-      case 6:
         // Reports step - Coming Soon
         return <UniversWizardStep6 {...props} />;
+      case 6:
+        // Instructions step
+        return <UniversWizardStep5 {...props} />;
       case 7:
         // Summary step
         return <UniversWizardStep7 {...props} />;

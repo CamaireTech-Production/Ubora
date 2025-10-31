@@ -101,7 +101,7 @@ export const UniversWizardStep3: React.FC<UniversWizardStepProps> = ({
               title: formData.title,
               description: formData.description,
               fields: formData.fields,
-              assignedTo: [], // Empty for template
+              assignedTo: formData.assignedTo || [], // Save assigned users
               timeRestrictions: formData.timeRestrictions
             }
           : f
@@ -114,7 +114,7 @@ export const UniversWizardStep3: React.FC<UniversWizardStepProps> = ({
         title: formData.title,
         description: formData.description,
         fields: formData.fields,
-        assignedTo: [], // Empty array - user will set when using template
+        assignedTo: formData.assignedTo || [], // Save assigned users
         timeRestrictions: formData.timeRestrictions
       };
       setForms([...forms, newForm]);
@@ -182,7 +182,7 @@ export const UniversWizardStep3: React.FC<UniversWizardStepProps> = ({
             title: editingForm.title,
             description: editingForm.description,
             fields: editingForm.fields,
-            assignedTo: [],
+            assignedTo: editingForm.assignedTo || [], // Pass assigned users
             timeRestrictions: editingForm.timeRestrictions
           } : undefined}
         />

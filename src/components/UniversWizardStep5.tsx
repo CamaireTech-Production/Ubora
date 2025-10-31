@@ -106,7 +106,7 @@ export const UniversWizardStep5: React.FC<UniversWizardStepProps> = ({
 
     // Mark step as completed if instructions exist
     if (instructions.length > 0) {
-      markStepCompleted(step);
+      markStepCompleted(6); // Instructions is now step 6
     }
   }, [instructions, updateWizardData, wizardData.definitions, markStepCompleted, step]);
 

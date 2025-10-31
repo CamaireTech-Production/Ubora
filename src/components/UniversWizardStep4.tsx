@@ -61,9 +61,11 @@ export const UniversWizardStep4: React.FC<UniversWizardStepProps> = ({
       }
     });
 
-    // Mark step as completed if dashboards exist or if user chooses to skip
-    // (dashboards are optional)
-  }, [dashboards, updateWizardData, wizardData.definitions]);
+    // Mark step as completed if dashboards exist (dashboards are optional but if created, mark as completed)
+    if (dashboards.length > 0) {
+      markStepCompleted(4);
+    }
+  }, [dashboards, updateWizardData, wizardData.definitions, markStepCompleted]);
 
   const handleAddDashboard = () => {
     if (!hasForms) {
