@@ -33,7 +33,7 @@ export const UniversWizardStep6: React.FC<UniversWizardStepProps> = ({
             </div>
             <div className="flex items-center space-x-3 text-green-700">
               <CheckCircle className="h-5 w-5 flex-shrink-0" />
-              <span>Utilisez des placeholders <code className="bg-gray-100 px-1 rounded">{{placeholder}}</code> dans vos documents.</span>
+              <span>Utilisez des placeholders <code className="bg-gray-100 px-1 rounded">{"{{placeholder}}"}</code> dans vos documents.</span>
             </div>
             <div className="flex items-center space-x-3 text-green-700">
               <CheckCircle className="h-5 w-5 flex-shrink-0" />
