@@ -45,12 +45,14 @@ if (!admin.apps.length) {
     hasActualNewlines: privateKey.includes('\n'),
     hasEscapedNewlines: privateKey.includes('\\n'),
     hasDoubleEscapedNewlines: privateKey.includes('\\\\n'),
-    includesBegin: privateKey.includes('BEGIN PRIVATE KEY'),
-    includesEnd: privateKey.includes('END PRIVATE KEY')
+    includesBegin: privateKey.includes('BEGIN PRIVATE KEY') || privateKey.includes('BEGINPRIVATEKEY'),
+    includesEnd: privateKey.includes('END PRIVATE KEY') || privateKey.includes('ENDPRIVATEKEY'),
+    malformedBegin: privateKey.includes('BEGINPRIVATEKEY') && !privateKey.includes('BEGIN PRIVATE KEY'),
+    malformedEnd: privateKey.includes('ENDPRIVATEKEY') && !privateKey.includes('END PRIVATE KEY')
   });
 
   // Clean and format the private key - handle various escape formats
-  let cleanPrivateKey = privateKey;
+    let cleanPrivateKey = privateKey;
   
   // Remove surrounding quotes if present
   cleanPrivateKey = cleanPrivateKey.trim();
@@ -62,15 +64,20 @@ if (!admin.apps.length) {
   }
   
   // Check if key already has actual newlines (properly formatted)
-  const hasActualNewlines = cleanPrivateKey.includes('\n') && cleanPrivateKey.includes('BEGIN PRIVATE KEY');
+  // Check for both properly formatted and malformed markers
+  const hasProperBegin = cleanPrivateKey.includes('BEGIN PRIVATE KEY');
+  const hasMalformedBegin = cleanPrivateKey.includes('BEGINPRIVATEKEY');
+  const hasActualNewlines = cleanPrivateKey.includes('\n') && (hasProperBegin || hasMalformedBegin);
   
   console.log('   After quote removal:', {
     length: cleanPrivateKey.length,
     hasActualNewlines: hasActualNewlines,
     hasEscapedNewlines: cleanPrivateKey.includes('\\n'),
     hasDoubleEscapedNewlines: cleanPrivateKey.includes('\\\\n'),
-    includesBegin: cleanPrivateKey.includes('BEGIN PRIVATE KEY'),
-    includesEnd: cleanPrivateKey.includes('END PRIVATE KEY')
+    includesBegin: hasProperBegin || hasMalformedBegin,
+    includesEnd: cleanPrivateKey.includes('END PRIVATE KEY') || cleanPrivateKey.includes('ENDPRIVATEKEY'),
+    hasProperBegin: hasProperBegin,
+    hasMalformedBegin: hasMalformedBegin && !hasProperBegin
   });
   
   if (!hasActualNewlines) {
@@ -82,55 +89,98 @@ if (!admin.apps.length) {
     
     // Second: Handle single-escaped newlines (\n -> newline) from env files
     // This covers most common cases where dotenv keeps \n as literal characters
-    cleanPrivateKey = cleanPrivateKey.replace(/\\n/g, '\n');
+      cleanPrivateKey = cleanPrivateKey.replace(/\\n/g, '\n');
     
     console.log('   After conversion:', {
       lengthChanged: cleanPrivateKey.length !== beforeLength,
       newLength: cleanPrivateKey.length,
       hasActualNewlines: cleanPrivateKey.includes('\n'),
-      includesBegin: cleanPrivateKey.includes('BEGIN PRIVATE KEY'),
-      includesEnd: cleanPrivateKey.includes('END PRIVATE KEY'),
+      includesBegin: cleanPrivateKey.includes('BEGIN PRIVATE KEY') || cleanPrivateKey.includes('BEGINPRIVATEKEY'),
+      includesEnd: cleanPrivateKey.includes('END PRIVATE KEY') || cleanPrivateKey.includes('ENDPRIVATEKEY'),
+      hasProperBegin: cleanPrivateKey.includes('BEGIN PRIVATE KEY'),
+      hasMalformedBegin: cleanPrivateKey.includes('BEGINPRIVATEKEY') && !cleanPrivateKey.includes('BEGIN PRIVATE KEY'),
       first60Chars: cleanPrivateKey.substring(0, 60)
     });
   }
   
+  // Normalize malformed BEGIN/END markers (fix missing spaces)
+  // Handle case where markers might be "BEGINPRIVATEKEY" instead of "BEGIN PRIVATE KEY"
+  if (cleanPrivateKey.includes('BEGINPRIVATEKEY') && !cleanPrivateKey.includes('BEGIN PRIVATE KEY')) {
+    console.log('   🔧 Fixing malformed BEGIN marker (adding missing spaces)...');
+    // Fix both with and without trailing literal 'n' character
+    cleanPrivateKey = cleanPrivateKey.replace(/-----BEGINPRIVATEKEY-----n/g, '-----BEGIN PRIVATE KEY-----\n');
+    cleanPrivateKey = cleanPrivateKey.replace(/-----BEGINPRIVATEKEY-----/g, '-----BEGIN PRIVATE KEY-----');
+  }
+  if (cleanPrivateKey.includes('ENDPRIVATEKEY') && !cleanPrivateKey.includes('END PRIVATE KEY')) {
+    console.log('   🔧 Fixing malformed END marker (adding missing spaces)...');
+    // Fix both with and without leading literal 'n' character
+    cleanPrivateKey = cleanPrivateKey.replace(/n-----ENDPRIVATEKEY-----/g, '\n-----END PRIVATE KEY-----');
+    cleanPrivateKey = cleanPrivateKey.replace(/-----ENDPRIVATEKEY-----/g, '-----END PRIVATE KEY-----');
+  }
+  
+  // Also handle case where properly formatted markers have literal 'n' instead of newline
+  if (cleanPrivateKey.includes('BEGIN PRIVATE KEY') && !cleanPrivateKey.includes('\n')) {
+    console.log('   🔧 Fixing literal "n" characters after BEGIN marker...');
+    cleanPrivateKey = cleanPrivateKey.replace(/-----BEGIN PRIVATE KEY-----n/g, '-----BEGIN PRIVATE KEY-----\n');
+  }
+  if (cleanPrivateKey.includes('END PRIVATE KEY') && cleanPrivateKey.includes('-----END PRIVATE KEY-----n')) {
+    console.log('   🔧 Fixing literal "n" characters before END marker...');
+    cleanPrivateKey = cleanPrivateKey.replace(/n-----END PRIVATE KEY-----/g, '\n-----END PRIVATE KEY-----');
+  }
+  
   // Final validation: Ensure key has proper PEM format
-  if (!cleanPrivateKey.includes('BEGIN PRIVATE KEY') || !cleanPrivateKey.includes('END PRIVATE KEY')) {
+  const hasBeginMarker = cleanPrivateKey.includes('BEGIN PRIVATE KEY');
+  const hasEndMarker = cleanPrivateKey.includes('END PRIVATE KEY');
+  
+  if (!hasBeginMarker || !hasEndMarker) {
     console.error('❌ CRITICAL: Private key format validation failed!');
     console.error('   - Expected: -----BEGIN PRIVATE KEY----- ... -----END PRIVATE KEY-----');
-    console.error('   - Has BEGIN marker:', cleanPrivateKey.includes('BEGIN PRIVATE KEY'));
-    console.error('   - Has END marker:', cleanPrivateKey.includes('END PRIVATE KEY'));
+    console.error('   - Has BEGIN marker:', hasBeginMarker);
+    console.error('   - Has END marker:', hasEndMarker);
     console.error('   - First 100 chars:', cleanPrivateKey.substring(0, 100));
     console.error('   - Last 100 chars:', cleanPrivateKey.substring(Math.max(0, cleanPrivateKey.length - 100)));
+    console.error('');
+    console.error('   The private key format is invalid. Please check:');
+    console.error('   1. The key should start with: -----BEGIN PRIVATE KEY-----');
+    console.error('   2. The key should end with: -----END PRIVATE KEY-----');
+    console.error('   3. There should be spaces between the words in the markers');
     throw new Error('❌ Invalid private key format: Missing BEGIN PRIVATE KEY or END PRIVATE KEY markers. Check FIREBASE_PRIVATE_KEY environment variable.');
+  }
+  
+  // Ensure the key has actual newlines after BEGIN and before END markers
+  if (!cleanPrivateKey.includes('\n')) {
+    console.log('   ⚠️ Warning: Key does not have actual newlines after conversion. Attempting additional fixes...');
+    // Last resort: try to replace literal 'n' after BEGIN/END markers if there are no newlines
+    cleanPrivateKey = cleanPrivateKey.replace(/-----BEGIN PRIVATE KEY-----n/g, '-----BEGIN PRIVATE KEY-----\n');
+    cleanPrivateKey = cleanPrivateKey.replace(/-----END PRIVATE KEY-----n/g, '\n-----END PRIVATE KEY-----');
   }
   
   console.log('✅ Private key format validated successfully');
 
   // Build service account object
-  const serviceAccount = {
-    type: "service_account",
-    project_id: projectId,
-    private_key_id: process.env.FIREBASE_PRIVATE_KEY_ID || "49cf718bd7049b5fcc3e2e6fbc583ebcec3b373d",
-    private_key: cleanPrivateKey,
-    client_email: clientEmail,
-    client_id: process.env.FIREBASE_CLIENT_ID || "113149690446202662127",
-    auth_uri: "https://accounts.google.com/o/oauth2/auth",
-    token_uri: "https://oauth2.googleapis.com/token",
-    auth_provider_x509_cert_url: "https://www.googleapis.com/oauth2/v1/certs",
-    client_x509_cert_url: `https://www.googleapis.com/robot/v1/metadata/x509/${encodeURIComponent(clientEmail)}`,
-    universe_domain: "googleapis.com"
-  };
+    const serviceAccount = {
+      type: "service_account",
+      project_id: projectId,
+      private_key_id: process.env.FIREBASE_PRIVATE_KEY_ID || "49cf718bd7049b5fcc3e2e6fbc583ebcec3b373d",
+      private_key: cleanPrivateKey,
+      client_email: clientEmail,
+      client_id: process.env.FIREBASE_CLIENT_ID || "113149690446202662127",
+      auth_uri: "https://accounts.google.com/o/oauth2/auth",
+      token_uri: "https://oauth2.googleapis.com/token",
+      auth_provider_x509_cert_url: "https://www.googleapis.com/oauth2/v1/certs",
+      client_x509_cert_url: `https://www.googleapis.com/robot/v1/metadata/x509/${encodeURIComponent(clientEmail)}`,
+      universe_domain: "googleapis.com"
+    };
 
   console.log('🔧 Attempting Firebase Admin initialization...');
-  
-  try {
-    admin.initializeApp({
-      credential: admin.credential.cert(serviceAccount),
-      projectId: projectId
-    });
-    console.log('✅ Firebase Admin SDK initialized successfully');
-  } catch (error) {
+
+    try {
+      admin.initializeApp({
+        credential: admin.credential.cert(serviceAccount),
+        projectId: projectId
+      });
+      console.log('✅ Firebase Admin SDK initialized successfully');
+    } catch (error) {
     console.error('❌ Firebase Admin SDK initialization FAILED:', error);
     console.error('   Error code:', error.code || 'N/A');
     console.error('   Error message:', error.message || 'N/A');
