@@ -13,6 +13,7 @@ import { UniversDefinitions, UniversMetadata, UniversOwnership } from '../types'
 import { universService } from '../services/universService';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../hooks/useToast';
+import { useUniversWizardProgress } from '../hooks/useUniversWizardProgress';
 import { UniversWizardStepProps } from '../components/UniversWizard';
 import { Card } from '../components/Card';
 
@@ -36,6 +37,7 @@ export const UniversCreatePage: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { showSuccess, showError } = useToast();
+  const { clearProgress } = useUniversWizardProgress(user?.id);
   const [isCreating, setIsCreating] = useState(false);
   const [createdUniversId, setCreatedUniversId] = useState<string | null>(null);
 
@@ -78,12 +80,23 @@ export const UniversCreatePage: React.FC = () => {
   };
 
   const handleLoadingComplete = () => {
+    // Clear localStorage progress
+    clearProgress();
+    
     if (createdUniversId) {
+      // Hide loading animation first
+      setIsCreating(false);
+      
       showSuccess('Univers créé avec succès !');
-      navigate(`/univers/${createdUniversId}`);
+      
+      // Navigate after a small delay to ensure state is cleaned up
+      setTimeout(() => {
+        navigate(`/univers/${createdUniversId}`, { replace: true });
+      }, 300);
+    } else {
+      setIsCreating(false);
+      setCreatedUniversId(null);
     }
-    setIsCreating(false);
-    setCreatedUniversId(null);
   };
 
   const handleCancel = () => {

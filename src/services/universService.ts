@@ -246,29 +246,43 @@ class UniversService {
 
   /**
    * Récupérer tous les Univers d'un utilisateur
+   * Inclut les Univers privés (sans agencyId) et les Univers partagés avec l'agence
    */
   async getByUser(userId: string, agencyId?: string): Promise<Univers[]> {
     try {
-      let q;
+      const allUnivers: Univers[] = [];
       
-      if (agencyId) {
-        q = query(
-          collection(db, this.collectionName),
-          where('ownership.createdBy', '==', userId),
-          where('ownership.agencyId', '==', agencyId),
-          orderBy('metadata.createdAt', 'desc')
-        );
-      } else {
-        q = query(
-          collection(db, this.collectionName),
-          where('ownership.createdBy', '==', userId),
-          orderBy('metadata.createdAt', 'desc')
-        );
-      }
+      // Requête 1: Récupérer tous les Univers créés par l'utilisateur
+      // (on ne peut pas faire where sur un champ qui n'existe pas dans Firestore)
+      const allQuery = query(
+        collection(db, this.collectionName),
+        where('ownership.createdBy', '==', userId),
+        orderBy('metadata.createdAt', 'desc')
+      );
       
-      const querySnapshot = await getDocs(q);
-      return querySnapshot.docs.map(doc => 
-        this.convertFirestoreToUnivers(doc.id, doc.data())
+      const allSnapshot = await getDocs(allQuery);
+      
+      // Filtrer côté client:
+      // - Univers privés : ownership.agencyId est undefined, null, ou n'existe pas
+      // - Univers partagés avec l'agence : ownership.agencyId === agencyId
+      allSnapshot.docs.forEach(doc => {
+        const universData = doc.data();
+        const universAgencyId = universData.ownership?.agencyId;
+        
+        // Univers privé (agencyId n'existe pas, est null, ou undefined)
+        const isPrivate = !universAgencyId || universAgencyId === null;
+        
+        // Univers partagé avec l'agence
+        const isAgencyShared = agencyId && universAgencyId === agencyId;
+        
+        if (isPrivate || isAgencyShared) {
+          allUnivers.push(this.convertFirestoreToUnivers(doc.id, universData));
+        }
+      });
+      
+      // Trier par date de création (décroissant)
+      return allUnivers.sort((a, b) => 
+        b.metadata.createdAt.getTime() - a.metadata.createdAt.getTime()
       );
     } catch (error) {
       console.error('Erreur lors de la récupération des Univers:', error);

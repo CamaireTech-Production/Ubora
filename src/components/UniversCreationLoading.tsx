@@ -67,7 +67,7 @@ export const UniversCreationLoading: React.FC<UniversCreationLoadingProps> = ({
     let progressInterval: NodeJS.Timeout;
     let messageInterval: NodeJS.Timeout;
 
-    // Simulate progress with realistic timing
+    // Simulate progress with realistic timing (slower and smoother)
     progressInterval = setInterval(() => {
       setProgress((prev) => {
         if (prev >= 100) {
@@ -75,24 +75,24 @@ export const UniversCreationLoading: React.FC<UniversCreationLoadingProps> = ({
           setShowConfetti(true);
           setIsComplete(true);
           
-          // Call onComplete after confetti animation
+          // Call onComplete after confetti animation (longer delay for better UX)
           setTimeout(() => {
             onComplete();
-          }, 2000);
+          }, 2500);
           
           return 100;
         }
         
-        // Accelerate at the beginning, slow down at the end
-        const increment = prev < 30 ? 2 : prev < 70 ? 1.5 : prev < 90 ? 1 : 0.5;
+        // Slower, smoother progression: start slow, accelerate in middle, slow at end
+        const increment = prev < 20 ? 0.8 : prev < 40 ? 1.2 : prev < 60 ? 1.5 : prev < 80 ? 1.2 : prev < 95 ? 0.6 : 0.3;
         return Math.min(prev + increment, 100);
       });
-    }, 80);
+    }, 120); // Slower interval (was 80ms, now 120ms)
 
-    // Rotate messages every 2.5 seconds
+    // Rotate messages every 3 seconds (slower rotation)
     messageInterval = setInterval(() => {
       setCurrentMessageIndex((prev) => (prev + 1) % LOADING_MESSAGES.length);
-    }, 2500);
+    }, 3000);
 
     return () => {
       if (progressInterval) clearInterval(progressInterval);
