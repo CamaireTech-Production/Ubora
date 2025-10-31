@@ -33,11 +33,10 @@ jobs:
         FIREBASE_CLIENT_EMAIL=${{ secrets.FIREBASE_CLIENT_EMAIL }}
         EOF
         # Append private key - convert actual newlines to literal \n for .env file
-        # This ensures the entire key stays on one line with \n literals
-        FIREBASE_KEY_ESCAPED="${{ secrets.FIREBASE_PRIVATE_KEY }}"
-        FIREBASE_KEY_ESCAPED="${FIREBASE_KEY_ESCAPED//$'\n'/\\n}"
-        FIREBASE_KEY_ESCAPED="${FIREBASE_KEY_ESCAPED//\"/\\\"}"
-        echo "FIREBASE_PRIVATE_KEY=\"${FIREBASE_KEY_ESCAPED}\"" >> .env.local
+        # Pipe secret through sed to escape newlines safely without breaking shell parsing
+        printf 'FIREBASE_PRIVATE_KEY="' >> .env.local
+        printf '%s' "${{ secrets.FIREBASE_PRIVATE_KEY }}" | sed -z 's/\\/\\\\/g; s/"/\\"/g; s/\n/\\n/g' >> .env.local
+        printf '"\n' >> .env.local
         cat >> .env.local << EOF
         
         # OpenAI Configuration
