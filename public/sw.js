@@ -1,5 +1,6 @@
 // Unified Service Worker for PWA + FCM
 // This service worker handles both PWA functionality and Firebase Cloud Messaging
+// Version updated on build - changes here force browser to detect new SW
 
 console.log('🔔 [SW] ===== UNIFIED SERVICE WORKER STARTING =====');
 

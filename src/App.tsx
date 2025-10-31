@@ -24,6 +24,7 @@ import { ScheduledQuestionFormPage } from './pages/ScheduledQuestionFormPage';
 import { ScheduledQuestionChatPage } from './pages/ScheduledQuestionChatPage';
 import { ProgrammedInstructionsRoute } from './components/ProgrammedInstructionsRoute';
 import { UniversPage } from './pages/UniversPage';
+import { UniversCreatePage } from './pages/UniversCreatePage';
 import { AdminLoginPage } from './admin/pages/AdminLoginPage';
 import { AdminPage } from './admin';
 import { UserDetailPage } from './admin/pages/UserDetailPage';
@@ -418,7 +419,7 @@ function App() {
               } 
             />
             
-            {/* Univers - Create (wizard will be added later) */}
+            {/* Univers - Create */}
             <Route 
               path="/univers/create" 
               element={
@@ -426,7 +427,7 @@ function App() {
                   allowedRoles={['directeur', 'employe']} 
                   requireDirectorDashboardAccess={true}
                 >
-                  <UniversPage />
+                  <UniversCreatePage />
                 </ProtectedRoute>
               } 
             />

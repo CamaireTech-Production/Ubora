@@ -24,10 +24,25 @@ window.addEventListener('appinstalled', () => {
 export const registerServiceWorker = async () => {
   if ('serviceWorker' in navigator) {
     try {
-      const registration = await navigator.serviceWorker.register('/sw.js', {
-        scope: '/'
+      // Add version query to force browser to fetch new SW
+      // Use build time from vite config or current timestamp
+      const buildTime = (globalThis as any).__BUILD_TIME__ || new Date().toISOString();
+      const swVersion = buildTime.replace(/[:\-T]/g, '').split('.')[0]; // Format: 20241219103000
+      
+      const registration = await navigator.serviceWorker.register(`/sw.js?v=${swVersion}`, {
+        scope: '/',
+        updateViaCache: 'none' // Always check for updates, never use cache
       });
       
+      // Force update check immediately after registration
+      if (registration) {
+        try {
+          await registration.update();
+          console.log('🔔 [PWA] Service worker update check completed');
+        } catch (updateError) {
+          console.warn('🔔 [PWA] Service worker update check failed:', updateError);
+        }
+      }
       
       // Update manifest based on current route
       const config = getPWAConfig();

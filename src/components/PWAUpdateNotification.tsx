@@ -9,21 +9,25 @@ export const PWAUpdateNotification: React.FC = () => {
     // Listen for service worker updates
     if ('serviceWorker' in navigator) {
       let isMounted = true;
+      let updateCheckInterval: NodeJS.Timeout | null = null;
 
-      // Check for waiting service worker on mount
+      // Check for waiting service worker
       const checkForWaitingSW = async () => {
         try {
           const registration = await navigator.serviceWorker.getRegistration();
-          if (!registration) return;
+          if (!registration || !isMounted) return;
 
+          // Check if there's a waiting service worker
           if (registration.waiting && isMounted) {
             setShowUpdatePrompt(true);
+            return;
           }
 
           // Listen for new updates being found
           registration.addEventListener('updatefound', () => {
             const installing = registration.installing;
-            if (!installing) return;
+            if (!installing || !isMounted) return;
+            
             installing.addEventListener('statechange', () => {
               if (installing.state === 'installed' && registration.waiting && isMounted) {
                 setShowUpdatePrompt(true);
@@ -35,11 +39,33 @@ export const PWAUpdateNotification: React.FC = () => {
         }
       };
 
+      // Initial check
       checkForWaitingSW();
 
-      // Cleanup flag
+      // Periodic update check every 60 seconds
+      updateCheckInterval = setInterval(async () => {
+        if (!isMounted) return;
+        try {
+          const registration = await navigator.serviceWorker.getRegistration();
+          if (registration) {
+            // Manually trigger update check
+            await registration.update();
+            // Check for waiting worker after update check
+            if (registration.waiting && isMounted) {
+              setShowUpdatePrompt(true);
+            }
+          }
+        } catch (error) {
+          console.error('Periodic update check failed:', error);
+        }
+      }, 60000); // Check every 60 seconds
+
+      // Cleanup
       return () => {
         isMounted = false;
+        if (updateCheckInterval) {
+          clearInterval(updateCheckInterval);
+        }
       };
     }
   }, []);
@@ -54,8 +80,15 @@ export const PWAUpdateNotification: React.FC = () => {
           // Tell the waiting service worker to skip waiting and become active
           registration.waiting.postMessage({ type: 'SKIP_WAITING' });
           
+          // Fallback: Reload after timeout if controllerchange doesn't fire
+          const reloadTimeout = setTimeout(() => {
+            console.log('Update timeout - forcing reload');
+            window.location.reload();
+          }, 2000); // 2 second timeout
+          
           // Reload the page once the new controller takes over
           const onControllerChange = () => {
+            clearTimeout(reloadTimeout);
             navigator.serviceWorker.removeEventListener('controllerchange', onControllerChange);
             window.location.reload();
           };
@@ -63,6 +96,7 @@ export const PWAUpdateNotification: React.FC = () => {
         } else {
           // No waiting service worker found, reset loading state
           setIsUpdating(false);
+          setShowUpdatePrompt(false);
         }
       } else {
         // Service worker not supported, reset loading state
@@ -88,10 +122,10 @@ export const PWAUpdateNotification: React.FC = () => {
         <div className="flex items-center space-x-3">
           <div className="flex items-center space-x-2">
             <RefreshCw className="h-4 w-4 text-blue-100" />
-            <span className="text-sm font-medium">Update available</span>
+            <span className="text-sm font-medium">Mise à jour disponible</span>
           </div>
           <span className="text-blue-100 text-sm">•</span>
-          <span className="text-blue-100 text-sm">Download update to get the latest improvements</span>
+          <span className="text-blue-100 text-sm">Téléchargez la mise à jour pour obtenir les dernières améliorations</span>
         </div>
         
         <div className="flex items-center space-x-2">
@@ -103,19 +137,19 @@ export const PWAUpdateNotification: React.FC = () => {
             {isUpdating ? (
               <>
                 <RefreshCw className="h-3 w-3 mr-1.5 animate-spin" />
-                Updating...
+                Mise à jour...
               </>
             ) : (
               <>
                 <Download className="h-3 w-3 mr-1.5" />
-                Update
+                Mettre à jour
               </>
             )}
           </button>
           <button
             onClick={handleDismiss}
             className="text-blue-100 hover:text-white transition-colors p-1 rounded"
-            aria-label="Dismiss update notification"
+            aria-label="Fermer la notification de mise à jour"
           >
             <X className="h-4 w-4" />
           </button>
