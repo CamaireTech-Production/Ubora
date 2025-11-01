@@ -1,5 +1,5 @@
 import React from 'react';
-import { usePWA } from '../hooks/usePWA';
+import { usePWA } from '@ubora/shared/hooks/usePWA';
 import { WifiOff, Download, Smartphone } from 'lucide-react';
 
 export const PWAStatusIndicator: React.FC = () => {

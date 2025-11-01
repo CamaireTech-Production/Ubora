@@ -7,7 +7,7 @@ import { Textarea } from './Textarea';
 import { GraphPreview } from './charts/GraphPreview';
 import { GraphModal } from './charts/GraphModal';
 import { X, BarChart3, FileText, Hash, Type, Mail, Calendar, CheckSquare, Upload, AlertTriangle } from 'lucide-react';
-import { getValidYAxisFields, validateYAxisField, getFieldValidationErrorMessage } from '../utils/GraphFieldValidator';
+import { getValidYAxisFields, validateYAxisField, getFieldValidationErrorMessage } from '@ubora/shared/utils/GraphFieldValidator';
 
 interface MetricEditModalProps {
   isOpen: boolean;

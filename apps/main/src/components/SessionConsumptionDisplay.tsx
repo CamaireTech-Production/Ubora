@@ -10,7 +10,7 @@ import {
   DollarSign
 } from 'lucide-react';
 import { User } from '../types';
-import { SessionConsumptionService } from '../services/sessionConsumptionService';
+import { SessionConsumptionService } from '@ubora/shared/services/sessionConsumptionService';
 
 interface SessionConsumptionDisplayProps {
   user: User;

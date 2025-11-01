@@ -10,16 +10,16 @@ import { ChatComposer } from '../components/chat/ChatComposer';
 import { FloatingSidePanel } from '../components/chat/FloatingSidePanel';
 import { Footer } from '../components/Footer';
 import { ChatMessage } from '../types';
-import { useToast } from '../hooks/useToast';
+import { useToast } from '@ubora/shared/hooks/useToast';
 import { usePackageAccess } from '@ubora/shared/hooks/usePackageAccess';
-import { TokenCounter } from '../services/tokenCounter';
+import { TokenCounter } from '@ubora/shared/services/tokenCounter';
 import { PayAsYouGoModal } from '../components/PayAsYouGoModal';
 import { LimitReachedModal } from '../components/LimitReachedModal';
 import { AnalyticsService } from '@ubora/shared/services/analyticsService';
 import { LogoutConfirmationModal } from '../components/LogoutConfirmationModal';
 import { ImpersonationHeader } from '../components/ImpersonationHeader';
 import { ConnectionQualityIndicator, useConnectionQuality } from '../components/ConnectionQualityIndicator';
-import { enhancedFetch } from '../utils/errorHandling'; // Enhanced error handling with retry logic
+import { enhancedFetch } from '@ubora/shared/utils/errorHandling'; // Enhanced error handling with retry logic
 
 // Remove the old Message interface since we're using ChatMessage from types
 
@@ -30,7 +30,7 @@ interface ChatFilters {
 }
 
 // Import centralized API configuration
-import { getAIEndpoint } from '../config/api';
+import { getAIEndpoint } from '@ubora/shared/config/api';
 
 // Get AI endpoint from centralized configuration
 const AI_ENDPOINT = getAIEndpoint();

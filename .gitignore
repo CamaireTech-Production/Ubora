@@ -8,9 +8,14 @@ lerna-debug.log*
 studio-gpnfx-firebase-adminsdk-fbsvc-eed44532ba.json
 # Build outputs
 dist/
+dist-admin/
 dev-dist/
 build/
 out/oulant
+apps/main/dist/
+apps/admin/dist-admin/
+deploy-package/
+deploy-admin-package/
 # Scripts - ignore test/debug scripts but track production scripts
 scripts/test-*.js
 scripts/debug-*.js

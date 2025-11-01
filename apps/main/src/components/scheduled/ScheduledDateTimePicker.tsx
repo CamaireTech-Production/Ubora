@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Calendar, Clock, Repeat, ChevronDown } from 'lucide-react';
 import { Button } from '../Button';
-import { getCameroonTime, createCameroonDateTime, formatCameroonTime, getCameroonTimezoneDisplay } from '../../utils/timezoneUtils';
+import { getCameroonTime, createCameroonDateTime, formatCameroonTime, getCameroonTimezoneDisplay } from '@ubora/shared/utils/timezoneUtils';
 
 interface ScheduledDateTimePickerProps {
   scheduledAt: Date;

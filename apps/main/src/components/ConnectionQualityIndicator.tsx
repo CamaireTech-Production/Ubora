@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ConnectionQuality } from '../utils/errorHandling';
+import { ConnectionQuality } from '@ubora/shared/utils/errorHandling';
 
 interface ConnectionQualityIndicatorProps {
   quality: ConnectionQuality;

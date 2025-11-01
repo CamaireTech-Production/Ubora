@@ -1,7 +1,7 @@
 import React from 'react';
 import { X, Calendar, CreditCard, Zap, Package, TrendingUp, TrendingDown, FileText, BarChart3, Users } from 'lucide-react';
 import { SubscriptionSession } from '../types';
-import { getPackageDisplayName } from '../config/packageFeatures';
+import { getPackageDisplayName } from '@ubora/shared/config/packageFeatures';
 
 interface SubscriptionHistoryModalProps {
   isOpen: boolean;

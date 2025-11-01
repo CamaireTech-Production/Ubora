@@ -4,12 +4,12 @@ import { Plus, Search, Calendar, Clock, MessageSquare, ArrowLeft, Wrench } from 
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
 import { Button } from '../components/Button';
 import { ScheduledQuestionCard } from '../components/scheduled/ScheduledQuestionCard';
-import { scheduledQuestionService } from '../services/scheduledQuestionService';
-import { useToast } from '../hooks/useToast';
+import { scheduledQuestionService } from '@ubora/shared/services/scheduledQuestionService';
+import { useToast } from '@ubora/shared/hooks/useToast';
 import { ScheduledQuestion } from '../types';
 import { Layout } from '../components/Layout';
 import { WireframeLoader } from '../components/loading/WireframeLoader';
-import { universService } from '../services/universService';
+import { universService } from '@ubora/shared/services/universService';
 
 export const ScheduledQuestionsPage: React.FC = () => {
   const { user } = useAuth();

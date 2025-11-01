@@ -12,10 +12,10 @@ import {
   PACKAGE_LIMITS, 
   PACKAGE_FEATURES,
   PackageType 
-} from '../config/packageFeatures';
-import { SubscriptionSessionService } from '../services/subscriptionSessionService';
-import { PackageTransitionService, UserNeeds } from '../services/packageTransitionService';
-import { UserSessionService } from '../services/userSessionService';
+} from '@ubora/shared/config/packageFeatures';
+import { SubscriptionSessionService } from '@ubora/shared/services/subscriptionSessionService';
+import { PackageTransitionService, UserNeeds } from '@ubora/shared/services/packageTransitionService';
+import { UserSessionService } from '@ubora/shared/services/userSessionService';
 import { PackageTransitionPriceExplanation } from '../components/PackageTransitionPriceExplanation';
 import { 
   Check, 
@@ -35,10 +35,10 @@ import {
   Calendar,
   Plus
 } from 'lucide-react';
-import { useToast } from '../hooks/useToast';
+import { useToast } from '@ubora/shared/hooks/useToast';
 import { PaymentModal } from '../components/PaymentModal';
 import { CampayPayment } from '../components/CampayPayment';
-import { PaymentService } from '../services/paymentService.ts';
+import { PaymentService } from '@ubora/shared/services/paymentService';
 import { PaymentRequest, CampayPaymentData } from '../types/payment';
 
 export const PackageManagementPage: React.FC = () => {

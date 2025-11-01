@@ -7,7 +7,7 @@ import { Button } from './Button';
 import { 
   getPackageDisplayName, 
   getPackagePrice
-} from '../config/packageFeatures';
+} from '@ubora/shared/config/packageFeatures';
 import { 
   Crown, 
   Users, 

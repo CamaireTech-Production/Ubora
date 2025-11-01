@@ -12,9 +12,9 @@ import {
   deleteDoc,
   serverTimestamp 
 } from 'firebase/firestore';
-import { db } from '../../firebaseConfig';
-import { AdminDashboard, AdminDashboardActivity } from '../../types';
-import { ActivityLogService } from '../../services/activityLogService';
+import { db } from '@ubora/shared/firebaseConfig';
+import { AdminDashboard, AdminDashboardActivity } from '@ubora/shared/types';
+import { ActivityLogService } from '@ubora/shared/services/activityLogService';
 
 export class AdminDashboardService {
   private static readonly DASHBOARDS_COLLECTION = 'dashboards';

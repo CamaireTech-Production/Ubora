@@ -1,7 +1,7 @@
 import React from 'react';
 import { Button } from '../Button';
-import { GraphData, PDFData } from '../../types';
-import { generatePDF } from '../../utils/PDFGenerator';
+import { GraphData, PDFData } from '@ubora/shared/types';
+import { generatePDF } from '@ubora/shared/utils/PDFGenerator';
 
 interface TestDataGeneratorProps {
   onTestData: (type: 'graph' | 'pdf', data: GraphData | PDFData) => void;

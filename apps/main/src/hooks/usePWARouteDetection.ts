@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
-import { getPWAConfig, updateMetaTags, updateManifestLink } from '../utils/pwaConfig';
+import { getPWAConfig, updateMetaTags, updateManifestLink } from '@ubora/shared/utils/pwaConfig';
 
 /**
  * Hook to detect route changes and update PWA configuration accordingly

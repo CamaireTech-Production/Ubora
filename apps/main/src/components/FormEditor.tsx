@@ -8,12 +8,12 @@ import { Card } from './Card';
 import { FileTypeSelector } from './FileTypeSelector';
 import { FieldCSVImport } from './FieldCSVImport';
 import { Toast } from './Toast';
-import { useToast } from '../hooks/useToast';
+import { useToast } from '@ubora/shared/hooks/useToast';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
-import { UserSessionService } from '../services/userSessionService';
+import { UserSessionService } from '@ubora/shared/services/userSessionService';
 import { Plus, Trash2, ArrowLeft, CheckSquare, Square, Loader2, Calculator, AlertCircle } from 'lucide-react';
 import { FormulaInput } from './FormulaInput';
-import { FormulaParser } from '../utils/FormulaParser';
+import { FormulaParser } from '@ubora/shared/utils/FormulaParser';
 import { ConditionalLogicBuilder } from './ConditionalLogicBuilder';
 import { ConfirmationModal } from './ConfirmationModal';
 

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Dashboard, FormEntry, Form, DashboardMetric, User } from '../types';
 import { Card } from './Card';
 import { Button } from './Button';
-import { MetricCalculator } from '../utils/MetricCalculator';
+import { MetricCalculator } from '@ubora/shared/utils/MetricCalculator';
 import { GraphPreview } from './charts/GraphPreview';
 import { GraphModal } from './charts/GraphModal';
 import { BarChart3, TrendingUp, TrendingDown, Minus, Hash, Type, Mail, Calendar, CheckSquare, Upload, Eye, Edit, Trash2, Crown, User as UserIcon, FileBarChart } from 'lucide-react';

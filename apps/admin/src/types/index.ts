@@ -10,7 +10,7 @@ export type {
   PurchaseHistory,
   ActivityLog,
   ActivityType
-} from '../../types';
+} from '@ubora/shared/types';
 
 // Additional admin-specific types
 export interface AdminForm {

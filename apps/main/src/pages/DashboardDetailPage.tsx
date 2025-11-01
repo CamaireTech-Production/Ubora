@@ -9,18 +9,18 @@ import { Button } from '../components/Button';
 import { ConfirmationModal } from '../components/ConfirmationModal';
 import { Input } from '../components/Input';
 import { Select } from '../components/Select';
-import { MetricCalculator } from '../utils/MetricCalculator';
-import { useToast } from '../hooks/useToast';
+import { MetricCalculator } from '@ubora/shared/utils/MetricCalculator';
+import { useToast } from '@ubora/shared/hooks/useToast';
 import { Toast } from '../components/Toast';
 import { ComingSoonModal } from '../components/ComingSoonModal';
 import { DashboardEditModal } from '../components/DashboardEditModal';
 import { MetricEditModal } from '../components/MetricEditModal';
 import { GraphPreview } from '../components/charts/GraphPreview';
 import { GraphModal } from '../components/charts/GraphModal';
-import { getValidYAxisFields, validateYAxisField } from '../utils/GraphFieldValidator';
-import { metricReminderService } from '../services/metricReminderService';
+import { getValidYAxisFields, validateYAxisField } from '@ubora/shared/utils/GraphFieldValidator';
+import { metricReminderService } from '@ubora/shared/services/metricReminderService';
 import { ImpersonationHeader } from '../components/ImpersonationHeader';
-import { UserSessionService } from '../services/userSessionService';
+import { UserSessionService } from '@ubora/shared/services/userSessionService';
 import { AccessDeniedModal } from '../components/AccessDeniedModal';
 import { 
   ArrowLeft, 

@@ -1,13 +1,13 @@
 import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from '@ubora/shared/contexts/AuthContext';
-import { ProtectedRoute } from '../components/ProtectedRoute';
-import { ErrorBoundary } from '../components/ErrorBoundary';
+import { ProtectedRoute } from './components/ProtectedRoute';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { AdminLoginPage } from './pages/AdminLoginPage';
 import { AdminPage } from './pages/AdminPage';
 import { UserDetailPage } from './pages/UserDetailPage';
-import { AdminPWAInstallPrompt } from '../components/AdminPWAInstallPrompt';
-import { PWAUpdateNotification } from '../components/PWAUpdateNotification';
+import { AdminPWAInstallPrompt } from './components/AdminPWAInstallPrompt';
+import { PWAUpdateNotification } from './components/PWAUpdateNotification';
 
 // Component to handle service worker messages
 const ServiceWorkerMessageHandler: React.FC = () => {

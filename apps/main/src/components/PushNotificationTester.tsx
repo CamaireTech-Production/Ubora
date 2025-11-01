@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { usePushNotifications } from '../hooks/usePushNotifications';
-import { showEnhancedNotification, isIOS, checkIOSSupport } from '../utils/notificationOptions';
+import { usePushNotifications } from '@ubora/shared/hooks/usePushNotifications';
+import { showEnhancedNotification, isIOS, checkIOSSupport } from '@ubora/shared/utils/notificationOptions';
 // Removed useAuth import for pure frontend notifications
 
 interface TestResult {

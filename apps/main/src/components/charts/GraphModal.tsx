@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { DashboardMetric, FormEntry, Form } from '../../types';
+import { DashboardMetric, FormEntry, Form } from '@ubora/shared/types';
 import { GraphPreview } from './GraphPreview';
 import { Button } from '../Button';
 import { X, BarChart3, Maximize2, Minimize2, RotateCcw, RotateCw } from 'lucide-react';

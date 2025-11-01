@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { AdminService } from '../../services/adminService';
-import { Card } from '../../../components/Card';
-import { Button } from '../../../components/Button';
+import { Card } from '../Card';
+import { Button } from '../Button';
 import { 
   Settings, 
   RefreshCw, 

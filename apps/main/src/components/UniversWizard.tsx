@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Button } from './Button';
 import { Card } from './Card';
 import { ArrowLeft, ArrowRight, Check, ChevronRight, Circle, Loader2 } from 'lucide-react';
-import { useUniversWizardProgress } from '../hooks/useUniversWizardProgress';
+import { useUniversWizardProgress } from '@ubora/shared/hooks/useUniversWizardProgress';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
 import { UniversDefinitions, UniversMetadata, UniversOwnership } from '../types';
 

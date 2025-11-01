@@ -2,7 +2,7 @@ import React from 'react';
 import { Dashboard, FormEntry, Form } from '../types';
 import { Button } from './Button';
 import { Card } from './Card';
-import { MetricCalculator } from '../utils/MetricCalculator';
+import { MetricCalculator } from '@ubora/shared/utils/MetricCalculator';
 import { X, BarChart3, TrendingUp, TrendingDown, Minus, Hash, Type, Mail, Calendar, CheckSquare, Upload, Eye, Edit, Trash2 } from 'lucide-react';
 
 interface DashboardDetailModalProps {

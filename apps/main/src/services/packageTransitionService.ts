@@ -2,7 +2,7 @@ import { doc, updateDoc, getDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 import { SubscriptionSession, User } from '../types';
 import { SubscriptionSessionService } from './subscriptionSessionService';
-import { PACKAGE_LIMITS, getPackagePrice, PackageLimits } from '../config/packageFeatures';
+import { PACKAGE_LIMITS, getPackagePrice, PackageLimits } from '@ubora/shared/config/packageFeatures';
 import { PaymentService } from './paymentService';
 
 export interface PackageTransitionOptions {

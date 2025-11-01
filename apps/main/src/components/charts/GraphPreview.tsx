@@ -1,6 +1,6 @@
 import React from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, AreaChart, Area } from 'recharts';
-import { DashboardMetric, FormEntry, Form } from '../../types';
+import { DashboardMetric, FormEntry, Form } from '@ubora/shared/types';
 import { Button } from '../Button';
 import { Maximize2, BarChart3 } from 'lucide-react';
 

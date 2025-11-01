@@ -13,8 +13,8 @@ import {
   BarChart3,
   Zap
 } from 'lucide-react';
-import { EnhancedTransitionCalculation, PayAsYouGoItem, FeatureUpgrade, FeatureDowngrade } from '../services/packageTransitionService';
-import { getPackageDisplayName } from '../config/packageFeatures';
+import { EnhancedTransitionCalculation, PayAsYouGoItem, FeatureUpgrade, FeatureDowngrade } from '@ubora/shared/services/packageTransitionService';
+import { getPackageDisplayName } from '@ubora/shared/config/packageFeatures';
 
 interface PackageTransitionPriceExplanationProps {
   calculation: EnhancedTransitionCalculation;

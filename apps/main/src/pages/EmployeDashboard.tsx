@@ -8,11 +8,11 @@ import { Button } from '../components/Button';
 import { DynamicForm } from '../components/DynamicForm';
 import { WireframeLoader } from '../components/loading/WireframeLoader';
 import { Toast } from '../components/Toast';
-import { useToast } from '../hooks/useToast';
+import { useToast } from '@ubora/shared/hooks/useToast';
 import { FileText, CheckCircle, ArrowLeft, Eye, AlertTriangle, Edit, Trash2, Send, FileEdit, Filter, Calendar, SortAsc, SortDesc, Download, ClipboardList, FileBarChart } from 'lucide-react';
 import { PDFViewerModal } from '../components/PDFViewerModal';
-import { downloadFile } from '../utils/downloadUtils';
-import { getFileBlobUrl, downloadFileFromBlob } from '../utils/simpleFileDownload';
+import { downloadFile } from '@ubora/shared/utils/downloadUtils';
+import { getFileBlobUrl, downloadFileFromBlob } from '@ubora/shared/utils/simpleFileDownload';
 import { VideoSection } from '../components/VideoSection';
 import { employeeVideos } from '../data/videoData';
 

@@ -9,11 +9,11 @@ import { SimpleInstructionInput } from '../components/scheduled/SimpleInstructio
 import { SimpleFormatSelector } from '../components/scheduled/SimpleFormatSelector';
 import { SimpleFilterSelector } from '../components/scheduled/SimpleFilterSelector';
 import { ScheduledDateTimePicker } from '../components/scheduled/ScheduledDateTimePicker';
-import { scheduledQuestionService } from '../services/scheduledQuestionService';
-import { useToast } from '../hooks/useToast';
+import { scheduledQuestionService } from '@ubora/shared/services/scheduledQuestionService';
+import { useToast } from '@ubora/shared/hooks/useToast';
 import { ScheduledQuestion } from '../types';
 import { Layout } from '../components/Layout';
-import { getCameroonTime, createCameroonDateTime, formatCameroonTime, getCameroonTimezoneDisplay } from '../utils/timezoneUtils';
+import { getCameroonTime, createCameroonDateTime, formatCameroonTime, getCameroonTimezoneDisplay } from '@ubora/shared/utils/timezoneUtils';
 
 interface ChatFilters {
   period: string;

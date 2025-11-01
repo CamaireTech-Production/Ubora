@@ -51,7 +51,6 @@ export function useUniversWizardProgress(userId?: string | null) {
       const existing = loadProgress();
       const updated: UniversWizardProgress = {
         currentStep: 1,
-        timestamp: Date.now(),
         ...existing,
         ...progress,
         timestamp: Date.now()

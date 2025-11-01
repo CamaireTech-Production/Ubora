@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { AdminService } from '../../services/adminService';
-import { ActivityLog } from '../../types';
-import { Card } from '../../../components/Card';
-import { Button } from '../../../components/Button';
+import { ActivityLog } from '@ubora/shared/types';
+import { Card } from '../Card';
+import { Button } from '../Button';
 import { 
   Activity, 
   RefreshCw, 

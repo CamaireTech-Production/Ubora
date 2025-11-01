@@ -1,6 +1,6 @@
 import React from 'react';
 import { X, AlertTriangle, CheckCircle, Info, Zap, Package, CreditCard } from 'lucide-react';
-import { getPackageDisplayName } from '../config/packageFeatures';
+import { getPackageDisplayName } from '@ubora/shared/config/packageFeatures';
 
 interface PackageTransitionModalProps {
   isOpen: boolean;

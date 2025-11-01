@@ -7,7 +7,7 @@ import { Select } from './Select';
 import { Card } from './Card';
 import { Plus, Trash2, AlertCircle, FileText, Hash, Type, Mail, Calendar, CheckSquare, Upload, AlertTriangle, ArrowLeft } from 'lucide-react';
 import { GraphPreview } from './charts/GraphPreview';
-import { getValidYAxisFields, validateYAxisField } from '../utils/GraphFieldValidator';
+import { getValidYAxisFields, validateYAxisField } from '@ubora/shared/utils/GraphFieldValidator';
 
 interface DashboardBuilderProps {
   onSave: (dashboard: {

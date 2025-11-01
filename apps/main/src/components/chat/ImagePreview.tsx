@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Download, Eye, X, FileImage } from 'lucide-react';
 import { ImageFileReference } from '../../types';
-import { getFileDownloadURL } from '../../utils/firebaseDownloadUtils';
-import { downloadFile } from '../../utils/downloadUtils';
-import { useToast } from '../../hooks/useToast';
-import { FirestoreUrlConverter } from '../../services/firestoreUrlConverter';
+import { getFileDownloadURL } from '@ubora/shared/utils/firebaseDownloadUtils';
+import { downloadFile } from '@ubora/shared/utils/downloadUtils';
+import { useToast } from '@ubora/shared/hooks/useToast';
+import { FirestoreUrlConverter } from '@ubora/shared/services/firestoreUrlConverter';
 
 interface ImagePreviewProps {
   imageFiles: ImageFileReference[];

@@ -4,8 +4,8 @@ import { useAuth } from '@ubora/shared/contexts/AuthContext';
 import { Layout } from '../components/Layout';
 import { UniversEditor } from '../components/UniversEditor';
 import { Univers } from '../types';
-import { universService } from '../services/universService';
-import { useToast } from '../hooks/useToast';
+import { universService } from '@ubora/shared/services/universService';
+import { useToast } from '@ubora/shared/hooks/useToast';
 import { Toast } from '../components/Toast';
 import { WireframeLoader } from '../components/loading/WireframeLoader';
 

@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
-import PageTrackingService from '../services/pageTrackingService';
+import PageTrackingService from '@ubora/shared/services/pageTrackingService';
 
 export const usePageTracking = () => {
   const location = useLocation();

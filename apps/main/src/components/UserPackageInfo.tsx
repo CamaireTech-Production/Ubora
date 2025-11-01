@@ -2,7 +2,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
 import { usePackageAccess } from '@ubora/shared/hooks/usePackageAccess';
-import { UserSessionService } from '../services/userSessionService';
+import { UserSessionService } from '@ubora/shared/services/userSessionService';
 import { Brain, Crown, Star, Zap, ChevronRight } from 'lucide-react';
 
 interface UserPackageInfoProps {

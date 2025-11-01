@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
 import { Download, Eye, FileText, File, FileImage, FileSpreadsheet, FileType } from 'lucide-react';
 import { PDFFileReference } from '../../types';
-import { useToast } from '../../hooks/useToast';
-import { getFileDownloadURL } from '../../utils/firebaseStorageUtils';
+import { useToast } from '@ubora/shared/hooks/useToast';
+import { getFileDownloadURL } from '@ubora/shared/utils/firebaseStorageUtils';
 import { PDFViewerModal } from '../PDFViewerModal';
-import { downloadFile } from '../../utils/downloadUtils';
-import { forceDownloadFromFirebase } from '../../utils/firebaseDownloadUtils';
+import { downloadFile } from '@ubora/shared/utils/downloadUtils';
+import { forceDownloadFromFirebase } from '@ubora/shared/utils/firebaseDownloadUtils';
 
 interface PDFFileDisplayProps {
   pdfFiles: PDFFileReference[];

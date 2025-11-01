@@ -7,8 +7,8 @@ import { WireframeLoader } from '../components/loading/WireframeLoader';
 import { Button } from '../components/Button';
 import { ChatComposer } from '../components/chat/ChatComposer';
 import { ScheduledDateTimePicker } from '../components/scheduled/ScheduledDateTimePicker';
-import { scheduledQuestionService } from '../services/scheduledQuestionService';
-import { useToast } from '../hooks/useToast';
+import { scheduledQuestionService } from '@ubora/shared/services/scheduledQuestionService';
+import { useToast } from '@ubora/shared/hooks/useToast';
 import { ScheduledQuestion } from '../types';
 import { Layout } from '../components/Layout';
 

@@ -1,17 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { useAuth } from '../../contexts/AuthContext';
+import { useAuth } from '@ubora/shared/contexts/AuthContext';
+import { ActivityLogService } from '@ubora/shared/services/activityLogService';
+import { AdminService as BaseAdminService } from '@ubora/shared/services/adminService';
+import { AdminDashboardStats, AdminActivitySummary, ActivityLog } from '@ubora/shared/types';
 import { AdminService } from '../services/adminService';
-import { EnhancedAdminService } from '../services/enhancedAdminService';
-import { ActivityLogService } from '../../services/activityLogService';
-import { AdminService as BaseAdminService } from '../../services/adminService';
-import { AdminDashboardStats, AdminUser, AdminActivitySummary, ActivityLog } from '../../types';
-import { PushNotificationsTab } from '../../components/PushNotificationsTab';
-import { AppUsageTab } from '../../components/AppUsageTab';
-import { UsersTable } from '../../components/UsersTable';
-import { NotificationManager } from '../../components/NotificationManager';
-import { Card } from '../../components/Card';
-import { Button } from '../../components/Button';
-import { LogoutConfirmationModal } from '../../components/LogoutConfirmationModal';
+import { NotificationsTab } from '../components/tabs/NotificationsTab';
+import { UsageTab } from '../components/tabs/UsageTab';
+import { UsersTab } from '../components/tabs/UsersTab';
+import { Card } from '../components/Card';
+import { Button } from '../components/Button';
+import { LogoutConfirmationModal } from '../components/LogoutConfirmationModal';
 import { 
   Users, 
   Building2, 
@@ -35,12 +33,12 @@ import {
   Bell,
   Send
 } from 'lucide-react';
-import { WireframeLoader } from '../../components/loading/WireframeLoader';
+// Note: WireframeLoader not found in admin app - using alternative loading indicator
 
 export const AdminDashboard: React.FC = () => {
   const { user, logout } = useAuth();
   const [stats, setStats] = useState<AdminDashboardStats | null>(null);
-  const [users, setUsers] = useState<AdminUser[]>([]);
+  // Users are loaded in UsersTab component
   const [activities, setActivities] = useState<ActivityLog[]>([]);
   const [activitySummary, setActivitySummary] = useState<AdminActivitySummary[]>([]);
   const [systemHealth, setSystemHealth] = useState<any>(null);
@@ -57,16 +55,15 @@ export const AdminDashboard: React.FC = () => {
   const loadDashboardData = async () => {
     setIsLoading(true);
     try {
-      const [statsData, usersData, activitiesData, summaryData, healthData] = await Promise.all([
+      const [statsData, activitiesData, summaryData, healthData] = await Promise.all([
         AdminService.getAdminStats(),
-        EnhancedAdminService.getAllUsersWithDetails(),
         ActivityLogService.getRecentActivities(50),
         BaseAdminService.getActivitySummary(),
         BaseAdminService.getSystemHealth()
       ]);
 
       setStats(statsData);
-      setUsers(usersData);
+      // Users are now loaded in UsersTab component
       setActivities(activitiesData);
       setActivitySummary(summaryData);
       setSystemHealth(healthData);
@@ -131,7 +128,9 @@ export const AdminDashboard: React.FC = () => {
     return (
       <div className="min-h-screen bg-gray-50 p-4">
         <div className="max-w-7xl mx-auto">
-          <WireframeLoader type="dashboard" />
+          <div className="flex items-center justify-center p-8">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          </div>
         </div>
       </div>
     );
@@ -360,7 +359,7 @@ export const AdminDashboard: React.FC = () => {
               </Button>
             </div>
 
-            <UsersTable users={users} onRefresh={loadDashboardData} />
+            <UsersTab onRefresh={loadDashboardData} />
           </div>
         )}
 
@@ -398,17 +397,17 @@ export const AdminDashboard: React.FC = () => {
 
         {/* Notifications Tab */}
         {activeTab === 'notifications' && (
-          <PushNotificationsTab onRefresh={loadDashboardData} />
+          <NotificationsTab onRefresh={loadDashboardData} />
         )}
 
         {/* FCM Manager Tab */}
         {activeTab === 'fcm' && (
-          <NotificationManager />
+          <NotificationsTab onRefresh={loadDashboardData} />
         )}
 
         {/* Usage Tab */}
         {activeTab === 'usage' && (
-          <AppUsageTab onRefresh={loadDashboardData} />
+          <UsageTab onRefresh={loadDashboardData} />
         )}
 
         {/* System Tab */}

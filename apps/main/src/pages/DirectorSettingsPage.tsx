@@ -7,8 +7,8 @@ import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { DirectorPackageOverview } from '../components/DirectorPackageOverview';
 import { SubscriptionHistoryModal } from '../components/SubscriptionHistoryModal';
-import { SubscriptionSessionService } from '../services/subscriptionSessionService';
-import { UserSessionService } from '../services/userSessionService';
+import { SubscriptionSessionService } from '@ubora/shared/services/subscriptionSessionService';
+import { UserSessionService } from '@ubora/shared/services/userSessionService';
 import { ArrowLeft, Settings, User, Bell, Shield, Calendar } from 'lucide-react';
 
 export const DirectorSettingsPage: React.FC = () => {

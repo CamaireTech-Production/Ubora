@@ -3,9 +3,9 @@ import { Input } from './Input';
 import { Textarea } from './Textarea';
 import { Select } from './Select';
 import { Card } from './Card';
-import { X, Plus, Upload, Image as ImageIcon } from 'lucide-react';
+import { X, Plus, Upload } from 'lucide-react';
 import { UniversWizardStepProps } from './UniversWizard';
-import { useToast } from '../hooks/useToast';
+import { useToast } from '@ubora/shared/hooks/useToast';
 
 // Available categories for Univers templates
 const CATEGORIES = [

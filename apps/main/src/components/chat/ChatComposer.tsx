@@ -4,7 +4,7 @@ import { Button } from '../Button';
 import { FormatSelector } from './FormatSelector';
 import { ComprehensiveFilter } from './ComprehensiveFilter';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
-import { usePackageAccess } from '../../hooks/usePackageAccess';
+import { usePackageAccess } from '@ubora/shared/hooks/usePackageAccess';
 
 interface Form {
   id: string;

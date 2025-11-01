@@ -18,14 +18,14 @@ import { directorVideos } from '../data/videoData';
 import { DashboardBuilder } from '../components/DashboardBuilder';
 import { DashboardDisplay } from '../components/DashboardDisplay';
 import { ComingSoonModal } from '../components/ComingSoonModal';
-import { useToast } from '../hooks/useToast';
+import { useToast } from '@ubora/shared/hooks/useToast';
 import { Toast } from '../components/Toast';
 import { usePackageAccess } from '@ubora/shared/hooks/usePackageAccess';
 import { LimitReachedModal } from '../components/LimitReachedModal';
 import { ImpersonationHeader } from '../components/ImpersonationHeader';
-import { UserSessionService } from '../services/userSessionService';
+import { UserSessionService } from '@ubora/shared/services/userSessionService';
 import { AccessDeniedModal } from '../components/AccessDeniedModal';
-import { universService } from '../services/universService';
+import { universService } from '@ubora/shared/services/universService';
 import { UniversBadge } from '../components/UniversBadge';
 
 export const DirecteurDashboard: React.FC = () => {

@@ -1,6 +1,6 @@
 import React from 'react';
 import { usePackageAccess } from '@ubora/shared/hooks/usePackageAccess';
-import { getPackageDisplayName, getPackagePrice } from '../config/packageFeatures';
+import { getPackageDisplayName, getPackagePrice } from '@ubora/shared/config/packageFeatures';
 import { Card } from './Card';
 
 interface PackageInfoProps {

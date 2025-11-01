@@ -1,7 +1,7 @@
 import React from 'react';
-import { AdminStats } from '../../types';
-import { Card } from '../../../components/Card';
-import { Button } from '../../../components/Button';
+import { AdminStats } from '@ubora/shared/types';
+import { Card } from '../Card';
+import { Button } from '../Button';
 import { 
   Users, 
   FileText, 

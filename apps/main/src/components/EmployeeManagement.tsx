@@ -4,14 +4,14 @@ import { useAuth } from '@ubora/shared/contexts/AuthContext';
 import { useApp } from '@ubora/shared/contexts/AppContext';
 import { Button } from './Button';
 import { Card } from './Card';
-import { useToast } from '../hooks/useToast';
+import { useToast } from '@ubora/shared/hooks/useToast';
 import { 
   Users, 
   Shield
 } from 'lucide-react';
 import { User } from '../types';
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
-import { db } from '../firebaseConfig';
+import { db } from '@ubora/shared/firebaseConfig';
 
 interface EmployeeManagementProps {
   className?: string;

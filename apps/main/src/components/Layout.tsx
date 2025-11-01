@@ -7,7 +7,7 @@ import { UserPackageInfo } from './UserPackageInfo';
 import { ProfileDropdown } from './ProfileDropdown';
 import { BarChart3, MessageSquare, Menu, X, Bell, TestTube } from 'lucide-react';
 import { ShareCollaboratorButton } from './ShareCollaboratorButton';
-import { useUnreadNotifications } from '../hooks/useUnreadNotifications';
+import { useUnreadNotifications } from '@ubora/shared/hooks/useUnreadNotifications';
 
 interface LayoutProps {
   children: React.ReactNode;

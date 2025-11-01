@@ -11,10 +11,10 @@ import { UniversWizardStep7 } from '../components/UniversWizardStep7';
 import { UniversCreationLoading } from '../components/UniversCreationLoading';
 import { DraftSaveModal } from '../components/DraftSaveModal';
 import { UniversDefinitions, UniversMetadata, UniversOwnership } from '../types';
-import { universService } from '../services/universService';
+import { universService } from '@ubora/shared/services/universService';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
-import { useToast } from '../hooks/useToast';
-import { useUniversWizardProgress } from '../hooks/useUniversWizardProgress';
+import { useToast } from '@ubora/shared/hooks/useToast';
+import { useUniversWizardProgress } from '@ubora/shared/hooks/useUniversWizardProgress';
 import { UniversWizardStepProps } from '../components/UniversWizard';
 import { Card } from '../components/Card';
 

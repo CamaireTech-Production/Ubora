@@ -8,8 +8,8 @@ import {
   Plus,
   Minus
 } from 'lucide-react';
-import { UserNeeds } from '../services/packageTransitionService';
-import { PackageType, PACKAGE_LIMITS } from '../config/packageFeatures';
+import { UserNeeds } from '@ubora/shared/services/packageTransitionService';
+import { PackageType, PACKAGE_LIMITS } from '@ubora/shared/config/packageFeatures';
 
 interface PackageTransitionUserNeedsProps {
   currentPackage: PackageType;

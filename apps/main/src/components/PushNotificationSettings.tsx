@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Button } from './Button';
 import { Card } from './Card';
 import { Bell, BellOff, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
-import { usePushNotifications } from '../hooks/usePushNotifications';
+import { usePushNotifications } from '@ubora/shared/hooks/usePushNotifications';
 
 export const PushNotificationSettings: React.FC = () => {
   const {

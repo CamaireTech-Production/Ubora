@@ -12,7 +12,7 @@ import {
   deleteDoc,
   serverTimestamp 
 } from 'firebase/firestore';
-import { db } from '../../firebaseConfig';
+import { db } from '@ubora/shared/firebaseConfig';
 // Define the missing types locally
 interface AdminForm {
   id: string;
@@ -65,8 +65,8 @@ interface AdminFormActivity {
   timestamp: Date;
   metadata?: any;
 }
-import { AnalyticsService } from '../../services/analyticsService';
-import { ActivityLogService } from '../../services/activityLogService';
+import { AnalyticsService } from '@ubora/shared/services/analyticsService';
+import { ActivityLogService } from '@ubora/shared/services/activityLogService';
 
 export class AdminFormService {
   private static readonly FORMS_COLLECTION = 'forms';

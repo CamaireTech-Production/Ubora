@@ -3,8 +3,8 @@ import { Card } from './Card';
 import { Button } from './Button';
 import { User as UserIcon, CheckCircle, XCircle, Clock, Mail, Building2 } from 'lucide-react';
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
-import { db } from '../firebaseConfig';
-import { useToast } from '../hooks/useToast';
+import { db } from '@ubora/shared/firebaseConfig';
+import { useToast } from '@ubora/shared/hooks/useToast';
 import { User } from '../types';
 
 interface PendingApprovalsProps {

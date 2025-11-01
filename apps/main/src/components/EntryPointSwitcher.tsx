@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useLocation } from 'react-router-dom';
-import { getCurrentEntryPoint, switchEntryPoint, canSwitchEntryPoint } from '../utils/entryPointUtils';
+import { getCurrentEntryPoint, switchEntryPoint, canSwitchEntryPoint } from '@ubora/shared/utils/entryPointUtils';
 import { Settings, Shield, User } from 'lucide-react';
 
 /**

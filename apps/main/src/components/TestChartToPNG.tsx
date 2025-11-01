@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Button } from './Button';
-import { RechartsToPNG } from '../utils/RechartsToPNG';
+import { RechartsToPNG } from '@ubora/shared/utils/RechartsToPNG';
 import { GraphData } from '../types';
 
 // Test data for chart conversion

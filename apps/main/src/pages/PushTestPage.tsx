@@ -4,8 +4,8 @@ import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { Bell, ShieldCheck, AlertCircle, Settings, Smartphone, Monitor, Zap, Mail } from 'lucide-react';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
-import { unifiedNotificationService } from '../services/unifiedNotificationService';
-import { browserNotificationService } from '../services/browserNotificationService';
+import { unifiedNotificationService } from '@ubora/shared/services/unifiedNotificationService';
+import { browserNotificationService } from '@ubora/shared/services/browserNotificationService';
 
 export const PushTestPage: React.FC = () => {
   const { user } = useAuth();

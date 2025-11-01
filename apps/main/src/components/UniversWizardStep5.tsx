@@ -13,9 +13,9 @@ import { ScheduledDateTimePicker } from './scheduled/ScheduledDateTimePicker';
 import { Plus, Trash2, Edit, Calendar, CheckCircle, AlertCircle, ArrowLeft } from 'lucide-react';
 import { useApp } from '@ubora/shared/contexts/AppContext';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
-import { useToast } from '../hooks/useToast';
-import { scheduledQuestionService } from '../services/scheduledQuestionService';
-import { getCameroonTime } from '../utils/timezoneUtils';
+import { useToast } from '@ubora/shared/hooks/useToast';
+import { scheduledQuestionService } from '@ubora/shared/services/scheduledQuestionService';
+import { getCameroonTime } from '@ubora/shared/utils/timezoneUtils';
 import { ConfirmationModal } from './ConfirmationModal';
 
 // InstructionDefinition interface for Univers

@@ -6,18 +6,18 @@ import { Textarea } from './Textarea';
 import { Select } from './Select';
 import { Card } from './Card';
 import { FileInput } from './FileInput';
-import { FileUploadService, UploadProgress } from '../services/fileUploadService';
+import { FileUploadService, UploadProgress } from '@ubora/shared/services/fileUploadService';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
-import { useFormDraft } from '../hooks/useFormDraft';
-import { db, auth } from '../firebaseConfig';
+import { useFormDraft } from '@ubora/shared/hooks/useFormDraft';
+import { db, auth } from '@ubora/shared/firebaseConfig';
 import { doc, getDoc } from 'firebase/firestore';
 import { CheckCircle, Clock, AlertTriangle, Loader2, Calculator, Trash2 } from 'lucide-react';
-import { useToast } from '../hooks/useToast';
-import { ExpressionCalculator } from '../utils/ExpressionCalculator';
-import { ConditionalLogicEvaluator } from '../utils/ConditionalLogicEvaluator';
-import { getFileBlobUrl } from '../utils/simpleFileDownload';
+import { useToast } from '@ubora/shared/hooks/useToast';
+import { ExpressionCalculator } from '@ubora/shared/utils/ExpressionCalculator';
+import { ConditionalLogicEvaluator } from '@ubora/shared/utils/ConditionalLogicEvaluator';
+import { getFileBlobUrl } from '@ubora/shared/utils/simpleFileDownload';
 import { TextExtractionReviewModal } from './TextExtractionReviewModal';
-import { UserSessionService } from '../services/userSessionService';
+import { UserSessionService } from '@ubora/shared/services/userSessionService';
 
 // Helper function to convert field IDs back to user-friendly field names in formulas
 const convertFormulaToUserFriendly = (formula: string, fields: FormField[]): string => {

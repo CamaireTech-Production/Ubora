@@ -8,13 +8,13 @@ import { Button } from '../components/Button';
 import { LoadingGuard } from '../components/LoadingGuard';
 import { ArrowLeft, FileText, User, Calendar, Filter, Download, Eye, Edit, ChevronLeft, ChevronRight } from 'lucide-react';
 import { FileAttachment } from '../types';
-import { useToast } from '../hooks/useToast';
+import { useToast } from '@ubora/shared/hooks/useToast';
 import { Toast } from '../components/Toast';
-import { getFileDownloadURL } from '../utils/firebaseStorageUtils';
+import { getFileDownloadURL } from '@ubora/shared/utils/firebaseStorageUtils';
 import { PDFViewerModal } from '../components/PDFViewerModal';
 import { DynamicForm } from '../components/DynamicForm';
-import { downloadFile } from '../utils/downloadUtils';
-import { forceDownloadFromFirebase } from '../utils/firebaseDownloadUtils';
+import { downloadFile } from '@ubora/shared/utils/downloadUtils';
+import { forceDownloadFromFirebase } from '@ubora/shared/utils/firebaseDownloadUtils';
 
 export const ResponseDetailPage: React.FC = () => {
   const { formId } = useParams<{ formId: string }>();

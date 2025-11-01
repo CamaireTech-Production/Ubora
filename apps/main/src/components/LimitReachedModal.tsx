@@ -3,9 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import { X, AlertCircle, ArrowRight, CreditCard } from 'lucide-react';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
 import { Button } from './Button';
-import { useToast } from '../hooks/useToast';
-import { UserSessionService } from '../services/userSessionService';
-import { PackageType } from '../config/packageFeatures';
+import { useToast } from '@ubora/shared/hooks/useToast';
+import { UserSessionService } from '@ubora/shared/services/userSessionService';
+import { PackageType } from '@ubora/shared/config/packageFeatures';
 
 interface LimitReachedModalProps {
   isOpen: boolean;

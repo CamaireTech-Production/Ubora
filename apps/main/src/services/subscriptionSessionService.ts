@@ -1,7 +1,7 @@
 import { doc, updateDoc, getDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 import { SubscriptionSession, User, PayAsYouGoPurchase } from '../types';
-import { PACKAGE_LIMITS } from '../config/packageFeatures';
+import { PACKAGE_LIMITS } from '@ubora/shared/config/packageFeatures';
 
 export class SubscriptionSessionService {
 

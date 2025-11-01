@@ -1,6 +1,6 @@
 import { User } from '../types';
 import { SubscriptionSessionService } from './subscriptionSessionService';
-import { PACKAGE_LIMITS, PACKAGE_FEATURES, PackageType } from '../config/packageFeatures';
+import { PACKAGE_LIMITS, PACKAGE_FEATURES, PackageType } from '@ubora/shared/config/packageFeatures';
 
 export interface UserPackageInfo {
   packageType: PackageType | null;

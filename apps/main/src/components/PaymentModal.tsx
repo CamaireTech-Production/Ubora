@@ -1,10 +1,10 @@
 import React, { useState, useCallback } from 'react';
 import { X, CreditCard } from 'lucide-react';
 import { Button } from './Button';
-import { useToast } from '../hooks/useToast';
+import { useToast } from '@ubora/shared/hooks/useToast';
 import { CampayPayment } from './CampayPayment';
-import { PayAsYouGoPaymentService } from '../services/payAsYouGoPaymentService';
-import { PaymentService } from '../services/paymentService.ts';
+import { PayAsYouGoPaymentService } from '@ubora/shared/services/payAsYouGoPaymentService';
+import { PaymentService } from '@ubora/shared/services/paymentService';
 import { PaymentRequest } from '../types/payment';
 import { CampayPaymentData } from '../types/payment';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';

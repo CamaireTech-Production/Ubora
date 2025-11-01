@@ -1,7 +1,7 @@
 // import { doc, updateDoc, getDoc, serverTimestamp } from 'firebase/firestore';
 // import { db } from '../firebaseConfig'; // Unused for now
 import { SubscriptionSessionService } from './subscriptionSessionService';
-import { getPackagePrice } from '../config/packageFeatures';
+import { getPackagePrice } from '@ubora/shared/config/packageFeatures';
 
 export class SubscriptionService {
   /**

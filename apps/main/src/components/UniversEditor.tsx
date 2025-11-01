@@ -12,7 +12,7 @@ import { UniversWizardStep4 } from './UniversWizardStep4';
 import { UniversWizardStep5 } from './UniversWizardStep5';
 import { useApp } from '@ubora/shared/contexts/AppContext';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
-import { useToast } from '../hooks/useToast';
+import { useToast } from '@ubora/shared/hooks/useToast';
 import {
   ArrowLeft,
   Save,

@@ -1,7 +1,7 @@
 // src/components/UserFriendlyErrorModal.tsx
 import React from 'react';
 import { X, RefreshCw, Wifi, AlertTriangle, Server } from 'lucide-react';
-import { FirebaseErrorHandler, FirebaseErrorInfo } from '../services/firebaseErrorHandler';
+import { FirebaseErrorHandler, FirebaseErrorInfo } from '@ubora/shared/services/firebaseErrorHandler';
 
 interface UserFriendlyErrorModalProps {
   isOpen: boolean;

@@ -22,7 +22,7 @@ import {
 import { useCurrentPng } from 'recharts-to-png';
 import { Maximize2, Download, Loader2 } from 'lucide-react';
 import { Button } from '../Button';
-import { GraphData } from '../../types';
+import { GraphData } from '@ubora/shared/types';
 
 interface GraphRendererProps {
   data: GraphData;

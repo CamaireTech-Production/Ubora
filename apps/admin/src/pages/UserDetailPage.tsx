@@ -1,11 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { UserDetail, FormSubmissionRecord } from '@ubora/shared/types';
+import { PageViewRecord, SessionRecord } from '@ubora/shared/services/pageTrackingService';
 import { EnhancedAdminService } from '../services/enhancedAdminService';
-import { UserDetail } from '../../types';
-import { PageViewRecord, SessionRecord } from '../../services/pageTrackingService';
-import { FormSubmissionRecord } from '../../types';
-import { Card } from '../../components/Card';
-import { Button } from '../../components/Button';
+import { Card } from '../components/Card';
+import { Button } from '../components/Button';
 import { 
   ArrowLeft,
   User,

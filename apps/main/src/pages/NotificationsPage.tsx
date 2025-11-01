@@ -5,11 +5,11 @@ import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { Bell, CheckCircle, XCircle, Clock, Trash2, BarChart3, MessageSquare, AlertCircle, Settings } from 'lucide-react';
 import { WireframeLoader } from '../components/loading/WireframeLoader';
-import { unifiedNotificationService, UnifiedNotification } from '../services/unifiedNotificationService';
+import { unifiedNotificationService, UnifiedNotification } from '@ubora/shared/services/unifiedNotificationService';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
-import { usePushNotifications } from '../hooks/usePushNotifications';
+import { usePushNotifications } from '@ubora/shared/hooks/usePushNotifications';
 import { doc, collection, query, where, orderBy, limit, onSnapshot, writeBatch } from 'firebase/firestore';
-import { db } from '../firebaseConfig';
+import { db } from '@ubora/shared/firebaseConfig';
 
 export const NotificationsPage: React.FC = () => {
   const { user } = useAuth();

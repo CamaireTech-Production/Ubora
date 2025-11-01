@@ -18,7 +18,7 @@ import {
   Legend, 
   ResponsiveContainer 
 } from 'recharts';
-import { GraphData } from '../../types';
+import { GraphData } from '@ubora/shared/types';
 
 interface ChartWithPNGExportProps {
   data: GraphData;

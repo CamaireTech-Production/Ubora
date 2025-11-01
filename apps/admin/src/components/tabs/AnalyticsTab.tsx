@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { AnalyticsService } from '../../../services/analyticsService';
-import { Card } from '../../../components/Card';
-import { Button } from '../../../components/Button';
+import { AnalyticsService } from '@ubora/shared/services/analyticsService';
+import { Card } from '../Card';
+import { Button } from '../Button';
 import { 
   BarChart3, 
   Users, 

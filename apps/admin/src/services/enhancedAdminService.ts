@@ -9,7 +9,7 @@ import {
   limit,
   serverTimestamp 
 } from 'firebase/firestore';
-import { db } from '../../firebaseConfig';
+import { db } from '@ubora/shared/firebaseConfig';
 import { 
   AdminUser, 
   UserDetail, 
@@ -18,9 +18,9 @@ import {
   ActivityLog,
   SubscriptionSession,
   PurchaseHistory
-} from '../../types';
-import { ActivityLogService } from '../../services/activityLogService';
-import PageTrackingService, { PageViewRecord, SessionRecord } from '../../services/pageTrackingService';
+} from '@ubora/shared/types';
+import { ActivityLogService } from '@ubora/shared/services/activityLogService';
+import PageTrackingService, { PageViewRecord, SessionRecord } from '@ubora/shared/services/pageTrackingService';
 
 export class EnhancedAdminService {
   private static readonly USERS_COLLECTION = 'users';

@@ -6,8 +6,8 @@ import { LoadingGuard } from '../components/LoadingGuard';
 import { Button } from '../components/Button';
 import { MessageList } from '../components/chat/MessageList';
 import { MessageBubble } from '../components/chat/MessageBubble';
-import { scheduledQuestionService } from '../services/scheduledQuestionService';
-import { useToast } from '../hooks/useToast';
+import { scheduledQuestionService } from '@ubora/shared/services/scheduledQuestionService';
+import { useToast } from '@ubora/shared/hooks/useToast';
 import { ScheduledQuestion, ScheduledQuestionResponse, ChatMessage } from '../types';
 import { Layout } from '../components/Layout';
 

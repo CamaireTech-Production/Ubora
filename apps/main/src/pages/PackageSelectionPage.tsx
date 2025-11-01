@@ -10,7 +10,7 @@ import {
   PACKAGE_LIMITS, 
   PACKAGE_FEATURES,
   PackageType 
-} from '../config/packageFeatures';
+} from '@ubora/shared/config/packageFeatures';
 import { 
   Check, 
   X, 
@@ -22,14 +22,14 @@ import {
   ArrowRight,
   CheckCircle
 } from 'lucide-react';
-import { useToast } from '../hooks/useToast';
+import { useToast } from '@ubora/shared/hooks/useToast';
 import { Toast } from '../components/Toast';
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
-import { db } from '../firebaseConfig';
+import { db } from '@ubora/shared/firebaseConfig';
 import { AnalyticsService } from '@ubora/shared/services/analyticsService';
-import { PaymentService } from '../services/paymentService.ts';
+import { PaymentService } from '@ubora/shared/services/paymentService';
 import { CampayPayment } from '../components/CampayPayment';
-import { SubscriptionSessionService } from '../services/subscriptionSessionService';
+import { SubscriptionSessionService } from '@ubora/shared/services/subscriptionSessionService';
 import { CampayPaymentData, PaymentRequest } from '../types/payment';
 
 export const PackageSelectionPage: React.FC = () => {

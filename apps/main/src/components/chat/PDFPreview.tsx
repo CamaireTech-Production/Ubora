@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { FileText, Download, Maximize2, Eye } from 'lucide-react';
 import { Button } from '../Button';
-import { PDFData, GraphData } from '../../types';
-import { generatePDF, PDFGenerator } from '../../utils/PDFGenerator';
+import { PDFData, GraphData } from '@ubora/shared/types';
+import { generatePDF, PDFGenerator } from '@ubora/shared/utils/PDFGenerator';
 import { GraphRenderer } from './GraphRenderer';
 
 interface TextPDFPreviewProps {

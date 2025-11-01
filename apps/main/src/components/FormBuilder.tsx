@@ -9,12 +9,12 @@ import { FileTypeSelector } from './FileTypeSelector';
 import { FieldCSVImport } from './FieldCSVImport';
 import { Plus, Trash2, ArrowLeft, AlertCircle, Calculator } from 'lucide-react';
 import { FormulaInput } from './FormulaInput';
-import { FormulaParser } from '../utils/FormulaParser';
+import { FormulaParser } from '@ubora/shared/utils/FormulaParser';
 import { ConditionalLogicBuilder } from './ConditionalLogicBuilder';
 import { DesktopRecommendationInfo } from './DesktopRecommendationInfo';
 import { ConfirmationModal } from './ConfirmationModal';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
-import { UserSessionService } from '../services/userSessionService';
+import { UserSessionService } from '@ubora/shared/services/userSessionService';
 
 interface FormBuilderProps {
   onSave: (form: {

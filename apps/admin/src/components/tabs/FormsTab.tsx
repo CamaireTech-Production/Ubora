@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AdminService } from '../../services/adminService';
-import { AdminForm } from '../../types';
-import { Card } from '../../../components/Card';
-import { Button } from '../../../components/Button';
+import { AdminForm } from '../types';
+import { Card } from '../Card';
+import { Button } from '../Button';
 import { 
   FileText, 
   Plus, 

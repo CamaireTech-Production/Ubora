@@ -1,8 +1,8 @@
 import { AdminFormService } from './adminFormService';
 import { AdminDashboardService } from './adminDashboardService';
 import { EnhancedAdminService } from './enhancedAdminService';
-import { AdminService as BaseAdminService } from '../../services/adminService';
-import { AdminStats } from '../../types';
+import { AdminService as BaseAdminService } from '@ubora/shared/services/adminService';
+import { AdminStats } from '@ubora/shared/types';
 
 export class AdminService {
   /**

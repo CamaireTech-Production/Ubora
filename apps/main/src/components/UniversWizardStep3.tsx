@@ -7,7 +7,7 @@ import { UniversWizardStepProps } from './UniversWizard';
 import { Plus, Trash2, Edit, FileText, CheckCircle, AlertCircle, ArrowLeft } from 'lucide-react';
 import { useApp } from '@ubora/shared/contexts/AppContext';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
-import { useToast } from '../hooks/useToast';
+import { useToast } from '@ubora/shared/hooks/useToast';
 
 // FormDefinition interface for Univers
 interface FormDefinition {

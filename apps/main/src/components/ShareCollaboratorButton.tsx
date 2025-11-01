@@ -6,8 +6,8 @@ import { usePackageAccess } from '@ubora/shared/hooks/usePackageAccess';
 import { useApp } from '@ubora/shared/contexts/AppContext';
 import { LimitReachedModal } from './LimitReachedModal';
 import { PaymentModal } from './PaymentModal';
-import { useToast } from '../hooks/useToast';
-import { PackageType } from '../config/packageFeatures';
+import { useToast } from '@ubora/shared/hooks/useToast';
+import { PackageType } from '@ubora/shared/config/packageFeatures';
 
 interface ShareCollaboratorButtonProps {
   variant?: 'primary' | 'secondary';

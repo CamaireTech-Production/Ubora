@@ -1,13 +1,13 @@
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
-import { UserSessionService } from '../services/userSessionService';
+import { UserSessionService } from '@ubora/shared/services/userSessionService';
 import { 
   PackageType, 
   PackageFeatures, 
   PackageLimits,
   PACKAGE_LIMITS
-} from '../config/packageFeatures';
+} from '@ubora/shared/config/packageFeatures';
 import { useState, useEffect, useMemo } from 'react';
-import { db } from '../firebaseConfig';
+import { db } from '@ubora/shared/firebaseConfig';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { useTokenStats } from './useTokenStats';
 

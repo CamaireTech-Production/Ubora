@@ -4,8 +4,8 @@ import { GraphRenderer } from './GraphRenderer';
 import { PDFPreview, TextPDFPreview } from './PDFPreview';
 import { TableRenderer } from './TableRenderer';
 import { ChatMessage } from '../../types';
-import { MultiFormatToPDF } from '../../utils/MultiFormatToPDF';
-import { generatePDF } from '../../utils/PDFGenerator';
+import { MultiFormatToPDF } from '@ubora/shared/utils/MultiFormatToPDF';
+import { generatePDF } from '@ubora/shared/utils/PDFGenerator';
 import { MultiFormatPDFGenerator } from '../PDFGeneration/MultiFormatPDFGenerator';
 
 interface MessageBubbleProps {
