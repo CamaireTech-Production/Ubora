@@ -1,7 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { X, AlertCircle, ArrowRight, CreditCard } from 'lucide-react';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '@ubora/shared/contexts/AuthContext';
 import { Button } from './Button';
 import { useToast } from '../hooks/useToast';
 import { UserSessionService } from '../services/userSessionService';

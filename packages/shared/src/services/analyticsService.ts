@@ -329,9 +329,11 @@ export class AnalyticsService {
   static async getUserAnalytics(timeRange: 'day' | 'week' | 'month' | 'year' = 'week'): Promise<RealUserAnalytics> {
     try {
       const realData = await FirebaseAnalyticsService.getRealAnalyticsData(timeRange);
-      const { EnhancedAdminService } = await import('../admin/services/enhancedAdminService');
       
-      const usersData = await EnhancedAdminService.getAllUsersWithDetails();
+      // Note: EnhancedAdminService is only available in the admin app
+      // These methods should be called from the admin app which will provide the data
+      // Using default values for main app compatibility
+      const usersData: any[] = [];
       
       // Calculate real user retention (simplified)
       // This is a simplified calculation - you can enhance based on your data structure
@@ -415,9 +417,10 @@ export class AnalyticsService {
     try {
       const realData = await FirebaseAnalyticsService.getRealAnalyticsData(timeRange);
       
-      // Real performance data from your existing services
-      const { EnhancedAdminService } = await import('../admin/services/enhancedAdminService');
-      const usageStats = await EnhancedAdminService.getAppUsageStats();
+      // Note: EnhancedAdminService is only available in the admin app
+      // These methods should be called from the admin app which will provide the data
+      // Using default values for main app compatibility
+      const usageStats: { totalSessions: number; averageSessionDuration: number } = { totalSessions: 0, averageSessionDuration: 0 };
       
       // Calculate real load times from session data
       const loadTimes = {

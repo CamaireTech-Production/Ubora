@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { ArrowRight, UserPlus, Copy, Check } from 'lucide-react';
 import { Button } from './Button';
-import { useAuth } from '../contexts/AuthContext';
-import { usePackageAccess } from '../hooks/usePackageAccess';
-import { useApp } from '../contexts/AppContext';
+import { useAuth } from '@ubora/shared/contexts/AuthContext';
+import { usePackageAccess } from '@ubora/shared/hooks/usePackageAccess';
+import { useApp } from '@ubora/shared/contexts/AppContext';
 import { LimitReachedModal } from './LimitReachedModal';
 import { PaymentModal } from './PaymentModal';
 import { PackageType } from '../config/packageFeatures';

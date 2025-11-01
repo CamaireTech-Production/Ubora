@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { X, Home, History, FileText, Users, Clipboard, UserPlus, Copy, Check, Calendar } from 'lucide-react';
 import { Button } from '../Button';
-import { useAuth } from '../../contexts/AuthContext';
+import { useAuth } from '@ubora/shared/contexts/AuthContext';
 import { usePackageAccess } from '../../hooks/usePackageAccess';
-import { useApp } from '../../contexts/AppContext';
+import { useApp } from '@ubora/shared/contexts/AppContext';
 import { LimitReachedModal } from '../LimitReachedModal';
 import { PaymentModal } from '../PaymentModal';
 import { useToast } from '../../hooks/useToast';

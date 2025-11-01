@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '@ubora/shared/contexts/AuthContext';
 // import { usePermissions } from '../hooks/usePermissions'; // Unused for now
 import { Layout } from '../components/Layout';
 import { Card } from '../components/Card';

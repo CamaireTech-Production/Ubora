@@ -181,16 +181,16 @@ export class FirebaseAnalyticsService {
   // Real Analytics Data Fetching Methods
   static async getRealAnalyticsData(timeRange: 'day' | 'week' | 'month' | 'year' = 'week'): Promise<AnalyticsData> {
     try {
-      // Import your existing services for real data
-      const { EnhancedAdminService } = await import('../admin/services/enhancedAdminService');
       const { ActivityLogService } = await import('./activityLogService');
       
-      // Get real data from your existing services
-      const [usersData, usageStats, activitiesData] = await Promise.all([
-        EnhancedAdminService.getAllUsersWithDetails().catch(() => []),
-        EnhancedAdminService.getAppUsageStats().catch(() => ({ totalSessions: 0, averageSessionDuration: 0 })),
-        ActivityLogService.getRecentActivities(1000).catch(() => [])
-      ]);
+      // Note: EnhancedAdminService is only available in the admin app
+      // These methods should be called from the admin app which will provide the data
+      // Using default values for main app compatibility
+      const usersData: any[] = [];
+      const usageStats: { totalSessions: number; averageSessionDuration: number } = { totalSessions: 0, averageSessionDuration: 0 };
+      
+      // Get activities data
+      const activitiesData = await ActivityLogService.getRecentActivities(1000).catch(() => []);
 
       // Calculate date range
       const now = new Date();

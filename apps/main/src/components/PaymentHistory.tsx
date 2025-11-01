@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import PaymentService from '../services/paymentService';
 import { Payment } from '../types/payment';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '@ubora/shared/contexts/AuthContext';
 import { Card } from './Card';
 import { 
   CreditCard, 

@@ -10,8 +10,8 @@ import { Univers, Form, UniversDefinitions } from '../types';
 import { UniversWizardStep3 } from './UniversWizardStep3';
 import { UniversWizardStep4 } from './UniversWizardStep4';
 import { UniversWizardStep5 } from './UniversWizardStep5';
-import { useApp } from '../contexts/AppContext';
-import { useAuth } from '../contexts/AuthContext';
+import { useApp } from '@ubora/shared/contexts/AppContext';
+import { useAuth } from '@ubora/shared/contexts/AuthContext';
 import { useToast } from '../hooks/useToast';
 import {
   ArrowLeft,

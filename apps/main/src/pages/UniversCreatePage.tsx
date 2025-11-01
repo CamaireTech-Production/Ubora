@@ -12,7 +12,7 @@ import { UniversCreationLoading } from '../components/UniversCreationLoading';
 import { DraftSaveModal } from '../components/DraftSaveModal';
 import { UniversDefinitions, UniversMetadata, UniversOwnership } from '../types';
 import { universService } from '../services/universService';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '@ubora/shared/contexts/AuthContext';
 import { useToast } from '../hooks/useToast';
 import { useUniversWizardProgress } from '../hooks/useUniversWizardProgress';
 import { UniversWizardStepProps } from '../components/UniversWizard';

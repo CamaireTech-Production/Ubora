@@ -3,7 +3,7 @@ import { Send, Brain } from 'lucide-react';
 import { Button } from '../Button';
 import { FormatSelector } from './FormatSelector';
 import { ComprehensiveFilter } from './ComprehensiveFilter';
-import { useAuth } from '../../contexts/AuthContext';
+import { useAuth } from '@ubora/shared/contexts/AuthContext';
 import { usePackageAccess } from '../../hooks/usePackageAccess';
 
 interface Form {

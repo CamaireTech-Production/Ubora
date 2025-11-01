@@ -2,14 +2,14 @@ import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { WelcomeScreen } from '../components/WelcomeScreen';
-import { useAuth } from '../contexts/AuthContext';
-import { useApp } from '../contexts/AppContext';
-import { usePackageAccess } from '../hooks/usePackageAccess';
+import { useAuth } from '@ubora/shared/contexts/AuthContext';
+import { useApp } from '@ubora/shared/contexts/AppContext';
+import { usePackageAccess } from '@ubora/shared/hooks/usePackageAccess';
 
 // Mock the hooks
-vi.mock('../contexts/AuthContext');
-vi.mock('../contexts/AppContext');
-vi.mock('../hooks/usePackageAccess');
+vi.mock('@ubora/shared/contexts/AuthContext');
+vi.mock('@ubora/shared/contexts/AppContext');
+vi.mock('@ubora/shared/hooks/usePackageAccess');
 
 const mockUseAuth = useAuth as any;
 const mockUseApp = useApp as any;

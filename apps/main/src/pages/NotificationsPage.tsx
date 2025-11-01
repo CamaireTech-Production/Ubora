@@ -6,7 +6,7 @@ import { Button } from '../components/Button';
 import { Bell, CheckCircle, XCircle, Clock, Trash2, BarChart3, MessageSquare, AlertCircle, Settings } from 'lucide-react';
 import { WireframeLoader } from '../components/loading/WireframeLoader';
 import { unifiedNotificationService, UnifiedNotification } from '../services/unifiedNotificationService';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '@ubora/shared/contexts/AuthContext';
 import { usePushNotifications } from '../hooks/usePushNotifications';
 import { doc, collection, query, where, orderBy, limit, onSnapshot, writeBatch } from 'firebase/firestore';
 import { db } from '../firebaseConfig';

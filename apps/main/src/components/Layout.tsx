@@ -1,6 +1,6 @@
 import React from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '@ubora/shared/contexts/AuthContext';
 import { Button } from './Button';
 import { Footer } from './Footer';
 import { UserPackageInfo } from './UserPackageInfo';

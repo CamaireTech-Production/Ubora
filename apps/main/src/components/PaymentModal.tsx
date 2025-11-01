@@ -7,7 +7,7 @@ import { PayAsYouGoPaymentService } from '../services/payAsYouGoPaymentService';
 import { PaymentService } from '../services/paymentService.ts';
 import { PaymentRequest } from '../types/payment';
 import { CampayPaymentData } from '../types/payment';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '@ubora/shared/contexts/AuthContext';
 
 interface PaymentOption {
   id: string;

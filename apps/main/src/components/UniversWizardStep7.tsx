@@ -18,7 +18,7 @@ import {
   Info,
   Sparkles
 } from 'lucide-react';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '@ubora/shared/contexts/AuthContext';
 import { useToast } from '../hooks/useToast';
 import { UniversCard } from './UniversCard';
 

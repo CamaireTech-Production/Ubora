@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Calendar, Clock, Repeat, MessageSquare, AlertCircle, Play, Loader2 } from 'lucide-react';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '@ubora/shared/contexts/AuthContext';
 import { LoadingGuard } from '../components/LoadingGuard';
 import { Button } from '../components/Button';
 import { MessageList } from '../components/chat/MessageList';

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, Search, Calendar, Clock, MessageSquare, ArrowLeft, Wrench } from 'lucide-react';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '@ubora/shared/contexts/AuthContext';
 import { Button } from '../components/Button';
 import { ScheduledQuestionCard } from '../components/scheduled/ScheduledQuestionCard';
 import { scheduledQuestionService } from '../services/scheduledQuestionService';

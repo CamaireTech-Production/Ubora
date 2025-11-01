@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { useAuth } from '../contexts/AuthContext';
-import { usePermissions } from '../hooks/usePermissions';
+import { useAuth } from '@ubora/shared/contexts/AuthContext';
+import { usePermissions } from '@ubora/shared/hooks/usePermissions';
 import { Info, X } from 'lucide-react';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../firebaseConfig';

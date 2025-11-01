@@ -7,7 +7,7 @@ import { Select } from './Select';
 import { Card } from './Card';
 import { FileInput } from './FileInput';
 import { FileUploadService, UploadProgress } from '../services/fileUploadService';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '@ubora/shared/contexts/AuthContext';
 import { useFormDraft } from '../hooks/useFormDraft';
 import { db, auth } from '../firebaseConfig';
 import { doc, getDoc } from 'firebase/firestore';

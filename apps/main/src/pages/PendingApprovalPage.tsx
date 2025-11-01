@@ -4,7 +4,7 @@ import { Button } from '../components/Button';
 import { Footer } from '../components/Footer';
 import { LogoutConfirmationModal } from '../components/LogoutConfirmationModal';
 import { Clock, Mail, Building2, LogOut } from 'lucide-react';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '@ubora/shared/contexts/AuthContext';
 
 export const PendingApprovalPage: React.FC = () => {
   const { user, logout } = useAuth();

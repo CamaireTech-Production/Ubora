@@ -1,6 +1,6 @@
 import React from 'react';
-import { useAuth } from '../contexts/AuthContext';
-import { usePackageAccess } from '../hooks/usePackageAccess';
+import { useAuth } from '@ubora/shared/contexts/AuthContext';
+import { usePackageAccess } from '@ubora/shared/hooks/usePackageAccess';
 import { UserSessionService } from '../services/userSessionService';
 import { Brain, Zap } from 'lucide-react';
 

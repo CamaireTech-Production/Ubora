@@ -1,5 +1,5 @@
 import { describe, test, expect, vi, beforeEach } from 'vitest'
-import { AuthProvider } from '../contexts/AuthContext'
+import { AuthProvider } from '@ubora/shared/contexts/AuthContext'
 import { User } from '../types'
 
 // Mock Firebase Auth

@@ -13,7 +13,7 @@ import { FormulaParser } from '../utils/FormulaParser';
 import { ConditionalLogicBuilder } from './ConditionalLogicBuilder';
 import { DesktopRecommendationInfo } from './DesktopRecommendationInfo';
 import { ConfirmationModal } from './ConfirmationModal';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '@ubora/shared/contexts/AuthContext';
 import { UserSessionService } from '../services/userSessionService';
 
 interface FormBuilderProps {

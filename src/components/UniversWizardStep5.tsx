@@ -329,14 +329,20 @@ export const UniversWizardStep5: React.FC<UniversWizardStepProps> = ({
 
           {/* Sidebar */}
           <div className="lg:col-span-1 space-y-4">
-            <Card title="Programmation">
-              <ScheduledDateTimePicker
-                scheduledAt={scheduledAt}
-                frequency={frequency}
-                onDateTimeChange={setScheduledAt}
-                onFrequencyChange={setFrequency}
-              />
-            </Card>
+            {/* Custom card wrapper for ScheduledDateTimePicker to allow dropdown overflow */}
+            <div className="bg-white rounded-lg sm:rounded-xl shadow-lg border border-gray-100 overflow-visible">
+              <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-100 bg-gray-50">
+                <h3 className="text-base sm:text-lg font-semibold text-gray-900 break-words">Programmation</h3>
+              </div>
+              <div className="p-4 sm:p-6" style={{ overflow: 'visible', position: 'relative', zIndex: 1 }}>
+                <ScheduledDateTimePicker
+                  scheduledAt={scheduledAt}
+                  frequency={frequency}
+                  onDateTimeChange={setScheduledAt}
+                  onFrequencyChange={setFrequency}
+                />
+              </div>
+            </div>
 
             <Card title="Aperçu">
               <div className="space-y-4 text-sm">
@@ -552,6 +558,12 @@ export const UniversWizardStep5: React.FC<UniversWizardStepProps> = ({
         confirmText="Supprimer"
         cancelText="Annuler"
         variant="danger"
+      />
+    </div>
+  );
+};
+
+
       />
     </div>
   );

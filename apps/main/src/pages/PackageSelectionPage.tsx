@@ -1,6 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '@ubora/shared/contexts/AuthContext';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { 
@@ -26,7 +26,7 @@ import { useToast } from '../hooks/useToast';
 import { Toast } from '../components/Toast';
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
-import { AnalyticsService } from '../services/analyticsService';
+import { AnalyticsService } from '@ubora/shared/services/analyticsService';
 import { PaymentService } from '../services/paymentService.ts';
 import { CampayPayment } from '../components/CampayPayment';
 import { SubscriptionSessionService } from '../services/subscriptionSessionService';

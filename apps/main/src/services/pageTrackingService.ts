@@ -9,7 +9,7 @@ import {
   getDocs
 } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '@ubora/shared/contexts/AuthContext';
 
 export interface PageViewRecord {
   id?: string;

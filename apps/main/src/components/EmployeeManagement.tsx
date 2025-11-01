@@ -1,11 +1,10 @@
 import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
-import { useAuth } from '../contexts/AuthContext';
-import { useApp } from '../contexts/AppContext';
+import { useAuth } from '@ubora/shared/contexts/AuthContext';
+import { useApp } from '@ubora/shared/contexts/AppContext';
 import { Button } from './Button';
 import { Card } from './Card';
 import { useToast } from '../hooks/useToast';
-import { Toast } from './Toast';
 import { 
   Users, 
   Shield
@@ -93,7 +92,6 @@ export const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ classNam
 
   return (
     <div className={`space-y-6 ${className}`}>
-      <Toast />
       {/* En-tête */}
       <div className="flex items-center justify-between">
         <div>
@@ -142,7 +140,7 @@ export const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ classNam
                 {/* Actions */}
                 <div className="flex flex-col space-y-2 sm:flex-row sm:space-y-0 sm:space-x-2">
                   <Button
-                    variant={employee.hasDirectorDashboardAccess ? "destructive" : "primary"}
+                    variant={employee.hasDirectorDashboardAccess ? "danger" : "primary"}
                     size="sm"
                     onClick={() => {
                       setSelectedEmployee(employee);
@@ -214,7 +212,7 @@ export const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ classNam
                 Annuler
               </Button>
               <Button
-                variant={selectedEmployee.hasDirectorDashboardAccess ? "destructive" : "primary"}
+                variant={selectedEmployee.hasDirectorDashboardAccess ? "danger" : "primary"}
                 onClick={() => {
                   if (selectedEmployee.hasDirectorDashboardAccess) {
                     handleRevokeDirectorAccess(selectedEmployee);

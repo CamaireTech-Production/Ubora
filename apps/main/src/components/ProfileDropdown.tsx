@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
-import { usePermissions } from '../hooks/usePermissions';
+import { useAuth } from '@ubora/shared/contexts/AuthContext';
+import { usePermissions } from '@ubora/shared/hooks/usePermissions';
 import { useUnreadNotifications } from '../hooks/useUnreadNotifications';
 import { Button } from './Button';
 import { LogoutConfirmationModal } from './LogoutConfirmationModal';

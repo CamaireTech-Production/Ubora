@@ -5,8 +5,8 @@ import { DashboardBuilder } from './DashboardBuilder';
 import { DashboardMetric, Form } from '../types';
 import { UniversWizardStepProps } from './UniversWizard';
 import { Plus, Trash2, Edit, BarChart3, CheckCircle, AlertCircle, ArrowLeft, AlertTriangle } from 'lucide-react';
-import { useApp } from '../contexts/AppContext';
-import { useAuth } from '../contexts/AuthContext';
+import { useApp } from '@ubora/shared/contexts/AppContext';
+import { useAuth } from '@ubora/shared/contexts/AuthContext';
 import { useToast } from '../hooks/useToast';
 
 // DashboardDefinition interface for Univers

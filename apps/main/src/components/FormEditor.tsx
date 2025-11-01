@@ -9,7 +9,7 @@ import { FileTypeSelector } from './FileTypeSelector';
 import { FieldCSVImport } from './FieldCSVImport';
 import { Toast } from './Toast';
 import { useToast } from '../hooks/useToast';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '@ubora/shared/contexts/AuthContext';
 import { UserSessionService } from '../services/userSessionService';
 import { Plus, Trash2, ArrowLeft, CheckSquare, Square, Loader2, Calculator, AlertCircle } from 'lucide-react';
 import { FormulaInput } from './FormulaInput';

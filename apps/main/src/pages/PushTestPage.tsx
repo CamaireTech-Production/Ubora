@@ -3,7 +3,7 @@ import { Layout } from '../components/Layout';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { Bell, ShieldCheck, AlertCircle, Settings, Smartphone, Monitor, Zap, Mail } from 'lucide-react';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '@ubora/shared/contexts/AuthContext';
 import { unifiedNotificationService } from '../services/unifiedNotificationService';
 import { browserNotificationService } from '../services/browserNotificationService';
 

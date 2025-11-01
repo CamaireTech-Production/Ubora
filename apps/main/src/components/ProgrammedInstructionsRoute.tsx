@@ -1,5 +1,5 @@
 import React from 'react';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '@ubora/shared/contexts/AuthContext';
 import { UserSessionService } from '../services/userSessionService';
 import { AccessDeniedModal } from './AccessDeniedModal';
 import { useNavigate } from 'react-router-dom';

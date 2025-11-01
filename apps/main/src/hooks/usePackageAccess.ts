@@ -1,4 +1,4 @@
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '@ubora/shared/contexts/AuthContext';
 import { UserSessionService } from '../services/userSessionService';
 import { 
   PackageType, 
