@@ -30,7 +30,12 @@ jobs:
           ${{ runner.os }}-npm-
           
     - name: Install dependencies
-      run: npm install
+      run: |
+        npm install --include=optional
+        # Ensure Rollup's platform-specific binary is installed
+        npm install @rollup/rollup-linux-x64-gnu --save-optional --workspaces=false || true
+        # Reinstall rollup to ensure optional deps are linked
+        npm install rollup --workspaces=false --force || true
       
     - name: Create environment file for development
       run: |
@@ -70,8 +75,7 @@ jobs:
         
     - name: Build main application
       run: |
-        cd apps/main
-        npm run build
+        npm run build:main
         
     - name: Create deployment package
       run: |
