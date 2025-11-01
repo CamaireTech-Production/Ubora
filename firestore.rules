@@ -275,6 +275,35 @@ service cloud.firestore {
     }
 
     // =============================================================================
+    // COLLECTION REPORTS
+    // Règles pour les rapports personnalisés :
+    // - Seuls les directeurs peuvent créer/lire/modifier/supprimer leurs rapports
+    // - Les rapports sont isolés par agence
+    // - Support pour les rapports issus d'Univers templates
+    // =============================================================================
+    
+    match /reports/{reportId} {
+      // LECTURE des rapports
+      allow read: if isAdmin() || (hasDirectorDashboardAccess() && 
+                  isSameAgency(resource.data.agencyId));
+      
+      // CRÉATION des rapports
+      allow create: if isAdmin() || (canCreateForms() && 
+                   isSameAgency(request.resource.data.agencyId) &&
+                   request.resource.data.createdBy == request.auth.uid &&
+                   request.resource.data.createdByRole in ['directeur', 'employe'] &&
+                   request.resource.data.keys().hasAll(['name', 'templateType', 'placeholders', 'mappings', 'createdBy', 'agencyId']));
+      
+      // MODIFICATION des rapports
+      allow update: if isAdmin() || (hasDirectorDashboardAccess() && 
+                   isSameAgency(resource.data.agencyId));
+      
+      // SUPPRESSION des rapports
+      allow delete: if isAdmin() || (hasDirectorDashboardAccess() && 
+                   isSameAgency(resource.data.agencyId));
+    }
+
+    // =============================================================================
     // COLLECTION ACTIVITY LOGS
     // Règles pour les logs d'activité :
     // - Seuls les admins peuvent lire tous les logs

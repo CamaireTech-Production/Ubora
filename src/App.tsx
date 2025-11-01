@@ -26,6 +26,9 @@ import { ProgrammedInstructionsRoute } from './components/ProgrammedInstructions
 import { UniversPage } from './pages/UniversPage';
 import { UniversCreatePage } from './pages/UniversCreatePage';
 import { UniversEditPage } from './pages/UniversEditPage';
+import { ReportsPage } from './pages/ReportsPage';
+import { ReportsCreatePage } from './pages/ReportsCreatePage';
+import { ReportsEditPage } from './pages/ReportsEditPage';
 import { AdminLoginPage } from './admin/pages/AdminLoginPage';
 import { AdminPage } from './admin';
 import { UserDetailPage } from './admin/pages/UserDetailPage';
@@ -458,6 +461,45 @@ function App() {
                          </ProtectedRoute>
                        }
                      />
+            
+            {/* Reports - Main page */}
+            <Route 
+              path="/reports" 
+              element={
+                <ProtectedRoute 
+                  allowedRoles={['directeur', 'employe']} 
+                  requireDirectorDashboardAccess={true}
+                >
+                  <ReportsPage />
+                </ProtectedRoute>
+              } 
+            />
+            
+            {/* Reports - Create */}
+            <Route 
+              path="/reports/create" 
+              element={
+                <ProtectedRoute 
+                  allowedRoles={['directeur', 'employe']} 
+                  requireDirectorDashboardAccess={true}
+                >
+                  <ReportsCreatePage />
+                </ProtectedRoute>
+              } 
+            />
+            
+            {/* Reports - Edit */}
+            <Route 
+              path="/reports/:id/edit" 
+              element={
+                <ProtectedRoute 
+                  allowedRoles={['directeur', 'employe']} 
+                  requireDirectorDashboardAccess={true}
+                >
+                  <ReportsEditPage />
+                </ProtectedRoute>
+              } 
+            />
             
             {/* Dev/Test: Push Notifications */}
             <Route 

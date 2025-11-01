@@ -755,3 +755,151 @@ export interface ActivityLog {
   category: 'authentication' | 'user_management' | 'form_management' | 'dashboard' | 'package' | 'chat' | 'file' | 'notification' | 'system' | 'admin';
 }
 
+// Types pour le système Univers (Univer Ubora)
+export interface UniversMetadata {
+  name: string;
+  description?: string;
+  iconUrl?: string;
+  category?: string;
+  tags?: string[];
+  version: number;
+  createdAt: Date;
+  publishOption?: 'private' | 'agency' | 'marketplace'; // Temporary field for wizard
+}
+
+export interface UniversOwnership {
+  createdBy: string; // userId du directeur
+  agencyId?: string; // undefined/null pour privé, agencyId pour partagé avec agence
+  isMarketplaceTemplate: boolean; // true si publié sur marketplace
+  approvalStatus?: 'pending' | 'approved' | 'rejected'; // Pour marketplace templates
+  approvedBy?: string; // Admin ID qui a approuvé
+  approvedAt?: Date; // Date d'approbation
+  rejectionReason?: string; // Raison du rejet si rejected
+}
+
+export interface UniversUsage {
+  totalUsages: number; // Nombre de fois que le template a été utilisé
+  lastUsedAt?: Date; // Dernière utilisation
+}
+
+// Types pour les définitions Univers (templates)
+export interface FormDefinition {
+  id: string;
+  title: string;
+  description: string;
+  fields: FormField[];
+}
+
+export interface DashboardDefinition {
+  id: string;
+  name: string;
+  description?: string;
+  metrics: DashboardMetric[];
+}
+
+export interface InstructionDefinition {
+  id: string;
+  title: string;
+  description?: string;
+  question: string;
+  filters: {
+    period: string;
+    formId: string;
+    userId: string;
+  };
+  selectedFormat: string | null;
+  selectedFormats: string[];
+  selectedFormIds: string[];
+  frequency: 'once' | 'daily' | 'weekly' | 'monthly';
+  maxExecutions?: number;
+}
+
+// Types pour les rapports (Reports)
+export interface ReportPlaceholder {
+  id: string;
+  placeholder: string; // Ex: "{{formName}}", "{{totalRevenue}}"
+  position: number; // Position dans le document (pour référence)
+  type: 'form_field' | 'dashboard_metric' | 'calculated' | 'static';
+  description?: string; // Description de ce que représente le placeholder
+}
+
+export interface ReportMapping {
+  placeholderId: string; // ID du placeholder
+  sourceType: 'form' | 'dashboard';
+  sourceId: string; // ID du formulaire ou du dashboard
+  fieldId?: string; // ID du champ (pour form) ou de la métrique (pour dashboard)
+  calculationType?: 'sum' | 'average' | 'count' | 'min' | 'max' | 'custom'; // Pour les champs numériques
+  defaultValue?: string; // Valeur par défaut si pas de données
+}
+
+export interface Report {
+  id: string;
+  name: string;
+  description?: string;
+  templateType: 'pdf' | 'word' | 'text';
+  templateContent?: string; // Contenu texte du template (pour text type)
+  templateFileUrl?: string; // URL du fichier template (pour PDF/Word)
+  templateFileStoragePath?: string; // Chemin de stockage du fichier
+  templateFileName?: string; // Nom du fichier template
+  placeholders: ReportPlaceholder[]; // Liste des placeholders détectés
+  mappings: ReportMapping[]; // Mappings des placeholders vers les sources de données
+  createdAt: Date;
+  createdBy: string; // directeur ID
+  createdByRole: 'directeur' | 'employe';
+  createdByEmployeeId?: string;
+  agencyId: string;
+  // Univers fields (optional - for Univers template system)
+  universId?: string | null;
+  universInstanceId?: string | null;
+  fromUnivers?: boolean;
+  updatedAt?: Date;
+}
+
+export interface ReportDefinition {
+  id: string;
+  name: string;
+  description?: string;
+  templateType: 'pdf' | 'word' | 'text';
+  templateContent?: string;
+  templateFileUrl?: string;
+  templateFileStoragePath?: string;
+  templateFileName?: string;
+  placeholders: ReportPlaceholder[];
+  mappings: ReportMapping[];
+}
+
+export interface UniversDefinitions {
+  forms: FormDefinition[];
+  dashboards: DashboardDefinition[];
+  instructions: InstructionDefinition[];
+  lists: any[]; // Will be defined in Phase 2
+  reports: ReportDefinition[]; // Reports definitions
+}
+
+export interface Univers {
+  id: string;
+  metadata: UniversMetadata;
+  ownership: UniversOwnership;
+  definitions: UniversDefinitions;
+  usage: UniversUsage;
+}
+
+export interface UniversInstance {
+  id: string;
+  universId: string; // Reference to Univers template
+  userId: string; // User who created this instance
+  agencyId: string;
+  createdAt: Date;
+  instances: {
+    forms: string[]; // Array of form IDs created from template
+    dashboards: string[]; // Array of dashboard IDs
+    instructions: string[]; // Array of instruction IDs
+    lists: string[]; // Array of list IDs
+    reports: string[]; // Array of report IDs
+  };
+  metadata: {
+    universName: string;
+    universVersion: number;
+  };
+}
+

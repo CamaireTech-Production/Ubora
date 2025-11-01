@@ -79,7 +79,7 @@ export const UniversWizardStep7: React.FC<UniversWizardStepProps> = ({
 
   // Validation
   const isValid = metadata.name && metadata.name.trim() && formsCount > 0;
-  const hasOptionalItems = dashboardsCount > 0 || instructionsCount > 0;
+  const hasOptionalItems = dashboardsCount > 0 || instructionsCount > 0 || reportsCount > 0;
 
   // Mark step as viewable (completed when viewed)
   useEffect(() => {
@@ -140,8 +140,7 @@ export const UniversWizardStep7: React.FC<UniversWizardStepProps> = ({
         metadata: {
           ...universMetadata,
           publishOption: selectedPublishOption // Store temporarily in metadata
-        },
-        definitions: universDefinitions
+        }
       });
 
       showSuccess('Configuration enregistrée ! Le Univers sera créé lorsque vous cliquerez sur "Créer le Univers".');
@@ -338,17 +337,28 @@ export const UniversWizardStep7: React.FC<UniversWizardStepProps> = ({
                 </div>
               </div>
 
-              {/* Reports - Coming Soon */}
-              <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-200 opacity-75">
+              {/* Reports */}
+              <div className="flex items-center justify-between p-4 bg-orange-50 rounded-lg border border-orange-200">
                 <div className="flex items-center space-x-3">
-                  <FileBarChart className="h-5 w-5 text-gray-400" />
+                  <FileBarChart className="h-5 w-5 text-orange-600" />
                   <div>
-                    <p className="font-semibold text-gray-700">Rapports</p>
-                    <p className="text-sm text-gray-500">Bientôt disponible</p>
+                    <p className="font-semibold text-gray-900">Rapports</p>
+                    <p className="text-sm text-gray-600">
+                      {reportsCount > 0 ? `${reportsCount} rapport${reportsCount > 1 ? 's' : ''}` : 'Aucun rapport'}
+                    </p>
                   </div>
                 </div>
                 <div className="flex items-center space-x-2">
-                  <Info className="h-4 w-4 text-gray-400" />
+                  {reportsCount > 0 && (
+                    <CheckCircle className="h-5 w-5 text-green-600" />
+                  )}
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => handleGoToStep(6)}
+                  >
+                    {reportsCount > 0 ? 'Modifier' : 'Ajouter'}
+                  </Button>
                 </div>
               </div>
             </div>
@@ -477,18 +487,18 @@ export const UniversWizardStep7: React.FC<UniversWizardStepProps> = ({
         </div>
       </div>
 
-      {/* Note about Lists and Reports */}
+      {/* Note about Lists */}
       <Card className="bg-blue-50 border-blue-200">
         <div className="flex items-start space-x-3">
           <Info className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" />
           <div className="flex-1">
             <h3 className="text-sm font-semibold text-blue-900 mb-1">
-              Note sur les Listes et Rapports
+              Note sur les Listes
             </h3>
             <p className="text-sm text-blue-800">
-              Les fonctionnalités Listes et Rapports seront disponibles prochainement. 
-              Vous pourrez les ajouter à votre Univers une fois disponibles. 
-              Le Univers peut être créé sans ces aspects.
+              La fonctionnalité Listes sera disponible prochainement. 
+              Vous pourrez l'ajouter à votre Univers une fois disponible. 
+              Le Univers peut être créé sans cet aspect.
             </p>
           </div>
         </div>
