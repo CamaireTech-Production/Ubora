@@ -7,12 +7,12 @@ import { Select } from './Select';
 import { Card } from './Card';
 import { FileInput } from './FileInput';
 import { ArrowLeft, FileText, Upload, Edit, MapPin, X, Loader2, AlertCircle, CheckCircle, FileBarChart, Hash } from 'lucide-react';
-import { useAuth } from '../contexts/AuthContext';
-import { useApp } from '../contexts/AppContext';
-import { useToast } from '../hooks/useToast';
+import { useAuth } from '@ubora/shared/contexts/AuthContext';
+import { useApp } from '@ubora/shared/contexts/AppContext';
+import { useToast } from '@ubora/shared/hooks/useToast';
 import { reportService } from '../services/reportService';
-import { PDFTextExtractionService } from '../services/pdfTextExtractionService';
-import { FileUploadService } from '../services/fileUploadService';
+import { PDFTextExtractionService } from '@ubora/shared/services/pdfTextExtractionService';
+import { FileUploadService } from '@ubora/shared/services/fileUploadService';
 
 interface ReportBuilderProps {
   onSave: (report: {

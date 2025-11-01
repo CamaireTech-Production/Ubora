@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Card } from './Card';
 import { Button } from './Button';
-import { ReportBuilder } from '../../../../src/components/ReportBuilder';
+import { ReportBuilder } from './ReportBuilder';
 import { ReportDefinition, Form, Dashboard, ReportPlaceholder, ReportMapping } from '../types';
 import { UniversWizardStepProps } from './UniversWizard';
 import { Plus, Trash2, Edit, FileBarChart, CheckCircle, AlertCircle, ArrowLeft, FileText } from 'lucide-react';
