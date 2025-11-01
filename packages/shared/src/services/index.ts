@@ -5,7 +5,6 @@ export * from './activityLogService';
 export * from './adminService';
 export * from './analyticsService';
 export * from './browserNotificationService';
-export * from './capacitorNotificationService';
 export * from './draftFormattingService';
 export * from './draftService';
 export * from './emailNotificationService';
