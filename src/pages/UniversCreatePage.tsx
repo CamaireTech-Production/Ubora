@@ -9,6 +9,7 @@ import { UniversWizardStep5 } from '../components/UniversWizardStep5';
 import { UniversWizardStep6 } from '../components/UniversWizardStep6';
 import { UniversWizardStep7 } from '../components/UniversWizardStep7';
 import { UniversCreationLoading } from '../components/UniversCreationLoading';
+import { DraftSaveModal } from '../components/DraftSaveModal';
 import { UniversDefinitions, UniversMetadata, UniversOwnership } from '../types';
 import { universService } from '../services/universService';
 import { useAuth } from '../contexts/AuthContext';
@@ -37,9 +38,11 @@ export const UniversCreatePage: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { showSuccess, showError } = useToast();
-  const { clearProgress } = useUniversWizardProgress(user?.id);
+  const { clearProgress, loadProgress } = useUniversWizardProgress(user?.id);
   const [isCreating, setIsCreating] = useState(false);
   const [createdUniversId, setCreatedUniversId] = useState<string | null>(null);
+  const [isNavigating, setIsNavigating] = useState(false);
+  const [showDraftModal, setShowDraftModal] = useState(false);
 
   const handleComplete = async (universData: {
     metadata: UniversMetadata;
@@ -84,14 +87,16 @@ export const UniversCreatePage: React.FC = () => {
     clearProgress();
     
     if (createdUniversId) {
+      // Set navigating state to hide wizard
+      setIsNavigating(true);
       // Hide loading animation first
       setIsCreating(false);
       
       showSuccess('Univers créé avec succès !');
       
-      // Navigate after a small delay to ensure state is cleaned up
+      // Navigate to list page after a small delay to ensure state is cleaned up
       setTimeout(() => {
-        navigate(`/univers/${createdUniversId}`, { replace: true });
+        navigate('/univers', { replace: true });
       }, 300);
     } else {
       setIsCreating(false);
@@ -100,8 +105,57 @@ export const UniversCreatePage: React.FC = () => {
   };
 
   const handleCancel = () => {
-    navigate('/univers');
+    // Check if there's any progress saved
+    const saved = loadProgress();
+    const hasProgress = saved && (
+      saved.metadata?.name ||
+      (saved.forms && saved.forms.length > 0) ||
+      (saved.dashboards && saved.dashboards.length > 0) ||
+      (saved.instructions && saved.instructions.length > 0)
+    );
+
+    if (hasProgress) {
+      // Show modal to let user choose
+      setShowDraftModal(true);
+    } else {
+      // No progress, just navigate
+      setIsNavigating(true);
+      navigate('/univers', { replace: true });
+    }
   };
+
+  const handleSaveAsDraft = () => {
+    // Progress is already saved by auto-save, just navigate
+    setIsNavigating(true);
+    setShowDraftModal(false);
+    showSuccess('Brouillon sauvegardé. Vous pourrez reprendre plus tard.');
+    setTimeout(() => {
+      navigate('/univers', { replace: true });
+    }, 300);
+  };
+
+  const handleAbandonDraft = () => {
+    // Clear progress and navigate
+    clearProgress();
+    setIsNavigating(true);
+    setShowDraftModal(false);
+    setTimeout(() => {
+      navigate('/univers', { replace: true });
+    }, 300);
+  };
+
+  const handleCloseDraftModal = () => {
+    setShowDraftModal(false);
+  };
+
+  // Check if there's progress saved
+  const saved = loadProgress();
+  const hasProgress = saved && (
+    saved.metadata?.name ||
+    (saved.forms && saved.forms.length > 0) ||
+    (saved.dashboards && saved.dashboards.length > 0) ||
+    (saved.instructions && saved.instructions.length > 0)
+  );
 
   const renderStep = (props: UniversWizardStepProps): React.ReactNode => {
     const { step } = props;
@@ -134,17 +188,26 @@ export const UniversCreatePage: React.FC = () => {
 
   return (
     <>
-      <UniversWizard
-        onComplete={handleComplete}
-        onCancel={handleCancel}
-        renderStep={renderStep}
-      />
+      {!isNavigating && (
+        <UniversWizard
+          onComplete={handleComplete}
+          onCancel={handleCancel}
+          renderStep={renderStep}
+        />
+      )}
       {isCreating && (
         <UniversCreationLoading
           isVisible={isCreating}
           onComplete={handleLoadingComplete}
         />
       )}
+      <DraftSaveModal
+        isOpen={showDraftModal}
+        onClose={handleCloseDraftModal}
+        onSaveAsDraft={handleSaveAsDraft}
+        onAbandon={handleAbandonDraft}
+        hasProgress={hasProgress || false}
+      />
     </>
   );
 };

@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { Calendar, Clock, Repeat, ChevronDown } from 'lucide-react';
 import { Button } from '../Button';
 import { getCameroonTime, createCameroonDateTime, formatCameroonTime, getCameroonTimezoneDisplay } from '../../utils/timezoneUtils';
@@ -21,12 +22,44 @@ export const ScheduledDateTimePicker: React.FC<ScheduledDateTimePickerProps> = (
   const [isOpen, setIsOpen] = useState(false);
   const [localDate, setLocalDate] = useState(scheduledAt.toISOString().split('T')[0]);
   const [localTime, setLocalTime] = useState(scheduledAt.toTimeString().slice(0, 5));
+  const buttonRef = useRef<HTMLDivElement>(null);
+  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0, width: 0 });
 
   // Mettre à jour les valeurs locales quand les props changent
   useEffect(() => {
     setLocalDate(scheduledAt.toISOString().split('T')[0]);
     setLocalTime(scheduledAt.toTimeString().slice(0, 5));
   }, [scheduledAt]);
+
+  // Update dropdown position when it opens
+  useEffect(() => {
+    if (isOpen && buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect();
+      setDropdownPosition({
+        top: rect.bottom + window.scrollY + 4,
+        left: rect.left + window.scrollX,
+        width: rect.width
+      });
+    }
+
+    // Close dropdown when clicking outside
+    const handleClickOutside = (event: MouseEvent) => {
+      if (isOpen && buttonRef.current && !buttonRef.current.contains(event.target as Node)) {
+        // Check if click is not on dropdown items
+        const target = event.target as HTMLElement;
+        if (!target.closest('.frequency-dropdown-portal')) {
+          setIsOpen(false);
+        }
+      }
+    };
+
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+      };
+    }
+  }, [isOpen]);
 
   const handleDateChange = (date: string) => {
     setLocalDate(date);
@@ -142,7 +175,7 @@ export const ScheduledDateTimePicker: React.FC<ScheduledDateTimePickerProps> = (
         <label className="block text-sm font-medium text-gray-700">
           Fréquence
         </label>
-        <div className="relative">
+        <div className="relative" ref={buttonRef}>
           <Button
             variant="secondary"
             onClick={() => setIsOpen(!isOpen)}
@@ -156,24 +189,43 @@ export const ScheduledDateTimePicker: React.FC<ScheduledDateTimePickerProps> = (
             <ChevronDown className={`h-4 w-4 text-gray-500 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
           </Button>
 
-          {isOpen && (
-            <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg">
-              {(['once', 'daily', 'weekly', 'monthly'] as const).map((freq) => (
-                <button
-                  key={freq}
-                  onClick={() => {
-                    onFrequencyChange(freq);
-                    setIsOpen(false);
-                  }}
-                  className={`w-full px-3 py-2 text-left hover:bg-gray-50 first:rounded-t-lg last:rounded-b-lg ${
-                    frequency === freq ? 'bg-blue-50 text-blue-700' : 'text-gray-700'
-                  }`}
-                  disabled={disabled}
-                >
-                  {getFrequencyLabel(freq)}
-                </button>
-              ))}
-            </div>
+          {/* Dropdown rendered via Portal to avoid overflow issues */}
+          {isOpen && typeof window !== 'undefined' && createPortal(
+            <>
+              {/* Backdrop to close dropdown on outside click */}
+              <div 
+                className="fixed inset-0 z-[9998] bg-transparent"
+                onClick={() => setIsOpen(false)}
+              />
+              <div 
+                className="frequency-dropdown-portal fixed z-[9999] bg-white border border-gray-200 rounded-lg shadow-xl"
+                style={{
+                  top: `${dropdownPosition.top}px`,
+                  left: `${dropdownPosition.left}px`,
+                  width: `${dropdownPosition.width}px`,
+                  maxHeight: '12rem',
+                  overflowY: 'auto',
+                  WebkitOverflowScrolling: 'touch'
+                }}
+              >
+                {(['once', 'daily', 'weekly', 'monthly'] as const).map((freq) => (
+                  <button
+                    key={freq}
+                    onClick={() => {
+                      onFrequencyChange(freq);
+                      setIsOpen(false);
+                    }}
+                    className={`w-full px-3 py-2 text-left hover:bg-gray-50 first:rounded-t-lg last:rounded-b-lg transition-colors ${
+                      frequency === freq ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-700'
+                    }`}
+                    disabled={disabled}
+                  >
+                    {getFrequencyLabel(freq)}
+                  </button>
+                ))}
+              </div>
+            </>,
+            document.body
           )}
         </div>
       </div>
