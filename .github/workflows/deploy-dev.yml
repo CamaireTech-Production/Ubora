@@ -68,8 +68,9 @@ jobs:
         VITE_CAMPAY_REDIRECT_URL=
         EOF
         
-    - name: Build application
+    - name: Build main application
       run: |
+        cd apps/main
         npm run build
         
     - name: Create deployment package
@@ -77,8 +78,8 @@ jobs:
         # Create a deployment directory
         mkdir -p deploy-package
         
-        # Copy built files
-        cp -r dist/* deploy-package/
+        # Copy built main app files
+        cp -r apps/main/dist/* deploy-package/
         
         # No static API files needed - using VPS backend
          

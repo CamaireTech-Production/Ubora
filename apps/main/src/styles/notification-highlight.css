@@ -1,0 +1,132 @@
+/**
+ * Notification Highlight Styles
+ * These styles provide visual feedback when users click on notifications
+ */
+
+.notification-highlight {
+  animation: notification-pulse 3s ease-in-out;
+  position: relative;
+}
+
+@keyframes notification-pulse {
+  0% {
+    background-color: rgba(59, 130, 246, 0.1);
+    box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.4);
+    transform: scale(1);
+  }
+  25% {
+    background-color: rgba(59, 130, 246, 0.2);
+    box-shadow: 0 0 0 8px rgba(59, 130, 246, 0.1);
+    transform: scale(1.02);
+  }
+  50% {
+    background-color: rgba(59, 130, 246, 0.15);
+    box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.2);
+    transform: scale(1.01);
+  }
+  75% {
+    background-color: rgba(59, 130, 246, 0.1);
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3);
+    transform: scale(1.005);
+  }
+  100% {
+    background-color: transparent;
+    box-shadow: 0 0 0 0 rgba(59, 130, 246, 0);
+    transform: scale(1);
+  }
+}
+
+/* Form assignment highlighting */
+[data-form-id] {
+  transition: all 0.3s ease;
+}
+
+[data-form-id].notification-highlight {
+  border-left: 4px solid #3b82f6;
+  background-color: rgba(59, 130, 246, 0.05);
+}
+
+/* Form reminder highlighting */
+form.notification-highlight {
+  border: 2px solid #3b82f6;
+  border-radius: 8px;
+  background-color: rgba(59, 130, 246, 0.05);
+}
+
+/* Metric highlighting */
+[data-metric-id] {
+  transition: all 0.3s ease;
+}
+
+[data-metric-id].notification-highlight {
+  border: 2px solid #3b82f6;
+  border-radius: 8px;
+  background-color: rgba(59, 130, 246, 0.05);
+}
+
+/* Instruction highlighting */
+[data-instruction-id] {
+  transition: all 0.3s ease;
+}
+
+[data-instruction-id].notification-highlight {
+  border: 2px solid #3b82f6;
+  border-radius: 8px;
+  background-color: rgba(59, 130, 246, 0.05);
+}
+
+/* Notification click feedback */
+.notification-click-feedback {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  background: #3b82f6;
+  color: white;
+  padding: 12px 20px;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  z-index: 1000;
+  animation: slide-in-right 0.3s ease-out;
+}
+
+@keyframes slide-in-right {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+/* Mobile-specific highlighting */
+@media (max-width: 768px) {
+  .notification-highlight {
+    animation-duration: 2s;
+  }
+  
+  .notification-click-feedback {
+    top: 10px;
+    right: 10px;
+    left: 10px;
+    text-align: center;
+  }
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+  .notification-highlight {
+    background-color: rgba(59, 130, 246, 0.1);
+  }
+  
+  [data-form-id].notification-highlight,
+  [data-metric-id].notification-highlight,
+  [data-instruction-id].notification-highlight {
+    background-color: rgba(59, 130, 246, 0.1);
+  }
+  
+  form.notification-highlight {
+    background-color: rgba(59, 130, 246, 0.1);
+  }
+}

@@ -31,6 +31,106 @@ L'application utilise **OpenAI Vision API** pour l'extraction de texte depuis le
 
 Aucune configuration supplémentaire n'est nécessaire - l'OCR utilise automatiquement votre clé OpenAI lors de l'upload d'images.
 
+## 📦 Structure Monorepo
+
+L'application utilise une architecture monorepo avec deux applications React séparées :
+
+### Structure des dossiers
+
+```
+Ubora/
+├── apps/
+│   ├── main/              # Application principale (utilisateurs)
+│   │   ├── src/
+│   │   ├── package.json
+│   │   └── vite.config.ts
+│   │
+│   └── admin/             # Application d'administration
+│       ├── src/
+│       ├── package.json
+│       └── vite.config.ts
+│
+├── packages/
+│   └── shared/            # Code partagé entre les apps
+│       ├── src/
+│       │   ├── contexts/  # AuthContext, AppContext, etc.
+│       │   ├── services/  # Services Firebase, notifications, etc.
+│       │   ├── utils/     # Utilitaires communs
+│       │   ├── types/     # Types TypeScript partagés
+│       │   ├── config/     # Configuration Firebase, packages
+│       │   └── hooks/     # Hooks React partagés
+│       └── package.json
+│
+├── api/                   # Backend API (Express)
+├── server/                # Serveurs de développement/production
+├── scripts/               # Scripts utilitaires
+└── package.json           # Configuration root avec workspaces
+```
+
+### Avantages de cette structure
+
+- **Séparation claire** : L'admin et l'app principale sont des apps distinctes
+- **Code partagé** : Tous les contexts, services et utilitaires sont dans `packages/shared`
+- **Déploiements indépendants** : Chaque app peut être déployée sur son propre sous-domaine
+- **PWA séparées** : Chaque app a son propre manifest PWA (thème bleu pour main, rouge pour admin)
+
+### Applications
+
+#### 🎨 Application Principale (`apps/main`)
+- **Port** : 5173 (dev) / 4173 (preview)
+- **PWA Theme** : Bleu (#3b82f6)
+- **Routes** : `/login`, `/directeur/*`, `/employe/*`, etc.
+- **Cible** : Directeurs et Employés
+
+#### 🔴 Application Admin (`apps/admin`)
+- **Port** : 5174 (dev) / 4174 (preview)
+- **PWA Theme** : Rouge (#dc2626)
+- **Routes** : `/login`, `/dashboard`, `/users/:userId`
+- **Cible** : Administrateurs uniquement
+
+### Scripts de développement
+
+```bash
+# Démarrer toutes les apps (backend + main + admin)
+npm run dev:full
+
+# Démarrer uniquement l'application principale
+npm run dev:main
+
+# Démarrer uniquement l'application admin
+npm run dev:admin
+
+# Démarrer uniquement le backend
+npm run dev:server
+```
+
+### Scripts de build
+
+```bash
+# Build de l'application principale
+npm run build:main
+
+# Build de l'application admin
+npm run build:admin
+
+# Build des deux apps (dev)
+npm run build:dev
+
+# Build des deux apps (production)
+npm run build:prod
+```
+
+### Déploiement
+
+Chaque application génère son propre dossier de build :
+- **Main App** : `apps/main/dist/` → Déployer sur `my.ubora-app.com`
+- **Admin App** : `apps/admin/dist-admin/` → Déployer sur `admin.ubora-app.com`
+
+Les deux apps partagent :
+- ✅ Le même backend API (`api/` et `server/`)
+- ✅ Les mêmes configurations Firebase
+- ✅ Les mêmes données Firestore
+
 ## 🛠️ Configuration Firebase
 
 ### 🔑 Variables d'environnement requises
