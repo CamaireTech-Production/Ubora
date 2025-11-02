@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { createPortal } from 'react-dom';
 import { Calendar, Clock, Repeat, ChevronDown } from 'lucide-react';
 import { Button } from '../Button';
 import { getCameroonTime, createCameroonDateTime, formatCameroonTime, getCameroonTimezoneDisplay } from '@ubora/shared/utils/timezoneUtils';
@@ -23,7 +22,7 @@ export const ScheduledDateTimePicker: React.FC<ScheduledDateTimePickerProps> = (
   const [localDate, setLocalDate] = useState(scheduledAt.toISOString().split('T')[0]);
   const [localTime, setLocalTime] = useState(scheduledAt.toTimeString().slice(0, 5));
   const buttonRef = useRef<HTMLDivElement>(null);
-  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0, width: 0 });
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Mettre à jour les valeurs locales quand les props changent
   useEffect(() => {
@@ -31,34 +30,27 @@ export const ScheduledDateTimePicker: React.FC<ScheduledDateTimePickerProps> = (
     setLocalTime(scheduledAt.toTimeString().slice(0, 5));
   }, [scheduledAt]);
 
-  // Update dropdown position when it opens
+  // Close dropdown when clicking outside
   useEffect(() => {
-    if (isOpen && buttonRef.current) {
-      const rect = buttonRef.current.getBoundingClientRect();
-      setDropdownPosition({
-        top: rect.bottom + window.scrollY + 4,
-        left: rect.left + window.scrollX,
-        width: rect.width
-      });
-    }
+    if (!isOpen) return;
 
-    // Close dropdown when clicking outside
-    const handleClickOutside = (event: MouseEvent) => {
-      if (isOpen && buttonRef.current && !buttonRef.current.contains(event.target as Node)) {
-        // Check if click is not on dropdown items
+    const handleClickOutside = (event: MouseEvent | TouchEvent) => {
+      if (buttonRef.current && dropdownRef.current) {
         const target = event.target as HTMLElement;
-        if (!target.closest('.frequency-dropdown-portal')) {
+        if (!buttonRef.current.contains(target) && !dropdownRef.current.contains(target)) {
           setIsOpen(false);
         }
       }
     };
 
-    if (isOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-      return () => {
-        document.removeEventListener('mousedown', handleClickOutside);
-      };
-    }
+    // Use both mouse and touch events for better mobile support
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('touchstart', handleClickOutside);
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+    };
   }, [isOpen]);
 
   const handleDateChange = (date: string) => {
@@ -189,20 +181,21 @@ export const ScheduledDateTimePicker: React.FC<ScheduledDateTimePickerProps> = (
             <ChevronDown className={`h-4 w-4 text-gray-500 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
           </Button>
 
-          {/* Dropdown rendered via Portal to avoid overflow issues */}
-          {isOpen && typeof window !== 'undefined' && createPortal(
+          {/* Dropdown - positioned directly below the button */}
+          {isOpen && (
             <>
               {/* Backdrop to close dropdown on outside click */}
               <div 
                 className="fixed inset-0 z-[9998] bg-transparent"
                 onClick={() => setIsOpen(false)}
+                onTouchStart={() => setIsOpen(false)}
               />
               <div 
-                className="frequency-dropdown-portal fixed z-[9999] bg-white border border-gray-200 rounded-lg shadow-xl"
+                ref={dropdownRef}
+                className="frequency-dropdown absolute z-[50] bg-white border border-gray-200 rounded-lg shadow-xl mt-1 w-full"
                 style={{
-                  top: `${dropdownPosition.top}px`,
-                  left: `${dropdownPosition.left}px`,
-                  width: `${dropdownPosition.width}px`,
+                  top: '100%',
+                  left: 0,
                   maxHeight: '12rem',
                   overflowY: 'auto',
                   WebkitOverflowScrolling: 'touch'
@@ -215,7 +208,12 @@ export const ScheduledDateTimePicker: React.FC<ScheduledDateTimePickerProps> = (
                       onFrequencyChange(freq);
                       setIsOpen(false);
                     }}
-                    className={`w-full px-3 py-2 text-left hover:bg-gray-50 first:rounded-t-lg last:rounded-b-lg transition-colors ${
+                    onTouchEnd={(e) => {
+                      e.preventDefault();
+                      onFrequencyChange(freq);
+                      setIsOpen(false);
+                    }}
+                    className={`w-full px-3 py-2 text-left hover:bg-gray-50 active:bg-gray-100 first:rounded-t-lg last:rounded-b-lg transition-colors touch-manipulation ${
                       frequency === freq ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-700'
                     }`}
                     disabled={disabled}
@@ -224,8 +222,7 @@ export const ScheduledDateTimePicker: React.FC<ScheduledDateTimePickerProps> = (
                   </button>
                 ))}
               </div>
-            </>,
-            document.body
+            </>
           )}
         </div>
       </div>

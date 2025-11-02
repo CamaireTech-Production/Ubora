@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Report, ReportPlaceholder, ReportMapping, Form, Dashboard } from '../types';
 import { Button } from './Button';
 import { Input } from './Input';
@@ -13,6 +13,8 @@ import { useToast } from '@ubora/shared/hooks/useToast';
 import { reportService } from '../services/reportService';
 import { PDFTextExtractionService } from '@ubora/shared/services/pdfTextExtractionService';
 import { FileUploadService } from '@ubora/shared/services/fileUploadService';
+import ReactQuill from 'react-quill';
+import 'react-quill/dist/quill.snow.css';
 
 interface ReportBuilderProps {
   onSave: (report: {
@@ -80,16 +82,55 @@ export const ReportBuilder: React.FC<ReportBuilderProps> = ({
   const [selectedPlaceholder, setSelectedPlaceholder] = useState<string | null>(null);
   const [showMappingModal, setShowMappingModal] = useState(false);
 
+  // Helper function to extract plain text from HTML for placeholder detection
+  const extractTextFromHTML = (html: string): string => {
+    if (!html) return '';
+    // Create a temporary div to parse HTML
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = html;
+    return tempDiv.textContent || tempDiv.innerText || '';
+  };
+
   // Extract placeholders when template content changes
   useEffect(() => {
     if (templateType === 'text' && templateContent) {
-      const extracted = reportService.extractPlaceholdersFromTemplate(templateContent);
+      // Extract text from HTML to find placeholders
+      const plainText = extractTextFromHTML(templateContent);
+      const extracted = reportService.extractPlaceholdersFromTemplate(plainText);
       setPlaceholders(extracted);
     } else if (templateType === 'pdf' && extractedText) {
       const extracted = reportService.extractPlaceholdersFromTemplate(extractedText);
       setPlaceholders(extracted);
     }
   }, [templateContent, extractedText, templateType]);
+
+  // ReactQuill modules configuration
+  const quillModules = useMemo(() => ({
+    toolbar: [
+      [{ 'header': [1, 2, 3, 4, 5, 6, false] }],
+      [{ 'font': [] }],
+      [{ 'size': [] }],
+      ['bold', 'italic', 'underline', 'strike'],
+      [{ 'color': [] }, { 'background': [] }],
+      [{ 'script': 'sub' }, { 'script': 'super' }],
+      [{ 'list': 'ordered' }, { 'list': 'bullet' }, { 'indent': '-1' }, { 'indent': '+1' }],
+      [{ 'align': [] }],
+      ['blockquote', 'code-block'],
+      ['link', 'image'],
+      ['clean']
+    ]
+  }), []);
+
+  const quillFormats = [
+    'header', 'font', 'size',
+    'bold', 'italic', 'underline', 'strike',
+    'color', 'background',
+    'script',
+    'list', 'bullet', 'indent',
+    'align',
+    'blockquote', 'code-block',
+    'link', 'image'
+  ];
 
   // Handle file upload for PDF/Word
   const handleFileUpload = async (file: File | null) => {
@@ -218,8 +259,12 @@ export const ReportBuilder: React.FC<ReportBuilderProps> = ({
       newErrors.push('Le nom du rapport est requis');
     }
 
-    if (templateType === 'text' && !templateContent.trim()) {
-      newErrors.push('Le contenu du template est requis pour les templates texte');
+    if (templateType === 'text') {
+      // Check if content is empty (after stripping HTML tags)
+      const plainText = extractTextFromHTML(templateContent);
+      if (!plainText.trim()) {
+        newErrors.push('Le contenu du template est requis pour les templates texte');
+      }
     }
 
     if ((templateType === 'pdf' || templateType === 'word') && !templateFileUrl) {
@@ -337,10 +382,14 @@ export const ReportBuilder: React.FC<ReportBuilderProps> = ({
               // Clear file/content when switching types
               if (newType !== 'text') {
                 setTemplateContent('');
+                setPlaceholders([]);
+                setMappings([]);
               }
               if (newType === 'text') {
                 setTemplateFile(null);
                 setTemplateFileUrl('');
+                setTemplateFileStoragePath('');
+                setTemplateFileName('');
                 setExtractedText('');
               }
             }}
@@ -357,17 +406,73 @@ export const ReportBuilder: React.FC<ReportBuilderProps> = ({
       <Card title={templateType === 'text' ? 'Contenu du template' : 'Fichier template'}>
         {templateType === 'text' ? (
           <div className="space-y-4">
-            <Textarea
-              label="Contenu du template *"
-              value={templateContent}
-              onChange={(e) => setTemplateContent(e.target.value)}
-              placeholder='Utilisez {{placeholder}} pour marquer les emplacements à remplir. Ex: "Le total des ventes est {{totalVentes}}"'
-              rows={10}
-              error={errors.includes('Le contenu du template est requis pour les templates texte') ? 'Ce champ est requis' : undefined}
-            />
+            <div className="w-full">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Contenu du template *
+              </label>
+              <div className="border border-gray-300 rounded-lg overflow-hidden focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500">
+                <ReactQuill
+                  theme="snow"
+                  value={templateContent}
+                  onChange={setTemplateContent}
+                  modules={quillModules}
+                  formats={quillFormats}
+                  placeholder='Utilisez {{placeholder}} pour marquer les emplacements à remplir. Ex: "Le total des ventes est {{totalVentes}}"'
+                  className="report-template-editor"
+                  style={{
+                    minHeight: '300px'
+                  }}
+                />
+              </div>
+              {errors.includes('Le contenu du template est requis pour les templates texte') && (
+                <p className="mt-1 text-sm text-red-600">Ce champ est requis</p>
+              )}
+              <style>{`
+                .report-template-editor .ql-container {
+                  min-height: 300px;
+                  font-size: 14px;
+                  font-family: inherit;
+                }
+                .report-template-editor .ql-editor {
+                  min-height: 300px;
+                }
+                .report-template-editor .ql-editor.ql-blank::before {
+                  color: #9ca3af;
+                  font-style: normal;
+                }
+                .report-template-editor .ql-toolbar {
+                  border-top-left-radius: 0.5rem;
+                  border-top-right-radius: 0.5rem;
+                  background: #f9fafb;
+                  border-bottom: 1px solid #e5e7eb;
+                }
+                .report-template-editor .ql-container {
+                  border-bottom-left-radius: 0.5rem;
+                  border-bottom-right-radius: 0.5rem;
+                }
+                /* Mobile responsive toolbar */
+                @media (max-width: 768px) {
+                  .report-template-editor .ql-toolbar {
+                    padding: 8px;
+                  }
+                  .report-template-editor .ql-toolbar .ql-formats {
+                    margin-right: 4px;
+                  }
+                  .report-template-editor .ql-toolbar button,
+                  .report-template-editor .ql-toolbar .ql-picker-label {
+                    padding: 4px;
+                  }
+                }
+                /* Highlight placeholders in editor */
+                .report-template-editor .ql-editor {
+                  color: #1f2937;
+                }
+              `}</style>
+            </div>
             <div className="text-sm text-gray-600 bg-blue-50 p-3 rounded-lg">
               <p className="font-medium mb-1">💡 Astuce:</p>
               <p>Utilisez la syntaxe <code className="bg-white px-1 rounded">{'{{nomDuPlaceholder}}'}</code> pour marquer les emplacements à remplir dans votre template.</p>
+              <p className="mt-2 text-xs">Vous pouvez formater votre texte avec les options de la barre d'outils : gras, italique, titres, couleurs, etc.</p>
             </div>
           </div>
         ) : (
