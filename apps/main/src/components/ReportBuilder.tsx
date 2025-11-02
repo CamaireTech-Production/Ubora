@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { Report, ReportPlaceholder, ReportMapping, Dashboard } from '../types';
+import { Report, ReportPlaceholder, ReportMapping, Dashboard, StaticValueType } from '../types';
 import { Button } from './Button';
 import { Input } from './Input';
 import { Textarea } from './Textarea';
@@ -261,15 +261,17 @@ export const ReportBuilder: React.FC<ReportBuilderProps> = ({
   const handleSave = () => {
     const newErrors: string[] = [];
 
+    // Validate required name
     if (!name.trim()) {
       newErrors.push('Le nom du rapport est requis');
     }
 
+    // Validate template content based on type
     if (templateType === 'text') {
       // Check if content is empty (after stripping HTML tags)
       const plainText = extractTextFromHTML(templateContent);
       if (!plainText.trim()) {
-      newErrors.push('Le contenu du template est requis pour les templates texte');
+        newErrors.push('Le contenu du template est requis pour les templates texte');
       }
     }
 
@@ -277,10 +279,26 @@ export const ReportBuilder: React.FC<ReportBuilderProps> = ({
       newErrors.push('Le fichier template est requis pour les templates PDF/Word');
     }
 
-    if (errors.length > 0) {
+    // Validate that all placeholders are mapped
+    if (placeholders.length > 0) {
+      const unmappedPlaceholders = placeholders.filter(
+        p => !mappings.some(m => m.placeholderId === p.id)
+      );
+      
+      if (unmappedPlaceholders.length > 0) {
+        newErrors.push(`Tous les placeholders doivent être mappés. ${unmappedPlaceholders.length} placeholder(s) non mappé(s).`);
+      }
+    }
+
+    // If there are errors, set them and return without saving
+    if (newErrors.length > 0) {
       setErrors(newErrors);
+      showError(newErrors.join(', '));
       return;
     }
+
+    // Clear errors if validation passes
+    setErrors([]);
 
     // Prepare report data
     const reportData = {
@@ -302,8 +320,29 @@ export const ReportBuilder: React.FC<ReportBuilderProps> = ({
     const mapping = mappings.find(m => m.placeholderId === placeholderId);
     if (!mapping) return 'Non mappé';
 
+    if (mapping.sourceType === 'static') {
+      const staticLabels: Record<string, string> = {
+        'agency_name': 'Nom de l\'agence',
+        'agency_id': 'ID de l\'agence',
+        'user_email': 'Email de l\'utilisateur',
+        'user_name': 'Nom de l\'utilisateur',
+        'user_id': 'ID de l\'utilisateur',
+        'current_date': 'Date actuelle',
+        'current_time': 'Heure actuelle',
+        'current_datetime': 'Date et heure actuelles',
+        'report_generation_date': 'Date de génération',
+        'report_generation_time': 'Heure de génération'
+      };
+      return staticLabels[mapping.staticValueType || ''] || 'Valeur statique';
+    }
+
+    // Dashboard mapping
+    if (!mapping.sourceId) return 'Dashboard non spécifié';
+    
     const dashboard = dashboards.find(d => d.id === mapping.sourceId);
     if (!dashboard) return 'Dashboard non trouvé';
+
+    if (!mapping.metricId) return `${dashboard.name} - Métrique non spécifiée`;
 
     const metric = dashboard.metrics.find(m => m.id === mapping.metricId);
     if (!metric) return `${dashboard.name} - Métrique non trouvée`;
@@ -314,20 +353,6 @@ export const ReportBuilder: React.FC<ReportBuilderProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center space-x-4">
-        <Button
-          variant="secondary"
-          onClick={onCancel}
-          className="flex items-center space-x-2"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          <span>Annuler</span>
-        </Button>
-        <h2 className="text-2xl font-bold text-gray-900">
-          {initialReport ? 'Modifier le rapport' : 'Créer un rapport'}
-        </h2>
-      </div>
 
       {/* Errors */}
       {errors.length > 0 && (
@@ -600,7 +625,13 @@ export const ReportBuilder: React.FC<ReportBuilderProps> = ({
         <Button
           variant="primary"
           onClick={handleSave}
-          disabled={isLoading}
+          disabled={
+            isLoading ||
+            !name.trim() ||
+            (templateType === 'text' && !extractTextFromHTML(templateContent).trim()) ||
+            ((templateType === 'pdf' || templateType === 'word') && !templateFileUrl) ||
+            (placeholders.length > 0 && placeholders.some(p => !mappings.some(m => m.placeholderId === p.id)))
+          }
           className="flex items-center space-x-2"
         >
           {isLoading ? (
@@ -636,7 +667,12 @@ const PlaceholderMappingModal: React.FC<PlaceholderMappingModalProps> = ({
   onSave,
   onCancel
 }) => {
-  // Handle both new (metricId) and old (fieldId) mapping structures for backward compatibility
+  // Source type: dashboard or static
+  const [sourceType, setSourceType] = useState<'dashboard' | 'static'>(
+    existingMapping?.sourceType || 'dashboard'
+  );
+  
+  // Dashboard-related state
   const [dashboardId, setDashboardId] = useState(existingMapping?.sourceId || '');
   const [metricId, setMetricId] = useState(() => {
     const existingMetricId = existingMapping?.metricId || (existingMapping as any)?.fieldId;
@@ -651,6 +687,12 @@ const PlaceholderMappingModal: React.FC<PlaceholderMappingModalProps> = ({
     }
     return '';
   });
+  
+  // Static value state
+  const [staticValueType, setStaticValueType] = useState<StaticValueType | ''>(
+    existingMapping?.staticValueType || ''
+  );
+  
   const [defaultValue, setDefaultValue] = useState(existingMapping?.defaultValue || '');
 
   // Debug: Log dashboards on mount
@@ -663,7 +705,7 @@ const PlaceholderMappingModal: React.FC<PlaceholderMappingModalProps> = ({
     console.log('Initial dashboardId:', dashboardId);
   }, []);
 
-  const selectedDashboard = dashboards.find(d => d.id === dashboardId);
+  const selectedDashboard = sourceType === 'dashboard' ? dashboards.find(d => d.id === dashboardId) : null;
   const selectedMetric = selectedDashboard?.metrics?.find(m => m.id === metricId);
   
   // Debug: Log selected dashboard and metrics
@@ -696,62 +738,96 @@ const PlaceholderMappingModal: React.FC<PlaceholderMappingModalProps> = ({
     }
   };
 
-  const handleSave = () => {
-    if (!dashboardId || !metricId) {
-      console.warn('Cannot save: missing dashboardId or metricId', { dashboardId, metricId });
-      return;
-    }
+  // Get static value label
+  const getStaticValueLabel = (type: StaticValueType): string => {
+    const labels: Record<StaticValueType, string> = {
+      'agency_name': 'Nom de l\'agence',
+      'agency_id': 'ID de l\'agence',
+      'user_email': 'Email de l\'utilisateur',
+      'user_name': 'Nom de l\'utilisateur',
+      'user_id': 'ID de l\'utilisateur',
+      'current_date': 'Date actuelle',
+      'current_time': 'Heure actuelle',
+      'current_datetime': 'Date et heure actuelles',
+      'report_generation_date': 'Date de génération du rapport',
+      'report_generation_time': 'Heure de génération du rapport'
+    };
+    return labels[type];
+  };
 
-    // Validate that metricId is a valid ID (not display text)
-    const metric = selectedDashboard?.metrics?.find(m => m.id === metricId);
-    if (!metric) {
-      console.error('Metric not found:', { 
-        metricId, 
-        dashboardId, 
-        availableMetrics: selectedDashboard?.metrics,
-        metricIds: selectedDashboard?.metrics?.map(m => m.id),
-        metricNames: selectedDashboard?.metrics?.map(m => `${m.name} (${getMetricTypeLabel(m.metricType || 'value')})`)
-      });
-      
-      // Try to find by name if somehow the label was selected
-      const metricByName = selectedDashboard?.metrics?.find(m => 
-        `${m.name} (${getMetricTypeLabel(m.metricType || 'value')})` === metricId
-      );
-      
-      if (metricByName) {
-        console.warn('Found metric by name, using its ID instead:', metricByName.id);
-        setMetricId(metricByName.id);
-        // Retry save with correct ID
-        setTimeout(() => {
-          const correctedMetric = selectedDashboard?.metrics?.find(m => m.id === metricByName.id);
-          if (correctedMetric) {
-            const mapping: ReportMapping = {
-              placeholderId: placeholder.id,
-              sourceType: 'dashboard',
-              sourceId: dashboardId,
-              metricId: correctedMetric.id,
-              metricType: (correctedMetric.metricType === 'graph' ? 'graph' : correctedMetric.metricType === 'table' ? 'table' : 'value'),
-              defaultValue: defaultValue || undefined
-            };
-            onSave(mapping);
-          }
-        }, 0);
+  const handleSave = () => {
+    if (sourceType === 'dashboard') {
+      if (!dashboardId || !metricId) {
+        console.warn('Cannot save: missing dashboardId or metricId', { dashboardId, metricId });
         return;
       }
-      
-      return;
+
+      // Validate that metricId is a valid ID (not display text)
+      const metric = selectedDashboard?.metrics?.find(m => m.id === metricId);
+      if (!metric) {
+        console.error('Metric not found:', { 
+          metricId, 
+          dashboardId, 
+          availableMetrics: selectedDashboard?.metrics,
+          metricIds: selectedDashboard?.metrics?.map(m => m.id),
+          metricNames: selectedDashboard?.metrics?.map(m => `${m.name} (${getMetricTypeLabel(m.metricType || 'value')})`)
+        });
+        
+        // Try to find by name if somehow the label was selected
+        const metricByName = selectedDashboard?.metrics?.find(m => 
+          `${m.name} (${getMetricTypeLabel(m.metricType || 'value')})` === metricId
+        );
+        
+        if (metricByName) {
+          console.warn('Found metric by name, using its ID instead:', metricByName.id);
+          setMetricId(metricByName.id);
+          // Retry save with correct ID
+          setTimeout(() => {
+            const correctedMetric = selectedDashboard?.metrics?.find(m => m.id === metricByName.id);
+            if (correctedMetric) {
+              const mapping: ReportMapping = {
+                placeholderId: placeholder.id,
+                sourceType: 'dashboard',
+                sourceId: dashboardId,
+                metricId: correctedMetric.id,
+                metricType: (correctedMetric.metricType === 'graph' ? 'graph' : correctedMetric.metricType === 'table' ? 'table' : 'value'),
+                defaultValue: defaultValue || undefined
+              };
+              onSave(mapping);
+            }
+          }, 0);
+          return;
+        }
+        
+        return;
+      }
+
+      const mapping: ReportMapping = {
+        placeholderId: placeholder.id,
+        sourceType: 'dashboard',
+        sourceId: dashboardId,
+        metricId: metricId,
+        metricType: (metric.metricType === 'graph' ? 'graph' : metric.metricType === 'table' ? 'table' : 'value'),
+        defaultValue: defaultValue || undefined
+      };
+
+      onSave(mapping);
+    } else {
+      // Static value mapping
+      if (!staticValueType) {
+        console.warn('Cannot save: missing staticValueType', { staticValueType });
+        return;
+      }
+
+      const mapping: ReportMapping = {
+        placeholderId: placeholder.id,
+        sourceType: 'static',
+        staticValueType: staticValueType,
+        defaultValue: defaultValue || undefined
+      };
+
+      onSave(mapping);
     }
-
-    const mapping: ReportMapping = {
-      placeholderId: placeholder.id,
-      sourceType: 'dashboard',
-      sourceId: dashboardId,
-      metricId: metricId,
-      metricType: (metric.metricType === 'graph' ? 'graph' : metric.metricType === 'table' ? 'table' : 'value'),
-      defaultValue: defaultValue || undefined
-    };
-
-    onSave(mapping);
   };
 
   const modalContent = (
@@ -780,129 +856,204 @@ const PlaceholderMappingModal: React.FC<PlaceholderMappingModalProps> = ({
           </div>
 
           <div className="space-y-4">
+            {/* Source Type Selection */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Tableau de bord *
+                Type de source *
               </label>
-              <select
-                value={dashboardId}
-                onChange={(e) => {
-                  const newDashboardId = e.target.value;
-                  console.log('Dashboard selection changed:', newDashboardId);
-                  console.log('Previous dashboardId:', dashboardId);
-                  setDashboardId(newDashboardId);
-                  setMetricId(''); // Reset metric when dashboard changes
-                }}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              >
-                <option value="">Sélectionner un tableau de bord...</option>
-                {dashboards.map(d => (
-                  <option key={d.id} value={d.id}>
-                    {d.name}
-                  </option>
-                ))}
-              </select>
-              {dashboardId && (
-                <p className="text-xs text-gray-500 mt-1">Dashboard ID: {dashboardId}</p>
-              )}
+              <div className="flex space-x-4">
+                <label className="flex items-center space-x-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="sourceType"
+                    value="dashboard"
+                    checked={sourceType === 'dashboard'}
+                    onChange={(e) => {
+                      setSourceType('dashboard');
+                      setStaticValueType(''); // Reset static value
+                    }}
+                    className="text-blue-600 focus:ring-blue-500"
+                  />
+                  <span className="text-sm text-gray-700">Tableau de bord</span>
+                </label>
+                <label className="flex items-center space-x-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="sourceType"
+                    value="static"
+                    checked={sourceType === 'static'}
+                    onChange={(e) => {
+                      setSourceType('static');
+                      setDashboardId(''); // Reset dashboard
+                      setMetricId(''); // Reset metric
+                    }}
+                    className="text-blue-600 focus:ring-blue-500"
+                  />
+                  <span className="text-sm text-gray-700">Valeur statique</span>
+                </label>
+              </div>
             </div>
 
-            {dashboardId ? (
-              <>
-                {selectedDashboard ? (
-                  <>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Métrique *
-                      </label>
-                      <select
-                        value={metricId}
-                        onChange={(e) => {
-                          const selectedValue = e.target.value;
-                          console.log('Metric selection changed:', {
-                            selectedValue,
-                            allMetricIds: selectedDashboard.metrics?.map(m => ({ id: m.id, name: m.name })),
-                            currentMetricId: metricId
-                          });
-                          
-                          // The select value should always be the metric ID
-                          // Just set it directly - HTML select guarantees the value attribute is used
-                          setMetricId(selectedValue);
-                        }}
-                        disabled={!selectedDashboard.metrics || selectedDashboard.metrics.length === 0}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
-                      >
-                        <option value="">Sélectionner une métrique...</option>
-                        {selectedDashboard.metrics && selectedDashboard.metrics.length > 0 && selectedDashboard.metrics.map(m => {
-                          const displayLabel = `${m.name} (${getMetricTypeLabel(m.metricType || 'value')})`;
-                          return (
-                            <option key={m.id} value={m.id}>
-                              {displayLabel}
-                            </option>
-                          );
-                        })}
-                      </select>
-                      {metricId && (
-                        <p className="text-xs text-blue-500 mt-1">
-                          Metric ID sélectionné: {metricId}
-                        </p>
-                      )}
-                      {selectedDashboard.metrics && selectedDashboard.metrics.length > 0 && (
-                        <p className="text-xs text-gray-500 mt-1">
-                          {selectedDashboard.metrics.length} métrique(s) disponible(s)
-                        </p>
-                      )}
-                    </div>
-
-                    {(!selectedDashboard.metrics || selectedDashboard.metrics.length === 0) && (
-                      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
-                        <p className="text-sm text-yellow-800">
-                          ⚠️ Ce tableau de bord n'a aucune métrique. Veuillez créer des métriques dans le tableau de bord avant de le mapper.
-                        </p>
-                        <p className="text-xs text-yellow-700 mt-2">
-                          Dashboard: {selectedDashboard.name} | Metrics: {selectedDashboard.metrics?.length || 0}
-                        </p>
-                      </div>
-                    )}
-
-                    {selectedMetric && (
-                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                        <p className="text-sm text-blue-800">
-                          <strong>Type:</strong> {getMetricTypeLabel(selectedMetric.metricType || 'value')}
-                          {selectedMetric.metricType === 'graph' && ' - Le graphique sera inséré tel quel'}
-                          {selectedMetric.metricType === 'value' && ' - La valeur calculée sera insérée'}
-                          {selectedMetric.metricType === 'table' && ' - Le tableau sera inséré tel quel'}
-                        </p>
-                      </div>
-                    )}
-
-                    <Input
-                      label="Valeur par défaut (optionnel)"
-                      value={defaultValue}
-                      onChange={(e) => setDefaultValue(e.target.value)}
-                      placeholder="Valeur à utiliser si aucune donnée n'est disponible"
-                    />
-                  </>
-                ) : (
-                  <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-                    <p className="text-sm text-red-800">
-                      ⚠️ Dashboard non trouvé avec l'ID: {dashboardId}
-                    </p>
-                    <p className="text-xs text-red-700 mt-2">
-                      Dashboards disponibles: {dashboards.map(d => d.id).join(', ')}
-                    </p>
-                  </div>
-                )}
-              </>
-            ) : (
-              dashboards.length > 0 && (
-                <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
-                  <p className="text-sm text-gray-600">
-                    Veuillez sélectionner un tableau de bord pour afficher les métriques disponibles.
-                  </p>
+            {sourceType === 'dashboard' ? (
+              <React.Fragment>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Tableau de bord *
+                  </label>
+                  <select
+                    value={dashboardId}
+                    onChange={(e) => {
+                      const newDashboardId = e.target.value;
+                      console.log('Dashboard selection changed:', newDashboardId);
+                      console.log('Previous dashboardId:', dashboardId);
+                      setDashboardId(newDashboardId);
+                      setMetricId(''); // Reset metric when dashboard changes
+                    }}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="">Sélectionner un tableau de bord...</option>
+                    {dashboards.map(d => (
+                      <option key={d.id} value={d.id}>
+                        {d.name}
+                      </option>
+                    ))}
+                  </select>
+                  {dashboardId && (
+                    <p className="text-xs text-gray-500 mt-1">Dashboard ID: {dashboardId}</p>
+                  )}
                 </div>
-              )
+
+                {dashboardId ? (
+                  <React.Fragment>
+                    {selectedDashboard ? (
+                      <React.Fragment>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Métrique *
+                          </label>
+                          <select
+                            value={metricId}
+                            onChange={(e) => {
+                              const selectedValue = e.target.value;
+                              console.log('Metric selection changed:', {
+                                selectedValue,
+                                allMetricIds: selectedDashboard.metrics?.map(m => ({ id: m.id, name: m.name })),
+                                currentMetricId: metricId
+                              });
+                              
+                              // The select value should always be the metric ID
+                              // Just set it directly - HTML select guarantees the value attribute is used
+                              setMetricId(selectedValue);
+                            }}
+                            disabled={!selectedDashboard.metrics || selectedDashboard.metrics.length === 0}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                          >
+                            <option value="">Sélectionner une métrique...</option>
+                            {selectedDashboard.metrics && selectedDashboard.metrics.length > 0 && selectedDashboard.metrics.map(m => {
+                              const displayLabel = `${m.name} (${getMetricTypeLabel(m.metricType || 'value')})`;
+                              return (
+                                <option key={m.id} value={m.id}>
+                                  {displayLabel}
+                                </option>
+                              );
+                            })}
+                          </select>
+                          {metricId && (
+                            <p className="text-xs text-blue-500 mt-1">
+                              Metric ID sélectionné: {metricId}
+                            </p>
+                          )}
+                          {selectedDashboard.metrics && selectedDashboard.metrics.length > 0 && (
+                            <p className="text-xs text-gray-500 mt-1">
+                              {selectedDashboard.metrics.length} métrique(s) disponible(s)
+                            </p>
+                          )}
+                        </div>
+
+                        {(!selectedDashboard.metrics || selectedDashboard.metrics.length === 0) && (
+                          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                            <p className="text-sm text-yellow-800">
+                              ⚠️ Ce tableau de bord n'a aucune métrique. Veuillez créer des métriques dans le tableau de bord avant de le mapper.
+                            </p>
+                            <p className="text-xs text-yellow-700 mt-2">
+                              Dashboard: {selectedDashboard.name} | Metrics: {selectedDashboard.metrics?.length || 0}
+                            </p>
+                          </div>
+                        )}
+
+                        {selectedMetric && (
+                          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                            <p className="text-sm text-blue-800">
+                              <strong>Type:</strong> {getMetricTypeLabel(selectedMetric.metricType || 'value')}
+                              {selectedMetric.metricType === 'graph' && ' - Le graphique sera inséré tel quel'}
+                              {selectedMetric.metricType === 'value' && ' - La valeur calculée sera insérée'}
+                              {selectedMetric.metricType === 'table' && ' - Le tableau sera inséré tel quel'}
+                            </p>
+                          </div>
+                        )}
+                      </React.Fragment>
+                    ) : (
+                      <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                        <p className="text-sm text-red-800">
+                          ⚠️ Dashboard non trouvé avec l'ID: {dashboardId}
+                        </p>
+                        <p className="text-xs text-red-700 mt-2">
+                          Dashboards disponibles: {dashboards.map(d => d.id).join(', ')}
+                        </p>
+                      </div>
+                    )}
+                  </React.Fragment>
+                ) : (
+                  dashboards.length > 0 && (
+                    <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                      <p className="text-sm text-gray-600">
+                        Veuillez sélectionner un tableau de bord pour afficher les métriques disponibles.
+                      </p>
+                    </div>
+                  )
+                )}
+              </React.Fragment>
+            ) : (
+              <React.Fragment>
+                {/* Static Value Selection */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Valeur statique *
+                  </label>
+                  <select
+                    value={staticValueType}
+                    onChange={(e) => {
+                      setStaticValueType(e.target.value as StaticValueType);
+                    }}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="">Sélectionner une valeur statique...</option>
+                    <option value="agency_name">Nom de l'agence</option>
+                    <option value="agency_id">ID de l'agence</option>
+                    <option value="user_email">Email de l'utilisateur</option>
+                    <option value="user_name">Nom de l'utilisateur</option>
+                    <option value="user_id">ID de l'utilisateur</option>
+                    <option value="current_date">Date actuelle</option>
+                    <option value="current_time">Heure actuelle</option>
+                    <option value="current_datetime">Date et heure actuelles</option>
+                    <option value="report_generation_date">Date de génération du rapport</option>
+                    <option value="report_generation_time">Heure de génération du rapport</option>
+                  </select>
+                  {staticValueType && (
+                    <p className="text-xs text-blue-500 mt-1">
+                      Valeur: {getStaticValueLabel(staticValueType)}
+                    </p>
+                  )}
+                </div>
+              </React.Fragment>
             )}
+
+            <Input
+              label="Valeur par défaut (optionnel)"
+              value={defaultValue}
+              onChange={(e) => setDefaultValue(e.target.value)}
+              placeholder="Valeur à utiliser si aucune donnée n'est disponible"
+            />
           </div>
 
           <div className="flex items-center justify-end space-x-4 pt-4 border-t">
@@ -912,7 +1063,11 @@ const PlaceholderMappingModal: React.FC<PlaceholderMappingModalProps> = ({
             <Button
               variant="primary"
               onClick={handleSave}
-              disabled={!dashboardId || !metricId}
+              disabled={
+                sourceType === 'dashboard' 
+                  ? (!dashboardId || !metricId)
+                  : !staticValueType
+              }
             >
               Enregistrer le mapping
             </Button>

@@ -764,12 +764,25 @@ export interface ReportPlaceholder {
   description?: string; // Description de ce que représente le placeholder
 }
 
+export type StaticValueType = 
+  | 'agency_name'
+  | 'agency_id'
+  | 'user_email'
+  | 'user_name'
+  | 'user_id'
+  | 'current_date'
+  | 'current_time'
+  | 'current_datetime'
+  | 'report_generation_date'
+  | 'report_generation_time';
+
 export interface ReportMapping {
   placeholderId: string; // ID du placeholder
-  sourceType: 'dashboard'; // Only dashboards are supported
-  sourceId: string; // ID du dashboard
-  metricId: string; // ID de la métrique (required)
-  metricType: 'value' | 'graph' | 'table'; // Type de métrique pour le rendu
+  sourceType: 'dashboard' | 'static'; // Dashboard metrics or static system values
+  sourceId?: string; // ID du dashboard (only if sourceType is 'dashboard')
+  metricId?: string; // ID de la métrique (only if sourceType is 'dashboard')
+  metricType?: 'value' | 'graph' | 'table'; // Type de métrique pour le rendu (only if sourceType is 'dashboard')
+  staticValueType?: StaticValueType; // Type de valeur statique (only if sourceType is 'static')
   defaultValue?: string; // Valeur par défaut si pas de données
 }
 
