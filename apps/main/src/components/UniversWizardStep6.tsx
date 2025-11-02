@@ -230,6 +230,7 @@ export const UniversWizardStep6: React.FC<UniversWizardStepProps> = ({
           onSave={handleSaveReport}
           onCancel={handleCancelReport}
           isLoading={false}
+          dashboards={universDashboards}
         />
       </div>
     );

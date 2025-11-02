@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Report, ReportPlaceholder, ReportMapping, Form, Dashboard } from '../types';
+import { createPortal } from 'react-dom';
+import { Report, ReportPlaceholder, ReportMapping, Dashboard } from '../types';
 import { Button } from './Button';
 import { Input } from './Input';
 import { Textarea } from './Textarea';
@@ -31,17 +32,22 @@ interface ReportBuilderProps {
   onCancel: () => void;
   initialReport?: Report;
   isLoading?: boolean;
+  dashboards?: Dashboard[]; // Optional: if provided, use these instead of all dashboards from context
 }
 
 export const ReportBuilder: React.FC<ReportBuilderProps> = ({
   onSave,
   onCancel,
   initialReport,
-  isLoading = false
+  isLoading = false,
+  dashboards: providedDashboards
 }) => {
   const { user } = useAuth();
-  const { forms, dashboards } = useApp();
+  const { dashboards: allDashboards } = useApp();
   const { showSuccess, showError } = useToast();
+
+  // Use provided dashboards if available, otherwise use all dashboards from context
+  const dashboards = providedDashboards || allDashboards;
 
   // Basic fields
   const [name, setName] = useState(initialReport?.name || '');
@@ -263,7 +269,7 @@ export const ReportBuilder: React.FC<ReportBuilderProps> = ({
       // Check if content is empty (after stripping HTML tags)
       const plainText = extractTextFromHTML(templateContent);
       if (!plainText.trim()) {
-        newErrors.push('Le contenu du template est requis pour les templates texte');
+      newErrors.push('Le contenu du template est requis pour les templates texte');
       }
     }
 
@@ -296,23 +302,14 @@ export const ReportBuilder: React.FC<ReportBuilderProps> = ({
     const mapping = mappings.find(m => m.placeholderId === placeholderId);
     if (!mapping) return 'Non mappé';
 
-    const source = mapping.sourceType === 'form' 
-      ? forms.find(f => f.id === mapping.sourceId)
-      : dashboards.find(d => d.id === mapping.sourceId);
+    const dashboard = dashboards.find(d => d.id === mapping.sourceId);
+    if (!dashboard) return 'Dashboard non trouvé';
 
-    if (!source) return 'Source non trouvée';
+    const metric = dashboard.metrics.find(m => m.id === mapping.metricId);
+    if (!metric) return `${dashboard.name} - Métrique non trouvée`;
 
-    const sourceName = mapping.sourceType === 'form' 
-      ? (source as Form).title 
-      : (source as Dashboard).name;
-
-    const fieldName = mapping.fieldId 
-      ? (mapping.sourceType === 'form'
-          ? (source as Form).fields.find(f => f.id === mapping.fieldId)?.label
-          : (source as Dashboard).metrics.find(m => m.id === mapping.fieldId)?.name)
-      : '';
-
-    return `${sourceName}${fieldName ? ` - ${fieldName}` : ''}`;
+    const metricTypeLabel = metric.metricType === 'graph' ? 'Graphique' : metric.metricType === 'table' ? 'Tableau' : 'Valeur';
+    return `${dashboard.name} - ${metric.name} (${metricTypeLabel})`;
   };
 
   return (
@@ -413,11 +410,11 @@ export const ReportBuilder: React.FC<ReportBuilderProps> = ({
               <div className="border border-gray-300 rounded-lg overflow-hidden focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500">
                 <ReactQuill
                   theme="snow"
-                  value={templateContent}
+              value={templateContent}
                   onChange={setTemplateContent}
                   modules={quillModules}
                   formats={quillFormats}
-                  placeholder='Utilisez {{placeholder}} pour marquer les emplacements à remplir. Ex: "Le total des ventes est {{totalVentes}}"'
+              placeholder='Utilisez {{placeholder}} pour marquer les emplacements à remplir. Ex: "Le total des ventes est {{totalVentes}}"'
                   className="report-template-editor"
                   style={{
                     minHeight: '300px'
@@ -532,11 +529,6 @@ export const ReportBuilder: React.FC<ReportBuilderProps> = ({
                           <p className="text-sm text-gray-600">
                             <span className="font-medium">Mappé vers:</span> {getMappedSource(placeholder.id)}
                           </p>
-                          {mapping.calculationType && (
-                            <p className="text-xs text-gray-500 mt-1">
-                              Calcul: {mapping.calculationType}
-                            </p>
-                          )}
                         </div>
                       ) : (
                         <p className="text-sm text-yellow-600 mt-2">
@@ -591,7 +583,6 @@ export const ReportBuilder: React.FC<ReportBuilderProps> = ({
         <PlaceholderMappingModal
           placeholder={placeholders.find(p => p.id === selectedPlaceholder)!}
           existingMapping={mappings.find(m => m.placeholderId === selectedPlaceholder)}
-          forms={forms}
           dashboards={dashboards}
           onSave={handleSaveMapping}
           onCancel={() => {
@@ -633,8 +624,7 @@ export const ReportBuilder: React.FC<ReportBuilderProps> = ({
 interface PlaceholderMappingModalProps {
   placeholder: ReportPlaceholder;
   existingMapping?: ReportMapping;
-  forms: Form[];
-  dashboards: Dashboard[];
+  dashboards: Dashboard[]; // Forms removed
   onSave: (mapping: ReportMapping) => void;
   onCancel: () => void;
 }
@@ -642,45 +632,143 @@ interface PlaceholderMappingModalProps {
 const PlaceholderMappingModal: React.FC<PlaceholderMappingModalProps> = ({
   placeholder,
   existingMapping,
-  forms,
   dashboards,
   onSave,
   onCancel
 }) => {
-  const [sourceType, setSourceType] = useState<'form' | 'dashboard'>(
-    existingMapping?.sourceType || 'form'
-  );
-  const [sourceId, setSourceId] = useState(existingMapping?.sourceId || '');
-  const [fieldId, setFieldId] = useState(existingMapping?.fieldId || '');
-  const [calculationType, setCalculationType] = useState<
-    'sum' | 'average' | 'count' | 'min' | 'max' | 'custom' | undefined
-  >(existingMapping?.calculationType);
+  // Handle both new (metricId) and old (fieldId) mapping structures for backward compatibility
+  const [dashboardId, setDashboardId] = useState(existingMapping?.sourceId || '');
+  const [metricId, setMetricId] = useState(() => {
+    const existingMetricId = existingMapping?.metricId || (existingMapping as any)?.fieldId;
+    // Ensure we only store IDs, not display text
+    if (existingMetricId && typeof existingMetricId === 'string') {
+      // Check if it looks like a display label (contains parentheses)
+      if (existingMetricId.includes('(') || existingMetricId.includes(')')) {
+        console.warn('Existing metricId looks like display text, resetting:', existingMetricId);
+        return '';
+      }
+      return existingMetricId;
+    }
+    return '';
+  });
   const [defaultValue, setDefaultValue] = useState(existingMapping?.defaultValue || '');
 
-  const selectedSource = sourceType === 'form'
-    ? forms.find(f => f.id === sourceId)
-    : dashboards.find(d => d.id === sourceId);
+  // Debug: Log dashboards on mount
+  useEffect(() => {
+    console.log('PlaceholderMappingModal mounted');
+    console.log('Dashboards received:', dashboards);
+    console.log('Dashboard IDs:', dashboards.map(d => d.id));
+    console.log('Dashboard names:', dashboards.map(d => d.name));
+    console.log('Existing mapping:', existingMapping);
+    console.log('Initial dashboardId:', dashboardId);
+  }, []);
+
+  const selectedDashboard = dashboards.find(d => d.id === dashboardId);
+  const selectedMetric = selectedDashboard?.metrics?.find(m => m.id === metricId);
+  
+  // Debug: Log selected dashboard and metrics
+  useEffect(() => {
+    if (dashboardId) {
+      console.log('Dashboard ID selected:', dashboardId);
+      console.log('All dashboards:', dashboards);
+      const found = dashboards.find(d => d.id === dashboardId);
+      console.log('Selected Dashboard:', found);
+      if (found) {
+        console.log('Dashboard Metrics:', found.metrics);
+        console.log('Metrics Count:', found.metrics?.length || 0);
+      } else {
+        console.warn('Dashboard not found with ID:', dashboardId);
+      }
+    }
+  }, [dashboardId, dashboards]);
+
+  // Get metric type label
+  const getMetricTypeLabel = (metricType: 'value' | 'graph' | 'table'): string => {
+    switch (metricType) {
+      case 'value':
+        return 'Valeur';
+      case 'graph':
+        return 'Graphique';
+      case 'table':
+        return 'Tableau';
+      default:
+        return 'Valeur';
+    }
+  };
 
   const handleSave = () => {
-    if (!sourceId) {
+    if (!dashboardId || !metricId) {
+      console.warn('Cannot save: missing dashboardId or metricId', { dashboardId, metricId });
+      return;
+    }
+
+    // Validate that metricId is a valid ID (not display text)
+    const metric = selectedDashboard?.metrics?.find(m => m.id === metricId);
+    if (!metric) {
+      console.error('Metric not found:', { 
+        metricId, 
+        dashboardId, 
+        availableMetrics: selectedDashboard?.metrics,
+        metricIds: selectedDashboard?.metrics?.map(m => m.id),
+        metricNames: selectedDashboard?.metrics?.map(m => `${m.name} (${getMetricTypeLabel(m.metricType || 'value')})`)
+      });
+      
+      // Try to find by name if somehow the label was selected
+      const metricByName = selectedDashboard?.metrics?.find(m => 
+        `${m.name} (${getMetricTypeLabel(m.metricType || 'value')})` === metricId
+      );
+      
+      if (metricByName) {
+        console.warn('Found metric by name, using its ID instead:', metricByName.id);
+        setMetricId(metricByName.id);
+        // Retry save with correct ID
+        setTimeout(() => {
+          const correctedMetric = selectedDashboard?.metrics?.find(m => m.id === metricByName.id);
+          if (correctedMetric) {
+            const mapping: ReportMapping = {
+              placeholderId: placeholder.id,
+              sourceType: 'dashboard',
+              sourceId: dashboardId,
+              metricId: correctedMetric.id,
+              metricType: (correctedMetric.metricType === 'graph' ? 'graph' : correctedMetric.metricType === 'table' ? 'table' : 'value'),
+              defaultValue: defaultValue || undefined
+            };
+            onSave(mapping);
+          }
+        }, 0);
+        return;
+      }
+      
       return;
     }
 
     const mapping: ReportMapping = {
       placeholderId: placeholder.id,
-      sourceType,
-      sourceId,
-      fieldId: fieldId || undefined,
-      calculationType,
+      sourceType: 'dashboard',
+      sourceId: dashboardId,
+      metricId: metricId,
+      metricType: (metric.metricType === 'graph' ? 'graph' : metric.metricType === 'table' ? 'table' : 'value'),
       defaultValue: defaultValue || undefined
     };
 
     onSave(mapping);
   };
 
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <Card className="max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+  const modalContent = (
+    <div 
+      className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-[99999] p-4"
+      style={{ top: 0, left: 0, right: 0, bottom: 0 }}
+      onClick={(e) => {
+        // Close modal when clicking on overlay
+        if (e.target === e.currentTarget) {
+          onCancel();
+        }
+      }}
+    >
+      <Card 
+        className="max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="space-y-6">
           <div className="flex items-center justify-between">
             <h3 className="text-lg font-semibold text-gray-900">
@@ -692,89 +780,128 @@ const PlaceholderMappingModal: React.FC<PlaceholderMappingModalProps> = ({
           </div>
 
           <div className="space-y-4">
-            <Select
-              label="Type de source *"
-              value={sourceType}
-              onChange={(e) => {
-                setSourceType(e.target.value as 'form' | 'dashboard');
-                setSourceId('');
-                setFieldId('');
-              }}
-              options={[
-                { value: 'form', label: 'Formulaire' },
-                { value: 'dashboard', label: 'Tableau de bord' }
-              ]}
-            />
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Tableau de bord *
+              </label>
+              <select
+                value={dashboardId}
+                onChange={(e) => {
+                  const newDashboardId = e.target.value;
+                  console.log('Dashboard selection changed:', newDashboardId);
+                  console.log('Previous dashboardId:', dashboardId);
+                  setDashboardId(newDashboardId);
+                  setMetricId(''); // Reset metric when dashboard changes
+                }}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="">Sélectionner un tableau de bord...</option>
+                {dashboards.map(d => (
+                  <option key={d.id} value={d.id}>
+                    {d.name}
+                  </option>
+                ))}
+              </select>
+              {dashboardId && (
+                <p className="text-xs text-gray-500 mt-1">Dashboard ID: {dashboardId}</p>
+              )}
+            </div>
 
-            <Select
-              label={`${sourceType === 'form' ? 'Formulaire' : 'Tableau de bord'} *`}
-              value={sourceId}
-              onChange={(e) => {
-                setSourceId(e.target.value);
-                setFieldId('');
-              }}
-              options={
-                sourceType === 'form'
-                  ? forms.map(f => ({ value: f.id, label: f.title }))
-                  : dashboards.map(d => ({ value: d.id, label: d.name }))
-              }
-              placeholder="Sélectionner..."
-            />
-
-            {selectedSource && (
+            {dashboardId ? (
               <>
-                {sourceType === 'form' ? (
-                  <Select
-                    label="Champ (optionnel)"
-                    value={fieldId}
-                    onChange={(e) => setFieldId(e.target.value)}
-                    options={[
-                      { value: '', label: 'Aucun champ spécifique' },
-                      ...(selectedSource as Form).fields.map(f => ({
-                        value: f.id,
-                        label: `${f.label} (${f.type})`
-                      }))
-                    ]}
-                  />
+                {selectedDashboard ? (
+                  <>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Métrique *
+                      </label>
+                      <select
+                        value={metricId}
+                        onChange={(e) => {
+                          const selectedValue = e.target.value;
+                          console.log('Metric selection changed:', {
+                            selectedValue,
+                            allMetricIds: selectedDashboard.metrics?.map(m => ({ id: m.id, name: m.name })),
+                            currentMetricId: metricId
+                          });
+                          
+                          // The select value should always be the metric ID
+                          // Just set it directly - HTML select guarantees the value attribute is used
+                          setMetricId(selectedValue);
+                        }}
+                        disabled={!selectedDashboard.metrics || selectedDashboard.metrics.length === 0}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                      >
+                        <option value="">Sélectionner une métrique...</option>
+                        {selectedDashboard.metrics && selectedDashboard.metrics.length > 0 && selectedDashboard.metrics.map(m => {
+                          const displayLabel = `${m.name} (${getMetricTypeLabel(m.metricType || 'value')})`;
+                          return (
+                            <option key={m.id} value={m.id}>
+                              {displayLabel}
+                            </option>
+                          );
+                        })}
+                      </select>
+                      {metricId && (
+                        <p className="text-xs text-blue-500 mt-1">
+                          Metric ID sélectionné: {metricId}
+                        </p>
+                      )}
+                      {selectedDashboard.metrics && selectedDashboard.metrics.length > 0 && (
+                        <p className="text-xs text-gray-500 mt-1">
+                          {selectedDashboard.metrics.length} métrique(s) disponible(s)
+                        </p>
+                      )}
+                    </div>
+
+                    {(!selectedDashboard.metrics || selectedDashboard.metrics.length === 0) && (
+                      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                        <p className="text-sm text-yellow-800">
+                          ⚠️ Ce tableau de bord n'a aucune métrique. Veuillez créer des métriques dans le tableau de bord avant de le mapper.
+                        </p>
+                        <p className="text-xs text-yellow-700 mt-2">
+                          Dashboard: {selectedDashboard.name} | Metrics: {selectedDashboard.metrics?.length || 0}
+                        </p>
+                      </div>
+                    )}
+
+                    {selectedMetric && (
+                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                        <p className="text-sm text-blue-800">
+                          <strong>Type:</strong> {getMetricTypeLabel(selectedMetric.metricType || 'value')}
+                          {selectedMetric.metricType === 'graph' && ' - Le graphique sera inséré tel quel'}
+                          {selectedMetric.metricType === 'value' && ' - La valeur calculée sera insérée'}
+                          {selectedMetric.metricType === 'table' && ' - Le tableau sera inséré tel quel'}
+                        </p>
+                      </div>
+                    )}
+
+                    <Input
+                      label="Valeur par défaut (optionnel)"
+                      value={defaultValue}
+                      onChange={(e) => setDefaultValue(e.target.value)}
+                      placeholder="Valeur à utiliser si aucune donnée n'est disponible"
+                    />
+                  </>
                 ) : (
-                  <Select
-                    label="Métrique (optionnel)"
-                    value={fieldId}
-                    onChange={(e) => setFieldId(e.target.value)}
-                    options={[
-                      { value: '', label: 'Aucune métrique spécifique' },
-                      ...(selectedSource as Dashboard).metrics.map(m => ({
-                        value: m.id,
-                        label: m.name
-                      }))
-                    ]}
-                  />
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                    <p className="text-sm text-red-800">
+                      ⚠️ Dashboard non trouvé avec l'ID: {dashboardId}
+                    </p>
+                    <p className="text-xs text-red-700 mt-2">
+                      Dashboards disponibles: {dashboards.map(d => d.id).join(', ')}
+                    </p>
+                  </div>
                 )}
-
-                {(selectedSource as Form).fields.find(f => f.id === fieldId)?.type === 'number' ||
-                 (selectedSource as Dashboard).metrics.find(m => m.id === fieldId)?.fieldType === 'number' ? (
-                  <Select
-                    label="Type de calcul (optionnel)"
-                    value={calculationType || ''}
-                    onChange={(e) => setCalculationType(e.target.value as any || undefined)}
-                    options={[
-                      { value: '', label: 'Aucun calcul' },
-                      { value: 'sum', label: 'Somme' },
-                      { value: 'average', label: 'Moyenne' },
-                      { value: 'count', label: 'Nombre' },
-                      { value: 'min', label: 'Minimum' },
-                      { value: 'max', label: 'Maximum' }
-                    ]}
-                  />
-                ) : null}
-
-                <Input
-                  label="Valeur par défaut (optionnel)"
-                  value={defaultValue}
-                  onChange={(e) => setDefaultValue(e.target.value)}
-                  placeholder="Valeur à utiliser si aucune donnée n'est disponible"
-                />
               </>
+            ) : (
+              dashboards.length > 0 && (
+                <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                  <p className="text-sm text-gray-600">
+                    Veuillez sélectionner un tableau de bord pour afficher les métriques disponibles.
+                  </p>
+                </div>
+              )
             )}
           </div>
 
@@ -785,7 +912,7 @@ const PlaceholderMappingModal: React.FC<PlaceholderMappingModalProps> = ({
             <Button
               variant="primary"
               onClick={handleSave}
-              disabled={!sourceId}
+              disabled={!dashboardId || !metricId}
             >
               Enregistrer le mapping
             </Button>
@@ -794,4 +921,6 @@ const PlaceholderMappingModal: React.FC<PlaceholderMappingModalProps> = ({
       </Card>
     </div>
   );
+
+  return createPortal(modalContent, document.body);
 };

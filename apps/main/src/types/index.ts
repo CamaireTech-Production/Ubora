@@ -766,10 +766,10 @@ export interface ReportPlaceholder {
 
 export interface ReportMapping {
   placeholderId: string; // ID du placeholder
-  sourceType: 'form' | 'dashboard';
-  sourceId: string; // ID du formulaire ou du dashboard
-  fieldId?: string; // ID du champ (pour form) ou de la métrique (pour dashboard)
-  calculationType?: 'sum' | 'average' | 'count' | 'min' | 'max' | 'custom'; // Pour les champs numériques
+  sourceType: 'dashboard'; // Only dashboards are supported
+  sourceId: string; // ID du dashboard
+  metricId: string; // ID de la métrique (required)
+  metricType: 'value' | 'graph' | 'table'; // Type de métrique pour le rendu
   defaultValue?: string; // Valeur par défaut si pas de données
 }
 
