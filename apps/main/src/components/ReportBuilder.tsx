@@ -141,11 +141,15 @@ export const ReportBuilder: React.FC<ReportBuilderProps> = ({
   // Handle file upload for PDF/Word
   const handleFileUpload = async (file: File | null) => {
     if (!file) {
+      // When file is removed, clear all file-related state and mappings
       setTemplateFile(null);
       setTemplateFileUrl('');
       setTemplateFileStoragePath('');
       setTemplateFileName('');
       setExtractedText('');
+      setPlaceholders([]);
+      setMappings([]);
+      setUploadProgress(undefined);
       return;
     }
 
@@ -271,7 +275,7 @@ export const ReportBuilder: React.FC<ReportBuilderProps> = ({
       // Check if content is empty (after stripping HTML tags)
       const plainText = extractTextFromHTML(templateContent);
       if (!plainText.trim()) {
-        newErrors.push('Le contenu du template est requis pour les templates texte');
+      newErrors.push('Le contenu du template est requis pour les templates texte');
       }
     }
 
@@ -759,8 +763,8 @@ const PlaceholderMappingModal: React.FC<PlaceholderMappingModalProps> = ({
     if (sourceType === 'dashboard') {
       if (!dashboardId || !metricId) {
         console.warn('Cannot save: missing dashboardId or metricId', { dashboardId, metricId });
-        return;
-      }
+      return;
+    }
 
       // Validate that metricId is a valid ID (not display text)
       const metric = selectedDashboard?.metrics?.find(m => m.id === metricId);
@@ -785,8 +789,8 @@ const PlaceholderMappingModal: React.FC<PlaceholderMappingModalProps> = ({
           setTimeout(() => {
             const correctedMetric = selectedDashboard?.metrics?.find(m => m.id === metricByName.id);
             if (correctedMetric) {
-              const mapping: ReportMapping = {
-                placeholderId: placeholder.id,
+    const mapping: ReportMapping = {
+      placeholderId: placeholder.id,
                 sourceType: 'dashboard',
                 sourceId: dashboardId,
                 metricId: correctedMetric.id,
@@ -808,10 +812,10 @@ const PlaceholderMappingModal: React.FC<PlaceholderMappingModalProps> = ({
         sourceId: dashboardId,
         metricId: metricId,
         metricType: (metric.metricType === 'graph' ? 'graph' : metric.metricType === 'table' ? 'table' : 'value'),
-        defaultValue: defaultValue || undefined
-      };
+      defaultValue: defaultValue || undefined
+    };
 
-      onSave(mapping);
+    onSave(mapping);
     } else {
       // Static value mapping
       if (!staticValueType) {
@@ -868,7 +872,7 @@ const PlaceholderMappingModal: React.FC<PlaceholderMappingModalProps> = ({
                     name="sourceType"
                     value="dashboard"
                     checked={sourceType === 'dashboard'}
-                    onChange={(e) => {
+              onChange={(e) => {
                       setSourceType('dashboard');
                       setStaticValueType(''); // Reset static value
                     }}
@@ -882,7 +886,7 @@ const PlaceholderMappingModal: React.FC<PlaceholderMappingModalProps> = ({
                     name="sourceType"
                     value="static"
                     checked={sourceType === 'static'}
-                    onChange={(e) => {
+              onChange={(e) => {
                       setSourceType('static');
                       setDashboardId(''); // Reset dashboard
                       setMetricId(''); // Reset metric
@@ -1048,12 +1052,12 @@ const PlaceholderMappingModal: React.FC<PlaceholderMappingModalProps> = ({
               </React.Fragment>
             )}
 
-            <Input
-              label="Valeur par défaut (optionnel)"
-              value={defaultValue}
-              onChange={(e) => setDefaultValue(e.target.value)}
-              placeholder="Valeur à utiliser si aucune donnée n'est disponible"
-            />
+                <Input
+                  label="Valeur par défaut (optionnel)"
+                  value={defaultValue}
+                  onChange={(e) => setDefaultValue(e.target.value)}
+                  placeholder="Valeur à utiliser si aucune donnée n'est disponible"
+                />
           </div>
 
           <div className="flex items-center justify-end space-x-4 pt-4 border-t">
