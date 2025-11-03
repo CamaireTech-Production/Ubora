@@ -553,12 +553,14 @@ export const ListsCSVImport: React.FC<ListsCSVImportProps> = ({
                     className="hidden"
                     id="csv-file-input"
                   />
-                  <label htmlFor="csv-file-input">
-                    <Button variant="secondary" as="span">
-                      <Upload className="h-4 w-4 mr-2" />
-                      Sélectionner un fichier
-                    </Button>
-                  </label>
+                  <Button 
+                    variant="secondary" 
+                    onClick={() => fileInputRef.current?.click()}
+                    className="inline-flex items-center"
+                  >
+                    <Upload className="h-4 w-4 mr-2" />
+                    Sélectionner un fichier
+                  </Button>
                   <p className="text-xs text-gray-500 mt-4">
                     Format: première ligne = en-têtes (noms de colonnes), lignes suivantes = données • Taille max: 5MB
                   </p>
@@ -649,7 +651,7 @@ export const ListsCSVImport: React.FC<ListsCSVImportProps> = ({
             </Card>
 
             <div className="flex justify-between space-x-3">
-              <Button variant="secondary" onClick={handleReset}>
+              <Button variant="secondary" onClick={handleReset} className="flex items-center">
                 <X className="h-4 w-4 mr-2" />
                 Nouveau fichier
               </Button>
@@ -657,7 +659,7 @@ export const ListsCSVImport: React.FC<ListsCSVImportProps> = ({
                 <Button variant="secondary" onClick={onCancel}>
                   Annuler
                 </Button>
-                <Button onClick={handlePreview}>
+                <Button onClick={handlePreview} className="flex items-center">
                   <Eye className="h-4 w-4 mr-2" />
                   Aperçu
                 </Button>
@@ -729,7 +731,7 @@ export const ListsCSVImport: React.FC<ListsCSVImportProps> = ({
             )}
 
             <div className="flex justify-between space-x-3">
-              <Button variant="secondary" onClick={() => setCurrentStep('review')}>
+              <Button variant="secondary" onClick={() => setCurrentStep('review')} className="flex items-center">
                 <Edit2 className="h-4 w-4 mr-2" />
                 Retour
               </Button>
@@ -737,7 +739,7 @@ export const ListsCSVImport: React.FC<ListsCSVImportProps> = ({
                 <Button variant="secondary" onClick={onCancel}>
                   Annuler
                 </Button>
-                <Button onClick={handleFinalize}>
+                <Button onClick={handleFinalize} className="flex items-center">
                   <CheckCircle className="h-4 w-4 mr-2" />
                   Importer
                 </Button>

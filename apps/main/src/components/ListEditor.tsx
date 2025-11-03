@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Button } from './Button';
 import { Input } from './Input';
 import { Textarea } from './Textarea';
 import { Select } from './Select';
 import { Card } from './Card';
 import { List, ListColumn, ListRow } from '../types';
-import { Plus, Trash2, Save, X, Upload } from 'lucide-react';
+import { Plus, Trash2, Save, X, Upload, Minus } from 'lucide-react';
 import { ListsCSVImport } from './ListsCSVImport';
 import { useToast } from '@ubora/shared/hooks/useToast';
 import { validateValueAgainstType as validateTypeUtil } from '@ubora/shared/utils/csvTypeDetector';
@@ -210,6 +211,14 @@ export const ListEditor: React.FC<ListEditorProps> = ({
     return newErrors.length === 0;
   };
 
+  // Check if save button should be disabled
+  const isSaveDisabled = () => {
+    // Disable if name is empty or no columns are defined
+    const hasValidName = name.trim().length > 0;
+    const hasValidColumns = columns.length > 0 && columns.some(col => col.name.trim());
+    return !hasValidName || !hasValidColumns;
+  };
+
   // Handle save
   const handleSave = () => {
     if (!validate()) {
@@ -376,16 +385,15 @@ export const ListEditor: React.FC<ListEditorProps> = ({
                             </div>
                           </div>
                         )}
-                        <Button
-                          variant="danger"
-                          size="sm"
+                        <button
+                          type="button"
                           onClick={() => handleDeleteColumn(col.id)}
                           disabled={columns.length <= 1}
-                          className="p-1 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                          className="p-1 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center bg-red-600 hover:bg-red-700 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
                           title="Supprimer la colonne"
                         >
-                          <X className="h-3 w-3" />
-                        </Button>
+                          <Minus className="h-3 w-3" strokeWidth={3} style={{ color: 'white' }} />
+                        </button>
                       </div>
                     </th>
                   ))}
@@ -456,10 +464,10 @@ export const ListEditor: React.FC<ListEditorProps> = ({
                             variant="danger"
                             size="sm"
                             onClick={() => handleDeleteRow(rowIndex)}
-                            className="p-1.5 h-8 w-8"
+                            className="p-1.5 h-8 w-8 flex items-center justify-center"
                             title="Supprimer la ligne"
                           >
-                            <Trash2 className="h-4 w-4" />
+                            <Trash2 className="h-4 w-4 text-white" />
                           </Button>
                         </td>
                       </tr>
@@ -486,16 +494,39 @@ export const ListEditor: React.FC<ListEditorProps> = ({
       </Card>
 
       {/* CSV Import Modal */}
-      {showCSVImport && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-6xl w-full max-h-[90vh] overflow-y-auto">
+      {showCSVImport && createPortal(
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-[9999]" 
+          style={{ 
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            width: '100vw',
+            height: '100vh',
+            margin: 0,
+            padding: '1rem',
+            boxSizing: 'border-box',
+            zIndex: 9999
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setShowCSVImport(false);
+            }
+          }}
+        >
+          <div 
+            className="bg-white rounded-lg shadow-xl max-w-6xl w-full max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between z-10">
               <h3 className="text-lg font-semibold text-gray-900">Importer depuis CSV</h3>
               <Button
                 variant="secondary"
                 size="sm"
                 onClick={() => setShowCSVImport(false)}
-                className="p-1.5 h-8 w-8"
+                className="p-1.5 h-8 w-8 flex items-center justify-center"
               >
                 <X className="h-4 w-4" />
               </Button>
@@ -508,7 +539,8 @@ export const ListEditor: React.FC<ListEditorProps> = ({
               />
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Save/Cancel buttons at bottom */}
@@ -516,7 +548,11 @@ export const ListEditor: React.FC<ListEditorProps> = ({
         <Button variant="secondary" onClick={onCancel}>
           Annuler
         </Button>
-        <Button onClick={handleSave} className="flex items-center space-x-2">
+        <Button 
+          onClick={handleSave} 
+          className="flex items-center space-x-2"
+          disabled={isSaveDisabled()}
+        >
           <Save className="h-4 w-4" />
           <span>Enregistrer</span>
         </Button>
