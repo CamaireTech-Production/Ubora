@@ -3,7 +3,7 @@ import { Card } from './Card';
 import { Button } from './Button';
 import { Input } from './Input';
 import { Select } from './Select';
-import { Upload, FileText, AlertCircle, CheckCircle, X, Eye, Edit2 } from 'lucide-react';
+import { Upload, FileText, AlertCircle, CheckCircle, X, Eye, Edit2, Download } from 'lucide-react';
 import { detectColumnTypes, ColumnType, validateValueAgainstType, convertValueToType } from '@ubora/shared/utils/csvTypeDetector';
 import { ListColumn, ListRow } from '../types';
 
@@ -416,6 +416,65 @@ export const ListsCSVImport: React.FC<ListsCSVImportProps> = ({
     { value: 'boolean', label: 'Booléen' }
   ];
 
+  /**
+   * Generate and download sample CSV file
+   */
+  const handleDownloadSample = () => {
+    let csvContent = '';
+    
+    // If existing columns, use them to generate sample
+    if (existingColumns.length > 0) {
+      // Headers from existing columns
+      const headers = existingColumns.map(col => col.name || `Colonne_${col.id}`);
+      csvContent += headers.map(h => `"${h}"`).join(',') + '\n';
+      
+      // Generate 3-5 sample rows based on column types
+      for (let i = 0; i < 4; i++) {
+        const row: string[] = [];
+        existingColumns.forEach(col => {
+          switch (col.type) {
+            case 'number':
+              row.push(`"${(i + 1) * 10}"`);
+              break;
+            case 'date':
+              const date = new Date();
+              date.setDate(date.getDate() + i);
+              row.push(`"${date.toISOString().split('T')[0]}"`);
+              break;
+            case 'email':
+              row.push(`"exemple${i + 1}@example.com"`);
+              break;
+            case 'boolean':
+              row.push(`"${i % 2 === 0 ? 'true' : 'false'}"`);
+              break;
+            default:
+              row.push(`"Exemple ${i + 1}"`);
+          }
+        });
+        csvContent += row.join(',') + '\n';
+      }
+    } else {
+      // Generic sample CSV
+      csvContent = `"Nom","Email","Ville","Pays"
+"Jean Dupont","jean@example.com","Paris","France"
+"Marie Martin","marie@example.com","Lyon","France"
+"Pierre Durand","pierre@example.com","Marseille","France"
+"Sophie Bernard","sophie@example.com","Toulouse","France"`;
+    }
+    
+    // Create blob and download
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', 'exemple_liste.csv');
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   // Render current step
   const renderCurrentStep = () => {
     switch (currentStep) {
@@ -440,6 +499,30 @@ export const ListsCSVImport: React.FC<ListsCSVImportProps> = ({
                 </div>
               </div>
             )}
+
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-medium text-blue-800 mb-1">
+                    📥 Besoin d'un exemple de format CSV ?
+                  </h3>
+                  <p className="text-xs text-blue-700">
+                    {existingColumns.length > 0 
+                      ? 'Téléchargez un fichier CSV avec la structure de vos colonnes actuelles'
+                      : 'Téléchargez un fichier CSV d\'exemple pour voir le format attendu'}
+                  </p>
+                </div>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={handleDownloadSample}
+                  className="flex items-center space-x-2"
+                >
+                  <Download className="h-4 w-4" />
+                  <span>Télécharger exemple</span>
+                </Button>
+              </div>
+            </div>
 
             <div
               onDragOver={handleDragOver}
@@ -477,7 +560,7 @@ export const ListsCSVImport: React.FC<ListsCSVImportProps> = ({
                     </Button>
                   </label>
                   <p className="text-xs text-gray-500 mt-4">
-                    Format CSV avec en-têtes • Taille max: 5MB
+                    Format: première ligne = en-têtes (noms de colonnes), lignes suivantes = données • Taille max: 5MB
                   </p>
                 </>
               )}
