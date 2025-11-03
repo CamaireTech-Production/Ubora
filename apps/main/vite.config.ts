@@ -180,16 +180,23 @@ export default defineConfig({
     chunkSizeWarningLimit: 1000,
     rollupOptions: {
       output: {
+        // Ensure proper chunk order and dependency resolution
+        entryFileNames: 'assets/[name]-[hash].js',
+        chunkFileNames: 'assets/[name]-[hash].js',
         manualChunks: (id) => {
-          // Vendor chunks
-          if (id.includes('node_modules/react') || id.includes('node_modules/react-dom')) {
+          // Vendor chunks - Put recharts with React to avoid dependency resolution issues
+          // recharts needs React.forwardRef which must be available in the same chunk
+          if (id.includes('node_modules/react') || 
+              id.includes('node_modules/react-dom') ||
+              id.includes('node_modules/recharts') || 
+              id.includes('node_modules/recharts-to-png')) {
             return 'vendor-react';
           }
           if (id.includes('node_modules/firebase')) {
             return 'vendor-firebase';
           }
-          if (id.includes('node_modules/recharts') || id.includes('node_modules/html2canvas') || id.includes('node_modules/jspdf')) {
-            return 'vendor-charts';
+          if (id.includes('node_modules/html2canvas') || id.includes('node_modules/jspdf')) {
+            return 'vendor-pdf';
           }
           if (id.includes('node_modules/lucide-react')) {
             return 'vendor-ui';
@@ -219,6 +226,10 @@ export default defineConfig({
           }
         },
       },
+    },
+    commonjsOptions: {
+      include: [/node_modules/],
+      transformMixedEsModules: true,
     },
   },
   server: {
