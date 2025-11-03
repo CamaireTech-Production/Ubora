@@ -26,6 +26,7 @@ import { ProgrammedInstructionsRoute } from './components/ProgrammedInstructions
 import { UniversPage } from './pages/UniversPage';
 import { UniversCreatePage } from './pages/UniversCreatePage';
 import { UniversEditPage } from './pages/UniversEditPage';
+import { UniversViewPage } from './pages/UniversViewPage';
 import { ListsPage } from './pages/ListsPage';
 import { ListEditorPage } from './pages/ListEditorPage';
 import PushTestPage from './pages/PushTestPage';
@@ -343,7 +344,7 @@ function App() {
                       allowedRoles={['directeur', 'employe']} 
                       requireDirectorDashboardAccess={true}
                     >
-                      <UniversPage />
+                      <UniversViewPage />
                     </ProtectedRoute>
                   } 
                 />
