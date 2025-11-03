@@ -3,6 +3,121 @@ import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 import path from 'path';
 
+/**
+ * Configuration de chunking robuste pour éviter les erreurs de dépendances React
+ * 
+ * Cette fonction détecte automatiquement les dépendances React pour les regrouper
+ * dans le même chunk. Cela évite les erreurs comme "Cannot read properties of undefined (reading 'forwardRef')"
+ * qui surviennent quand React est dans un chunk séparé de ses dépendances.
+ */
+
+// Liste des patterns connus pour les bibliothèques React
+const REACT_DEPENDENCY_PATTERNS = [
+  // React core
+  /node_modules\/react($|\/)/,
+  /node_modules\/react-dom($|\/)/,
+  
+  // Bibliothèques React courantes (commencent par react-)
+  /node_modules\/react-/,
+  
+  // Bibliothèques UI qui utilisent React.forwardRef
+  /node_modules\/lucide-react/,
+  /node_modules\/recharts/,
+  /node_modules\/recharts-to-png/,
+  
+  // Parties React du package shared
+  /packages\/shared\/src\/contexts/,
+  /packages\/shared\/src\/hooks/,
+  /packages\/shared\/src\/components/,
+];
+
+// Patterns pour les autres vendors
+const VENDOR_PATTERNS = {
+  firebase: /node_modules\/firebase/,
+  // Note: react-to-print est une dépendance React et sera capturée par isReactDependencyByName
+  pdf: /node_modules\/(html2canvas|jspdf|pdfjs-dist)/,
+  ai: /node_modules\/(openai|tesseract\.js)/,
+};
+
+// Patterns pour les chunks de fonctionnalités
+const FEATURE_PATTERNS = {
+  pdfUtils: /(utils\/PDFGenerator|utils\/RechartsToPNG|utils\/MultiFormatToPDF)/,
+  chatComponents: /(components\/chat\/MessageBubble|components\/chat\/PDFPreview|components\/chat\/GraphRenderer)/,
+};
+
+/**
+ * Détecte si un module est une dépendance React
+ */
+function isReactDependency(id: string): boolean {
+  return REACT_DEPENDENCY_PATTERNS.some(pattern => pattern.test(id));
+}
+
+/**
+ * Détecte automatiquement les dépendances React par leur nom de package
+ * Utilise heuristiques communes pour détecter les bibliothèques React
+ */
+function isReactDependencyByName(id: string): boolean {
+  // Si c'est un node_module
+  if (!id.includes('node_modules/')) return false;
+  
+  // Extraire le nom du package
+  const packageNameMatch = id.match(/node_modules\/([@\w\-\.]+)/);
+  if (!packageNameMatch) return false;
+  
+  const packageName = packageNameMatch[1];
+  
+  // Patterns courants pour les packages React
+  const reactPackagePatterns = [
+    /^react(-|$)/,           // react, react-dom, react-router, etc.
+    /^@react-/,              // @react-spring, @react-three, etc.
+    /^@radix-ui\//,          // @radix-ui/react-*
+    /^@headlessui\//,        // @headlessui/react
+    /^@chakra-ui\//,         // @chakra-ui/react
+    /^@mui\//,               // @mui/material, etc.
+    /-react$/,                // finit par -react
+    /-react-/,                // contient -react-
+  ];
+  
+  return reactPackagePatterns.some(pattern => pattern.test(packageName));
+}
+
+/**
+ * Détermine le chunk approprié pour un module donné
+ */
+function determineChunk(id: string): string | undefined {
+  // PRIORITÉ 1: Dépendances React (doivent être ensemble)
+  if (isReactDependency(id) || isReactDependencyByName(id)) {
+    return 'vendor-react';
+  }
+  
+  // PRIORITÉ 2: Autres vendors spécifiques
+  if (VENDOR_PATTERNS.firebase.test(id)) {
+    return 'vendor-firebase';
+  }
+  if (VENDOR_PATTERNS.pdf.test(id)) {
+    return 'vendor-pdf';
+  }
+  if (VENDOR_PATTERNS.ai.test(id)) {
+    return 'vendor-ai';
+  }
+  
+  // PRIORITÉ 3: Chunks de fonctionnalités
+  if (FEATURE_PATTERNS.pdfUtils.test(id)) {
+    return 'pdf-utils';
+  }
+  if (FEATURE_PATTERNS.chatComponents.test(id)) {
+    return 'chat-components';
+  }
+  
+  // PRIORITÉ 4: Package shared (parties non-React seulement)
+  // Les parties React ont déjà été capturées par isReactDependency
+  if (id.includes('packages/shared')) {
+    return 'shared';
+  }
+  
+  return undefined;
+}
+
 // Main app PWA configuration with blue theme (no admin mode)
 const getPWAConfig = () => {
   const isDev = process.env.NODE_ENV === 'development' || process.env.VITE_APP_ENV === 'dev';
@@ -184,45 +299,10 @@ export default defineConfig({
         entryFileNames: 'assets/[name]-[hash].js',
         chunkFileNames: 'assets/[name]-[hash].js',
         manualChunks: (id) => {
-          // Vendor chunks - Put React-dependent libraries together to avoid dependency resolution issues
-          // recharts, lucide-react, and react-to-print all need React.forwardRef which must be available in the same chunk
-          if (id.includes('node_modules/react') || 
-              id.includes('node_modules/react-dom') ||
-              id.includes('node_modules/recharts') || 
-              id.includes('node_modules/recharts-to-png') ||
-              id.includes('node_modules/lucide-react') ||
-              id.includes('node_modules/react-to-print')) {
-            return 'vendor-react';
-          }
-          if (id.includes('node_modules/firebase')) {
-            return 'vendor-firebase';
-          }
-          if (id.includes('node_modules/html2canvas') || id.includes('node_modules/jspdf')) {
-            return 'vendor-pdf';
-          }
-          if (id.includes('node_modules/pdfjs-dist')) {
-            return 'vendor-pdf';
-          }
-          if (id.includes('node_modules/openai') || id.includes('node_modules/tesseract.js')) {
-            return 'vendor-ai';
-          }
-          
-          // Feature chunks
-          if (id.includes('utils/PDFGenerator') || 
-              id.includes('utils/RechartsToPNG') || 
-              id.includes('utils/MultiFormatToPDF')) {
-            return 'pdf-utils';
-          }
-          if (id.includes('components/chat/MessageBubble') || 
-              id.includes('components/chat/PDFPreview') || 
-              id.includes('components/chat/GraphRenderer')) {
-            return 'chat-components';
-          }
-          
-          // Shared package chunks
-          if (id.includes('packages/shared')) {
-            return 'shared';
-          }
+          // Utilise la fonction de détection automatique pour éviter les erreurs de dépendances
+          // Cette approche détecte automatiquement les dépendances React et les regroupe
+          // Évite les erreurs comme "Cannot read properties of undefined (reading 'forwardRef')"
+          return determineChunk(id);
         },
       },
     },
