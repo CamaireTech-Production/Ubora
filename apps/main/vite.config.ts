@@ -184,12 +184,14 @@ export default defineConfig({
         entryFileNames: 'assets/[name]-[hash].js',
         chunkFileNames: 'assets/[name]-[hash].js',
         manualChunks: (id) => {
-          // Vendor chunks - Put recharts with React to avoid dependency resolution issues
-          // recharts needs React.forwardRef which must be available in the same chunk
+          // Vendor chunks - Put React-dependent libraries together to avoid dependency resolution issues
+          // recharts, lucide-react, and react-to-print all need React.forwardRef which must be available in the same chunk
           if (id.includes('node_modules/react') || 
               id.includes('node_modules/react-dom') ||
               id.includes('node_modules/recharts') || 
-              id.includes('node_modules/recharts-to-png')) {
+              id.includes('node_modules/recharts-to-png') ||
+              id.includes('node_modules/lucide-react') ||
+              id.includes('node_modules/react-to-print')) {
             return 'vendor-react';
           }
           if (id.includes('node_modules/firebase')) {
@@ -198,10 +200,7 @@ export default defineConfig({
           if (id.includes('node_modules/html2canvas') || id.includes('node_modules/jspdf')) {
             return 'vendor-pdf';
           }
-          if (id.includes('node_modules/lucide-react')) {
-            return 'vendor-ui';
-          }
-          if (id.includes('node_modules/pdfjs-dist') || id.includes('node_modules/react-to-print')) {
+          if (id.includes('node_modules/pdfjs-dist')) {
             return 'vendor-pdf';
           }
           if (id.includes('node_modules/openai') || id.includes('node_modules/tesseract.js')) {
