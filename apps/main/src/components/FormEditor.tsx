@@ -12,7 +12,7 @@ import { useToast } from '@ubora/shared/hooks/useToast';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
 import { UserSessionService } from '@ubora/shared/services/userSessionService';
 import { listsService } from '@ubora/shared/services/listsService';
-import { List } from '../types';
+import { List, ListDefinition } from '../types';
 import { Plus, Trash2, ArrowLeft, CheckSquare, Square, Loader2, Calculator, AlertCircle, Database } from 'lucide-react';
 import { FormulaInput } from './FormulaInput';
 import { FormulaParser } from '@ubora/shared/utils/FormulaParser';
@@ -35,6 +35,7 @@ interface FormEditorProps {
   onCancel: () => void;
   employees: Array<{ id: string; name: string; email: string }>;
   currentUser?: { id: string; name: string; email: string; role: string };
+  universLists?: ListDefinition[]; // Lists from Univers wizard context
 }
 
 export const FormEditor: React.FC<FormEditorProps> = ({
@@ -42,7 +43,8 @@ export const FormEditor: React.FC<FormEditorProps> = ({
   onSave,
   onCancel,
   employees,
-  currentUser
+  currentUser,
+  universLists = []
 }) => {
   const [title, setTitle] = useState(form?.title || '');
   const [description, setDescription] = useState(form?.description || '');
@@ -81,15 +83,39 @@ export const FormEditor: React.FC<FormEditorProps> = ({
     dependentFields: []
   });
   
-  // Load available lists for agency
+  // Load available lists for agency + merge Univers lists
   useEffect(() => {
     const loadLists = async () => {
       if (!user?.id || !user?.agencyId) return;
       
       setLoadingLists(true);
       try {
-        const lists = await listsService.getByUser(user.id, user.agencyId, user.role);
-        setAvailableLists(lists);
+        // Load lists from database
+        const dbLists = await listsService.getByUser(user.id, user.agencyId, user.role);
+        
+        // Convert ListDefinitions to List format (for Univers context)
+        const universListObjects: List[] = (universLists || []).map(listDef => ({
+          id: listDef.id,
+          name: listDef.name,
+          description: listDef.description,
+          columns: listDef.columns,
+          rows: listDef.rows,
+          createdBy: user.id,
+          createdByRole: user.role as 'directeur' | 'employe',
+          agencyId: user.agencyId,
+          createdAt: new Date(),
+          updatedAt: new Date()
+        }));
+        
+        // Merge Univers lists with DB lists (Univers lists take precedence by ID)
+        const mergedLists: List[] = [...universListObjects];
+        dbLists.forEach(dbList => {
+          if (!mergedLists.find(l => l.id === dbList.id)) {
+            mergedLists.push(dbList);
+          }
+        });
+        
+        setAvailableLists(mergedLists);
       } catch (error) {
         console.error('Erreur lors du chargement des listes:', error);
       } finally {
@@ -98,7 +124,7 @@ export const FormEditor: React.FC<FormEditorProps> = ({
     };
     
     loadLists();
-  }, [user]);
+  }, [user, universLists]);
 
   // Auto-scroll to errors when they appear (mobile-responsive)
   useEffect(() => {

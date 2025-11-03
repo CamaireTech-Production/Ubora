@@ -203,6 +203,7 @@ export const UniversWizardStep3: React.FC<UniversWizardStepProps> = ({
             assignedTo: editingForm.assignedTo || [], // Pass assigned users
             timeRestrictions: editingForm.timeRestrictions
           } : undefined}
+          universLists={wizardData.definitions.lists as any[]}
         />
       </div>
     );

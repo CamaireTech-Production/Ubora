@@ -16,7 +16,7 @@ import { ConfirmationModal } from './ConfirmationModal';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
 import { UserSessionService } from '@ubora/shared/services/userSessionService';
 import { listsService } from '@ubora/shared/services/listsService';
-import { List } from '../types';
+import { List, ListDefinition } from '../types';
 
 interface FormBuilderProps {
   onSave: (form: {
@@ -36,6 +36,7 @@ interface FormBuilderProps {
   currentUser?: { id: string; name: string; email: string; role: string };
   initialForm?: Pick<Form, 'id' | 'title' | 'description' | 'fields' | 'assignedTo' | 'timeRestrictions'>;
   isLoading?: boolean;
+  universLists?: ListDefinition[]; // Lists from Univers wizard context
 }
 
 export const FormBuilder: React.FC<FormBuilderProps> = ({
@@ -44,7 +45,8 @@ export const FormBuilder: React.FC<FormBuilderProps> = ({
   employees,
   currentUser,
   initialForm,
-  isLoading = false
+  isLoading = false,
+  universLists = []
 }) => {
   const { user } = useAuth();
   const canUseFileUploads = user ? UserSessionService.canUseFileUploads(user) : false;
@@ -73,15 +75,39 @@ export const FormBuilder: React.FC<FormBuilderProps> = ({
     dependentFields: []
   });
   
-  // Load available lists for agency
+  // Load available lists for agency + merge Univers lists
   useEffect(() => {
     const loadLists = async () => {
       if (!user?.id || !user?.agencyId) return;
       
       setLoadingLists(true);
       try {
-        const lists = await listsService.getByUser(user.id, user.agencyId, user.role);
-        setAvailableLists(lists);
+        // Load lists from database
+        const dbLists = await listsService.getByUser(user.id, user.agencyId, user.role);
+        
+        // Convert ListDefinitions to List format (for Univers context)
+        const universListObjects: List[] = (universLists || []).map(listDef => ({
+          id: listDef.id,
+          name: listDef.name,
+          description: listDef.description,
+          columns: listDef.columns,
+          rows: listDef.rows,
+          createdBy: user.id,
+          createdByRole: user.role as 'directeur' | 'employe',
+          agencyId: user.agencyId,
+          createdAt: new Date(),
+          updatedAt: new Date()
+        }));
+        
+        // Merge Univers lists with DB lists (Univers lists take precedence by ID)
+        const mergedLists: List[] = [...universListObjects];
+        dbLists.forEach(dbList => {
+          if (!mergedLists.find(l => l.id === dbList.id)) {
+            mergedLists.push(dbList);
+          }
+        });
+        
+        setAvailableLists(mergedLists);
       } catch (error) {
         console.error('Erreur lors du chargement des listes:', error);
       } finally {
@@ -90,7 +116,7 @@ export const FormBuilder: React.FC<FormBuilderProps> = ({
     };
     
     loadLists();
-  }, [user]);
+  }, [user, universLists]);
 
   // Auto-scroll to errors when they appear (mobile-responsive)
   useEffect(() => {
