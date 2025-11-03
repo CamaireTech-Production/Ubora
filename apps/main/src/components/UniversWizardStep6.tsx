@@ -314,27 +314,27 @@ export const UniversWizardStep6: React.FC<UniversWizardStepProps> = ({
                   >
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
-                        <div className="flex items-center space-x-3 mb-2">
-                          <div className="flex-shrink-0">
-                            {report.templateType === 'pdf' ? (
-                              <FileText className="h-5 w-5 text-red-500" />
-                            ) : report.templateType === 'word' ? (
-                              <FileBarChart className="h-5 w-5 text-blue-500" />
-                            ) : (
-                              <FileBarChart className="h-5 w-5 text-gray-500" />
-                            )}
+                        <div className="flex flex-col sm:flex-row sm:items-center space-y-1 sm:space-y-0 sm:space-x-3 mb-2">
+                          <div className="flex items-center space-x-2">
+                            <div className="flex-shrink-0">
+                              {report.templateType === 'pdf' ? (
+                                <FileText className="h-5 w-5 text-red-500" />
+                              ) : report.templateType === 'word' ? (
+                                <FileBarChart className="h-5 w-5 text-blue-500" />
+                              ) : (
+                                <FileBarChart className="h-5 w-5 text-gray-500" />
+                              )}
+                            </div>
+                            <h3 className="text-base sm:text-lg font-semibold text-gray-900">{report.name}</h3>
                           </div>
-                          <div>
-                            <h3 className="font-semibold text-gray-900">{report.name}</h3>
-                            {report.description && (
-                              <p className="text-sm text-gray-600 mt-1">{report.description}</p>
-                            )}
-                          </div>
+                          {report.description && (
+                            <p className="text-sm text-gray-600 sm:mt-1">{report.description}</p>
+                          )}
                         </div>
 
                         {isExpanded && (
                           <div className="mt-4 space-y-3 pt-4 border-t border-gray-200">
-                            <div className="grid grid-cols-2 gap-4 text-sm">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 text-sm">
                               <div>
                                 <span className="font-medium text-gray-700">Type:</span>{' '}
                                 <span className="text-gray-600">
@@ -384,7 +384,7 @@ export const UniversWizardStep6: React.FC<UniversWizardStepProps> = ({
                         )}
             </div>
 
-                      <div className="flex items-center space-x-2 ml-4">
+                      <div className="flex flex-wrap items-center gap-2 mt-4 sm:mt-0 sm:ml-4">
                         <Button
                           variant="secondary"
                           size="sm"
@@ -393,11 +393,11 @@ export const UniversWizardStep6: React.FC<UniversWizardStepProps> = ({
                         >
                           {isExpanded ? (
                             <>
-                              <span>Masquer</span>
+                              <span className="hidden sm:inline">Masquer</span>
                             </>
                           ) : (
                             <>
-                              <span>Détails</span>
+                              <span className="hidden sm:inline">Détails</span>
                             </>
                           )}
                         </Button>
@@ -408,7 +408,7 @@ export const UniversWizardStep6: React.FC<UniversWizardStepProps> = ({
                           className="flex items-center space-x-1"
                         >
                           <Edit className="h-4 w-4" />
-                          <span>Modifier</span>
+                          <span className="hidden sm:inline">Modifier</span>
                         </Button>
                         <Button
                           variant="danger"

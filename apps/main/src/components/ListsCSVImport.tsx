@@ -482,7 +482,7 @@ export const ListsCSVImport: React.FC<ListsCSVImportProps> = ({
         return (
           <div className="space-y-6">
             <div>
-              <h2 className="text-xl font-bold text-gray-900">Importer un fichier CSV</h2>
+              <h2 className="text-lg sm:text-xl font-bold text-gray-900">Importer un fichier CSV</h2>
               <p className="text-sm text-gray-600 mt-1">
                 Téléchargez un fichier CSV pour créer automatiquement une liste avec des colonnes et des lignes
               </p>
@@ -501,8 +501,8 @@ export const ListsCSVImport: React.FC<ListsCSVImportProps> = ({
             )}
 
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <div className="flex items-center justify-between">
-                <div>
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div className="flex-1">
                   <h3 className="text-sm font-medium text-blue-800 mb-1">
                     📥 Besoin d'un exemple de format CSV ?
                   </h3>
@@ -516,10 +516,11 @@ export const ListsCSVImport: React.FC<ListsCSVImportProps> = ({
                   variant="secondary"
                   size="sm"
                   onClick={handleDownloadSample}
-                  className="flex items-center space-x-2"
+                  className="flex items-center justify-center space-x-2 w-full sm:w-auto flex-shrink-0"
                 >
                   <Download className="h-4 w-4" />
-                  <span>Télécharger exemple</span>
+                  <span className="hidden sm:inline">Télécharger exemple</span>
+                  <span className="sm:hidden">Télécharger</span>
                 </Button>
               </div>
             </div>
@@ -568,8 +569,8 @@ export const ListsCSVImport: React.FC<ListsCSVImportProps> = ({
               )}
             </div>
 
-            <div className="flex justify-end space-x-3">
-              <Button variant="secondary" onClick={onCancel}>
+            <div className="flex justify-end">
+              <Button variant="secondary" onClick={onCancel} className="w-full sm:w-auto">
                 Annuler
               </Button>
             </div>
@@ -580,7 +581,7 @@ export const ListsCSVImport: React.FC<ListsCSVImportProps> = ({
         return (
           <div className="space-y-6">
             <div>
-              <h2 className="text-xl font-bold text-gray-900">Révision des colonnes</h2>
+              <h2 className="text-lg sm:text-xl font-bold text-gray-900">Révision des colonnes</h2>
               <p className="text-sm text-gray-600 mt-1">
                 Vérifiez et ajustez les types de colonnes détectés automatiquement
               </p>
@@ -650,16 +651,16 @@ export const ListsCSVImport: React.FC<ListsCSVImportProps> = ({
               </div>
             </Card>
 
-            <div className="flex justify-between space-x-3">
-              <Button variant="secondary" onClick={handleReset} className="flex items-center">
+            <div className="flex flex-col sm:flex-row justify-between gap-3">
+              <Button variant="secondary" onClick={handleReset} className="flex items-center justify-center w-full sm:w-auto">
                 <X className="h-4 w-4 mr-2" />
                 Nouveau fichier
               </Button>
-              <div className="flex space-x-3">
-                <Button variant="secondary" onClick={onCancel}>
+              <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
+                <Button variant="secondary" onClick={onCancel} className="w-full sm:w-auto">
                   Annuler
                 </Button>
-                <Button onClick={handlePreview} className="flex items-center">
+                <Button onClick={handlePreview} className="flex items-center justify-center w-full sm:w-auto">
                   <Eye className="h-4 w-4 mr-2" />
                   Aperçu
                 </Button>
@@ -672,7 +673,7 @@ export const ListsCSVImport: React.FC<ListsCSVImportProps> = ({
         return (
           <div className="space-y-6">
             <div>
-              <h2 className="text-xl font-bold text-gray-900">Aperçu de la liste</h2>
+              <h2 className="text-lg sm:text-xl font-bold text-gray-900">Aperçu de la liste</h2>
               <p className="text-sm text-gray-600 mt-1">
                 Vérifiez les données avant de finaliser l'importation
               </p>
@@ -730,16 +731,16 @@ export const ListsCSVImport: React.FC<ListsCSVImportProps> = ({
               </>
             )}
 
-            <div className="flex justify-between space-x-3">
-              <Button variant="secondary" onClick={() => setCurrentStep('review')} className="flex items-center">
+            <div className="flex flex-col sm:flex-row justify-between gap-3">
+              <Button variant="secondary" onClick={() => setCurrentStep('review')} className="flex items-center justify-center w-full sm:w-auto">
                 <Edit2 className="h-4 w-4 mr-2" />
                 Retour
               </Button>
-              <div className="flex space-x-3">
-                <Button variant="secondary" onClick={onCancel}>
+              <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
+                <Button variant="secondary" onClick={onCancel} className="w-full sm:w-auto">
                   Annuler
                 </Button>
-                <Button onClick={handleFinalize} className="flex items-center">
+                <Button onClick={handleFinalize} className="flex items-center justify-center w-full sm:w-auto">
                   <CheckCircle className="h-4 w-4 mr-2" />
                   Importer
                 </Button>

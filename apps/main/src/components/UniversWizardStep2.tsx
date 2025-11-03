@@ -236,15 +236,17 @@ export const UniversWizardStep2: React.FC<UniversWizardStepProps> = ({
                 <div className="p-4">
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
-                      <div className="flex items-center space-x-3 mb-2">
-                        <Database className="h-5 w-5 text-blue-600" />
-                        <h3 className="text-lg font-semibold text-gray-900">{list.name}</h3>
+                      <div className="flex flex-col sm:flex-row sm:items-center space-y-1 sm:space-y-0 sm:space-x-3 mb-2">
+                        <div className="flex items-center space-x-2">
+                          <Database className="h-5 w-5 text-blue-600 flex-shrink-0" />
+                          <h3 className="text-base sm:text-lg font-semibold text-gray-900">{list.name}</h3>
+                        </div>
                         {list.description && (
                           <span className="text-sm text-gray-500">— {list.description}</span>
                         )}
                       </div>
                       
-                      <div className="flex items-center space-x-4 text-sm text-gray-600 mb-3">
+                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-gray-600 mb-3">
                         <span>{list.columns.length} colonne{list.columns.length > 1 ? 's' : ''}</span>
                         <span>{list.rows.length} ligne{list.rows.length > 1 ? 's' : ''}</span>
                       </div>
@@ -264,8 +266,8 @@ export const UniversWizardStep2: React.FC<UniversWizardStepProps> = ({
                                 </div>
                               ))}
                             </div>
-                          </div>
-
+          </div>
+          
                           {/* Preview of rows (first 3) */}
                           {list.rows.length > 0 && (
                             <div>
@@ -303,9 +305,9 @@ export const UniversWizardStep2: React.FC<UniversWizardStepProps> = ({
                           )}
                         </div>
                       )}
-                    </div>
+          </div>
 
-                    <div className="flex items-center space-x-2 ml-4">
+                    <div className="flex flex-wrap items-center gap-2 mt-4 sm:mt-0 sm:ml-4">
                       <Button
                         variant="secondary"
                         size="sm"
@@ -315,12 +317,12 @@ export const UniversWizardStep2: React.FC<UniversWizardStepProps> = ({
                         {isExpanded ? (
                           <>
                             <ChevronUp className="h-4 w-4" />
-                            <span>Réduire</span>
+                            <span className="hidden sm:inline">Réduire</span>
                           </>
                         ) : (
                           <>
                             <ChevronDown className="h-4 w-4" />
-                            <span>Développer</span>
+                            <span className="hidden sm:inline">Développer</span>
                           </>
                         )}
                       </Button>
@@ -331,7 +333,7 @@ export const UniversWizardStep2: React.FC<UniversWizardStepProps> = ({
                         className="flex items-center space-x-1"
                       >
                         <Database className="h-4 w-4" />
-                        <span>Import CSV</span>
+                        <span className="hidden sm:inline">Import CSV</span>
                       </Button>
                       <Button
                         variant="secondary"
@@ -340,7 +342,7 @@ export const UniversWizardStep2: React.FC<UniversWizardStepProps> = ({
                         className="flex items-center space-x-1"
                       >
                         <Edit className="h-4 w-4" />
-                        <span>Modifier</span>
+                        <span className="hidden sm:inline">Modifier</span>
                       </Button>
                       <Button
                         variant="danger"
@@ -349,11 +351,11 @@ export const UniversWizardStep2: React.FC<UniversWizardStepProps> = ({
                         className="flex items-center space-x-1"
                       >
                         <Trash2 className="h-4 w-4" />
-                        <span>Supprimer</span>
+                        <span className="hidden sm:inline">Supprimer</span>
                       </Button>
-                    </div>
-                  </div>
-                </div>
+              </div>
+            </div>
+          </div>
               </Card>
             );
           })}

@@ -346,7 +346,7 @@ export const ListEditor: React.FC<ListEditorProps> = ({
                   {columns.map((col) => (
                     <th
                       key={col.id}
-                      className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider min-w-[150px]"
+                      className="px-2 md:px-4 py-2 md:py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider min-w-[120px] md:min-w-[150px]"
                     >
                       <div className="flex items-center space-x-2 group">
                         {editingColumn === col.id ? (
@@ -397,8 +397,8 @@ export const ListEditor: React.FC<ListEditorProps> = ({
                       </div>
                     </th>
                   ))}
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider w-20">
-                    <div className="flex items-center space-x-2">
+                  <th className="px-2 md:px-4 py-2 md:py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider w-20 md:w-auto">
+                    <div className="flex items-center space-x-1 md:space-x-2">
                       <Button
                         variant="secondary"
                         size="sm"
@@ -407,7 +407,7 @@ export const ListEditor: React.FC<ListEditorProps> = ({
                         title="Ajouter une colonne"
                       >
                         <Plus className="h-3 w-3" />
-                        <span className="text-xs">Colonne</span>
+                        <span className="text-xs hidden sm:inline">Colonne</span>
                       </Button>
                     </div>
                   </th>
@@ -416,7 +416,7 @@ export const ListEditor: React.FC<ListEditorProps> = ({
               <tbody className="bg-white divide-y divide-gray-200">
                 {rows.length === 0 ? (
                   <tr>
-                    <td colSpan={columns.length + 1} className="px-4 py-8 text-center">
+                    <td colSpan={columns.length + 1} className="px-2 md:px-4 py-4 md:py-8 text-center">
                       <div className="flex flex-col items-center space-y-3">
                         <p className="text-sm text-gray-500">Aucune ligne ajoutée</p>
                         <Button
@@ -436,7 +436,7 @@ export const ListEditor: React.FC<ListEditorProps> = ({
                     {rows.map((row, rowIndex) => (
                       <tr key={rowIndex} className="hover:bg-gray-50">
                         {columns.map((col) => (
-                          <td key={col.id} className="px-4 py-2 whitespace-nowrap">
+                          <td key={col.id} className="px-2 md:px-4 py-2 whitespace-nowrap">
                             <Input
                               value={row[col.id] !== null && row[col.id] !== undefined ? String(row[col.id]) : ''}
                               onChange={(e) => {
@@ -458,7 +458,7 @@ export const ListEditor: React.FC<ListEditorProps> = ({
                             />
                           </td>
                         ))}
-                        <td className="px-4 py-2 whitespace-nowrap">
+                        <td className="px-2 md:px-4 py-2 whitespace-nowrap">
                           <Button
                             type="button"
                             variant="danger"
@@ -473,7 +473,7 @@ export const ListEditor: React.FC<ListEditorProps> = ({
                       </tr>
                     ))}
                     <tr>
-                      <td colSpan={columns.length + 1} className="px-4 py-3 border-t border-gray-300">
+                      <td colSpan={columns.length + 1} className="px-2 md:px-4 py-2 md:py-3 border-t border-gray-300">
                         <Button
                           variant="secondary"
                           size="sm"
@@ -517,11 +517,11 @@ export const ListEditor: React.FC<ListEditorProps> = ({
           }}
         >
           <div 
-            className="bg-white rounded-lg shadow-xl max-w-6xl w-full max-h-[90vh] overflow-y-auto"
+            className="bg-white rounded-lg shadow-xl max-w-full md:max-w-6xl w-full max-h-[90vh] overflow-y-auto mx-2 md:mx-4"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between z-10">
-              <h3 className="text-lg font-semibold text-gray-900">Importer depuis CSV</h3>
+            <div className="sticky top-0 bg-white border-b border-gray-200 px-4 md:px-6 py-3 md:py-4 flex items-center justify-between z-10">
+              <h3 className="text-base md:text-lg font-semibold text-gray-900">Importer depuis CSV</h3>
               <Button
                 variant="secondary"
                 size="sm"
@@ -531,7 +531,7 @@ export const ListEditor: React.FC<ListEditorProps> = ({
                 <X className="h-4 w-4" />
               </Button>
             </div>
-            <div className="p-6">
+            <div className="p-4 md:p-6">
               <ListsCSVImport
                 onImportComplete={handleCSVImportComplete}
                 onCancel={() => setShowCSVImport(false)}
@@ -544,13 +544,13 @@ export const ListEditor: React.FC<ListEditorProps> = ({
       )}
 
       {/* Save/Cancel buttons at bottom */}
-      <div className="flex items-center justify-end space-x-3 pt-4 border-t border-gray-200">
-        <Button variant="secondary" onClick={onCancel}>
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-3 pt-4 border-t border-gray-200">
+        <Button variant="secondary" onClick={onCancel} className="w-full sm:w-auto">
           Annuler
         </Button>
         <Button 
           onClick={handleSave} 
-          className="flex items-center space-x-2"
+          className="flex items-center justify-center space-x-2 w-full sm:w-auto"
           disabled={isSaveDisabled()}
         >
           <Save className="h-4 w-4" />
