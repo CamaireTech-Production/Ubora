@@ -74,8 +74,7 @@ export const UniversWizardStep6: React.FC<UniversWizardStepProps> = ({
     }));
   }, [wizardData.definitions.dashboards, user]);
 
-  // Check if forms or dashboards exist
-  const hasForms = universForms.length > 0;
+  // Check if dashboards exist (required for reports)
   const hasDashboards = universDashboards.length > 0;
   const hasReports = reports.length > 0;
 
@@ -97,8 +96,8 @@ export const UniversWizardStep6: React.FC<UniversWizardStepProps> = ({
   }, [reports, updateWizardData, wizardData.definitions, markStepCompleted, markStepSkipped, step]);
 
   const handleAddReport = () => {
-    if (!hasForms && !hasDashboards) {
-      showError('Vous devez créer au moins un formulaire ou un tableau de bord avant de créer un rapport');
+    if (!hasDashboards) {
+      showError('Vous devez créer au moins un tableau de bord avant de créer un rapport');
       return;
     }
     setEditingReportId(null);
@@ -242,18 +241,18 @@ export const UniversWizardStep6: React.FC<UniversWizardStepProps> = ({
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <div className="w-full">
-              <p className="text-gray-600 mb-4">
+          <p className="text-gray-600 mb-4">
                 Créez des rapports personnalisés avec des templates PDF, Word ou texte.
                 Utilisez des placeholders <code className="bg-gray-100 px-1 rounded">{"{{placeholder}}"}</code> et mappez-les aux données de vos formulaires ou métriques de tableaux de bord.
               </p>
               
-              {(!hasForms && !hasDashboards) && (
+              {!hasDashboards && (
                 <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4">
                   <div className="flex items-start space-x-2">
                     <AlertCircle className="h-5 w-5 text-yellow-600 flex-shrink-0 mt-0.5" />
                     <div className="text-sm text-yellow-700">
                       <p className="font-medium mb-1">Attention</p>
-                      <p>Vous devez créer au moins un formulaire ou un tableau de bord avant de créer un rapport.</p>
+                      <p>Vous devez créer au moins un tableau de bord avant de créer un rapport.</p>
                     </div>
                   </div>
                 </div>
@@ -285,7 +284,7 @@ export const UniversWizardStep6: React.FC<UniversWizardStepProps> = ({
           <div className="flex items-center justify-between">
             <Button
               onClick={handleAddReport}
-              disabled={!hasForms && !hasDashboards}
+              disabled={!hasDashboards}
               className="flex items-center space-x-2"
             >
               <Plus className="h-4 w-4" />
@@ -379,11 +378,11 @@ export const UniversWizardStep6: React.FC<UniversWizardStepProps> = ({
                                     </span>
                                   )}
                                 </div>
-                              </div>
+            </div>
                             )}
-                          </div>
+            </div>
                         )}
-                      </div>
+            </div>
 
                       <div className="flex items-center space-x-2 ml-4">
                         <Button
@@ -419,9 +418,9 @@ export const UniversWizardStep6: React.FC<UniversWizardStepProps> = ({
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
-                      </div>
-                    </div>
-                  </div>
+            </div>
+            </div>
+          </div>
                 );
               })}
             </div>

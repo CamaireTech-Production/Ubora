@@ -466,7 +466,7 @@ export interface DashboardMetric {
   fieldId: string;
   fieldType: 'text' | 'number' | 'email' | 'textarea' | 'select' | 'checkbox' | 'date' | 'file' | 'calculated';
   calculationType: 'count' | 'sum' | 'average' | 'min' | 'max' | 'unique';
-  metricType: 'value' | 'graph'; // New: type of metric display
+  metricType: 'value' | 'graph' | 'table'; // New: type of metric display
   // Graph configuration (only used when metricType is 'graph')
   graphConfig?: {
     xAxisFieldId?: string; // Field for X axis

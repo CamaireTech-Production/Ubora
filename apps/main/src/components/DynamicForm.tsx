@@ -313,16 +313,16 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
             }));
           },
           (pdfResult) => {
-            // PDF extraction result (success or failure)
+            // Document (PDF/Word) extraction result (success or failure)
             if (pdfResult.extractionStatus === 'completed') {
-              console.log(`✅ PDF ${pdfResult.fileName} processed successfully`);
+              console.log(`✅ Document ${pdfResult.fileName} processed successfully`);
               console.log(`📝 Extracted text length: ${pdfResult.extractedText?.length || 0} characters`);
               // Show success toast without disrupting form
-              showSuccess(`PDF ${pdfResult.fileName} traité avec succès`);
+              showSuccess(`Document ${pdfResult.fileName} traité avec succès`);
             } else if (pdfResult.extractionStatus === 'failed') {
-              console.error(`❌ PDF ${pdfResult.fileName} extraction failed:`, pdfResult.error);
+              console.error(`❌ Document ${pdfResult.fileName} extraction failed:`, pdfResult.error);
               // Show user-friendly error message without disrupting form
-              showError(`Erreur d'extraction PDF: ${pdfResult.error || 'Impossible d\'extraire le texte du PDF'}`);
+              showError(`Erreur d'extraction: ${pdfResult.error || 'Impossible d\'extraire le texte du document'}`);
             }
           },
           (imageResult) => {

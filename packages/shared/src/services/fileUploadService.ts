@@ -8,6 +8,7 @@ import {
 import { storage } from '../firebaseConfig';
 import { FileAttachment } from '../types';
 import { PDFTextExtractionService } from './pdfTextExtractionService';
+import { DocumentExtractionService } from './documentExtractionService';
 import { ImageTextExtractionService } from './imageTextExtractionService';
 
 export interface UploadProgress {
@@ -134,8 +135,8 @@ export class FileUploadService {
       }
 
 
-      // Extract text if it's a PDF
-      if (PDFTextExtractionService.isPDF(file)) {
+      // Extract text if it's a PDF or Word document
+      if (DocumentExtractionService.isSupportedDocument(file)) {
         try {
           // Update progress - extracting
           onProgress?.({
@@ -145,15 +146,19 @@ export class FileUploadService {
             status: 'extracting'
           });
 
-          const extractionResult = await PDFTextExtractionService.extractTextFromPDF(file, userId);
-          console.log('🔍 DEBUG: PDF extraction result:', extractionResult);
+          const extractionResult = await DocumentExtractionService.extractDocument(file, {
+            method: 'basic',
+            userId
+          });
+          console.log('🔍 DEBUG: Document extraction result:', extractionResult);
           
           if (extractionResult.success) {
-            fileAttachment.extractedText = PDFTextExtractionService.cleanExtractedText(extractionResult.text);
+            fileAttachment.extractedText = extractionResult.text;
             fileAttachment.textExtractionStatus = 'completed';
 
             // Text extraction completed - no Firebase upload for now
-            console.log(`✅ PDF text extraction completed for ${file.name}`);
+            const fileTypeLabel = extractionResult.documentType === 'word' ? 'Word' : 'PDF';
+            console.log(`✅ ${fileTypeLabel} text extraction completed for ${file.name}`);
 
             // Trigger debug modal callback with extracted text
             onPDFExtraction?.({
@@ -165,12 +170,12 @@ export class FileUploadService {
           } else {
             // Extraction failed
             fileAttachment.textExtractionStatus = 'failed';
-            console.error(`❌ PDF text extraction failed for ${file.name}:`, extractionResult.error);
+            console.error(`❌ Document text extraction failed for ${file.name}:`, extractionResult.error);
 
             // Trigger debug modal callback with error
             onPDFExtraction?.({
               fileName: file.name,
-              extractedText: extractionResult.text,
+              extractedText: extractionResult.text || '',
               extractionStatus: 'failed',
               error: extractionResult.error,
               fileSize: file.size

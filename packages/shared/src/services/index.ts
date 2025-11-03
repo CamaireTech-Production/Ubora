@@ -39,6 +39,8 @@ export * from './tokenUsageLogService';
 export * from './unifiedNotificationService';
 export * from './universService';
 export * from './userSessionService';
+export * from './wordExtractionService';
+export * from './documentExtractionService';
 
 // Note: scheduled subdirectory is not exported here to avoid duplicate exports
 // Individual scheduled services are exported above

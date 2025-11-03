@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { Report, ReportPlaceholder, ReportMapping, Dashboard, StaticValueType } from '../types';
 import { Button } from './Button';
@@ -7,13 +7,12 @@ import { Textarea } from './Textarea';
 import { Select } from './Select';
 import { Card } from './Card';
 import { FileInput } from './FileInput';
-import { ArrowLeft, FileText, Upload, Edit, MapPin, X, Loader2, AlertCircle, CheckCircle, FileBarChart, Hash } from 'lucide-react';
+import { Edit, MapPin, X, Loader2, AlertCircle, CheckCircle } from 'lucide-react';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
 import { useApp } from '@ubora/shared/contexts/AppContext';
 import { useToast } from '@ubora/shared/hooks/useToast';
 import { reportService } from '../services/reportService';
-import { PDFTextExtractionService } from '@ubora/shared/services/pdfTextExtractionService';
-import { FileUploadService } from '@ubora/shared/services/fileUploadService';
+import { DocumentExtractionService } from '@ubora/shared/services';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
 
@@ -67,7 +66,6 @@ export const ReportBuilder: React.FC<ReportBuilderProps> = ({
   const [templateFileStoragePath, setTemplateFileStoragePath] = useState(initialReport?.templateFileStoragePath || '');
   const [templateFileName, setTemplateFileName] = useState(initialReport?.templateFileName || '');
   const [extractedText, setExtractedText] = useState<string>('');
-  const [isExtractingText, setIsExtractingText] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<{
     fieldId: string;
     fileName: string;
@@ -104,28 +102,30 @@ export const ReportBuilder: React.FC<ReportBuilderProps> = ({
       const plainText = extractTextFromHTML(templateContent);
       const extracted = reportService.extractPlaceholdersFromTemplate(plainText);
       setPlaceholders(extracted);
-    } else if (templateType === 'pdf' && extractedText) {
+    } else if ((templateType === 'pdf' || templateType === 'word') && extractedText) {
       const extracted = reportService.extractPlaceholdersFromTemplate(extractedText);
       setPlaceholders(extracted);
     }
   }, [templateContent, extractedText, templateType]);
 
   // ReactQuill modules configuration
-  const quillModules = useMemo(() => ({
-    toolbar: [
-      [{ 'header': [1, 2, 3, 4, 5, 6, false] }],
-      [{ 'font': [] }],
-      [{ 'size': [] }],
-      ['bold', 'italic', 'underline', 'strike'],
-      [{ 'color': [] }, { 'background': [] }],
-      [{ 'script': 'sub' }, { 'script': 'super' }],
-      [{ 'list': 'ordered' }, { 'list': 'bullet' }, { 'indent': '-1' }, { 'indent': '+1' }],
-      [{ 'align': [] }],
-      ['blockquote', 'code-block'],
-      ['link', 'image'],
-      ['clean']
-    ]
-  }), []);
+  const quillModules = useMemo(() => {
+    return {
+      toolbar: [
+        [{ 'header': [1, 2, 3, 4, 5, 6, false] }],
+        [{ 'font': [] }],
+        [{ 'size': [] }],
+        ['bold', 'italic', 'underline', 'strike'],
+        [{ 'color': [] }, { 'background': [] }],
+        [{ 'script': 'sub' }, { 'script': 'super' }],
+        [{ 'list': 'ordered' }, { 'list': 'bullet' }, { 'indent': '-1' }, { 'indent': '+1' }],
+        [{ 'align': [] }],
+        ['blockquote', 'code-block'],
+        ['link', 'image'],
+        ['clean']
+      ]
+    };
+  }, []);
 
   const quillFormats = [
     'header', 'font', 'size',
@@ -159,7 +159,6 @@ export const ReportBuilder: React.FC<ReportBuilderProps> = ({
     // Upload file to Firebase Storage
     if (user?.id && user?.agencyId) {
       try {
-        setIsExtractingText(true);
         setUploadProgress({
           fieldId: 'template',
           fileName: file.name,
@@ -167,8 +166,8 @@ export const ReportBuilder: React.FC<ReportBuilderProps> = ({
           status: 'uploading'
         });
 
-        // For PDF files, extract text
-        if (PDFTextExtractionService.isPDF(file)) {
+        // Extract text from PDF or Word files
+        if (DocumentExtractionService.isSupportedDocument(file)) {
           setUploadProgress({
             fieldId: 'template',
             fileName: file.name,
@@ -176,14 +175,17 @@ export const ReportBuilder: React.FC<ReportBuilderProps> = ({
             status: 'extracting'
           });
 
-          const extractionResult = await PDFTextExtractionService.extractTextFromPDF(file, user.id);
+          // Use unified document extraction service
+          const extractionResult = await DocumentExtractionService.extractDocument(file, {
+            method: 'basic',
+            userId: user.id
+          });
           
           if (extractionResult.success && extractionResult.text) {
-            const cleanedText = PDFTextExtractionService.cleanExtractedText(extractionResult.text);
-            setExtractedText(cleanedText);
+            setExtractedText(extractionResult.text);
             
             // Extract placeholders from extracted text
-            const extracted = reportService.extractPlaceholdersFromTemplate(cleanedText);
+            const extracted = reportService.extractPlaceholdersFromTemplate(extractionResult.text);
             setPlaceholders(extracted);
             
             setUploadProgress({
@@ -193,7 +195,8 @@ export const ReportBuilder: React.FC<ReportBuilderProps> = ({
               status: 'completed'
             });
             
-            showSuccess('Texte extrait du PDF avec succès');
+            const fileTypeLabel = extractionResult.documentType === 'word' ? 'Word' : 'PDF';
+            showSuccess(`Texte extrait du document ${fileTypeLabel} avec succès`);
           } else {
             throw new Error(extractionResult.error || 'Échec de l\'extraction du texte');
           }
@@ -226,7 +229,6 @@ export const ReportBuilder: React.FC<ReportBuilderProps> = ({
           status: 'error'
         });
       } finally {
-        setIsExtractingText(false);
         setTimeout(() => setUploadProgress(undefined), 2000);
       }
     }
@@ -729,7 +731,7 @@ const PlaceholderMappingModal: React.FC<PlaceholderMappingModalProps> = ({
   }, [dashboardId, dashboards]);
 
   // Get metric type label
-  const getMetricTypeLabel = (metricType: 'value' | 'graph' | 'table'): string => {
+  const getMetricTypeLabel = (metricType?: 'value' | 'graph' | 'table'): string => {
     switch (metricType) {
       case 'value':
         return 'Valeur';
@@ -794,7 +796,7 @@ const PlaceholderMappingModal: React.FC<PlaceholderMappingModalProps> = ({
                 sourceType: 'dashboard',
                 sourceId: dashboardId,
                 metricId: correctedMetric.id,
-                metricType: (correctedMetric.metricType === 'graph' ? 'graph' : correctedMetric.metricType === 'table' ? 'table' : 'value'),
+                metricType: (correctedMetric.metricType === 'graph' ? 'graph' : (correctedMetric.metricType === 'table' ? 'table' : 'value')),
                 defaultValue: defaultValue || undefined
               };
               onSave(mapping);
@@ -811,7 +813,7 @@ const PlaceholderMappingModal: React.FC<PlaceholderMappingModalProps> = ({
         sourceType: 'dashboard',
         sourceId: dashboardId,
         metricId: metricId,
-        metricType: (metric.metricType === 'graph' ? 'graph' : metric.metricType === 'table' ? 'table' : 'value'),
+        metricType: (metric.metricType === 'graph' ? 'graph' : (metric.metricType === 'table' ? 'table' : 'value')),
       defaultValue: defaultValue || undefined
     };
 
@@ -845,10 +847,8 @@ const PlaceholderMappingModal: React.FC<PlaceholderMappingModalProps> = ({
         }
       }}
     >
-      <Card 
-        className="max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
-      >
+      <div className="max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <Card>
         <div className="space-y-6">
           <div className="flex items-center justify-between">
             <h3 className="text-lg font-semibold text-gray-900">
@@ -866,35 +866,35 @@ const PlaceholderMappingModal: React.FC<PlaceholderMappingModalProps> = ({
                 Type de source *
               </label>
               <div className="flex space-x-4">
-                <label className="flex items-center space-x-2 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="sourceType"
-                    value="dashboard"
-                    checked={sourceType === 'dashboard'}
-              onChange={(e) => {
-                      setSourceType('dashboard');
-                      setStaticValueType(''); // Reset static value
-                    }}
-                    className="text-blue-600 focus:ring-blue-500"
-                  />
-                  <span className="text-sm text-gray-700">Tableau de bord</span>
-                </label>
-                <label className="flex items-center space-x-2 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="sourceType"
-                    value="static"
-                    checked={sourceType === 'static'}
-              onChange={(e) => {
-                      setSourceType('static');
-                      setDashboardId(''); // Reset dashboard
-                      setMetricId(''); // Reset metric
-                    }}
-                    className="text-blue-600 focus:ring-blue-500"
-                  />
-                  <span className="text-sm text-gray-700">Valeur statique</span>
-                </label>
+                      <label className="flex items-center space-x-2 cursor-pointer">
+                          <input
+                            type="radio"
+                            name="sourceType"
+                            value="dashboard"
+                            checked={sourceType === 'dashboard'}
+                            onChange={() => {
+                              setSourceType('dashboard');
+                              setStaticValueType(''); // Reset static value
+                            }}
+                            className="text-blue-600 focus:ring-blue-500"
+                          />
+                          <span className="text-sm text-gray-700">Tableau de bord</span>
+                        </label>
+                        <label className="flex items-center space-x-2 cursor-pointer">
+                          <input
+                            type="radio"
+                            name="sourceType"
+                            value="static"
+                            checked={sourceType === 'static'}
+                            onChange={() => {
+                              setSourceType('static');
+                              setDashboardId(''); // Reset dashboard
+                              setMetricId(''); // Reset metric
+                            }}
+                            className="text-blue-600 focus:ring-blue-500"
+                          />
+                          <span className="text-sm text-gray-700">Valeur statique</span>
+                        </label>
               </div>
             </div>
 
@@ -906,7 +906,7 @@ const PlaceholderMappingModal: React.FC<PlaceholderMappingModalProps> = ({
                   </label>
                   <select
                     value={dashboardId}
-                    onChange={(e) => {
+              onChange={(e) => {
                       const newDashboardId = e.target.value;
                       console.log('Dashboard selection changed:', newDashboardId);
                       console.log('Previous dashboardId:', dashboardId);
@@ -1078,6 +1078,7 @@ const PlaceholderMappingModal: React.FC<PlaceholderMappingModalProps> = ({
           </div>
         </div>
       </Card>
+      </div>
     </div>
   );
 
