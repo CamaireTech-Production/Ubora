@@ -16,6 +16,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 import { Univers, UniversInstance, UniversDefinitions, UniversMetadata, UniversOwnership, UniversUsage } from '../types';
+import { universInstantiationService, InstantiationResult } from './universInstantiationService';
 
 class UniversService {
   private readonly collectionName = 'univers';
@@ -452,6 +453,88 @@ class UniversService {
     }, (error) => {
       console.error('Erreur lors de l\'écoute des Univers:', error);
     });
+  }
+
+  /**
+   * Instantiate a Univers template: create concrete resources from definitions
+   * 
+   * @param universId - ID of the Univers template to instantiate
+   * @param userId - ID of the user instantiating the template
+   * @param userRole - Role of the user ('directeur' | 'employe' | 'admin')
+   * @param agencyId - ID of the agency where resources will be created
+   * @returns The created UniversInstance ID and the instantiation result
+   * @throws Error if Univers not found, instantiation fails, or instance creation fails
+   */
+  async instantiate(
+    universId: string,
+    userId: string,
+    userRole: 'directeur' | 'employe' | 'admin',
+    agencyId: string
+  ): Promise<{ instanceId: string; result: InstantiationResult }> {
+    try {
+      // 1. Fetch the Univers template
+      const univers = await this.getById(universId);
+      if (!univers) {
+        throw new Error(`Univers template not found: ${universId}`);
+      }
+
+      // Validate that the Univers has definitions
+      if (!univers.definitions) {
+        throw new Error('Univers template has no definitions');
+      }
+
+      // 2. Generate a unique instance ID
+      const universInstanceId = `instance_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+      // 3. Call the instantiation service to create concrete resources
+      const instantiationResult = await universInstantiationService.instantiate({
+        definitions: univers.definitions,
+        userId,
+        userRole,
+        agencyId,
+        universId,
+        universInstanceId
+      });
+
+      // 4. Create the UniversInstance document with all instantiated resource IDs
+      const instanceData: Omit<UniversInstance, 'id'> = {
+        universId,
+        userId,
+        agencyId,
+        createdAt: new Date(),
+        instances: {
+          forms: instantiationResult.forms,
+          dashboards: instantiationResult.dashboards,
+          instructions: instantiationResult.instructions,
+          lists: instantiationResult.lists,
+          reports: instantiationResult.reports
+        },
+        metadata: {
+          universName: univers.metadata.name,
+          universVersion: univers.metadata.version || 1
+        }
+      };
+
+      const instanceId = await this.createInstance(instanceData);
+      // Note: createInstance already increments usage counter via incrementUsage()
+
+      console.log(`✅ Univers instantiated successfully: ${universId} → Instance ${instanceId}`);
+      console.log(`   Created: ${instantiationResult.forms.length} forms, ${instantiationResult.dashboards.length} dashboards, ${instantiationResult.instructions.length} instructions, ${instantiationResult.lists.length} lists, ${instantiationResult.reports.length} reports`);
+
+      return {
+        instanceId,
+        result: instantiationResult
+      };
+    } catch (error) {
+      console.error(`❌ Error instantiating Univers ${universId}:`, error);
+      
+      // Re-throw with a more descriptive message
+      if (error instanceof Error) {
+        throw error;
+      }
+      
+      throw new Error(`Failed to instantiate Univers: ${error}`);
+    }
   }
 }
 
