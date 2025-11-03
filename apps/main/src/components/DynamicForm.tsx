@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Form, FormField, FileAttachment } from '../types';
 import { Button } from './Button';
 import { Input } from './Input';
@@ -18,6 +18,8 @@ import { ConditionalLogicEvaluator } from '@ubora/shared/utils/ConditionalLogicE
 import { getFileBlobUrl } from '@ubora/shared/utils/simpleFileDownload';
 import { TextExtractionReviewModal } from './TextExtractionReviewModal';
 import { UserSessionService } from '@ubora/shared/services/userSessionService';
+import { listsService } from '@ubora/shared/services/listsService';
+import { List, ListRow } from '../types';
 
 // Helper function to convert field IDs back to user-friendly field names in formulas
 const convertFormulaToUserFriendly = (formula: string, fields: FormField[]): string => {
@@ -70,6 +72,14 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [visibleFields, setVisibleFields] = useState<string[]>(form.fields.map((f: FormField) => f.id));
   
+  // Lists state for select fields using Lists
+  // Use Map for O(1) lookup and Set for O(1) loading state checks
+  const [loadedLists, setLoadedLists] = useState<Map<string, List>>(new Map());
+  const [loadingLists, setLoadingLists] = useState<Set<string>>(new Set());
+  
+  // Cache list loading promises to prevent duplicate requests
+  const loadingPromises = useRef<Map<string, Promise<List | null>>>(new Map());
+  
   // Image text extraction review modal state
   const [imageTextModal, setImageTextModal] = useState<{
     isOpen: boolean;
@@ -80,6 +90,88 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
 
   // Draft persistence to avoid data loss on re-mounts
   const { loadDraft, saveDraftDebounced } = useFormDraft<Record<string, unknown>>(form.id, user?.uid);
+
+  // Load lists for select fields that use Lists (with caching, lazy loading, and error handling)
+  useEffect(() => {
+    const loadLists = async () => {
+      const listIds = new Set<string>();
+      form.fields.forEach(field => {
+        if (field.type === 'select' && field.listId) {
+          listIds.add(field.listId);
+        }
+      });
+
+      if (listIds.size === 0) return;
+
+      // Get lists that need to be loaded (not already loaded and not currently loading)
+      const listsToLoad = Array.from(listIds).filter(listId => {
+        return !loadedLists.has(listId) && !loadingLists.has(listId);
+      });
+
+      if (listsToLoad.length === 0) return; // All lists are already loaded or loading
+
+      // Load each list in parallel with error handling and deduplication
+      const loadPromises = listsToLoad.map(async (listId) => {
+        // Check if already loading (prevent duplicate requests)
+        if (loadingPromises.current.has(listId)) {
+          return loadingPromises.current.get(listId);
+        }
+
+        // Create loading promise
+        const loadPromise = (async () => {
+          setLoadingLists(prev => new Set(prev).add(listId));
+          try {
+            const list = await listsService.getById(listId);
+            if (list) {
+              setLoadedLists(prev => new Map(prev).set(listId, list));
+            } else {
+              console.warn(`List ${listId} not found`);
+            }
+            return list;
+          } catch (error) {
+            console.error(`Error loading list ${listId}:`, error);
+            // Show user-friendly error (only once per list, avoid spam)
+            const fieldLabel = form.fields.find(f => f.listId === listId)?.label || 'inconnu';
+            // Debounce error messages to avoid too many toasts
+            setTimeout(() => {
+              showError(`Impossible de charger la liste pour le champ "${fieldLabel}"`);
+            }, 100);
+            return null;
+          } finally {
+            setLoadingLists(prev => {
+              const next = new Set(prev);
+              next.delete(listId);
+              return next;
+            });
+            // Clean up promise cache after completion
+            setTimeout(() => {
+              loadingPromises.current.delete(listId);
+            }, 1000);
+          }
+        })();
+
+        // Cache the promise
+        loadingPromises.current.set(listId, loadPromise);
+        return loadPromise;
+      });
+
+      // Wait for all lists to load (with timeout for hanging requests)
+      await Promise.allSettled(loadPromises.map(p => 
+        Promise.race([
+          p,
+          new Promise<null>((resolve) => 
+            setTimeout(() => {
+              console.warn('List loading timeout (continuing anyway)');
+              resolve(null);
+            }, 30000) // 30s timeout - resolve instead of reject to not block other lists
+          )
+        ])
+      ));
+    };
+
+    loadLists();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.fields]);
 
   // Hydrate from local draft on mount
   useEffect(() => {
@@ -584,6 +676,120 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
         );
       
       case 'select':
+        // Check if this field uses a List
+        if (field.listId && field.displayColumnId) {
+          const list = loadedLists.get(field.listId);
+          const isLoadingList = loadingLists.has(field.listId);
+          
+          if (isLoadingList) {
+            return (
+              <div key={field.id} className="space-y-2">
+                <label htmlFor={field.id} className="block text-sm font-medium text-gray-700">
+                  {field.label} {field.required && <span className="text-red-500">*</span>}
+                </label>
+                <div className="flex items-center space-x-2 text-sm text-gray-500">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span>Chargement de la liste...</span>
+                </div>
+              </div>
+            );
+          }
+
+          if (!list) {
+            return (
+              <div key={field.id} className="space-y-2">
+                <label htmlFor={field.id} className="block text-sm font-medium text-gray-700">
+                  {field.label} {field.required && <span className="text-red-500">*</span>}
+                </label>
+                <div className="text-sm text-red-600">
+                  Liste non trouvée
+                </div>
+              </div>
+            );
+          }
+
+          // Find the display column
+          const displayColumn = list.columns.find(col => col.id === field.displayColumnId);
+          if (!displayColumn) {
+            return (
+              <div key={field.id} className="space-y-2">
+                <label htmlFor={field.id} className="block text-sm font-medium text-gray-700">
+                  {field.label} {field.required && <span className="text-red-500">*</span>}
+                </label>
+                <div className="text-sm text-red-600">
+                  Colonne d'affichage non trouvée
+                </div>
+              </div>
+            );
+          }
+
+          // Build options from list rows
+          const listOptions = list.rows.map((row: ListRow, index: number) => {
+            const displayValue = String(row[displayColumn.id] || '');
+            return {
+              value: JSON.stringify({ _listRow: true, listId: field.listId, rowIndex: index, rowData: row }),
+              label: displayValue || `Ligne ${index + 1}`
+            };
+          });
+
+          // Check current answer - if it's a list row, extract the display value
+          const currentValue = answers[field.id];
+          let selectedValue = '';
+          if (currentValue && typeof currentValue === 'object' && '_listRow' in currentValue) {
+            // It's already a list row object, convert back to option value for display
+            const rowData = (currentValue as any).rowData;
+            if (rowData) {
+              const displayValue = String(rowData[displayColumn.id] || '');
+              selectedValue = JSON.stringify({ _listRow: true, listId: field.listId, rowData });
+            }
+          } else if (typeof currentValue === 'string' && currentValue.startsWith('{')) {
+            // Try to parse as JSON (might be from draft)
+            try {
+              const parsed = JSON.parse(currentValue);
+              if (parsed._listRow && parsed.rowData) {
+                selectedValue = currentValue;
+              }
+            } catch {
+              // Not valid JSON, ignore
+            }
+          }
+
+          return (
+            <Select
+              key={field.id}
+              {...commonProps}
+              value={selectedValue}
+              options={[
+                { value: '', label: 'Sélectionner...' },
+                ...listOptions
+              ]}
+              onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
+                const selectedValue = e.target.value;
+                if (selectedValue) {
+                  try {
+                    const parsed = JSON.parse(selectedValue);
+                    if (parsed._listRow && parsed.rowData) {
+                      // Store the full row object in answers
+                      handleFieldChange(field.id, {
+                        _listRow: true,
+                        listId: field.listId,
+                        rowData: parsed.rowData
+                      });
+                    } else {
+                      handleFieldChange(field.id, selectedValue);
+                    }
+                  } catch {
+                    handleFieldChange(field.id, selectedValue);
+                  }
+                } else {
+                  handleFieldChange(field.id, '');
+                }
+              }}
+            />
+          );
+        }
+
+        // Fallback to manual options
         return (
           <Select
             key={field.id}

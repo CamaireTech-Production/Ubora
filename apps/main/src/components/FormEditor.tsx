@@ -11,7 +11,9 @@ import { Toast } from './Toast';
 import { useToast } from '@ubora/shared/hooks/useToast';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
 import { UserSessionService } from '@ubora/shared/services/userSessionService';
-import { Plus, Trash2, ArrowLeft, CheckSquare, Square, Loader2, Calculator, AlertCircle } from 'lucide-react';
+import { listsService } from '@ubora/shared/services/listsService';
+import { List } from '../types';
+import { Plus, Trash2, ArrowLeft, CheckSquare, Square, Loader2, Calculator, AlertCircle, Database } from 'lucide-react';
 import { FormulaInput } from './FormulaInput';
 import { FormulaParser } from '@ubora/shared/utils/FormulaParser';
 import { ConditionalLogicBuilder } from './ConditionalLogicBuilder';
@@ -62,6 +64,10 @@ export const FormEditor: React.FC<FormEditorProps> = ({
   const { user } = useAuth();
   const canUseFileUploads = user ? UserSessionService.canUseFileUploads(user) : false;
   
+  // Lists state for select fields
+  const [availableLists, setAvailableLists] = useState<List[]>([]);
+  const [loadingLists, setLoadingLists] = useState(false);
+  
   // Confirmation modal state
   const [confirmationModal, setConfirmationModal] = useState<{
     isOpen: boolean;
@@ -75,6 +81,25 @@ export const FormEditor: React.FC<FormEditorProps> = ({
     dependentFields: []
   });
   
+  // Load available lists for agency
+  useEffect(() => {
+    const loadLists = async () => {
+      if (!user?.id || !user?.agencyId) return;
+      
+      setLoadingLists(true);
+      try {
+        const lists = await listsService.getByUser(user.id, user.agencyId, user.role);
+        setAvailableLists(lists);
+      } catch (error) {
+        console.error('Erreur lors du chargement des listes:', error);
+      } finally {
+        setLoadingLists(false);
+      }
+    };
+    
+    loadLists();
+  }, [user]);
+
   // Auto-scroll to errors when they appear (mobile-responsive)
   useEffect(() => {
     if (errors.length > 0 && errorRef.current) {
@@ -765,48 +790,185 @@ export const FormEditor: React.FC<FormEditorProps> = ({
                       />
 
                       {field.type === 'select' && (
-                        <div>
-                          <div className="flex items-center justify-between mb-2">
-                            <label className="block text-sm font-medium text-gray-700">
-                              Options de la liste
+                        <div className="space-y-4">
+                          {/* Toggle between Manual Options and List */}
+                          <div className="flex items-center space-x-4 p-3 bg-gray-50 rounded-lg">
+                            <label className="flex items-center space-x-2 cursor-pointer">
+                              <input
+                                type="radio"
+                                name={`option-type-${field.id}`}
+                                checked={!field.listId}
+                                onChange={() => {
+                                  // Switch to manual options - clear listId
+                                  updateField(field.id, { 
+                                    listId: undefined, 
+                                    displayColumnId: undefined,
+                                    options: field.options || ['']
+                                  });
+                                }}
+                                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                              />
+                              <span className="text-sm font-medium text-gray-700">Options manuelles</span>
                             </label>
-                            <Button
-                              type="button"
-                              variant="secondary"
-                              size="sm"
-                              onClick={() => addOption(field.id)}
-                            >
-                              <Plus className="h-3 w-3" />
-                            </Button>
+                            <label className="flex items-center space-x-2 cursor-pointer">
+                              <input
+                                type="radio"
+                                name={`option-type-${field.id}`}
+                                checked={!!field.listId}
+                                onChange={() => {
+                                  // Switch to List - clear options
+                                  updateField(field.id, { 
+                                    listId: availableLists[0]?.id || '', 
+                                    displayColumnId: availableLists[0]?.columns[0]?.id || '',
+                                    options: undefined
+                                  });
+                                }}
+                                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                              />
+                              <span className="text-sm font-medium text-gray-700 flex items-center space-x-1">
+                                <Database className="h-4 w-4" />
+                                <span>Utiliser une Liste</span>
+                              </span>
+                            </label>
                           </div>
-                          <div className="space-y-2">
-                            {(field.options || []).map((option, optionIndex) => (
-                              <div key={optionIndex} className="flex items-center space-x-2">
-                                <Input
-                                  value={option}
-                                  onChange={(e) => updateOption(field.id, optionIndex, e.target.value)}
-                                  placeholder={`Option ${optionIndex + 1}`}
-                                  className="flex-1"
-                                />
+
+                          {/* Manual Options Section */}
+                          {!field.listId && (
+                            <div>
+                              <div className="flex items-center justify-between mb-2">
+                                <label className="block text-sm font-medium text-gray-700">
+                                  Options de la liste
+                                </label>
                                 <Button
                                   type="button"
-                                  variant="danger"
+                                  variant="secondary"
                                   size="sm"
-                                  onClick={() => removeOption(field.id, optionIndex)}
+                                  onClick={() => addOption(field.id)}
                                 >
-                                  <Trash2 className="h-3 w-3" />
+                                  <Plus className="h-3 w-3" />
                                 </Button>
                               </div>
-                            ))}
-                          </div>
-                          
-                          {/* CSV Import Option */}
-                          <FieldCSVImport
-                            fieldId={field.id}
-                            fieldLabel={field.label}
-                            currentOptions={field.options || []}
-                            onOptionsUpdate={handleFieldOptionsUpdate}
-                          />
+                              <div className="space-y-2">
+                                {(field.options || []).map((option, optionIndex) => (
+                                  <div key={optionIndex} className="flex items-center space-x-2">
+                                    <Input
+                                      value={option}
+                                      onChange={(e) => updateOption(field.id, optionIndex, e.target.value)}
+                                      placeholder={`Option ${optionIndex + 1}`}
+                                      className="flex-1"
+                                    />
+                                    <Button
+                                      type="button"
+                                      variant="danger"
+                                      size="sm"
+                                      onClick={() => removeOption(field.id, optionIndex)}
+                                    >
+                                      <Trash2 className="h-3 w-3" />
+                                    </Button>
+                                  </div>
+                                ))}
+                              </div>
+                              
+                              {/* CSV Import Option */}
+                              <FieldCSVImport
+                                fieldId={field.id}
+                                fieldLabel={field.label}
+                                currentOptions={field.options || []}
+                                onOptionsUpdate={handleFieldOptionsUpdate}
+                              />
+                            </div>
+                          )}
+
+                          {/* List Selection Section */}
+                          {field.listId && (
+                            <div className="space-y-3 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                              <div className="flex items-center space-x-2 mb-3">
+                                <Database className="h-5 w-5 text-blue-600" />
+                                <h4 className="font-medium text-blue-900">Configuration de la Liste</h4>
+                              </div>
+
+                              {/* List Selection */}
+                              <Select
+                                label="Sélectionner une Liste *"
+                                value={field.listId || ''}
+                                onChange={(e) => {
+                                  const selectedListId = e.target.value;
+                                  const selectedList = availableLists.find(l => l.id === selectedListId);
+                                  
+                                  if (selectedList) {
+                                    updateField(field.id, {
+                                      listId: selectedListId,
+                                      displayColumnId: selectedList.columns[0]?.id || '',
+                                      options: undefined
+                                    });
+                                  }
+                                }}
+                                options={[
+                                  { value: '', label: loadingLists ? 'Chargement...' : 'Sélectionner une liste' },
+                                  ...availableLists.map(list => ({
+                                    value: list.id,
+                                    label: `${list.name} (${list.columns.length} colonnes, ${list.rows.length} lignes)`
+                                  }))
+                                ]}
+                                disabled={loadingLists}
+                              />
+
+                              {/* Display Column Selection */}
+                              {field.listId && (() => {
+                                const selectedList = availableLists.find(l => l.id === field.listId);
+                                return selectedList && selectedList.columns.length > 0 ? (
+                                  <Select
+                                    label="Colonne à afficher dans le menu déroulant *"
+                                    value={field.displayColumnId || ''}
+                                    onChange={(e) => {
+                                      updateField(field.id, { displayColumnId: e.target.value });
+                                    }}
+                                    options={[
+                                      { value: '', label: 'Sélectionner une colonne' },
+                                      ...selectedList.columns.map(col => ({
+                                        value: col.id,
+                                        label: `${col.name} (${col.type})`
+                                      }))
+                                    ]}
+                                  />
+                                ) : (
+                                  <p className="text-sm text-gray-600">
+                                    Aucune liste sélectionnée ou la liste n'a pas de colonnes
+                                  </p>
+                                );
+                              })()}
+
+                              {field.listId && field.displayColumnId && (() => {
+                                const selectedList = availableLists.find(l => l.id === field.listId);
+                                const displayColumn = selectedList?.columns.find(c => c.id === field.displayColumnId);
+                                
+                                if (selectedList && displayColumn) {
+                                  return (
+                                    <div className="mt-3 p-3 bg-white border border-gray-200 rounded-lg">
+                                      <p className="text-xs text-gray-600 mb-2">
+                                        <strong>Note:</strong> Lorsque l'utilisateur sélectionne une valeur, l'ensemble de la ligne sera stocké dans les réponses du formulaire.
+                                      </p>
+                                      <p className="text-xs text-gray-500">
+                                        Colonne d'affichage: <strong>{displayColumn.name}</strong> ({displayColumn.type})
+                                      </p>
+                                      <p className="text-xs text-gray-500 mt-1">
+                                        Données complètes: {selectedList.rows.length} ligne(s) disponibles
+                                      </p>
+                                    </div>
+                                  );
+                                }
+                                return null;
+                              })()}
+
+                              {availableLists.length === 0 && !loadingLists && (
+                                <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                                  <p className="text-sm text-yellow-800">
+                                    Aucune liste disponible. <a href="/lists/create" className="underline font-medium">Créer une liste</a>
+                                  </p>
+                                </div>
+                              )}
+                            </div>
+                          )}
                         </div>
                       )}
 

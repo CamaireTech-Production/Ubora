@@ -5,7 +5,7 @@ import { Button } from './Button';
 import { Footer } from './Footer';
 import { UserPackageInfo } from './UserPackageInfo';
 import { ProfileDropdown } from './ProfileDropdown';
-import { BarChart3, MessageSquare, Menu, X, Bell, TestTube } from 'lucide-react';
+import { BarChart3, MessageSquare, Menu, X, Bell, TestTube, Database } from 'lucide-react';
 import { ShareCollaboratorButton } from './ShareCollaboratorButton';
 import { useUnreadNotifications } from '@ubora/shared/hooks/useUnreadNotifications';
 
@@ -25,6 +25,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, title }) => {
   const isDirecteur = user?.role === 'directeur';
   const isDashboard = location.pathname === '/directeur/dashboard';
   const isChat = location.pathname === '/directeur/chat';
+  const isLists = location.pathname.startsWith('/lists');
 
   const toggleMobileMenu = () => {
     setIsMobileMenuOpen(!isMobileMenuOpen);
@@ -112,6 +113,16 @@ export const Layout: React.FC<LayoutProps> = ({ children, title }) => {
                 >
                   <BarChart3 className="h-4 w-4" />
                   <span>Dashboard</span>
+                </Button>
+                
+                <Button
+                  variant={isLists ? "primary" : "secondary"}
+                  size="sm"
+                  onClick={() => navigate('/lists')}
+                  className="flex items-center space-x-2"
+                >
+                  <Database className="h-4 w-4" />
+                  <span>Listes</span>
                 </Button>
               </div>
             )}
@@ -203,6 +214,19 @@ export const Layout: React.FC<LayoutProps> = ({ children, title }) => {
               >
                 <BarChart3 className="h-4 w-4" />
                 <span>Dashboard</span>
+              </Button>
+              
+              <Button
+                variant={isLists ? "primary" : "secondary"}
+                size="sm"
+                onClick={() => {
+                  navigate('/lists');
+                  closeMobileMenu();
+                }}
+                className="w-full flex items-center justify-start space-x-2 mx-2 mb-1"
+              >
+                <Database className="h-4 w-4" />
+                <span>Listes</span>
               </Button>
               
               <Button

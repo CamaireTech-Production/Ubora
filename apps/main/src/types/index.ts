@@ -134,8 +134,11 @@ export interface FormField {
   type: 'text' | 'number' | 'email' | 'textarea' | 'select' | 'checkbox' | 'date' | 'file' | 'calculated';
   required: boolean;
   placeholder?: string;
-  options?: string[]; // Pour les champs select
+  options?: string[]; // Pour les champs select (manual options - deprecated if using listId)
   acceptedTypes?: string[]; // Pour les champs file (ex: [".pdf", ".doc", ".docx"])
+  // List-based dropdown properties (for select fields using Lists)
+  listId?: string; // Reference to List document if this field uses a List
+  displayColumnId?: string; // ID of the column to display in dropdown (while storing full row)
   // Calculated field properties
   calculationFormula?: string; // Ex: "field1 + field2 * 0.2" or "SUM(field1, field2) * 0.1" (stored with field IDs)
   userFormula?: string; // User-friendly formula with field names (ex: "prix * quantité + frais")
@@ -886,7 +889,7 @@ export interface UniversDefinitions {
   forms: FormDefinition[];
   dashboards: DashboardDefinition[];
   instructions: InstructionDefinition[];
-  lists: any[]; // Will be defined in Phase 2
+  lists: ListDefinition[]; // Lists definitions for Univers templates
   reports: ReportDefinition[]; // Reports definitions
 }
 
@@ -896,5 +899,47 @@ export interface Univers {
   ownership: UniversOwnership;
   definitions: UniversDefinitions;
   usage: UniversUsage;
+}
+
+// =============================================================================
+// TYPES FOR LISTS SYSTEM
+// Lists are tabular data structures with columns and rows, used in form dropdowns
+// =============================================================================
+
+export interface ListColumn {
+  id: string;
+  name: string;
+  type: 'text' | 'number' | 'date' | 'email' | 'boolean';
+}
+
+export interface ListRow {
+  [columnId: string]: any; // Map of columnId -> value
+}
+
+export interface List {
+  id: string;
+  name: string;
+  description?: string;
+  columns: ListColumn[];
+  rows: ListRow[];
+  createdBy: string; // directeur ID
+  createdByRole: 'directeur' | 'employe'; // Rôle du créateur
+  createdByEmployeeId?: string; // ID de l'employé si créé par un employé
+  agencyId: string;
+  createdAt: Date;
+  updatedAt: Date;
+  // Univers fields (optional - for Univers template system)
+  universId?: string | null; // Reference to Univers template if created from template
+  universInstanceId?: string | null; // Reference to Univers instance group
+  fromUnivers?: boolean; // Flag to identify Univers-originated items
+}
+
+// ListDefinition for Univers templates (without agency/user IDs)
+export interface ListDefinition {
+  id: string;
+  name: string;
+  description?: string;
+  columns: ListColumn[];
+  rows: ListRow[];
 }
 

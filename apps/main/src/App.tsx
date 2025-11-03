@@ -26,6 +26,8 @@ import { ProgrammedInstructionsRoute } from './components/ProgrammedInstructions
 import { UniversPage } from './pages/UniversPage';
 import { UniversCreatePage } from './pages/UniversCreatePage';
 import { UniversEditPage } from './pages/UniversEditPage';
+import { ListsPage } from './pages/ListsPage';
+import { ListEditorPage } from './pages/ListEditorPage';
 import PushTestPage from './pages/PushTestPage';
 import { HybridPWAManager } from './components/HybridPWAManager';
 import { EmployeeManagement } from './components/EmployeeManagement';
@@ -355,6 +357,45 @@ function App() {
                       requireDirectorDashboardAccess={true}
                     >
                       <UniversEditPage />
+                    </ProtectedRoute>
+                  }
+                />
+                
+                {/* Lists - Main page */}
+                <Route 
+                  path="/lists" 
+                  element={
+                    <ProtectedRoute 
+                      allowedRoles={['directeur', 'employe']} 
+                      requireDirectorDashboardAccess={true}
+                    >
+                      <ListsPage />
+                    </ProtectedRoute>
+                  } 
+                />
+                
+                {/* Lists - Create */}
+                <Route 
+                  path="/lists/create" 
+                  element={
+                    <ProtectedRoute 
+                      allowedRoles={['directeur', 'employe']} 
+                      requireDirectorDashboardAccess={true}
+                    >
+                      <ListEditorPage />
+                    </ProtectedRoute>
+                  } 
+                />
+                
+                {/* Lists - Edit */}
+                <Route
+                  path="/lists/:id/edit"
+                  element={
+                    <ProtectedRoute
+                      allowedRoles={['directeur', 'employe']}
+                      requireDirectorDashboardAccess={true}
+                    >
+                      <ListEditorPage />
                     </ProtectedRoute>
                   }
                 />

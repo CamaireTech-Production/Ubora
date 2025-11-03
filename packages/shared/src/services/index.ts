@@ -38,6 +38,8 @@ export * from './tokenStatsService';
 export * from './tokenUsageLogService';
 export * from './unifiedNotificationService';
 export * from './universService';
+export * from './universInstantiationService';
+export * from './listsService';
 export * from './userSessionService';
 export * from './wordExtractionService';
 export * from './documentExtractionService';

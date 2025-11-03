@@ -814,6 +814,44 @@ service cloud.firestore {
     }
 
     // =============================================================================
+    // COLLECTION LISTS
+    // Règles pour les Lists (listes tabulaires pour les formulaires) :
+    // - Seul un directeur ou utilisateur avec accès peut créer/modifier/supprimer des lists
+    // - Les employés peuvent lire les lists de leur agence
+    // - Toutes les lists sont isolées par agence
+    // =============================================================================
+    
+    match /lists/{listId} {
+      // LECTURE des lists
+      allow read: if isAuthenticated() && (isAdmin() || isSameAgency(resource.data.agencyId));
+      
+      // CRÉATION des lists
+      allow create: if (isAdmin() || canCreateForms()) && 
+                   (isAdmin() || isSameAgency(request.resource.data.agencyId)) &&
+                   request.resource.data.createdBy == request.auth.uid &&
+                   (isAdmin() || request.resource.data.createdByRole in ['directeur', 'employe']) &&
+                   request.resource.data.keys().hasAll(['name', 'columns', 'rows', 'createdBy', 'agencyId', 'createdAt', 'updatedAt']);
+      
+      // MODIFICATION des lists
+      allow update: if isAuthenticated() && (isAdmin() || isSameAgency(resource.data.agencyId)) && (
+        isAdmin() ||
+        isDirecteur() ||
+        (isEmploye() && (
+          resource.data.createdByEmployeeId == request.auth.uid ||
+          canManageEmployeeForms()
+        ))
+      );
+      
+      // SUPPRESSION des lists
+      allow delete: if isAuthenticated() && (isAdmin() || isSameAgency(resource.data.agencyId)) && (
+        isAdmin() ||
+        isDirecteur() ||
+        hasDirectorDashboardAccess() ||
+        (isEmploye() && resource.data.createdByEmployeeId == request.auth.uid)
+      );
+    }
+
+    // =============================================================================
     // RÈGLE DE SÉCURITÉ GLOBALE
     // Bloquer tout accès non authentifié par défaut
     // =============================================================================

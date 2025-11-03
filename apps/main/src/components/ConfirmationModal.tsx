@@ -7,11 +7,12 @@ interface ConfirmationModalProps {
   onClose: () => void;
   onConfirm: () => void;
   title: string;
-  message: string;
+  message: string | React.ReactNode;
   confirmText?: string;
   cancelText?: string;
   variant?: 'danger' | 'warning' | 'info';
   isLoading?: boolean;
+  disabled?: boolean;
 }
 
 export const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
@@ -23,7 +24,8 @@ export const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
   confirmText = 'Confirmer',
   cancelText = 'Annuler',
   variant = 'danger',
-  isLoading = false
+  isLoading = false,
+  disabled = false
 }) => {
   if (!isOpen) return null;
 
@@ -100,9 +102,15 @@ export const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
 
           {/* Content */}
           <div className="px-6 pb-4">
-            <p className="text-sm text-gray-600 leading-relaxed">
-              {message}
-            </p>
+            {typeof message === 'string' ? (
+              <p className="text-sm text-gray-600 leading-relaxed">
+                {message}
+              </p>
+            ) : (
+              <div className="text-sm text-gray-600 leading-relaxed">
+                {message}
+              </div>
+            )}
           </div>
 
           {/* Actions */}
@@ -119,7 +127,7 @@ export const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
             <Button
               type="button"
               onClick={onConfirm}
-              disabled={isLoading}
+              disabled={isLoading || disabled}
               className={`w-full sm:w-auto text-white ${styles.confirmButton} focus:ring-2 focus:ring-offset-2`}
             >
               {isLoading ? (
