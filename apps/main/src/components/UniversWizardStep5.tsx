@@ -76,19 +76,62 @@ export const UniversWizardStep5: React.FC<UniversWizardStepProps> = ({
   const [instructionToDelete, setInstructionToDelete] = useState<InstructionDefinition | null>(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
 
+  // Helper function to normalize date from various formats
+  const normalizeDate = (dateValue: any): Date => {
+    if (dateValue instanceof Date) {
+      return dateValue;
+    }
+    if (dateValue && typeof dateValue === 'object') {
+      // Firestore Timestamp with toDate method
+      if ('toDate' in dateValue && typeof dateValue.toDate === 'function') {
+        return dateValue.toDate();
+      }
+      // Firestore Timestamp sérialisé (has seconds property)
+      if ('seconds' in dateValue && typeof dateValue.seconds === 'number') {
+        return new Date(dateValue.seconds * 1000);
+      }
+      // Try to convert object to date
+      try {
+        return new Date(dateValue);
+      } catch {
+        return new Date();
+      }
+    }
+    if (typeof dateValue === 'string') {
+      const parsed = new Date(dateValue);
+      return isNaN(parsed.getTime()) ? new Date() : parsed;
+    }
+    // Fallback to current date
+    return new Date();
+  };
+
   // Sync local state with wizardData when it changes (e.g., after loading from localStorage)
   useEffect(() => {
     const savedInstructions = (wizardData.definitions.instructions as InstructionDefinition[]) || [];
+    
+    // Normalize dates in saved instructions
+    const normalizedInstructions = savedInstructions.map(instruction => ({
+      ...instruction,
+      scheduledAt: normalizeDate(instruction.scheduledAt)
+    }));
+    
     // Only update if the saved instructions are different from current instructions
     // Check by length first, then by deep comparison if needed
-    if (savedInstructions.length !== instructions.length) {
-      setInstructions(savedInstructions);
-    } else if (savedInstructions.length > 0) {
-      // Deep comparison only if arrays have items
-      const savedStr = JSON.stringify(savedInstructions);
-      const currentStr = JSON.stringify(instructions);
+    if (normalizedInstructions.length !== instructions.length) {
+      setInstructions(normalizedInstructions);
+    } else if (normalizedInstructions.length > 0) {
+      // Deep comparison only if arrays have items (excluding dates from comparison)
+      // Normalize current instructions dates before comparison
+      const normalizedCurrent = instructions.map(i => ({
+        ...i,
+        scheduledAt: normalizeDate(i.scheduledAt)
+      }));
+      
+      const savedStr = JSON.stringify(normalizedInstructions.map(i => ({ ...i, scheduledAt: i.scheduledAt.getTime() })));
+      const currentStr = JSON.stringify(normalizedCurrent.map(i => ({ ...i, scheduledAt: i.scheduledAt.getTime() })));
+      
       if (savedStr !== currentStr) {
-        setInstructions(savedInstructions);
+        setInstructions(normalizedInstructions);
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -139,7 +182,7 @@ export const UniversWizardStep5: React.FC<UniversWizardStepProps> = ({
       setTitle(instruction.title);
       setDescription(instruction.description || '');
       setQuestion(instruction.question);
-      setScheduledAt(instruction.scheduledAt);
+      setScheduledAt(normalizeDate(instruction.scheduledAt));
       setFrequency(instruction.frequency);
       setSelectedFormat(instruction.selectedFormat);
       setSelectedFormats(instruction.selectedFormats);
@@ -518,7 +561,12 @@ export const UniversWizardStep5: React.FC<UniversWizardStepProps> = ({
                   <span>Configurée</span>
                 </div>
                 <div className="text-xs text-gray-500">
-                  {instruction.scheduledAt.toLocaleDateString('fr-FR')}
+                  {(() => {
+                    const date = normalizeDate(instruction.scheduledAt);
+                    return date instanceof Date && !isNaN(date.getTime()) 
+                      ? date.toLocaleDateString('fr-FR')
+                      : 'Date invalide';
+                  })()}
                 </div>
               </div>
             </Card>

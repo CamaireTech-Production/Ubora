@@ -1,47 +1,49 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Card } from './Card';
 import { Button } from './Button';
-import { Input } from './Input';
-import { Textarea } from './Textarea';
-import { Select } from './Select';
-import { FileInput } from './FileInput';
-import { Univers, Form, UniversDefinitions } from '../types';
+import { Univers, UniversDefinitions } from '../types';
+import { UniversWizardStep1 } from './UniversWizardStep1';
+import { UniversWizardStep2 } from './UniversWizardStep2';
 import { UniversWizardStep3 } from './UniversWizardStep3';
 import { UniversWizardStep4 } from './UniversWizardStep4';
 import { UniversWizardStep5 } from './UniversWizardStep5';
-import { useApp } from '@ubora/shared/contexts/AppContext';
-import { useAuth } from '@ubora/shared/contexts/AuthContext';
+import { UniversWizardStep6 } from './UniversWizardStep6';
+import { UniversWizardStep7 } from './UniversWizardStep7';
 import { useToast } from '@ubora/shared/hooks/useToast';
+import { UniversWizardStepProps } from './UniversWizard';
 import {
   ArrowLeft,
   Save,
   FileText,
   BarChart3,
   Calendar,
-  List,
+  Database,
   FileBarChart,
   CheckCircle,
   AlertCircle,
-  Info,
-  X,
   Loader2
 } from 'lucide-react';
 
-// Categories for Univers templates
-const CATEGORIES = [
-  { value: '', label: 'Aucune catégorie' },
-  { value: 'hr', label: 'Ressources Humaines' },
-  { value: 'finance', label: 'Finance' },
-  { value: 'sales', label: 'Ventes' },
-  { value: 'marketing', label: 'Marketing' },
-  { value: 'operations', label: 'Opérations' },
-  { value: 'it', label: 'Technologie' },
-  { value: 'compliance', label: 'Conformité' },
-  { value: 'other', label: 'Autre' }
-];
+// Tab order matching creation wizard steps
+type EditTab = 'metadata' | 'lists' | 'forms' | 'dashboards' | 'reports' | 'instructions' | 'summary';
 
-type EditSection = 'metadata' | 'forms' | 'dashboards' | 'instructions' | 'lists' | 'reports';
+interface TabConfig {
+  id: EditTab;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+  step: number; // Corresponding wizard step number
+  getCount?: (definitions: UniversDefinitions) => number;
+}
+
+const TAB_CONFIGS: TabConfig[] = [
+  { id: 'metadata', label: 'Métadonnées', icon: FileText, step: 1 },
+  { id: 'lists', label: 'Listes', icon: Database, step: 2, getCount: (d) => d.lists?.length || 0 },
+  { id: 'forms', label: 'Formulaires', icon: FileText, step: 3, getCount: (d) => d.forms?.length || 0 },
+  { id: 'dashboards', label: 'Tableaux de bord', icon: BarChart3, step: 4, getCount: (d) => d.dashboards?.length || 0 },
+  { id: 'reports', label: 'Rapports', icon: FileBarChart, step: 5, getCount: (d) => d.reports?.length || 0 },
+  { id: 'instructions', label: 'Instructions', icon: Calendar, step: 6, getCount: (d) => d.instructions?.length || 0 },
+  { id: 'summary', label: 'Résumé', icon: CheckCircle, step: 7 }
+];
 
 interface UniversEditorProps {
   univers: Univers;
@@ -54,103 +56,168 @@ export const UniversEditor: React.FC<UniversEditorProps> = ({
   onSave,
   onCancel
 }) => {
-  const { employees } = useApp();
-  const { user } = useAuth();
   const { showSuccess, showError } = useToast();
-  const navigate = useNavigate();
 
-  // Metadata state
-  const [name, setName] = useState(univers.metadata.name);
-  const [description, setDescription] = useState(univers.metadata.description || '');
-  const [iconUrl, setIconUrl] = useState(univers.metadata.iconUrl || '');
-  const [iconFile, setIconFile] = useState<File | null>(null);
-  const [category, setCategory] = useState(univers.metadata.category || '');
-  const [tags, setTags] = useState<string[]>(univers.metadata.tags || []);
-  const [newTag, setNewTag] = useState('');
-
-  // Definitions state (for editing aspects)
+  // State mirrors univers with all editable data
+  const [metadata, setMetadata] = useState(univers.metadata);
   const [definitions, setDefinitions] = useState<UniversDefinitions>(univers.definitions);
 
-  // Current editing section
-  const [activeSection, setActiveSection] = useState<EditSection>('metadata');
+  // Current active tab
+  const [activeTab, setActiveTab] = useState<EditTab>('metadata');
   const [isSaving, setIsSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
 
-  // Update hasChanges when any field changes
+  // Track completed steps for visual feedback
+  const [completedSteps, setCompletedSteps] = useState<Set<number>>(new Set());
+
+  // Initialize completed steps based on existing data
+  useEffect(() => {
+    const completed = new Set<number>();
+    if (metadata.name?.trim()) completed.add(1);
+    if (definitions.lists && definitions.lists.length > 0) completed.add(2);
+    if (definitions.forms && definitions.forms.length > 0) completed.add(3);
+    if (definitions.dashboards && definitions.dashboards.length > 0) completed.add(4);
+    if (definitions.reports && definitions.reports.length > 0) completed.add(5);
+    if (definitions.instructions && definitions.instructions.length > 0) completed.add(6);
+    setCompletedSteps(completed);
+  }, []); // Only on mount
+
+  // Check for changes
   useEffect(() => {
     const metadataChanged = 
-      name !== univers.metadata.name ||
-      description !== (univers.metadata.description || '') ||
-      iconUrl !== (univers.metadata.iconUrl || '') ||
-      category !== (univers.metadata.category || '') ||
-      JSON.stringify(tags) !== JSON.stringify(univers.metadata.tags || []);
-
+      JSON.stringify(metadata) !== JSON.stringify(univers.metadata);
     const definitionsChanged = 
       JSON.stringify(definitions) !== JSON.stringify(univers.definitions);
 
     setHasChanges(metadataChanged || definitionsChanged);
-  }, [name, description, iconUrl, category, tags, definitions, univers]);
+  }, [metadata, definitions, univers]);
 
-  const handleIconFileChange = (file: File | null) => {
-    setIconFile(file);
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setIconUrl(reader.result as string);
-      };
-      reader.readAsDataURL(file);
-    } else {
-      setIconUrl(univers.metadata.iconUrl || '');
+  // Wizard data structure for step components
+  const wizardData = useMemo(() => ({
+    metadata: {
+      name: metadata.name || '',
+      description: metadata.description || '',
+      iconUrl: metadata.iconUrl,
+      category: metadata.category,
+      tags: metadata.tags || [],
+      version: metadata.version || 1,
+      createdAt: metadata.createdAt
+    },
+    definitions: definitions
+  }), [metadata, definitions]);
+
+  // Update wizard data function - memoized to prevent infinite loops
+  const updateWizardData = useCallback((updates: {
+    metadata?: Partial<typeof wizardData.metadata>;
+    definitions?: Partial<UniversDefinitions>;
+  }) => {
+    if (updates.metadata) {
+      setMetadata(prev => {
+        // Only update if there are actual changes
+        const newMetadata = {
+          ...prev,
+          ...(updates.metadata || {}),
+          version: prev.version || 1, // Keep current version, will be incremented on save
+          createdAt: prev.createdAt // Keep original creation date
+        };
+        
+        // Check if anything actually changed
+        const hasChanges = Object.keys(newMetadata).some(key => {
+          const prevValue = prev[key as keyof typeof prev];
+          const newValue = newMetadata[key as keyof typeof newMetadata];
+          return JSON.stringify(prevValue) !== JSON.stringify(newValue);
+        });
+        
+        if (!hasChanges) {
+          return prev; // Return same reference to avoid re-render
+        }
+        
+        return newMetadata;
+      });
+    }
+    if (updates.definitions) {
+      setDefinitions(prev => {
+        // Only update if there are actual changes
+        if (JSON.stringify(prev) === JSON.stringify(updates.definitions)) {
+          return prev; // Return same reference to avoid re-render
+        }
+        return { ...prev, ...updates.definitions } as UniversDefinitions;
+      });
+    }
+  }, []); // Empty deps - function should be stable
+
+  // Step management functions
+  const markStepCompleted = (step: number) => {
+    setCompletedSteps(prev => new Set([...prev, step]));
+  };
+
+  const markStepSkipped = (step: number) => {
+    setCompletedSteps(prev => {
+      const updated = new Set(prev);
+      updated.delete(step);
+      return updated;
+    });
+  };
+
+  const goToStep = (step: number) => {
+    const tabConfig = TAB_CONFIGS.find(t => t.step === step);
+    if (tabConfig) {
+      setActiveTab(tabConfig.id);
     }
   };
 
-  const handleRemoveIcon = () => {
-    setIconFile(null);
-    setIconUrl('');
-  };
-
-  const handleAddTag = () => {
-    if (newTag.trim() && !tags.includes(newTag.trim())) {
-      setTags([...tags, newTag.trim()]);
-      setNewTag('');
+  const goToNextStep = () => {
+    const currentIndex = TAB_CONFIGS.findIndex(t => t.id === activeTab);
+    if (currentIndex < TAB_CONFIGS.length - 1) {
+      setActiveTab(TAB_CONFIGS[currentIndex + 1].id);
     }
   };
 
-  const handleRemoveTag = (tagToRemove: string) => {
-    setTags(tags.filter(tag => tag !== tagToRemove));
-  };
-
-  const handleTagKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      handleAddTag();
+  const goToPreviousStep = () => {
+    const currentIndex = TAB_CONFIGS.findIndex(t => t.id === activeTab);
+    if (currentIndex > 0) {
+      setActiveTab(TAB_CONFIGS[currentIndex - 1].id);
     }
   };
 
+  // Wizard step props for each step component
+  const getWizardStepProps = (step: number): UniversWizardStepProps => ({
+    step,
+    wizardData,
+    updateWizardData,
+    markStepCompleted,
+    markStepSkipped,
+    goToStep,
+    goToNextStep,
+    goToPreviousStep
+  });
+
+  // Save handler
   const handleSave = async () => {
-    if (!name.trim()) {
+    if (!metadata.name?.trim()) {
       showError('Le nom du Univers est requis');
+      return;
+    }
+
+    if (!definitions.forms || definitions.forms.length === 0) {
+      showError('Au moins un formulaire est requis');
       return;
     }
 
     setIsSaving(true);
     try {
-      // Prepare updated Univers
+      // Prepare updated Univers with incremented version
       const updatedUnivers: Partial<Univers> = {
         metadata: {
-          ...univers.metadata,
-          name: name.trim(),
-          description: description.trim() || undefined,
-          iconUrl: iconUrl || undefined,
-          category: category || undefined,
-          tags: tags.length > 0 ? tags : undefined,
-          version: univers.metadata.version + 1 // Increment version
+          ...metadata,
+          version: (metadata.version || 1) + 1 // Increment version
         },
         definitions: definitions
       };
 
       await onSave(updatedUnivers);
       setHasChanges(false);
+      showSuccess('Univers mis à jour avec succès');
     } catch (error) {
       console.error('Error saving Univers:', error);
       // Error handling is done in parent component
@@ -159,6 +226,7 @@ export const UniversEditor: React.FC<UniversEditorProps> = ({
     }
   };
 
+  // Cancel handler
   const handleCancel = () => {
     if (hasChanges) {
       if (window.confirm('Vous avez des modifications non enregistrées. Voulez-vous vraiment annuler ?')) {
@@ -169,52 +237,10 @@ export const UniversEditor: React.FC<UniversEditorProps> = ({
     }
   };
 
-  // Wizard data for aspect editing components
-  const wizardData = useMemo(() => ({
-    metadata: {
-      name,
-      description,
-      iconUrl,
-      category,
-      tags
-    },
-    definitions: definitions
-  }), [name, description, iconUrl, category, tags, definitions]);
-
-  const updateWizardData = (updates: Partial<typeof wizardData>) => {
-    if (updates.metadata) {
-      setName(updates.metadata.name || name);
-      setDescription(updates.metadata.description || description);
-      setIconUrl(updates.metadata.iconUrl || iconUrl);
-      setCategory(updates.metadata.category || category);
-      setTags(updates.metadata.tags || tags);
-    }
-    if (updates.definitions) {
-      setDefinitions(updates.definitions);
-    }
-  };
-
-  const markStepCompleted = () => {};
-  const markStepSkipped = () => {};
-  const goToStep = () => {};
-  const goToNextStep = () => {};
-  const goToPreviousStep = () => {};
-
-  const wizardStepProps = {
-    step: 1,
-    wizardData,
-    updateWizardData,
-    markStepCompleted,
-    markStepSkipped,
-    goToStep,
-    goToNextStep,
-    goToPreviousStep
-  };
-
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div className="flex items-center space-x-4">
           <Button
             variant="secondary"
@@ -230,7 +256,7 @@ export const UniversEditor: React.FC<UniversEditorProps> = ({
               Modifier le Univers
             </h1>
             <p className="text-sm text-gray-600 mt-1">
-              Version {univers.metadata.version} • Créé le {univers.metadata.createdAt.toLocaleDateString('fr-FR')}
+              Version {metadata.version} • Créé le {metadata.createdAt.toLocaleDateString('fr-FR')}
             </p>
           </div>
         </div>
@@ -244,7 +270,7 @@ export const UniversEditor: React.FC<UniversEditorProps> = ({
           </Button>
           <Button
             onClick={handleSave}
-            disabled={isSaving || !hasChanges || !name.trim()}
+            disabled={isSaving || !hasChanges || !metadata.name?.trim()}
             className="flex items-center space-x-2"
           >
             {isSaving ? (
@@ -262,234 +288,138 @@ export const UniversEditor: React.FC<UniversEditorProps> = ({
         </div>
       </div>
 
-      {/* Navigation Tabs */}
+      {/* Navigation Tabs - Ordered to match creation flow */}
       <div className="border-b border-gray-200">
-        <nav className="flex space-x-8 overflow-x-auto">
-          {[
-            { id: 'metadata' as EditSection, label: 'Métadonnées', icon: FileText },
-            { id: 'forms' as EditSection, label: 'Formulaires', icon: FileText, count: definitions.forms.length },
-            { id: 'dashboards' as EditSection, label: 'Tableaux de bord', icon: BarChart3, count: definitions.dashboards.length },
-            { id: 'instructions' as EditSection, label: 'Instructions', icon: Calendar, count: definitions.instructions.length },
-            { id: 'lists' as EditSection, label: 'Listes', icon: List, disabled: true },
-            { id: 'reports' as EditSection, label: 'Rapports', icon: FileBarChart, disabled: true }
-          ].map(({ id, label, icon: Icon, count, disabled }) => (
+        <nav className="flex space-x-2 sm:space-x-8 overflow-x-auto pb-0">
+          {TAB_CONFIGS.map(({ id, label, icon: Icon, step, getCount }) => {
+            const count = getCount ? getCount(definitions) : undefined;
+            const isCompleted = completedSteps.has(step);
+            const isActive = activeTab === id;
+
+            return (
             <button
               key={id}
-              onClick={() => !disabled && setActiveSection(id)}
-              disabled={disabled}
+                onClick={() => setActiveTab(id)}
               className={`
-                flex items-center space-x-2 py-4 px-1 border-b-2 font-medium text-sm whitespace-nowrap
+                  flex items-center space-x-2 py-4 px-1 sm:px-2 border-b-2 font-medium text-sm whitespace-nowrap transition-colors
                 ${
-                  activeSection === id
+                    isActive
                     ? 'border-blue-500 text-blue-600'
-                    : disabled
-                    ? 'border-transparent text-gray-400 cursor-not-allowed'
                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                 }
               `}
             >
               <Icon className="h-4 w-4" />
-              <span>{label}</span>
-              {count !== undefined && (
-                <span className="bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full text-xs">
+                <span className="hidden sm:inline">{label}</span>
+                <span className="sm:hidden">{label.split(' ')[0]}</span>
+                {count !== undefined && count > 0 && (
+                  <span className={`px-2 py-0.5 rounded-full text-xs ${
+                    isActive ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'
+                  }`}>
                   {count}
                 </span>
               )}
-              {disabled && (
-                <span className="bg-yellow-100 text-yellow-600 px-2 py-0.5 rounded-full text-xs">
-                  Bientôt
-                </span>
+                {isCompleted && (
+                  <CheckCircle className="h-4 w-4 text-green-500" />
               )}
             </button>
-          ))}
+            );
+          })}
         </nav>
       </div>
 
-      {/* Content Sections */}
+      {/* Content Sections - Using Wizard Step Components */}
       <div className="space-y-6">
-        {/* Metadata Section */}
-        {activeSection === 'metadata' && (
+        {/* Tab 1: Metadata (Step 1) */}
+        {activeTab === 'metadata' && (
           <div className="space-y-6">
-            <Card title="Informations générales">
-              <div className="space-y-5">
-                <Input
-                  label="Nom du Univers *"
-                  placeholder="Ex: Mon Univers de Gestion des Ventes"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  required
-                />
-
-                <Textarea
-                  label="Description"
-                  placeholder="Décrivez votre Univers en quelques mots..."
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  rows={3}
-                />
-
-                {/* Icon Upload/URL */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Icône du Univers (optionnel)
-                  </label>
-                  <div className="flex items-center space-x-3">
-                    {iconUrl ? (
-                      <div className="relative w-16 h-16 rounded-full overflow-hidden border border-gray-200 flex-shrink-0">
-                        <img src={iconUrl} alt="Univers Icon" className="w-full h-full object-cover" />
-                        <button
-                          type="button"
-                          onClick={handleRemoveIcon}
-                          className="absolute top-0 right-0 bg-red-500 text-white rounded-full p-1 text-xs hover:bg-red-600"
-                          title="Supprimer l'icône"
-                        >
-                          <X className="h-3 w-3" />
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center text-gray-400 flex-shrink-0">
-                        <FileText className="h-8 w-8" />
+            <Card title="Métadonnées">
+              <p className="text-gray-600 mb-4">
+                Modifiez les informations générales de votre Univers
+              </p>
+            </Card>
+            <UniversWizardStep1 {...getWizardStepProps(1)} />
                       </div>
                     )}
-                    <div className="flex-1 space-y-2">
-                      <FileInput
-                        label=""
-                        value={iconFile}
-                        onChange={handleIconFileChange}
-                        acceptedTypes={['image/jpeg', 'image/png', 'image/gif']}
-                        placeholder="Télécharger une image (JPG, PNG, GIF, max 2MB)"
-                        className="w-full"
-                      />
-                      <Input
-                        label=""
-                        placeholder="Ou entrez une URL d'icône"
-                        value={iconUrl}
-                        onChange={(e) => setIconUrl(e.target.value)}
-                        className="w-full"
-                      />
-                    </div>
-                  </div>
-                </div>
 
-                <Select
-                  label="Catégorie (optionnel)"
-                  options={CATEGORIES}
-                  value={category}
-                  onChange={(e) => setCategory(e.target.value)}
-                />
-
-                {/* Tags */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Tags (optionnel)
-                  </label>
-                  <div className="flex flex-wrap gap-2 mb-2">
-                    {tags.map((tag) => (
-                      <span
-                        key={tag}
-                        className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800"
-                      >
-                        {tag}
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveTag(tag)}
-                          className="ml-2 -mr-1 h-4 w-4 text-blue-600 hover:text-blue-800"
-                        >
-                          <X className="h-3 w-3" />
-                        </button>
-                      </span>
-                    ))}
-                  </div>
-                  <div className="flex space-x-2">
-                    <Input
-                      placeholder="Ajouter un tag"
-                      value={newTag}
-                      onChange={(e) => setNewTag(e.target.value)}
-                      onKeyDown={handleTagKeyDown}
-                      className="flex-1"
-                    />
-                    <Button type="button" onClick={handleAddTag}>
-                      Ajouter
-                    </Button>
-                  </div>
-                </div>
-              </div>
+        {/* Tab 2: Lists (Step 2) */}
+        {activeTab === 'lists' && (
+          <div className="space-y-6">
+            <Card title="Listes">
+              <p className="text-gray-600 mb-4">
+                Gérez les listes de votre Univers
+              </p>
             </Card>
+            <UniversWizardStep2 {...getWizardStepProps(2)} />
           </div>
         )}
 
-        {/* Forms Section */}
-        {activeSection === 'forms' && (
+        {/* Tab 3: Forms (Step 3) */}
+        {activeTab === 'forms' && (
           <div className="space-y-6">
             <Card title="Formulaires">
               <p className="text-gray-600 mb-4">
                 Modifiez les formulaires de votre Univers
               </p>
             </Card>
-            <UniversWizardStep3 {...wizardStepProps} step={3} />
+            <UniversWizardStep3 {...getWizardStepProps(3)} />
           </div>
         )}
 
-        {/* Dashboards Section */}
-        {activeSection === 'dashboards' && (
+        {/* Tab 4: Dashboards (Step 4) */}
+        {activeTab === 'dashboards' && (
           <div className="space-y-6">
             <Card title="Tableaux de bord">
               <p className="text-gray-600 mb-4">
                 Modifiez les tableaux de bord de votre Univers
               </p>
             </Card>
-            <UniversWizardStep4 {...wizardStepProps} step={4} />
+            <UniversWizardStep4 {...getWizardStepProps(4)} />
           </div>
         )}
 
-        {/* Instructions Section */}
-        {activeSection === 'instructions' && (
+        {/* Tab 5: Reports (Step 5 / Wizard Step 6) */}
+        {activeTab === 'reports' && (
+          <div className="space-y-6">
+            <Card title="Rapports">
+              <p className="text-gray-600 mb-4">
+                Gérez les rapports de votre Univers
+              </p>
+            </Card>
+            <UniversWizardStep6 {...getWizardStepProps(5)} step={5} />
+          </div>
+        )}
+
+        {/* Tab 6: Instructions (Step 6 / Wizard Step 5) */}
+        {activeTab === 'instructions' && (
           <div className="space-y-6">
             <Card title="Instructions programmées">
               <p className="text-gray-600 mb-4">
                 Modifiez les instructions programmées de votre Univers
               </p>
             </Card>
-            <UniversWizardStep5 {...wizardStepProps} step={5} />
+            <UniversWizardStep5 {...getWizardStepProps(6)} step={6} />
           </div>
         )}
 
-        {/* Lists Section - Coming Soon */}
-        {activeSection === 'lists' && (
-          <Card title="Listes">
-            <div className="text-center py-12">
-              <List className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                Listes - Bientôt disponible
-              </h3>
-              <p className="text-gray-600">
-                La fonctionnalité Listes sera disponible prochainement.
+        {/* Tab 7: Summary (Step 7) */}
+        {activeTab === 'summary' && (
+          <div className="space-y-6">
+            <Card title="Résumé & Publication">
+              <p className="text-gray-600 mb-4">
+                Vérifiez le résumé de votre Univers avant de sauvegarder
               </p>
-            </div>
           </Card>
-        )}
-
-        {/* Reports Section - Coming Soon */}
-        {activeSection === 'reports' && (
-          <Card title="Rapports">
-            <div className="text-center py-12">
-              <FileBarChart className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                Rapports - Bientôt disponible
-              </h3>
-              <p className="text-gray-600">
-                La fonctionnalité Rapports sera disponible prochainement.
-              </p>
+            <UniversWizardStep7 {...getWizardStepProps(7)} step={7} />
             </div>
-          </Card>
         )}
       </div>
 
       {/* Save Indicator */}
       {hasChanges && (
-        <div className="fixed bottom-4 right-4 bg-yellow-50 border border-yellow-200 rounded-lg p-4 shadow-lg">
+        <div className="fixed bottom-4 right-4 bg-yellow-50 border border-yellow-200 rounded-lg p-4 shadow-lg z-50">
           <div className="flex items-center space-x-3">
-            <AlertCircle className="h-5 w-5 text-yellow-600" />
+            <AlertCircle className="h-5 w-5 text-yellow-600 flex-shrink-0" />
             <div>
               <p className="text-sm font-semibold text-yellow-900">
                 Modifications non enregistrées
@@ -504,4 +434,3 @@ export const UniversEditor: React.FC<UniversEditorProps> = ({
     </div>
   );
 };
-
