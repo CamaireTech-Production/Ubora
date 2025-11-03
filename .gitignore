@@ -27,6 +27,8 @@ scripts/update-package-selection.js
 scripts/auto-assign-forms-to-directors.js
 scripts/get-vapid-key.js
 
+docs/plan.md
+
 # Vite
 .vite/
 vite.config.ts.timestamp-*

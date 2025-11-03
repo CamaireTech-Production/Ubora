@@ -734,7 +734,7 @@ export const FormBuilder: React.FC<FormBuilderProps> = ({
                               <input
                                 type="radio"
                                 name={`option-type-${field.id}`}
-                                checked={!field.listId}
+                                checked={field.listId === undefined}
                                 onChange={() => {
                                   // Switch to manual options - clear listId
                                   updateField(field.id, { 
@@ -751,12 +751,12 @@ export const FormBuilder: React.FC<FormBuilderProps> = ({
                               <input
                                 type="radio"
                                 name={`option-type-${field.id}`}
-                                checked={!!field.listId}
+                                checked={field.listId !== undefined}
                                 onChange={() => {
-                                  // Switch to List - clear options
+                                  // Switch to List mode - set listId to first available list or null to indicate "use list" mode
                                   updateField(field.id, { 
-                                    listId: availableLists[0]?.id || '', 
-                                    displayColumnId: availableLists[0]?.columns[0]?.id || '',
+                                    listId: availableLists[0]?.id || null, 
+                                    displayColumnId: availableLists[0]?.columns[0]?.id || undefined,
                                     options: undefined
                                   });
                                 }}
@@ -770,7 +770,7 @@ export const FormBuilder: React.FC<FormBuilderProps> = ({
                           </div>
 
                           {/* Manual Options Section */}
-                          {!field.listId && (
+                          {field.listId === undefined && (
                             <div>
                               <div className="flex items-center justify-between mb-2">
                                 <label className="block text-sm font-medium text-gray-700">
@@ -822,7 +822,7 @@ export const FormBuilder: React.FC<FormBuilderProps> = ({
                           )}
 
                           {/* List Selection Section */}
-                          {field.listId && (
+                          {field.listId !== undefined && (
                             <div className="space-y-3 p-4 bg-blue-50 border border-blue-200 rounded-lg">
                               <div className="flex items-center space-x-2 mb-3">
                                 <Database className="h-5 w-5 text-blue-600" />
@@ -832,7 +832,7 @@ export const FormBuilder: React.FC<FormBuilderProps> = ({
                               {/* List Selection */}
                               <Select
                                 label="Sélectionner une Liste *"
-                                value={field.listId || ''}
+                                value={field.listId && field.listId !== null ? field.listId : ''}
                                 onChange={(e) => {
                                   const selectedListId = e.target.value;
                                   const selectedList = availableLists.find(l => l.id === selectedListId);
@@ -856,7 +856,7 @@ export const FormBuilder: React.FC<FormBuilderProps> = ({
                               />
 
                               {/* Display Column Selection */}
-                              {field.listId && (() => {
+                              {field.listId && field.listId !== null && (() => {
                                 const selectedList = availableLists.find(l => l.id === field.listId);
                                 return selectedList && selectedList.columns.length > 0 ? (
                                   <Select
@@ -880,7 +880,7 @@ export const FormBuilder: React.FC<FormBuilderProps> = ({
                                 );
                               })()}
 
-                              {field.listId && field.displayColumnId && (() => {
+                              {field.listId && field.listId !== null && field.displayColumnId && (() => {
                                 const selectedList = availableLists.find(l => l.id === field.listId);
                                 const displayColumn = selectedList?.columns.find(c => c.id === field.displayColumnId);
                                 
