@@ -5,7 +5,7 @@ import { Textarea } from './Textarea';
 import { Select } from './Select';
 import { Card } from './Card';
 import { List, ListColumn, ListRow } from '../types';
-import { Plus, Trash2, Save, X, Upload, Edit2 } from 'lucide-react';
+import { Plus, Trash2, Save, X, Upload, Edit2, FileSpreadsheet, PenTool } from 'lucide-react';
 import { ListsCSVImport } from './ListsCSVImport';
 import { useToast } from '@ubora/shared/hooks/useToast';
 import { validateValueAgainstType as validateTypeUtil } from '@ubora/shared/utils/csvTypeDetector';
@@ -33,6 +33,12 @@ export const ListEditor: React.FC<ListEditorProps> = ({
   const [rows, setRows] = useState<ListRow[]>(list?.rows || []);
   const [showCSVImport, setShowCSVImport] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
+  
+  // Creation mode: null = selection screen, 'csv' = CSV import, 'manual' = manual creation
+  // If editing existing list or already has columns/rows, skip selection
+  const [creationMode, setCreationMode] = useState<'csv' | 'manual' | null>(
+    list && (list.columns.length > 0 || list.rows.length > 0) ? 'manual' : null
+  );
 
   const typeOptions = [
     { value: 'text', label: 'Texte' },
@@ -116,6 +122,7 @@ export const ListEditor: React.FC<ListEditorProps> = ({
     setColumns(importedColumns);
     setRows(importedRows);
     setShowCSVImport(false);
+    setCreationMode('manual'); // Switch to manual mode to allow editing after import
     showSuccess('Données CSV importées avec succès');
   };
 
@@ -211,6 +218,159 @@ export const ListEditor: React.FC<ListEditorProps> = ({
     });
   };
 
+  // Show method selection screen if no mode selected yet
+  if (creationMode === null && columns.length === 0 && rows.length === 0) {
+    return (
+      <div className="space-y-6">
+        {/* Basic Information - Always visible */}
+        <Card title="Informations générales">
+          <div className="space-y-4">
+            <Input
+              label="Nom de la liste *"
+              placeholder="Ex: Liste des produits"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              required
+            />
+
+            <Textarea
+              label="Description"
+              placeholder="Description de la liste..."
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              rows={3}
+            />
+          </div>
+        </Card>
+
+        {/* Method Selection */}
+        <Card title="Choisissez votre méthode de création">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 py-4">
+            {/* CSV Import Option */}
+            <button
+              onClick={() => {
+                if (!name.trim()) {
+                  showError('Veuillez d\'abord saisir un nom pour la liste');
+                  return;
+                }
+                setCreationMode('csv');
+                setShowCSVImport(true);
+              }}
+              disabled={!name.trim()}
+              className="group relative p-6 border-2 border-gray-200 rounded-xl hover:border-blue-500 hover:shadow-lg transition-all duration-200 text-left disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <div className="flex flex-col items-start space-y-4">
+                <div className="p-3 bg-blue-100 rounded-lg group-hover:bg-blue-200 transition-colors">
+                  <FileSpreadsheet className="h-8 w-8 text-blue-600" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                    📤 Import CSV
+                  </h3>
+                  <p className="text-sm text-gray-600 mb-4">
+                    Importer automatiquement des colonnes et des lignes depuis un fichier CSV. Les types de colonnes seront détectés automatiquement.
+                  </p>
+                  <ul className="text-xs text-gray-500 space-y-1 mb-4">
+                    <li>✓ Détection automatique des types</li>
+                    <li>✓ Import rapide de grandes quantités de données</li>
+                    <li>✓ Aperçu avant importation</li>
+                  </ul>
+                </div>
+                <Button
+                  variant="secondary"
+                  disabled={!name.trim()}
+                  className="w-full"
+                >
+                  <Upload className="h-4 w-4 mr-2" />
+                  Choisir cette méthode
+                </Button>
+              </div>
+            </button>
+
+            {/* Manual Creation Option */}
+            <button
+              onClick={() => {
+                if (!name.trim()) {
+                  showError('Veuillez d\'abord saisir un nom pour la liste');
+                  return;
+                }
+                setCreationMode('manual');
+              }}
+              disabled={!name.trim()}
+              className="group relative p-6 border-2 border-gray-200 rounded-xl hover:border-blue-500 hover:shadow-lg transition-all duration-200 text-left disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <div className="flex flex-col items-start space-y-4">
+                <div className="p-3 bg-green-100 rounded-lg group-hover:bg-green-200 transition-colors">
+                  <PenTool className="h-8 w-8 text-green-600" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                    ✏️ Création Manuelle
+                  </h3>
+                  <p className="text-sm text-gray-600 mb-4">
+                    Définir manuellement les colonnes et ajouter les lignes une par une. Idéal pour des listes simples ou personnalisées.
+                  </p>
+                  <ul className="text-xs text-gray-500 space-y-1 mb-4">
+                    <li>✓ Contrôle total sur chaque colonne</li>
+                    <li>✓ Ajout progressif des données</li>
+                    <li>✓ Personnalisation facile</li>
+                  </ul>
+                </div>
+                <Button
+                  variant="secondary"
+                  disabled={!name.trim()}
+                  className="w-full"
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Choisir cette méthode
+                </Button>
+              </div>
+            </button>
+          </div>
+        </Card>
+
+        {/* Save/Cancel buttons */}
+        <div className="flex items-center justify-end space-x-3 pt-4 border-t border-gray-200">
+          <Button variant="secondary" onClick={onCancel}>
+            Annuler
+          </Button>
+        </div>
+
+        {/* CSV Import Modal */}
+        {showCSVImport && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-lg shadow-xl max-w-6xl w-full max-h-[90vh] overflow-y-auto">
+              <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between z-10">
+                <h3 className="text-lg font-semibold text-gray-900">Importer depuis CSV</h3>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => {
+                    setShowCSVImport(false);
+                    setCreationMode(null);
+                  }}
+                  className="p-1.5 h-8 w-8"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+              <div className="p-6">
+                <ListsCSVImport
+                  onImportComplete={handleCSVImportComplete}
+                  onCancel={() => {
+                    setShowCSVImport(false);
+                    setCreationMode(null);
+                  }}
+                  existingColumns={columns}
+                />
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
 
@@ -254,7 +414,7 @@ export const ListEditor: React.FC<ListEditorProps> = ({
 
       {/* Columns Management */}
       <Card 
-        title="Colonnes" 
+        title={`Colonnes (${columns.length})`}
         actions={
           <Button
             variant="secondary"
@@ -268,8 +428,21 @@ export const ListEditor: React.FC<ListEditorProps> = ({
         }
       >
         {columns.length === 0 ? (
-          <div className="text-center py-8 text-gray-500">
-            <p>Aucune colonne définie. Ajoutez au moins une colonne pour commencer.</p>
+          <div className="text-center py-8">
+            <div className="mx-auto w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mb-4">
+              <Plus className="h-8 w-8 text-blue-600" />
+            </div>
+            <p className="text-gray-900 font-medium mb-2">Aucune colonne définie</p>
+            <p className="text-sm text-gray-600 mb-4">
+              Ajoutez au moins une colonne pour commencer à définir la structure de votre liste.
+            </p>
+            <Button
+              onClick={handleAddColumn}
+              className="flex items-center space-x-2 mx-auto"
+            >
+              <Plus className="h-4 w-4" />
+              <span>Ajouter votre première colonne</span>
+            </Button>
           </div>
         ) : (
           <div className="space-y-3">
@@ -304,25 +477,27 @@ export const ListEditor: React.FC<ListEditorProps> = ({
         )}
       </Card>
 
-      {/* CSV Import */}
-      <Card title="Import CSV">
-        <div className="flex items-center justify-between">
-          <div>
-            <h4 className="font-medium text-gray-900 mb-1">Importer depuis un fichier CSV</h4>
-            <p className="text-sm text-gray-600">
-              Importez automatiquement des colonnes et des lignes depuis un fichier CSV
-            </p>
+      {/* CSV Import - Only show if in manual mode and list already has data */}
+      {creationMode === 'manual' && (columns.length > 0 || rows.length > 0) && (
+        <Card title="Import CSV">
+          <div className="flex items-center justify-between">
+            <div>
+              <h4 className="font-medium text-gray-900 mb-1">Importer depuis un fichier CSV</h4>
+              <p className="text-sm text-gray-600">
+                Importez des données supplémentaires ou remplacez les données existantes depuis un fichier CSV
+              </p>
+            </div>
+            <Button
+              variant="secondary"
+              onClick={() => setShowCSVImport(true)}
+              className="flex items-center space-x-2"
+            >
+              <Upload className="h-4 w-4" />
+              <span>Importer CSV</span>
+            </Button>
           </div>
-          <Button
-            variant="secondary"
-            onClick={() => setShowCSVImport(true)}
-            className="flex items-center space-x-2"
-          >
-            <Upload className="h-4 w-4" />
-            <span>Importer CSV</span>
-          </Button>
-        </div>
-      </Card>
+        </Card>
+      )}
 
       {/* Rows Management */}
       <Card 
@@ -345,8 +520,21 @@ export const ListEditor: React.FC<ListEditorProps> = ({
             <p>Définissez d'abord au moins une colonne avant d'ajouter des lignes.</p>
           </div>
         ) : rows.length === 0 ? (
-          <div className="text-center py-8 text-gray-500">
-            <p>Aucune ligne. Ajoutez des lignes pour remplir votre liste.</p>
+          <div className="text-center py-8">
+            <div className="mx-auto w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-4">
+              <Plus className="h-8 w-8 text-green-600" />
+            </div>
+            <p className="text-gray-900 font-medium mb-2">Aucune ligne ajoutée</p>
+            <p className="text-sm text-gray-600 mb-4">
+              Maintenant que vos colonnes sont définies, ajoutez des lignes pour remplir votre liste.
+            </p>
+            <Button
+              onClick={handleAddRow}
+              className="flex items-center space-x-2 mx-auto"
+            >
+              <Plus className="h-4 w-4" />
+              <span>Ajouter votre première ligne</span>
+            </Button>
           </div>
         ) : (
           <div className="overflow-x-auto">
