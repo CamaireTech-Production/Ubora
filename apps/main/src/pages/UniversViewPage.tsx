@@ -6,9 +6,11 @@ import { Layout } from '../components/Layout';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { Univers } from '../types';
+import { UniversInstance } from '@ubora/shared/types';
 import { universService } from '@ubora/shared/services/universService';
 import { useToast } from '@ubora/shared/hooks/useToast';
 import { Toast } from '../components/Toast';
+import { InstanceVersionHistory } from '../components/InstanceVersionHistory';
 import { 
   ArrowLeft, 
   Edit, 
@@ -25,7 +27,9 @@ import {
   FileBarChart,
   Sparkles,
   Loader2,
-  Power
+  Power,
+  Download,
+  AlertCircle
 } from 'lucide-react';
 import { ConfirmationModal } from '../components/ConfirmationModal';
 
@@ -41,11 +45,38 @@ export const UniversViewPage: React.FC = () => {
   const [showInstantiateModal, setShowInstantiateModal] = useState(false);
   const [isActivating, setIsActivating] = useState(false);
   const [showActivateModal, setShowActivateModal] = useState(false);
+  const [userInstance, setUserInstance] = useState<UniversInstance | null>(null);
+  const [isLoadingInstance, setIsLoadingInstance] = useState(false);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [isUpgrading, setIsUpgrading] = useState(false);
+  const [upgradeProgress, setUpgradeProgress] = useState<string>('');
 
   useEffect(() => {
     if (id && user?.id && user?.agencyId) {
       loadUnivers();
     }
+  }, [id, user]);
+
+  // Charger l'instance de l'utilisateur pour ce Univers
+  useEffect(() => {
+    if (!id || !user?.id || !user?.agencyId || user.role !== 'directeur') return;
+
+    const loadUserInstance = async () => {
+      setIsLoadingInstance(true);
+      try {
+        const instances = await universService.getInstancesByUser(user.id, user.agencyId);
+        const instance = instances.find(inst => inst.universId === id);
+        if (instance) {
+          setUserInstance(instance);
+        }
+      } catch (error) {
+        console.error('Erreur lors du chargement de l\'instance:', error);
+      } finally {
+        setIsLoadingInstance(false);
+      }
+    };
+
+    loadUserInstance();
   }, [id, user]);
 
   const loadUnivers = async () => {
@@ -143,6 +174,58 @@ export const UniversViewPage: React.FC = () => {
   const handleCancelActivation = () => {
     setShowActivateModal(false);
     setIsActivating(false);
+  };
+
+  const hasUpdateAvailable = userInstance?.updateAvailable === true;
+  const currentVersion = userInstance?.universVersion || userInstance?.metadata?.universVersion || univers?.metadata.version || 1;
+  const latestVersion = userInstance?.latestAvailableVersion || univers?.metadata.version || 1;
+  const isDirecteur = user?.role === 'directeur';
+
+  const handleUpgradeClick = () => {
+    setShowUpgradeModal(true);
+  };
+
+  const handleConfirmUpgrade = async () => {
+    if (!user?.id || !user?.agencyId || !userInstance) return;
+
+    setIsUpgrading(true);
+    setUpgradeProgress('Initialisation de la mise à jour...');
+    
+    try {
+      setUpgradeProgress('Création de la nouvelle instance...');
+      const newInstanceId = await universService.upgradeInstance(
+        userInstance.id,
+        user.id,
+        user.role as 'directeur' | 'employe' | 'admin',
+        user.agencyId
+      );
+
+      setUpgradeProgress('Migration des données...');
+      // La migration est déjà faite dans upgradeInstance, mais on peut afficher un message
+      await new Promise(resolve => setTimeout(resolve, 500)); // Petit délai pour UX
+
+      setUpgradeProgress('Finalisation...');
+      await new Promise(resolve => setTimeout(resolve, 300));
+
+      showSuccess(`Univers mis à jour avec succès vers la version ${latestVersion}`);
+      setShowUpgradeModal(false);
+      setIsUpgrading(false);
+      setUpgradeProgress('');
+
+      // Recharger la page pour mettre à jour les données
+      window.location.reload();
+    } catch (error) {
+      console.error('Erreur lors de la mise à jour du Univers:', error);
+      showError(error instanceof Error ? error.message : 'Erreur lors de la mise à jour du Univers');
+      setIsUpgrading(false);
+      setUpgradeProgress('');
+    }
+  };
+
+  const handleCancelUpgrade = () => {
+    setShowUpgradeModal(false);
+    setIsUpgrading(false);
+    setUpgradeProgress('');
   };
 
   const formatDate = (date: Date) => {
@@ -245,7 +328,6 @@ export const UniversViewPage: React.FC = () => {
 
   const canEdit = univers.ownership.createdBy === user.id || user.role === 'admin';
   const isActive = univers.id === activeUniversId;
-  const isDirecteur = user?.role === 'directeur';
 
   return (
     <>
@@ -274,14 +356,38 @@ export const UniversViewPage: React.FC = () => {
                       <span>Actif</span>
                     </span>
                   )}
+                  {hasUpdateAvailable && isDirecteur && (
+                    <span className="flex items-center space-x-1 px-3 py-1 bg-orange-100 text-orange-700 rounded-full text-sm font-medium animate-pulse">
+                      <AlertCircle className="h-4 w-4" />
+                      <span>Nouvelle version</span>
+                    </span>
+                  )}
                 </div>
                 <p className="text-sm text-gray-600 mt-1">
                   {univers.metadata.description || 'Aucune description'}
                 </p>
+                {hasUpdateAvailable && isDirecteur && (
+                  <div className="mt-2 text-sm text-orange-600">
+                    <span>Version actuelle: v{currentVersion}</span>
+                    <span className="mx-2">•</span>
+                    <span className="font-semibold">Version disponible: v{latestVersion}</span>
+                  </div>
+                )}
               </div>
             </div>
             <div className="flex items-center space-x-2">
-              {isDirecteur && !isActive && (
+              {hasUpdateAvailable && isDirecteur && (
+                <Button
+                  variant="primary"
+                  onClick={handleUpgradeClick}
+                  className="flex items-center space-x-2 bg-orange-500 hover:bg-orange-600"
+                  disabled={isUpgrading}
+                >
+                  <Download className="h-4 w-4" />
+                  <span>Mettre à jour vers v{latestVersion}</span>
+                </Button>
+              )}
+              {isDirecteur && !isActive && !hasUpdateAvailable && (
                 <Button
                   variant="primary"
                   onClick={handleActivateClick}
@@ -295,7 +401,8 @@ export const UniversViewPage: React.FC = () => {
               {/* Bouton "Utiliser ce template" uniquement pour Univers marketplace approuvés */}
               {univers.ownership.isMarketplaceTemplate && 
                univers.ownership.approvalStatus === 'approved' && 
-               isDirecteur && (
+               isDirecteur && 
+               !hasUpdateAvailable && (
                 <Button
                   variant="primary"
                   onClick={() => navigate(`/univers/create-from-template/${univers.id}`)}
@@ -515,6 +622,11 @@ export const UniversViewPage: React.FC = () => {
                   )}
                 </div>
               </Card>
+
+              {/* Instance Version History - Only for directors with an instance */}
+              {isDirecteur && userInstance && (
+                <InstanceVersionHistory instance={userInstance} />
+              )}
             </div>
           </div>
         </div>
@@ -542,6 +654,50 @@ export const UniversViewPage: React.FC = () => {
         cancelText="Annuler"
         variant="info"
         isLoading={isActivating}
+      />
+
+      {/* Modal de confirmation mise à jour */}
+      <ConfirmationModal
+        isOpen={showUpgradeModal}
+        onClose={handleCancelUpgrade}
+        onConfirm={handleConfirmUpgrade}
+        title="Mettre à jour ce Univers"
+        message={
+          univers ? (
+            <div className="space-y-4">
+              <div>
+                <p>
+                  Êtes-vous sûr de vouloir mettre à jour le Univers <strong>"{univers.metadata.name}"</strong> ?
+                </p>
+                <p className="text-sm text-gray-600 mt-2">
+                  Version actuelle: <strong>v{currentVersion}</strong> → Version disponible: <strong>v{latestVersion}</strong>
+                </p>
+              </div>
+              {isUpgrading && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <div className="flex items-center space-x-3">
+                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
+                    <div>
+                      <p className="text-sm font-medium text-blue-900">{upgradeProgress}</p>
+                      <p className="text-xs text-blue-700 mt-1">Cette opération peut prendre quelques instants...</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+              {!isUpgrading && (
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                  <p className="text-sm text-yellow-800">
+                    <strong>Note:</strong> Cette opération va créer une nouvelle instance avec la nouvelle version et migrer toutes vos données (formulaires, soumissions, tableaux de bord, etc.).
+                  </p>
+                </div>
+              )}
+            </div>
+          ) : null
+        }
+        confirmText={isUpgrading ? "Mise à jour en cours..." : "Mettre à jour"}
+        cancelText="Annuler"
+        variant="warning"
+        isLoading={isUpgrading}
       />
 
       {/* Instantiate Confirmation Modal */}

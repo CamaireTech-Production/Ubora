@@ -12,7 +12,8 @@ import {
   orderBy, 
   serverTimestamp,
   onSnapshot,
-  Timestamp
+  Timestamp,
+  writeBatch
 } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 import { Univers, UniversInstance, UniversDefinitions, UniversMetadata, UniversOwnership, UniversUsage, ActiveUnivers, UniversVersion } from '../types';
@@ -1077,6 +1078,372 @@ class UniversService {
       console.log(`✅ Notified ${uniqueUserIds.length} users about new version ${newVersion} of Univers ${universId}`);
     } catch (error) {
       console.error(`❌ Error notifying about new version:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Migrer les données d'une ancienne instance vers une nouvelle instance
+   * 
+   * @param oldInstance - L'ancienne instance
+   * @param newInstance - La nouvelle instance
+   * @param idMapping - Mapping des anciens IDs vers les nouveaux IDs
+   * @returns void
+   */
+  async migrateInstanceData(
+    oldInstance: UniversInstance,
+    newInstance: UniversInstance,
+    idMapping: {
+      forms: Map<string, string>; // Map<oldFormId, newFormId>
+      dashboards: Map<string, string>; // Map<oldDashboardId, newDashboardId>
+      lists: Map<string, string>; // Map<oldListId, newListId>
+      reports: Map<string, string>; // Map<oldReportId, newReportId>
+    }
+  ): Promise<void> {
+    try {
+      console.log(`🔄 Starting data migration from instance ${oldInstance.id} to ${newInstance.id}`);
+      
+      let batch = writeBatch(db);
+      let batchCount = 0;
+      const MAX_BATCH_SIZE = 500; // Firestore limit
+
+      const commitBatch = async () => {
+        if (batchCount > 0) {
+          await batch.commit();
+          console.log(`✅ Committed batch of ${batchCount} updates`);
+          batchCount = 0;
+          batch = writeBatch(db); // Créer un nouveau batch
+        }
+      };
+
+      // 1. Migrer Form Entries: mettre à jour formId vers les nouveaux forms
+      if (idMapping.forms.size > 0) {
+        const formEntriesQuery = query(
+          collection(db, 'formEntries'),
+          where('agencyId', '==', oldInstance.agencyId),
+          where('universInstanceId', '==', oldInstance.id)
+        );
+        const formEntriesSnapshot = await getDocs(formEntriesQuery);
+        
+        console.log(`📝 Found ${formEntriesSnapshot.size} form entries to migrate`);
+
+        for (const entryDoc of formEntriesSnapshot.docs) {
+          const entryData = entryDoc.data();
+          const oldFormId = entryData.formId;
+          const newFormId = idMapping.forms.get(oldFormId);
+
+          if (newFormId) {
+            const entryRef = doc(db, 'formEntries', entryDoc.id);
+            batch.update(entryRef, {
+              formId: newFormId,
+              universInstanceId: newInstance.id,
+              updatedAt: serverTimestamp()
+            });
+            batchCount++;
+
+            // Commit batch if approaching limit
+            if (batchCount >= MAX_BATCH_SIZE) {
+              await commitBatch();
+            }
+          }
+        }
+      }
+
+      // 2. Migrer Dashboard metrics: mettre à jour les références de forms
+      if (idMapping.dashboards.size > 0 && idMapping.forms.size > 0) {
+        const dashboardsQuery = query(
+          collection(db, 'dashboards'),
+          where('agencyId', '==', oldInstance.agencyId),
+          where('universInstanceId', '==', oldInstance.id)
+        );
+        const dashboardsSnapshot = await getDocs(dashboardsQuery);
+
+        for (const dashboardDoc of dashboardsSnapshot.docs) {
+          const dashboardData = dashboardDoc.data();
+          const oldDashboardId = dashboardDoc.id;
+          const newDashboardId = idMapping.dashboards.get(oldDashboardId);
+
+          if (newDashboardId && dashboardData.metrics) {
+            const metrics = Array.isArray(dashboardData.metrics) ? dashboardData.metrics : [];
+            const updatedMetrics = metrics.map((metric: any) => {
+              if (metric.formId && idMapping.forms.has(metric.formId)) {
+                return {
+                  ...metric,
+                  formId: idMapping.forms.get(metric.formId)
+                };
+              }
+              return metric;
+            });
+
+            if (updatedMetrics.some((m: any, i: number) => m.formId !== metrics[i]?.formId)) {
+              const dashboardRef = doc(db, 'dashboards', newDashboardId);
+              batch.update(dashboardRef, {
+                metrics: updatedMetrics,
+                updatedAt: serverTimestamp()
+              });
+              batchCount++;
+
+              if (batchCount >= MAX_BATCH_SIZE) {
+                await commitBatch();
+              }
+            }
+          }
+        }
+      }
+
+      // 3. Migrer Reports: mettre à jour les mappings
+      if (idMapping.reports.size > 0) {
+        const reportsQuery = query(
+          collection(db, 'reports'),
+          where('agencyId', '==', oldInstance.agencyId),
+          where('universInstanceId', '==', oldInstance.id)
+        );
+        const reportsSnapshot = await getDocs(reportsQuery);
+
+        for (const reportDoc of reportsSnapshot.docs) {
+          const reportData = reportDoc.data();
+          const oldReportId = reportDoc.id;
+          const newReportId = idMapping.reports.get(oldReportId);
+
+          if (newReportId && reportData.mappings) {
+            const mappings = Array.isArray(reportData.mappings) ? reportData.mappings : [];
+            const updatedMappings = mappings.map((mapping: any) => {
+              const updatedMapping = { ...mapping };
+              
+              // Mettre à jour les références de forms
+              if (mapping.formId && idMapping.forms.has(mapping.formId)) {
+                updatedMapping.formId = idMapping.forms.get(mapping.formId);
+              }
+              
+              // Mettre à jour les références de dashboards
+              if (mapping.dashboardId && idMapping.dashboards.has(mapping.dashboardId)) {
+                updatedMapping.dashboardId = idMapping.dashboards.get(mapping.dashboardId);
+              }
+
+              return updatedMapping;
+            });
+
+            if (updatedMappings.some((m: any, i: number) => JSON.stringify(m) !== JSON.stringify(mappings[i]))) {
+              const reportRef = doc(db, 'reports', newReportId);
+              batch.update(reportRef, {
+                mappings: updatedMappings,
+                updatedAt: serverTimestamp()
+              });
+              batchCount++;
+
+              if (batchCount >= MAX_BATCH_SIZE) {
+                await commitBatch();
+              }
+            }
+          }
+        }
+      }
+
+      // 4. Migrer Lists: mettre à jour les références dans les forms (si listId est utilisé)
+      if (idMapping.lists.size > 0) {
+        const formsQuery = query(
+          collection(db, 'forms'),
+          where('agencyId', '==', oldInstance.agencyId),
+          where('universInstanceId', '==', newInstance.id)
+        );
+        const formsSnapshot = await getDocs(formsQuery);
+
+        for (const formDoc of formsSnapshot.docs) {
+          const formData = formDoc.data();
+          if (formData.fields && Array.isArray(formData.fields)) {
+            const updatedFields = formData.fields.map((field: any) => {
+              if (field.listId && idMapping.lists.has(field.listId)) {
+                return {
+                  ...field,
+                  listId: idMapping.lists.get(field.listId)
+                };
+              }
+              return field;
+            });
+
+            if (updatedFields.some((f: any, i: number) => f.listId !== formData.fields[i]?.listId)) {
+              const formRef = doc(db, 'forms', formDoc.id);
+              batch.update(formRef, {
+                fields: updatedFields,
+                updatedAt: serverTimestamp()
+              });
+              batchCount++;
+
+              if (batchCount >= MAX_BATCH_SIZE) {
+                await commitBatch();
+              }
+            }
+          }
+        }
+      }
+
+      // Commit remaining updates
+      await commitBatch();
+
+      console.log(`✅ Data migration completed successfully from instance ${oldInstance.id} to ${newInstance.id}`);
+    } catch (error) {
+      console.error(`❌ Error migrating instance data:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Mettre à jour une instance Univers vers une nouvelle version
+   * 
+   * @param oldInstanceId - ID de l'ancienne instance
+   * @param userId - ID de l'utilisateur qui met à jour
+   * @param userRole - Rôle de l'utilisateur
+   * @param agencyId - ID de l'agence
+   * @returns ID de la nouvelle instance
+   * @throws Error si l'instance n'est pas trouvée, si aucune mise à jour n'est disponible, ou si la migration échoue
+   */
+  async upgradeInstance(
+    oldInstanceId: string,
+    userId: string,
+    userRole: 'directeur' | 'employe' | 'admin',
+    agencyId: string
+  ): Promise<string> {
+    try {
+      console.log(`🔄 Starting upgrade for instance ${oldInstanceId}`);
+
+      // 1. Récupérer l'ancienne instance
+      const oldInstance = await this.getInstanceById(oldInstanceId);
+      if (!oldInstance) {
+        throw new Error(`Instance not found: ${oldInstanceId}`);
+      }
+
+      // 2. Vérifier qu'une mise à jour est disponible
+      if (!oldInstance.updateAvailable || !oldInstance.latestAvailableVersion) {
+        throw new Error('No update available for this instance');
+      }
+
+      const newVersion = oldInstance.latestAvailableVersion;
+      const currentVersion = oldInstance.universVersion || oldInstance.metadata?.universVersion || 1;
+
+      if (newVersion <= currentVersion) {
+        throw new Error(`New version ${newVersion} is not greater than current version ${currentVersion}`);
+      }
+
+      // 3. Récupérer le template Univers avec la nouvelle version
+      const univers = await this.getById(oldInstance.universId);
+      if (!univers) {
+        throw new Error(`Univers template not found: ${oldInstance.universId}`);
+      }
+
+      // Vérifier que le Univers a la bonne version
+      if (univers.metadata.version !== newVersion) {
+        throw new Error(`Univers template version ${univers.metadata.version} does not match expected version ${newVersion}`);
+      }
+
+      // 4. Créer une nouvelle instance avec la nouvelle version
+      const { instanceId: newInstanceId, result: instantiationResult } = await this.instantiate(
+        oldInstance.universId,
+        userId,
+        userRole,
+        agencyId
+      );
+
+      const newInstance = await this.getInstanceById(newInstanceId);
+      if (!newInstance) {
+        throw new Error(`Failed to retrieve new instance: ${newInstanceId}`);
+      }
+
+      // 5. Construire le mapping des anciens IDs vers les nouveaux IDs
+      // Note: Le mapping doit être basé sur les titres/noms des définitions, car les IDs de définition changent
+      // Pour l'instant, on utilise l'ordre des arrays comme mapping (première forme ancienne → première forme nouvelle)
+      const idMapping = {
+        forms: new Map<string, string>(),
+        dashboards: new Map<string, string>(),
+        lists: new Map<string, string>(),
+        reports: new Map<string, string>()
+      };
+
+      // Mapping basé sur l'ordre (assumant que l'ordre est préservé lors de l'instanciation)
+      // TODO: Améliorer ce mapping avec une correspondance plus intelligente (par titre/nom)
+      oldInstance.instances.forms.forEach((oldFormId, index) => {
+        if (instantiationResult.forms[index]) {
+          idMapping.forms.set(oldFormId, instantiationResult.forms[index]);
+        }
+      });
+
+      oldInstance.instances.dashboards.forEach((oldDashboardId, index) => {
+        if (instantiationResult.dashboards[index]) {
+          idMapping.dashboards.set(oldDashboardId, instantiationResult.dashboards[index]);
+        }
+      });
+
+      oldInstance.instances.lists.forEach((oldListId, index) => {
+        if (instantiationResult.lists[index]) {
+          idMapping.lists.set(oldListId, instantiationResult.lists[index]);
+        }
+      });
+
+      oldInstance.instances.reports.forEach((oldReportId, index) => {
+        if (instantiationResult.reports[index]) {
+          idMapping.reports.set(oldReportId, instantiationResult.reports[index]);
+        }
+      });
+
+      // 6. Migrer les données de l'ancienne instance vers la nouvelle
+      await this.migrateInstanceData(oldInstance, newInstance, idMapping);
+
+      // 7. Désactiver l'ancienne instance et activer la nouvelle
+      const wasActive = oldInstance.isActive;
+      
+      const batch = writeBatch(db);
+      
+      // Désactiver l'ancienne instance
+      const oldInstanceRef = doc(db, this.instancesCollectionName, oldInstanceId);
+      batch.update(oldInstanceRef, {
+        isActive: false,
+        updateAvailable: false,
+        updatedAt: serverTimestamp()
+      });
+
+      // Ajouter l'historique de version à l'ancienne instance
+      const versionHistoryEntry = {
+        previousVersion: currentVersion,
+        upgradedAt: new Date(),
+        upgradedFromInstanceId: undefined as string | undefined,
+        dataMigrated: true
+      };
+
+      const oldVersionHistory = oldInstance.versionHistory || [];
+      batch.update(oldInstanceRef, {
+        versionHistory: [...oldVersionHistory, versionHistoryEntry]
+      });
+
+      // Activer la nouvelle instance si l'ancienne était active
+      const newInstanceRef = doc(db, this.instancesCollectionName, newInstanceId);
+      batch.update(newInstanceRef, {
+        isActive: wasActive,
+        updateAvailable: false,
+        latestAvailableVersion: undefined,
+        updatedAt: serverTimestamp()
+      });
+
+      // Ajouter l'historique de version à la nouvelle instance
+      batch.update(newInstanceRef, {
+        versionHistory: [{
+          previousVersion: currentVersion,
+          upgradedAt: new Date(),
+          upgradedFromInstanceId: oldInstanceId,
+          dataMigrated: true
+        }]
+      });
+
+      await batch.commit();
+
+      // 8. Si l'ancienne instance était active, mettre à jour ActiveUnivers
+      if (wasActive) {
+        await this.setActiveUnivers(userId, agencyId, oldInstance.universId, newInstanceId);
+      }
+
+      console.log(`✅ Instance upgraded successfully: ${oldInstanceId} → ${newInstanceId} (v${currentVersion} → v${newVersion})`);
+      
+      return newInstanceId;
+    } catch (error) {
+      console.error(`❌ Error upgrading instance ${oldInstanceId}:`, error);
       throw error;
     }
   }

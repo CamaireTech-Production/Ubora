@@ -30,6 +30,9 @@ export const UniversCard: React.FC<UniversCardProps> = ({
   const { showSuccess, showError } = useToast();
   const [isActivating, setIsActivating] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [isUpgrading, setIsUpgrading] = useState(false);
+  const [upgradeProgress, setUpgradeProgress] = useState<string>('');
   const [userInstance, setUserInstance] = useState<UniversInstance | null>(null);
   const [isLoadingInstance, setIsLoadingInstance] = useState(false);
 
@@ -64,6 +67,53 @@ export const UniversCard: React.FC<UniversCardProps> = ({
   const handleCancelActivation = () => {
     setShowConfirmModal(false);
     setIsActivating(false);
+  };
+
+  const handleUpgradeClick = () => {
+    setShowUpgradeModal(true);
+  };
+
+  const handleConfirmUpgrade = async () => {
+    if (!user?.id || !user?.agencyId || !userInstance) return;
+
+    setIsUpgrading(true);
+    setUpgradeProgress('Initialisation de la mise à jour...');
+    
+    try {
+      setUpgradeProgress('Création de la nouvelle instance...');
+      const newInstanceId = await universService.upgradeInstance(
+        userInstance.id,
+        user.id,
+        user.role as 'directeur' | 'employe' | 'admin',
+        user.agencyId
+      );
+
+      setUpgradeProgress('Migration des données...');
+      // La migration est déjà faite dans upgradeInstance, mais on peut afficher un message
+      await new Promise(resolve => setTimeout(resolve, 500)); // Petit délai pour UX
+
+      setUpgradeProgress('Finalisation...');
+      await new Promise(resolve => setTimeout(resolve, 300));
+
+      showSuccess(`Univers mis à jour avec succès vers la version ${latestVersion}`);
+      setShowUpgradeModal(false);
+      setIsUpgrading(false);
+      setUpgradeProgress('');
+
+      // Recharger la page pour mettre à jour les données
+      window.location.reload();
+    } catch (error) {
+      console.error('Erreur lors de la mise à jour du Univers:', error);
+      showError(error instanceof Error ? error.message : 'Erreur lors de la mise à jour du Univers');
+      setIsUpgrading(false);
+      setUpgradeProgress('');
+    }
+  };
+
+  const handleCancelUpgrade = () => {
+    setShowUpgradeModal(false);
+    setIsUpgrading(false);
+    setUpgradeProgress('');
   };
 
   // Charger l'instance de l'utilisateur pour ce Univers
@@ -313,9 +363,9 @@ export const UniversCard: React.FC<UniversCardProps> = ({
             <Button
               variant="primary"
               size="sm"
-              onClick={() => onView && onView(univers)}
+              onClick={handleUpgradeClick}
               className="w-full flex items-center justify-center space-x-2 bg-orange-500 hover:bg-orange-600"
-              disabled={disabled}
+              disabled={disabled || isUpgrading}
             >
               <Download className="h-4 w-4" />
               <span>Mettre à jour vers v{latestVersion}</span>
@@ -337,7 +387,7 @@ export const UniversCard: React.FC<UniversCardProps> = ({
       )}
     </div>
 
-    {/* Modal de confirmation */}
+    {/* Modal de confirmation activation */}
     <ConfirmationModal
       isOpen={showConfirmModal}
       onClose={handleCancelActivation}
@@ -357,6 +407,48 @@ export const UniversCard: React.FC<UniversCardProps> = ({
       cancelText="Annuler"
       variant="info"
       isLoading={isActivating}
+    />
+
+    {/* Modal de confirmation mise à jour */}
+    <ConfirmationModal
+      isOpen={showUpgradeModal}
+      onClose={handleCancelUpgrade}
+      onConfirm={handleConfirmUpgrade}
+      title="Mettre à jour ce Univers"
+      message={
+        <div className="space-y-4">
+          <div>
+            <p>
+              Êtes-vous sûr de vouloir mettre à jour le Univers <strong>"{univers.metadata.name}"</strong> ?
+            </p>
+            <p className="text-sm text-gray-600 mt-2">
+              Version actuelle: <strong>v{currentVersion}</strong> → Version disponible: <strong>v{latestVersion}</strong>
+            </p>
+          </div>
+          {isUpgrading && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <div className="flex items-center space-x-3">
+                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
+                <div>
+                  <p className="text-sm font-medium text-blue-900">{upgradeProgress}</p>
+                  <p className="text-xs text-blue-700 mt-1">Cette opération peut prendre quelques instants...</p>
+                </div>
+              </div>
+            </div>
+          )}
+          {!isUpgrading && (
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+              <p className="text-sm text-yellow-800">
+                <strong>Note:</strong> Cette opération va créer une nouvelle instance avec la nouvelle version et migrer toutes vos données (formulaires, soumissions, tableaux de bord, etc.).
+              </p>
+            </div>
+          )}
+        </div>
+      }
+      confirmText={isUpgrading ? "Mise à jour en cours..." : "Mettre à jour"}
+      cancelText="Annuler"
+      variant="warning"
+      isLoading={isUpgrading}
     />
     </>
   );
