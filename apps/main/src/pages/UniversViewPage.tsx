@@ -292,15 +292,19 @@ export const UniversViewPage: React.FC = () => {
                   <span>Activer</span>
                 </Button>
               )}
-              <Button
-                variant="primary"
-                onClick={() => setShowInstantiateModal(true)}
-                className="flex items-center space-x-2"
-                disabled={isInstantiating}
-              >
-                <Sparkles className="h-4 w-4" />
-                <span>Utiliser ce template</span>
-              </Button>
+              {/* Bouton "Utiliser ce template" uniquement pour Univers marketplace approuvés */}
+              {univers.ownership.isMarketplaceTemplate && 
+               univers.ownership.approvalStatus === 'approved' && 
+               isDirecteur && (
+                <Button
+                  variant="primary"
+                  onClick={() => navigate(`/univers/create-from-template/${univers.id}`)}
+                  className="flex items-center space-x-2"
+                >
+                  <Sparkles className="h-4 w-4" />
+                  <span>Utiliser ce template</span>
+                </Button>
+              )}
               {canEdit && (
                 <Button
                   variant="secondary"

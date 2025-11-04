@@ -17,14 +17,19 @@ export const UniversWizardStep2: React.FC<UniversWizardStepProps> = ({
   updateWizardData,
   markStepCompleted,
   markStepSkipped,
-  step
+  step,
+  readOnly = false,
+  templateData
 }) => {
   const { user } = useAuth();
   const { showSuccess, showError } = useToast();
 
-  const [lists, setLists] = useState<ListDefinition[]>(
-    (wizardData.definitions.lists as ListDefinition[]) || []
-  );
+  // En mode lecture seule, utiliser les données du template
+  const initialLists = readOnly && templateData 
+    ? (templateData.definitions.lists || [])
+    : ((wizardData.definitions.lists as ListDefinition[]) || []);
+
+  const [lists, setLists] = useState<ListDefinition[]>(initialLists);
   const [showListEditor, setShowListEditor] = useState(false);
   const [editingListId, setEditingListId] = useState<string | null>(null);
   const [expandedLists, setExpandedLists] = useState<Set<string>>(new Set());
@@ -48,21 +53,26 @@ export const UniversWizardStep2: React.FC<UniversWizardStepProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [wizardData.definitions.lists]);
 
-  // Update wizard data when lists change
+  // Update wizard data when lists change (seulement si pas en lecture seule)
   useEffect(() => {
-    updateWizardData({
-      definitions: {
-        lists: lists
-      }
-    });
+    if (!readOnly) {
+      updateWizardData({
+        definitions: {
+          lists: lists
+        }
+      });
 
-    // Mark step as completed if lists exist (lists are optional but if created, mark as completed)
-    if (lists.length > 0) {
-      markStepCompleted(step);
+      // Mark step as completed if lists exist (lists are optional but if created, mark as completed)
+      if (lists.length > 0) {
+        markStepCompleted(step);
+      } else {
+        markStepSkipped(step);
+      }
     } else {
-      markStepSkipped(step);
+      // En mode lecture seule, marquer comme complété automatiquement
+      markStepCompleted(step);
     }
-  }, [lists, updateWizardData, markStepCompleted, markStepSkipped, step]);
+  }, [lists, updateWizardData, markStepCompleted, markStepSkipped, step, readOnly]);
 
   const handleAddList = () => {
     setEditingListId(null);
@@ -159,6 +169,55 @@ export const UniversWizardStep2: React.FC<UniversWizardStepProps> = ({
     showSuccess('Données CSV importées avec succès');
   };
 
+  // En mode lecture seule, ne pas afficher l'éditeur
+  if (readOnly) {
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-2xl font-bold text-gray-900 mb-2">
+          Listes
+        </h2>
+        <p className="text-gray-600">
+            Aperçu des listes du Univers template.
+        </p>
+      </div>
+
+        {/* Lists Display (Read-only) */}
+        {lists.length > 0 ? (
+          <div className="space-y-3">
+            {lists.map(list => (
+              <Card key={list.id}>
+                <div className="p-4">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center space-x-2 mb-2">
+                        <Database className="h-5 w-5 text-blue-600" />
+                        <h3 className="text-lg font-semibold text-gray-900">{list.name}</h3>
+                      </div>
+                      {list.description && (
+                        <p className="text-sm text-gray-600 mb-3">{list.description}</p>
+                      )}
+                      <div className="flex items-center space-x-4 text-sm text-gray-600">
+                        <span>{list.columns.length} colonne{list.columns.length > 1 ? 's' : ''}</span>
+                        <span>{list.rows.length} ligne{list.rows.length > 1 ? 's' : ''}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </Card>
+            ))}
+          </div>
+        ) : (
+      <Card>
+            <div className="text-center py-8">
+              <p className="text-gray-500">Aucune liste dans ce Univers</p>
+            </div>
+          </Card>
+        )}
+      </div>
+    );
+  }
+
   // Show ListEditor when creating/editing (replaces listing view)
   if (showListEditor) {
     const editingList = editingListId ? lists.find(l => l.id === editingListId) : null;
@@ -191,8 +250,8 @@ export const UniversWizardStep2: React.FC<UniversWizardStepProps> = ({
                 : 'Définissez les colonnes et ajoutez des lignes à votre liste'}
             </p>
           </div>
-        </div>
-
+          </div>
+          
         <ListEditor
           list={listEditorProps ? {
             id: editingList?.id || '',
@@ -222,8 +281,8 @@ export const UniversWizardStep2: React.FC<UniversWizardStepProps> = ({
         </h2>
         <p className="text-gray-600">
           Créez des listes d'options réutilisables pour vos formulaires. Les listes peuvent être utilisées dans les champs de type "liste déroulante" de vos formulaires.
-        </p>
-      </div>
+            </p>
+          </div>
 
       {/* Lists List */}
       {lists.length > 0 && (
@@ -234,7 +293,7 @@ export const UniversWizardStep2: React.FC<UniversWizardStepProps> = ({
               <Card key={list.id} className="overflow-hidden">
                 <div className="p-4">
                   <div className="flex items-start justify-between">
-                    <div className="flex-1">
+              <div className="flex-1">
                       <div className="flex flex-col sm:flex-row sm:items-center space-y-1 sm:space-y-0 sm:space-x-3 mb-2">
                         <div className="flex items-center space-x-2">
                           <Database className="h-5 w-5 text-blue-600 flex-shrink-0" />

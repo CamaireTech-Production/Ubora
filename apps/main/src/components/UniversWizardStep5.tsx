@@ -47,15 +47,20 @@ export const UniversWizardStep5: React.FC<UniversWizardStepProps> = ({
   wizardData,
   updateWizardData,
   markStepCompleted,
-  step
+  step,
+  readOnly = false,
+  templateData
 }) => {
   const { employees } = useApp();
   const { user } = useAuth();
   const { showSuccess, showError } = useToast();
 
-  const [instructions, setInstructions] = useState<InstructionDefinition[]>(
-    (wizardData.definitions.instructions as InstructionDefinition[]) || []
-  );
+  // En mode lecture seule, utiliser les données du template
+  const initialInstructions = readOnly && templateData 
+    ? (templateData.definitions.instructions || [])
+    : ((wizardData.definitions.instructions as InstructionDefinition[]) || []);
+
+  const [instructions, setInstructions] = useState<InstructionDefinition[]>(initialInstructions);
   const [showInstructionBuilder, setShowInstructionBuilder] = useState(false);
   const [editingInstructionId, setEditingInstructionId] = useState<string | null>(null);
 
@@ -156,19 +161,24 @@ export const UniversWizardStep5: React.FC<UniversWizardStepProps> = ({
   // Check if forms exist (for filters)
   const hasForms = universForms.length > 0;
 
-  // Update wizard data when instructions change
+  // Update wizard data when instructions change (seulement si pas en lecture seule)
   useEffect(() => {
-    updateWizardData({
-      definitions: {
-        instructions: instructions
-      }
-    });
+    if (!readOnly) {
+      updateWizardData({
+        definitions: {
+          instructions: instructions
+        }
+      });
 
-    // Mark step as completed if instructions exist
-    if (instructions.length > 0) {
-      markStepCompleted(6); // Instructions is now step 6
+      // Mark step as completed if instructions exist
+      if (instructions.length > 0) {
+        markStepCompleted(6); // Instructions is now step 6
+      }
+    } else {
+      // En mode lecture seule, marquer comme complété automatiquement
+      markStepCompleted(6);
     }
-  }, [instructions, updateWizardData, markStepCompleted, step]);
+  }, [instructions, updateWizardData, markStepCompleted, step, readOnly]);
 
   const handleAddInstruction = () => {
     resetForm();
@@ -286,6 +296,54 @@ export const UniversWizardStep5: React.FC<UniversWizardStepProps> = ({
   };
 
   const isFormValid = title.trim() && question.trim();
+
+  // En mode lecture seule, afficher une vue en lecture seule
+  if (readOnly) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">
+            Instructions programmées
+          </h2>
+          <p className="text-gray-600">
+            Aperçu des instructions programmées du Univers template.
+          </p>
+        </div>
+
+        {/* Instructions Display (Read-only) */}
+        {instructions.length > 0 ? (
+          <div className="space-y-3">
+            {instructions.map(instruction => (
+              <Card key={instruction.id}>
+                <div className="p-4">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center space-x-2 mb-2">
+                        <h3 className="text-lg font-semibold text-gray-900">{instruction.title}</h3>
+                      </div>
+                      {instruction.description && (
+                        <p className="text-sm text-gray-600 mb-3">{instruction.description}</p>
+                      )}
+                      <div className="text-sm text-gray-600">
+                        <p className="mb-1"><strong>Question:</strong> {instruction.question}</p>
+                        <p><strong>Fréquence:</strong> {instruction.frequency === 'once' ? 'Une fois' : instruction.frequency === 'daily' ? 'Quotidienne' : instruction.frequency === 'weekly' ? 'Hebdomadaire' : 'Mensuelle'}</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </Card>
+            ))}
+          </div>
+        ) : (
+          <Card>
+            <div className="text-center py-8">
+              <p className="text-gray-500">Aucune instruction programmée dans ce Univers</p>
+            </div>
+          </Card>
+        )}
+      </div>
+    );
+  }
 
   if (showInstructionBuilder) {
     return (

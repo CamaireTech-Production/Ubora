@@ -5,7 +5,7 @@ import { Card } from './Card';
 import { ArrowLeft, ArrowRight, Check, ChevronRight, Circle, Loader2 } from 'lucide-react';
 import { useUniversWizardProgress } from '@ubora/shared/hooks/useUniversWizardProgress';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
-import { UniversDefinitions, UniversMetadata, UniversOwnership } from '../types';
+import { UniversDefinitions, UniversMetadata, UniversOwnership, Univers } from '../types';
 
 interface UniversWizardProps {
   onComplete: (universData: {
@@ -19,6 +19,8 @@ interface UniversWizardProps {
     metadata: Partial<UniversMetadata>;
     definitions: Partial<UniversDefinitions>;
   }>;
+  readOnly?: boolean;
+  templateData?: Univers;
 }
 
 const TOTAL_STEPS = 7;
@@ -37,7 +39,9 @@ export const UniversWizard: React.FC<UniversWizardProps> = ({
   onComplete,
   onCancel,
   renderStep,
-  initialData
+  initialData,
+  readOnly = false,
+  templateData
 }) => {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -200,7 +204,10 @@ export const UniversWizard: React.FC<UniversWizardProps> = ({
                category: wizardData.metadata.category,
                tags: wizardData.metadata.tags || [],
                version: 1,
-               createdAt: new Date()
+               createdAt: new Date(),
+               // Prix et devise pour marketplace
+               price: publishOption === 'marketplace' ? (wizardData.metadata.price ?? null) : undefined,
+               currency: publishOption === 'marketplace' ? (wizardData.metadata.currency || 'XAF') : undefined
              };
 
              const universOwnership: Omit<UniversOwnership, 'approvedBy' | 'approvedAt' | 'rejectionReason'> = {
@@ -375,7 +382,9 @@ export const UniversWizard: React.FC<UniversWizardProps> = ({
               markStepSkipped,
               goToStep,
               goToNextStep,
-              goToPreviousStep
+              goToPreviousStep,
+              readOnly,
+              templateData
             })}
           </div>
 
@@ -452,6 +461,8 @@ export interface UniversWizardStepProps {
     definitions: Partial<UniversDefinitions>;
   }>) => void;
   markStepCompleted: (step: number) => void;
+  readOnly?: boolean;
+  templateData?: Univers;
   markStepSkipped: (step: number) => void;
   goToStep: (step: number) => void;
   goToNextStep: () => void;

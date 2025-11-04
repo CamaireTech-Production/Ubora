@@ -20,15 +20,20 @@ interface DashboardDefinition {
 export const UniversWizardStep4: React.FC<UniversWizardStepProps> = ({
   wizardData,
   updateWizardData,
-  markStepCompleted
+  markStepCompleted,
+  readOnly = false,
+  templateData
 }) => {
   const { formEntries } = useApp();
   const { user } = useAuth();
   const { showSuccess, showError } = useToast();
 
-  const [dashboards, setDashboards] = useState<DashboardDefinition[]>(
-    (wizardData.definitions.dashboards as DashboardDefinition[]) || []
-  );
+  // En mode lecture seule, utiliser les données du template
+  const initialDashboards = readOnly && templateData 
+    ? (templateData.definitions.dashboards || [])
+    : ((wizardData.definitions.dashboards as DashboardDefinition[]) || []);
+
+  const [dashboards, setDashboards] = useState<DashboardDefinition[]>(initialDashboards);
   const [showDashboardBuilder, setShowDashboardBuilder] = useState(false);
   const [editingDashboardId, setEditingDashboardId] = useState<string | null>(null);
   const [expandedDashboards, setExpandedDashboards] = useState<Set<string>>(new Set());
@@ -71,19 +76,24 @@ export const UniversWizardStep4: React.FC<UniversWizardStepProps> = ({
   const hasForms = universForms.length > 0;
   const hasDashboards = dashboards.length > 0;
 
-  // Update wizard data when dashboards change
+  // Update wizard data when dashboards change (seulement si pas en lecture seule)
   useEffect(() => {
-    updateWizardData({
-      definitions: {
-        dashboards: dashboards
-      }
-    });
+    if (!readOnly) {
+      updateWizardData({
+        definitions: {
+          dashboards: dashboards
+        }
+      });
 
-    // Mark step as completed if dashboards exist (dashboards are optional but if created, mark as completed)
-    if (dashboards.length > 0) {
+      // Mark step as completed if dashboards exist (dashboards are optional but if created, mark as completed)
+      if (dashboards.length > 0) {
+        markStepCompleted(4);
+      }
+    } else {
+      // En mode lecture seule, marquer comme complété automatiquement
       markStepCompleted(4);
     }
-  }, [dashboards, updateWizardData, markStepCompleted]);
+  }, [dashboards, updateWizardData, markStepCompleted, readOnly]);
 
   const handleAddDashboard = () => {
     if (!hasForms) {
@@ -144,6 +154,54 @@ export const UniversWizardStep4: React.FC<UniversWizardStepProps> = ({
   };
 
   const editingDashboard = editingDashboardId ? dashboards.find(d => d.id === editingDashboardId) : null;
+
+  // En mode lecture seule, afficher une vue en lecture seule
+  if (readOnly) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">
+            Tableaux de bord
+          </h2>
+          <p className="text-gray-600">
+            Aperçu des tableaux de bord du Univers template.
+          </p>
+        </div>
+
+        {/* Dashboards Display (Read-only) */}
+        {dashboards.length > 0 ? (
+          <div className="space-y-3">
+            {dashboards.map(dashboard => (
+              <Card key={dashboard.id}>
+                <div className="p-4">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center space-x-2 mb-2">
+                        <BarChart3 className="h-5 w-5 text-purple-600" />
+                        <h3 className="text-lg font-semibold text-gray-900">{dashboard.name}</h3>
+                      </div>
+                      {dashboard.description && (
+                        <p className="text-sm text-gray-600 mb-3">{dashboard.description}</p>
+                      )}
+                      <div className="flex items-center space-x-4 text-sm text-gray-600">
+                        <span>{dashboard.metrics?.length || 0} métrique{dashboard.metrics && dashboard.metrics.length > 1 ? 's' : ''}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </Card>
+            ))}
+          </div>
+        ) : (
+          <Card>
+            <div className="text-center py-8">
+              <p className="text-gray-500">Aucun tableau de bord dans ce Univers</p>
+            </div>
+          </Card>
+        )}
+      </div>
+    );
+  }
 
   if (showDashboardBuilder) {
     if (!hasForms) {

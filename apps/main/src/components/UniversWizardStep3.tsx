@@ -35,15 +35,20 @@ interface FormDefinition {
 export const UniversWizardStep3: React.FC<UniversWizardStepProps> = ({
   wizardData,
   updateWizardData,
-  markStepCompleted
+  markStepCompleted,
+  readOnly = false,
+  templateData
 }) => {
   const { employees } = useApp();
   const { user } = useAuth();
   const { showSuccess, showError } = useToast();
 
-  const [forms, setForms] = useState<FormDefinition[]>(
-    (wizardData.definitions.forms as FormDefinition[]) || []
-  );
+  // En mode lecture seule, utiliser les données du template
+  const initialForms = readOnly && templateData 
+    ? (templateData.definitions.forms || [])
+    : ((wizardData.definitions.forms as FormDefinition[]) || []);
+
+  const [forms, setForms] = useState<FormDefinition[]>(initialForms);
   const [showFormBuilder, setShowFormBuilder] = useState(false);
   const [editingFormId, setEditingFormId] = useState<string | null>(null);
   const [selectedFormId, setSelectedFormId] = useState<string | null>(null);
@@ -66,19 +71,24 @@ export const UniversWizardStep3: React.FC<UniversWizardStepProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [wizardData.definitions.forms]);
 
-  // Update wizard data when forms change
+  // Update wizard data when forms change (seulement si pas en lecture seule)
   useEffect(() => {
-    updateWizardData({
-      definitions: {
-        forms: forms
-      }
-    });
+    if (!readOnly) {
+      updateWizardData({
+        definitions: {
+          forms: forms
+        }
+      });
 
-    // Mark step as completed if at least 1 form exists
-    if (forms.length > 0) {
+      // Mark step as completed if at least 1 form exists
+      if (forms.length > 0) {
+        markStepCompleted(3);
+      }
+    } else {
+      // En mode lecture seule, marquer comme complété automatiquement
       markStepCompleted(3);
     }
-  }, [forms, updateWizardData, markStepCompleted]);
+  }, [forms, updateWizardData, markStepCompleted, readOnly]);
 
   const handleAddForm = () => {
     setEditingFormId(null);
@@ -161,6 +171,54 @@ export const UniversWizardStep3: React.FC<UniversWizardStepProps> = ({
   };
 
   const editingForm = editingFormId ? forms.find(f => f.id === editingFormId) : null;
+
+  // En mode lecture seule, afficher une vue en lecture seule
+  if (readOnly) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">
+            Formulaires
+          </h2>
+          <p className="text-gray-600">
+            Aperçu des formulaires du Univers template.
+          </p>
+        </div>
+
+        {/* Forms Display (Read-only) */}
+        {forms.length > 0 ? (
+          <div className="space-y-3">
+            {forms.map(form => (
+              <Card key={form.id}>
+                <div className="p-4">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center space-x-2 mb-2">
+                        <FileText className="h-5 w-5 text-blue-600" />
+                        <h3 className="text-lg font-semibold text-gray-900">{form.title}</h3>
+                      </div>
+                      {form.description && (
+                        <p className="text-sm text-gray-600 mb-3">{form.description}</p>
+                      )}
+                      <div className="flex items-center space-x-4 text-sm text-gray-600">
+                        <span>{form.fields?.length || 0} champ{form.fields && form.fields.length > 1 ? 's' : ''}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </Card>
+            ))}
+          </div>
+        ) : (
+          <Card>
+            <div className="text-center py-8">
+              <p className="text-gray-500">Aucun formulaire dans ce Univers</p>
+            </div>
+          </Card>
+        )}
+      </div>
+    );
+  }
 
   if (showFormBuilder) {
     return (

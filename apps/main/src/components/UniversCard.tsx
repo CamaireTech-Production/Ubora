@@ -219,6 +219,19 @@ export const UniversCard: React.FC<UniversCardProps> = ({
           </div>
         )}
 
+        {/* Price (for marketplace) */}
+        {univers.ownership.isMarketplaceTemplate && (
+          <div className="flex items-center space-x-2 text-sm font-semibold">
+            {univers.metadata.price === 0 || univers.metadata.price === null || univers.metadata.price === undefined ? (
+              <span className="text-green-600">Gratuit</span>
+            ) : (
+              <span className="text-blue-600">
+                {univers.metadata.price.toLocaleString('fr-FR')} {univers.metadata.currency || 'XAF'}
+              </span>
+            )}
+          </div>
+        )}
+
         {/* Usage stats */}
         <div className="flex items-center space-x-2 text-sm text-gray-600">
           <span>{univers.usage.totalUsages} utilisation(s)</span>

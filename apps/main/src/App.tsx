@@ -25,6 +25,7 @@ import { ScheduledQuestionChatPage } from './pages/ScheduledQuestionChatPage';
 import { ProgrammedInstructionsRoute } from './components/ProgrammedInstructionsRoute';
 import { UniversPage } from './pages/UniversPage';
 import { UniversCreatePage } from './pages/UniversCreatePage';
+import { UniversCreateFromTemplatePage } from './pages/UniversCreateFromTemplatePage';
 import { UniversEditPage } from './pages/UniversEditPage';
 import { UniversViewPage } from './pages/UniversViewPage';
 import { ListsPage } from './pages/ListsPage';
@@ -336,15 +337,15 @@ function App() {
                   } 
                 />
                 
-                {/* Univers - Detail */}
+                {/* Univers - Create from Template */}
                 <Route 
-                  path="/univers/:id" 
+                  path="/univers/create-from-template/:id" 
                   element={
                     <ProtectedRoute 
-                      allowedRoles={['directeur', 'employe']} 
+                      allowedRoles={['directeur']} 
                       requireDirectorDashboardAccess={true}
                     >
-                      <UniversViewPage />
+                      <UniversCreateFromTemplatePage />
                     </ProtectedRoute>
                   } 
                 />
@@ -360,6 +361,19 @@ function App() {
                       <UniversEditPage />
                     </ProtectedRoute>
                   }
+                />
+                
+                {/* Univers - Detail */}
+                <Route 
+                  path="/univers/:id" 
+                  element={
+                    <ProtectedRoute 
+                      allowedRoles={['directeur', 'employe']} 
+                      requireDirectorDashboardAccess={true}
+                    >
+                      <UniversViewPage />
+                    </ProtectedRoute>
+                  } 
                 />
                 
                 {/* Lists - Main page */}

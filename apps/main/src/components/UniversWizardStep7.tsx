@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Card } from './Card';
 import { Button } from './Button';
+import { Input } from './Input';
 import { UniversWizardStepProps } from './UniversWizard';
 import { UniversMetadata, UniversOwnership, UniversDefinitions } from '../types';
 import {
@@ -12,18 +13,18 @@ import {
   CheckCircle,
   AlertCircle,
   Globe,
-  Building2,
   User,
   Loader2,
   Info,
-  Sparkles
+  Sparkles,
+  DollarSign
 } from 'lucide-react';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
 import { useToast } from '@ubora/shared/hooks/useToast';
 import { UniversCard } from './UniversCard';
 
 interface PublishOption {
-  id: 'private' | 'agency' | 'marketplace';
+  id: 'private' | 'marketplace';
   label: string;
   description: string;
   icon: React.ReactNode;
@@ -36,13 +37,6 @@ const PUBLISH_OPTIONS: PublishOption[] = [
     label: 'Privé',
     description: 'Visible uniquement par vous',
     icon: <User className="h-5 w-5" />,
-    approvalRequired: false
-  },
-  {
-    id: 'agency',
-    label: 'Partagé avec l\'agence',
-    description: 'Visible par tous les membres de votre agence',
-    icon: <Building2 className="h-5 w-5" />,
     approvalRequired: false
   },
   {
@@ -59,16 +53,35 @@ export const UniversWizardStep7: React.FC<UniversWizardStepProps> = ({
   updateWizardData,
   markStepCompleted,
   step,
-  goToStep
+  goToStep,
+  readOnly = false,
+  templateData
 }) => {
   const { user } = useAuth();
   const { showSuccess, showError, showWarning } = useToast();
-  const [selectedPublishOption, setSelectedPublishOption] = useState<'private' | 'agency' | 'marketplace'>('private');
-  const [isCreating, setIsCreating] = useState(false);
+
+  // En mode lecture seule, utiliser les données du template
+  const displayData = readOnly && templateData ? {
+    metadata: templateData.metadata,
+    definitions: templateData.definitions
+  } : {
+    metadata: wizardData.metadata || {},
+    definitions: wizardData.definitions || {}
+  };
 
   // Extract data from wizard
-  const metadata: Partial<UniversMetadata> = wizardData.metadata || {};
-  const definitions: Partial<UniversDefinitions> = wizardData.definitions || {};
+  const metadata: Partial<UniversMetadata> = displayData.metadata;
+  const definitions: Partial<UniversDefinitions> = displayData.definitions;
+
+  const [selectedPublishOption, setSelectedPublishOption] = useState<'private' | 'marketplace'>(
+    (metadata.publishOption as 'private' | 'marketplace') || 'private'
+  );
+  const [isCreating, setIsCreating] = useState(false);
+  const [price, setPrice] = useState<number | null>(metadata.price ?? null);
+  const [isFree, setIsFree] = useState<boolean>(
+    metadata.price === 0 || metadata.price === null || metadata.price === undefined
+  );
+  const [currency, setCurrency] = useState<string>(metadata.currency || 'XAF');
 
   // Count items
   const formsCount = (definitions.forms as any[])?.length || 0;
@@ -88,8 +101,29 @@ export const UniversWizardStep7: React.FC<UniversWizardStepProps> = ({
     }
   }, [metadata.name, markStepCompleted, step]);
 
-  const handlePublishOptionChange = (optionId: 'private' | 'agency' | 'marketplace') => {
+  const handlePublishOptionChange = (optionId: 'private' | 'marketplace') => {
     setSelectedPublishOption(optionId);
+    // Si on passe à "private", le prix doit être null
+    if (optionId === 'private') {
+      setPrice(null);
+      setIsFree(true);
+    }
+  };
+
+  const handlePriceChange = (value: string) => {
+    const numValue = parseFloat(value);
+    if (isNaN(numValue) || numValue < 0) {
+      setPrice(null);
+    } else {
+      setPrice(numValue);
+    }
+  };
+
+  const handleFreeToggle = (checked: boolean) => {
+    setIsFree(checked);
+    if (checked) {
+      setPrice(0);
+    }
   };
 
   const handleGoToStep = (stepNumber: number) => {
@@ -100,15 +134,23 @@ export const UniversWizardStep7: React.FC<UniversWizardStepProps> = ({
     return PUBLISH_OPTIONS.find(opt => opt.id === selectedPublishOption);
   };
 
-  // Store publish option in wizard data when changed
+  // Store publish option and price in wizard data when changed (seulement si pas en lecture seule)
   useEffect(() => {
-    updateWizardData({
-      metadata: {
-        ...metadata,
-        publishOption: selectedPublishOption // Store temporarily for wizard's handleComplete
-      }
-    });
-  }, [selectedPublishOption, updateWizardData, metadata]);
+    if (!readOnly) {
+      updateWizardData({
+        metadata: {
+          ...metadata,
+          publishOption: selectedPublishOption, // Store temporarily for wizard's handleComplete
+          price: isFree ? 0 : (price || null),
+          currency: currency
+        }
+      });
+    }
+    // En mode lecture seule, marquer comme complété automatiquement
+    if (readOnly && metadata.name) {
+      markStepCompleted(step);
+    }
+  }, [selectedPublishOption, price, isFree, currency, updateWizardData, metadata, readOnly, markStepCompleted, step]);
 
   const handleCreate = async () => {
     if (!user?.id || !user?.agencyId) {
@@ -152,6 +194,105 @@ export const UniversWizardStep7: React.FC<UniversWizardStepProps> = ({
       setIsCreating(false);
     }
   };
+
+  // En mode lecture seule, afficher uniquement le résumé
+  if (readOnly) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">
+            Résumé du Univers
+          </h2>
+          <p className="text-gray-600">
+            Aperçu du Univers template.
+          </p>
+        </div>
+
+        {/* Summary Card (Read-only) */}
+        <Card>
+          <div className="space-y-6">
+            {/* Metadata */}
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Métadonnées</h3>
+              <div className="space-y-3">
+                <div>
+                  <span className="text-sm font-medium text-gray-700">Nom:</span>
+                  <p className="text-gray-900">{metadata.name || 'Non spécifié'}</p>
+                </div>
+                {metadata.description && (
+                  <div>
+                    <span className="text-sm font-medium text-gray-700">Description:</span>
+                    <p className="text-gray-900">{metadata.description}</p>
+                  </div>
+                )}
+                {metadata.category && (
+                  <div>
+                    <span className="text-sm font-medium text-gray-700">Catégorie:</span>
+                    <p className="text-gray-900">{metadata.category}</p>
+                  </div>
+                )}
+                {metadata.tags && metadata.tags.length > 0 && (
+                  <div>
+                    <span className="text-sm font-medium text-gray-700">Tags:</span>
+                    <div className="flex flex-wrap gap-2 mt-1">
+                      {metadata.tags.map(tag => (
+                        <span key={tag} className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-sm">
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Definitions Summary */}
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Contenu</h3>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                <div className="p-3 bg-gray-50 rounded-lg">
+                  <div className="text-2xl font-bold text-blue-600">{listsCount}</div>
+                  <div className="text-sm text-gray-600">Liste{listsCount > 1 ? 's' : ''}</div>
+                </div>
+                <div className="p-3 bg-gray-50 rounded-lg">
+                  <div className="text-2xl font-bold text-indigo-600">{formsCount}</div>
+                  <div className="text-sm text-gray-600">Formulaire{formsCount > 1 ? 's' : ''}</div>
+                </div>
+                <div className="p-3 bg-gray-50 rounded-lg">
+                  <div className="text-2xl font-bold text-purple-600">{dashboardsCount}</div>
+                  <div className="text-sm text-gray-600">Tableau{dashboardsCount > 1 ? 'x' : ''} de bord</div>
+                </div>
+                <div className="p-3 bg-gray-50 rounded-lg">
+                  <div className="text-2xl font-bold text-green-600">{reportsCount}</div>
+                  <div className="text-sm text-gray-600">Rapport{reportsCount > 1 ? 's' : ''}</div>
+                </div>
+                <div className="p-3 bg-gray-50 rounded-lg">
+                  <div className="text-2xl font-bold text-orange-600">{instructionsCount}</div>
+                  <div className="text-sm text-gray-600">Instruction{instructionsCount > 1 ? 's' : ''}</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Pricing (if marketplace) */}
+            {metadata.publishOption === 'marketplace' && (
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Prix</h3>
+                <div className="p-3 bg-gray-50 rounded-lg">
+                  {metadata.price === 0 || metadata.price === null || metadata.price === undefined ? (
+                    <span className="text-lg font-semibold text-gray-900">Gratuit</span>
+                  ) : (
+                    <span className="text-lg font-semibold text-gray-900">
+                      {metadata.price} {metadata.currency || 'XAF'}
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -465,16 +606,74 @@ export const UniversWizardStep7: React.FC<UniversWizardStepProps> = ({
               ))}
             </div>
 
-            {/* Info about marketplace */}
+            {/* Pricing section for marketplace */}
             {selectedPublishOption === 'marketplace' && (
-              <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                <div className="flex items-start space-x-2">
-                  <Info className="h-4 w-4 text-yellow-600 mt-0.5 flex-shrink-0" />
-                  <div className="flex-1">
-                    <p className="text-xs text-yellow-800">
-                      Votre Univers sera soumis à approbation. Vous recevrez une notification une fois approuvé ou rejeté.
-                    </p>
+              <div className="mt-4 space-y-4">
+                <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                  <div className="flex items-start space-x-2 mb-3">
+                    <Info className="h-4 w-4 text-blue-600 mt-0.5 flex-shrink-0" />
+                    <div className="flex-1">
+                      <p className="text-xs text-blue-800">
+                        Votre Univers sera soumis à approbation. Vous recevrez une notification une fois approuvé ou rejeté.
+                      </p>
+                    </div>
                   </div>
+                </div>
+
+                <div className="space-y-3">
+                  <div>
+                    <label className="flex items-center space-x-2 mb-2">
+                      <input
+                        type="checkbox"
+                        checked={isFree}
+                        onChange={(e) => handleFreeToggle(e.target.checked)}
+                        className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                      />
+                      <span className="text-sm font-medium text-gray-700">Gratuit</span>
+                    </label>
+                  </div>
+
+                  {!isFree && (
+                    <div className="space-y-2">
+                      <div className="flex items-center space-x-2">
+                        <Input
+                          type="number"
+                          label="Prix"
+                          value={price?.toString() || ''}
+                          onChange={(e) => handlePriceChange(e.target.value)}
+                          placeholder="0"
+                          min="0"
+                          step="0.01"
+                          className="flex-1"
+                        />
+                        <div className="flex-shrink-0 pt-7">
+                          <select
+                            value={currency}
+                            onChange={(e) => setCurrency(e.target.value)}
+                            className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-base"
+                          >
+                            <option value="XAF">XAF</option>
+                            <option value="EUR">EUR</option>
+                            <option value="USD">USD</option>
+                          </select>
+                        </div>
+                      </div>
+                      {price !== null && price > 0 && (
+                        <p className="text-xs text-gray-600">
+                          Prix: {price.toLocaleString('fr-FR')} {currency}
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  {isFree && (
+                    <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+                      <div className="flex items-center space-x-2">
+                        <CheckCircle className="h-4 w-4 text-green-600" />
+                        <span className="text-sm font-medium text-green-800">Gratuit</span>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             )}

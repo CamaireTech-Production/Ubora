@@ -13,14 +13,19 @@ export const UniversWizardStep6: React.FC<UniversWizardStepProps> = ({
   updateWizardData,
   markStepCompleted,
   markStepSkipped,
-  step
+  step,
+  readOnly = false,
+  templateData
 }) => {
   const { user } = useAuth();
   const { showSuccess, showError } = useToast();
 
-  const [reports, setReports] = useState<ReportDefinition[]>(
-    (wizardData.definitions.reports as ReportDefinition[]) || []
-  );
+  // En mode lecture seule, utiliser les données du template
+  const initialReports = readOnly && templateData 
+    ? (templateData.definitions.reports || [])
+    : ((wizardData.definitions.reports as ReportDefinition[]) || []);
+
+  const [reports, setReports] = useState<ReportDefinition[]>(initialReports);
   const [showReportBuilder, setShowReportBuilder] = useState(false);
   const [editingReportId, setEditingReportId] = useState<string | null>(null);
   const [expandedReports, setExpandedReports] = useState<Set<string>>(new Set());
@@ -78,21 +83,26 @@ export const UniversWizardStep6: React.FC<UniversWizardStepProps> = ({
   const hasDashboards = universDashboards.length > 0;
   const hasReports = reports.length > 0;
 
-  // Update wizard data when reports change
+  // Update wizard data when reports change (seulement si pas en lecture seule)
   useEffect(() => {
-    updateWizardData({
-      definitions: {
-        reports: reports
-      }
-    });
+    if (!readOnly) {
+      updateWizardData({
+        definitions: {
+          reports: reports
+        }
+      });
 
-    // Mark step as completed if reports exist (reports are optional but if created, mark as completed)
-    if (reports.length > 0) {
-      markStepCompleted(step);
+      // Mark step as completed if reports exist (reports are optional but if created, mark as completed)
+      if (reports.length > 0) {
+        markStepCompleted(step);
+      } else {
+        markStepSkipped(step);
+      }
     } else {
-      markStepSkipped(step);
+      // En mode lecture seule, marquer comme complété automatiquement
+      markStepCompleted(step);
     }
-  }, [reports, updateWizardData, markStepCompleted, markStepSkipped, step]);
+  }, [reports, updateWizardData, markStepCompleted, markStepSkipped, step, readOnly]);
 
   const handleAddReport = () => {
     if (!hasDashboards) {
@@ -186,6 +196,54 @@ export const UniversWizardStep6: React.FC<UniversWizardStepProps> = ({
     if (!editingReportId) return undefined;
     return reports.find(r => r.id === editingReportId);
   };
+
+  // En mode lecture seule, afficher une vue en lecture seule
+  if (readOnly) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">
+            Rapports
+          </h2>
+          <p className="text-gray-600">
+            Aperçu des rapports du Univers template.
+          </p>
+        </div>
+
+        {/* Reports Display (Read-only) */}
+        {reports.length > 0 ? (
+          <div className="space-y-3">
+            {reports.map(report => (
+              <Card key={report.id}>
+                <div className="p-4">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center space-x-2 mb-2">
+                        <FileBarChart className="h-5 w-5 text-green-600" />
+                        <h3 className="text-lg font-semibold text-gray-900">{report.name}</h3>
+                      </div>
+                      {report.description && (
+                        <p className="text-sm text-gray-600 mb-3">{report.description}</p>
+                      )}
+                      <div className="text-sm text-gray-600">
+                        <p><strong>Type:</strong> {report.templateType || 'Non spécifié'}</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </Card>
+            ))}
+          </div>
+        ) : (
+          <Card>
+            <div className="text-center py-8">
+              <p className="text-gray-500">Aucun rapport dans ce Univers</p>
+            </div>
+          </Card>
+        )}
+      </div>
+    );
+  }
 
   if (showReportBuilder) {
     const editingReport = getEditingReport();

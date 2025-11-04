@@ -598,6 +598,88 @@ class UniversService {
   }
 
   /**
+   * Acheter un Univers depuis le marketplace et créer une instance
+   * 
+   * @param universId - ID du Univers template à acheter
+   * @param directorId - ID du directeur qui achète
+   * @param agencyId - ID de l'agence
+   * @param paymentId - ID du paiement (optionnel pour Univers gratuit)
+   * @returns L'ID de l'instance créée
+   * @throws Error si le Univers n'est pas trouvé, n'est pas dans le marketplace, ou si le paiement est requis mais non fourni
+   */
+  async purchaseUnivers(
+    universId: string,
+    directorId: string,
+    agencyId: string,
+    paymentId?: string
+  ): Promise<string> {
+    try {
+      // 1. Récupérer le Univers template
+      const univers = await this.getById(universId);
+      if (!univers) {
+        throw new Error(`Univers template not found: ${universId}`);
+      }
+
+      // 2. Vérifier que c'est un Univers marketplace
+      if (!univers.ownership.isMarketplaceTemplate) {
+        throw new Error('Ce Univers n\'est pas disponible dans le marketplace');
+      }
+
+      // 3. Vérifier que le Univers est approuvé
+      if (univers.ownership.approvalStatus !== 'approved') {
+        throw new Error('Ce Univers n\'est pas encore approuvé pour le marketplace');
+      }
+
+      // 4. Vérifier le paiement si nécessaire
+      const price = univers.metadata.price ?? 0;
+      const isFree = price === 0 || price === null || price === undefined;
+      
+      if (!isFree && !paymentId) {
+        throw new Error('Un paiement est requis pour ce Univers. Veuillez fournir un paymentId.');
+      }
+
+      // 5. Créer l'instance via instantiate()
+      const { instanceId } = await this.instantiate(
+        universId,
+        directorId,
+        'directeur',
+        agencyId
+      );
+
+      // 6. Mettre à jour l'instance pour ajouter les métadonnées d'achat
+      const instanceRef = doc(db, this.instancesCollectionName, instanceId);
+      const updateData: any = {
+        'metadata.isFromMarketplace': true,
+        'metadata.purchaseDate': serverTimestamp(),
+        updatedAt: serverTimestamp()
+      };
+
+      // Ajouter paymentId si fourni
+      if (paymentId) {
+        updateData['metadata.paymentId'] = paymentId;
+      }
+
+      await updateDoc(instanceRef, updateData);
+
+      console.log(`✅ Univers purchased successfully: ${universId} → Instance ${instanceId}`);
+      if (paymentId) {
+        console.log(`   Payment ID: ${paymentId}`);
+      }
+
+      return instanceId;
+    } catch (error) {
+      console.error(`❌ Error purchasing Univers ${universId}:`, error);
+      
+      // Re-throw with a more descriptive message
+      if (error instanceof Error) {
+        throw error;
+      }
+      
+      throw new Error(`Failed to purchase Univers: ${error}`);
+    }
+  }
+
+  /**
    * Collection name for ActiveUnivers documents
    */
   private readonly activeUniversCollectionName = 'activeUnivers';
