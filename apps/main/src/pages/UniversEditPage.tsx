@@ -83,7 +83,10 @@ export const UniversEditPage: React.FC = () => {
       }, 500); // Small delay to show success message
     } catch (error) {
       console.error('Erreur lors de la mise à jour du Univers:', error);
-      showError('Erreur lors de la mise à jour du Univers');
+      const errorMessage = error instanceof Error 
+        ? error.message 
+        : 'Erreur lors de la mise à jour du Univers';
+      showError(errorMessage);
     }
   };
 

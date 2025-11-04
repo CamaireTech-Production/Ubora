@@ -259,12 +259,11 @@ class UniversService {
 
       const currentVersion = currentUnivers.metadata.version || 1;
       const newVersion = currentVersion + 1;
-      const isMarketplace = currentUnivers.ownership.isMarketplaceTemplate;
+      const wasMarketplace = currentUnivers.ownership.isMarketplaceTemplate;
 
-      // 2. Recursively remove undefined values to prevent Firestore errors
-      const cleanedUpdates = this.removeUndefinedValues(updates);
-      
-      const updateData: any = { ...cleanedUpdates };
+      // 2. Initialiser updateData avec les updates (sans nettoyer undefined maintenant)
+      // On nettoiera undefined après avoir défini les valeurs ownership
+      const updateData: any = { ...updates };
       
       // 3. Incrémenter automatiquement metadata.version
       if (!updateData.metadata) {
@@ -272,20 +271,63 @@ class UniversService {
       }
       updateData.metadata.version = newVersion;
 
-      // 4. Si Univers marketplace : mettre approvalStatus = pending
-      if (isMarketplace && !updateData.ownership) {
+      // 4. Gérer isMarketplaceTemplate et approvalStatus
+      // Détecter si on passe en marketplace (via ownership.isMarketplaceTemplate)
+      const isNowMarketplace = updateData.ownership?.isMarketplaceTemplate ?? wasMarketplace;
+      const isBecomingMarketplace = !wasMarketplace && isNowMarketplace;
+      const isStayingMarketplace = wasMarketplace && isNowMarketplace;
+      
+      console.log('🔍 universService.update - Marketplace detection:', {
+        wasMarketplace,
+        isNowMarketplace,
+        isBecomingMarketplace,
+        isStayingMarketplace,
+        updateDataOwnership: updateData.ownership
+      });
+
+      // Initialiser ownership si nécessaire
+      if (!updateData.ownership) {
         updateData.ownership = {};
       }
-      if (isMarketplace && updateData.ownership) {
-        // Ne pas écraser l'approvalStatus si c'est déjà 'approved' et qu'on ne modifie pas explicitement
-        // Mais si on modifie le Univers, on doit mettre à 'pending' pour réapprobation
+      
+      // CRITIQUE: Préserver createdBy si non fourni dans les updates
+      // createdBy ne doit JAMAIS être modifié lors d'une mise à jour
+      if (!updateData.ownership.createdBy) {
+        updateData.ownership.createdBy = currentUnivers.ownership.createdBy;
+      }
+
+      // Si on passe en marketplace pour la première fois
+      if (isBecomingMarketplace) {
+        console.log('🔍 universService.update - Becoming marketplace for first time');
+        updateData.ownership.isMarketplaceTemplate = true;
+        updateData.ownership.approvalStatus = 'pending';
+        updateData.ownership.approvedBy = undefined;
+        updateData.ownership.approvedAt = undefined;
+        updateData.ownership.rejectionReason = undefined;
+      }
+      // Si c'était déjà marketplace et qu'on modifie
+      else if (isStayingMarketplace) {
+        console.log('🔍 universService.update - Staying marketplace, current approvalStatus:', currentUnivers.ownership.approvalStatus);
+        // Mettre approvalStatus = pending si c'était approved (modification nécessite réapprobation)
         if (currentUnivers.ownership.approvalStatus === 'approved') {
+          console.log('🔍 universService.update - Approved marketplace template modified, setting to pending');
           updateData.ownership.approvalStatus = 'pending';
           // Réinitialiser les champs d'approbation
           updateData.ownership.approvedBy = undefined;
           updateData.ownership.approvedAt = undefined;
           updateData.ownership.rejectionReason = undefined;
         }
+        // S'assurer que isMarketplaceTemplate reste true
+        updateData.ownership.isMarketplaceTemplate = true;
+      }
+      // Si on passe de marketplace à privé
+      else if (wasMarketplace && !isNowMarketplace) {
+        console.log('🔍 universService.update - Switching from marketplace to private');
+        updateData.ownership.isMarketplaceTemplate = false;
+        updateData.ownership.approvalStatus = 'approved';
+        updateData.ownership.approvedBy = undefined;
+        updateData.ownership.approvedAt = undefined;
+        updateData.ownership.rejectionReason = undefined;
       }
       
       // Convertir les dates en Timestamps Firestore
@@ -313,14 +355,18 @@ class UniversService {
         }
       }
       
-      // 5. Créer un document UniversVersion pour tracking
+      // 5. Supprimer les champs undefined après avoir défini toutes les valeurs
+      // Cela supprimera approvedBy, approvedAt, rejectionReason si on passe en marketplace
+      const finalUpdateData = this.removeUndefinedValues(updateData);
+      
+      // 6. Créer un document UniversVersion pour tracking
       const versionData: Omit<UniversVersion, 'id'> = {
         universId: id,
         version: newVersion,
         previousVersion: currentVersion,
         createdBy: updatedBy || currentUnivers.ownership.createdBy,
         createdAt: new Date(),
-        approvalStatus: isMarketplace ? 'pending' : 'approved', // Marketplace requires approval
+        approvalStatus: isNowMarketplace ? 'pending' : 'approved', // Marketplace requires approval
         changes: {
           metadata: !!updates.metadata,
           definitions: {
@@ -336,7 +382,7 @@ class UniversService {
       // Créer le document UniversVersion en parallèle avec la mise à jour
       const versionDocRef = doc(collection(db, this.versionsCollectionName));
       await Promise.all([
-        updateDoc(docRef, updateData),
+        updateDoc(docRef, finalUpdateData),
         setDoc(versionDocRef, {
           ...versionData,
           createdAt: serverTimestamp()
@@ -344,7 +390,7 @@ class UniversService {
       ]);
 
       console.log(`✅ Univers updated: ${id} (v${currentVersion} → v${newVersion})`);
-      if (isMarketplace) {
+      if (isNowMarketplace) {
         console.log(`   Approval status set to: pending (requires admin approval)`);
       }
     } catch (error) {
@@ -404,6 +450,7 @@ class UniversService {
       // Filtrer côté client:
       // - Univers privés : ownership.agencyId est undefined, null, ou n'existe pas
       // - Univers partagés avec l'agence : ownership.agencyId === agencyId
+      // - Univers marketplace créés par l'utilisateur : toujours affichés (même sans agencyId)
       allSnapshot.docs.forEach(doc => {
         const universData = doc.data();
         const universAgencyId = universData.ownership?.agencyId;
@@ -414,7 +461,11 @@ class UniversService {
         // Univers partagé avec l'agence
         const isAgencyShared = agencyId && universAgencyId === agencyId;
         
-        if (isPrivate || isAgencyShared) {
+        // Univers marketplace créé par l'utilisateur : toujours visible pour le créateur
+        const isMarketplaceCreatedByUser = universData.ownership?.isMarketplaceTemplate === true;
+        
+        // Afficher si: privé, partagé avec l'agence, ou marketplace créé par l'utilisateur
+        if (isPrivate || isAgencyShared || isMarketplaceCreatedByUser) {
           allUnivers.push(this.convertFirestoreToUnivers(doc.id, universData));
         }
       });

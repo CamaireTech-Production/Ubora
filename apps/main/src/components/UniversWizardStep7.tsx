@@ -137,13 +137,22 @@ export const UniversWizardStep7: React.FC<UniversWizardStepProps> = ({
   // Store publish option and price in wizard data when changed (seulement si pas en lecture seule)
   useEffect(() => {
     if (!readOnly) {
+      const metadataUpdate = {
+        ...metadata,
+        publishOption: selectedPublishOption, // Store temporarily for wizard's handleComplete
+        price: isFree ? 0 : (price || null),
+        currency: currency
+      };
+      
+      console.log('🔍 UniversWizardStep7 - Updating wizard data:', {
+        selectedPublishOption,
+        price: isFree ? 0 : (price || null),
+        currency,
+        metadataUpdate
+      });
+      
       updateWizardData({
-        metadata: {
-          ...metadata,
-          publishOption: selectedPublishOption, // Store temporarily for wizard's handleComplete
-          price: isFree ? 0 : (price || null),
-          currency: currency
-        }
+        metadata: metadataUpdate
       });
     }
     // En mode lecture seule, marquer comme complété automatiquement

@@ -14,7 +14,8 @@ import {
   RefreshCw,
   FileText,
   AlertCircle,
-  Loader2
+  Loader2,
+  Eye
 } from 'lucide-react';
 
 export const UniversApprovalsPage: React.FC = () => {
@@ -215,6 +216,15 @@ export const UniversApprovalsPage: React.FC = () => {
 
                   {/* Actions */}
                   <div className="flex flex-wrap items-center gap-3 pt-4 border-t border-gray-200">
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => navigate(`/univers-approvals/${univers.id}`)}
+                      className="flex items-center space-x-2"
+                    >
+                      <Eye className="h-4 w-4" />
+                      <span>Voir les détails</span>
+                    </Button>
                     <Button
                       variant="success"
                       size="sm"

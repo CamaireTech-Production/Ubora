@@ -7,6 +7,7 @@ import { AdminLoginPage } from './pages/AdminLoginPage';
 import { AdminPage } from './pages/AdminPage';
 import { UserDetailPage } from './pages/UserDetailPage';
 import { UniversApprovalsPage } from './pages/UniversApprovalsPage';
+import { UniversApprovalDetailPage } from './pages/UniversApprovalDetailPage';
 import { AdminPWAInstallPrompt } from './components/AdminPWAInstallPrompt';
 import { PWAUpdateNotification } from './components/PWAUpdateNotification';
 
@@ -72,6 +73,16 @@ function App() {
               element={
                 <ProtectedRoute allowedRoles={['admin']}>
                   <UserDetailPage />
+                </ProtectedRoute>
+              } 
+            />
+            
+            {/* Admin Univers Approval Detail - must come before list route */}
+            <Route 
+              path="/univers-approvals/:universId" 
+              element={
+                <ProtectedRoute allowedRoles={['admin']}>
+                  <UniversApprovalDetailPage />
                 </ProtectedRoute>
               } 
             />

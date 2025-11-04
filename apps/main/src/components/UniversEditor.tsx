@@ -103,10 +103,19 @@ export const UniversEditor: React.FC<UniversEditorProps> = ({
       category: metadata.category,
       tags: metadata.tags || [],
       version: metadata.version || 1,
-      createdAt: metadata.createdAt
+      createdAt: metadata.createdAt,
+      // Préserver publishOption, price, currency si présents (pour UniversWizardStep7)
+      ...(univers.ownership.isMarketplaceTemplate && {
+        publishOption: 'marketplace' as const,
+        price: univers.metadata.price ?? null,
+        currency: univers.metadata.currency || 'XAF'
+      }),
+      ...(!univers.ownership.isMarketplaceTemplate && {
+        publishOption: 'private' as const
+      })
     },
     definitions: definitions
-  }), [metadata, definitions]);
+  }), [metadata, definitions, univers]);
 
   // Update wizard data function - memoized to prevent infinite loops
   const updateWizardData = useCallback((updates: {
@@ -118,6 +127,9 @@ export const UniversEditor: React.FC<UniversEditorProps> = ({
       tags?: string[];
       version?: number;
       createdAt?: Date;
+      publishOption?: 'private' | 'marketplace';
+      price?: number | null;
+      currency?: string;
     }>;
     definitions?: Partial<UniversDefinitions>;
   }) => {
@@ -453,16 +465,52 @@ export const UniversEditor: React.FC<UniversEditorProps> = ({
 
     setIsSaving(true);
     try {
+      // Récupérer publishOption depuis metadata (stocké par UniversWizardStep7)
+      const publishOption = (metadata as any).publishOption || (univers.ownership.isMarketplaceTemplate ? 'marketplace' : 'private');
+      const price = (metadata as any).price ?? univers.metadata.price ?? null;
+      const currency = (metadata as any).currency || univers.metadata.currency || 'XAF';
+      
+      console.log('🔍 UniversEditor - Saving Univers:', {
+        publishOption,
+        metadataPublishOption: (metadata as any).publishOption,
+        metadataKeys: Object.keys(metadata),
+        currentIsMarketplace: univers.ownership.isMarketplaceTemplate,
+        currentApprovalStatus: univers.ownership.approvalStatus,
+        price,
+        currency,
+        fullMetadata: metadata
+      });
+      
       // Prepare updated Univers with incremented version
       // Ensure tags is always an array (never undefined)
       const updatedMetadata = {
         ...metadata,
         version: (metadata.version || 1) + 1, // Increment version
-        tags: metadata.tags || [] // Ensure tags is always an array
+        tags: metadata.tags || [], // Ensure tags is always an array
+        // Prix et devise pour marketplace
+        price: publishOption === 'marketplace' ? price : undefined,
+        currency: publishOption === 'marketplace' ? currency : undefined
       };
+      
+      // Préparer ownership basé sur publishOption
+      // CRITIQUE: Préserver createdBy et autres champs non modifiés
+      // Pour marketplace: si l'Univers était privé, on garde undefined pour agencyId
+      // (un Univers marketplace peut être créé sans agencyId spécifique)
+      // Pour privé: on retire l'agencyId si présent
+      const updatedOwnership: Partial<Univers['ownership']> = {
+        // Préserver createdBy - ne JAMAIS le modifier
+        createdBy: univers.ownership.createdBy,
+        isMarketplaceTemplate: publishOption === 'marketplace',
+        approvalStatus: publishOption === 'marketplace' ? 'pending' as const : 'approved' as const,
+        // Si on passe en privé, retirer agencyId. Si on passe en marketplace, garder l'ancien (peut être undefined)
+        agencyId: publishOption === 'private' ? undefined : (univers.ownership.agencyId || undefined)
+      };
+      
+      console.log('🔍 UniversEditor - Updated ownership:', updatedOwnership);
       
       const updatedUnivers: Partial<Univers> = {
         metadata: updatedMetadata,
+        ownership: updatedOwnership,
         definitions: definitions
       };
 

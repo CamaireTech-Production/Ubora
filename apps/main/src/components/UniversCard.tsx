@@ -227,7 +227,7 @@ export const UniversCard: React.FC<UniversCardProps> = ({
             <Eye className="h-3 w-3" />
           </Button>
         )}
-        {onEdit && !disabled && (
+        {onEdit && !disabled && !univers.metadata.isDefault && (
           <Button
             variant="secondary"
             size="sm"
