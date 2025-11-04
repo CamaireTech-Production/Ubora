@@ -5,9 +5,9 @@ import { Button } from './Button';
 import { Footer } from './Footer';
 import { UserPackageInfo } from './UserPackageInfo';
 import { ProfileDropdown } from './ProfileDropdown';
-import { BarChart3, MessageSquare, Menu, X, Bell, TestTube, Database } from 'lucide-react';
+import { BarChart3, MessageSquare, Menu, X, Bell } from 'lucide-react';
 import { ShareCollaboratorButton } from './ShareCollaboratorButton';
-import { UniversSwitcher } from './UniversSwitcher';
+import { ActiveUniversDisplay } from './ActiveUniversDisplay';
 import { useUnreadNotifications } from '@ubora/shared/hooks/useUnreadNotifications';
 
 interface LayoutProps {
@@ -26,7 +26,6 @@ export const Layout: React.FC<LayoutProps> = ({ children, title }) => {
   const isDirecteur = user?.role === 'directeur';
   const isDashboard = location.pathname === '/directeur/dashboard';
   const isChat = location.pathname === '/directeur/chat';
-  const isLists = location.pathname.startsWith('/lists');
 
   const toggleMobileMenu = () => {
     setIsMobileMenuOpen(!isMobileMenuOpen);
@@ -91,8 +90,6 @@ export const Layout: React.FC<LayoutProps> = ({ children, title }) => {
             {/* Navigation desktop pour directeur */}
             {isDirecteur && (
               <div className="hidden md:flex items-center space-x-2">
-                <UniversSwitcher />
-                
                 <ShareCollaboratorButton 
                   variant="secondary"
                   size="sm"
@@ -117,23 +114,14 @@ export const Layout: React.FC<LayoutProps> = ({ children, title }) => {
                   <BarChart3 className="h-4 w-4" />
                   <span>Dashboard</span>
                 </Button>
-                
-                <Button
-                  variant={isLists ? "primary" : "secondary"}
-                  size="sm"
-                  onClick={() => navigate('/lists')}
-                  className="flex items-center space-x-2"
-                >
-                  <Database className="h-4 w-4" />
-                  <span>Listes</span>
-                </Button>
               </div>
             )}
             
             <div className="flex items-center ml-4 space-x-2 sm:space-x-4">
-              {/* Package info pour les directeurs */}
+              {/* Univers actif et Package info pour les directeurs */}
               {isDirecteur && (
-                <div className="hidden md:block">
+                <div className="hidden md:flex items-center space-x-3">
+                  <ActiveUniversDisplay />
                   <UserPackageInfo showTokens={true} clickable={true} />
                 </div>
               )}
@@ -184,89 +172,51 @@ export const Layout: React.FC<LayoutProps> = ({ children, title }) => {
           
           {/* Menu mobile pour directeur - Floating dropdown */}
           {isDirecteur && isMobileMenuOpen && (
-            <div ref={menuRef} className="md:hidden absolute top-full right-4 mt-2 w-64 bg-white rounded-lg shadow-lg border border-gray-200 py-2 z-50">
-              <div className="mx-2 mb-1">
-                <UniversSwitcher />
-              </div>
-              
+            <div ref={menuRef} className="md:hidden fixed top-16 right-4 w-64 bg-white rounded-lg shadow-lg border border-gray-200 py-2 z-50 max-h-[calc(100vh-80px)] overflow-y-auto">
               <div className="mx-2 mb-1">
                 <ShareCollaboratorButton 
                   variant="secondary"
                   size="sm"
-                  className="w-full flex items-center justify-start space-x-2"
+                  className="w-full"
                 />
               </div>
               
-              <Button
-                variant={isChat ? "primary" : "secondary"}
-                size="sm"
-                onClick={() => {
-                  window.location.href = '/directeur/chat';
-                  closeMobileMenu();
-                }}
-                className="w-full flex items-center justify-start space-x-2 mx-2 mb-1"
-              >
-                <MessageSquare className="h-4 w-4" />
-                <span>Chat Archa</span>
-              </Button>
+              <div className="mx-2 mb-1">
+                <Button
+                  variant={isChat ? "primary" : "secondary"}
+                  size="sm"
+                  onClick={() => {
+                    navigate('/directeur/chat');
+                    closeMobileMenu();
+                  }}
+                  className="w-full flex items-center justify-center gap-2"
+                >
+                  <MessageSquare className="h-4 w-4" />
+                  <span>Chat Archa</span>
+                </Button>
+              </div>
               
-              <Button
-                variant={isDashboard ? "primary" : "secondary"}
-                size="sm"
-                onClick={() => {
-                  window.location.href = '/directeur/dashboard';
-                  closeMobileMenu();
-                }}
-                className="w-full flex items-center justify-start space-x-2 mx-2 mb-1"
-              >
-                <BarChart3 className="h-4 w-4" />
-                <span>Dashboard</span>
-              </Button>
-              
-              <Button
-                variant={isLists ? "primary" : "secondary"}
-                size="sm"
-                onClick={() => {
-                  navigate('/lists');
-                  closeMobileMenu();
-                }}
-                className="w-full flex items-center justify-start space-x-2 mx-2 mb-1"
-              >
-                <Database className="h-4 w-4" />
-                <span>Listes</span>
-              </Button>
-              
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => {
-                  navigate('/dev/push-test');
-                  closeMobileMenu();
-                }}
-                className="w-full flex items-center justify-start space-x-2 mx-2 mb-1"
-              >
-                <TestTube className="h-4 w-4" />
-                <span>Test Notifications</span>
-              </Button>
+              <div className="mx-2 mb-1">
+                <Button
+                  variant={isDashboard ? "primary" : "secondary"}
+                  size="sm"
+                  onClick={() => {
+                    navigate('/directeur/dashboard');
+                    closeMobileMenu();
+                  }}
+                  className="w-full flex items-center justify-center gap-2"
+                >
+                  <BarChart3 className="h-4 w-4" />
+                  <span>Dashboard</span>
+                </Button>
+              </div>
               
               {/* Profil utilisateur mobile */}
               <div 
-                className={`sm:hidden pt-2 border-t border-gray-200 mx-2 text-center ${isDirecteur ? 'cursor-pointer hover:bg-gray-50 rounded-lg p-2 transition-colors' : ''}`}
-                onClick={isDirecteur ? () => {
-                  navigate('/packages');
-                  closeMobileMenu();
-                } : undefined}
-                title={isDirecteur ? 'Cliquer pour voir les packages' : undefined}
+                className="sm:hidden pt-2 border-t border-gray-200 mx-2 text-center"
               >
                 <p className="text-sm font-medium text-gray-900">{user?.name}</p>
                 <p className="text-xs text-gray-500">{user?.email}</p>
-                
-                {/* Package info dans le menu mobile */}
-                {isDirecteur && (
-                  <div className="mt-2 flex justify-center">
-                    <UserPackageInfo showTokens={true} clickable={false} />
-                  </div>
-                )}
               </div>
             </div>
           )}

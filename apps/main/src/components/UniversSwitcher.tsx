@@ -120,16 +120,15 @@ export const UniversSwitcher: React.FC = () => {
           onClick={() => setIsOpen(!isOpen)}
           className="flex items-center space-x-2"
         >
-          <span className="hidden sm:inline">
+          <span className="text-xs font-medium text-gray-700">
             {activeUniversObj ? activeUniversObj.metadata.name : 'Sélectionner Univers'}
           </span>
-          <span className="sm:hidden">Univers</span>
           <ChevronDown className={`h-4 w-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
         </Button>
 
         {/* Dropdown */}
         {isOpen && (
-          <div className="absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-lg border border-gray-200 z-50 max-h-96 overflow-y-auto">
+          <div className="absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-lg border border-gray-200 z-50 max-h-[calc(100vh-100px)] overflow-y-auto">
             <div className="p-2">
               <div className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
                 Univers disponibles

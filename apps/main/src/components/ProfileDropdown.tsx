@@ -15,7 +15,9 @@ import {
   Users,
   MessageSquare,
   Bell,
-  Package
+  Package,
+  Database,
+  FileBarChart
 } from 'lucide-react';
 
 interface ProfileDropdownProps {
@@ -87,6 +89,16 @@ export const ProfileDropdown: React.FC<ProfileDropdownProps> = ({ className = ''
     setIsOpen(false);
   };
 
+  const handleGoToLists = () => {
+    navigate('/lists');
+    setIsOpen(false);
+  };
+
+  const handleGoToReports = () => {
+    navigate('/reports');
+    setIsOpen(false);
+  };
+
   const hasDirectorAccess = hasDirectorDashboardAccess();
 
   // Determine which menu item is currently active
@@ -98,6 +110,14 @@ export const ProfileDropdown: React.FC<ProfileDropdownProps> = ({ className = ''
     if (path === '/employe/dashboard') {
       // Also highlight for response detail pages (employee functionality)
       return location.pathname === path || location.pathname.startsWith('/responses/');
+    }
+    if (path === '/lists') {
+      // Also highlight for list pages
+      return location.pathname === path || location.pathname.startsWith('/lists/');
+    }
+    if (path === '/reports') {
+      // Also highlight for report pages
+      return location.pathname === path || location.pathname.startsWith('/reports/');
     }
     return location.pathname === path;
   };
@@ -235,6 +255,34 @@ export const ProfileDropdown: React.FC<ProfileDropdownProps> = ({ className = ''
                   )}
                   <Users className="h-4 w-4 text-gray-400" />
                   <span>Gérer les Employés</span>
+                </button>
+              )}
+
+              {/* Listes (pour les directeurs et employés avec accès) */}
+              {(user.role === 'directeur' || hasDirectorAccess) && (
+                <button
+                  onClick={handleGoToLists}
+                  className={`w-full px-4 py-2 text-left text-sm flex items-center space-x-2 relative ${getActiveStyles('/lists')}`}
+                >
+                  {isActive('/lists') && (
+                    <div className="absolute left-0 top-1/2 transform -translate-y-1/2 w-1 h-6 rounded-r-full" style={{ backgroundColor: '#2A6AEE' }}></div>
+                  )}
+                  <Database className="h-4 w-4 text-gray-400" />
+                  <span>Listes</span>
+                </button>
+              )}
+
+              {/* Rapports (pour les directeurs et employés avec accès) */}
+              {(user.role === 'directeur' || hasDirectorAccess) && (
+                <button
+                  onClick={handleGoToReports}
+                  className={`w-full px-4 py-2 text-left text-sm flex items-center space-x-2 relative ${getActiveStyles('/reports')}`}
+                >
+                  {isActive('/reports') && (
+                    <div className="absolute left-0 top-1/2 transform -translate-y-1/2 w-1 h-6 rounded-r-full" style={{ backgroundColor: '#2A6AEE' }}></div>
+                  )}
+                  <FileBarChart className="h-4 w-4 text-gray-400" />
+                  <span>Rapports</span>
                 </button>
               )}
 

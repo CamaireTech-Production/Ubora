@@ -100,7 +100,7 @@ export const ShareCollaboratorButton: React.FC<ShareCollaboratorButtonProps> = (
         variant={variant}
         size={size}
         onClick={handleInviteClick}
-        className={`flex items-center justify-center gap-2 ${className}`}
+        className={`w-full flex items-center justify-center gap-2 ${className}`}
       >
         <UserPlus className="h-4 w-4" />
         <span>Inviter</span>
