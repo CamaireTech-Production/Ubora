@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
+import { useApp } from '@ubora/shared/contexts/AppContext';
 import { Layout } from '../components/Layout';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
@@ -23,7 +24,8 @@ import {
   Database,
   FileBarChart,
   Sparkles,
-  Loader2
+  Loader2,
+  Power
 } from 'lucide-react';
 import { ConfirmationModal } from '../components/ConfirmationModal';
 
@@ -31,11 +33,14 @@ export const UniversViewPage: React.FC = () => {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
+  const { activeUniversId } = useApp();
   const { toast, showSuccess, showError } = useToast();
   const [univers, setUnivers] = useState<Univers | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isInstantiating, setIsInstantiating] = useState(false);
   const [showInstantiateModal, setShowInstantiateModal] = useState(false);
+  const [isActivating, setIsActivating] = useState(false);
+  const [showActivateModal, setShowActivateModal] = useState(false);
 
   useEffect(() => {
     if (id && user?.id && user?.agencyId) {
@@ -111,6 +116,33 @@ export const UniversViewPage: React.FC = () => {
     } finally {
       setIsInstantiating(false);
     }
+  };
+
+  const handleActivateClick = () => {
+    setShowActivateModal(true);
+  };
+
+  const handleConfirmActivation = async () => {
+    if (!univers || !user?.id || !user?.agencyId) return;
+
+    setIsActivating(true);
+    try {
+      await universService.activateUnivers(univers.id, user.id, user.agencyId);
+      showSuccess(`Univers "${univers.metadata.name}" activé avec succès`);
+      setShowActivateModal(false);
+      
+      // Recharger la page pour mettre à jour les données filtrées
+      window.location.reload();
+    } catch (error) {
+      console.error('Erreur lors de l\'activation du Univers:', error);
+      showError('Erreur lors de l\'activation du Univers');
+      setIsActivating(false);
+    }
+  };
+
+  const handleCancelActivation = () => {
+    setShowActivateModal(false);
+    setIsActivating(false);
   };
 
   const formatDate = (date: Date) => {
@@ -212,6 +244,8 @@ export const UniversViewPage: React.FC = () => {
   }
 
   const canEdit = univers.ownership.createdBy === user.id || user.role === 'admin';
+  const isActive = univers.id === activeUniversId;
+  const isDirecteur = user?.role === 'directeur';
 
   return (
     <>
@@ -230,15 +264,34 @@ export const UniversViewPage: React.FC = () => {
                 <span>Retour</span>
               </Button>
               <div>
-                <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">
-                  {univers.metadata.name}
-                </h1>
+                <div className="flex items-center space-x-3">
+                  <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">
+                    {univers.metadata.name}
+                  </h1>
+                  {isActive && isDirecteur && (
+                    <span className="flex items-center space-x-1 px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm font-medium">
+                      <CheckCircle className="h-4 w-4" />
+                      <span>Actif</span>
+                    </span>
+                  )}
+                </div>
                 <p className="text-sm text-gray-600 mt-1">
                   {univers.metadata.description || 'Aucune description'}
                 </p>
               </div>
             </div>
             <div className="flex items-center space-x-2">
+              {isDirecteur && !isActive && (
+                <Button
+                  variant="primary"
+                  onClick={handleActivateClick}
+                  className="flex items-center space-x-2"
+                  disabled={isActivating}
+                >
+                  <Power className="h-4 w-4" />
+                  <span>Activer</span>
+                </Button>
+              )}
               <Button
                 variant="primary"
                 onClick={() => setShowInstantiateModal(true)}
@@ -462,6 +515,30 @@ export const UniversViewPage: React.FC = () => {
           </div>
         </div>
       </Layout>
+
+      {/* Activate Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={showActivateModal}
+        onClose={handleCancelActivation}
+        onConfirm={handleConfirmActivation}
+        title="Activer ce Univers"
+        message={
+          univers ? (
+            <div className="space-y-2">
+              <p>
+                Êtes-vous sûr de vouloir activer le Univers <strong>"{univers.metadata.name}"</strong> ?
+              </p>
+              <p className="text-sm text-gray-600">
+                L'Univers actif détermine quelles ressources (formulaires, tableaux de bord, etc.) sont visibles dans votre dashboard.
+              </p>
+            </div>
+          ) : null
+        }
+        confirmText="Activer"
+        cancelText="Annuler"
+        variant="info"
+        isLoading={isActivating}
+      />
 
       {/* Instantiate Confirmation Modal */}
       <ConfirmationModal

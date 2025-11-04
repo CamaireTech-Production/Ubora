@@ -1,8 +1,13 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Univers } from '../types';
 import { Card } from './Card';
 import { Button } from './Button';
-import { Edit, Trash2, Eye, Globe, Lock, Building2, CheckCircle, Clock, XCircle } from 'lucide-react';
+import { ConfirmationModal } from './ConfirmationModal';
+import { useApp } from '@ubora/shared/contexts/AppContext';
+import { useAuth } from '@ubora/shared/contexts/AuthContext';
+import { useToast } from '@ubora/shared/hooks/useToast';
+import { universService } from '../services/universService';
+import { Edit, Trash2, Eye, Globe, Lock, Building2, CheckCircle, Clock, XCircle, Power } from 'lucide-react';
 
 interface UniversCardProps {
   univers: Univers;
@@ -19,6 +24,41 @@ export const UniversCard: React.FC<UniversCardProps> = ({
   onView,
   disabled = false
 }) => {
+  const { user } = useAuth();
+  const { activeUniversId } = useApp();
+  const { showSuccess, showError } = useToast();
+  const [isActivating, setIsActivating] = useState(false);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+
+  const isActive = univers.id === activeUniversId;
+  const isDirecteur = user?.role === 'directeur';
+
+  const handleActivateClick = () => {
+    setShowConfirmModal(true);
+  };
+
+  const handleConfirmActivation = async () => {
+    if (!user?.id || !user?.agencyId) return;
+
+    setIsActivating(true);
+    try {
+      await universService.activateUnivers(univers.id, user.id, user.agencyId);
+      showSuccess(`Univers "${univers.metadata.name}" activé avec succès`);
+      setShowConfirmModal(false);
+      
+      // Recharger la page pour mettre à jour les données filtrées
+      window.location.reload();
+    } catch (error) {
+      console.error('Erreur lors de l\'activation du Univers:', error);
+      showError('Erreur lors de l\'activation du Univers');
+      setIsActivating(false);
+    }
+  };
+
+  const handleCancelActivation = () => {
+    setShowConfirmModal(false);
+    setIsActivating(false);
+  };
   const getOwnershipIcon = () => {
     if (univers.ownership.isMarketplaceTemplate) {
       return <Globe className="h-4 w-4 text-blue-500" />;
@@ -74,7 +114,10 @@ export const UniversCard: React.FC<UniversCardProps> = ({
   };
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-6 hover:shadow-md transition-shadow relative group">
+    <>
+    <div className={`bg-white rounded-xl border p-6 hover:shadow-md transition-shadow relative group ${
+      isActive ? 'border-blue-500 border-2 bg-blue-50' : 'border-gray-200'
+    }`}>
       {/* Actions buttons - shown on hover */}
       <div className="absolute top-4 right-4 z-10 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex space-x-2">
         {onView && (
@@ -129,9 +172,17 @@ export const UniversCard: React.FC<UniversCardProps> = ({
 
       {/* Title and Description */}
       <div className="mb-4 pr-20">
-        <h3 className="text-lg font-semibold text-gray-900 mb-1 line-clamp-2">
-          {univers.metadata.name}
-        </h3>
+        <div className="flex items-center space-x-2 mb-1">
+          <h3 className="text-lg font-semibold text-gray-900 line-clamp-2 flex-1">
+            {univers.metadata.name}
+          </h3>
+          {isActive && isDirecteur && (
+            <span className="flex items-center space-x-1 px-2 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-medium flex-shrink-0">
+              <CheckCircle className="h-3 w-3" />
+              <span>Actif</span>
+            </span>
+          )}
+        </div>
         <p className="text-sm text-gray-600 line-clamp-2">
           {univers.metadata.description || 'Aucune description'}
         </p>
@@ -200,7 +251,46 @@ export const UniversCard: React.FC<UniversCardProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Bouton Activer pour directeurs */}
+      {isDirecteur && !isActive && (
+        <div className="mt-4 pt-4 border-t border-gray-200">
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={handleActivateClick}
+            className="w-full flex items-center justify-center space-x-2"
+            disabled={disabled}
+          >
+            <Power className="h-4 w-4" />
+            <span>Activer ce Univers</span>
+          </Button>
+        </div>
+      )}
     </div>
+
+    {/* Modal de confirmation */}
+    <ConfirmationModal
+      isOpen={showConfirmModal}
+      onClose={handleCancelActivation}
+      onConfirm={handleConfirmActivation}
+      title="Activer ce Univers"
+      message={
+        <div className="space-y-2">
+          <p>
+            Êtes-vous sûr de vouloir activer le Univers <strong>"{univers.metadata.name}"</strong> ?
+          </p>
+          <p className="text-sm text-gray-600">
+            L'Univers actif détermine quelles ressources (formulaires, tableaux de bord, etc.) sont visibles dans votre dashboard.
+          </p>
+        </div>
+      }
+      confirmText="Activer"
+      cancelText="Annuler"
+      variant="info"
+      isLoading={isActivating}
+    />
+    </>
   );
 };
 

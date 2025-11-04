@@ -7,6 +7,7 @@ import { UserPackageInfo } from './UserPackageInfo';
 import { ProfileDropdown } from './ProfileDropdown';
 import { BarChart3, MessageSquare, Menu, X, Bell, TestTube, Database } from 'lucide-react';
 import { ShareCollaboratorButton } from './ShareCollaboratorButton';
+import { UniversSwitcher } from './UniversSwitcher';
 import { useUnreadNotifications } from '@ubora/shared/hooks/useUnreadNotifications';
 
 interface LayoutProps {
@@ -90,6 +91,8 @@ export const Layout: React.FC<LayoutProps> = ({ children, title }) => {
             {/* Navigation desktop pour directeur */}
             {isDirecteur && (
               <div className="hidden md:flex items-center space-x-2">
+                <UniversSwitcher />
+                
                 <ShareCollaboratorButton 
                   variant="secondary"
                   size="sm"
@@ -182,6 +185,10 @@ export const Layout: React.FC<LayoutProps> = ({ children, title }) => {
           {/* Menu mobile pour directeur - Floating dropdown */}
           {isDirecteur && isMobileMenuOpen && (
             <div ref={menuRef} className="md:hidden absolute top-full right-4 mt-2 w-64 bg-white rounded-lg shadow-lg border border-gray-200 py-2 z-50">
+              <div className="mx-2 mb-1">
+                <UniversSwitcher />
+              </div>
+              
               <div className="mx-2 mb-1">
                 <ShareCollaboratorButton 
                   variant="secondary"
