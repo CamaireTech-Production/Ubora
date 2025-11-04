@@ -244,9 +244,50 @@ async function loadAndAggregateData(
   period,
   formId,
   userId,
-  selectedFormats
+  selectedFormats,
+  directorId = null,
+  userRole = null
 ) {
   const { start, end, label } = getPeriodDates(period);
+
+  // Récupérer l'Univers actif si c'est un directeur
+  let activeUniversId = null;
+  if (userRole === 'directeur' && directorId) {
+    try {
+      const activeUniversDoc = await adminDb.collection('activeUnivers').doc(directorId).get();
+      if (activeUniversDoc.exists()) {
+        const activeUniversData = activeUniversDoc.data();
+        activeUniversId = activeUniversData.activeUniversId;
+        console.log('✅ Univers actif trouvé pour Chat Archa:', activeUniversId);
+      } else {
+        console.log('⚠️ Aucun Univers actif trouvé pour le directeur:', directorId);
+      }
+    } catch (error) {
+      console.error('❌ Erreur lors de la récupération de l\'Univers actif:', error);
+      // Continue sans filtrage par Univers si erreur
+    }
+  }
+
+  // Récupérer les Forms du Univers actif si disponible
+  let activeFormIds = new Set();
+  if (activeUniversId) {
+    try {
+      const formsSnapshot = await adminDb
+        .collection('forms')
+        .where('agencyId', '==', agencyId)
+        .where('universId', '==', activeUniversId)
+        .get();
+      
+      formsSnapshot.docs.forEach(doc => {
+        activeFormIds.add(doc.id);
+      });
+      
+      console.log(`✅ ${activeFormIds.size} Forms du Univers actif trouvés pour Chat Archa`);
+    } catch (error) {
+      console.error('❌ Erreur lors de la récupération des Forms du Univers actif:', error);
+      // Continue sans filtrage par Univers si erreur
+    }
+  }
 
   // Requête de base pour récupérer TOUTES les données de l'agence
   // On récupère par agence puis on filtre/tri en mémoire
@@ -336,7 +377,9 @@ async function loadAndAggregateData(
     const matchForm = !formId || e.formId === formId;
     const matchSelectedForms = !selectedFormats || selectedFormats.length === 0 || selectedFormats.includes(e.formId);
     const matchUser = !userId || e.userId === userId;
-    return inDateRange && matchForm && matchSelectedForms && matchUser;
+    // Filtrer par Univers actif si disponible (seulement pour directeurs)
+    const matchActiveUnivers = activeUniversId === null || activeFormIds.size === 0 || activeFormIds.has(e.formId);
+    return inDateRange && matchForm && matchSelectedForms && matchUser && matchActiveUnivers;
   });
 
   // Trier par date desc (TOUTES les données sélectionnées)
@@ -351,8 +394,14 @@ async function loadAndAggregateData(
   // No artificial limits - send ALL selected data to AI
 
   // Charger les métadonnées (formulaires et utilisateurs)
+  // Filtrer les Forms par Univers actif si disponible
+  let formsQuery = adminDb.collection('forms').where('agencyId', '==', agencyId);
+  if (activeUniversId) {
+    formsQuery = formsQuery.where('universId', '==', activeUniversId);
+  }
+  
   const [formsSnapshot, usersSnapshot] = await Promise.all([
-    adminDb.collection('forms').where('agencyId', '==', agencyId).get(),
+    formsQuery.get(),
     adminDb.collection('users').where('agencyId', '==', agencyId).where('role', '==', 'employe').get()
   ]);
 
@@ -668,7 +717,9 @@ export default async function handler(req, res) {
         filters?.period,
         filters?.formId,
         filters?.userId,
-        selectedFormats
+        selectedFormats,
+        uid, // directorId
+        userData.role // userRole
       );
     } catch (dataError) {
       return res.status(500).json({ 

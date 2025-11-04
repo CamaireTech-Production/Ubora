@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, Search, Calendar, Clock, MessageSquare, ArrowLeft, Wrench } from 'lucide-react';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
+import { useApp } from '@ubora/shared/contexts/AppContext';
 import { Button } from '../components/Button';
 import { ScheduledQuestionCard } from '../components/scheduled/ScheduledQuestionCard';
 import { scheduledQuestionService } from '@ubora/shared/services/scheduledQuestionService';
@@ -13,6 +14,7 @@ import { universService } from '@ubora/shared/services/universService';
 
 export const ScheduledQuestionsPage: React.FC = () => {
   const { user } = useAuth();
+  const { activeUniversId } = useApp();
   const navigate = useNavigate();
   const { showSuccess, showError } = useToast();
   
@@ -34,7 +36,8 @@ export const ScheduledQuestionsPage: React.FC = () => {
       (questions) => {
         setQuestions(questions);
         setIsLoading(false);
-      }
+      },
+      activeUniversId || null
     );
 
     // Load Univers names for badges
@@ -60,7 +63,7 @@ export const ScheduledQuestionsPage: React.FC = () => {
     loadUniversData();
 
     return unsubscribe;
-  }, [user]);
+  }, [user, activeUniversId]);
 
   // Filtrer les questions
   const filteredQuestions = questions.filter(question => {

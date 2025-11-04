@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
+import { useApp } from '@ubora/shared/contexts/AppContext';
 import { Layout } from '../components/Layout';
 import { ListCard } from '../components/ListCard';
 import { List } from '../types';
@@ -16,6 +17,7 @@ import { canDeleteList } from '@ubora/shared/utils/listUsageChecker';
 export const ListsPage: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { activeUniversId } = useApp();
   const { toast, showSuccess, showError } = useToast();
   const [lists, setLists] = useState<List[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -33,14 +35,14 @@ export const ListsPage: React.FC = () => {
     if (user?.id && user?.agencyId) {
       loadLists();
     }
-  }, [user]);
+  }, [user, activeUniversId]);
 
   const loadLists = async () => {
     if (!user?.id || !user?.agencyId) return;
 
     setIsLoading(true);
     try {
-      const userLists = await listsService.getByUser(user.id, user.agencyId, user.role);
+      const userLists = await listsService.getByUser(user.id, user.agencyId, user.role, activeUniversId || null);
       setLists(userLists);
     } catch (error) {
       console.error('Erreur lors du chargement des Lists:', error);

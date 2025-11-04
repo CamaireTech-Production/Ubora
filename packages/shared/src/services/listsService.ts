@@ -87,6 +87,33 @@ class ListsService {
         }
       }
 
+      // Récupérer l'Univers actif pour associer automatiquement si universId n'est pas fourni
+      let universIdToAssociate: string | null = list.universId || null;
+      if (!universIdToAssociate && list.agencyId) {
+        try {
+          // Trouver le directeur de l'agence
+          const directorsSnapshot = await getDocs(
+            query(
+              collection(db, 'users'),
+              where('agencyId', '==', list.agencyId),
+              where('role', '==', 'directeur')
+            )
+          );
+          if (!directorsSnapshot.empty) {
+            const directorId = directorsSnapshot.docs[0].id;
+            // Récupérer l'Univers actif du directeur
+            const { universService } = await import('./universService');
+            const activeUnivers = await universService.getActiveUnivers(directorId, list.agencyId);
+            if (activeUnivers) {
+              universIdToAssociate = activeUnivers.activeUniversId;
+            }
+          }
+        } catch (error) {
+          console.error('Erreur lors de la récupération de l\'Univers actif pour la List:', error);
+          // Continue sans associer au Univers si erreur
+        }
+      }
+
       // Préparer les données avec valeurs par défaut
       const now = new Date();
       const listData = {
@@ -100,7 +127,7 @@ class ListsService {
         agencyId: list.agencyId,
         createdAt: Timestamp.fromDate(list.createdAt || now),
         updatedAt: Timestamp.fromDate(list.updatedAt || now),
-        universId: list.universId || null,
+        universId: universIdToAssociate,
         universInstanceId: list.universInstanceId || null,
         fromUnivers: list.fromUnivers || false
       };
@@ -203,14 +230,27 @@ class ListsService {
 
   /**
    * Récupérer toutes les Lists d'une agence
+   * Filtrer par Univers actif si activeUniversId est fourni
    */
-  async getByAgency(agencyId: string): Promise<List[]> {
+  async getByAgency(agencyId: string, activeUniversId?: string | null): Promise<List[]> {
     try {
-      const q = query(
-        collection(db, this.collectionName),
-        where('agencyId', '==', agencyId),
-        orderBy('updatedAt', 'desc')
-      );
+      let q;
+      if (activeUniversId) {
+        // Filtrer par Univers actif
+        q = query(
+          collection(db, this.collectionName),
+          where('agencyId', '==', agencyId),
+          where('universId', '==', activeUniversId),
+          orderBy('updatedAt', 'desc')
+        );
+      } else {
+        // Rétrocompatibilité temporaire : si pas de Univers actif, charger toutes les Lists
+        q = query(
+          collection(db, this.collectionName),
+          where('agencyId', '==', agencyId),
+          orderBy('updatedAt', 'desc')
+        );
+      }
       
       const querySnapshot = await getDocs(q);
       return querySnapshot.docs.map(doc => 
@@ -225,21 +265,33 @@ class ListsService {
   /**
    * Récupérer toutes les Lists créées par un utilisateur
    * Inclut toutes les Lists de l'agence si l'utilisateur est directeur
+   * Filtrer par Univers actif si activeUniversId est fourni
    */
-  async getByUser(userId: string, agencyId: string, userRole?: 'directeur' | 'employe' | 'admin'): Promise<List[]> {
+  async getByUser(userId: string, agencyId: string, userRole?: 'directeur' | 'employe' | 'admin', activeUniversId?: string | null): Promise<List[]> {
     try {
-      // Si c'est un directeur, retourner toutes les Lists de l'agence
+      // Si c'est un directeur, retourner toutes les Lists de l'agence (filtrées par Univers actif)
       if (userRole === 'directeur' || userRole === 'admin') {
-        return await this.getByAgency(agencyId);
+        return await this.getByAgency(agencyId, activeUniversId);
       }
 
-      // Sinon, retourner seulement les Lists créées par l'utilisateur
-      const q = query(
-        collection(db, this.collectionName),
-        where('createdBy', '==', userId),
-        where('agencyId', '==', agencyId),
-        orderBy('updatedAt', 'desc')
-      );
+      // Sinon, retourner seulement les Lists créées par l'utilisateur (filtrées par Univers actif)
+      let q;
+      if (activeUniversId) {
+        q = query(
+          collection(db, this.collectionName),
+          where('createdBy', '==', userId),
+          where('agencyId', '==', agencyId),
+          where('universId', '==', activeUniversId),
+          orderBy('updatedAt', 'desc')
+        );
+      } else {
+        q = query(
+          collection(db, this.collectionName),
+          where('createdBy', '==', userId),
+          where('agencyId', '==', agencyId),
+          orderBy('updatedAt', 'desc')
+        );
+      }
       
       const querySnapshot = await getDocs(q);
       return querySnapshot.docs.map(doc => 

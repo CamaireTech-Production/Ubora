@@ -10,11 +10,12 @@ import {
   updateDoc,
   doc,
   getDoc,
+  getDocs,
   serverTimestamp,
   deleteField
 } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
-import { Form, FormEntry, User, DraftResponse, Dashboard } from '../types';
+import { Form, FormEntry, User, DraftResponse, Dashboard, ActiveUnivers } from '../types';
 import { DraftService } from '../services/draftService';
 import { useAuth } from './AuthContext';
 import { usePackageAccess } from '../hooks/usePackageAccess';
@@ -23,12 +24,15 @@ import { SubscriptionSessionService } from '../services/subscriptionSessionServi
 import { notificationService } from '../services/notificationService';
 import { useToast } from '../hooks/useToast';
 import { getAIFormatEndpoint, getFilesDownloadEndpoint } from '../config/api';
+import { universService } from '../services/universService';
 
 interface AppContextType {
   forms: Form[];
   formEntries: FormEntry[];
   employees: User[];
   dashboards: Dashboard[];
+  activeUnivers: ActiveUnivers | null; // Univers actif pour le directeur
+  activeUniversId: string | null; // ID du Univers actif (pour filtrage)
   createForm: (form: Omit<Form, 'id' | 'createdAt'>) => Promise<void>;
   updateForm: (formId: string, form: Partial<Omit<Form, 'id' | 'createdAt' | 'createdBy' | 'agencyId'>>) => Promise<void>;
   submitFormEntry: (entry: Omit<FormEntry, 'id' | 'submittedAt' | 'userId' | 'agencyId'>) => Promise<string>;
@@ -70,10 +74,59 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [formEntries, setFormEntries] = useState<FormEntry[]>([]);
   const [employees, setEmployees] = useState<User[]>([]);
   const [dashboards, setDashboards] = useState<Dashboard[]>([]);
+  const [activeUnivers, setActiveUnivers] = useState<ActiveUnivers | null>(null);
+  const [activeUniversId, setActiveUniversId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Charger les données depuis Firestore quand l'utilisateur est connecté
+  // Charger l'Univers actif pour les directeurs
+  useEffect(() => {
+    // Guard: Vérifier que l'utilisateur Firebase et le profil utilisateur sont chargés
+    if (!firebaseUser || !user || !user.agencyId) {
+      setActiveUnivers(null);
+      setActiveUniversId(null);
+      return;
+    }
+
+    // Seuls les directeurs ont un Univers actif
+    if (user.role !== 'directeur') {
+      setActiveUnivers(null);
+      setActiveUniversId(null);
+      return;
+    }
+
+    // Charger ActiveUnivers depuis Firestore
+    const loadActiveUnivers = async () => {
+      try {
+        let activeUnivers = await universService.getActiveUnivers(user.id, user.agencyId);
+        
+        // Si aucun Univers actif, créer/activer le Univers par défaut
+        if (!activeUnivers) {
+          console.log('Aucun Univers actif trouvé, création du Univers par défaut...');
+          await universService.ensureDefaultUnivers(user.id, user.agencyId);
+          activeUnivers = await universService.getActiveUnivers(user.id, user.agencyId);
+        }
+
+        if (activeUnivers) {
+          setActiveUnivers(activeUnivers);
+          setActiveUniversId(activeUnivers.activeUniversId);
+          console.log('✅ Univers actif chargé:', activeUnivers.activeUniversId);
+        } else {
+          setActiveUnivers(null);
+          setActiveUniversId(null);
+          console.warn('⚠️ Aucun Univers actif trouvé après ensureDefaultUnivers');
+        }
+      } catch (error) {
+        console.error('Erreur lors du chargement de l\'Univers actif:', error);
+        setActiveUnivers(null);
+        setActiveUniversId(null);
+      }
+    };
+
+    loadActiveUnivers();
+  }, [firebaseUser, user]);
+
+  // Charger les données depuis Firestore quand l'utilisateur est connecté et Univers actif est chargé
   useEffect(() => {
     // Guard: Vérifier que l'utilisateur Firebase et le profil utilisateur sont chargés
     if (!firebaseUser || !user || !user.agencyId) {
@@ -91,23 +144,45 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
 
     // Écouter les formulaires selon le rôle de l'utilisateur
+    // Filtrer par Univers actif si disponible (pour les directeurs)
     let formsQuery;
     if (user.role === 'directeur') {
-      // Les directeurs voient tous les formulaires de leur agence
-      formsQuery = query(
-        collection(db, 'forms'),
-        where('agencyId', '==', user.agencyId),
-        orderBy('createdAt', 'desc')
-      );
+      // Les directeurs voient les formulaires du Univers actif
+      if (activeUniversId) {
+        formsQuery = query(
+          collection(db, 'forms'),
+          where('agencyId', '==', user.agencyId),
+          where('universId', '==', activeUniversId),
+          orderBy('createdAt', 'desc')
+        );
+      } else {
+        // Rétrocompatibilité temporaire : si pas de Univers actif, charger tous les forms
+        // (ne devrait pas arriver après la migration)
+        formsQuery = query(
+          collection(db, 'forms'),
+          where('agencyId', '==', user.agencyId),
+          orderBy('createdAt', 'desc')
+        );
+      }
     } else {
       // Les employés voient les formulaires qui leur sont assignés ET ceux qu'ils ont créés
       // Note: Firestore ne supporte pas les requêtes OR complexes, donc on récupère tous les formulaires
       // et on filtre côté client
-      formsQuery = query(
-        collection(db, 'forms'),
-        where('agencyId', '==', user.agencyId),
-        orderBy('createdAt', 'desc')
-      );
+      // Pour les employés, on filtre aussi par Univers actif s'il existe
+      if (activeUniversId) {
+        formsQuery = query(
+          collection(db, 'forms'),
+          where('agencyId', '==', user.agencyId),
+          where('universId', '==', activeUniversId),
+          orderBy('createdAt', 'desc')
+        );
+      } else {
+        formsQuery = query(
+          collection(db, 'forms'),
+          where('agencyId', '==', user.agencyId),
+          orderBy('createdAt', 'desc')
+        );
+      }
     }
 
     const unsubscribeForms = onSnapshot(formsQuery, (snapshot) => {
@@ -215,15 +290,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
 
     // Écouter les tableaux de bord de l'agence
+    // Filtrer par Univers actif si disponible
     let unsubscribeDashboards: (() => void) | undefined;
     
     // Les directeurs et employés avec accès peuvent voir les tableaux de bord
     if (user.role === 'directeur' || PermissionManager.hasDirectorDashboardAccess(user)) {
-      const dashboardsQuery = query(
-        collection(db, 'dashboards'),
-        where('agencyId', '==', user.agencyId),
-        orderBy('createdAt', 'desc')
-      );
+      let dashboardsQuery;
+      if (activeUniversId) {
+        // Filtrer par Univers actif
+        dashboardsQuery = query(
+          collection(db, 'dashboards'),
+          where('agencyId', '==', user.agencyId),
+          where('universId', '==', activeUniversId),
+          orderBy('createdAt', 'desc')
+        );
+      } else {
+        // Rétrocompatibilité temporaire : si pas de Univers actif, charger tous les dashboards
+        dashboardsQuery = query(
+          collection(db, 'dashboards'),
+          where('agencyId', '==', user.agencyId),
+          orderBy('createdAt', 'desc')
+        );
+      }
 
       unsubscribeDashboards = onSnapshot(dashboardsQuery, (snapshot) => {
         const allDashboardsData = snapshot.docs.map(doc => ({
@@ -266,7 +354,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         unsubscribeDashboards();
       }
     };
-  }, [user, firebaseUser]);
+  }, [user, firebaseUser, activeUniversId]);
 
   const createForm = async (formData: Omit<Form, 'id' | 'createdAt'>) => {
     if (!user || !user.agencyId) {
@@ -295,6 +383,34 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try {
       setError(null);
       
+      // Récupérer l'Univers actif pour associer automatiquement la ressource
+      let universIdToAssociate: string | null = null;
+      if (user.role === 'directeur' && activeUniversId) {
+        // Pour les directeurs, utiliser l'Univers actif déjà chargé
+        universIdToAssociate = activeUniversId;
+      } else if (user.role === 'employe') {
+        // Pour les employés, récupérer l'Univers actif de l'agence (via le directeur)
+        try {
+          const directorsSnapshot = await getDocs(
+            query(
+              collection(db, 'users'),
+              where('agencyId', '==', user.agencyId),
+              where('role', '==', 'directeur')
+            )
+          );
+          if (!directorsSnapshot.empty) {
+            const directorId = directorsSnapshot.docs[0].id;
+            const activeUnivers = await universService.getActiveUnivers(directorId, user.agencyId);
+            if (activeUnivers) {
+              universIdToAssociate = activeUnivers.activeUniversId;
+            }
+          }
+        } catch (error) {
+          console.error('Erreur lors de la récupération de l\'Univers actif pour l\'employé:', error);
+          // Continue sans associer au Univers si erreur
+        }
+      }
+
       // Garantir que tous les champs requis sont présents
       const docData: any = {
         title: formData.title.trim(),
@@ -306,6 +422,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         agencyId: user.agencyId,
         createdAt: serverTimestamp()
       };
+
+      // Associer automatiquement au Univers actif si disponible
+      if (universIdToAssociate) {
+        docData.universId = universIdToAssociate;
+      }
 
       // Only add createdByEmployeeId if the user is an employee
       if (user.role === 'employe') {
@@ -1023,6 +1144,34 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try {
       setError(null);
       
+      // Récupérer l'Univers actif pour associer automatiquement la ressource
+      let universIdToAssociate: string | null = null;
+      if (user.role === 'directeur' && activeUniversId) {
+        // Pour les directeurs, utiliser l'Univers actif déjà chargé
+        universIdToAssociate = activeUniversId;
+      } else if (user.role === 'employe') {
+        // Pour les employés, récupérer l'Univers actif de l'agence (via le directeur)
+        try {
+          const directorsSnapshot = await getDocs(
+            query(
+              collection(db, 'users'),
+              where('agencyId', '==', user.agencyId),
+              where('role', '==', 'directeur')
+            )
+          );
+          if (!directorsSnapshot.empty) {
+            const directorId = directorsSnapshot.docs[0].id;
+            const activeUnivers = await universService.getActiveUnivers(directorId, user.agencyId);
+            if (activeUnivers) {
+              universIdToAssociate = activeUnivers.activeUniversId;
+            }
+          }
+        } catch (error) {
+          console.error('Erreur lors de la récupération de l\'Univers actif pour l\'employé:', error);
+          // Continue sans associer au Univers si erreur
+        }
+      }
+
       const docData: any = {
         name: dashboardData.name.trim(),
         description: dashboardData.description?.trim() || '',
@@ -1036,6 +1185,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         isDefault: dashboardData.isDefault || false,
         createdAt: serverTimestamp()
       };
+
+      // Associer automatiquement au Univers actif si disponible
+      if (universIdToAssociate) {
+        docData.universId = universIdToAssociate;
+      }
 
       // Only add createdByEmployeeId if the user is an employee
       if (user.role === 'employe') {
@@ -1135,6 +1289,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       formEntries,
       employees,
       dashboards,
+      activeUnivers,
+      activeUniversId,
       createForm,
       updateForm,
       submitFormEntry,
@@ -1175,6 +1331,8 @@ export const useApp = () => {
       formEntries: [],
       employees: [],
       dashboards: [],
+      activeUnivers: null,
+      activeUniversId: null,
       createForm: async () => {},
       updateForm: async () => {},
       submitFormEntry: async () => {},

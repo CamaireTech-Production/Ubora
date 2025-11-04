@@ -90,8 +90,10 @@ export const FormEditor: React.FC<FormEditorProps> = ({
       
       setLoadingLists(true);
       try {
-        // Load lists from database
-        const dbLists = await listsService.getByUser(user.id, user.agencyId, user.role);
+        // Load lists from database (filtrées par Univers actif)
+        // Note: activeUniversId sera disponible via AppContext, mais pour l'instant on passe null
+        // car ce composant est utilisé dans le wizard Univers où on veut toutes les lists
+        const dbLists = await listsService.getByUser(user.id, user.agencyId, user.role, null);
         
         // Convert ListDefinitions to List format (for Univers context)
         const universListObjects: List[] = (universLists || []).map(listDef => ({

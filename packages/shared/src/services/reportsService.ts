@@ -93,6 +93,33 @@ class ReportsService {
         }
       }
 
+      // Récupérer l'Univers actif pour associer automatiquement si universId n'est pas fourni
+      let universIdToAssociate: string | null = report.universId || null;
+      if (!universIdToAssociate && report.agencyId) {
+        try {
+          // Trouver le directeur de l'agence
+          const directorsSnapshot = await getDocs(
+            query(
+              collection(db, 'users'),
+              where('agencyId', '==', report.agencyId),
+              where('role', '==', 'directeur')
+            )
+          );
+          if (!directorsSnapshot.empty) {
+            const directorId = directorsSnapshot.docs[0].id;
+            // Récupérer l'Univers actif du directeur
+            const { universService } = await import('./universService');
+            const activeUnivers = await universService.getActiveUnivers(directorId, report.agencyId);
+            if (activeUnivers) {
+              universIdToAssociate = activeUnivers.activeUniversId;
+            }
+          }
+        } catch (error) {
+          console.error('Erreur lors de la récupération de l\'Univers actif pour le Report:', error);
+          // Continue sans associer au Univers si erreur
+        }
+      }
+
       // Préparer les données avec valeurs par défaut
       const now = new Date();
       const reportData = {
@@ -111,7 +138,7 @@ class ReportsService {
         agencyId: report.agencyId,
         createdAt: Timestamp.fromDate(report.createdAt || now),
         updatedAt: Timestamp.fromDate(report.updatedAt || now),
-        universId: report.universId || null,
+        universId: universIdToAssociate,
         universInstanceId: report.universInstanceId || null,
         fromUnivers: report.fromUnivers || false
       };
@@ -214,14 +241,27 @@ class ReportsService {
 
   /**
    * Récupérer tous les Reports d'une agence
+   * Filtrer par Univers actif si activeUniversId est fourni
    */
-  async getByAgency(agencyId: string): Promise<Report[]> {
+  async getByAgency(agencyId: string, activeUniversId?: string | null): Promise<Report[]> {
     try {
-      const q = query(
-        collection(db, this.collectionName),
-        where('agencyId', '==', agencyId),
-        orderBy('updatedAt', 'desc')
-      );
+      let q;
+      if (activeUniversId) {
+        // Filtrer par Univers actif
+        q = query(
+          collection(db, this.collectionName),
+          where('agencyId', '==', agencyId),
+          where('universId', '==', activeUniversId),
+          orderBy('updatedAt', 'desc')
+        );
+      } else {
+        // Rétrocompatibilité temporaire : si pas de Univers actif, charger tous les Reports
+        q = query(
+          collection(db, this.collectionName),
+          where('agencyId', '==', agencyId),
+          orderBy('updatedAt', 'desc')
+        );
+      }
       
       const querySnapshot = await getDocs(q);
       return querySnapshot.docs.map(doc => 
@@ -236,21 +276,33 @@ class ReportsService {
   /**
    * Récupérer tous les Reports créés par un utilisateur
    * Inclut tous les Reports de l'agence si l'utilisateur est directeur
+   * Filtrer par Univers actif si activeUniversId est fourni
    */
-  async getByUser(userId: string, agencyId: string, userRole?: 'directeur' | 'employe' | 'admin'): Promise<Report[]> {
+  async getByUser(userId: string, agencyId: string, userRole?: 'directeur' | 'employe' | 'admin', activeUniversId?: string | null): Promise<Report[]> {
     try {
-      // Si c'est un directeur, retourner tous les Reports de l'agence
+      // Si c'est un directeur, retourner tous les Reports de l'agence (filtrés par Univers actif)
       if (userRole === 'directeur' || userRole === 'admin') {
-        return await this.getByAgency(agencyId);
+        return await this.getByAgency(agencyId, activeUniversId);
       }
 
-      // Sinon, retourner seulement les Reports créés par l'utilisateur
-      const q = query(
-        collection(db, this.collectionName),
-        where('createdBy', '==', userId),
-        where('agencyId', '==', agencyId),
-        orderBy('updatedAt', 'desc')
-      );
+      // Sinon, retourner seulement les Reports créés par l'utilisateur (filtrés par Univers actif)
+      let q;
+      if (activeUniversId) {
+        q = query(
+          collection(db, this.collectionName),
+          where('createdBy', '==', userId),
+          where('agencyId', '==', agencyId),
+          where('universId', '==', activeUniversId),
+          orderBy('updatedAt', 'desc')
+        );
+      } else {
+        q = query(
+          collection(db, this.collectionName),
+          where('createdBy', '==', userId),
+          where('agencyId', '==', agencyId),
+          orderBy('updatedAt', 'desc')
+        );
+      }
       
       const querySnapshot = await getDocs(q);
       return querySnapshot.docs.map(doc => 

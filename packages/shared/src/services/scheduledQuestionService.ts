@@ -27,8 +27,36 @@ class ScheduledQuestionService {
    */
   async create(question: Omit<ScheduledQuestion, 'id' | 'createdAt' | 'executionCount'>): Promise<string> {
     try {
+      // Récupérer l'Univers actif pour associer automatiquement si universId n'est pas fourni
+      let universIdToAssociate: string | null = question.universId || null;
+      if (!universIdToAssociate && question.agencyId) {
+        try {
+          // Trouver le directeur de l'agence
+          const directorsSnapshot = await getDocs(
+            query(
+              collection(db, 'users'),
+              where('agencyId', '==', question.agencyId),
+              where('role', '==', 'directeur')
+            )
+          );
+          if (!directorsSnapshot.empty) {
+            const directorId = directorsSnapshot.docs[0].id;
+            // Récupérer l'Univers actif du directeur
+            const { universService } = await import('./universService');
+            const activeUnivers = await universService.getActiveUnivers(directorId, question.agencyId);
+            if (activeUnivers) {
+              universIdToAssociate = activeUnivers.activeUniversId;
+            }
+          }
+        } catch (error) {
+          console.error('Erreur lors de la récupération de l\'Univers actif pour la ScheduledQuestion:', error);
+          // Continue sans associer au Univers si erreur
+        }
+      }
+
       const docRef = await addDoc(collection(db, this.collectionName), {
         ...question,
+        universId: universIdToAssociate,
         executionCount: 0,
         createdAt: serverTimestamp(),
         // Convertir les dates en Timestamps Firestore
@@ -117,14 +145,27 @@ class ScheduledQuestionService {
   /**
    * Récupérer toutes les questions programmées d'un utilisateur
    */
-  async getByUser(userId: string, agencyId: string): Promise<ScheduledQuestion[]> {
+  async getByUser(userId: string, agencyId: string, activeUniversId?: string | null): Promise<ScheduledQuestion[]> {
     try {
-      const q = query(
-        collection(db, this.collectionName),
-        where('userId', '==', userId),
-        where('agencyId', '==', agencyId),
-        orderBy('createdAt', 'desc')
-      );
+      let q;
+      if (activeUniversId) {
+        // Filtrer par Univers actif
+        q = query(
+          collection(db, this.collectionName),
+          where('userId', '==', userId),
+          where('agencyId', '==', agencyId),
+          where('universId', '==', activeUniversId),
+          orderBy('createdAt', 'desc')
+        );
+      } else {
+        // Rétrocompatibilité temporaire : si pas de Univers actif, charger toutes les questions
+        q = query(
+          collection(db, this.collectionName),
+          where('userId', '==', userId),
+          where('agencyId', '==', agencyId),
+          orderBy('createdAt', 'desc')
+        );
+      }
       
       const querySnapshot = await getDocs(q);
       return querySnapshot.docs.map(doc => 
@@ -223,14 +264,28 @@ class ScheduledQuestionService {
   subscribeToUserQuestions(
     userId: string, 
     agencyId: string, 
-    callback: (questions: ScheduledQuestion[]) => void
+    callback: (questions: ScheduledQuestion[]) => void,
+    activeUniversId?: string | null
   ): () => void {
-    const q = query(
-      collection(db, this.collectionName),
-      where('userId', '==', userId),
-      where('agencyId', '==', agencyId),
-      orderBy('createdAt', 'desc')
-    );
+    let q;
+    if (activeUniversId) {
+      // Filtrer par Univers actif
+      q = query(
+        collection(db, this.collectionName),
+        where('userId', '==', userId),
+        where('agencyId', '==', agencyId),
+        where('universId', '==', activeUniversId),
+        orderBy('createdAt', 'desc')
+      );
+    } else {
+      // Rétrocompatibilité temporaire : si pas de Univers actif, charger toutes les questions
+      q = query(
+        collection(db, this.collectionName),
+        where('userId', '==', userId),
+        where('agencyId', '==', agencyId),
+        orderBy('createdAt', 'desc')
+      );
+    }
 
     return onSnapshot(q, (snapshot) => {
       const questions = snapshot.docs.map(doc => 
