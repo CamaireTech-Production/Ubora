@@ -60,14 +60,11 @@ export const UniversEditPage: React.FC = () => {
     if (!id || !univers) return;
 
     try {
-      // Increment version if metadata changed
+      // Use updatedUnivers directly - version is already incremented by UniversEditor
+      // Only need to ensure dates are properly formatted for Firestore
+      // The universService.update will handle Timestamp conversion
       const updates: Partial<Univers> = {
-        ...updatedUnivers,
-        metadata: {
-          ...univers.metadata,
-          ...updatedUnivers.metadata,
-          version: updatedUnivers.metadata ? univers.metadata.version + 1 : univers.metadata.version
-        }
+        ...updatedUnivers
       };
 
       await universService.update(id, updates);

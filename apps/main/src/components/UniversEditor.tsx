@@ -180,6 +180,199 @@ export const UniversEditor: React.FC<UniversEditorProps> = ({
     }
   };
 
+  // Validation function for Univers dependencies
+  const validateUniversDependencies = (
+    definitions: UniversDefinitions
+  ): {
+    isValid: boolean;
+    errors: Array<{
+      type: 'form' | 'dashboard' | 'report' | 'instruction';
+      itemName: string;
+      message: string;
+      tabId: EditTab;
+    }>;
+  } => {
+    const errors: Array<{
+      type: 'form' | 'dashboard' | 'report' | 'instruction';
+      itemName: string;
+      message: string;
+      tabId: EditTab;
+    }> = [];
+
+    // 1. Validate Forms
+    if (!definitions.forms || definitions.forms.length === 0) {
+      errors.push({
+        type: 'form',
+        itemName: 'Formulaires',
+        message: 'Au moins un formulaire est requis',
+        tabId: 'forms'
+      });
+    } else {
+      // Check for unique IDs
+      const formIds = definitions.forms.map(f => f.id);
+      const uniqueFormIds = new Set(formIds);
+      if (formIds.length !== uniqueFormIds.size) {
+        errors.push({
+          type: 'form',
+          itemName: 'Formulaires',
+          message: 'Les formulaires doivent avoir des IDs uniques',
+          tabId: 'forms'
+        });
+      }
+
+      // Check for empty titles
+      definitions.forms.forEach((form, index) => {
+        if (!form.title || !form.title.trim()) {
+          errors.push({
+            type: 'form',
+            itemName: `Formulaire ${index + 1}`,
+            message: 'Le titre du formulaire est requis',
+            tabId: 'forms'
+          });
+        }
+      });
+    }
+
+    // 2. Validate Dashboards
+    if (definitions.dashboards && definitions.dashboards.length > 0) {
+      const formIds = new Set(definitions.forms?.map(f => f.id) || []);
+
+      definitions.dashboards.forEach(dashboard => {
+        dashboard.metrics?.forEach(metric => {
+          // Check if formId exists
+          if (metric.formId && !formIds.has(metric.formId)) {
+            errors.push({
+              type: 'dashboard',
+              itemName: dashboard.name || dashboard.id,
+              message: `La métrique "${metric.name}" référence un formulaire inexistant (ID: ${metric.formId})`,
+              tabId: 'dashboards'
+            });
+          } else if (metric.formId && metric.fieldId) {
+            // Check if fieldId exists in the referenced form
+            const referencedForm = definitions.forms?.find(f => f.id === metric.formId);
+            if (referencedForm) {
+              const fieldIds = new Set(referencedForm.fields?.map(f => f.id) || []);
+              if (!fieldIds.has(metric.fieldId)) {
+                errors.push({
+                  type: 'dashboard',
+                  itemName: dashboard.name || dashboard.id,
+                  message: `La métrique "${metric.name}" référence un champ inexistant (ID: ${metric.fieldId}) dans le formulaire "${referencedForm.title}"`,
+                  tabId: 'dashboards'
+                });
+              }
+            }
+          }
+
+          // Check graphConfig field references if metricType is 'graph'
+          if (metric.metricType === 'graph' && metric.graphConfig) {
+            if (metric.formId && metric.graphConfig.xAxisFieldId) {
+              const referencedForm = definitions.forms?.find(f => f.id === metric.formId);
+              if (referencedForm) {
+                const fieldIds = new Set(referencedForm.fields?.map(f => f.id) || []);
+                if (!fieldIds.has(metric.graphConfig.xAxisFieldId)) {
+                  errors.push({
+                    type: 'dashboard',
+                    itemName: dashboard.name || dashboard.id,
+                    message: `La métrique "${metric.name}" référence un champ X inexistant (ID: ${metric.graphConfig.xAxisFieldId}) dans le formulaire "${referencedForm.title}"`,
+                    tabId: 'dashboards'
+                  });
+                }
+              }
+            }
+            if (metric.formId && metric.graphConfig.yAxisFieldId) {
+              const referencedForm = definitions.forms?.find(f => f.id === metric.formId);
+              if (referencedForm) {
+                const fieldIds = new Set(referencedForm.fields?.map(f => f.id) || []);
+                if (!fieldIds.has(metric.graphConfig.yAxisFieldId)) {
+                  errors.push({
+                    type: 'dashboard',
+                    itemName: dashboard.name || dashboard.id,
+                    message: `La métrique "${metric.name}" référence un champ Y inexistant (ID: ${metric.graphConfig.yAxisFieldId}) dans le formulaire "${referencedForm.title}"`,
+                    tabId: 'dashboards'
+                  });
+                }
+              }
+            }
+          }
+        });
+      });
+    }
+
+    // 3. Validate Reports
+    if (definitions.reports && definitions.reports.length > 0) {
+      const dashboardIds = new Set(definitions.dashboards?.map(d => d.id) || []);
+
+      definitions.reports.forEach(report => {
+        report.mappings?.forEach(mapping => {
+          // Check mappings with sourceType 'dashboard' (only type supported in apps/main)
+          if (mapping.sourceType === 'dashboard' && mapping.sourceId) {
+            if (!dashboardIds.has(mapping.sourceId)) {
+              errors.push({
+                type: 'report',
+                itemName: report.name || report.id,
+                message: `Le mapping référence un tableau de bord inexistant (ID: ${mapping.sourceId})`,
+                tabId: 'reports'
+              });
+            } else if (mapping.metricId) {
+              // Check if metricId exists in the referenced dashboard
+              const referencedDashboard = definitions.dashboards?.find(d => d.id === mapping.sourceId);
+              if (referencedDashboard) {
+                const metricIds = new Set(referencedDashboard.metrics?.map(m => m.id) || []);
+                if (!metricIds.has(mapping.metricId)) {
+                  errors.push({
+                    type: 'report',
+                    itemName: report.name || report.id,
+                    message: `Le mapping référence une métrique inexistante (ID: ${mapping.metricId}) dans le tableau de bord "${referencedDashboard.name}"`,
+                    tabId: 'reports'
+                  });
+                }
+              }
+            }
+          }
+          // sourceType 'static' doesn't need validation (static values)
+        });
+      });
+    }
+
+    // 4. Validate Instructions
+    if (definitions.instructions && definitions.instructions.length > 0) {
+      const formIds = new Set(definitions.forms?.map(f => f.id) || []);
+
+      definitions.instructions.forEach(instruction => {
+        // Check filters.formId if not empty
+        if (instruction.filters?.formId && instruction.filters.formId.trim() !== '') {
+          if (!formIds.has(instruction.filters.formId)) {
+            errors.push({
+              type: 'instruction',
+              itemName: instruction.title || instruction.id,
+              message: `L'instruction référence un formulaire inexistant (ID: ${instruction.filters.formId})`,
+              tabId: 'instructions'
+            });
+          }
+        }
+
+        // Check selectedFormIds
+        if (instruction.selectedFormIds && instruction.selectedFormIds.length > 0) {
+          instruction.selectedFormIds.forEach(formId => {
+            if (!formIds.has(formId)) {
+              errors.push({
+                type: 'instruction',
+                itemName: instruction.title || instruction.id,
+                message: `L'instruction référence un formulaire inexistant dans selectedFormIds (ID: ${formId})`,
+                tabId: 'instructions'
+              });
+            }
+          });
+        }
+      });
+    }
+
+    return {
+      isValid: errors.length === 0,
+      errors
+    };
+  };
+
   // Wizard step props for each step component
   const getWizardStepProps = (step: number): UniversWizardStepProps => ({
     step,
@@ -194,13 +387,51 @@ export const UniversEditor: React.FC<UniversEditorProps> = ({
 
   // Save handler
   const handleSave = async () => {
+    // Basic validation
     if (!metadata.name?.trim()) {
       showError('Le nom du Univers est requis');
       return;
     }
 
-    if (!definitions.forms || definitions.forms.length === 0) {
-      showError('Au moins un formulaire est requis');
+    // Validate dependencies
+    const validation = validateUniversDependencies(definitions);
+    
+    if (!validation.isValid) {
+      // Build error message with summary and details
+      const errorCount = validation.errors.length;
+      const errorSummary = `${errorCount} erreur${errorCount > 1 ? 's' : ''} de dépendance détectée${errorCount > 1 ? 's' : ''}`;
+      
+      // Group errors by type
+      const errorsByType = validation.errors.reduce((acc, error) => {
+        if (!acc[error.type]) {
+          acc[error.type] = [];
+        }
+        acc[error.type].push(error);
+        return acc;
+      }, {} as Record<string, typeof validation.errors>);
+
+      // Build detailed error message
+      let errorDetails = `\n\n${errorSummary}:\n\n`;
+      
+      Object.entries(errorsByType).forEach(([type, errors]) => {
+        const typeLabel = type === 'form' ? 'Formulaires' :
+                          type === 'dashboard' ? 'Tableaux de bord' :
+                          type === 'report' ? 'Rapports' :
+                          'Instructions';
+        errorDetails += `${typeLabel}:\n`;
+        errors.forEach(error => {
+          errorDetails += `  • ${error.itemName}: ${error.message}\n`;
+        });
+      });
+
+      showError(errorDetails);
+
+      // Navigate to first problematic tab
+      if (validation.errors.length > 0) {
+        const firstErrorTab = validation.errors[0].tabId;
+        setActiveTab(firstErrorTab);
+      }
+
       return;
     }
 
