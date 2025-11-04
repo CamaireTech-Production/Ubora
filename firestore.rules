@@ -735,14 +735,17 @@ service cloud.firestore {
       // LECTURE des Univers
       allow read: if isAuthenticated() && (
         isAdmin() ||
-        // Creator can read their own Univers
-        (resource.data.ownership.createdBy == request.auth.uid) ||
+        // Creator can read their own Univers (with null check)
+        (resource.data.ownership != null && 
+         resource.data.ownership.createdBy == request.auth.uid) ||
         // Users in same agency can read agency Univers
-        (resource.data.ownership.agencyId != null && 
+        (resource.data.ownership != null &&
+         resource.data.ownership.agencyId != null && 
          isSameAgency(resource.data.ownership.agencyId) &&
          resource.data.ownership.isMarketplaceTemplate == false) ||
         // Everyone can read approved marketplace templates
-        (resource.data.ownership.isMarketplaceTemplate == true &&
+        (resource.data.ownership != null &&
+         resource.data.ownership.isMarketplaceTemplate == true &&
          resource.data.ownership.approvalStatus == 'approved')
       );
       
@@ -757,17 +760,29 @@ service cloud.firestore {
       // MODIFICATION des Univers
       allow update: if isAuthenticated() && (
         isAdmin() ||
-        // Allow update if creator is same user
-        // Same logic as create, but without canCreateForms() check for flexibility
-        resource.data.ownership.createdBy == request.auth.uid
+        // Allow update if creator is same user (with null check)
+        (resource.data.ownership != null && 
+         resource.data.ownership.createdBy == request.auth.uid) ||
+        // Allow directors from same agency to update agency Univers (non-marketplace)
+        (hasDirectorDashboardAccess() && 
+         resource.data.ownership != null &&
+         resource.data.ownership.agencyId != null &&
+         isSameAgency(resource.data.ownership.agencyId) &&
+         resource.data.ownership.isMarketplaceTemplate == false)
       );
       
       // SUPPRESSION des Univers
       allow delete: if isAuthenticated() && (
         isAdmin() ||
-        // Allow delete if creator is same user
-        // Same logic as create, but without canCreateForms() check for flexibility
-        resource.data.ownership.createdBy == request.auth.uid
+        // Allow delete if creator is same user (with null check)
+        (resource.data.ownership != null && 
+         resource.data.ownership.createdBy == request.auth.uid) ||
+        // Allow directors from same agency to delete agency Univers (non-marketplace)
+        (hasDirectorDashboardAccess() && 
+         resource.data.ownership != null &&
+         resource.data.ownership.agencyId != null &&
+         isSameAgency(resource.data.ownership.agencyId) &&
+         resource.data.ownership.isMarketplaceTemplate == false)
       );
     }
 
@@ -888,6 +903,41 @@ service cloud.firestore {
         hasDirectorDashboardAccess() ||
         (isEmploye() && resource.data.createdByEmployeeId == request.auth.uid)
       );
+    }
+
+    // =============================================================================
+    // COLLECTION UNIVERS VERSIONS
+    // Règles pour les versions Univers (historique des versions de templates) :
+    // - Seuls les admins peuvent lire toutes les versions
+    // - Les créateurs peuvent lire les versions de leurs propres Univers
+    // - Les admins peuvent approuver/rejeter les versions
+    // =============================================================================
+    
+    match /universVersions/{versionId} {
+      // LECTURE des versions Univers
+      allow read: if isAuthenticated() && (
+        isAdmin() ||
+        // Creator can read versions of their own Univers
+        (resource.data.createdBy == request.auth.uid)
+      );
+      
+      // CRÉATION des versions Univers (généralement par le créateur lors d'une mise à jour)
+      allow create: if isAuthenticated() && (
+        isAdmin() ||
+        (canCreateForms() && 
+         request.resource.data.createdBy == request.auth.uid &&
+         request.resource.data.keys().hasAll(['universId', 'version', 'previousVersion', 'approvalStatus', 'createdBy']))
+      );
+      
+      // MODIFICATION des versions Univers (pour approuver/rejeter)
+      allow update: if isAuthenticated() && (
+        isAdmin() ||
+        // Creator can update their own versions (e.g., to fix issues)
+        (resource.data.createdBy == request.auth.uid)
+      );
+      
+      // SUPPRESSION des versions Univers (seuls les admins)
+      allow delete: if isAdmin();
     }
 
     // =============================================================================

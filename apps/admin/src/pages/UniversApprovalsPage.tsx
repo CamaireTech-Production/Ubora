@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
 import { universService } from '@ubora/shared/services/universService';
 import { Univers, UniversVersion } from '@ubora/shared/types';
@@ -17,6 +18,7 @@ import {
 } from 'lucide-react';
 
 export const UniversApprovalsPage: React.FC = () => {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const [pendingUnivers, setPendingUnivers] = useState<{ univers: Univers; pendingVersion: UniversVersion }[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -122,13 +124,24 @@ export const UniversApprovalsPage: React.FC = () => {
         {/* Header */}
         <div className="mb-6">
           <div className="flex items-center justify-between mb-4">
-            <div>
-              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">
-                Approbations Univers
-              </h1>
-              <p className="text-sm sm:text-base text-gray-600 mt-1">
-                Gérer les nouvelles versions de Univers marketplace en attente d'approbation
-              </p>
+            <div className="flex items-center space-x-4">
+              <Button
+                onClick={() => navigate('/dashboard')}
+                variant="secondary"
+                size="sm"
+                className="flex items-center space-x-2"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                <span>Retour</span>
+              </Button>
+              <div>
+                <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">
+                  Approbations Univers
+                </h1>
+                <p className="text-sm sm:text-base text-gray-600 mt-1">
+                  Gérer les nouvelles versions de Univers marketplace en attente d'approbation
+                </p>
+              </div>
             </div>
             <Button
               variant="secondary"
