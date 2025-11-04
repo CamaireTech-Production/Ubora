@@ -59,7 +59,10 @@ export const UniversCard: React.FC<UniversCardProps> = ({
       window.location.reload();
     } catch (error) {
       console.error('Erreur lors de l\'activation du Univers:', error);
-      showError('Erreur lors de l\'activation du Univers');
+      const errorMessage = error instanceof Error 
+        ? error.message 
+        : 'Une erreur est survenue lors de l\'activation du Univers. Veuillez réessayer.';
+      showError(errorMessage);
       setIsActivating(false);
     }
   };
@@ -104,7 +107,19 @@ export const UniversCard: React.FC<UniversCardProps> = ({
       window.location.reload();
     } catch (error) {
       console.error('Erreur lors de la mise à jour du Univers:', error);
-      showError(error instanceof Error ? error.message : 'Erreur lors de la mise à jour du Univers');
+      let errorMessage = 'Une erreur est survenue lors de la mise à jour du Univers.';
+      if (error instanceof Error) {
+        if (error.message.includes('No update available')) {
+          errorMessage = 'Aucune mise à jour disponible pour cette instance.';
+        } else if (error.message.includes('not found')) {
+          errorMessage = 'Instance ou Univers introuvable. Veuillez réessayer.';
+        } else if (error.message.includes('version')) {
+          errorMessage = `Erreur de version : ${error.message}`;
+        } else {
+          errorMessage = error.message;
+        }
+      }
+      showError(errorMessage);
       setIsUpgrading(false);
       setUpgradeProgress('');
     }
@@ -193,8 +208,8 @@ export const UniversCard: React.FC<UniversCardProps> = ({
 
   return (
     <>
-    <div className={`bg-white rounded-xl border p-6 hover:shadow-md transition-shadow relative group ${
-      isActive ? 'border-blue-500 border-2 bg-blue-50' : 'border-gray-200'
+    <div className={`bg-white rounded-xl border p-6 hover:shadow-md transition-all duration-200 relative group ${
+      isActive ? 'border-blue-500 border-2 bg-blue-50 shadow-md' : 'border-gray-200'
     }`}>
       {/* Actions buttons - shown on hover */}
       <div className="absolute top-4 right-4 z-10 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex space-x-2">
@@ -261,8 +276,8 @@ export const UniversCard: React.FC<UniversCardProps> = ({
             </span>
           )}
           {hasUpdateAvailable && isDirecteur && (
-            <span className="flex items-center space-x-1 px-2 py-1 bg-orange-100 text-orange-700 rounded-full text-xs font-medium flex-shrink-0 animate-pulse">
-              <AlertCircle className="h-3 w-3" />
+            <span className="flex items-center space-x-1 px-2 py-1 bg-orange-100 text-orange-700 rounded-full text-xs font-medium flex-shrink-0 animate-pulse transition-all duration-300">
+              <AlertCircle className="h-3 w-3 animate-bounce" />
               <span>Nouvelle version</span>
             </span>
           )}

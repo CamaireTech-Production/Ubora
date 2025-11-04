@@ -717,15 +717,22 @@ class UniversService {
         throw new Error('Ce Univers n\'est pas encore approuvé pour le marketplace');
       }
 
-      // 4. Vérifier le paiement si nécessaire
+      // 4. Validation: prix valide si marketplace
       const price = univers.metadata.price ?? 0;
+      if (price < 0) {
+        throw new Error('Le prix du Univers doit être supérieur ou égal à 0');
+      }
+      if (univers.metadata.currency && !['XAF', 'EUR', 'USD'].includes(univers.metadata.currency)) {
+        throw new Error('La devise doit être XAF, EUR ou USD');
+      }
+
+      // 5. Vérifier le paiement si nécessaire
       const isFree = price === 0 || price === null || price === undefined;
-      
       if (!isFree && !paymentId) {
         throw new Error('Un paiement est requis pour ce Univers. Veuillez fournir un paymentId.');
       }
 
-      // 5. Créer l'instance via instantiate()
+      // 6. Créer l'instance via instantiate()
       const { instanceId } = await this.instantiate(
         universId,
         directorId,
@@ -733,7 +740,7 @@ class UniversService {
         agencyId
       );
 
-      // 6. Mettre à jour l'instance pour ajouter les métadonnées d'achat
+      // 7. Mettre à jour l'instance pour ajouter les métadonnées d'achat
       const instanceRef = doc(db, this.instancesCollectionName, instanceId);
       const updateData: any = {
         'metadata.isFromMarketplace': true,
@@ -1612,6 +1619,12 @@ class UniversService {
       const univers = await this.getById(universId);
       if (!univers) {
         throw new Error('Univers non trouvé');
+      }
+
+      // 2. Validation: au moins un formulaire est requis pour activation
+      const forms = univers.definitions?.forms || [];
+      if (forms.length === 0) {
+        throw new Error('Au moins un formulaire est requis pour activer un Univers. Veuillez ajouter au moins un formulaire avant d\'activer.');
       }
 
       const isOwner = univers.ownership.createdBy === directorId;

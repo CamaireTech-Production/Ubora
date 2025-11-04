@@ -355,6 +355,91 @@ This document provides a comprehensive inventory of ALL functionalities in the U
 
 ---
 
+## 🌐 **UNIVERS SYSTEM**
+
+### **Univers Management**
+- [x] **Univers Creation**
+  - [x] Wizard en 7 étapes pour créer un Univers
+  - [x] Métadonnées (nom, description, icône, tags)
+  - [x] Définitions de ressources (Forms, Dashboards, Lists, Reports, Instructions)
+  - [x] Option de publication (privé ou marketplace)
+  - [x] Système de tarification pour marketplace
+  - [x] Validation des prérequis (au moins un formulaire)
+
+- [x] **Univers Activation**
+  - [x] Système d'activation d'un Univers actif
+  - [x] Un seul Univers actif par directeur à la fois
+  - [x] Changement via UniversSwitcher dans le header
+  - [x] Filtrage automatique des ressources par Univers actif
+  - [x] Association automatique des nouvelles ressources au Univers actif
+
+- [x] **Univers Editing**
+  - [x] Modification d'un Univers existant
+  - [x] Système de versioning automatique
+  - [x] Validation des dépendances
+  - [x] Sauvegarde automatique de la progression
+
+### **Marketplace & Templates**
+- [x] **Marketplace Publishing**
+  - [x] Publication de Univers sur le marketplace
+  - [x] Système de prix (gratuit ou payant)
+  - [x] Devises supportées (XAF, EUR, USD)
+  - [x] Workflow d'approbation par les admins
+  - [x] Rejet avec raison de refus
+
+- [x] **Template Purchase**
+  - [x] Achat de Univers depuis le marketplace
+  - [x] Paiement simulé pour Univers payants
+  - [x] Création d'instance depuis template
+  - [x] Wizard en mode lecture seule pour templates
+  - [x] Validation du paiement avant création d'instance
+
+### **Versioning & Updates**
+- [x] **Version Management**
+  - [x] Incrémentation automatique de version lors des modifications
+  - [x] Tracking des versions via UniversVersion documents
+  - [x] Notifications automatiques aux utilisateurs lors de nouvelles versions
+  - [x] Affichage des versions disponibles dans l'UI
+
+- [x] **Instance Updates**
+  - [x] Mise à jour d'instance vers une nouvelle version
+  - [x] Migration automatique des données
+  - [x] Mapping des IDs (anciens → nouveaux)
+  - [x] Migration des Form Entries, Dashboard Metrics, Reports, etc.
+  - [x] Historique des versions dans InstanceVersionHistory
+
+### **Instantiation**
+- [x] **Resource Instantiation**
+  - [x] Création d'instances à partir de Univers templates
+  - [x] Copie de toutes les ressources (Forms, Dashboards, Lists, Reports, Instructions)
+  - [x] Association automatique avec universId et universInstanceId
+  - [x] Tracking d'utilisation
+
+### **Admin Features**
+- [x] **Univers Approvals**
+  - [x] Page admin pour approuver/rejeter les Univers marketplace
+  - [x] Liste des Univers en attente d'approbation
+  - [x] Actions d'approbation/rejet avec raison
+  - [x] Notifications aux créateurs lors d'approbation/rejet
+
+### **Data Management**
+- [x] **Univers Filtering**
+  - [x] Filtrage automatique des Forms par Univers actif
+  - [x] Filtrage automatique des Dashboards par Univers actif
+  - [x] Filtrage automatique des Lists par Univers actif
+  - [x] Filtrage automatique des Reports par Univers actif
+  - [x] Filtrage automatique des Instructions par Univers actif
+  - [x] Filtrage du Chat Archa par Univers actif
+
+- [x] **Default Univers**
+  - [x] Création automatique d'un Univers par défaut pour chaque directeur
+  - [x] Migration des ressources existantes vers Univers par défaut
+  - [x] Activation automatique du Univers par défaut
+
+**Documentation Complète** : Voir `docs/UNIVERS_SYSTEM.md` pour la documentation détaillée du système Univers.
+
+---
+
 ## 🔔 **NOTIFICATION & COMMUNICATION**
 
 ### **Notification System**

@@ -92,7 +92,10 @@ export const UniversSwitcher: React.FC = () => {
       window.location.reload();
     } catch (error) {
       console.error('Erreur lors de l\'activation du Univers:', error);
-      showError('Erreur lors de l\'activation du Univers');
+      const errorMessage = error instanceof Error 
+        ? error.message 
+        : 'Une erreur est survenue lors de l\'activation du Univers. Veuillez réessayer.';
+      showError(errorMessage);
       setIsActivating(false);
     }
   };
@@ -147,10 +150,10 @@ export const UniversSwitcher: React.FC = () => {
                     return (
                       <div
                         key={univers.id}
-                        className={`flex items-center justify-between p-3 rounded-lg transition-colors ${
+                        className={`flex items-center justify-between p-3 rounded-lg transition-all duration-200 ${
                           isActive
-                            ? 'bg-blue-50 border border-blue-200'
-                            : 'hover:bg-gray-50 cursor-pointer'
+                            ? 'bg-blue-50 border border-blue-200 shadow-sm'
+                            : 'hover:bg-gray-50 hover:shadow-sm cursor-pointer border border-transparent'
                         }`}
                         onClick={() => !isActive && handleActivateClick(univers)}
                       >

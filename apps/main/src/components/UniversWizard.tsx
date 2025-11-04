@@ -191,6 +191,17 @@ export const UniversWizard: React.FC<UniversWizardProps> = ({
              return;
            }
 
+           // Validation: prix valide si marketplace
+           const publishOption = (wizardData.metadata as any).publishOption || 'private';
+           if (publishOption === 'marketplace') {
+             const price = (wizardData.metadata as any).price;
+             const isFree = price === 0 || price === null || price === undefined;
+             if (!isFree && (price < 0 || !(wizardData.metadata as any).currency)) {
+               console.error('Prix invalide pour Univers marketplace payant');
+               return;
+             }
+           }
+
            setIsLoading(true);
            try {
              // Get publish option from step 7 data if available (stored temporarily in metadata)

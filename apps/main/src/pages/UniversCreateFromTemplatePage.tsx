@@ -94,6 +94,14 @@ export const UniversCreateFromTemplatePage: React.FC = () => {
       return;
     }
 
+    // Validation: vérifier le paiement si nécessaire
+    const price = templateUnivers.metadata.price ?? 0;
+    const isFree = price === 0 || price === null || price === undefined;
+    if (!isFree && !paymentId) {
+      showError('Le paiement est requis pour ce Univers. Veuillez effectuer le paiement avant de continuer.');
+      return;
+    }
+
     setIsCreating(true);
     try {
       // Créer l'instance via purchaseUnivers()

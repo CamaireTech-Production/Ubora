@@ -163,6 +163,18 @@ export const UniversWizardStep7: React.FC<UniversWizardStepProps> = ({
       return;
     }
 
+    // Validation: prix valide si marketplace
+    if (selectedPublishOption === 'marketplace' && !isFree) {
+      if (price === null || price === undefined || price < 0) {
+        showError('Le prix doit être supérieur ou égal à 0 pour un Univers marketplace payant');
+        return;
+      }
+      if (!currency) {
+        showError('La devise est requise pour un Univers marketplace payant');
+        return;
+      }
+    }
+
     setIsCreating(true);
 
     try {

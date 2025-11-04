@@ -166,7 +166,10 @@ export const UniversViewPage: React.FC = () => {
       window.location.reload();
     } catch (error) {
       console.error('Erreur lors de l\'activation du Univers:', error);
-      showError('Erreur lors de l\'activation du Univers');
+      const errorMessage = error instanceof Error 
+        ? error.message 
+        : 'Une erreur est survenue lors de l\'activation du Univers. Veuillez réessayer.';
+      showError(errorMessage);
       setIsActivating(false);
     }
   };
@@ -216,7 +219,19 @@ export const UniversViewPage: React.FC = () => {
       window.location.reload();
     } catch (error) {
       console.error('Erreur lors de la mise à jour du Univers:', error);
-      showError(error instanceof Error ? error.message : 'Erreur lors de la mise à jour du Univers');
+      let errorMessage = 'Une erreur est survenue lors de la mise à jour du Univers.';
+      if (error instanceof Error) {
+        if (error.message.includes('No update available')) {
+          errorMessage = 'Aucune mise à jour disponible pour cette instance.';
+        } else if (error.message.includes('not found')) {
+          errorMessage = 'Instance ou Univers introuvable. Veuillez réessayer.';
+        } else if (error.message.includes('version')) {
+          errorMessage = `Erreur de version : ${error.message}`;
+        } else {
+          errorMessage = error.message;
+        }
+      }
+      showError(errorMessage);
       setIsUpgrading(false);
       setUpgradeProgress('');
     }
