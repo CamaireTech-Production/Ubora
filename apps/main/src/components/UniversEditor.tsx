@@ -9,6 +9,7 @@ import { UniversWizardStep4 } from './UniversWizardStep4';
 import { UniversWizardStep5 } from './UniversWizardStep5';
 import { UniversWizardStep6 } from './UniversWizardStep6';
 import { UniversWizardStep7 } from './UniversWizardStep7';
+import { ConfirmationModal } from './ConfirmationModal';
 import { useToast } from '@ubora/shared/hooks/useToast';
 import { UniversWizardStepProps } from './UniversWizard';
 import {
@@ -66,6 +67,7 @@ export const UniversEditor: React.FC<UniversEditorProps> = ({
   const [activeTab, setActiveTab] = useState<EditTab>('metadata');
   const [isSaving, setIsSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
+  const [showCancelModal, setShowCancelModal] = useState(false);
 
   // Track completed steps for visual feedback
   const [completedSteps, setCompletedSteps] = useState<Set<number>>(new Set());
@@ -460,12 +462,16 @@ export const UniversEditor: React.FC<UniversEditorProps> = ({
   // Cancel handler
   const handleCancel = () => {
     if (hasChanges) {
-      if (window.confirm('Vous avez des modifications non enregistrées. Voulez-vous vraiment annuler ?')) {
-        onCancel();
-      }
+      setShowCancelModal(true);
     } else {
       onCancel();
     }
+  };
+
+  // Confirm cancel (from modal)
+  const handleConfirmCancel = () => {
+    setShowCancelModal(false);
+    onCancel();
   };
 
   return (
@@ -662,6 +668,18 @@ export const UniversEditor: React.FC<UniversEditorProps> = ({
           </div>
         </div>
       )}
+
+      {/* Cancel Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={showCancelModal}
+        onClose={() => setShowCancelModal(false)}
+        onConfirm={handleConfirmCancel}
+        title="Annuler les modifications ?"
+        message="Vous avez des modifications non enregistrées. Si vous annulez maintenant, toutes vos modifications seront perdues."
+        confirmText="Oui, annuler"
+        cancelText="Non, continuer l'édition"
+        variant="warning"
+      />
     </div>
   );
 };
