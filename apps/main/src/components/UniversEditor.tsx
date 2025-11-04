@@ -471,7 +471,10 @@ export const UniversEditor: React.FC<UniversEditorProps> = ({
   // Confirm cancel (from modal)
   const handleConfirmCancel = () => {
     setShowCancelModal(false);
-    onCancel();
+    // Small delay to allow modal to close smoothly
+    setTimeout(() => {
+      onCancel();
+    }, 100);
   };
 
   return (

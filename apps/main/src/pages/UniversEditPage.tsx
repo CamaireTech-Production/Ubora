@@ -17,23 +17,26 @@ export const UniversEditPage: React.FC = () => {
   const [univers, setUnivers] = useState<Univers | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [hasEditPermission, setHasEditPermission] = useState(false);
+  const [isNavigating, setIsNavigating] = useState(false);
 
   useEffect(() => {
-    if (id && user?.id && user?.agencyId) {
+    if (id && user?.id && user?.agencyId && !isNavigating) {
       loadUnivers();
     }
-  }, [id, user]);
+  }, [id, user, isNavigating]);
 
   const loadUnivers = async () => {
-    if (!id || !user?.id || !user?.agencyId) return;
+    if (!id || !user?.id || !user?.agencyId || isNavigating) return;
 
     setIsLoading(true);
     try {
       const universData = await universService.getById(id);
       
+      if (isNavigating) return; // Component unmounted, don't update state
+      
       if (!universData) {
         showError('Univers non trouvé');
-        navigate('/univers');
+        navigate('/univers', { replace: true });
         return;
       }
 
@@ -45,14 +48,17 @@ export const UniversEditPage: React.FC = () => {
       
       if (!canEdit) {
         showError('Vous n\'avez pas la permission de modifier ce Univers');
-        setTimeout(() => navigate('/univers'), 2000);
+        setTimeout(() => navigate('/univers', { replace: true }), 2000);
       }
     } catch (error) {
+      if (isNavigating) return; // Component unmounted, don't update state
       console.error('Erreur lors du chargement du Univers:', error);
       showError('Erreur lors du chargement du Univers');
-      navigate('/univers');
+      navigate('/univers', { replace: true });
     } finally {
-      setIsLoading(false);
+      if (!isNavigating) {
+        setIsLoading(false);
+      }
     }
   };
 
@@ -82,8 +88,14 @@ export const UniversEditPage: React.FC = () => {
   };
 
   const handleCancel = () => {
-    navigate('/univers');
+    setIsNavigating(true);
+    navigate('/univers', { replace: true });
   };
+
+  // Don't render if navigating away
+  if (isNavigating) {
+    return null;
+  }
 
   if (isLoading) {
     return (
@@ -99,7 +111,7 @@ export const UniversEditPage: React.FC = () => {
         <div className="text-center py-12">
           <p className="text-gray-600">Univers non trouvé</p>
           <button
-            onClick={() => navigate('/univers')}
+            onClick={() => navigate('/univers', { replace: true })}
             className="mt-4 text-blue-600 hover:text-blue-800"
           >
             Retour à la liste
@@ -115,7 +127,7 @@ export const UniversEditPage: React.FC = () => {
         <div className="text-center py-12">
           <p className="text-gray-600">Vous n'avez pas la permission de modifier ce Univers</p>
           <button
-            onClick={() => navigate('/univers')}
+            onClick={() => navigate('/univers', { replace: true })}
             className="mt-4 text-blue-600 hover:text-blue-800"
           >
             Retour à la liste
