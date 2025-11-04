@@ -767,7 +767,11 @@ export interface UniversMetadata {
   tags?: string[];
   version: number;
   createdAt: Date;
-  publishOption?: 'private' | 'agency' | 'marketplace'; // Temporary field for wizard
+  publishOption?: 'private' | 'marketplace'; // Simplified: only private or marketplace
+  isActive?: boolean; // Whether this Univers is currently active for the director
+  isDefault?: boolean; // Flag for default Univers (cannot be deleted, always present)
+  price?: number; // Price for marketplace Univers (null or 0 = free)
+  currency?: string; // Currency code (e.g., "XAF", "USD")
 }
 
 export interface UniversOwnership {
@@ -890,9 +894,12 @@ export interface Univers {
 export interface UniversInstance {
   id: string;
   universId: string; // Reference to Univers template
+  universVersion: number; // Version of the Univers template used to create this instance
   userId: string; // User who created this instance
   agencyId: string;
   createdAt: Date;
+  updatedAt?: Date; // Date of last update
+  isActive: boolean; // Whether this instance is currently active (only one active per director)
   instances: {
     forms: string[]; // Array of form IDs created from template
     dashboards: string[]; // Array of dashboard IDs
@@ -902,8 +909,33 @@ export interface UniversInstance {
   };
   metadata: {
     universName: string;
-    universVersion: number;
+    universVersion: number; // Version snapshot when instance was created
+    isFromMarketplace: boolean; // Whether this instance was purchased from marketplace
+    paymentId?: string; // Payment ID if purchased (for future payment integration)
+    purchaseDate?: Date; // Date of purchase
   };
+  // Version history for tracking upgrades
+  versionHistory?: {
+    previousVersion: number;
+    upgradedAt: Date;
+    upgradedFromInstanceId?: string; // Reference to previous instance
+    dataMigrated: boolean; // Whether data was migrated during upgrade
+  }[];
+  // Tracking of new versions available
+  latestAvailableVersion?: number; // Latest version of the template available
+  updateAvailable?: boolean; // Whether a new version is available for this instance
+}
+
+/**
+ * ActiveUnivers represents the currently active Univers for a director
+ * This is stored in a separate Firestore collection for quick access
+ */
+export interface ActiveUnivers {
+  directorId: string; // ID of the director
+  agencyId: string; // Agency ID
+  activeUniversId: string; // ID of the active Univers template (if Univers is owned)
+  activeInstanceId?: string; // ID of the active Univers instance (if Univers is purchased)
+  updatedAt: Date; // Last update timestamp
 }
 
 // =============================================================================

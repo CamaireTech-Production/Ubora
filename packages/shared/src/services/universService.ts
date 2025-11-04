@@ -2,20 +2,20 @@ import {
   collection, 
   doc, 
   addDoc, 
-  updateDoc, 
+  updateDoc,
+  setDoc,
   deleteDoc, 
   getDoc, 
   getDocs, 
   query, 
   where, 
   orderBy, 
-  limit,
   serverTimestamp,
   onSnapshot,
   Timestamp
 } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
-import { Univers, UniversInstance, UniversDefinitions, UniversMetadata, UniversOwnership, UniversUsage } from '../types';
+import { Univers, UniversInstance, UniversDefinitions, UniversMetadata, UniversOwnership, UniversUsage, ActiveUnivers } from '../types';
 import { universInstantiationService, InstantiationResult } from './universInstantiationService';
 
 class UniversService {
@@ -57,9 +57,12 @@ class UniversService {
     return {
       id,
       universId: data.universId,
+      universVersion: data.universVersion || data.metadata?.universVersion || 1,
       userId: data.userId,
       agencyId: data.agencyId,
       createdAt: data.createdAt?.toDate() || new Date(),
+      updatedAt: data.updatedAt?.toDate() || undefined,
+      isActive: data.isActive ?? false, // Default to false if not set
       instances: data.instances || {
         forms: [],
         dashboards: [],
@@ -67,10 +70,21 @@ class UniversService {
         lists: [],
         reports: []
       },
-      metadata: data.metadata || {
-        universName: '',
-        universVersion: 1
-      }
+      metadata: {
+        universName: data.metadata?.universName || '',
+        universVersion: data.metadata?.universVersion || data.universVersion || 1,
+        isFromMarketplace: data.metadata?.isFromMarketplace ?? false,
+        paymentId: data.metadata?.paymentId,
+        purchaseDate: data.metadata?.purchaseDate?.toDate() || undefined
+      },
+      versionHistory: data.versionHistory?.map((vh: any) => ({
+        previousVersion: vh.previousVersion,
+        upgradedAt: vh.upgradedAt?.toDate() || new Date(),
+        upgradedFromInstanceId: vh.upgradedFromInstanceId,
+        dataMigrated: vh.dataMigrated ?? false
+      })) || undefined,
+      latestAvailableVersion: data.latestAvailableVersion,
+      updateAvailable: data.updateAvailable ?? false
     } as UniversInstance;
   }
 
@@ -536,9 +550,12 @@ class UniversService {
       // 4. Create the UniversInstance document with all instantiated resource IDs
       const instanceData: Omit<UniversInstance, 'id'> = {
         universId,
+        universVersion: univers.metadata.version || 1,
         userId,
         agencyId,
         createdAt: new Date(),
+        updatedAt: new Date(),
+        isActive: false, // Not active by default, must be activated explicitly
         instances: {
           forms: instantiationResult.forms,
           dashboards: instantiationResult.dashboards,
@@ -548,8 +565,14 @@ class UniversService {
         },
         metadata: {
           universName: univers.metadata.name,
-          universVersion: univers.metadata.version || 1
-        }
+          universVersion: univers.metadata.version || 1,
+          isFromMarketplace: univers.ownership.isMarketplaceTemplate || false,
+          paymentId: undefined, // Will be set if purchased
+          purchaseDate: undefined // Will be set if purchased
+        },
+        versionHistory: undefined,
+        latestAvailableVersion: undefined,
+        updateAvailable: false
       };
 
       const instanceId = await this.createInstance(instanceData);
@@ -571,6 +594,254 @@ class UniversService {
       }
       
       throw new Error(`Failed to instantiate Univers: ${error}`);
+    }
+  }
+
+  /**
+   * Collection name for ActiveUnivers documents
+   */
+  private readonly activeUniversCollectionName = 'activeUnivers';
+
+  /**
+   * Récupérer le Univers par défaut d'un directeur
+   */
+  async getDefaultUnivers(directorId: string): Promise<Univers | null> {
+    try {
+      const q = query(
+        collection(db, this.collectionName),
+        where('ownership.createdBy', '==', directorId),
+        where('metadata.isDefault', '==', true)
+      );
+      
+      const querySnapshot = await getDocs(q);
+      if (!querySnapshot.empty) {
+        const doc = querySnapshot.docs[0];
+        return this.convertFirestoreToUnivers(doc.id, doc.data());
+      }
+      return null;
+    } catch (error) {
+      console.error('Erreur lors de la récupération du Univers par défaut:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Créer ou activer le Univers par défaut pour un directeur
+   * Si aucun Univers actif n'existe, active le Univers par défaut
+   */
+  async ensureDefaultUnivers(directorId: string, agencyId: string): Promise<string> {
+    try {
+      // 1. Vérifier si un Univers par défaut existe déjà
+      let defaultUnivers = await this.getDefaultUnivers(directorId);
+
+      if (!defaultUnivers) {
+        // 2. Créer le Univers par défaut
+        const defaultId = await this.create({
+          metadata: {
+            name: 'Univers par défaut', // Nom fixe, non modifiable
+            description: 'Univers par défaut créé automatiquement',
+            isDefault: true,
+            isActive: true, // Actif par défaut
+            version: 1,
+            createdAt: new Date()
+          },
+          ownership: {
+            createdBy: directorId,
+            agencyId: undefined, // Privé
+            isMarketplaceTemplate: false
+          },
+          definitions: {
+            forms: [],
+            dashboards: [],
+            instructions: [],
+            lists: [],
+            reports: []
+          },
+          usage: {
+            totalUsages: 0
+          }
+        });
+
+        defaultUnivers = await this.getById(defaultId);
+        if (!defaultUnivers) {
+          throw new Error('Erreur lors de la création du Univers par défaut');
+        }
+      }
+
+      // 3. Vérifier si un Univers actif existe déjà
+      const activeUnivers = await this.getActiveUnivers(directorId, agencyId);
+      
+      if (!activeUnivers) {
+        // 4. Activer le Univers par défaut si aucun n'est actif
+        await this.activateUnivers(defaultUnivers.id, directorId, agencyId);
+      }
+
+      return defaultUnivers.id;
+    } catch (error) {
+      console.error('Erreur lors de la création/activation du Univers par défaut:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Récupérer l'Univers actif pour un directeur
+   */
+  async getActiveUnivers(directorId: string, agencyId: string): Promise<ActiveUnivers | null> {
+    try {
+      const docRef = doc(db, this.activeUniversCollectionName, directorId);
+      const docSnap = await getDoc(docRef);
+      
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        return {
+          directorId: data.directorId || directorId,
+          agencyId: data.agencyId || agencyId,
+          activeUniversId: data.activeUniversId,
+          activeInstanceId: data.activeInstanceId,
+          updatedAt: data.updatedAt?.toDate() || new Date()
+        };
+      }
+      return null;
+    } catch (error) {
+      console.error('Erreur lors de la récupération de l\'Univers actif:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Mettre à jour ou créer le document ActiveUnivers
+   */
+  private async setActiveUnivers(
+    directorId: string,
+    agencyId: string,
+    universId: string,
+    instanceId?: string
+  ): Promise<void> {
+    try {
+      const docRef = doc(db, this.activeUniversCollectionName, directorId);
+      const activeUniversData: Omit<ActiveUnivers, 'directorId'> = {
+        agencyId,
+        activeUniversId: universId,
+        activeInstanceId: instanceId,
+        updatedAt: new Date()
+      };
+
+      await updateDoc(docRef, {
+        ...activeUniversData,
+        updatedAt: serverTimestamp()
+      });
+    } catch (error: any) {
+      // Si le document n'existe pas, le créer avec setDoc et merge: true
+      if (error.code === 'not-found' || error.code === 'permission-denied' || error.code === 'failed-precondition') {
+        const docRef = doc(db, this.activeUniversCollectionName, directorId);
+        await setDoc(docRef, {
+          directorId,
+          agencyId,
+          activeUniversId: universId,
+          activeInstanceId: instanceId || null,
+          updatedAt: serverTimestamp()
+        }, { merge: true });
+      } else {
+        console.error('Erreur lors de la mise à jour de l\'Univers actif:', error);
+        throw error;
+      }
+    }
+  }
+
+  /**
+   * Activer un Univers (désactive automatiquement l'ancien si nécessaire)
+   */
+  async activateUnivers(
+    universId: string,
+    directorId: string,
+    agencyId: string
+  ): Promise<void> {
+    try {
+      // 1. Vérifier que le Univers appartient au directeur ou est acheté
+      const univers = await this.getById(universId);
+      if (!univers) {
+        throw new Error('Univers non trouvé');
+      }
+
+      const isOwner = univers.ownership.createdBy === directorId;
+      
+      // 2. Vérifier si c'est une instance achetée
+      let instanceId: string | undefined;
+      if (univers.ownership.isMarketplaceTemplate && !isOwner) {
+        // Chercher une instance de ce Univers pour ce directeur
+        const instances = await this.getInstancesByUser(directorId, agencyId);
+        const instance = instances.find(inst => inst.universId === universId && inst.isActive);
+        if (instance) {
+          instanceId = instance.id;
+        } else {
+          throw new Error('Vous devez d\'abord acheter ce Univers depuis le marketplace');
+        }
+      } else if (!isOwner) {
+        throw new Error('Vous ne pouvez pas activer ce Univers');
+      }
+
+      // 3. Désactiver l'ancien Univers actif
+      const currentActive = await this.getActiveUnivers(directorId, agencyId);
+      if (currentActive) {
+        if (currentActive.activeInstanceId) {
+          // Désactiver l'instance
+          const instanceRef = doc(db, this.instancesCollectionName, currentActive.activeInstanceId);
+          await updateDoc(instanceRef, { isActive: false });
+        } else {
+          // Désactiver le template Univers
+          const universRef = doc(db, this.collectionName, currentActive.activeUniversId);
+          await updateDoc(universRef, { 'metadata.isActive': false });
+        }
+      }
+
+      // 4. Activer le nouveau Univers
+      if (instanceId) {
+        // Activer l'instance
+        const instanceRef = doc(db, this.instancesCollectionName, instanceId);
+        await updateDoc(instanceRef, { isActive: true });
+        await this.setActiveUnivers(directorId, agencyId, universId, instanceId);
+      } else {
+        // Activer le template Univers
+        const universRef = doc(db, this.collectionName, universId);
+        await updateDoc(universRef, { 'metadata.isActive': true });
+        await this.setActiveUnivers(directorId, agencyId, universId);
+      }
+
+      console.log(`✅ Univers activé: ${universId} pour directeur ${directorId}`);
+    } catch (error) {
+      console.error('Erreur lors de l\'activation du Univers:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Désactiver l'Univers actif d'un directeur
+   */
+  async deactivateUnivers(directorId: string, agencyId: string): Promise<void> {
+    try {
+      const activeUnivers = await this.getActiveUnivers(directorId, agencyId);
+      if (!activeUnivers) {
+        return; // Aucun Univers actif à désactiver
+      }
+
+      if (activeUnivers.activeInstanceId) {
+        // Désactiver l'instance
+        const instanceRef = doc(db, this.instancesCollectionName, activeUnivers.activeInstanceId);
+        await updateDoc(instanceRef, { isActive: false });
+      } else {
+        // Désactiver le template Univers
+        const universRef = doc(db, this.collectionName, activeUnivers.activeUniversId);
+        await updateDoc(universRef, { 'metadata.isActive': false });
+      }
+
+      // Supprimer le document ActiveUnivers
+      const docRef = doc(db, this.activeUniversCollectionName, directorId);
+      await deleteDoc(docRef);
+
+      console.log(`✅ Univers désactivé pour directeur ${directorId}`);
+    } catch (error) {
+      console.error('Erreur lors de la désactivation du Univers:', error);
+      throw error;
     }
   }
 }

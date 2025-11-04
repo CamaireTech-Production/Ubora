@@ -814,6 +814,45 @@ service cloud.firestore {
     }
 
     // =============================================================================
+    // COLLECTION ACTIVE UNIVERS
+    // Règles pour l'Univers actif d'un directeur :
+    // - Seul un directeur peut lire/modifier son propre ActiveUnivers
+    // - Le document ID est le directorId pour un accès rapide
+    // - Les admins peuvent aussi gérer tous les ActiveUnivers
+    // =============================================================================
+    
+    match /activeUnivers/{directorId} {
+      // LECTURE de l'Univers actif
+      allow read: if isAuthenticated() && (
+        isAdmin() ||
+        (isDirecteur() && request.auth.uid == directorId)
+      );
+      
+      // CRÉATION de l'Univers actif
+      allow create: if isAuthenticated() && (
+        isAdmin() ||
+        (isDirecteur() && 
+         request.auth.uid == directorId &&
+         request.resource.data.directorId == directorId &&
+         request.resource.data.keys().hasAll(['directorId', 'agencyId', 'activeUniversId', 'updatedAt']))
+      );
+      
+      // MODIFICATION de l'Univers actif
+      allow update: if isAuthenticated() && (
+        isAdmin() ||
+        (isDirecteur() && 
+         request.auth.uid == directorId &&
+         resource.data.directorId == directorId)
+      );
+      
+      // SUPPRESSION de l'Univers actif
+      allow delete: if isAuthenticated() && (
+        isAdmin() ||
+        (isDirecteur() && request.auth.uid == directorId)
+      );
+    }
+
+    // =============================================================================
     // COLLECTION LISTS
     // Règles pour les Lists (listes tabulaires pour les formulaires) :
     // - Seul un directeur ou utilisateur avec accès peut créer/modifier/supprimer des lists

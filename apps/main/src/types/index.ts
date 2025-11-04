@@ -834,7 +834,11 @@ export interface UniversMetadata {
   tags?: string[];
   version: number;
   createdAt: Date;
-  publishOption?: 'private' | 'agency' | 'marketplace'; // Temporary field for wizard
+  publishOption?: 'private' | 'marketplace'; // Simplified: only private or marketplace
+  isActive?: boolean; // Whether this Univers is currently active for the director
+  isDefault?: boolean; // Flag for default Univers (cannot be deleted, always present)
+  price?: number; // Price for marketplace Univers (null or 0 = free)
+  currency?: string; // Currency code (e.g., "XAF", "USD")
 }
 
 export interface UniversOwnership {
@@ -899,6 +903,18 @@ export interface Univers {
   ownership: UniversOwnership;
   definitions: UniversDefinitions;
   usage: UniversUsage;
+}
+
+/**
+ * ActiveUnivers represents the currently active Univers for a director
+ * This is stored in a separate Firestore collection for quick access
+ */
+export interface ActiveUnivers {
+  directorId: string; // ID of the director
+  agencyId: string; // Agency ID
+  activeUniversId: string; // ID of the active Univers template (if Univers is owned)
+  activeInstanceId?: string; // ID of the active Univers instance (if Univers is purchased)
+  updatedAt: Date; // Last update timestamp
 }
 
 // =============================================================================
