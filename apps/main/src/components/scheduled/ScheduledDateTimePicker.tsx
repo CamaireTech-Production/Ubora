@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Calendar, Clock, Repeat, ChevronDown } from 'lucide-react';
-import { Button } from '../Button';
+import React, { useState, useEffect } from 'react';
+import { Calendar, Clock, Repeat } from 'lucide-react';
+import { Select } from '../Select';
 import { getCameroonTime, createCameroonDateTime, formatCameroonTime, getCameroonTimezoneDisplay } from '@ubora/shared/utils/timezoneUtils';
 
 interface ScheduledDateTimePickerProps {
@@ -18,11 +18,8 @@ export const ScheduledDateTimePicker: React.FC<ScheduledDateTimePickerProps> = (
   onFrequencyChange,
   disabled = false
 }) => {
-  const [isOpen, setIsOpen] = useState(false);
   const [localDate, setLocalDate] = useState(scheduledAt.toISOString().split('T')[0]);
   const [localTime, setLocalTime] = useState(scheduledAt.toTimeString().slice(0, 5));
-  const buttonRef = useRef<HTMLDivElement>(null);
-  const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Mettre à jour les valeurs locales quand les props changent
   useEffect(() => {
@@ -30,28 +27,6 @@ export const ScheduledDateTimePicker: React.FC<ScheduledDateTimePickerProps> = (
     setLocalTime(scheduledAt.toTimeString().slice(0, 5));
   }, [scheduledAt]);
 
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    if (!isOpen) return;
-
-    const handleClickOutside = (event: MouseEvent | TouchEvent) => {
-      if (buttonRef.current && dropdownRef.current) {
-        const target = event.target as HTMLElement;
-        if (!buttonRef.current.contains(target) && !dropdownRef.current.contains(target)) {
-          setIsOpen(false);
-        }
-      }
-    };
-
-    // Use both mouse and touch events for better mobile support
-    document.addEventListener('mousedown', handleClickOutside);
-    document.addEventListener('touchstart', handleClickOutside);
-
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-      document.removeEventListener('touchstart', handleClickOutside);
-    };
-  }, [isOpen]);
 
   const handleDateChange = (date: string) => {
     setLocalDate(date);
@@ -164,67 +139,18 @@ export const ScheduledDateTimePicker: React.FC<ScheduledDateTimePickerProps> = (
 
       {/* Sélection de la fréquence */}
       <div className="space-y-2">
-        <label className="block text-sm font-medium text-gray-700">
-          Fréquence
-        </label>
-        <div className="relative" ref={buttonRef}>
-          <Button
-            variant="secondary"
-            onClick={() => setIsOpen(!isOpen)}
-            disabled={disabled}
-            className="w-full justify-between px-3 py-2 text-left"
-          >
-            <div className="flex items-center space-x-2">
-              <Repeat className="h-4 w-4 text-gray-500" />
-              <span>{getFrequencyLabel(frequency)}</span>
-            </div>
-            <ChevronDown className={`h-4 w-4 text-gray-500 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
-          </Button>
-
-          {/* Dropdown - positioned directly below the button */}
-          {isOpen && (
-            <>
-              {/* Backdrop to close dropdown on outside click */}
-              <div 
-                className="fixed inset-0 z-[9998] bg-transparent"
-                onClick={() => setIsOpen(false)}
-                onTouchStart={() => setIsOpen(false)}
-              />
-              <div 
-                ref={dropdownRef}
-                className="frequency-dropdown absolute z-[50] bg-white border border-gray-200 rounded-lg shadow-xl mt-1 w-full"
-                style={{
-                  top: '100%',
-                  left: 0,
-                  maxHeight: '12rem',
-                  overflowY: 'auto',
-                  WebkitOverflowScrolling: 'touch'
-                }}
-              >
-                {(['once', 'daily', 'weekly', 'monthly'] as const).map((freq) => (
-                  <button
-                    key={freq}
-                    onClick={() => {
-                      onFrequencyChange(freq);
-                      setIsOpen(false);
-                    }}
-                    onTouchEnd={(e) => {
-                      e.preventDefault();
-                      onFrequencyChange(freq);
-                      setIsOpen(false);
-                    }}
-                    className={`w-full px-3 py-2 text-left hover:bg-gray-50 active:bg-gray-100 first:rounded-t-lg last:rounded-b-lg transition-colors touch-manipulation ${
-                      frequency === freq ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-700'
-                    }`}
-                    disabled={disabled}
-                  >
-                    {getFrequencyLabel(freq)}
-                  </button>
-                ))}
-              </div>
-            </>
-          )}
-        </div>
+        <Select
+          label="Fréquence"
+          value={frequency}
+          onChange={(e) => onFrequencyChange(e.target.value as 'once' | 'daily' | 'weekly' | 'monthly')}
+          disabled={disabled}
+          options={[
+            { value: 'once', label: 'Une seule fois' },
+            { value: 'daily', label: 'Quotidien' },
+            { value: 'weekly', label: 'Hebdomadaire' },
+            { value: 'monthly', label: 'Mensuel' }
+          ]}
+        />
       </div>
 
       {/* Aperçu de la prochaine exécution */}
