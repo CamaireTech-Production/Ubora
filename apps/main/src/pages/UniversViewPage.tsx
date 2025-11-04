@@ -486,8 +486,6 @@ export const UniversViewPage: React.FC = () => {
                   )}
 
                   <div>
-                    <p className="text-sm font-medium text-gray-700 mb-1">Version</p>
-                    <p className="text-sm text-gray-600">{univers.metadata.version || 1}</p>
                   </div>
 
                   <div>

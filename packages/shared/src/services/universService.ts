@@ -865,26 +865,51 @@ class UniversService {
    */
   async getPendingApprovalUnivers(): Promise<{ univers: Univers; pendingVersion: UniversVersion }[]> {
     try {
-      // 1. Récupérer tous les Univers marketplace avec approvalStatus = pending
+      // 1. Récupérer tous les Univers marketplace (peu importe leur approvalStatus)
+      // Car un Univers déjà approuvé peut avoir une nouvelle version en attente
       const q = query(
         collection(db, this.collectionName),
-        where('ownership.isMarketplaceTemplate', '==', true),
-        where('ownership.approvalStatus', '==', 'pending')
+        where('ownership.isMarketplaceTemplate', '==', true)
       );
       
       const universSnapshot = await getDocs(q);
       const results: { univers: Univers; pendingVersion: UniversVersion }[] = [];
 
-      // 2. Pour chaque Univers, récupérer la version en attente
+      // 2. Pour chaque Univers marketplace, vérifier s'il a des versions en attente
       for (const universDoc of universSnapshot.docs) {
         const univers = this.convertFirestoreToUnivers(universDoc.id, universDoc.data());
         
-        // Récupérer la dernière version en attente
-        const versions = await this.getVersionsByUnivers(univers.id);
-        const pendingVersion = versions.find(v => v.approvalStatus === 'pending');
-        
-        if (pendingVersion) {
+        // Si le Univers lui-même est en attente (première création), créer une version virtuelle
+        if (univers.ownership.approvalStatus === 'pending') {
+          // Créer une version virtuelle pour le Univers initial en attente
+          const pendingVersion: UniversVersion = {
+            id: `univers-${univers.id}`,
+            universId: univers.id,
+            version: univers.metadata.version || 1,
+            previousVersion: 0,
+            createdBy: univers.ownership.createdBy,
+            createdAt: univers.metadata.createdAt || new Date(),
+            approvalStatus: 'pending',
+            changes: {
+              metadata: true,
+              definitions: {
+                forms: (univers.definitions.forms?.length || 0) > 0,
+                dashboards: (univers.definitions.dashboards?.length || 0) > 0,
+                instructions: (univers.definitions.instructions?.length || 0) > 0,
+                lists: (univers.definitions.lists?.length || 0) > 0,
+                reports: (univers.definitions.reports?.length || 0) > 0
+              }
+            }
+          };
           results.push({ univers, pendingVersion });
+        } else {
+          // Si le Univers est approuvé, vérifier s'il a des versions en attente
+          const versions = await this.getVersionsByUnivers(univers.id);
+          const pendingVersion = versions.find(v => v.approvalStatus === 'pending');
+          
+          if (pendingVersion) {
+            results.push({ univers, pendingVersion });
+          }
         }
       }
 
@@ -909,35 +934,62 @@ class UniversService {
     adminId: string
   ): Promise<void> {
     try {
-      // 1. Mettre à jour le document UniversVersion
-      const versions = await this.getVersionsByUnivers(universId);
-      const versionDoc = versions.find(v => v.version === version);
-      
-      if (!versionDoc) {
-        throw new Error(`Version ${version} not found for Univers ${universId}`);
+      // Récupérer le Univers pour vérifier son statut
+      const univers = await this.getById(universId);
+      if (!univers) {
+        throw new Error(`Univers ${universId} not found`);
       }
 
-      // Trouver le document UniversVersion dans Firestore
-      const versionsQuery = query(
-        collection(db, this.versionsCollectionName),
-        where('universId', '==', universId),
-        where('version', '==', version)
-      );
-      const versionsSnapshot = await getDocs(versionsQuery);
+      // Si c'est la première version (le Univers lui-même est en attente)
+      const isFirstVersion = univers.ownership.approvalStatus === 'pending' && version === (univers.metadata.version || 1);
       
-      if (versionsSnapshot.empty) {
-        throw new Error(`Version document not found for Univers ${universId} version ${version}`);
+      if (isFirstVersion) {
+        // Pour la première version, créer un document UniversVersion pour l'historique
+        const versionData = {
+          universId: universId,
+          version: version,
+          previousVersion: 0,
+          createdBy: univers.ownership.createdBy,
+          createdAt: serverTimestamp(),
+          approvalStatus: 'approved',
+          approvedBy: adminId,
+          approvedAt: serverTimestamp(),
+          changes: {
+            metadata: true,
+            definitions: {
+              forms: (univers.definitions.forms?.length || 0) > 0,
+              dashboards: (univers.definitions.dashboards?.length || 0) > 0,
+              instructions: (univers.definitions.instructions?.length || 0) > 0,
+              lists: (univers.definitions.lists?.length || 0) > 0,
+              reports: (univers.definitions.reports?.length || 0) > 0
+            }
+          }
+        };
+        
+        await addDoc(collection(db, this.versionsCollectionName), versionData);
+      } else {
+        // Pour les versions suivantes, mettre à jour le document UniversVersion existant
+        const versionsQuery = query(
+          collection(db, this.versionsCollectionName),
+          where('universId', '==', universId),
+          where('version', '==', version)
+        );
+        const versionsSnapshot = await getDocs(versionsQuery);
+        
+        if (versionsSnapshot.empty) {
+          throw new Error(`Version document not found for Univers ${universId} version ${version}`);
+        }
+
+        const versionDocRef = doc(db, this.versionsCollectionName, versionsSnapshot.docs[0].id);
+        
+        await updateDoc(versionDocRef, {
+          approvalStatus: 'approved',
+          approvedBy: adminId,
+          approvedAt: serverTimestamp()
+        });
       }
 
-      const versionDocRef = doc(db, this.versionsCollectionName, versionsSnapshot.docs[0].id);
-      
-      await updateDoc(versionDocRef, {
-        approvalStatus: 'approved',
-        approvedBy: adminId,
-        approvedAt: serverTimestamp()
-      });
-
-      // 2. Mettre à jour le document Univers
+      // Mettre à jour le document Univers
       const universRef = doc(db, this.collectionName, universId);
       await updateDoc(universRef, {
         'ownership.approvalStatus': 'approved',
@@ -946,7 +998,7 @@ class UniversService {
         'ownership.rejectionReason': undefined
       });
 
-      // 3. Notifier toutes les instances qu'une nouvelle version est disponible
+      // Notifier toutes les instances qu'une nouvelle version est disponible
       try {
         await this.notifyNewVersionAvailable(universId, version);
       } catch (notifyError) {
@@ -977,48 +1029,87 @@ class UniversService {
     rejectionReason: string
   ): Promise<void> {
     try {
-      // 1. Mettre à jour le document UniversVersion
-      const versionsQuery = query(
-        collection(db, this.versionsCollectionName),
-        where('universId', '==', universId),
-        where('version', '==', version)
-      );
-      const versionsSnapshot = await getDocs(versionsQuery);
-      
-      if (versionsSnapshot.empty) {
-        throw new Error(`Version document not found for Univers ${universId} version ${version}`);
-      }
-
-      const versionDocRef = doc(db, this.versionsCollectionName, versionsSnapshot.docs[0].id);
-      
-      await updateDoc(versionDocRef, {
-        approvalStatus: 'rejected',
-        rejectionReason: rejectionReason
-      });
-
-      // 2. Mettre à jour le document Univers - revenir à la version précédente approuvée
+      // Récupérer le Univers pour vérifier son statut
       const univers = await this.getById(universId);
       if (!univers) {
-        throw new Error(`Univers not found: ${universId}`);
+        throw new Error(`Univers ${universId} not found`);
       }
 
-      // Trouver la dernière version approuvée
-      const versions = await this.getVersionsByUnivers(universId);
-      const approvedVersions = versions.filter(v => v.approvalStatus === 'approved');
-      const lastApprovedVersion = approvedVersions[0]; // Déjà trié par version desc
+      // Si c'est la première version (le Univers lui-même est en attente)
+      const isFirstVersion = univers.ownership.approvalStatus === 'pending' && version === (univers.metadata.version || 1);
+      
+      if (isFirstVersion) {
+        // Pour la première version, créer un document UniversVersion pour l'historique
+        const versionData = {
+          universId: universId,
+          version: version,
+          previousVersion: 0,
+          createdBy: univers.ownership.createdBy,
+          createdAt: serverTimestamp(),
+          approvalStatus: 'rejected',
+          rejectionReason: rejectionReason,
+          changes: {
+            metadata: true,
+            definitions: {
+              forms: (univers.definitions.forms?.length || 0) > 0,
+              dashboards: (univers.definitions.dashboards?.length || 0) > 0,
+              instructions: (univers.definitions.instructions?.length || 0) > 0,
+              lists: (univers.definitions.lists?.length || 0) > 0,
+              reports: (univers.definitions.reports?.length || 0) > 0
+            }
+          }
+        };
+        
+        await addDoc(collection(db, this.versionsCollectionName), versionData);
+      } else {
+        // Pour les versions suivantes, mettre à jour le document UniversVersion existant
+        const versionsQuery = query(
+          collection(db, this.versionsCollectionName),
+          where('universId', '==', universId),
+          where('version', '==', version)
+        );
+        const versionsSnapshot = await getDocs(versionsQuery);
+        
+        if (versionsSnapshot.empty) {
+          throw new Error(`Version document not found for Univers ${universId} version ${version}`);
+        }
 
-      const universRef = doc(db, this.collectionName, universId);
-      const updateData: any = {
-        'ownership.approvalStatus': 'rejected',
-        'ownership.rejectionReason': rejectionReason
-      };
-
-      // Si une version précédente était approuvée, restaurer cette version
-      if (lastApprovedVersion) {
-        updateData['metadata.version'] = lastApprovedVersion.version;
+        const versionDocRef = doc(db, this.versionsCollectionName, versionsSnapshot.docs[0].id);
+        
+        await updateDoc(versionDocRef, {
+          approvalStatus: 'rejected',
+          rejectionReason: rejectionReason
+        });
       }
 
-      await updateDoc(universRef, updateData);
+      // 2. Mettre à jour le document Univers - revenir à la version précédente approuvée
+      // Si c'est la première version, on la rejette simplement
+      if (!isFirstVersion) {
+        // Trouver la dernière version approuvée
+        const versions = await this.getVersionsByUnivers(universId);
+        const approvedVersions = versions.filter(v => v.approvalStatus === 'approved');
+        const lastApprovedVersion = approvedVersions[0]; // Déjà trié par version desc
+
+        const universRef = doc(db, this.collectionName, universId);
+        const updateData: any = {
+          'ownership.approvalStatus': 'rejected',
+          'ownership.rejectionReason': rejectionReason
+        };
+
+        // Si une version précédente était approuvée, restaurer cette version
+        if (lastApprovedVersion) {
+          updateData['metadata.version'] = lastApprovedVersion.version;
+        }
+
+        await updateDoc(universRef, updateData);
+      } else {
+        // Pour la première version rejetée, mettre à jour le Univers
+        const universRef = doc(db, this.collectionName, universId);
+        await updateDoc(universRef, {
+          'ownership.approvalStatus': 'rejected',
+          'ownership.rejectionReason': rejectionReason
+        });
+      }
 
       console.log(`✅ Univers version rejected: ${universId} v${version} by admin ${adminId}`);
     } catch (error) {

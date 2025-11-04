@@ -1,12 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { Univers } from '../types';
-import { Card } from './Card';
 import { Button } from './Button';
 import { ConfirmationModal } from './ConfirmationModal';
 import { useApp } from '@ubora/shared/contexts/AppContext';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
 import { useToast } from '@ubora/shared/hooks/useToast';
-import { universService } from '../services/universService';
+import { universService } from '@ubora/shared/services/universService';
 import { UniversInstance } from '@ubora/shared/types';
 import { Edit, Trash2, Eye, Globe, Lock, Building2, CheckCircle, Clock, XCircle, Power, Download, AlertCircle } from 'lucide-react';
 
@@ -376,6 +375,20 @@ export const UniversCard: React.FC<UniversCardProps> = ({
             <span className="font-bold text-pink-600">{univers.definitions.lists.length}</span>
             <span className="text-gray-700">Liste(s)</span>
           </div>
+          <div className="flex items-center space-x-2 bg-white/60 backdrop-blur-sm rounded-lg px-2 py-1.5 border border-gray-200/50">
+            <span className="font-bold text-teal-600">{univers.definitions.reports.length}</span>
+            <span className="text-gray-700">Rapport(s)</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Version badge - à la fin de la carte avec design moderne */}
+      <div className="mt-4 pt-4 border-t border-gray-200/50 flex items-center justify-end">
+        <div className="flex items-center space-x-2 px-3 py-1.5 bg-gradient-to-r from-gray-50 to-gray-100 rounded-lg border border-gray-200/50 shadow-sm hover:shadow-md transition-all duration-200">
+          <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Version</span>
+          <span className="px-2 py-0.5 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-md text-xs font-bold shadow-sm">
+            v{univers.metadata.version || 1}
+          </span>
         </div>
       </div>
 
