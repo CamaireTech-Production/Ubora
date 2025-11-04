@@ -73,7 +73,7 @@ export const UniversEditPage: React.FC = () => {
         ...updatedUnivers
       };
 
-      await universService.update(id, updates);
+      await universService.update(id, updates, user?.id);
       showSuccess('Univers mis à jour avec succès');
       
       // Navigate back to Univers listing page after successful update

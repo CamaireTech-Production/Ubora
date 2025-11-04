@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Univers } from '../types';
 import { Card } from './Card';
 import { Button } from './Button';
@@ -7,7 +7,8 @@ import { useApp } from '@ubora/shared/contexts/AppContext';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
 import { useToast } from '@ubora/shared/hooks/useToast';
 import { universService } from '../services/universService';
-import { Edit, Trash2, Eye, Globe, Lock, Building2, CheckCircle, Clock, XCircle, Power } from 'lucide-react';
+import { UniversInstance } from '@ubora/shared/types';
+import { Edit, Trash2, Eye, Globe, Lock, Building2, CheckCircle, Clock, XCircle, Power, Download, AlertCircle } from 'lucide-react';
 
 interface UniversCardProps {
   univers: Univers;
@@ -29,9 +30,14 @@ export const UniversCard: React.FC<UniversCardProps> = ({
   const { showSuccess, showError } = useToast();
   const [isActivating, setIsActivating] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [userInstance, setUserInstance] = useState<UniversInstance | null>(null);
+  const [isLoadingInstance, setIsLoadingInstance] = useState(false);
 
   const isActive = univers.id === activeUniversId;
   const isDirecteur = user?.role === 'directeur';
+  const hasUpdateAvailable = userInstance?.updateAvailable === true;
+  const currentVersion = userInstance?.universVersion || userInstance?.metadata?.universVersion || univers.metadata.version || 1;
+  const latestVersion = userInstance?.latestAvailableVersion || univers.metadata.version || 1;
 
   const handleActivateClick = () => {
     setShowConfirmModal(true);
@@ -59,6 +65,28 @@ export const UniversCard: React.FC<UniversCardProps> = ({
     setShowConfirmModal(false);
     setIsActivating(false);
   };
+
+  // Charger l'instance de l'utilisateur pour ce Univers
+  useEffect(() => {
+    if (!user?.id || !user?.agencyId || !isDirecteur) return;
+
+    const loadUserInstance = async () => {
+      setIsLoadingInstance(true);
+      try {
+        const instances = await universService.getInstancesByUser(user.id, user.agencyId);
+        const instance = instances.find(inst => inst.universId === univers.id);
+        if (instance) {
+          setUserInstance(instance);
+        }
+      } catch (error) {
+        console.error('Erreur lors du chargement de l\'instance:', error);
+      } finally {
+        setIsLoadingInstance(false);
+      }
+    };
+
+    loadUserInstance();
+  }, [user, univers.id, isDirecteur]);
   const getOwnershipIcon = () => {
     if (univers.ownership.isMarketplaceTemplate) {
       return <Globe className="h-4 w-4 text-blue-500" />;
@@ -182,10 +210,23 @@ export const UniversCard: React.FC<UniversCardProps> = ({
               <span>Actif</span>
             </span>
           )}
+          {hasUpdateAvailable && isDirecteur && (
+            <span className="flex items-center space-x-1 px-2 py-1 bg-orange-100 text-orange-700 rounded-full text-xs font-medium flex-shrink-0 animate-pulse">
+              <AlertCircle className="h-3 w-3" />
+              <span>Nouvelle version</span>
+            </span>
+          )}
         </div>
         <p className="text-sm text-gray-600 line-clamp-2">
           {univers.metadata.description || 'Aucune description'}
         </p>
+        {hasUpdateAvailable && isDirecteur && (
+          <div className="mt-2 text-xs text-orange-600">
+            <span>Version actuelle: v{currentVersion}</span>
+            <span className="mx-2">•</span>
+            <span className="font-semibold">Version disponible: v{latestVersion}</span>
+          </div>
+        )}
       </div>
 
       {/* Metadata */}
@@ -265,19 +306,33 @@ export const UniversCard: React.FC<UniversCardProps> = ({
         </div>
       </div>
 
-      {/* Bouton Activer pour directeurs */}
-      {isDirecteur && !isActive && (
-        <div className="mt-4 pt-4 border-t border-gray-200">
-          <Button
-            variant="primary"
-            size="sm"
-            onClick={handleActivateClick}
-            className="w-full flex items-center justify-center space-x-2"
-            disabled={disabled}
-          >
-            <Power className="h-4 w-4" />
-            <span>Activer ce Univers</span>
-          </Button>
+      {/* Actions pour directeurs */}
+      {isDirecteur && (
+        <div className="mt-4 pt-4 border-t border-gray-200 space-y-2">
+          {hasUpdateAvailable && (
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => onView && onView(univers)}
+              className="w-full flex items-center justify-center space-x-2 bg-orange-500 hover:bg-orange-600"
+              disabled={disabled}
+            >
+              <Download className="h-4 w-4" />
+              <span>Mettre à jour vers v{latestVersion}</span>
+            </Button>
+          )}
+          {!isActive && !hasUpdateAvailable && (
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={handleActivateClick}
+              className="w-full flex items-center justify-center space-x-2"
+              disabled={disabled}
+            >
+              <Power className="h-4 w-4" />
+              <span>Activer ce Univers</span>
+            </Button>
+          )}
         </div>
       )}
     </div>

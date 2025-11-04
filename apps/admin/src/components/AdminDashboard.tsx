@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
 import { AdminService } from '../services/adminService';
 import { AdminStats } from '../types';
@@ -25,7 +26,8 @@ import {
   LogOut,
   Menu,
   X,
-  Bell
+  Bell,
+  Globe
 } from 'lucide-react';
 
 // Import tab components
@@ -40,6 +42,7 @@ import { SystemTab } from './tabs/SystemTab';
 import { AnalyticsTab } from './tabs/AnalyticsTab';
 
 export const AdminDashboard: React.FC = () => {
+  const navigate = useNavigate();
   const { user, logout } = useAuth();
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -132,6 +135,15 @@ export const AdminDashboard: React.FC = () => {
             {/* Desktop Actions */}
             <div className="hidden md:flex items-center space-x-4">
                 <Button
+                  onClick={() => navigate('/univers-approvals')}
+                  variant="secondary"
+                  size="sm"
+                  className="flex items-center space-x-2"
+                >
+                  <Globe className="h-4 w-4" />
+                  <span>Approbations Univers</span>
+                </Button>
+                <Button
                   onClick={loadDashboardData}
                   variant="secondary"
                   size="sm"
@@ -163,6 +175,18 @@ export const AdminDashboard: React.FC = () => {
         {/* Mobile Menu */}
         {isMobileMenuOpen && (
           <div className="md:hidden bg-white border-t border-gray-200 px-4 py-3 space-y-3">
+            <Button
+              onClick={() => {
+                navigate('/univers-approvals');
+                setIsMobileMenuOpen(false);
+              }}
+              variant="secondary"
+              size="sm"
+              className="w-full flex items-center justify-center space-x-2"
+            >
+              <Globe className="h-4 w-4" />
+              <span>Approbations Univers</span>
+            </Button>
             <Button
               onClick={loadDashboardData}
               variant="secondary"

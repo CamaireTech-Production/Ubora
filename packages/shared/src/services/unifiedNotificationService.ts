@@ -7,7 +7,7 @@ export interface UnifiedNotification {
   id?: string;
   title: string;
   body: string;
-  type: 'form_assignment' | 'form_reminder' | 'metric_reminder' | 'programmed_instruction';
+  type: 'form_assignment' | 'form_reminder' | 'metric_reminder' | 'programmed_instruction' | 'univers_version_available';
   recipientId: string;
   recipientRole?: 'directeur' | 'employe';
   agencyId: string;

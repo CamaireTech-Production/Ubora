@@ -938,6 +938,34 @@ export interface ActiveUnivers {
   updatedAt: Date; // Last update timestamp
 }
 
+/**
+ * UniversVersion represents a version snapshot of a Univers template
+ * Used for tracking version history and approvals
+ */
+export interface UniversVersion {
+  id: string; // Auto-generated ID
+  universId: string; // Reference to Univers template
+  version: number; // Version number
+  previousVersion: number; // Previous version number
+  createdBy: string; // User ID who created this version
+  createdAt: Date; // When this version was created
+  approvedBy?: string; // Admin ID who approved this version
+  approvedAt?: Date; // When this version was approved
+  approvalStatus: 'pending' | 'approved' | 'rejected'; // Approval status
+  rejectionReason?: string; // Reason for rejection if rejected
+  changes?: {
+    // Summary of changes (optional, for display purposes)
+    metadata?: boolean; // Whether metadata was changed
+    definitions?: {
+      forms?: boolean;
+      dashboards?: boolean;
+      instructions?: boolean;
+      lists?: boolean;
+      reports?: boolean;
+    };
+  };
+}
+
 // =============================================================================
 // TYPES FOR LISTS SYSTEM
 // Lists are tabular data structures with columns and rows, used in form dropdowns

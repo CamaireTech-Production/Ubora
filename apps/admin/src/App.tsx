@@ -6,6 +6,7 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import { AdminLoginPage } from './pages/AdminLoginPage';
 import { AdminPage } from './pages/AdminPage';
 import { UserDetailPage } from './pages/UserDetailPage';
+import { UniversApprovalsPage } from './pages/UniversApprovalsPage';
 import { AdminPWAInstallPrompt } from './components/AdminPWAInstallPrompt';
 import { PWAUpdateNotification } from './components/PWAUpdateNotification';
 
@@ -71,6 +72,16 @@ function App() {
               element={
                 <ProtectedRoute allowedRoles={['admin']}>
                   <UserDetailPage />
+                </ProtectedRoute>
+              } 
+            />
+            
+            {/* Admin Univers Approvals - root route */}
+            <Route 
+              path="/univers-approvals" 
+              element={
+                <ProtectedRoute allowedRoles={['admin']}>
+                  <UniversApprovalsPage />
                 </ProtectedRoute>
               } 
             />

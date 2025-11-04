@@ -15,12 +15,14 @@ import {
   Timestamp
 } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
-import { Univers, UniversInstance, UniversDefinitions, UniversMetadata, UniversOwnership, UniversUsage, ActiveUnivers } from '../types';
+import { Univers, UniversInstance, UniversDefinitions, UniversMetadata, UniversOwnership, UniversUsage, ActiveUnivers, UniversVersion } from '../types';
 import { universInstantiationService, InstantiationResult } from './universInstantiationService';
+import { unifiedNotificationService } from './unifiedNotificationService';
 
 class UniversService {
   private readonly collectionName = 'univers';
   private readonly instancesCollectionName = 'universInstances';
+  private readonly versionsCollectionName = 'universVersions';
 
   /**
    * Convertir les données Firestore en Univers
@@ -83,7 +85,7 @@ class UniversService {
         upgradedFromInstanceId: vh.upgradedFromInstanceId,
         dataMigrated: vh.dataMigrated ?? false
       })) || undefined,
-      latestAvailableVersion: data.latestAvailableVersion,
+      latestAvailableVersion: data.latestAvailableVersion || undefined,
       updateAvailable: data.updateAvailable ?? false
     } as UniversInstance;
   }
@@ -225,14 +227,65 @@ class UniversService {
     return obj;
   }
 
-  async update(id: string, updates: Partial<Univers>): Promise<void> {
+  /**
+   * Convertir les données Firestore en UniversVersion
+   */
+  private convertFirestoreToUniversVersion(id: string, data: any): UniversVersion {
+    return {
+      id,
+      universId: data.universId,
+      version: data.version,
+      previousVersion: data.previousVersion,
+      createdBy: data.createdBy,
+      createdAt: data.createdAt?.toDate() || new Date(),
+      approvedBy: data.approvedBy,
+      approvedAt: data.approvedAt?.toDate() || undefined,
+      approvalStatus: data.approvalStatus || 'pending',
+      rejectionReason: data.rejectionReason,
+      changes: data.changes
+    } as UniversVersion;
+  }
+
+  async update(id: string, updates: Partial<Univers>, updatedBy?: string): Promise<void> {
     try {
       const docRef = doc(db, this.collectionName, id);
       
-      // Recursively remove undefined values to prevent Firestore errors
+      // 1. Récupérer le Univers actuel pour obtenir la version actuelle
+      const currentUnivers = await this.getById(id);
+      if (!currentUnivers) {
+        throw new Error(`Univers not found: ${id}`);
+      }
+
+      const currentVersion = currentUnivers.metadata.version || 1;
+      const newVersion = currentVersion + 1;
+      const isMarketplace = currentUnivers.ownership.isMarketplaceTemplate;
+
+      // 2. Recursively remove undefined values to prevent Firestore errors
       const cleanedUpdates = this.removeUndefinedValues(updates);
       
       const updateData: any = { ...cleanedUpdates };
+      
+      // 3. Incrémenter automatiquement metadata.version
+      if (!updateData.metadata) {
+        updateData.metadata = {};
+      }
+      updateData.metadata.version = newVersion;
+
+      // 4. Si Univers marketplace : mettre approvalStatus = pending
+      if (isMarketplace && !updateData.ownership) {
+        updateData.ownership = {};
+      }
+      if (isMarketplace && updateData.ownership) {
+        // Ne pas écraser l'approvalStatus si c'est déjà 'approved' et qu'on ne modifie pas explicitement
+        // Mais si on modifie le Univers, on doit mettre à 'pending' pour réapprobation
+        if (currentUnivers.ownership.approvalStatus === 'approved') {
+          updateData.ownership.approvalStatus = 'pending';
+          // Réinitialiser les champs d'approbation
+          updateData.ownership.approvedBy = undefined;
+          updateData.ownership.approvedAt = undefined;
+          updateData.ownership.rejectionReason = undefined;
+        }
+      }
       
       // Convertir les dates en Timestamps Firestore
       if (updateData.metadata?.createdAt) {
@@ -259,7 +312,40 @@ class UniversService {
         }
       }
       
-      await updateDoc(docRef, updateData);
+      // 5. Créer un document UniversVersion pour tracking
+      const versionData: Omit<UniversVersion, 'id'> = {
+        universId: id,
+        version: newVersion,
+        previousVersion: currentVersion,
+        createdBy: updatedBy || currentUnivers.ownership.createdBy,
+        createdAt: new Date(),
+        approvalStatus: isMarketplace ? 'pending' : 'approved', // Marketplace requires approval
+        changes: {
+          metadata: !!updates.metadata,
+          definitions: {
+            forms: !!updates.definitions?.forms,
+            dashboards: !!updates.definitions?.dashboards,
+            instructions: !!updates.definitions?.instructions,
+            lists: !!updates.definitions?.lists,
+            reports: !!updates.definitions?.reports
+          }
+        }
+      };
+
+      // Créer le document UniversVersion en parallèle avec la mise à jour
+      const versionDocRef = doc(collection(db, this.versionsCollectionName));
+      await Promise.all([
+        updateDoc(docRef, updateData),
+        setDoc(versionDocRef, {
+          ...versionData,
+          createdAt: serverTimestamp()
+        })
+      ]);
+
+      console.log(`✅ Univers updated: ${id} (v${currentVersion} → v${newVersion})`);
+      if (isMarketplace) {
+        console.log(`   Approval status set to: pending (requires admin approval)`);
+      }
     } catch (error) {
       console.error('Erreur lors de la mise à jour du Univers:', error);
       throw error;
@@ -676,6 +762,322 @@ class UniversService {
       }
       
       throw new Error(`Failed to purchase Univers: ${error}`);
+    }
+  }
+
+  /**
+   * Récupérer toutes les versions d'un Univers
+   * 
+   * @param universId - ID du Univers template
+   * @returns Liste des versions triées par version (décroissant)
+   */
+  async getVersionsByUnivers(universId: string): Promise<UniversVersion[]> {
+    try {
+      const q = query(
+        collection(db, this.versionsCollectionName),
+        where('universId', '==', universId),
+        orderBy('version', 'desc')
+      );
+      
+      const querySnapshot = await getDocs(q);
+      return querySnapshot.docs.map(doc => 
+        this.convertFirestoreToUniversVersion(doc.id, doc.data())
+      );
+    } catch (error) {
+      console.error('Erreur lors de la récupération des versions du Univers:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Récupérer tous les Univers avec des versions en attente d'approbation
+   * 
+   * @returns Liste des Univers avec des versions pending
+   */
+  async getPendingApprovalUnivers(): Promise<{ univers: Univers; pendingVersion: UniversVersion }[]> {
+    try {
+      // 1. Récupérer tous les Univers marketplace avec approvalStatus = pending
+      const q = query(
+        collection(db, this.collectionName),
+        where('ownership.isMarketplaceTemplate', '==', true),
+        where('ownership.approvalStatus', '==', 'pending')
+      );
+      
+      const universSnapshot = await getDocs(q);
+      const results: { univers: Univers; pendingVersion: UniversVersion }[] = [];
+
+      // 2. Pour chaque Univers, récupérer la version en attente
+      for (const universDoc of universSnapshot.docs) {
+        const univers = this.convertFirestoreToUnivers(universDoc.id, universDoc.data());
+        
+        // Récupérer la dernière version en attente
+        const versions = await this.getVersionsByUnivers(univers.id);
+        const pendingVersion = versions.find(v => v.approvalStatus === 'pending');
+        
+        if (pendingVersion) {
+          results.push({ univers, pendingVersion });
+        }
+      }
+
+      return results;
+    } catch (error) {
+      console.error('Erreur lors de la récupération des Univers en attente:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Approuver une nouvelle version d'un Univers
+   * 
+   * @param universId - ID du Univers template
+   * @param version - Numéro de version à approuver
+   * @param adminId - ID de l'admin qui approuve
+   * @returns void
+   */
+  async approveNewVersion(
+    universId: string,
+    version: number,
+    adminId: string
+  ): Promise<void> {
+    try {
+      // 1. Mettre à jour le document UniversVersion
+      const versions = await this.getVersionsByUnivers(universId);
+      const versionDoc = versions.find(v => v.version === version);
+      
+      if (!versionDoc) {
+        throw new Error(`Version ${version} not found for Univers ${universId}`);
+      }
+
+      // Trouver le document UniversVersion dans Firestore
+      const versionsQuery = query(
+        collection(db, this.versionsCollectionName),
+        where('universId', '==', universId),
+        where('version', '==', version)
+      );
+      const versionsSnapshot = await getDocs(versionsQuery);
+      
+      if (versionsSnapshot.empty) {
+        throw new Error(`Version document not found for Univers ${universId} version ${version}`);
+      }
+
+      const versionDocRef = doc(db, this.versionsCollectionName, versionsSnapshot.docs[0].id);
+      
+      await updateDoc(versionDocRef, {
+        approvalStatus: 'approved',
+        approvedBy: adminId,
+        approvedAt: serverTimestamp()
+      });
+
+      // 2. Mettre à jour le document Univers
+      const universRef = doc(db, this.collectionName, universId);
+      await updateDoc(universRef, {
+        'ownership.approvalStatus': 'approved',
+        'ownership.approvedBy': adminId,
+        'ownership.approvedAt': serverTimestamp(),
+        'ownership.rejectionReason': undefined
+      });
+
+      // 3. Notifier toutes les instances qu'une nouvelle version est disponible
+      try {
+        await this.notifyNewVersionAvailable(universId, version);
+      } catch (notifyError) {
+        console.error(`⚠️ Error notifying instances about new version (non-blocking):`, notifyError);
+        // Ne pas faire échouer l'approbation si les notifications échouent
+      }
+
+      console.log(`✅ Univers version approved: ${universId} v${version} by admin ${adminId}`);
+    } catch (error) {
+      console.error(`❌ Error approving Univers version:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Rejeter une nouvelle version d'un Univers
+   * 
+   * @param universId - ID du Univers template
+   * @param version - Numéro de version à rejeter
+   * @param adminId - ID de l'admin qui rejette
+   * @param rejectionReason - Raison du rejet
+   * @returns void
+   */
+  async rejectNewVersion(
+    universId: string,
+    version: number,
+    adminId: string,
+    rejectionReason: string
+  ): Promise<void> {
+    try {
+      // 1. Mettre à jour le document UniversVersion
+      const versionsQuery = query(
+        collection(db, this.versionsCollectionName),
+        where('universId', '==', universId),
+        where('version', '==', version)
+      );
+      const versionsSnapshot = await getDocs(versionsQuery);
+      
+      if (versionsSnapshot.empty) {
+        throw new Error(`Version document not found for Univers ${universId} version ${version}`);
+      }
+
+      const versionDocRef = doc(db, this.versionsCollectionName, versionsSnapshot.docs[0].id);
+      
+      await updateDoc(versionDocRef, {
+        approvalStatus: 'rejected',
+        rejectionReason: rejectionReason
+      });
+
+      // 2. Mettre à jour le document Univers - revenir à la version précédente approuvée
+      const univers = await this.getById(universId);
+      if (!univers) {
+        throw new Error(`Univers not found: ${universId}`);
+      }
+
+      // Trouver la dernière version approuvée
+      const versions = await this.getVersionsByUnivers(universId);
+      const approvedVersions = versions.filter(v => v.approvalStatus === 'approved');
+      const lastApprovedVersion = approvedVersions[0]; // Déjà trié par version desc
+
+      const universRef = doc(db, this.collectionName, universId);
+      const updateData: any = {
+        'ownership.approvalStatus': 'rejected',
+        'ownership.rejectionReason': rejectionReason
+      };
+
+      // Si une version précédente était approuvée, restaurer cette version
+      if (lastApprovedVersion) {
+        updateData['metadata.version'] = lastApprovedVersion.version;
+      }
+
+      await updateDoc(universRef, updateData);
+
+      console.log(`✅ Univers version rejected: ${universId} v${version} by admin ${adminId}`);
+    } catch (error) {
+      console.error(`❌ Error rejecting Univers version:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Récupérer toutes les instances d'un Univers
+   * 
+   * @param universId - ID du Univers template
+   * @returns Liste des instances triées par date de création (décroissant)
+   */
+  async getInstancesByUnivers(universId: string): Promise<UniversInstance[]> {
+    try {
+      const q = query(
+        collection(db, this.instancesCollectionName),
+        where('universId', '==', universId),
+        orderBy('createdAt', 'desc')
+      );
+      
+      const querySnapshot = await getDocs(q);
+      return querySnapshot.docs.map(doc => 
+        this.convertFirestoreToUniversInstance(doc.id, doc.data())
+      );
+    } catch (error) {
+      console.error('Erreur lors de la récupération des instances du Univers:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Notifier toutes les instances d'un Univers qu'une nouvelle version est disponible
+   * 
+   * @param universId - ID du Univers template
+   * @param newVersion - Numéro de la nouvelle version
+   * @returns void
+   */
+  async notifyNewVersionAvailable(universId: string, newVersion: number): Promise<void> {
+    try {
+      // 1. Récupérer le Univers pour obtenir le nom
+      const univers = await this.getById(universId);
+      if (!univers) {
+        throw new Error(`Univers not found: ${universId}`);
+      }
+
+      // 2. Trouver toutes les instances de ce Univers
+      const instances = await this.getInstancesByUnivers(universId);
+      
+      if (instances.length === 0) {
+        console.log(`ℹ️ No instances found for Univers ${universId}, skipping notifications`);
+        return;
+      }
+
+      // 3. Mettre à jour toutes les instances avec latestAvailableVersion et updateAvailable
+      const batch = instances.map(async (instance) => {
+        const instanceRef = doc(db, this.instancesCollectionName, instance.id);
+        await updateDoc(instanceRef, {
+          latestAvailableVersion: newVersion,
+          updateAvailable: true,
+          updatedAt: serverTimestamp()
+        });
+      });
+
+      await Promise.all(batch);
+
+      // 4. Récupérer les informations utilisateur pour chaque instance unique
+      const uniqueUserIds = [...new Set(instances.map(inst => inst.userId))];
+      const usersCollection = collection(db, 'users');
+      
+      // 5. Envoyer des notifications à chaque propriétaire d'instance
+      const notificationPromises = uniqueUserIds.map(async (userId) => {
+        try {
+          // Récupérer les informations utilisateur
+          const userDoc = await getDoc(doc(usersCollection, userId));
+          if (!userDoc.exists()) {
+            console.warn(`User ${userId} not found, skipping notification`);
+            return;
+          }
+
+          const userData = userDoc.data();
+          const userEmail = userData.email;
+          const userName = userData.name || 'Utilisateur';
+          const userRole = userData.role || 'directeur';
+          const agencyId = userData.agencyId;
+
+          if (!agencyId) {
+            console.warn(`User ${userId} has no agencyId, skipping notification`);
+            return;
+          }
+
+          // Trouver les instances de cet utilisateur pour ce Univers
+          const userInstances = instances.filter(inst => inst.userId === userId);
+          const currentVersion = userInstances[0]?.metadata.universVersion || userInstances[0]?.universVersion || 1;
+
+          // Envoyer la notification unifiée
+          await unifiedNotificationService.sendNotification({
+            title: `Nouvelle version disponible : ${univers.metadata.name}`,
+            body: `Une nouvelle version (v${newVersion}) du Univers "${univers.metadata.name}" est maintenant disponible. Votre version actuelle est v${currentVersion}.`,
+            type: 'univers_version_available',
+            recipientId: userId,
+            recipientRole: userRole as 'directeur' | 'employe',
+            agencyId: agencyId,
+            emailAddress: userEmail,
+            redirectUrl: `/univers/${universId}`,
+            data: {
+              universId: universId,
+              universName: univers.metadata.name,
+              currentVersion: currentVersion,
+              newVersion: newVersion,
+              instanceIds: userInstances.map(inst => inst.id)
+            }
+          });
+
+          console.log(`✅ Notification sent to user ${userId} for Univers ${universId} v${newVersion}`);
+        } catch (error) {
+          console.error(`❌ Error sending notification to user ${userId}:`, error);
+          // Ne pas faire échouer toute l'opération si une notification échoue
+        }
+      });
+
+      await Promise.all(notificationPromises);
+
+      console.log(`✅ Notified ${uniqueUserIds.length} users about new version ${newVersion} of Univers ${universId}`);
+    } catch (error) {
+      console.error(`❌ Error notifying about new version:`, error);
+      throw error;
     }
   }
 
