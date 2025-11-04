@@ -1,8 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { Univers } from '../types';
 import { UniversCard } from './UniversCard';
-import { Button } from './Button';
-import { Plus, Search, Filter } from 'lucide-react';
+import { Search } from 'lucide-react';
 import { Input } from './Input';
 
 interface UniversListProps {
@@ -10,151 +9,101 @@ interface UniversListProps {
   onEdit?: (univers: Univers) => void;
   onDelete?: (universId: string) => void;
   onView?: (univers: Univers) => void;
-  onCreate?: () => void;
   currentUserId: string;
   isLoading?: boolean;
 }
-
-type FilterType = 'all' | 'my' | 'marketplace';
 
 export const UniversList: React.FC<UniversListProps> = ({
   univers,
   onEdit,
   onDelete,
   onView,
-  onCreate,
   currentUserId,
   isLoading = false
 }) => {
-  const [filterType, setFilterType] = useState<FilterType>('all');
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Filter Univers based on ownership and search
+  // Filter Univers based on search only
   const filteredUnivers = useMemo(() => {
-    let filtered = univers;
-
-    // Filter by ownership type
-    if (filterType === 'my') {
-      filtered = filtered.filter(u => u.ownership.createdBy === currentUserId);
-    } else if (filterType === 'marketplace') {
-      filtered = filtered.filter(u => 
-        u.ownership.isMarketplaceTemplate && 
-        u.ownership.approvalStatus === 'approved'
-      );
+    if (!searchQuery.trim()) {
+      return univers;
     }
 
-    // Filter by search query
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(u => 
-        u.metadata.name.toLowerCase().includes(query) ||
-        u.metadata.description?.toLowerCase().includes(query) ||
-        u.metadata.category?.toLowerCase().includes(query) ||
-        u.metadata.tags?.some(tag => tag.toLowerCase().includes(query))
-      );
-    }
-
-    return filtered;
-  }, [univers, filterType, searchQuery, currentUserId]);
+    const query = searchQuery.toLowerCase();
+    return univers.filter(u => 
+      u.metadata.name.toLowerCase().includes(query) ||
+      u.metadata.description?.toLowerCase().includes(query) ||
+      u.metadata.category?.toLowerCase().includes(query) ||
+      u.metadata.tags?.some(tag => tag.toLowerCase().includes(query))
+    );
+  }, [univers, searchQuery]);
 
   if (isLoading) {
     return (
-      <div className="text-center py-12">
-        <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-        <p className="mt-4 text-sm text-gray-600">Chargement des Univers...</p>
+      <div className="space-y-6">
+        {/* Skeleton pour la recherche */}
+        <div className="h-12 bg-gray-200 rounded-lg animate-pulse"></div>
+        {/* Skeleton pour les cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {[...Array(6)].map((_, i) => (
+            <div key={i} className="h-80 bg-white rounded-xl border border-gray-200 animate-pulse">
+              <div className="h-32 bg-gray-200 rounded-t-xl"></div>
+              <div className="p-6 space-y-4">
+                <div className="h-6 bg-gray-200 rounded w-3/4"></div>
+                <div className="h-4 bg-gray-200 rounded w-full"></div>
+                <div className="h-4 bg-gray-200 rounded w-2/3"></div>
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     );
   }
 
   return (
     <div className="space-y-6">
-      {/* Header with filters and search */}
-      <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
-        {/* Search */}
-        <div className="flex-1 w-full sm:max-w-md">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-            <Input
-              type="text"
-              placeholder="Rechercher un Univers..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10"
-            />
-          </div>
+      {/* Search bar avec design moderne */}
+      <div className="relative">
+        <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+          <Search className="h-5 w-5 text-gray-400" />
         </div>
-
-        {/* Filter buttons */}
-        <div className="flex flex-wrap gap-2">
-          <Button
-            variant={filterType === 'all' ? 'primary' : 'secondary'}
-            size="sm"
-            onClick={() => setFilterType('all')}
-          >
-            <Filter className="h-4 w-4 mr-2" />
-            Tous
-          </Button>
-          <Button
-            variant={filterType === 'my' ? 'primary' : 'secondary'}
-            size="sm"
-            onClick={() => setFilterType('my')}
-          >
-            Mes Univers
-          </Button>
-          <Button
-            variant={filterType === 'marketplace' ? 'primary' : 'secondary'}
-            size="sm"
-            onClick={() => setFilterType('marketplace')}
-          >
-            Marketplace
-          </Button>
-        </div>
-
-        {/* Create button */}
-        {onCreate && (
-          <Button onClick={onCreate} className="flex items-center space-x-2">
-            <Plus className="h-4 w-4" />
-            <span className="hidden sm:inline">Créer un Univers</span>
-            <span className="sm:hidden">Créer</span>
-          </Button>
-        )}
+        <Input
+          type="text"
+          placeholder="Rechercher un Univers..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="pl-12 h-12 text-base bg-white/80 backdrop-blur-sm border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 rounded-xl shadow-sm"
+        />
       </div>
 
-      {/* Results count */}
-      <div className="text-sm text-gray-600">
-        {filteredUnivers.length === 0 ? (
-          <span>
-            {searchQuery || filterType !== 'all' 
-              ? 'Aucun Univers ne correspond à vos filtres.' 
-              : 'Aucun Univers trouvé.'}
-          </span>
-        ) : (
-          <span>
-            {filteredUnivers.length} Univers trouvé{filteredUnivers.length > 1 ? 's' : ''}
-          </span>
-        )}
+      {/* Results count avec style moderne */}
+      <div className="flex items-center justify-between">
+        <div className="text-sm font-medium text-gray-700">
+          {filteredUnivers.length === 0 ? (
+            <span className="text-gray-500">Aucun résultat</span>
+          ) : (
+            <span>
+              <span className="text-blue-600 font-semibold">{filteredUnivers.length}</span>{' '}
+              Univers{filteredUnivers.length > 1 ? 's' : ''} trouvé{filteredUnivers.length > 1 ? 's' : ''}
+            </span>
+          )}
+        </div>
       </div>
 
-      {/* Univers grid */}
+      {/* Univers grid avec design moderne */}
       {filteredUnivers.length === 0 ? (
-        <div className="text-center py-12 bg-white rounded-lg border border-gray-200">
-          <div className="inline-block p-3 bg-gray-100 rounded-full mb-4">
-            <Filter className="h-8 w-8 text-gray-400" />
+        <div className="text-center py-16 bg-gradient-to-br from-gray-50 to-white rounded-2xl border border-gray-200 shadow-sm">
+          <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-blue-100 to-indigo-100 rounded-full mb-4">
+            <Search className="h-8 w-8 text-blue-500" />
           </div>
-          <h3 className="text-lg font-medium text-gray-900 mb-2">
+          <h3 className="text-xl font-semibold text-gray-900 mb-2">
             Aucun Univers trouvé
           </h3>
-          <p className="text-sm text-gray-600 mb-6">
-            {searchQuery || filterType !== 'all'
-              ? 'Essayez de modifier vos filtres ou votre recherche.'
-              : 'Commencez par créer votre premier Univers.'}
+          <p className="text-sm text-gray-600 max-w-md mx-auto">
+            {searchQuery
+              ? `Aucun résultat pour "${searchQuery}". Essayez une autre recherche.`
+              : 'Vous n\'avez pas encore de Univers. Créez votre premier Univers pour commencer.'}
           </p>
-          {onCreate && (
-            <Button onClick={onCreate} className="flex items-center space-x-2 mx-auto">
-              <Plus className="h-4 w-4" />
-              <span>Créer un Univers</span>
-            </Button>
-          )}
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -172,4 +121,3 @@ export const UniversList: React.FC<UniversListProps> = ({
     </div>
   );
 };
-

@@ -474,6 +474,67 @@ class UniversService {
   }
 
   /**
+   * Récupérer tous les Univers d'un directeur (créés + achetés depuis marketplace)
+   * Cette méthode combine getByUser() et les instances achetées
+   */
+  async getUserUnivers(userId: string, agencyId: string): Promise<Univers[]> {
+    try {
+      const allUnivers: Univers[] = [];
+      const universMap = new Map<string, Univers>();
+
+      // 1. Récupérer les Univers créés par l'utilisateur
+      const createdUnivers = await this.getByUser(userId, agencyId);
+      createdUnivers.forEach(u => {
+        universMap.set(u.id, u);
+        allUnivers.push(u);
+      });
+
+      // 2. Récupérer les instances achetées (marketplace)
+      const instances = await this.getInstancesByUser(userId, agencyId);
+      
+      // 3. Pour chaque instance, récupérer le Univers template correspondant
+      const purchasedUniversIds = new Set<string>();
+      instances.forEach(instance => {
+        if (instance.universId && !universMap.has(instance.universId)) {
+          purchasedUniversIds.add(instance.universId);
+        }
+      });
+
+      // 4. Récupérer les Univers templates pour les instances
+      if (purchasedUniversIds.size > 0) {
+        const purchasedUniversPromises = Array.from(purchasedUniversIds).map(async (universId) => {
+          try {
+            const univers = await this.getById(universId);
+            if (univers) {
+              return univers;
+            }
+            return null;
+          } catch (error) {
+            console.error(`Erreur lors de la récupération du Univers ${universId}:`, error);
+            return null;
+          }
+        });
+
+        const purchasedUnivers = await Promise.all(purchasedUniversPromises);
+        purchasedUnivers.forEach(u => {
+          if (u && !universMap.has(u.id)) {
+            universMap.set(u.id, u);
+            allUnivers.push(u);
+          }
+        });
+      }
+
+      // 5. Trier par date de création (décroissant)
+      return allUnivers.sort((a, b) => 
+        b.metadata.createdAt.getTime() - a.metadata.createdAt.getTime()
+      );
+    } catch (error) {
+      console.error('Erreur lors de la récupération des Univers de l\'utilisateur:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Créer une instance Univers (quand un utilisateur utilise un template)
    */
   async createInstance(instance: Omit<UniversInstance, 'id'>): Promise<string> {

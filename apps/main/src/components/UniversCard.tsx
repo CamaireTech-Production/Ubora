@@ -208,11 +208,15 @@ export const UniversCard: React.FC<UniversCardProps> = ({
 
   return (
     <>
-    <div className={`bg-white rounded-xl border p-6 hover:shadow-md transition-all duration-200 relative group ${
-      isActive ? 'border-blue-500 border-2 bg-blue-50 shadow-md' : 'border-gray-200'
+    <div className={`relative group bg-white rounded-2xl border overflow-hidden transition-all duration-300 hover:shadow-xl hover:-translate-y-1 ${
+      isActive ? 'border-blue-500 border-2 shadow-lg ring-2 ring-blue-500/20 bg-gradient-to-br from-blue-50 to-indigo-50' : 'border-gray-200 shadow-sm'
     }`}>
-      {/* Actions buttons - shown on hover */}
-      <div className="absolute top-4 right-4 z-10 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex space-x-2">
+      {/* Gradient overlay pour effet glassmorphism */}
+      <div className="absolute inset-0 bg-gradient-to-br from-white/80 to-transparent pointer-events-none"></div>
+      
+      <div className="relative p-6">
+      {/* Actions buttons - shown on hover avec design moderne */}
+      <div className="absolute top-4 right-4 z-20 opacity-0 group-hover:opacity-100 transition-all duration-300 flex space-x-2 bg-white/90 backdrop-blur-sm rounded-xl p-1 shadow-lg border border-gray-200">
         {onView && (
           <Button
             variant="secondary"
@@ -246,20 +250,24 @@ export const UniversCard: React.FC<UniversCardProps> = ({
         )}
       </div>
 
-      {/* Icon */}
+      {/* Icon avec design moderne */}
       {univers.metadata.iconUrl ? (
-        <div className="mb-4">
+        <div className="mb-4 relative">
+          <div className="absolute inset-0 bg-gradient-to-br from-blue-400/20 to-purple-400/20 rounded-2xl blur-xl"></div>
           <img 
             src={univers.metadata.iconUrl} 
             alt={univers.metadata.name}
-            className="h-16 w-16 rounded-lg object-cover"
+            className="relative h-20 w-20 rounded-2xl object-cover ring-2 ring-gray-100 shadow-lg"
           />
         </div>
       ) : (
-        <div className="mb-4 h-16 w-16 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center">
-          <span className="text-2xl font-bold text-white">
-            {univers.metadata.name.charAt(0).toUpperCase()}
-          </span>
+        <div className="mb-4 relative">
+          <div className="absolute inset-0 bg-gradient-to-br from-blue-400/30 to-indigo-500/30 rounded-2xl blur-xl animate-pulse"></div>
+          <div className="relative h-20 w-20 rounded-2xl bg-gradient-to-br from-blue-500 via-indigo-600 to-purple-600 flex items-center justify-center shadow-lg ring-2 ring-blue-100">
+            <span className="text-3xl font-bold text-white drop-shadow-lg">
+              {univers.metadata.name.charAt(0).toUpperCase()}
+            </span>
+          </div>
         </div>
       )}
 
@@ -270,14 +278,14 @@ export const UniversCard: React.FC<UniversCardProps> = ({
             {univers.metadata.name}
           </h3>
           {isActive && isDirecteur && (
-            <span className="flex items-center space-x-1 px-2 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-medium flex-shrink-0">
-              <CheckCircle className="h-3 w-3" />
+            <span className="flex items-center space-x-1 px-3 py-1.5 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-full text-xs font-semibold flex-shrink-0 shadow-md ring-2 ring-blue-200">
+              <CheckCircle className="h-3.5 w-3.5" />
               <span>Actif</span>
             </span>
           )}
           {hasUpdateAvailable && isDirecteur && (
-            <span className="flex items-center space-x-1 px-2 py-1 bg-orange-100 text-orange-700 rounded-full text-xs font-medium flex-shrink-0 animate-pulse transition-all duration-300">
-              <AlertCircle className="h-3 w-3 animate-bounce" />
+            <span className="flex items-center space-x-1 px-3 py-1.5 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-full text-xs font-semibold flex-shrink-0 shadow-md animate-pulse ring-2 ring-orange-200">
+              <AlertCircle className="h-3.5 w-3.5 animate-bounce" />
               <span>Nouvelle version</span>
             </span>
           )}
@@ -349,37 +357,37 @@ export const UniversCard: React.FC<UniversCardProps> = ({
         </div>
       </div>
 
-      {/* Aspects summary */}
-      <div className="border-t border-gray-200 pt-4 mt-4">
-        <div className="grid grid-cols-2 gap-2 text-xs text-gray-600">
-          <div className="flex items-center space-x-1">
-            <span className="font-medium">{univers.definitions.forms.length}</span>
-            <span>Formulaire(s)</span>
+      {/* Aspects summary avec design moderne */}
+      <div className="border-t border-gray-200/50 pt-4 mt-4 bg-gradient-to-br from-gray-50/50 to-transparent rounded-xl p-3 -mx-3">
+        <div className="grid grid-cols-2 gap-3 text-xs">
+          <div className="flex items-center space-x-2 bg-white/60 backdrop-blur-sm rounded-lg px-2 py-1.5 border border-gray-200/50">
+            <span className="font-bold text-blue-600">{univers.definitions.forms.length}</span>
+            <span className="text-gray-700">Formulaire(s)</span>
           </div>
-          <div className="flex items-center space-x-1">
-            <span className="font-medium">{univers.definitions.dashboards.length}</span>
-            <span>Tableau(x) de bord</span>
+          <div className="flex items-center space-x-2 bg-white/60 backdrop-blur-sm rounded-lg px-2 py-1.5 border border-gray-200/50">
+            <span className="font-bold text-indigo-600">{univers.definitions.dashboards.length}</span>
+            <span className="text-gray-700">Tableau(x) de bord</span>
           </div>
-          <div className="flex items-center space-x-1">
-            <span className="font-medium">{univers.definitions.instructions.length}</span>
-            <span>Instruction(s)</span>
+          <div className="flex items-center space-x-2 bg-white/60 backdrop-blur-sm rounded-lg px-2 py-1.5 border border-gray-200/50">
+            <span className="font-bold text-purple-600">{univers.definitions.instructions.length}</span>
+            <span className="text-gray-700">Instruction(s)</span>
           </div>
-          <div className="flex items-center space-x-1">
-            <span className="font-medium">{univers.definitions.lists.length}</span>
-            <span>Liste(s)</span>
+          <div className="flex items-center space-x-2 bg-white/60 backdrop-blur-sm rounded-lg px-2 py-1.5 border border-gray-200/50">
+            <span className="font-bold text-pink-600">{univers.definitions.lists.length}</span>
+            <span className="text-gray-700">Liste(s)</span>
           </div>
         </div>
       </div>
 
-      {/* Actions pour directeurs */}
+      {/* Actions pour directeurs avec design moderne */}
       {isDirecteur && (
-        <div className="mt-4 pt-4 border-t border-gray-200 space-y-2">
+        <div className="mt-4 pt-4 border-t border-gray-200/50 space-y-2">
           {hasUpdateAvailable && (
             <Button
               variant="primary"
               size="sm"
               onClick={handleUpgradeClick}
-              className="w-full flex items-center justify-center space-x-2 bg-orange-500 hover:bg-orange-600"
+              className="w-full flex items-center justify-center space-x-2 bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 shadow-lg hover:shadow-xl transition-all duration-200"
               disabled={disabled || isUpgrading}
             >
               <Download className="h-4 w-4" />
@@ -391,7 +399,7 @@ export const UniversCard: React.FC<UniversCardProps> = ({
               variant="primary"
               size="sm"
               onClick={handleActivateClick}
-              className="w-full flex items-center justify-center space-x-2"
+              className="w-full flex items-center justify-center space-x-2 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 shadow-lg hover:shadow-xl transition-all duration-200"
               disabled={disabled}
             >
               <Power className="h-4 w-4" />
@@ -400,6 +408,7 @@ export const UniversCard: React.FC<UniversCardProps> = ({
           )}
         </div>
       )}
+      </div>
     </div>
 
     {/* Modal de confirmation activation */}

@@ -9,6 +9,8 @@ import { useToast } from '@ubora/shared/hooks/useToast';
 import { Toast } from '../components/Toast';
 import { ConfirmationModal } from '../components/ConfirmationModal';
 import { UniversCreateModal } from '../components/UniversCreateModal';
+import { Button } from '../components/Button';
+import { Plus, Globe } from 'lucide-react';
 
 export const UniversPage: React.FC = () => {
   const navigate = useNavigate();
@@ -32,23 +34,9 @@ export const UniversPage: React.FC = () => {
 
     setIsLoading(true);
     try {
-      // Load all Univers the user has access to
-      const [
-        myUnivers,
-        marketplaceUnivers
-      ] = await Promise.all([
-        universService.getByUser(user.id, user.agencyId),
-        universService.getMarketplaceTemplates()
-      ]);
-
-      // Combine and deduplicate
-      const allUnivers = new Map<string, Univers>();
-      
-      [...myUnivers, ...marketplaceUnivers].forEach(u => {
-        allUnivers.set(u.id, u);
-      });
-
-      setUnivers(Array.from(allUnivers.values()));
+      // Charger uniquement les Univers du directeur (créés + achetés)
+      const userUnivers = await universService.getUserUnivers(user.id, user.agencyId);
+      setUnivers(userUnivers);
     } catch (error) {
       console.error('Erreur lors du chargement des Univers:', error);
       showError('Erreur lors du chargement des Univers');
@@ -117,13 +105,39 @@ export const UniversPage: React.FC = () => {
     <>
       <Layout title="Univer Ubora">
         <div className="space-y-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">Univer Ubora</h1>
-              <p className="text-sm text-gray-600 mt-1">
-                Gérez vos Univers - templates regroupant formulaires, tableaux de bord, instructions, listes et rapports
-              </p>
+          {/* Header avec gradient moderne */}
+          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 p-8 border border-blue-100">
+            <div className="relative z-10">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div>
+                  <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+                    Mes Univers
+                  </h1>
+                  <p className="text-sm text-gray-600 mt-2">
+                    Gérez vos Univers - templates regroupant formulaires, tableaux de bord, instructions, listes et rapports
+                  </p>
+                </div>
+                <div className="flex gap-3">
+                  <Button
+                    onClick={() => navigate('/univers/marketplace')}
+                    variant="secondary"
+                    className="flex items-center space-x-2 bg-white/80 backdrop-blur-sm hover:bg-white border border-gray-200 shadow-sm"
+                  >
+                    <Globe className="h-4 w-4" />
+                    <span>Marketplace</span>
+                  </Button>
+                  <Button
+                    onClick={handleCreate}
+                    className="flex items-center space-x-2 shadow-lg"
+                  >
+                    <Plus className="h-4 w-4" />
+                    <span>Créer un Univers</span>
+                  </Button>
+                </div>
+              </div>
             </div>
+            {/* Pattern décoratif */}
+            <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-blue-200/20 to-purple-200/20 rounded-full blur-3xl"></div>
           </div>
 
           <UniversList
@@ -131,7 +145,6 @@ export const UniversPage: React.FC = () => {
             onEdit={handleEdit}
             onDelete={handleDelete}
             onView={handleView}
-            onCreate={handleCreate}
             currentUserId={user.id}
             isLoading={isLoading}
           />

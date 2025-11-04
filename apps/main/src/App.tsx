@@ -28,6 +28,7 @@ import { UniversCreatePage } from './pages/UniversCreatePage';
 import { UniversCreateFromTemplatePage } from './pages/UniversCreateFromTemplatePage';
 import { UniversEditPage } from './pages/UniversEditPage';
 import { UniversViewPage } from './pages/UniversViewPage';
+import { UniversMarketplacePage } from './pages/UniversMarketplacePage';
 import { ListsPage } from './pages/ListsPage';
 import { ListEditorPage } from './pages/ListEditorPage';
 import PushTestPage from './pages/PushTestPage';
@@ -320,6 +321,19 @@ function App() {
                       requireDirectorDashboardAccess={true}
                     >
                       <UniversPage />
+                    </ProtectedRoute>
+                  } 
+                />
+                
+                {/* Univers - Marketplace */}
+                <Route 
+                  path="/univers/marketplace" 
+                  element={
+                    <ProtectedRoute 
+                      allowedRoles={['directeur', 'employe']} 
+                      requireDirectorDashboardAccess={true}
+                    >
+                      <UniversMarketplacePage />
                     </ProtectedRoute>
                   } 
                 />
