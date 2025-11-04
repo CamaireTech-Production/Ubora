@@ -52,7 +52,6 @@ export const UniversWizardStep2: React.FC<UniversWizardStepProps> = ({
   useEffect(() => {
     updateWizardData({
       definitions: {
-        ...wizardData.definitions,
         lists: lists
       }
     });
@@ -63,7 +62,7 @@ export const UniversWizardStep2: React.FC<UniversWizardStepProps> = ({
     } else {
       markStepSkipped(step);
     }
-  }, [lists, updateWizardData, wizardData.definitions, markStepCompleted, markStepSkipped, step]);
+  }, [lists, updateWizardData, markStepCompleted, markStepSkipped, step]);
 
   const handleAddList = () => {
     setEditingListId(null);

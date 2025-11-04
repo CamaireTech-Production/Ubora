@@ -160,7 +160,6 @@ export const UniversWizardStep5: React.FC<UniversWizardStepProps> = ({
   useEffect(() => {
     updateWizardData({
       definitions: {
-        ...wizardData.definitions,
         instructions: instructions
       }
     });
@@ -169,7 +168,7 @@ export const UniversWizardStep5: React.FC<UniversWizardStepProps> = ({
     if (instructions.length > 0) {
       markStepCompleted(6); // Instructions is now step 6
     }
-  }, [instructions, updateWizardData, wizardData.definitions, markStepCompleted, step]);
+  }, [instructions, updateWizardData, markStepCompleted, step]);
 
   const handleAddInstruction = () => {
     resetForm();

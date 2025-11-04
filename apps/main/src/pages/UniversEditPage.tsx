@@ -76,11 +76,11 @@ export const UniversEditPage: React.FC = () => {
       await universService.update(id, updates);
       showSuccess('Univers mis à jour avec succès');
       
-      // Reload to get updated data
-      await loadUnivers();
-      
-      // Optionally navigate back to Univers page
-      // navigate('/univers');
+      // Navigate back to Univers listing page after successful update
+      setIsNavigating(true);
+      setTimeout(() => {
+        navigate('/univers', { replace: true });
+      }, 500); // Small delay to show success message
     } catch (error) {
       console.error('Erreur lors de la mise à jour du Univers:', error);
       showError('Erreur lors de la mise à jour du Univers');

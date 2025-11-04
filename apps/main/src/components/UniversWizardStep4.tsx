@@ -75,7 +75,6 @@ export const UniversWizardStep4: React.FC<UniversWizardStepProps> = ({
   useEffect(() => {
     updateWizardData({
       definitions: {
-        ...wizardData.definitions,
         dashboards: dashboards
       }
     });
@@ -84,7 +83,7 @@ export const UniversWizardStep4: React.FC<UniversWizardStepProps> = ({
     if (dashboards.length > 0) {
       markStepCompleted(4);
     }
-  }, [dashboards, updateWizardData, wizardData.definitions, markStepCompleted]);
+  }, [dashboards, updateWizardData, markStepCompleted]);
 
   const handleAddDashboard = () => {
     if (!hasForms) {

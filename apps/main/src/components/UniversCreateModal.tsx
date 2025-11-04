@@ -54,9 +54,9 @@ export const UniversCreateModal: React.FC<UniversCreateModalProps> = ({
                 <p className="text-xs sm:text-sm text-gray-600 mb-3">
                   Créez un Univers entièrement personnalisé en partant de zéro
                 </p>
-                <Button size="sm" className="w-full sm:w-auto">
+                <span className="inline-block px-3 py-1.5 text-sm font-medium rounded-lg bg-blue-600 text-white cursor-pointer">
                   Commencer
-                </Button>
+                </span>
               </div>
             </div>
           </button>

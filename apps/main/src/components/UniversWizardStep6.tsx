@@ -82,7 +82,6 @@ export const UniversWizardStep6: React.FC<UniversWizardStepProps> = ({
   useEffect(() => {
     updateWizardData({
       definitions: {
-        ...wizardData.definitions,
         reports: reports
       }
     });
@@ -93,7 +92,7 @@ export const UniversWizardStep6: React.FC<UniversWizardStepProps> = ({
     } else {
       markStepSkipped(step);
     }
-  }, [reports, updateWizardData, wizardData.definitions, markStepCompleted, markStepSkipped, step]);
+  }, [reports, updateWizardData, markStepCompleted, markStepSkipped, step]);
 
   const handleAddReport = () => {
     if (!hasDashboards) {

@@ -70,7 +70,6 @@ export const UniversWizardStep3: React.FC<UniversWizardStepProps> = ({
   useEffect(() => {
     updateWizardData({
       definitions: {
-        ...wizardData.definitions,
         forms: forms
       }
     });
@@ -79,7 +78,7 @@ export const UniversWizardStep3: React.FC<UniversWizardStepProps> = ({
     if (forms.length > 0) {
       markStepCompleted(3);
     }
-  }, [forms, updateWizardData, markStepCompleted, wizardData.definitions]);
+  }, [forms, updateWizardData, markStepCompleted]);
 
   const handleAddForm = () => {
     setEditingFormId(null);

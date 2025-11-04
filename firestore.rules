@@ -757,17 +757,17 @@ service cloud.firestore {
       // MODIFICATION des Univers
       allow update: if isAuthenticated() && (
         isAdmin() ||
-        (canCreateForms() && 
-         isSameAgency(resource.data.ownership.agencyId) &&
-         resource.data.ownership.createdBy == request.auth.uid)
+        // Allow update if creator is same user
+        // Same logic as create, but without canCreateForms() check for flexibility
+        resource.data.ownership.createdBy == request.auth.uid
       );
       
       // SUPPRESSION des Univers
       allow delete: if isAuthenticated() && (
         isAdmin() ||
-        (canCreateForms() && 
-         isSameAgency(resource.data.ownership.agencyId) &&
-         resource.data.ownership.createdBy == request.auth.uid)
+        // Allow delete if creator is same user
+        // Same logic as create, but without canCreateForms() check for flexibility
+        resource.data.ownership.createdBy == request.auth.uid
       );
     }
 

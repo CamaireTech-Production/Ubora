@@ -110,7 +110,15 @@ export const UniversEditor: React.FC<UniversEditorProps> = ({
 
   // Update wizard data function - memoized to prevent infinite loops
   const updateWizardData = useCallback((updates: {
-    metadata?: Partial<typeof wizardData.metadata>;
+    metadata?: Partial<{
+      name?: string;
+      description?: string;
+      iconUrl?: string;
+      category?: string;
+      tags?: string[];
+      version?: number;
+      createdAt?: Date;
+    }>;
     definitions?: Partial<UniversDefinitions>;
   }) => {
     if (updates.metadata) {
@@ -148,39 +156,45 @@ export const UniversEditor: React.FC<UniversEditorProps> = ({
     }
   }, []); // Empty deps - function should be stable
 
-  // Step management functions
-  const markStepCompleted = (step: number) => {
+  // Step management functions - memoized to prevent infinite loops
+  const markStepCompleted = useCallback((step: number) => {
     setCompletedSteps(prev => new Set([...prev, step]));
-  };
+  }, []);
 
-  const markStepSkipped = (step: number) => {
+  const markStepSkipped = useCallback((step: number) => {
     setCompletedSteps(prev => {
       const updated = new Set(prev);
       updated.delete(step);
       return updated;
     });
-  };
+  }, []);
 
-  const goToStep = (step: number) => {
+  const goToStep = useCallback((step: number) => {
     const tabConfig = TAB_CONFIGS.find(t => t.step === step);
     if (tabConfig) {
       setActiveTab(tabConfig.id);
     }
-  };
+  }, []);
 
-  const goToNextStep = () => {
-    const currentIndex = TAB_CONFIGS.findIndex(t => t.id === activeTab);
-    if (currentIndex < TAB_CONFIGS.length - 1) {
-      setActiveTab(TAB_CONFIGS[currentIndex + 1].id);
-    }
-  };
+  const goToNextStep = useCallback(() => {
+    setActiveTab(prevTab => {
+      const currentIndex = TAB_CONFIGS.findIndex(t => t.id === prevTab);
+      if (currentIndex < TAB_CONFIGS.length - 1) {
+        return TAB_CONFIGS[currentIndex + 1].id;
+      }
+      return prevTab;
+    });
+  }, []);
 
-  const goToPreviousStep = () => {
-    const currentIndex = TAB_CONFIGS.findIndex(t => t.id === activeTab);
-    if (currentIndex > 0) {
-      setActiveTab(TAB_CONFIGS[currentIndex - 1].id);
-    }
-  };
+  const goToPreviousStep = useCallback(() => {
+    setActiveTab(prevTab => {
+      const currentIndex = TAB_CONFIGS.findIndex(t => t.id === prevTab);
+      if (currentIndex > 0) {
+        return TAB_CONFIGS[currentIndex - 1].id;
+      }
+      return prevTab;
+    });
+  }, []);
 
   // Validation function for Univers dependencies
   const validateUniversDependencies = (
@@ -440,11 +454,15 @@ export const UniversEditor: React.FC<UniversEditorProps> = ({
     setIsSaving(true);
     try {
       // Prepare updated Univers with incremented version
+      // Ensure tags is always an array (never undefined)
+      const updatedMetadata = {
+        ...metadata,
+        version: (metadata.version || 1) + 1, // Increment version
+        tags: metadata.tags || [] // Ensure tags is always an array
+      };
+      
       const updatedUnivers: Partial<Univers> = {
-        metadata: {
-          ...metadata,
-          version: (metadata.version || 1) + 1 // Increment version
-        },
+        metadata: updatedMetadata,
         definitions: definitions
       };
 

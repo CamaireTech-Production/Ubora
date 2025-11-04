@@ -186,16 +186,39 @@ class UniversService {
   /**
    * Mettre à jour un Univers
    */
+  /**
+   * Recursively remove undefined values from an object to prevent Firestore errors
+   */
+  private removeUndefinedValues(obj: any): any {
+    if (obj === null || obj === undefined) {
+      return obj;
+    }
+    
+    if (Array.isArray(obj)) {
+      return obj.map(item => this.removeUndefinedValues(item));
+    }
+    
+    if (typeof obj === 'object' && obj.constructor === Object) {
+      const cleaned: any = {};
+      for (const [key, value] of Object.entries(obj)) {
+        if (value !== undefined) {
+          cleaned[key] = this.removeUndefinedValues(value);
+        }
+      }
+      return cleaned;
+    }
+    
+    return obj;
+  }
+
   async update(id: string, updates: Partial<Univers>): Promise<void> {
     try {
       const docRef = doc(db, this.collectionName, id);
       
-      // Filter out undefined values to prevent Firestore errors
-      const filteredUpdates = Object.fromEntries(
-        Object.entries(updates).filter(([_, value]) => value !== undefined)
-      );
+      // Recursively remove undefined values to prevent Firestore errors
+      const cleanedUpdates = this.removeUndefinedValues(updates);
       
-      const updateData: any = { ...filteredUpdates };
+      const updateData: any = { ...cleanedUpdates };
       
       // Convertir les dates en Timestamps Firestore
       if (updateData.metadata?.createdAt) {
@@ -206,6 +229,20 @@ class UniversService {
       }
       if (updateData.usage?.lastUsedAt) {
         updateData.usage.lastUsedAt = Timestamp.fromDate(updateData.usage.lastUsedAt);
+      }
+      
+      // Ensure arrays are never undefined (use empty array instead)
+      // This must be done after removeUndefinedValues to avoid removing the field entirely
+      if (updateData.metadata) {
+        if (updateData.metadata.tags === undefined) {
+          // If tags is explicitly set to undefined, don't include it in the update
+          // Otherwise ensure it's an array
+          if ('tags' in updateData.metadata) {
+            updateData.metadata.tags = [];
+          }
+        } else if (updateData.metadata.tags === null) {
+          updateData.metadata.tags = [];
+        }
       }
       
       await updateDoc(docRef, updateData);
