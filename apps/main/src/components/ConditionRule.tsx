@@ -1,5 +1,5 @@
 import React from 'react';
-import { ConditionalRule, FormField } from '../types';
+import { ConditionalRule, FormField, List } from '../types';
 import { Select } from './Select';
 import { Input } from './Input';
 import { Button } from './Button';
@@ -8,6 +8,7 @@ import { Trash2 } from 'lucide-react';
 interface ConditionRuleProps {
   condition: ConditionalRule;
   availableFields: FormField[];
+  availableLists?: List[]; // Lists available for select fields
   onUpdate: (condition: ConditionalRule) => void;
   onRemove: () => void;
   canRemove: boolean;
@@ -16,6 +17,7 @@ interface ConditionRuleProps {
 export const ConditionRule: React.FC<ConditionRuleProps> = ({
   condition,
   availableFields,
+  availableLists = [],
   onUpdate,
   onRemove,
   canRemove
@@ -134,8 +136,43 @@ export const ConditionRule: React.FC<ConditionRuleProps> = ({
         );
       
       case 'select':
+        // Check if field uses a list
+        if (selectedField?.listId && availableLists.length > 0) {
+          const list = availableLists.find(l => l.id === selectedField.listId);
+          if (list) {
+            // Find display column (use displayColumnId or first column)
+            const displayColumn = list.columns.find(c => c.id === selectedField.displayColumnId) || list.columns[0];
+            if (displayColumn) {
+              // Extract options from list rows
+              const listOptions = list.rows.map((row, index) => {
+                const displayValue = String(row[displayColumn.id] || '');
+                return {
+                  value: displayValue,
+                  label: displayValue || `Ligne ${index + 1}`
+                };
+              });
+              
+              return (
+                <Select
+                  value={typeof condition.value === 'string' ? condition.value : ''}
+                  onChange={(e) => onUpdate({
+                    ...condition,
+                    value: e.target.value
+                  })}
+                  options={[
+                    { value: '', label: 'Sélectionner...' },
+                    ...listOptions
+                  ]}
+                  className="flex-1"
+                />
+              );
+            }
+          }
+        }
+        
+        // Fallback: use manual options (existing behavior)
         return (
-            <Select
+          <Select
             value={typeof condition.value === 'string' ? condition.value : ''}
             onChange={(e) => onUpdate({
               ...condition,
@@ -143,7 +180,7 @@ export const ConditionRule: React.FC<ConditionRuleProps> = ({
             })}
             options={[
               { value: '', label: 'Sélectionner...' },
-              ...(selectedField.options || []).map(option => ({
+              ...(selectedField?.options || []).map(option => ({
                 value: option,
                 label: option
               }))

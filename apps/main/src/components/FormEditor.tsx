@@ -1055,6 +1055,7 @@ export const FormEditor: React.FC<FormEditorProps> = ({
                         <ConditionalLogicBuilder
                           field={field}
                           allFields={fields}
+                          availableLists={availableLists}
                           onUpdate={(conditionalLogic) => updateField(field.id, { conditionalLogic })}
                         />
                       </div>

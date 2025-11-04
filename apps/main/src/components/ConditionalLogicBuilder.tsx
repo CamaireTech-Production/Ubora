@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { FormField, ConditionalRule } from '../types';
+import { FormField, ConditionalRule, List } from '../types';
 import { Button } from './Button';
 import { Select } from './Select';
 import { ConditionRule } from './ConditionRule';
@@ -9,12 +9,14 @@ import { Plus, Eye, EyeOff, AlertCircle } from 'lucide-react';
 interface ConditionalLogicBuilderProps {
   field: FormField;
   allFields: FormField[];
+  availableLists?: List[]; // Lists available for select fields
   onUpdate: (conditionalLogic: FormField['conditionalLogic']) => void;
 }
 
 export const ConditionalLogicBuilder: React.FC<ConditionalLogicBuilderProps> = ({
   field,
   allFields,
+  availableLists = [],
   onUpdate
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
@@ -238,6 +240,7 @@ export const ConditionalLogicBuilder: React.FC<ConditionalLogicBuilderProps> = (
                       <ConditionRule
                         condition={condition}
                         availableFields={availableFields}
+                        availableLists={availableLists}
                         onUpdate={(updatedCondition) => updateCondition(index, updatedCondition)}
                         onRemove={() => removeCondition(index)}
                         canRemove={conditionalLogic.conditions.length > 1}
