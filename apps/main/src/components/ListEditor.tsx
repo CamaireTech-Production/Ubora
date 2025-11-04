@@ -389,7 +389,7 @@ export const ListEditor: React.FC<ListEditorProps> = ({
                           type="button"
                           onClick={() => handleDeleteColumn(col.id)}
                           disabled={columns.length <= 1}
-                          className="p-1 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center bg-red-600 hover:bg-red-700 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="p-1 h-6 w-6 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity flex items-center justify-center bg-red-600 hover:bg-red-700 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
                           title="Supprimer la colonne"
                         >
                           <Minus className="h-3 w-3" strokeWidth={3} style={{ color: 'white' }} />
