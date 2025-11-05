@@ -39,6 +39,67 @@ export interface InstantiationParams {
  */
 class UniversInstantiationService {
   /**
+   * Helper function to normalize date from various formats into a valid Date object
+   */
+  private normalizeDate(dateValue: any): Date {
+    if (dateValue instanceof Date) {
+      // Vérifier que la date est valide
+      if (isNaN(dateValue.getTime())) {
+        console.warn('⚠️ Invalid Date object, using current date');
+        return new Date();
+      }
+      return dateValue;
+    }
+    if (dateValue && typeof dateValue === 'object') {
+      // Firestore Timestamp with toDate method
+      if ('toDate' in dateValue && typeof dateValue.toDate === 'function') {
+        const date = dateValue.toDate();
+        if (isNaN(date.getTime())) {
+          console.warn('⚠️ Invalid Firestore Timestamp, using current date');
+          return new Date();
+        }
+        return date;
+      }
+      // Firestore Timestamp sérialisé (has seconds property)
+      if ('seconds' in dateValue && typeof dateValue.seconds === 'number') {
+        const date = new Date(dateValue.seconds * 1000);
+        if (isNaN(date.getTime())) {
+          console.warn('⚠️ Invalid Firestore Timestamp (seconds), using current date');
+          return new Date();
+        }
+        return date;
+      }
+      // Try to convert object to date
+      try {
+        const date = new Date(dateValue);
+        if (isNaN(date.getTime())) {
+          console.warn('⚠️ Invalid date from object, using current date');
+          return new Date();
+        }
+        return date;
+      } catch (e) {
+        console.warn('⚠️ Error converting object to date, using current date');
+        return new Date();
+      }
+    }
+    if (typeof dateValue === 'string' || typeof dateValue === 'number') {
+      try {
+        const date = new Date(dateValue);
+        if (isNaN(date.getTime())) {
+          console.warn('⚠️ Invalid date from string/number, using current date');
+          return new Date();
+        }
+        return date;
+      } catch (e) {
+        console.warn('⚠️ Error converting string/number to date, using current date');
+        return new Date();
+      }
+    }
+    // Fallback to current date
+    console.warn('⚠️ Unknown date format, using current date');
+    return new Date();
+  }
+  /**
    * Instantiate Forms from FormDefinitions
    */
   async instantiateForms(
@@ -56,7 +117,6 @@ class UniversInstantiationService {
           fields: formDef.fields || [],
           createdBy: params.userId,
           createdByRole: params.userRole === 'admin' ? 'directeur' : params.userRole as 'directeur' | 'employe',
-          createdByEmployeeId: params.userRole === 'employe' ? params.userId : undefined,
           assignedTo: [], // Empty by default - user will assign later
           agencyId: params.agencyId,
           universId: params.universId,
@@ -64,6 +124,11 @@ class UniversInstantiationService {
           fromUnivers: true,
           createdAt: serverTimestamp()
         };
+
+        // Ne pas inclure createdByEmployeeId si undefined (Firestore ne permet pas undefined)
+        if (params.userRole === 'employe') {
+          formData.createdByEmployeeId = params.userId;
+        }
 
         const formRef = await addDoc(collection(db, 'forms'), formData);
         createdFormIds.push(formRef.id);
@@ -99,7 +164,6 @@ class UniversInstantiationService {
           })),
           createdBy: params.userId,
           createdByRole: params.userRole === 'admin' ? 'directeur' : params.userRole as 'directeur' | 'employe',
-          createdByEmployeeId: params.userRole === 'employe' ? params.userId : undefined,
           agencyId: params.agencyId,
           isDefault: false,
           universId: params.universId,
@@ -107,6 +171,11 @@ class UniversInstantiationService {
           fromUnivers: true,
           createdAt: serverTimestamp()
         };
+
+        // Ne pas inclure createdByEmployeeId si undefined (Firestore ne permet pas undefined)
+        if (params.userRole === 'employe') {
+          dashboardData.createdByEmployeeId = params.userId;
+        }
 
         const dashboardRef = await addDoc(collection(db, 'dashboards'), dashboardData);
         createdDashboardIds.push(dashboardRef.id);
@@ -138,23 +207,34 @@ class UniversInstantiationService {
 
     for (const instructionDef of instructionDefinitions) {
       try {
-        // Note: InstructionDefinition needs to have scheduledAt for ScheduledQuestion
-        // If it's missing, we'll need to set a default or handle it
-        const scheduledAt = (instructionDef as any).scheduledAt || new Date();
+        // Normaliser scheduledAt pour garantir une Date valide
+        const rawScheduledAt = (instructionDef as any).scheduledAt;
+        let scheduledAt = rawScheduledAt ? this.normalizeDate(rawScheduledAt) : new Date();
+        
+        // Vérifier que scheduledAt est une Date valide
+        if (isNaN(scheduledAt.getTime())) {
+          console.warn(`⚠️ Invalid scheduledAt for instruction "${instructionDef.title}", using current date`);
+          scheduledAt = new Date();
+        }
         
         // Calculate nextExecution based on frequency
-        const nextExecution = scheduledQuestionService.calculateNextExecution(
-          scheduledAt instanceof Date ? scheduledAt : new Date(scheduledAt),
+        let nextExecution = scheduledQuestionService.calculateNextExecution(
+          scheduledAt,
           instructionDef.frequency
         );
 
+        // Vérifier que nextExecution est une Date valide
+        if (!nextExecution || isNaN(nextExecution.getTime())) {
+          console.warn(`⚠️ Invalid nextExecution for instruction "${instructionDef.title}", calculating from current date`);
+          nextExecution = scheduledQuestionService.calculateNextExecution(new Date(), instructionDef.frequency);
+        }
+
         // Create a ScheduledQuestion from InstructionDefinition
-        const scheduledQuestionData: Omit<ScheduledQuestion, 'id' | 'createdAt' | 'executionCount'> = {
+        const scheduledQuestionData: any = {
           userId: params.userId,
           agencyId: params.agencyId,
           question: instructionDef.question,
           title: instructionDef.title,
-          description: instructionDef.description || undefined,
           filters: {
             period: instructionDef.filters.period,
             formId: idMappings.forms.get(instructionDef.filters.formId) || instructionDef.filters.formId, // Map definition ID to instance ID if available
@@ -163,15 +243,22 @@ class UniversInstantiationService {
           selectedFormat: instructionDef.selectedFormat,
           selectedFormats: instructionDef.selectedFormats || [],
           selectedFormIds: instructionDef.selectedFormIds.map(formDefId => idMappings.forms.get(formDefId) || formDefId), // Map definition IDs to instance IDs
-          scheduledAt: scheduledAt instanceof Date ? scheduledAt : new Date(scheduledAt),
+          scheduledAt: scheduledAt,
           frequency: instructionDef.frequency,
-          nextExecution,
+          nextExecution: nextExecution,
           status: 'pending',
-          maxExecutions: instructionDef.maxExecutions || undefined,
           universId: params.universId,
           universInstanceId: params.universInstanceId,
           fromUnivers: true
         };
+
+        // Ne pas inclure les champs undefined (Firestore ne permet pas undefined)
+        if (instructionDef.description) {
+          scheduledQuestionData.description = instructionDef.description;
+        }
+        if (instructionDef.maxExecutions) {
+          scheduledQuestionData.maxExecutions = instructionDef.maxExecutions;
+        }
 
         const scheduledQuestionId = await scheduledQuestionService.create(scheduledQuestionData);
         createdInstructionIds.push(scheduledQuestionId);
@@ -198,14 +285,12 @@ class UniversInstantiationService {
     for (const listDef of listDefinitions) {
       try {
         // Create a List from ListDefinition
-        const listData: Omit<List, 'id'> = {
+        const listData: any = {
           name: listDef.name,
-          description: listDef.description,
           columns: listDef.columns,
           rows: listDef.rows,
           createdBy: params.userId,
           createdByRole: params.userRole === 'admin' ? 'directeur' : params.userRole as 'directeur' | 'employe',
-          createdByEmployeeId: params.userRole === 'employe' ? params.userId : undefined,
           agencyId: params.agencyId,
           createdAt: new Date(),
           updatedAt: new Date(),
@@ -213,6 +298,14 @@ class UniversInstantiationService {
           universInstanceId: params.universInstanceId,
           fromUnivers: true
         };
+
+        // Ne pas inclure les champs undefined (Firestore ne permet pas undefined)
+        if (listDef.description) {
+          listData.description = listDef.description;
+        }
+        if (params.userRole === 'employe') {
+          listData.createdByEmployeeId = params.userId;
+        }
 
         const listId = await listsService.create(listData);
         createdListIds.push(listId);
@@ -274,19 +367,13 @@ class UniversInstantiationService {
         });
 
         // Create a Report from ReportDefinition
-        const reportData: Omit<Report, 'id'> = {
+        const reportData: any = {
           name: reportDef.name,
-          description: reportDef.description,
           templateType: reportDef.templateType,
-          templateContent: reportDef.templateContent,
-          templateFileUrl: reportDef.templateFileUrl,
-          templateFileStoragePath: reportDef.templateFileStoragePath,
-          templateFileName: reportDef.templateFileName,
           placeholders: reportDef.placeholders,
           mappings: updatedMappings,
           createdBy: params.userId,
           createdByRole: params.userRole === 'admin' ? 'directeur' : params.userRole as 'directeur' | 'employe',
-          createdByEmployeeId: params.userRole === 'employe' ? params.userId : undefined,
           agencyId: params.agencyId,
           createdAt: new Date(),
           updatedAt: new Date(),
@@ -294,6 +381,26 @@ class UniversInstantiationService {
           universInstanceId: params.universInstanceId,
           fromUnivers: true
         };
+
+        // Ne pas inclure les champs undefined (Firestore ne permet pas undefined)
+        if (reportDef.description) {
+          reportData.description = reportDef.description;
+        }
+        if (reportDef.templateContent) {
+          reportData.templateContent = reportDef.templateContent;
+        }
+        if (reportDef.templateFileUrl) {
+          reportData.templateFileUrl = reportDef.templateFileUrl;
+        }
+        if (reportDef.templateFileStoragePath) {
+          reportData.templateFileStoragePath = reportDef.templateFileStoragePath;
+        }
+        if (reportDef.templateFileName) {
+          reportData.templateFileName = reportDef.templateFileName;
+        }
+        if (params.userRole === 'employe') {
+          reportData.createdByEmployeeId = params.userId;
+        }
 
         const reportId = await reportsService.create(reportData);
         createdReportIds.push(reportId);

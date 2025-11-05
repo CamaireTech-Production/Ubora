@@ -1937,7 +1937,67 @@ class UniversService {
   }
 
   /**
+   * Vérifier si des ressources réelles existent pour un Univers
+   * (pour déterminer si une instanciation est nécessaire)
+   */
+  private async checkIfResourcesExist(universId: string, agencyId: string): Promise<boolean> {
+    try {
+      // Vérifier si au moins un formulaire existe avec ce universId
+      // On utilise limit(1) pour optimiser la requête (on a juste besoin de savoir s'il en existe au moins un)
+      const formsQuery = query(
+        collection(db, 'forms'),
+        where('agencyId', '==', agencyId),
+        where('universId', '==', universId)
+      );
+      const formsSnapshot = await getDocs(formsQuery);
+      
+      // Si au moins un formulaire existe, les ressources sont déjà instanciées
+      return !formsSnapshot.empty;
+    } catch (error) {
+      // Si l'index n'existe pas ou erreur, considérer qu'aucune ressource n'existe
+      // (dans ce cas, on instanciera les ressources)
+      console.warn('⚠️ Erreur lors de la vérification des ressources existantes:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Instancier les ressources d'un Univers sans créer d'instance UniversInstance
+   * (pour les Univers créés directement, pas achetés)
+   */
+  private async instantiateResourcesOnly(
+    univers: Univers,
+    directorId: string,
+    agencyId: string
+  ): Promise<void> {
+    try {
+      if (!univers.definitions) {
+        throw new Error('Univers sans définitions');
+      }
+
+      // Générer un ID d'instance temporaire pour l'instanciation
+      const tempInstanceId = `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+      // Appeler le service d'instanciation pour créer les ressources réelles
+      await universInstantiationService.instantiate({
+        definitions: univers.definitions,
+        userId: directorId,
+        userRole: 'directeur',
+        agencyId,
+        universId: univers.id,
+        universInstanceId: tempInstanceId
+      });
+
+      console.log(`✅ Ressources instanciées pour Univers ${univers.id} (sans créer d'instance)`);
+    } catch (error) {
+      console.error('❌ Erreur lors de l\'instanciation des ressources:', error);
+      throw new Error(`Échec de l'instanciation des ressources: ${error instanceof Error ? error.message : 'Erreur inconnue'}`);
+    }
+  }
+
+  /**
    * Activer un Univers (désactive automatiquement l'ancien si nécessaire)
+   * Instancie automatiquement les ressources si elles n'existent pas encore
    */
   async activateUnivers(
     universId: string,
@@ -1959,22 +2019,35 @@ class UniversService {
 
       const isOwner = univers.ownership.createdBy === directorId;
       
-      // 2. Vérifier si c'est une instance achetée
+      // 3. Vérifier si c'est une instance achetée
       let instanceId: string | undefined;
       if (univers.ownership.isMarketplaceTemplate && !isOwner) {
         // Chercher une instance de ce Univers pour ce directeur
         const instances = await this.getInstancesByUser(directorId, agencyId);
-        const instance = instances.find(inst => inst.universId === universId && inst.isActive);
+        const instance = instances.find(inst => inst.universId === universId);
         if (instance) {
           instanceId = instance.id;
+          // Pour les Univers achetés, les ressources sont déjà instanciées lors de l'achat
+          console.log(`✅ Instance trouvée pour Univers acheté: ${instanceId}`);
         } else {
           throw new Error('Vous devez d\'abord acheter ce Univers depuis le marketplace');
         }
       } else if (!isOwner) {
         throw new Error('Vous ne pouvez pas activer ce Univers');
+      } else {
+        // 4. Pour les Univers créés directement (propriétaire), vérifier si les ressources existent
+        // Si non, les instancier automatiquement
+        const resourcesExist = await this.checkIfResourcesExist(universId, agencyId);
+        if (!resourcesExist) {
+          console.log(`📦 Ressources non trouvées pour Univers ${universId}, instanciation automatique...`);
+          await this.instantiateResourcesOnly(univers, directorId, agencyId);
+          console.log(`✅ Ressources instanciées avec succès pour Univers ${universId}`);
+        } else {
+          console.log(`✅ Ressources déjà existantes pour Univers ${universId}`);
+        }
       }
 
-      // 3. Désactiver l'ancien Univers actif
+      // 5. Désactiver l'ancien Univers actif
       const currentActive = await this.getActiveUnivers(directorId, agencyId);
       if (currentActive) {
         if (currentActive.activeInstanceId) {
@@ -1988,14 +2061,14 @@ class UniversService {
         }
       }
 
-      // 4. Activer le nouveau Univers
+      // 6. Activer le nouveau Univers
       if (instanceId) {
-        // Activer l'instance
+        // Activer l'instance (Univers acheté)
         const instanceRef = doc(db, this.instancesCollectionName, instanceId);
         await updateDoc(instanceRef, { isActive: true });
         await this.setActiveUnivers(directorId, agencyId, universId, instanceId);
       } else {
-        // Activer le template Univers
+        // Activer le template Univers (Univers créé directement)
         const universRef = doc(db, this.collectionName, universId);
         await updateDoc(universRef, { 'metadata.isActive': true });
         await this.setActiveUnivers(directorId, agencyId, universId);
