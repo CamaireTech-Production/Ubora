@@ -319,11 +319,44 @@ export const ReportPreview: React.FC<ReportPreviewProps> = ({ report }) => {
         }
         .report-preview-content h1,
         .report-preview-content h2,
-        .report-preview-content h3 {
+        .report-preview-content h3,
+        .report-preview-content h4,
+        .report-preview-content h5,
+        .report-preview-content h6 {
           color: #111827;
           font-weight: 600;
           margin-top: 1.5em;
           margin-bottom: 0.5em;
+        }
+        .report-preview-content h1 {
+          font-size: 2em !important;
+          font-weight: 700 !important;
+          line-height: 1.2 !important;
+        }
+        .report-preview-content h2 {
+          font-size: 1.5em !important;
+          font-weight: 600 !important;
+          line-height: 1.3 !important;
+        }
+        .report-preview-content h3 {
+          font-size: 1.25em !important;
+          font-weight: 600 !important;
+          line-height: 1.4 !important;
+        }
+        .report-preview-content h4 {
+          font-size: 1.125em !important;
+          font-weight: 600 !important;
+          line-height: 1.4 !important;
+        }
+        .report-preview-content h5 {
+          font-size: 1em !important;
+          font-weight: 600 !important;
+          line-height: 1.5 !important;
+        }
+        .report-preview-content h6 {
+          font-size: 0.875em !important;
+          font-weight: 600 !important;
+          line-height: 1.5 !important;
         }
         .report-preview-content p {
           margin-bottom: 1em;
@@ -347,6 +380,137 @@ export const ReportPreview: React.FC<ReportPreviewProps> = ({ report }) => {
         .report-preview-content table th {
           background-color: #f9fafb;
           font-weight: 600;
+        }
+        
+        /* Preserve ReactQuill alignment classes */
+        .report-preview-content .ql-align-center,
+        .report-preview-content [class*="ql-align-center"],
+        .report-preview-content [style*="text-align: center"],
+        .report-preview-content [style*="text-align:center"] {
+          text-align: center !important;
+        }
+        .report-preview-content .ql-align-right,
+        .report-preview-content [class*="ql-align-right"],
+        .report-preview-content [style*="text-align: right"],
+        .report-preview-content [style*="text-align:right"] {
+          text-align: right !important;
+        }
+        .report-preview-content .ql-align-left,
+        .report-preview-content [class*="ql-align-left"],
+        .report-preview-content [style*="text-align: left"],
+        .report-preview-content [style*="text-align:left"] {
+          text-align: left !important;
+        }
+        .report-preview-content .ql-align-justify,
+        .report-preview-content [class*="ql-align-justify"],
+        .report-preview-content [style*="text-align: justify"],
+        .report-preview-content [style*="text-align:justify"] {
+          text-align: justify !important;
+        }
+        
+        /* Ensure headings respect alignment */
+        .report-preview-content h1.ql-align-center,
+        .report-preview-content h1[style*="text-align: center"],
+        .report-preview-content h1[style*="text-align:center"],
+        .report-preview-content h2.ql-align-center,
+        .report-preview-content h2[style*="text-align: center"],
+        .report-preview-content h2[style*="text-align:center"],
+        .report-preview-content h3.ql-align-center,
+        .report-preview-content h3[style*="text-align: center"],
+        .report-preview-content h3[style*="text-align:center"],
+        .report-preview-content h4.ql-align-center,
+        .report-preview-content h4[style*="text-align: center"],
+        .report-preview-content h4[style*="text-align:center"],
+        .report-preview-content h5.ql-align-center,
+        .report-preview-content h5[style*="text-align: center"],
+        .report-preview-content h5[style*="text-align:center"],
+        .report-preview-content h6.ql-align-center,
+        .report-preview-content h6[style*="text-align: center"],
+        .report-preview-content h6[style*="text-align:center"] {
+          text-align: center !important;
+        }
+        .report-preview-content h1.ql-align-right,
+        .report-preview-content h1[style*="text-align: right"],
+        .report-preview-content h1[style*="text-align:right"],
+        .report-preview-content h2.ql-align-right,
+        .report-preview-content h2[style*="text-align: right"],
+        .report-preview-content h2[style*="text-align:right"],
+        .report-preview-content h3.ql-align-right,
+        .report-preview-content h3[style*="text-align: right"],
+        .report-preview-content h3[style*="text-align:right"],
+        .report-preview-content h4.ql-align-right,
+        .report-preview-content h4[style*="text-align: right"],
+        .report-preview-content h4[style*="text-align:right"],
+        .report-preview-content h5.ql-align-right,
+        .report-preview-content h5[style*="text-align: right"],
+        .report-preview-content h5[style*="text-align:right"],
+        .report-preview-content h6.ql-align-right,
+        .report-preview-content h6[style*="text-align: right"],
+        .report-preview-content h6[style*="text-align:right"] {
+          text-align: right !important;
+        }
+        .report-preview-content h1.ql-align-justify,
+        .report-preview-content h1[style*="text-align: justify"],
+        .report-preview-content h1[style*="text-align:justify"],
+        .report-preview-content h2.ql-align-justify,
+        .report-preview-content h2[style*="text-align: justify"],
+        .report-preview-content h2[style*="text-align:justify"],
+        .report-preview-content h3.ql-align-justify,
+        .report-preview-content h3[style*="text-align: justify"],
+        .report-preview-content h3[style*="text-align:justify"],
+        .report-preview-content h4.ql-align-justify,
+        .report-preview-content h4[style*="text-align: justify"],
+        .report-preview-content h4[style*="text-align:justify"],
+        .report-preview-content h5.ql-align-justify,
+        .report-preview-content h5[style*="text-align: justify"],
+        .report-preview-content h5[style*="text-align:justify"],
+        .report-preview-content h6.ql-align-justify,
+        .report-preview-content h6[style*="text-align: justify"],
+        .report-preview-content h6[style*="text-align:justify"] {
+          text-align: justify !important;
+        }
+        
+        /* Preserve other ReactQuill formatting */
+        .report-preview-content strong,
+        .report-preview-content b {
+          font-weight: 700;
+        }
+        .report-preview-content em,
+        .report-preview-content i {
+          font-style: italic;
+        }
+        .report-preview-content u {
+          text-decoration: underline;
+        }
+        .report-preview-content s,
+        .report-preview-content strike {
+          text-decoration: line-through;
+        }
+        .report-preview-content blockquote {
+          border-left: 4px solid #e5e7eb;
+          padding-left: 1em;
+          margin: 1em 0;
+          color: #6b7280;
+        }
+        .report-preview-content code {
+          background-color: #f3f4f6;
+          padding: 0.125em 0.25em;
+          border-radius: 0.25rem;
+          font-family: monospace;
+          font-size: 0.875em;
+        }
+        .report-preview-content pre {
+          background-color: #1f2937;
+          color: #f9fafb;
+          padding: 1em;
+          border-radius: 0.5rem;
+          overflow-x: auto;
+          margin: 1em 0;
+        }
+        .report-preview-content pre code {
+          background-color: transparent;
+          padding: 0;
+          color: inherit;
         }
       `}</style>
     </div>
