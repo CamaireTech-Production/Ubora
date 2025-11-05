@@ -120,11 +120,53 @@ function determineChunk(id: string): string | undefined {
 
 // Main app PWA configuration with blue theme (no admin mode)
 const getPWAConfig = () => {
-  const isDev = process.env.NODE_ENV === 'development' || process.env.VITE_APP_ENV === 'dev';
+  // Detect environment based on hostname or env vars
+  const getEnvType = (): 'dev' | 'pre-release' | 'prod' => {
+    // Check environment variables first
+    if (process.env.VITE_APP_ENV === 'dev' || process.env.NODE_ENV === 'development') {
+      return 'dev';
+    }
+    if (process.env.VITE_APP_ENV === 'pre-release') {
+      return 'pre-release';
+    }
+    
+    // Check hostname at build time (for static builds)
+    // This will be evaluated at build time, so we need to check process.env
+    // For runtime detection, the client-side code will handle it
+    const hostname = process.env.VITE_HOSTNAME || '';
+    if (hostname.includes('pre.') || hostname.includes('apirelease.')) {
+      return 'pre-release';
+    }
+    if (hostname.includes('dev.') || hostname.includes('apidev.')) {
+      return 'dev';
+    }
+    
+    return 'prod';
+  };
+  
+  const envType = getEnvType();
+  
+  let appName: string;
+  let shortName: string;
+  
+  switch (envType) {
+    case 'pre-release':
+      appName = 'Ubora pre';
+      shortName = 'Ubora pre';
+      break;
+    case 'dev':
+      appName = 'Ubora dev';
+      shortName = 'Ubora dev';
+      break;
+    default: // prod
+      appName = 'Ubora';
+      shortName = 'Ubora';
+      break;
+  }
   
   return {
-    name: isDev ? 'Ubora Dev' : 'Ubora',
-    short_name: isDev ? 'Ubora Dev' : 'Ubora',
+    name: appName,
+    short_name: shortName,
     description: 'Application de gestion des formulaires pour entreprises multi-agences',
     theme_color: '#3b82f6', // Blue theme for main app
     background_color: '#ffffff',

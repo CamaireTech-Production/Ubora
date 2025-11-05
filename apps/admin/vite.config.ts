@@ -5,14 +5,51 @@ import path from 'path';
 
 // Admin-specific PWA configuration with red theme
 const getPWAConfig = () => {
-  // Detect environment: dev (admindev.ubora-app.com) or prod (admin.ubora-app.com)
-  const isDev = process.env.VITE_APP_ENV === 'dev' || 
-                process.env.NODE_ENV === 'development' ||
-                (typeof window !== 'undefined' && window.location.hostname.includes('admindev'));
+  // Detect environment based on hostname or env vars
+  const getEnvType = (): 'dev' | 'pre-release' | 'prod' => {
+    // Check environment variables first
+    if (process.env.VITE_APP_ENV === 'dev' || process.env.NODE_ENV === 'development') {
+      return 'dev';
+    }
+    if (process.env.VITE_APP_ENV === 'pre-release') {
+      return 'pre-release';
+    }
+    
+    // Check hostname at build time (for static builds)
+    const hostname = process.env.VITE_HOSTNAME || '';
+    if (hostname.includes('adminpre.') || hostname.includes('apirelease.')) {
+      return 'pre-release';
+    }
+    if (hostname.includes('admindev.') || hostname.includes('apidev.')) {
+      return 'dev';
+    }
+    
+    return 'prod';
+  };
+  
+  const envType = getEnvType();
+  
+  let appName: string;
+  let shortName: string;
+  
+  switch (envType) {
+    case 'pre-release':
+      appName = 'Ubora Admin pre';
+      shortName = 'Ubora Admin pre';
+      break;
+    case 'dev':
+      appName = 'Ubora Admin dev';
+      shortName = 'Ubora Admin dev';
+      break;
+    default: // prod
+      appName = 'Ubora Admin';
+      shortName = 'Ubora Admin';
+      break;
+  }
   
   return {
-    name: isDev ? 'Ubora Admin Dev' : 'Ubora Admin',
-    short_name: isDev ? 'Ubora Admin Dev' : 'Ubora Admin',
+    name: appName,
+    short_name: shortName,
     description: 'Panel d\'administration Ubora pour la gestion des utilisateurs et du système',
     theme_color: '#dc2626', // Red theme for admin
     background_color: '#ffffff',

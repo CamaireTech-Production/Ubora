@@ -94,12 +94,46 @@ export const isAdminMode = (): boolean => {
 };
 
 /**
+ * Detect environment type based on subdomain
+ * Returns: 'dev' | 'pre-release' | 'prod'
+ */
+export const getEnvironmentType = (): 'dev' | 'pre-release' | 'prod' => {
+  if (typeof window === 'undefined') {
+    // Server-side: check environment variables
+    if (import.meta.env.VITE_APP_ENV === 'dev' || import.meta.env.MODE === 'development') {
+      return 'dev';
+    }
+    if (import.meta.env.VITE_APP_ENV === 'pre-release') {
+      return 'pre-release';
+    }
+    return 'prod';
+  }
+
+  const hostname = window.location.hostname.toLowerCase();
+  
+  // Check for pre-release subdomains
+  if (hostname.includes('pre.') || hostname.includes('adminpre.') || hostname.includes('apirelease.')) {
+    return 'pre-release';
+  }
+  
+  // Check for dev subdomains
+  if (hostname.includes('dev.') || hostname.includes('admindev.') || hostname.includes('apidev.') || 
+      hostname.includes('localhost') || hostname.includes('127.0.0.1')) {
+    return 'dev';
+  }
+  
+  // Default to production
+  return 'prod';
+};
+
+/**
  * Get PWA configuration based on environment and mode
  */
 export const getPWAConfig = (): PWAConfig => {
   const isDev = isDevelopment();
   const entryPoint = getEntryPoint();
   const isAdmin = isAdminMode();
+  const envType = getEnvironmentType();
   
   let appName: string;
   let shortName: string;
@@ -109,16 +143,42 @@ export const getPWAConfig = (): PWAConfig => {
   
   // URL-based stealth hybrid approach: Single PWA with automatic mode detection
   if (entryPoint === 'admin' || isAdmin) {
-    appName = isDev ? 'Ubora Admin Dev' : 'Ubora Admin';
-    shortName = isDev ? 'Ubora Admin Dev' : 'Ubora Admin';
+    // Admin app names based on subdomain
+    switch (envType) {
+      case 'pre-release':
+        appName = 'Ubora Admin pre';
+        shortName = 'Ubora Admin pre';
+        break;
+      case 'dev':
+        appName = 'Ubora Admin dev';
+        shortName = 'Ubora Admin dev';
+        break;
+      default: // prod
+        appName = 'Ubora Admin';
+        shortName = 'Ubora Admin';
+        break;
+    }
     description = 'Panel d\'administration Ubora pour la gestion des utilisateurs et du système';
     
     // Use root scope for hybrid approach
     startUrl = '/admin/login';
     scope = '/';
   } else {
-    appName = isDev ? 'Ubora Dev' : 'Ubora';
-    shortName = isDev ? 'Ubora Dev' : 'Ubora';
+    // Main app names based on subdomain
+    switch (envType) {
+      case 'pre-release':
+        appName = 'Ubora pre';
+        shortName = 'Ubora pre';
+        break;
+      case 'dev':
+        appName = 'Ubora dev';
+        shortName = 'Ubora dev';
+        break;
+      default: // prod
+        appName = 'Ubora';
+        shortName = 'Ubora';
+        break;
+    }
     description = 'Application de gestion des formulaires pour entreprises multi-agences';
     startUrl = '/';
     scope = '/';
