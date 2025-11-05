@@ -24,8 +24,8 @@ jobs:
 
     - name: Create environment file for backend
       run: |
-        # Create .env with Firebase private key handled separately to avoid quote issues
-        cat > .env << EOF
+        # Create .env.local with Firebase private key handled separately to avoid quote issues
+        cat > .env.local << EOF
         # Pre-Release Backend Environment Variables
         
         # Firebase Configuration
@@ -34,11 +34,11 @@ jobs:
         EOF
         # Append private key - simpler approach that preserves format better
         # Convert actual newlines to literal \n but don't over-escape
-        printf 'FIREBASE_PRIVATE_KEY="' >> .env
+        printf 'FIREBASE_PRIVATE_KEY="' >> .env.local
         # Only escape quotes and convert newlines - don't escape backslashes (to avoid double-escaping)
-        printf '%s' "${{ secrets.FIREBASE_PRIVATE_KEY }}" | sed -z 's/"/\\"/g; s/\n/\\n/g' >> .env
-        printf '"\n' >> .env
-        cat >> .env << EOF
+        printf '%s' "${{ secrets.FIREBASE_PRIVATE_KEY }}" | sed -z 's/"/\\"/g; s/\n/\\n/g' >> .env.local
+        printf '"\n' >> .env.local
+        cat >> .env.local << EOF
         
         # OpenAI Configuration
         OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
@@ -53,19 +53,19 @@ jobs:
 
     - name: Verify environment file format
       run: |
-        echo "🔍 Verifying .env format..."
-        if grep -q '^FIREBASE_PRIVATE_KEY=""' .env; then
+        echo "🔍 Verifying .env.local format..."
+        if grep -q '^FIREBASE_PRIVATE_KEY=""' .env.local; then
           echo "❌ ERROR: Double quotes detected in FIREBASE_PRIVATE_KEY!"
           exit 1
         fi
-        if grep -c '^FIREBASE_PRIVATE_KEY=' .env | grep -vq '^1$'; then
+        if grep -c '^FIREBASE_PRIVATE_KEY=' .env.local | grep -vq '^1$'; then
           echo "❌ ERROR: FIREBASE_PRIVATE_KEY appears multiple times or is split across lines!"
-          grep '^FIREBASE_PRIVATE_KEY=' .env | head -c 200
+          grep '^FIREBASE_PRIVATE_KEY=' .env.local | head -c 200
           exit 1
         fi
-        if ! grep -q '^FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----' .env; then
+        if ! grep -q '^FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----' .env.local; then
           echo "⚠️  WARNING: FIREBASE_PRIVATE_KEY format might be incorrect"
-          grep '^FIREBASE_PRIVATE_KEY=' .env | head -c 150
+          grep '^FIREBASE_PRIVATE_KEY=' .env.local | head -c 150
         else
           echo "✅ FIREBASE_PRIVATE_KEY format looks correct (single line with quotes)"
         fi
@@ -82,7 +82,7 @@ jobs:
           package.json \
           package-lock.json \
           ecosystem.config.js \
-          .env \
+          .env.local \
           VERSION
 
     - name: Upload artifact to VPS
@@ -125,13 +125,13 @@ jobs:
           
           cd $NEW_RELEASE
           
-          # Verify .env file was extracted
-          if [ -f ".env" ]; then
-            echo "✅ .env file found in extracted tarball"
-            echo "📋 Verifying .env file content (first 5 lines):"
-            head -n 5 .env | sed 's/FIREBASE_PRIVATE_KEY=.*/FIREBASE_PRIVATE_KEY=<hidden>/' || true
+          # Verify .env.local file was extracted
+          if [ -f ".env.local" ]; then
+            echo "✅ .env.local file found in extracted tarball"
+            echo "📋 Verifying .env.local file content (first 5 lines):"
+            head -n 5 .env.local | sed 's/FIREBASE_PRIVATE_KEY=.*/FIREBASE_PRIVATE_KEY=<hidden>/' || true
           else
-            echo "❌ ERROR: .env file not found in extracted tarball!"
+            echo "❌ ERROR: .env.local file not found in extracted tarball!"
             echo "📁 Listing files in $NEW_RELEASE:"
             ls -la | head -20 || true
             exit 1
@@ -155,23 +155,27 @@ jobs:
           # Start backend server with working directory set to release root
           cd $CURRENT_LINK
           
-          # Verify .env file is accessible before starting PM2
-          if [ ! -f ".env" ]; then
-            echo "❌ ERROR: .env file not found at $CURRENT_LINK/.env"
+          # Verify .env.local file is accessible before starting PM2
+          if [ ! -f ".env.local" ]; then
+            echo "❌ ERROR: .env.local file not found at $CURRENT_LINK/.env.local"
             echo "📁 Current directory: $(pwd)"
             echo "📁 Listing files:"
             ls -la | head -20
             exit 1
           fi
           
-          echo "✅ Starting PM2 with .env file at $CURRENT_LINK/.env"
+          # Export environment variables from .env.local so PM2 can inherit them
+          echo "📥 Loading environment variables from .env.local"
+          set -a
+          source .env.local
+          set +a
+          
+          echo "✅ Starting PM2 with .env.local file at $CURRENT_LINK/.env.local"
           pm2 start server/dev-server.js \
             --name ubora-backend-pre-release \
             --update-env \
             --max-memory-restart 1G \
-            --env production \
-            --cwd $CURRENT_LINK \
-            --interpreter node
+            --env production
             
           # Start cron worker (if file exists)
           if [ -f "$CURRENT_LINK/scripts/cron-worker.js" ]; then
@@ -179,8 +183,7 @@ jobs:
               --name ubora-cron-worker-pre-release \
               --update-env \
               --max-memory-restart 512M \
-              --env production \
-              --cwd $CURRENT_LINK
+              --env production
           else
             echo "⚠️ Warning: cron-worker.js not found, skipping cron worker startup"
           fi
@@ -195,14 +198,14 @@ jobs:
           echo "📊 Checking PM2 processes"
           pm2 status
           
-          # Verify .env file exists
-          echo "🔍 Verifying .env file location"
-          if [ -f "$CURRENT_LINK/.env" ]; then
-            echo "✅ .env file found at $CURRENT_LINK/.env"
-            echo "📋 First few lines of .env:"
-            head -n 5 "$CURRENT_LINK/.env" | sed 's/FIREBASE_PRIVATE_KEY=.*/FIREBASE_PRIVATE_KEY=<hidden>/' || true
+          # Verify .env.local file exists
+          echo "🔍 Verifying .env.local file location"
+          if [ -f "$CURRENT_LINK/.env.local" ]; then
+            echo "✅ .env.local file found at $CURRENT_LINK/.env.local"
+            echo "📋 First few lines of .env.local:"
+            head -n 5 "$CURRENT_LINK/.env.local" | sed 's/FIREBASE_PRIVATE_KEY=.*/FIREBASE_PRIVATE_KEY=<hidden>/' || true
           else
-            echo "❌ ERROR: .env file not found at $CURRENT_LINK/.env"
+            echo "❌ ERROR: .env.local file not found at $CURRENT_LINK/.env.local"
             echo "📁 Listing files in $CURRENT_LINK:"
             ls -la "$CURRENT_LINK" | head -20 || true
           fi
@@ -251,19 +254,21 @@ jobs:
               pm2 delete ubora-backend-pre-release || true
               pm2 delete ubora-cron-worker-pre-release || true
               cd $CURRENT_LINK
+              # Export environment variables from .env.local
+              set -a
+              source .env.local
+              set +a
               pm2 start server/dev-server.js \
                 --name ubora-backend-pre-release \
                 --update-env \
                 --max-memory-restart 1G \
-                --env production \
-                --cwd $CURRENT_LINK
+                --env production
               if [ -f "$CURRENT_LINK/scripts/cron-worker.js" ]; then
                 pm2 start scripts/cron-worker.js \
                   --name ubora-cron-worker-pre-release \
                   --update-env \
                   --max-memory-restart 512M \
-                  --env production \
-                  --cwd $CURRENT_LINK
+                  --env production
               fi
               pm2 save
               sleep 10
