@@ -2337,8 +2337,26 @@ class UniversService {
           console.log(`📦 Ressources non trouvées pour Univers ${universId}, instanciation automatique...`);
           await this.instantiateResourcesOnly(univers, directorId, agencyId);
           console.log(`✅ Ressources instanciées avec succès pour Univers ${universId}`);
+          // incrementUsage is already called in instantiateResourcesOnly
         } else {
           console.log(`✅ Ressources déjà existantes pour Univers ${universId}`);
+          
+          // For marketplace Universes owned by creator, check if usage was already counted
+          // If it's a marketplace Univers and resources exist but usage is 0, increment it
+          // This handles the case where owner created marketplace Univers and used it before we fixed the increment
+          if (univers.ownership.isMarketplaceTemplate) {
+            const currentUsage = univers.usage?.totalUsages || 0;
+            // Check if there's an instance for this owner (if yes, usage should already be counted)
+            const instances = await this.getInstancesByUser(directorId, agencyId);
+            const hasInstance = instances.some(inst => inst.universId === universId);
+            
+            // If no instance exists but resources exist, it means owner used their own marketplace Univers
+            // and usage wasn't counted. Increment it now.
+            if (!hasInstance && currentUsage === 0) {
+              console.log(`📊 Univers marketplace du propriétaire avec ressources existantes mais usage non compté, incrémentation...`);
+              await this.incrementUsage(universId);
+            }
+          }
         }
       }
 
