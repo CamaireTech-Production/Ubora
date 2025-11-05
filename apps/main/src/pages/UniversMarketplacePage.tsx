@@ -135,7 +135,7 @@ export const UniversMarketplacePage: React.FC = () => {
   }, [marketplaceUnivers, filters]);
 
   const handleView = (univers: Univers) => {
-    navigate(`/univers/${univers.id}`);
+    navigate(`/univers/${univers.id}`, { state: { from: 'marketplace' } });
   };
 
   const handlePurchase = (univers: Univers) => {

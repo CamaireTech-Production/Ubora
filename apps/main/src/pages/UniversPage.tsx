@@ -59,7 +59,7 @@ export const UniversPage: React.FC = () => {
   };
 
   const handleView = (univers: Univers) => {
-    navigate(`/univers/${univers.id}`);
+    navigate(`/univers/${univers.id}`, { state: { from: 'my-univers' } });
   };
 
   const handleDelete = (universId: string) => {

@@ -1,12 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
 import { useApp } from '@ubora/shared/contexts/AppContext';
 import { Layout } from '../components/Layout';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
-import { Univers } from '../types';
-import { UniversInstance } from '@ubora/shared/types';
+import { Univers, UniversInstance } from '@ubora/shared/types';
 import { universService } from '@ubora/shared/services/universService';
 import { useToast } from '@ubora/shared/hooks/useToast';
 import { Toast } from '../components/Toast';
@@ -35,10 +34,15 @@ import { ConfirmationModal } from '../components/ConfirmationModal';
 
 export const UniversViewPage: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
   const { activeUniversId, refreshData } = useApp();
   const { toast, showSuccess, showError } = useToast();
+  
+  // Déterminer d'où on vient (marketplace ou mes univers)
+  const fromSource = (location.state as any)?.from || 'my-univers';
+  const isFromMarketplace = fromSource === 'marketplace';
   const [univers, setUnivers] = useState<Univers | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isInstantiating, setIsInstantiating] = useState(false);
@@ -46,10 +50,10 @@ export const UniversViewPage: React.FC = () => {
   const [isActivating, setIsActivating] = useState(false);
   const [showActivateModal, setShowActivateModal] = useState(false);
   const [userInstance, setUserInstance] = useState<UniversInstance | null>(null);
-  const [isLoadingInstance, setIsLoadingInstance] = useState(false);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [isUpgrading, setIsUpgrading] = useState(false);
   const [upgradeProgress, setUpgradeProgress] = useState<string>('');
+  const [activeTab, setActiveTab] = useState<'overview' | 'forms' | 'dashboards' | 'instructions' | 'lists' | 'reports'>('overview');
 
   useEffect(() => {
     if (id && user?.id && user?.agencyId) {
@@ -62,7 +66,6 @@ export const UniversViewPage: React.FC = () => {
     if (!id || !user?.id || !user?.agencyId || user.role !== 'directeur') return;
 
     const loadUserInstance = async () => {
-      setIsLoadingInstance(true);
       try {
         const instances = await universService.getInstancesByUser(user.id, user.agencyId);
         const instance = instances.find(inst => inst.universId === id);
@@ -71,8 +74,6 @@ export const UniversViewPage: React.FC = () => {
         }
       } catch (error) {
         console.error('Erreur lors du chargement de l\'instance:', error);
-      } finally {
-        setIsLoadingInstance(false);
       }
     };
 
@@ -88,7 +89,7 @@ export const UniversViewPage: React.FC = () => {
       
       if (!universData) {
         showError('Univers non trouvé');
-        navigate('/univers');
+        navigate(isFromMarketplace ? '/univers/marketplace' : '/univers');
         return;
       }
 
@@ -96,7 +97,7 @@ export const UniversViewPage: React.FC = () => {
     } catch (error) {
       console.error('Erreur lors du chargement du Univers:', error);
       showError('Erreur lors du chargement du Univers');
-      navigate('/univers');
+      navigate(isFromMarketplace ? '/univers/marketplace' : '/univers');
     } finally {
       setIsLoading(false);
     }
@@ -113,7 +114,7 @@ export const UniversViewPage: React.FC = () => {
 
     setIsInstantiating(true);
     try {
-      const { instanceId, result } = await universService.instantiate(
+      const { result } = await universService.instantiate(
         univers.id,
         user.id,
         user.role as 'directeur' | 'employe' | 'admin',
@@ -201,7 +202,7 @@ export const UniversViewPage: React.FC = () => {
     
     try {
       setUpgradeProgress('Création de la nouvelle instance...');
-      const newInstanceId = await universService.upgradeInstance(
+      await universService.upgradeInstance(
         userInstance.id,
         user.id,
         user.role as 'directeur' | 'employe' | 'admin',
@@ -336,7 +337,7 @@ export const UniversViewPage: React.FC = () => {
           <p className="text-gray-600">Univers non trouvé</p>
           <Button
             variant="secondary"
-            onClick={() => navigate('/univers')}
+            onClick={() => navigate(isFromMarketplace ? '/univers/marketplace' : '/univers')}
             className="mt-4"
           >
             Retour à la liste
@@ -359,7 +360,7 @@ export const UniversViewPage: React.FC = () => {
               <Button
                 variant="secondary"
                 size="sm"
-                onClick={() => navigate('/univers')}
+                onClick={() => navigate(isFromMarketplace ? '/univers/marketplace' : '/univers')}
                 className="flex items-center space-x-2"
               >
                 <ArrowLeft className="h-4 w-4" />
@@ -407,30 +408,51 @@ export const UniversViewPage: React.FC = () => {
                   <span>Mettre à jour vers v{latestVersion}</span>
                 </Button>
               )}
-              {isDirecteur && !isActive && !hasUpdateAvailable && (
-                <Button
-                  variant="primary"
-                  onClick={handleActivateClick}
-                  className="flex items-center space-x-2"
-                  disabled={isActivating}
-                >
-                  <Power className="h-4 w-4" />
-                  <span>Activer</span>
-                </Button>
-              )}
-              {/* Bouton "Utiliser ce template" uniquement pour Univers marketplace approuvés */}
-              {univers.ownership.isMarketplaceTemplate && 
-               univers.ownership.approvalStatus === 'approved' && 
-               isDirecteur && 
-               !hasUpdateAvailable && (
-                <Button
-                  variant="primary"
-                  onClick={() => navigate(`/univers/create-from-template/${univers.id}`)}
-                  className="flex items-center space-x-2"
-                >
-                  <Sparkles className="h-4 w-4" />
-                  <span>Utiliser ce template</span>
-                </Button>
+              {/* Boutons selon le contexte */}
+              {isFromMarketplace ? (
+                // Si on vient de la marketplace, seulement "Utiliser ce template"
+                univers.ownership.isMarketplaceTemplate && 
+                univers.ownership.approvalStatus === 'approved' && 
+                isDirecteur && 
+                !hasUpdateAvailable && (
+                  <Button
+                    variant="primary"
+                    onClick={() => navigate(`/univers/create-from-template/${univers.id}`)}
+                    className="flex items-center space-x-2"
+                  >
+                    <Sparkles className="h-4 w-4" />
+                    <span>Utiliser ce template</span>
+                  </Button>
+                )
+              ) : (
+                // Si on vient de Mes Univers, montrer "Activer" si non actif
+                <>
+                  {isDirecteur && !isActive && !hasUpdateAvailable && (
+                    <Button
+                      variant="primary"
+                      onClick={handleActivateClick}
+                      className="flex items-center space-x-2"
+                      disabled={isActivating}
+                    >
+                      <Power className="h-4 w-4" />
+                      <span>Activer</span>
+                    </Button>
+                  )}
+                  {/* Bouton "Utiliser ce template" pour Univers marketplace possédés */}
+                  {univers.ownership.isMarketplaceTemplate && 
+                   univers.ownership.approvalStatus === 'approved' && 
+                   isDirecteur && 
+                   !hasUpdateAvailable && (
+                    <Button
+                      variant="primary"
+                      onClick={() => navigate(`/univers/create-from-template/${univers.id}`)}
+                      className="flex items-center space-x-2"
+                    >
+                      <Sparkles className="h-4 w-4" />
+                      <span>Utiliser ce template</span>
+                    </Button>
+                  )}
+                </>
               )}
               {canEdit && (
                 <Button
@@ -502,204 +524,466 @@ export const UniversViewPage: React.FC = () => {
                 </div>
               </Card>
 
-              {/* Definitions Preview */}
+              {/* Onglets pour le contenu du Univers */}
               <Card title="Contenu du Univers">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
-                  {/* Forms */}
-                  <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
-                    <div className="flex items-center space-x-3 mb-2">
-                      <FileText className="h-5 w-5 text-blue-600" />
-                      <h3 className="font-semibold text-gray-900">Formulaires</h3>
-                    </div>
-                    <p className="text-2xl font-bold text-blue-600 mb-1">
-                      {univers.definitions.forms?.length || 0}
-                    </p>
-                    <p className="text-xs text-gray-600">
-                      {univers.definitions.forms?.length === 1 ? 'formulaire' : 'formulaires'}
-                    </p>
-                  </div>
-
-                  {/* Dashboards */}
-                  <div className="p-4 bg-purple-50 rounded-lg border border-purple-200">
-                    <div className="flex items-center space-x-3 mb-2">
-                      <BarChart3 className="h-5 w-5 text-purple-600" />
-                      <h3 className="font-semibold text-gray-900">Tableaux de bord</h3>
-                    </div>
-                    <p className="text-2xl font-bold text-purple-600 mb-1">
-                      {univers.definitions.dashboards?.length || 0}
-                    </p>
-                    <p className="text-xs text-gray-600">
-                      {univers.definitions.dashboards?.length === 1 ? 'tableau de bord' : 'tableaux de bord'}
-                    </p>
-                  </div>
-
-                  {/* Instructions */}
-                  <div className="p-4 bg-green-50 rounded-lg border border-green-200">
-                    <div className="flex items-center space-x-3 mb-2">
-                      <Calendar className="h-5 w-5 text-green-600" />
-                      <h3 className="font-semibold text-gray-900">Instructions</h3>
-                    </div>
-                    <p className="text-2xl font-bold text-green-600 mb-1">
-                      {univers.definitions.instructions?.length || 0}
-                    </p>
-                    <p className="text-xs text-gray-600">
-                      {univers.definitions.instructions?.length === 1 ? 'instruction' : 'instructions'}
-                    </p>
-                  </div>
-
-                  {/* Lists */}
-                  <div className="p-4 bg-orange-50 rounded-lg border border-orange-200">
-                    <div className="flex items-center space-x-3 mb-2">
-                      <Database className="h-5 w-5 text-orange-600" />
-                      <h3 className="font-semibold text-gray-900">Listes</h3>
-                    </div>
-                    <p className="text-2xl font-bold text-orange-600 mb-1">
-                      {univers.definitions.lists?.length || 0}
-                    </p>
-                    <p className="text-xs text-gray-600">
-                      {univers.definitions.lists?.length === 1 ? 'liste' : 'listes'}
-                    </p>
-                  </div>
-
-                  {/* Reports */}
-                  <div className="p-4 bg-indigo-50 rounded-lg border border-indigo-200 sm:col-span-2">
-                    <div className="flex items-center space-x-3 mb-2">
-                      <FileBarChart className="h-5 w-5 text-indigo-600" />
-                      <h3 className="font-semibold text-gray-900">Rapports</h3>
-                    </div>
-                    <p className="text-2xl font-bold text-indigo-600 mb-1">
-                      {univers.definitions.reports?.length || 0}
-                    </p>
-                    <p className="text-xs text-gray-600">
-                      {univers.definitions.reports?.length === 1 ? 'rapport' : 'rapports'}
-                    </p>
-                  </div>
+                {/* Onglets */}
+                <div className="border-b border-gray-200 mb-6">
+                  <nav className="flex space-x-1 overflow-x-auto">
+                    <button
+                      onClick={() => setActiveTab('overview')}
+                      className={`px-4 py-2 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${
+                        activeTab === 'overview'
+                          ? 'border-blue-500 text-blue-600'
+                          : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                      }`}
+                    >
+                      Vue d'ensemble
+                    </button>
+                    {univers.definitions.forms && univers.definitions.forms.length > 0 && (
+                      <button
+                        onClick={() => setActiveTab('forms')}
+                        className={`px-4 py-2 text-sm font-medium whitespace-nowrap border-b-2 transition-colors flex items-center space-x-1 ${
+                          activeTab === 'forms'
+                            ? 'border-blue-500 text-blue-600'
+                            : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                        }`}
+                      >
+                        <FileText className="h-4 w-4" />
+                        <span>Formulaires ({univers.definitions.forms.length})</span>
+                      </button>
+                    )}
+                    {univers.definitions.dashboards && univers.definitions.dashboards.length > 0 && (
+                      <button
+                        onClick={() => setActiveTab('dashboards')}
+                        className={`px-4 py-2 text-sm font-medium whitespace-nowrap border-b-2 transition-colors flex items-center space-x-1 ${
+                          activeTab === 'dashboards'
+                            ? 'border-purple-500 text-purple-600'
+                            : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                        }`}
+                      >
+                        <BarChart3 className="h-4 w-4" />
+                        <span>Dashboards ({univers.definitions.dashboards.length})</span>
+                      </button>
+                    )}
+                    {univers.definitions.instructions && univers.definitions.instructions.length > 0 && (
+                      <button
+                        onClick={() => setActiveTab('instructions')}
+                        className={`px-4 py-2 text-sm font-medium whitespace-nowrap border-b-2 transition-colors flex items-center space-x-1 ${
+                          activeTab === 'instructions'
+                            ? 'border-green-500 text-green-600'
+                            : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                        }`}
+                      >
+                        <Calendar className="h-4 w-4" />
+                        <span>Instructions ({univers.definitions.instructions.length})</span>
+                      </button>
+                    )}
+                    {univers.definitions.lists && univers.definitions.lists.length > 0 && (
+                      <button
+                        onClick={() => setActiveTab('lists')}
+                        className={`px-4 py-2 text-sm font-medium whitespace-nowrap border-b-2 transition-colors flex items-center space-x-1 ${
+                          activeTab === 'lists'
+                            ? 'border-orange-500 text-orange-600'
+                            : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                        }`}
+                      >
+                        <Database className="h-4 w-4" />
+                        <span>Listes ({univers.definitions.lists.length})</span>
+                      </button>
+                    )}
+                    {univers.definitions.reports && univers.definitions.reports.length > 0 && (
+                      <button
+                        onClick={() => setActiveTab('reports')}
+                        className={`px-4 py-2 text-sm font-medium whitespace-nowrap border-b-2 transition-colors flex items-center space-x-1 ${
+                          activeTab === 'reports'
+                            ? 'border-indigo-500 text-indigo-600'
+                            : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                        }`}
+                      >
+                        <FileBarChart className="h-4 w-4" />
+                        <span>Rapports ({univers.definitions.reports.length})</span>
+                      </button>
+                    )}
+                  </nav>
                 </div>
 
-                {/* Détails de chaque aspect */}
-                <div className="space-y-6 border-t border-gray-200 pt-6">
+                {/* Contenu des onglets */}
+                <div className="mt-6">
+                  {/* Vue d'ensemble */}
+                  {activeTab === 'overview' && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {/* Forms */}
+                      <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                        <div className="flex items-center space-x-3 mb-2">
+                          <FileText className="h-5 w-5 text-blue-600" />
+                          <h3 className="font-semibold text-gray-900">Formulaires</h3>
+                        </div>
+                        <p className="text-2xl font-bold text-blue-600 mb-1">
+                          {univers.definitions.forms?.length || 0}
+                        </p>
+                        <p className="text-xs text-gray-600">
+                          {univers.definitions.forms?.length === 1 ? 'formulaire' : 'formulaires'}
+                        </p>
+                      </div>
+
+                      {/* Dashboards */}
+                      <div className="p-4 bg-purple-50 rounded-lg border border-purple-200">
+                        <div className="flex items-center space-x-3 mb-2">
+                          <BarChart3 className="h-5 w-5 text-purple-600" />
+                          <h3 className="font-semibold text-gray-900">Tableaux de bord</h3>
+                        </div>
+                        <p className="text-2xl font-bold text-purple-600 mb-1">
+                          {univers.definitions.dashboards?.length || 0}
+                        </p>
+                        <p className="text-xs text-gray-600">
+                          {univers.definitions.dashboards?.length === 1 ? 'tableau de bord' : 'tableaux de bord'}
+                        </p>
+                      </div>
+
+                      {/* Instructions */}
+                      <div className="p-4 bg-green-50 rounded-lg border border-green-200">
+                        <div className="flex items-center space-x-3 mb-2">
+                          <Calendar className="h-5 w-5 text-green-600" />
+                          <h3 className="font-semibold text-gray-900">Instructions</h3>
+                        </div>
+                        <p className="text-2xl font-bold text-green-600 mb-1">
+                          {univers.definitions.instructions?.length || 0}
+                        </p>
+                        <p className="text-xs text-gray-600">
+                          {univers.definitions.instructions?.length === 1 ? 'instruction' : 'instructions'}
+                        </p>
+                      </div>
+
+                      {/* Lists */}
+                      <div className="p-4 bg-orange-50 rounded-lg border border-orange-200">
+                        <div className="flex items-center space-x-3 mb-2">
+                          <Database className="h-5 w-5 text-orange-600" />
+                          <h3 className="font-semibold text-gray-900">Listes</h3>
+                        </div>
+                        <p className="text-2xl font-bold text-orange-600 mb-1">
+                          {univers.definitions.lists?.length || 0}
+                        </p>
+                        <p className="text-xs text-gray-600">
+                          {univers.definitions.lists?.length === 1 ? 'liste' : 'listes'}
+                        </p>
+                      </div>
+
+                      {/* Reports */}
+                      <div className="p-4 bg-indigo-50 rounded-lg border border-indigo-200 sm:col-span-2">
+                        <div className="flex items-center space-x-3 mb-2">
+                          <FileBarChart className="h-5 w-5 text-indigo-600" />
+                          <h3 className="font-semibold text-gray-900">Rapports</h3>
+                        </div>
+                        <p className="text-2xl font-bold text-indigo-600 mb-1">
+                          {univers.definitions.reports?.length || 0}
+                        </p>
+                        <p className="text-xs text-gray-600">
+                          {univers.definitions.reports?.length === 1 ? 'rapport' : 'rapports'}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Formulaires détaillés */}
-                  {univers.definitions.forms && univers.definitions.forms.length > 0 && (
-                    <div>
-                      <h4 className="text-sm font-semibold text-gray-900 mb-3 flex items-center space-x-2">
-                        <FileText className="h-4 w-4 text-blue-600" />
-                        <span>Formulaires ({univers.definitions.forms.length})</span>
-                      </h4>
-                      <div className="space-y-2">
-                        {univers.definitions.forms.map((form, index) => (
-                          <div key={index} className="p-3 bg-blue-50 rounded-lg border border-blue-200">
-                            <p className="font-medium text-gray-900">{form.title || `Formulaire ${index + 1}`}</p>
-                            {form.description && (
-                              <p className="text-sm text-gray-600 mt-1">{form.description}</p>
-                            )}
+                  {activeTab === 'forms' && univers.definitions.forms && univers.definitions.forms.length > 0 && (
+                    <div className="space-y-4">
+                      {univers.definitions.forms.map((form, index) => (
+                        <div key={index} className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                          <div className="flex items-start justify-between mb-3">
+                            <div>
+                              <h4 className="text-lg font-semibold text-gray-900">{form.title || `Formulaire ${index + 1}`}</h4>
+                              {form.description && (
+                                <p className="text-sm text-gray-600 mt-1">{form.description}</p>
+                              )}
+                            </div>
                             {form.fields && (
-                              <p className="text-xs text-gray-500 mt-1">
+                              <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-medium">
                                 {form.fields.length} champ{form.fields.length > 1 ? 's' : ''}
-                              </p>
+                              </span>
                             )}
                           </div>
-                        ))}
-                      </div>
+                          
+                          {form.fields && form.fields.length > 0 && (
+                            <div className="mt-4 space-y-2">
+                              <h5 className="text-sm font-medium text-gray-700 mb-2">Champs du formulaire:</h5>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                {form.fields.map((field, fieldIndex) => (
+                                  <div key={fieldIndex} className="p-3 bg-white rounded-md border border-blue-100">
+                                    <div className="flex items-center justify-between mb-1">
+                                      <span className="text-sm font-medium text-gray-900">{field.label || `Champ ${fieldIndex + 1}`}</span>
+                                      <span className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded text-xs">{field.type}</span>
+                                    </div>
+                                    {field.placeholder && (
+                                      <p className="text-xs text-gray-500 mt-1">Placeholder: {field.placeholder}</p>
+                                    )}
+                                    {field.required && (
+                                      <span className="text-xs text-red-600 mt-1 inline-block">Requis</span>
+                                    )}
+                                    {field.options && field.options.length > 0 && (
+                                      <div className="mt-2">
+                                        <p className="text-xs text-gray-500 mb-1">Options:</p>
+                                        <div className="flex flex-wrap gap-1">
+                                          {field.options.map((opt, optIndex) => (
+                                            <span key={optIndex} className="px-2 py-0.5 bg-gray-100 text-gray-700 rounded text-xs">
+                                              {typeof opt === 'string' ? opt : (opt as any).label || (opt as any).value || String(opt)}
+                                            </span>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      ))}
                     </div>
                   )}
 
                   {/* Dashboards détaillés */}
-                  {univers.definitions.dashboards && univers.definitions.dashboards.length > 0 && (
-                    <div>
-                      <h4 className="text-sm font-semibold text-gray-900 mb-3 flex items-center space-x-2">
-                        <BarChart3 className="h-4 w-4 text-purple-600" />
-                        <span>Tableaux de bord ({univers.definitions.dashboards.length})</span>
-                      </h4>
-                      <div className="space-y-2">
-                        {univers.definitions.dashboards.map((dashboard, index) => (
-                          <div key={index} className="p-3 bg-purple-50 rounded-lg border border-purple-200">
-                            <p className="font-medium text-gray-900">{dashboard.title || `Tableau de bord ${index + 1}`}</p>
-                            {dashboard.description && (
-                              <p className="text-sm text-gray-600 mt-1">{dashboard.description}</p>
-                            )}
-                            {dashboard.widgets && (
-                              <p className="text-xs text-gray-500 mt-1">
-                                {dashboard.widgets.length} widget{dashboard.widgets.length > 1 ? 's' : ''}
-                              </p>
+                  {activeTab === 'dashboards' && univers.definitions.dashboards && univers.definitions.dashboards.length > 0 && (
+                    <div className="space-y-4">
+                      {univers.definitions.dashboards.map((dashboard, index) => (
+                        <div key={index} className="p-4 bg-purple-50 rounded-lg border border-purple-200">
+                          <div className="flex items-start justify-between mb-3">
+                            <div>
+                              <h4 className="text-lg font-semibold text-gray-900">{dashboard.name || `Tableau de bord ${index + 1}`}</h4>
+                              {dashboard.description && (
+                                <p className="text-sm text-gray-600 mt-1">{dashboard.description}</p>
+                              )}
+                            </div>
+                            {dashboard.metrics && (
+                              <span className="px-3 py-1 bg-purple-100 text-purple-700 rounded-full text-xs font-medium">
+                                {dashboard.metrics.length} métrique{dashboard.metrics.length > 1 ? 's' : ''}
+                              </span>
                             )}
                           </div>
-                        ))}
-                      </div>
+                          
+                          {dashboard.metrics && dashboard.metrics.length > 0 && (
+                            <div className="mt-4 space-y-2">
+                              <h5 className="text-sm font-medium text-gray-700 mb-2">Métriques:</h5>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                {dashboard.metrics.map((metric, metricIndex) => (
+                                  <div key={metricIndex} className="p-3 bg-white rounded-md border border-purple-100">
+                                    <div className="flex items-center justify-between mb-1">
+                                      <span className="text-sm font-medium text-gray-900">{metric.name || `Métrique ${metricIndex + 1}`}</span>
+                                      <span className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded text-xs">{(metric as any).type || 'metric'}</span>
+                                    </div>
+                                    {(metric as any).formId && (
+                                      <p className="text-xs text-gray-500 mt-1">Formulaire: {(metric as any).formId}</p>
+                                    )}
+                                    {(metric as any).fieldId && (
+                                      <p className="text-xs text-gray-500 mt-1">Champ: {(metric as any).fieldId}</p>
+                                    )}
+                                    {(metric as any).aggregation && (
+                                      <p className="text-xs text-gray-500 mt-1">Agrégation: {(metric as any).aggregation}</p>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      ))}
                     </div>
                   )}
 
                   {/* Instructions détaillées */}
-                  {univers.definitions.instructions && univers.definitions.instructions.length > 0 && (
-                    <div>
-                      <h4 className="text-sm font-semibold text-gray-900 mb-3 flex items-center space-x-2">
-                        <Calendar className="h-4 w-4 text-green-600" />
-                        <span>Instructions ({univers.definitions.instructions.length})</span>
-                      </h4>
-                      <div className="space-y-2">
-                        {univers.definitions.instructions.map((instruction, index) => (
-                          <div key={index} className="p-3 bg-green-50 rounded-lg border border-green-200">
-                            <p className="font-medium text-gray-900">{instruction.title || `Instruction ${index + 1}`}</p>
-                            {instruction.question && (
-                              <p className="text-sm text-gray-600 mt-1">{instruction.question}</p>
-                            )}
+                  {activeTab === 'instructions' && univers.definitions.instructions && univers.definitions.instructions.length > 0 && (
+                    <div className="space-y-4">
+                      {univers.definitions.instructions.map((instruction, index) => (
+                        <div key={index} className="p-4 bg-green-50 rounded-lg border border-green-200">
+                          <div className="flex items-start justify-between mb-3">
+                            <div>
+                              <h4 className="text-lg font-semibold text-gray-900">{instruction.title || `Instruction ${index + 1}`}</h4>
+                              {instruction.description && (
+                                <p className="text-sm text-gray-600 mt-1">{instruction.description}</p>
+                              )}
+                            </div>
                             {instruction.frequency && (
-                              <p className="text-xs text-gray-500 mt-1">
-                                Fréquence: {instruction.frequency}
-                              </p>
+                              <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs font-medium">
+                                {instruction.frequency}
+                              </span>
                             )}
                           </div>
-                        ))}
-                      </div>
+                          
+                          <div className="mt-4 space-y-3">
+                            {instruction.question && (
+                              <div>
+                                <h5 className="text-sm font-medium text-gray-700 mb-1">Question:</h5>
+                                <p className="text-sm text-gray-900 bg-white p-3 rounded-md border border-green-100">{instruction.question}</p>
+                              </div>
+                            )}
+                            
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                              {instruction.filters && (
+                                <div>
+                                  <h5 className="text-sm font-medium text-gray-700 mb-1">Filtres:</h5>
+                                  <div className="bg-white p-3 rounded-md border border-green-100 space-y-1">
+                                    {instruction.filters.period && (
+                                      <p className="text-xs text-gray-600">Période: {instruction.filters.period}</p>
+                                    )}
+                                    {instruction.filters.formId && (
+                                      <p className="text-xs text-gray-600">Formulaire: {instruction.filters.formId}</p>
+                                    )}
+                                    {instruction.filters.userId && (
+                                      <p className="text-xs text-gray-600">Utilisateur: {instruction.filters.userId}</p>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+                              
+                              <div>
+                                <h5 className="text-sm font-medium text-gray-700 mb-1">Informations:</h5>
+                                <div className="bg-white p-3 rounded-md border border-green-100 space-y-1">
+                                  {instruction.frequency && (
+                                    <p className="text-xs text-gray-600">Fréquence: {instruction.frequency}</p>
+                                  )}
+                                  {instruction.maxExecutions && (
+                                    <p className="text-xs text-gray-600">Max exécutions: {instruction.maxExecutions}</p>
+                                  )}
+                                  {instruction.selectedFormat && (
+                                    <p className="text-xs text-gray-600">Format: {instruction.selectedFormat}</p>
+                                  )}
+                                  {instruction.selectedFormats && instruction.selectedFormats.length > 0 && (
+                                    <p className="text-xs text-gray-600">Formats: {instruction.selectedFormats.join(', ')}</p>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   )}
 
                   {/* Listes détaillées */}
-                  {univers.definitions.lists && univers.definitions.lists.length > 0 && (
-                    <div>
-                      <h4 className="text-sm font-semibold text-gray-900 mb-3 flex items-center space-x-2">
-                        <Database className="h-4 w-4 text-orange-600" />
-                        <span>Listes ({univers.definitions.lists.length})</span>
-                      </h4>
-                      <div className="space-y-2">
-                        {univers.definitions.lists.map((list, index) => (
-                          <div key={index} className="p-3 bg-orange-50 rounded-lg border border-orange-200">
-                            <p className="font-medium text-gray-900">{list.name || `Liste ${index + 1}`}</p>
-                            {list.description && (
-                              <p className="text-sm text-gray-600 mt-1">{list.description}</p>
-                            )}
+                  {activeTab === 'lists' && univers.definitions.lists && univers.definitions.lists.length > 0 && (
+                    <div className="space-y-4">
+                      {univers.definitions.lists.map((list, index) => (
+                        <div key={index} className="p-4 bg-orange-50 rounded-lg border border-orange-200">
+                          <div className="flex items-start justify-between mb-3">
+                            <div>
+                              <h4 className="text-lg font-semibold text-gray-900">{list.name || `Liste ${index + 1}`}</h4>
+                              {list.description && (
+                                <p className="text-sm text-gray-600 mt-1">{list.description}</p>
+                              )}
+                            </div>
                             {list.columns && (
-                              <p className="text-xs text-gray-500 mt-1">
+                              <span className="px-3 py-1 bg-orange-100 text-orange-700 rounded-full text-xs font-medium">
                                 {list.columns.length} colonne{list.columns.length > 1 ? 's' : ''}
-                              </p>
+                              </span>
                             )}
                           </div>
-                        ))}
-                      </div>
+                          
+                          {list.columns && list.columns.length > 0 && (
+                            <div className="mt-4">
+                              <h5 className="text-sm font-medium text-gray-700 mb-2">Colonnes:</h5>
+                              <div className="bg-white rounded-md border border-orange-100 overflow-hidden">
+                                <table className="min-w-full divide-y divide-gray-200">
+                                  <thead className="bg-gray-50">
+                                    <tr>
+                                      {list.columns.map((col, colIndex) => (
+                                        <th key={colIndex} className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                                          {(col as any).name || `Colonne ${colIndex + 1}`}
+                                        </th>
+                                      ))}
+                                    </tr>
+                                  </thead>
+                                  <tbody className="bg-white divide-y divide-gray-200">
+                                    {list.rows && list.rows.length > 0 ? (
+                                      list.rows.slice(0, 5).map((row, rowIndex) => (
+                                        <tr key={rowIndex}>
+                                          {list.columns.map((_, colIndex) => (
+                                            <td key={colIndex} className="px-3 py-2 text-sm text-gray-900">
+                                              {row[colIndex] || '-'}
+                                            </td>
+                                          ))}
+                                        </tr>
+                                      ))
+                                    ) : (
+                                      <tr>
+                                        <td colSpan={list.columns.length} className="px-3 py-4 text-sm text-gray-500 text-center">
+                                          Aucune donnée
+                                        </td>
+                                      </tr>
+                                    )}
+                                  </tbody>
+                                </table>
+                                {list.rows && list.rows.length > 5 && (
+                                  <div className="px-3 py-2 bg-gray-50 text-xs text-gray-500 text-center">
+                                    ... et {list.rows.length - 5} autre{list.rows.length - 5 > 1 ? 's' : ''} ligne{list.rows.length - 5 > 1 ? 's' : ''}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      ))}
                     </div>
                   )}
 
                   {/* Rapports détaillés */}
-                  {univers.definitions.reports && univers.definitions.reports.length > 0 && (
-                    <div>
-                      <h4 className="text-sm font-semibold text-gray-900 mb-3 flex items-center space-x-2">
-                        <FileBarChart className="h-4 w-4 text-indigo-600" />
-                        <span>Rapports ({univers.definitions.reports.length})</span>
-                      </h4>
-                      <div className="space-y-2">
-                        {univers.definitions.reports.map((report, index) => (
-                          <div key={index} className="p-3 bg-indigo-50 rounded-lg border border-indigo-200">
-                            <p className="font-medium text-gray-900">{report.name || `Rapport ${index + 1}`}</p>
-                            {report.description && (
-                              <p className="text-sm text-gray-600 mt-1">{report.description}</p>
-                            )}
+                  {activeTab === 'reports' && univers.definitions.reports && univers.definitions.reports.length > 0 && (
+                    <div className="space-y-4">
+                      {univers.definitions.reports.map((report, index) => (
+                        <div key={index} className="p-4 bg-indigo-50 rounded-lg border border-indigo-200">
+                          <div className="flex items-start justify-between mb-3">
+                            <div>
+                              <h4 className="text-lg font-semibold text-gray-900">{report.name || `Rapport ${index + 1}`}</h4>
+                              {report.description && (
+                                <p className="text-sm text-gray-600 mt-1">{report.description}</p>
+                              )}
+                            </div>
                             {report.templateType && (
-                              <p className="text-xs text-gray-500 mt-1">
-                                Type: {report.templateType}
-                              </p>
+                              <span className="px-3 py-1 bg-indigo-100 text-indigo-700 rounded-full text-xs font-medium">
+                                {report.templateType.toUpperCase()}
+                              </span>
                             )}
                           </div>
-                        ))}
-                      </div>
+                          
+                          <div className="mt-4 space-y-3">
+                            {report.placeholders && report.placeholders.length > 0 && (
+                              <div>
+                                <h5 className="text-sm font-medium text-gray-700 mb-2">Placeholders ({report.placeholders.length}):</h5>
+                                <div className="flex flex-wrap gap-2">
+                                  {report.placeholders.map((placeholder, phIndex) => (
+                                    <span key={phIndex} className="px-3 py-1 bg-white border border-indigo-100 rounded-md text-xs">
+                                      {placeholder.placeholder}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                            
+                            {report.mappings && report.mappings.length > 0 && (
+                              <div>
+                                <h5 className="text-sm font-medium text-gray-700 mb-2">Mappings ({report.mappings.length}):</h5>
+                                <div className="space-y-2">
+                                  {report.mappings.map((mapping, mapIndex) => (
+                                    <div key={mapIndex} className="p-3 bg-white rounded-md border border-indigo-100">
+                                      <div className="flex items-center justify-between">
+                                        <span className="text-sm text-gray-900">
+                                          {mapping.placeholderId} → {mapping.sourceType}: {mapping.sourceId}
+                                        </span>
+                                        {mapping.calculationType && (
+                                          <span className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded text-xs">
+                                            {mapping.calculationType}
+                                          </span>
+                                        )}
+                                      </div>
+                                      {mapping.fieldId && (
+                                        <p className="text-xs text-gray-500 mt-1">Champ: {mapping.fieldId}</p>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   )}
                 </div>
@@ -878,7 +1162,7 @@ export const UniversViewPage: React.FC = () => {
         }
         confirmText="Instancier"
         cancelText="Annuler"
-        variant="primary"
+        variant="info"
         isLoading={isInstantiating}
       />
 
