@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
 import { AdminService } from '../services/adminService';
 import { AdminStats } from '../types';
+import { universService } from '@ubora/shared/services/universService';
 import { Card } from './Card';
 import { Button } from './Button';
 import { LogoutConfirmationModal } from './LogoutConfirmationModal';
@@ -40,26 +41,40 @@ import { NotificationsTab } from './tabs/NotificationsTab';
 import { UsageTab } from './tabs/UsageTab';
 import { SystemTab } from './tabs/SystemTab';
 import { AnalyticsTab } from './tabs/AnalyticsTab';
+import { UniversTab } from './tabs/UniversTab';
 
 export const AdminDashboard: React.FC = () => {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'forms' | 'dashboards' | 'activities' | 'notifications' | 'usage' | 'analytics' | 'system'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'forms' | 'dashboards' | 'activities' | 'notifications' | 'usage' | 'analytics' | 'system' | 'univers'>('overview');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [pendingApprovalCount, setPendingApprovalCount] = useState(0);
 
   useEffect(() => {
     loadDashboardData();
+    loadPendingApprovalCount();
   }, []);
+
+  const loadPendingApprovalCount = async () => {
+    try {
+      const pending = await universService.getPendingApprovalUnivers();
+      setPendingApprovalCount(pending.length);
+    } catch (error) {
+      console.error('Error loading pending approval count:', error);
+    }
+  };
 
   const loadDashboardData = async () => {
     setIsLoading(true);
     try {
       const statsData = await AdminService.getAdminStats();
       setStats(statsData);
+      // Also refresh pending approval count
+      await loadPendingApprovalCount();
     } catch (error) {
       console.error('Error loading dashboard data:', error);
     } finally {
@@ -135,13 +150,27 @@ export const AdminDashboard: React.FC = () => {
             {/* Desktop Actions */}
             <div className="hidden md:flex items-center space-x-4">
                 <Button
-                  onClick={() => navigate('/univers-approvals')}
+                  onClick={() => navigate('/univers-list')}
                   variant="secondary"
                   size="sm"
                   className="flex items-center space-x-2"
                 >
                   <Globe className="h-4 w-4" />
+                  <span>Tous les Univers</span>
+                </Button>
+                <Button
+                  onClick={() => navigate('/univers-approvals')}
+                  variant="secondary"
+                  size="sm"
+                  className="flex items-center space-x-2 relative"
+                >
+                  <Globe className="h-4 w-4" />
                   <span>Approbations Univers</span>
+                  {pendingApprovalCount > 0 && (
+                    <span className="ml-1 px-2 py-0.5 bg-yellow-500 text-white text-xs rounded-full">
+                      {pendingApprovalCount}
+                    </span>
+                  )}
                 </Button>
                 <Button
                   onClick={loadDashboardData}
@@ -177,7 +206,7 @@ export const AdminDashboard: React.FC = () => {
           <div className="md:hidden bg-white border-t border-gray-200 px-4 py-3 space-y-3">
             <Button
               onClick={() => {
-                navigate('/univers-approvals');
+                navigate('/univers-list');
                 setIsMobileMenuOpen(false);
               }}
               variant="secondary"
@@ -185,7 +214,24 @@ export const AdminDashboard: React.FC = () => {
               className="w-full flex items-center justify-center space-x-2"
             >
               <Globe className="h-4 w-4" />
+              <span>Tous les Univers</span>
+            </Button>
+            <Button
+              onClick={() => {
+                navigate('/univers-approvals');
+                setIsMobileMenuOpen(false);
+              }}
+              variant="secondary"
+              size="sm"
+              className="w-full flex items-center justify-center space-x-2 relative"
+            >
+              <Globe className="h-4 w-4" />
               <span>Approbations Univers</span>
+              {pendingApprovalCount > 0 && (
+                <span className="ml-1 px-2 py-0.5 bg-yellow-500 text-white text-xs rounded-full">
+                  {pendingApprovalCount}
+                </span>
+              )}
             </Button>
             <Button
               onClick={loadDashboardData}
@@ -219,6 +265,7 @@ export const AdminDashboard: React.FC = () => {
               { id: 'users', label: 'Utilisateurs', icon: Users },
               { id: 'forms', label: 'Formulaires', icon: FileText },
               { id: 'dashboards', label: 'Tableaux de bord', icon: BarChart3 },
+              { id: 'univers', label: 'Univers', icon: Globe },
               { id: 'activities', label: 'Activités', icon: Activity },
               { id: 'notifications', label: 'Notifications', icon: Bell },
               { id: 'usage', label: 'Utilisation', icon: Clock },
@@ -251,6 +298,7 @@ export const AdminDashboard: React.FC = () => {
         {activeTab === 'users' && <UsersTab onRefresh={loadDashboardData} />}
         {activeTab === 'forms' && <FormsTab onRefresh={loadDashboardData} />}
         {activeTab === 'dashboards' && <DashboardsTab onRefresh={loadDashboardData} />}
+        {activeTab === 'univers' && <UniversTab onRefresh={loadDashboardData} />}
         {activeTab === 'activities' && <ActivitiesTab onRefresh={loadDashboardData} />}
         {activeTab === 'notifications' && <NotificationsTab onRefresh={loadDashboardData} />}
         {activeTab === 'usage' && <UsageTab onRefresh={loadDashboardData} />}

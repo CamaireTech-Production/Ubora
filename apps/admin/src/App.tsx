@@ -8,6 +8,7 @@ import { AdminPage } from './pages/AdminPage';
 import { UserDetailPage } from './pages/UserDetailPage';
 import { UniversApprovalsPage } from './pages/UniversApprovalsPage';
 import { UniversApprovalDetailPage } from './pages/UniversApprovalDetailPage';
+import { UniversListPage } from './pages/UniversListPage';
 import { AdminPWAInstallPrompt } from './components/AdminPWAInstallPrompt';
 import { PWAUpdateNotification } from './components/PWAUpdateNotification';
 
@@ -93,6 +94,16 @@ function App() {
               element={
                 <ProtectedRoute allowedRoles={['admin']}>
                   <UniversApprovalsPage />
+                </ProtectedRoute>
+              } 
+            />
+            
+            {/* Admin Univers List - root route */}
+            <Route 
+              path="/univers-list" 
+              element={
+                <ProtectedRoute allowedRoles={['admin']}>
+                  <UniversListPage />
                 </ProtectedRoute>
               } 
             />
