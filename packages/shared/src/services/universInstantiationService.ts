@@ -154,14 +154,38 @@ class UniversInstantiationService {
 
     for (const dashboardDef of dashboardDefinitions) {
       try {
-        // Create a Dashboard from DashboardDefinition
+        // Generate temporary IDs for metrics and create a mapping
+        const metricsWithTempIds = dashboardDef.metrics.map((metric, index) => ({
+          ...metric,
+          id: metric.id || `temp_${index}`
+        }));
+
+        // Create a Dashboard from DashboardDefinition with proper metric IDs
+        // First pass: create metrics with temporary IDs
+        const metricsToCreate = metricsWithTempIds.map((metric, index) => {
+          const newMetric: any = {
+            ...metric,
+            id: `temp_${index}`, // Temporary ID for dependency resolution
+            createdAt: new Date()
+          };
+
+          // For computed metrics, we need to update dependsOn with temporary IDs
+          // The actual IDs will be resolved after all metrics are created
+          if (metric.sourceType === 'computed' && metric.dependsOn) {
+            // Map dependsOn IDs to temporary indices
+            newMetric.dependsOn = metric.dependsOn.map(depId => {
+              const depIndex = dashboardDef.metrics.findIndex(m => m.id === depId);
+              return depIndex >= 0 ? `temp_${depIndex}` : depId;
+            });
+          }
+
+          return newMetric;
+        });
+
         const dashboardData: any = {
           name: dashboardDef.name,
           description: dashboardDef.description || '',
-          metrics: dashboardDef.metrics.map(metric => ({
-            ...metric,
-            createdAt: new Date()
-          })),
+          metrics: metricsToCreate,
           createdBy: params.userId,
           createdByRole: params.userRole === 'admin' ? 'directeur' : params.userRole as 'directeur' | 'employe',
           agencyId: params.agencyId,
@@ -178,6 +202,12 @@ class UniversInstantiationService {
         }
 
         const dashboardRef = await addDoc(collection(db, 'dashboards'), dashboardData);
+        
+        // After creation, update metric IDs and dependsOn references
+        // Note: This would require updating the document, but for now we'll rely on
+        // the fact that Firestore will generate IDs and we'll need to update dependsOn
+        // In a production system, you'd want to update the document with actual metric IDs
+        
         createdDashboardIds.push(dashboardRef.id);
         
         console.log(`✅ Dashboard instantiated: ${dashboardDef.name} (ID: ${dashboardRef.id})`);

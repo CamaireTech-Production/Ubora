@@ -5,9 +5,11 @@ import { Input } from './Input';
 import { Textarea } from './Textarea';
 import { Select } from './Select';
 import { Card } from './Card';
-import { Plus, Trash2, AlertCircle, FileText, Hash, Type, Mail, Calendar, CheckSquare, Upload, AlertTriangle, ArrowLeft } from 'lucide-react';
+import { Plus, Trash2, AlertCircle, FileText, Hash, Type, Mail, Calendar, CheckSquare, Upload, AlertTriangle, ArrowLeft, Calculator } from 'lucide-react';
 import { GraphPreview } from './charts/GraphPreview';
 import { getValidYAxisFields, validateYAxisField } from '@ubora/shared/utils/GraphFieldValidator';
+import { MetricFormulaInput } from './MetricFormulaInput';
+import { MetricFormulaParser } from '../utils/MetricFormulaParser';
 
 interface DashboardBuilderProps {
   onSave: (dashboard: {
@@ -113,6 +115,7 @@ export const DashboardBuilder: React.FC<DashboardBuilderProps> = ({
     const newMetric: Omit<DashboardMetric, 'id' | 'createdAt' | 'createdBy' | 'agencyId'> = {
       name: '',
       description: '',
+      sourceType: 'field', // Default to field-based metric
       formId: '',
       fieldId: '',
       fieldType: 'text',
@@ -150,11 +153,38 @@ export const DashboardBuilder: React.FC<DashboardBuilderProps> = ({
       if (!metric.name.trim()) {
         newErrors.push(`Le nom de la métrique ${index + 1} est requis`);
       }
-      if (!metric.formId) {
-        newErrors.push(`Le formulaire de la métrique ${index + 1} est requis`);
-      }
-      if (!metric.fieldId) {
-        newErrors.push(`Le champ de la métrique ${index + 1} est requis`);
+      
+      const sourceType = metric.sourceType || 'field';
+      
+      if (sourceType === 'field') {
+        // Field-based metrics require formId and fieldId
+        if (!metric.formId) {
+          newErrors.push(`Le formulaire de la métrique ${index + 1} est requis`);
+        }
+        if (!metric.fieldId) {
+          newErrors.push(`Le champ de la métrique ${index + 1} est requis`);
+        }
+      } else if (sourceType === 'computed') {
+        // Computed metrics require a formula
+        if (!metric.calculationFormula || !metric.calculationFormula.trim()) {
+          newErrors.push(`La formule de calcul de la métrique ${index + 1} est requise`);
+        }
+        
+        // Check for circular dependencies
+        if (metric.dependsOn && metric.dependsOn.length > 0) {
+          const hasCircular = MetricFormulaParser.hasCircularDependency(
+            `metric_${index + 1}`, // Temporary ID for validation
+            metric.dependsOn,
+            metrics.map((m, i) => ({
+              ...m,
+              id: `metric_${i + 1}` // Temporary IDs for validation
+            }))
+          );
+          
+          if (hasCircular) {
+            newErrors.push(`La métrique ${index + 1} a une dépendance circulaire`);
+          }
+        }
       }
     });
 
@@ -267,70 +297,141 @@ export const DashboardBuilder: React.FC<DashboardBuilderProps> = ({
                             required
                           />
 
-                          <Select
-                            label="Formulaire *"
-                            value={metric.formId}
-                            onChange={(e) => {
-                              updateMetric(index, { 
-                                formId: e.target.value,
-                                fieldId: '', // Reset field when form changes
-                                fieldType: 'text'
-                              });
-                            }}
-                            options={[
-                              { value: '', label: 'Choisir un formulaire...' },
-                              ...forms.map(form => ({
-                                value: form.id,
-                                label: form.title
-                              }))
-                            ]}
-                          />
-                        </div>
-
-                        {selectedForm && (
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                              Type de métrique *
+                            </label>
                             <Select
-                              label="Champ du formulaire *"
-                              value={metric.fieldId}
+                              value={metric.sourceType || 'field'}
                               onChange={(e) => {
-                                const field = selectedForm.fields.find((f: FormField) => f.id === e.target.value);
+                                const sourceType = e.target.value as 'field' | 'computed';
                                 updateMetric(index, { 
-                                  fieldId: e.target.value,
-                                  fieldType: field?.type || 'text'
+                                  sourceType,
+                                  // Reset form/field when switching to computed
+                                  formId: sourceType === 'computed' ? undefined : metric.formId,
+                                  fieldId: sourceType === 'computed' ? undefined : metric.fieldId,
+                                  // Reset formula when switching to field
+                                  calculationFormula: sourceType === 'field' ? undefined : metric.calculationFormula,
+                                  userFormula: sourceType === 'field' ? undefined : metric.userFormula,
+                                  dependsOn: sourceType === 'field' ? undefined : metric.dependsOn
                                 });
                               }}
                               options={[
-                                { value: '', label: 'Choisir un champ...' },
-                                ...selectedForm.fields.map((field: FormField) => ({
-                                  value: field.id,
-                                  label: `${field.label} (${field.type})`
-                                }))
+                                { value: 'field', label: 'Basée sur un champ' },
+                                { value: 'computed', label: 'Calculée' }
                               ]}
                             />
+                          </div>
+                        </div>
 
-                            <div>
-                              <label className="block text-sm font-medium text-gray-700 mb-1">
-                                Type d'affichage
-                              </label>
+                        {/* Field-based metric configuration */}
+                        {(metric.sourceType || 'field') === 'field' && (
+                          <>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                               <Select
-                                value={metric.metricType || 'value'}
+                                label="Formulaire *"
+                                value={metric.formId || ''}
                                 onChange={(e) => {
-                                  const metricType = e.target.value as 'value' | 'graph';
                                   updateMetric(index, { 
-                                    metricType,
-                                    graphConfig: metricType === 'graph' ? {
-                                      xAxisType: 'time',
-                                      yAxisType: 'count',
-                                      chartType: 'line'
-                                    } : undefined
+                                    formId: e.target.value,
+                                    fieldId: '', // Reset field when form changes
+                                    fieldType: 'text'
                                   });
                                 }}
                                 options={[
-                                  { value: 'value', label: 'Valeur numérique' },
-                                  { value: 'graph', label: 'Graphique' }
+                                  { value: '', label: 'Choisir un formulaire...' },
+                                  ...forms.map(form => ({
+                                    value: form.id,
+                                    label: form.title
+                                  }))
                                 ]}
                               />
+
+                              {selectedForm && (
+                                <Select
+                                  label="Champ du formulaire *"
+                                  value={metric.fieldId || ''}
+                                  onChange={(e) => {
+                                    const field = selectedForm.fields.find((f: FormField) => f.id === e.target.value);
+                                    updateMetric(index, { 
+                                      fieldId: e.target.value,
+                                      fieldType: field?.type || 'text'
+                                    });
+                                  }}
+                                  options={[
+                                    { value: '', label: 'Choisir un champ...' },
+                                    ...selectedForm.fields.map((field: FormField) => ({
+                                      value: field.id,
+                                      label: `${field.label} (${field.type})`
+                                    }))
+                                  ]}
+                                />
+                              )}
                             </div>
+
+                            {selectedForm && (
+                              <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                  Type d'affichage
+                                </label>
+                                <Select
+                                  value={metric.metricType || 'value'}
+                                  onChange={(e) => {
+                                    const metricType = e.target.value as 'value' | 'graph';
+                                    updateMetric(index, { 
+                                      metricType,
+                                      graphConfig: metricType === 'graph' ? {
+                                        xAxisType: 'time',
+                                        yAxisType: 'count',
+                                        chartType: 'line'
+                                      } : undefined
+                                    });
+                                  }}
+                                  options={[
+                                    { value: 'value', label: 'Valeur numérique' },
+                                    { value: 'graph', label: 'Graphique' }
+                                  ]}
+                                />
+                              </div>
+                            )}
+                          </>
+                        )}
+
+                        {/* Computed metric configuration */}
+                        {(metric.sourceType || 'field') === 'computed' && (
+                          <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                            <div className="flex items-center space-x-2 mb-3">
+                              <Calculator className="h-5 w-5 text-blue-600" />
+                              <h4 className="font-medium text-blue-900">Configuration de la métrique calculée</h4>
+                            </div>
+                            
+                            <MetricFormulaInput
+                              value={metric.userFormula || metric.calculationFormula || ''}
+                              onChange={(formula, metricIds) => {
+                                // Create metrics with temporary IDs for parsing
+                                const metricsWithTempIds = metrics.map((m, i) => ({
+                                  ...m,
+                                  id: m.id || `temp_${i}` // Use existing ID or generate temp
+                                }));
+                                
+                                const parseResult = MetricFormulaParser.parseUserFormula(
+                                  formula,
+                                  metricsWithTempIds,
+                                  metricsWithTempIds[index].id
+                                );
+
+                                updateMetric(index, {
+                                  calculationFormula: parseResult.formulaWithIds,
+                                  userFormula: parseResult.userFormula,
+                                  dependsOn: parseResult.metricIds
+                                });
+                              }}
+                              metrics={metrics.map((m, i) => ({
+                                ...m,
+                                id: m.id || `temp_${i}` // Use existing ID or generate temp
+                              }))}
+                              currentMetricId={metrics[index]?.id || `temp_${index}`}
+                            />
                           </div>
                         )}
 

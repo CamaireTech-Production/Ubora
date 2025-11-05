@@ -465,8 +465,9 @@ export interface DashboardMetric {
   id: string;
   name: string;
   description?: string;
-  formId: string;
-  fieldId: string;
+  sourceType?: 'field' | 'computed'; // 'field' = based on form field, 'computed' = calculated from other metrics
+  formId?: string; // Required when sourceType is 'field', optional for 'computed'
+  fieldId?: string; // Required when sourceType is 'field', optional for 'computed'
   fieldType: 'text' | 'number' | 'email' | 'textarea' | 'select' | 'checkbox' | 'date' | 'file' | 'calculated';
   calculationType: 'count' | 'sum' | 'average' | 'min' | 'max' | 'unique';
   metricType: 'value' | 'graph'; // New: type of metric display
@@ -478,6 +479,10 @@ export interface DashboardMetric {
     yAxisType?: 'field' | 'count' | 'sum' | 'average'; // Type of Y axis
     chartType?: 'line' | 'bar' | 'area'; // Chart type
   };
+  // Computed metric properties (only used when sourceType is 'computed')
+  calculationFormula?: string; // Formula with metric IDs (e.g., "metric1 + metric2 * 0.15")
+  userFormula?: string; // User-friendly formula with metric names (e.g., "Ventes + Frais * 0.15")
+  dependsOn?: string[]; // IDs of metrics this metric depends on
   createdAt: Date;
   createdBy: string; // directeur ID
   agencyId: string;

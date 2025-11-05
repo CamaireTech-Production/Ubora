@@ -785,7 +785,7 @@ export const DashboardDetailPage: React.FC = () => {
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 lg:gap-6">
             {dashboard.metrics.map((metric, index) => {
               const filteredEntries = getFilteredFormEntries();
-              const result = MetricCalculator.calculateMetric(metric, filteredEntries);
+              const result = MetricCalculator.calculateMetric(metric, filteredEntries, dashboard || undefined);
               
               return (
                 <Card key={metric.id || index} className="hover:shadow-lg transition-shadow h-full flex flex-col">
