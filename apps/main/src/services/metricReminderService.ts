@@ -193,7 +193,7 @@ class MetricReminderService {
           return entryDate >= periodStart && entryDate <= periodEnd;
         });
 
-        const result = MetricCalculator.calculateMetric(metric as DashboardMetric, periodFormEntries);
+        const result = MetricCalculator.calculateMetric(metric as DashboardMetric, periodFormEntries, dash);
         const numeric = typeof (result as any).rawValue === 'number' ? (result as any).rawValue : Number((result as any).rawValue);
         
         // For frequency-based reminders, we always send the notification with the metric value

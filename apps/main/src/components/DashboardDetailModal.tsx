@@ -191,7 +191,7 @@ export const DashboardDetailModal: React.FC<DashboardDetailModalProps> = ({
               
               <div className="flex gap-3 sm:gap-4 lg:gap-6 overflow-x-auto pb-4 scrollbar-hide horizontal-scroll-metrics scroll-smooth">
               {dashboard.metrics.map((metric, index) => {
-                const result = MetricCalculator.calculateMetric(metric, formEntries);
+                const result = MetricCalculator.calculateMetric(metric, formEntries, dashboard);
                 
                 return (
                   <div key={metric.id || index} className="flex-shrink-0 w-64 sm:w-72 lg:w-80">

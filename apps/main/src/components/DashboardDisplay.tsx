@@ -289,7 +289,7 @@ export const DashboardDisplay: React.FC<DashboardDisplayProps> = ({
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-4">
           {dashboard.metrics.map((metric, index) => {
-            const result = MetricCalculator.calculateMetric(metric, formEntries);
+            const result = MetricCalculator.calculateMetric(metric, formEntries, dashboard);
             
             return (
               <div
