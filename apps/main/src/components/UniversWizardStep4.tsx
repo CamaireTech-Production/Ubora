@@ -168,13 +168,26 @@ export const UniversWizardStep4: React.FC<UniversWizardStepProps> = ({
           </p>
         </div>
 
-        {/* Dashboards Display (Read-only) */}
+        {/* Dashboards Display (Read-only) avec détails complets */}
         {dashboards.length > 0 ? (
-          <div className="space-y-3">
-            {dashboards.map(dashboard => (
-              <Card key={dashboard.id}>
-                <div className="p-4">
-                  <div className="flex items-start justify-between">
+          <div className="space-y-4">
+            {dashboards.map(dashboard => {
+              // Créer un map des noms de formulaires et champs
+              const formNamesMap = new Map<string, { title: string; fieldNames: Map<string, string> }>();
+              const formDefinitions = (wizardData.definitions.forms || []) as any[];
+              formDefinitions.forEach(form => {
+                const fieldNamesMap = new Map<string, string>();
+                if (form.fields && form.fields.length > 0) {
+                  form.fields.forEach((field: any) => {
+                    fieldNamesMap.set(field.id || '', field.label || '');
+                  });
+                }
+                formNamesMap.set(form.id, { title: form.title || '', fieldNames: fieldNamesMap });
+              });
+              
+              return (
+                <Card key={dashboard.id} className="p-4 bg-purple-50 rounded-lg border border-purple-200">
+                  <div className="flex items-start justify-between mb-3">
                     <div className="flex-1">
                       <div className="flex items-center space-x-2 mb-2">
                         <BarChart3 className="h-5 w-5 text-purple-600" />
@@ -183,14 +196,95 @@ export const UniversWizardStep4: React.FC<UniversWizardStepProps> = ({
                       {dashboard.description && (
                         <p className="text-sm text-gray-600 mb-3">{dashboard.description}</p>
                       )}
-                      <div className="flex items-center space-x-4 text-sm text-gray-600">
-                        <span>{dashboard.metrics?.length || 0} métrique{dashboard.metrics && dashboard.metrics.length > 1 ? 's' : ''}</span>
-                      </div>
+                      {dashboard.metrics && (
+                        <span className="px-3 py-1 bg-purple-100 text-purple-700 rounded-full text-xs font-medium">
+                          {dashboard.metrics.length} métrique{dashboard.metrics.length > 1 ? 's' : ''}
+                        </span>
+                      )}
                     </div>
                   </div>
-                </div>
-              </Card>
-            ))}
+                  
+                  {dashboard.metrics && dashboard.metrics.length > 0 && (
+                    <div className="mt-4 space-y-2">
+                      <h5 className="text-sm font-medium text-gray-700 mb-2">Métriques:</h5>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {dashboard.metrics.map((metric, metricIndex) => {
+                          const formId = (metric as any).formId;
+                          const fieldId = (metric as any).fieldId;
+                          const formInfo = formId ? formNamesMap.get(formId) : null;
+                          const fieldName = formInfo && fieldId ? formInfo.fieldNames.get(fieldId) : null;
+                          
+                          return (
+                            <div key={metricIndex} className="p-3 bg-white rounded-md border border-purple-100">
+                              <div className="flex items-center justify-between mb-2">
+                                <span className="text-sm font-semibold text-gray-900">{metric.name || `Métrique ${metricIndex + 1}`}</span>
+                                <span className="px-2 py-0.5 bg-purple-100 text-purple-700 rounded text-xs font-medium">
+                                  {(metric as any).type || 'metric'}
+                                </span>
+                              </div>
+                              <div className="space-y-1.5 mt-2">
+                                {formInfo && (
+                                  <div className="flex items-center space-x-2">
+                                    <span className="text-xs text-gray-500">Formulaire:</span>
+                                    <span className="text-xs font-medium text-gray-900">{formInfo.title || formId}</span>
+                                  </div>
+                                )}
+                                {!formInfo && formId && (
+                                  <div className="flex items-center space-x-2">
+                                    <span className="text-xs text-gray-500">Formulaire ID:</span>
+                                    <span className="text-xs font-mono text-gray-600">{formId}</span>
+                                  </div>
+                                )}
+                                {fieldName && (
+                                  <div className="flex items-center space-x-2">
+                                    <span className="text-xs text-gray-500">Champ:</span>
+                                    <span className="text-xs font-medium text-gray-900">{fieldName}</span>
+                                  </div>
+                                )}
+                                {!fieldName && fieldId && (
+                                  <div className="flex items-center space-x-2">
+                                    <span className="text-xs text-gray-500">Champ ID:</span>
+                                    <span className="text-xs font-mono text-gray-600">{fieldId}</span>
+                                  </div>
+                                )}
+                                {(metric as any).aggregation && (
+                                  <div className="flex items-center space-x-2">
+                                    <span className="text-xs text-gray-500">Agrégation:</span>
+                                    <span className="text-xs font-medium text-blue-600 capitalize">
+                                      {(metric as any).aggregation}
+                                    </span>
+                                  </div>
+                                )}
+                                {(metric as any).chartType && (
+                                  <div className="flex items-center space-x-2">
+                                    <span className="text-xs text-gray-500">Type de graphique:</span>
+                                    <span className="text-xs font-medium text-indigo-600 capitalize">
+                                      {(metric as any).chartType}
+                                    </span>
+                                  </div>
+                                )}
+                                {(metric as any).xAxis && (
+                                  <div className="flex items-center space-x-2">
+                                    <span className="text-xs text-gray-500">Axe X:</span>
+                                    <span className="text-xs text-gray-700">{(metric as any).xAxis}</span>
+                                  </div>
+                                )}
+                                {(metric as any).yAxis && (
+                                  <div className="flex items-center space-x-2">
+                                    <span className="text-xs text-gray-500">Axe Y:</span>
+                                    <span className="text-xs text-gray-700">{(metric as any).yAxis}</span>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </Card>
+              );
+            })}
           </div>
         ) : (
           <Card>

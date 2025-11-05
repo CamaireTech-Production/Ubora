@@ -182,33 +182,75 @@ export const UniversWizardStep2: React.FC<UniversWizardStepProps> = ({
         </p>
       </div>
 
-        {/* Lists Display (Read-only) */}
+        {/* Lists Display (Read-only) avec détails complets */}
         {lists.length > 0 ? (
-          <div className="space-y-3">
+          <div className="space-y-4">
             {lists.map(list => (
-              <Card key={list.id}>
-                <div className="p-4">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center space-x-2 mb-2">
-                        <Database className="h-5 w-5 text-blue-600" />
-                        <h3 className="text-lg font-semibold text-gray-900">{list.name}</h3>
-                      </div>
-                      {list.description && (
-                        <p className="text-sm text-gray-600 mb-3">{list.description}</p>
-                      )}
-                      <div className="flex items-center space-x-4 text-sm text-gray-600">
-                        <span>{list.columns.length} colonne{list.columns.length > 1 ? 's' : ''}</span>
-                        <span>{list.rows.length} ligne{list.rows.length > 1 ? 's' : ''}</span>
-                      </div>
+              <Card key={list.id} className="p-4 bg-orange-50 rounded-lg border border-orange-200">
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex-1">
+                    <div className="flex items-center space-x-2 mb-2">
+                      <Database className="h-5 w-5 text-orange-600" />
+                      <h3 className="text-lg font-semibold text-gray-900">{list.name}</h3>
                     </div>
+                    {list.description && (
+                      <p className="text-sm text-gray-600 mb-3">{list.description}</p>
+                    )}
+                    {list.columns && (
+                      <span className="px-3 py-1 bg-orange-100 text-orange-700 rounded-full text-xs font-medium">
+                        {list.columns.length} colonne{list.columns.length > 1 ? 's' : ''} • {list.rows?.length || 0} ligne{(list.rows?.length || 0) > 1 ? 's' : ''}
+                      </span>
+                    )}
                   </div>
                 </div>
+                
+                {list.columns && list.columns.length > 0 && (
+                  <div className="mt-4">
+                    <h5 className="text-sm font-medium text-gray-700 mb-2">Colonnes et données:</h5>
+                    <div className="bg-white rounded-md border border-orange-100 overflow-hidden">
+                      <table className="min-w-full divide-y divide-gray-200">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            {list.columns.map((col, colIndex) => (
+                              <th key={colIndex} className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                                {(col as any).name || `Colonne ${colIndex + 1}`}
+                              </th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody className="bg-white divide-y divide-gray-200">
+                          {list.rows && list.rows.length > 0 ? (
+                            list.rows.slice(0, 5).map((row, rowIndex) => (
+                              <tr key={rowIndex}>
+                                {list.columns.map((_, colIndex) => (
+                                  <td key={colIndex} className="px-3 py-2 text-sm text-gray-900">
+                                    {row[colIndex] || '-'}
+                                  </td>
+                                ))}
+                              </tr>
+                            ))
+                          ) : (
+                            <tr>
+                              <td colSpan={list.columns.length} className="px-3 py-4 text-sm text-gray-500 text-center">
+                                Aucune donnée
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                      {list.rows && list.rows.length > 5 && (
+                        <div className="px-3 py-2 bg-gray-50 text-xs text-gray-500 text-center">
+                          ... et {list.rows.length - 5} autre{list.rows.length - 5 > 1 ? 's' : ''} ligne{list.rows.length - 5 > 1 ? 's' : ''}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </Card>
             ))}
           </div>
         ) : (
-      <Card>
+          <Card>
             <div className="text-center py-8">
               <p className="text-gray-500">Aucune liste dans ce Univers</p>
             </div>

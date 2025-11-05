@@ -54,6 +54,7 @@ export const UniversViewPage: React.FC = () => {
   const [isUpgrading, setIsUpgrading] = useState(false);
   const [upgradeProgress, setUpgradeProgress] = useState<string>('');
   const [activeTab, setActiveTab] = useState<'overview' | 'forms' | 'dashboards' | 'instructions' | 'lists' | 'reports'>('overview');
+  const [formNamesMap, setFormNamesMap] = useState<Map<string, { title: string; fieldNames: Map<string, string> }>>(new Map());
 
   useEffect(() => {
     if (id && user?.id && user?.agencyId) {
@@ -94,6 +95,21 @@ export const UniversViewPage: React.FC = () => {
       }
 
       setUnivers(universData);
+      
+      // Charger les noms des formulaires et champs pour les métriques
+      if (universData.definitions.forms && universData.definitions.forms.length > 0) {
+        const formMap = new Map<string, { title: string; fieldNames: Map<string, string> }>();
+        universData.definitions.forms.forEach(form => {
+          const fieldNamesMap = new Map<string, string>();
+          if (form.fields && form.fields.length > 0) {
+            form.fields.forEach(field => {
+              fieldNamesMap.set(field.id || '', field.label || '');
+            });
+          }
+          formMap.set(form.id, { title: form.title || '', fieldNames: fieldNamesMap });
+        });
+        setFormNamesMap(formMap);
+      }
     } catch (error) {
       console.error('Erreur lors du chargement du Univers:', error);
       showError('Erreur lors du chargement du Univers');
@@ -764,23 +780,77 @@ export const UniversViewPage: React.FC = () => {
                             <div className="mt-4 space-y-2">
                               <h5 className="text-sm font-medium text-gray-700 mb-2">Métriques:</h5>
                               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                {dashboard.metrics.map((metric, metricIndex) => (
-                                  <div key={metricIndex} className="p-3 bg-white rounded-md border border-purple-100">
-                                    <div className="flex items-center justify-between mb-1">
-                                      <span className="text-sm font-medium text-gray-900">{metric.name || `Métrique ${metricIndex + 1}`}</span>
-                                      <span className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded text-xs">{(metric as any).type || 'metric'}</span>
+                                {dashboard.metrics.map((metric, metricIndex) => {
+                                  const formId = (metric as any).formId;
+                                  const fieldId = (metric as any).fieldId;
+                                  const formInfo = formId ? formNamesMap.get(formId) : null;
+                                  const fieldName = formInfo && fieldId ? formInfo.fieldNames.get(fieldId) : null;
+                                  
+                                  return (
+                                    <div key={metricIndex} className="p-3 bg-white rounded-md border border-purple-100">
+                                      <div className="flex items-center justify-between mb-2">
+                                        <span className="text-sm font-semibold text-gray-900">{metric.name || `Métrique ${metricIndex + 1}`}</span>
+                                        <span className="px-2 py-0.5 bg-purple-100 text-purple-700 rounded text-xs font-medium">
+                                          {(metric as any).type || 'metric'}
+                                        </span>
+                                      </div>
+                                      <div className="space-y-1.5 mt-2">
+                                        {formInfo && (
+                                          <div className="flex items-center space-x-2">
+                                            <span className="text-xs text-gray-500">Formulaire:</span>
+                                            <span className="text-xs font-medium text-gray-900">{formInfo.title || formId}</span>
+                                          </div>
+                                        )}
+                                        {!formInfo && formId && (
+                                          <div className="flex items-center space-x-2">
+                                            <span className="text-xs text-gray-500">Formulaire ID:</span>
+                                            <span className="text-xs font-mono text-gray-600">{formId}</span>
+                                          </div>
+                                        )}
+                                        {fieldName && (
+                                          <div className="flex items-center space-x-2">
+                                            <span className="text-xs text-gray-500">Champ:</span>
+                                            <span className="text-xs font-medium text-gray-900">{fieldName}</span>
+                                          </div>
+                                        )}
+                                        {!fieldName && fieldId && (
+                                          <div className="flex items-center space-x-2">
+                                            <span className="text-xs text-gray-500">Champ ID:</span>
+                                            <span className="text-xs font-mono text-gray-600">{fieldId}</span>
+                                          </div>
+                                        )}
+                                        {(metric as any).aggregation && (
+                                          <div className="flex items-center space-x-2">
+                                            <span className="text-xs text-gray-500">Agrégation:</span>
+                                            <span className="text-xs font-medium text-blue-600 capitalize">
+                                              {(metric as any).aggregation}
+                                            </span>
+                                          </div>
+                                        )}
+                                        {(metric as any).chartType && (
+                                          <div className="flex items-center space-x-2">
+                                            <span className="text-xs text-gray-500">Type de graphique:</span>
+                                            <span className="text-xs font-medium text-indigo-600 capitalize">
+                                              {(metric as any).chartType}
+                                            </span>
+                                          </div>
+                                        )}
+                                        {(metric as any).xAxis && (
+                                          <div className="flex items-center space-x-2">
+                                            <span className="text-xs text-gray-500">Axe X:</span>
+                                            <span className="text-xs text-gray-700">{(metric as any).xAxis}</span>
+                                          </div>
+                                        )}
+                                        {(metric as any).yAxis && (
+                                          <div className="flex items-center space-x-2">
+                                            <span className="text-xs text-gray-500">Axe Y:</span>
+                                            <span className="text-xs text-gray-700">{(metric as any).yAxis}</span>
+                                          </div>
+                                        )}
+                                      </div>
                                     </div>
-                                    {(metric as any).formId && (
-                                      <p className="text-xs text-gray-500 mt-1">Formulaire: {(metric as any).formId}</p>
-                                    )}
-                                    {(metric as any).fieldId && (
-                                      <p className="text-xs text-gray-500 mt-1">Champ: {(metric as any).fieldId}</p>
-                                    )}
-                                    {(metric as any).aggregation && (
-                                      <p className="text-xs text-gray-500 mt-1">Agrégation: {(metric as any).aggregation}</p>
-                                    )}
-                                  </div>
-                                ))}
+                                  );
+                                })}
                               </div>
                             </div>
                           )}

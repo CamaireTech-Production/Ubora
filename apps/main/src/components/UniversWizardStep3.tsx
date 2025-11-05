@@ -185,27 +185,61 @@ export const UniversWizardStep3: React.FC<UniversWizardStepProps> = ({
           </p>
         </div>
 
-        {/* Forms Display (Read-only) */}
+        {/* Forms Display (Read-only) avec détails complets */}
         {forms.length > 0 ? (
-          <div className="space-y-3">
+          <div className="space-y-4">
             {forms.map(form => (
-              <Card key={form.id}>
-                <div className="p-4">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center space-x-2 mb-2">
-                        <FileText className="h-5 w-5 text-blue-600" />
-                        <h3 className="text-lg font-semibold text-gray-900">{form.title}</h3>
-                      </div>
-                      {form.description && (
-                        <p className="text-sm text-gray-600 mb-3">{form.description}</p>
-                      )}
-                      <div className="flex items-center space-x-4 text-sm text-gray-600">
-                        <span>{form.fields?.length || 0} champ{form.fields && form.fields.length > 1 ? 's' : ''}</span>
-                      </div>
+              <Card key={form.id} className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex-1">
+                    <div className="flex items-center space-x-2 mb-2">
+                      <FileText className="h-5 w-5 text-blue-600" />
+                      <h3 className="text-lg font-semibold text-gray-900">{form.title}</h3>
                     </div>
+                    {form.description && (
+                      <p className="text-sm text-gray-600 mb-3">{form.description}</p>
+                    )}
+                    {form.fields && (
+                      <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-medium">
+                        {form.fields.length} champ{form.fields.length > 1 ? 's' : ''}
+                      </span>
+                    )}
                   </div>
                 </div>
+                
+                {form.fields && form.fields.length > 0 && (
+                  <div className="mt-4 space-y-2">
+                    <h5 className="text-sm font-medium text-gray-700 mb-2">Champs du formulaire:</h5>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {form.fields.map((field, fieldIndex) => (
+                        <div key={fieldIndex} className="p-3 bg-white rounded-md border border-blue-100">
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-sm font-medium text-gray-900">{field.label || `Champ ${fieldIndex + 1}`}</span>
+                            <span className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded text-xs">{field.type}</span>
+                          </div>
+                          {field.placeholder && (
+                            <p className="text-xs text-gray-500 mt-1">Placeholder: {field.placeholder}</p>
+                          )}
+                          {field.required && (
+                            <span className="text-xs text-red-600 mt-1 inline-block">Requis</span>
+                          )}
+                          {field.options && field.options.length > 0 && (
+                            <div className="mt-2">
+                              <p className="text-xs text-gray-500 mb-1">Options:</p>
+                              <div className="flex flex-wrap gap-1">
+                                {field.options.map((opt, optIndex) => (
+                                  <span key={optIndex} className="px-2 py-0.5 bg-gray-100 text-gray-700 rounded text-xs">
+                                    {typeof opt === 'string' ? opt : (opt as any).label || (opt as any).value || String(opt)}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </Card>
             ))}
           </div>

@@ -210,26 +210,66 @@ export const UniversWizardStep6: React.FC<UniversWizardStepProps> = ({
           </p>
         </div>
 
-        {/* Reports Display (Read-only) */}
+        {/* Reports Display (Read-only) avec détails complets */}
         {reports.length > 0 ? (
-          <div className="space-y-3">
+          <div className="space-y-4">
             {reports.map(report => (
-              <Card key={report.id}>
-                <div className="p-4">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center space-x-2 mb-2">
-                        <FileBarChart className="h-5 w-5 text-green-600" />
-                        <h3 className="text-lg font-semibold text-gray-900">{report.name}</h3>
-                      </div>
-                      {report.description && (
-                        <p className="text-sm text-gray-600 mb-3">{report.description}</p>
-                      )}
-                      <div className="text-sm text-gray-600">
-                        <p><strong>Type:</strong> {report.templateType || 'Non spécifié'}</p>
+              <Card key={report.id} className="p-4 bg-indigo-50 rounded-lg border border-indigo-200">
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex-1">
+                    <div className="flex items-center space-x-2 mb-2">
+                      <FileBarChart className="h-5 w-5 text-indigo-600" />
+                      <h3 className="text-lg font-semibold text-gray-900">{report.name}</h3>
+                    </div>
+                    {report.description && (
+                      <p className="text-sm text-gray-600 mb-3">{report.description}</p>
+                    )}
+                    {report.templateType && (
+                      <span className="px-3 py-1 bg-indigo-100 text-indigo-700 rounded-full text-xs font-medium">
+                        {report.templateType.toUpperCase()}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                
+                <div className="mt-4 space-y-3">
+                  {report.placeholders && report.placeholders.length > 0 && (
+                    <div>
+                      <h5 className="text-sm font-medium text-gray-700 mb-2">Placeholders ({report.placeholders.length}):</h5>
+                      <div className="flex flex-wrap gap-2">
+                        {report.placeholders.map((placeholder, phIndex) => (
+                          <span key={phIndex} className="px-3 py-1 bg-white border border-indigo-100 rounded-md text-xs">
+                            {placeholder.placeholder}
+                          </span>
+                        ))}
                       </div>
                     </div>
-                  </div>
+                  )}
+                  
+                  {report.mappings && report.mappings.length > 0 && (
+                    <div>
+                      <h5 className="text-sm font-medium text-gray-700 mb-2">Mappings ({report.mappings.length}):</h5>
+                      <div className="space-y-2">
+                        {report.mappings.map((mapping, mapIndex) => (
+                          <div key={mapIndex} className="p-3 bg-white rounded-md border border-indigo-100">
+                            <div className="flex items-center justify-between">
+                              <span className="text-sm text-gray-900">
+                                {mapping.placeholderId} → {mapping.sourceType}: {mapping.sourceId}
+                              </span>
+                              {mapping.calculationType && (
+                                <span className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded text-xs">
+                                  {mapping.calculationType}
+                                </span>
+                              )}
+                            </div>
+                            {mapping.fieldId && (
+                              <p className="text-xs text-gray-500 mt-1">Champ: {mapping.fieldId}</p>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </Card>
             ))}

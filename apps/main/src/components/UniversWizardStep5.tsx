@@ -310,23 +310,69 @@ export const UniversWizardStep5: React.FC<UniversWizardStepProps> = ({
           </p>
         </div>
 
-        {/* Instructions Display (Read-only) */}
+        {/* Instructions Display (Read-only) avec détails complets */}
         {instructions.length > 0 ? (
-          <div className="space-y-3">
+          <div className="space-y-4">
             {instructions.map(instruction => (
-              <Card key={instruction.id}>
-                <div className="p-4">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center space-x-2 mb-2">
-                        <h3 className="text-lg font-semibold text-gray-900">{instruction.title}</h3>
+              <Card key={instruction.id} className="p-4 bg-green-50 rounded-lg border border-green-200">
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex-1">
+                    <div className="flex items-center space-x-2 mb-2">
+                      <Calendar className="h-5 w-5 text-green-600" />
+                      <h3 className="text-lg font-semibold text-gray-900">{instruction.title}</h3>
+                    </div>
+                    {instruction.description && (
+                      <p className="text-sm text-gray-600 mb-3">{instruction.description}</p>
+                    )}
+                    {instruction.frequency && (
+                      <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs font-medium">
+                        {instruction.frequency === 'once' ? 'Une fois' : instruction.frequency === 'daily' ? 'Quotidienne' : instruction.frequency === 'weekly' ? 'Hebdomadaire' : 'Mensuelle'}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                
+                <div className="mt-4 space-y-3">
+                  {instruction.question && (
+                    <div>
+                      <h5 className="text-sm font-medium text-gray-700 mb-1">Question:</h5>
+                      <p className="text-sm text-gray-900 bg-white p-3 rounded-md border border-green-100">{instruction.question}</p>
+                    </div>
+                  )}
+                  
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {instruction.filters && (
+                      <div>
+                        <h5 className="text-sm font-medium text-gray-700 mb-1">Filtres:</h5>
+                        <div className="bg-white p-3 rounded-md border border-green-100 space-y-1">
+                          {instruction.filters.period && (
+                            <p className="text-xs text-gray-600">Période: {instruction.filters.period}</p>
+                          )}
+                          {instruction.filters.formId && (
+                            <p className="text-xs text-gray-600">Formulaire ID: {instruction.filters.formId}</p>
+                          )}
+                          {instruction.filters.userId && (
+                            <p className="text-xs text-gray-600">Utilisateur ID: {instruction.filters.userId}</p>
+                          )}
+                        </div>
                       </div>
-                      {instruction.description && (
-                        <p className="text-sm text-gray-600 mb-3">{instruction.description}</p>
-                      )}
-                      <div className="text-sm text-gray-600">
-                        <p className="mb-1"><strong>Question:</strong> {instruction.question}</p>
-                        <p><strong>Fréquence:</strong> {instruction.frequency === 'once' ? 'Une fois' : instruction.frequency === 'daily' ? 'Quotidienne' : instruction.frequency === 'weekly' ? 'Hebdomadaire' : 'Mensuelle'}</p>
+                    )}
+                    
+                    <div>
+                      <h5 className="text-sm font-medium text-gray-700 mb-1">Informations:</h5>
+                      <div className="bg-white p-3 rounded-md border border-green-100 space-y-1">
+                        {instruction.frequency && (
+                          <p className="text-xs text-gray-600">Fréquence: {instruction.frequency === 'once' ? 'Une fois' : instruction.frequency === 'daily' ? 'Quotidienne' : instruction.frequency === 'weekly' ? 'Hebdomadaire' : 'Mensuelle'}</p>
+                        )}
+                        {instruction.maxExecutions && (
+                          <p className="text-xs text-gray-600">Max exécutions: {instruction.maxExecutions}</p>
+                        )}
+                        {instruction.selectedFormat && (
+                          <p className="text-xs text-gray-600">Format: {instruction.selectedFormat}</p>
+                        )}
+                        {instruction.selectedFormats && instruction.selectedFormats.length > 0 && (
+                          <p className="text-xs text-gray-600">Formats: {instruction.selectedFormats.join(', ')}</p>
+                        )}
                       </div>
                     </div>
                   </div>
