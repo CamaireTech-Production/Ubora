@@ -1,5 +1,6 @@
 import React from 'react';
 import { ReportDefinition } from '@ubora/shared/types';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 interface ReportPreviewProps {
   report: ReportDefinition;
@@ -10,10 +11,28 @@ interface ReportPreviewProps {
  * Shows the report template as a document with placeholders replaced with mock values
  */
 export const ReportPreview: React.FC<ReportPreviewProps> = ({ report }) => {
+  // Placeholder chart data (same as dashboard preview)
+  const placeholderChartData = [
+    { x: 'Jan', y: 0 },
+    { x: 'Fév', y: 0 },
+    { x: 'Mar', y: 0 },
+    { x: 'Avr', y: 0 },
+    { x: 'Mai', y: 0 },
+    { x: 'Jun', y: 0 },
+  ];
+
   // Generate mock values for placeholders
   // All numeric/metric values should show 0 since there's no data (like dashboard preview)
   const getMockValue = (placeholder: string): string => {
     const placeholderName = placeholder.replace(/[{}]/g, '').trim().toLowerCase();
+    
+    // Check for graph/chart placeholders - return special marker that we'll replace with React component
+    if (placeholderName.includes('graph') || placeholderName.includes('graphe') || 
+        placeholderName.includes('chart') || placeholderName.includes('graphique') ||
+        placeholderName.includes('visualisation') || placeholderName.includes('visualization')) {
+      // Return a unique marker that we'll detect and replace with actual React chart component
+      return '__GRAPH_PLACEHOLDER__';
+    }
     
     // Generate mock values based on placeholder name patterns
     // For numeric/metric types, show 0 (no data available)
@@ -53,6 +72,25 @@ export const ReportPreview: React.FC<ReportPreviewProps> = ({ report }) => {
     return '0';
   };
 
+  // Render placeholder graph component (same as dashboard preview)
+  const renderPlaceholderGraph = () => {
+    return (
+      <div className="bg-white rounded-lg border border-gray-200 p-2 my-4">
+        <div className="w-full h-48">
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={placeholderChartData} margin={{ top: 5, right: 5, left: 5, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+              <XAxis dataKey="x" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} stroke="#9ca3af" />
+              <YAxis tick={{ fontSize: 10 }} axisLine={false} tickLine={false} stroke="#9ca3af" />
+              <Tooltip />
+              <Line type="monotone" dataKey="y" stroke="#d1d5db" strokeWidth={1.5} dot={false} />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+    );
+  };
+
   // Replace placeholders in template content with mock values
   const renderTemplateContent = () => {
     if (!report.templateContent) {
@@ -64,45 +102,142 @@ export const ReportPreview: React.FC<ReportPreviewProps> = ({ report }) => {
     }
 
     let content = report.templateContent;
+    const graphPlaceholderMarkers: Array<{ original: string; marker: string }> = [];
+    let markerCounter = 0;
 
-    // Replace placeholders with mock values
-    // First, try to replace using the placeholders array
+    // First pass: Find all graph placeholders and create unique markers
     if (report.placeholders && report.placeholders.length > 0) {
       report.placeholders.forEach((placeholder) => {
-        const mockValue = getMockValue(placeholder.placeholder);
         const placeholderText = placeholder.placeholder;
+        const mockValue = getMockValue(placeholderText);
         
-        // Escape special regex characters in placeholder, but handle curly braces properly
-        // Replace { and } with escaped versions for regex
-        const escapedPlaceholder = placeholderText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        
-        // Replace all occurrences of the placeholder
-        content = content.replace(
-          new RegExp(escapedPlaceholder, 'gi'),
-          mockValue
-        );
+        if (mockValue === '__GRAPH_PLACEHOLDER__') {
+          const uniqueMarker = `__GRAPH_PLACEHOLDER_${markerCounter++}__`;
+          graphPlaceholderMarkers.push({ original: placeholderText, marker: uniqueMarker });
+          
+          // Replace placeholder with unique marker
+          const escapedPlaceholder = placeholderText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          content = content.replace(
+            new RegExp(escapedPlaceholder, 'gi'),
+            uniqueMarker
+          );
+        }
       });
     }
 
-    // Also replace any remaining placeholders that might be in the format {{placeholder}} 
-    // This handles cases where placeholders might not be in the placeholders array
+    // Also check for any remaining placeholders in {{placeholder}} format
     const placeholderRegex = /\{\{\s*([^}]+)\s*\}\}/g;
     content = content.replace(placeholderRegex, (match) => {
-      // Check if we already replaced this (shouldn't happen, but just in case)
-      // If the match still contains {{, it means it wasn't replaced
       if (match.includes('{{')) {
         const mockValue = getMockValue(match);
+        if (mockValue === '__GRAPH_PLACEHOLDER__') {
+          const uniqueMarker = `__GRAPH_PLACEHOLDER_${markerCounter++}__`;
+          graphPlaceholderMarkers.push({ original: match, marker: uniqueMarker });
+          return uniqueMarker;
+        }
         return mockValue;
       }
       return match;
     });
 
-    // If it's HTML content (from ReactQuill), we need to handle HTML tags properly
-    // First, check if content has HTML tags (but not just from our replacements)
+    // Replace all other placeholders with their mock values
+    if (report.placeholders && report.placeholders.length > 0) {
+      report.placeholders.forEach((placeholder) => {
+        const placeholderText = placeholder.placeholder;
+        const mockValue = getMockValue(placeholderText);
+        
+        // Skip if already replaced (graph placeholder)
+        if (mockValue !== '__GRAPH_PLACEHOLDER__') {
+          const escapedPlaceholder = placeholderText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          content = content.replace(
+            new RegExp(escapedPlaceholder, 'gi'),
+            mockValue
+          );
+        }
+      });
+    }
+
+    // Check if content has HTML tags
     const hasHtmlTags = /<[^>]+>/g.test(content);
     
+    // Split content by graph placeholder markers and render mixed content
+    if (graphPlaceholderMarkers.length > 0) {
+      const parts: Array<{ type: 'html' | 'text' | 'graph'; content: string }> = [];
+      let remainingContent = content;
+      
+      // Sort markers by position in content (process from end to start to preserve indices)
+      const sortedMarkers = [...graphPlaceholderMarkers].sort((a, b) => {
+        const indexA = remainingContent.indexOf(a.marker);
+        const indexB = remainingContent.indexOf(b.marker);
+        return indexA - indexB;
+      });
+      
+      let lastIndex = 0;
+      sortedMarkers.forEach((markerInfo) => {
+        const markerIndex = remainingContent.indexOf(markerInfo.marker, lastIndex);
+        if (markerIndex !== -1) {
+          // Add content before marker
+          if (markerIndex > lastIndex) {
+            const beforeContent = remainingContent.substring(lastIndex, markerIndex);
+            if (beforeContent.trim()) {
+              parts.push({
+                type: hasHtmlTags ? 'html' : 'text',
+                content: beforeContent
+              });
+            }
+          }
+          // Add graph component
+          parts.push({
+            type: 'graph',
+            content: markerInfo.marker
+          });
+          lastIndex = markerIndex + markerInfo.marker.length;
+        }
+      });
+      
+      // Add remaining content
+      if (lastIndex < remainingContent.length) {
+        const remaining = remainingContent.substring(lastIndex);
+        if (remaining.trim()) {
+          parts.push({
+            type: hasHtmlTags ? 'html' : 'text',
+            content: remaining
+          });
+        }
+      }
+      
+      return (
+        <div className="prose prose-sm max-w-none report-preview-content">
+          {parts.map((part, index) => {
+            if (part.type === 'graph') {
+              return <React.Fragment key={index}>{renderPlaceholderGraph()}</React.Fragment>;
+            }
+            if (part.type === 'html') {
+              return (
+                <div
+                  key={index}
+                  dangerouslySetInnerHTML={{ __html: part.content }}
+                />
+              );
+            }
+            // Plain text
+            const lines = part.content.split('\n');
+            return (
+              <React.Fragment key={index}>
+                {lines.map((line, lineIndex) => (
+                  <p key={lineIndex} className="whitespace-pre-wrap mb-2">
+                    {line || '\u00A0'}
+                  </p>
+                ))}
+              </React.Fragment>
+            );
+          })}
+        </div>
+      );
+    }
+
+    // No graph placeholders, render normally
     if (hasHtmlTags) {
-      // Content is HTML - render it as HTML
       return (
         <div 
           className="prose prose-sm max-w-none report-preview-content"
@@ -111,7 +246,7 @@ export const ReportPreview: React.FC<ReportPreviewProps> = ({ report }) => {
       );
     }
 
-    // Plain text - convert line breaks to <br> and preserve whitespace
+    // Plain text
     const lines = content.split('\n');
     return (
       <div className="prose prose-sm max-w-none report-preview-content">
