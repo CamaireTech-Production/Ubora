@@ -3,7 +3,7 @@ import { DashboardMetric } from '../types';
 import { Button } from './Button';
 import { Card } from './Card';
 import { MetricFormulaParser } from '../utils/MetricFormulaParser';
-import { Calculator, Check, AlertCircle, Plus, HelpCircle } from 'lucide-react';
+import { Calculator, Check, AlertCircle, Plus } from 'lucide-react';
 
 interface MetricFormulaInputProps {
   value: string;
@@ -30,12 +30,14 @@ export const MetricFormulaInput: React.FC<MetricFormulaInputProps> = ({
   const [userFormula, setUserFormula] = useState('');
   const [metricMatches, setMetricMatches] = useState<MetricMatch[]>([]);
   const [showMetricSelector, setShowMetricSelector] = useState(false);
-  const [showHelpModal, setShowHelpModal] = useState(false);
   const editorRef = useRef<HTMLDivElement>(null);
   const [metricOccurrences, setMetricOccurrences] = useState<Array<{ metric: DashboardMetric; start: number; end: number }>>([]);
   const isInitialized = useRef(false);
   const onChangeRef = useRef(onChange);
   const lastProcessedFormula = useRef('');
+
+  const lastInitializedValue = useRef<string | undefined>(undefined);
+  const debounceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Update the ref when onChange changes
   useEffect(() => {
@@ -45,11 +47,15 @@ export const MetricFormulaInput: React.FC<MetricFormulaInputProps> = ({
   // Get available numeric metrics for calculation (exclude current metric and non-numeric types)
   // Also exclude other computed metrics (they can't be used as dependencies)
   const availableMetrics = useMemo(() =>
-    metrics.filter(metric =>
-      metric.id !== currentMetricId &&
-      MetricFormulaParser.isNumericMetric(metric) &&
-      metric.sourceType !== 'computed' // Computed metrics can't depend on other computed metrics for now
-    ), [metrics, currentMetricId]
+    metrics.filter(metric => {
+      if (metric.id === currentMetricId) return false;
+      if (metric.sourceType === 'computed') return false; // Computed metrics can't depend on other computed metrics for now
+      // Cast to shared type for MetricFormulaParser (metricType 'table' is treated as 'value' for calculation purposes)
+      // Ensure metricType is always 'value' or 'graph' (never undefined)
+      const metricType: 'value' | 'graph' = metric.metricType === 'table' ? 'value' : (metric.metricType || 'value');
+      const sharedMetric = { ...metric, metricType } as Omit<typeof metric, 'metricType'> & { metricType: 'value' | 'graph' };
+      return MetricFormulaParser.isNumericMetric(sharedMetric);
+    }), [metrics, currentMetricId]
   );
 
   // Parse user formula and find metric matches
@@ -73,16 +79,38 @@ export const MetricFormulaInput: React.FC<MetricFormulaInputProps> = ({
     const occurrences: Array<{ metric: DashboardMetric; start: number; end: number }> = [];
 
     // Find metric references in the formula
+    // We need to match both normalized names (for storage) and original names (for user input)
     availableMetrics.forEach(metric => {
-      const metricName = metric.name.toLowerCase().replace(/[^a-z0-9]/g, '');
-      if (!metricName) return;
-      const regex = new RegExp(`\\b${metricName}\\b`, 'gi');
+      const normalizedName = metric.name.toLowerCase().replace(/[^a-z0-9]/g, '');
+      const originalName = metric.name.toLowerCase();
+      
+      if (!normalizedName) return;
+      
+      // Try matching normalized name first (what user types after spaces are removed)
+      let regex = new RegExp(`\\b${normalizedName}\\b`, 'gi');
       let match: RegExpExecArray | null;
       let foundOnce = false;
+      
+      // Reset regex lastIndex
+      regex.lastIndex = 0;
       while ((match = regex.exec(userFormula)) !== null) {
         occurrences.push({ metric, start: match.index, end: match.index + match[0].length });
         foundOnce = true;
       }
+      
+      // Also try matching against original name (with spaces) if normalized didn't match
+      // This handles cases where user types "nombre de cours" instead of "nombredecours"
+      if (!foundOnce && originalName !== normalizedName) {
+        // Create a regex that matches the original name, allowing for flexible spacing
+        const flexibleName = originalName.replace(/\s+/g, '\\s*');
+        regex = new RegExp(`\\b${flexibleName}\\b`, 'gi');
+        regex.lastIndex = 0;
+        while ((match = regex.exec(userFormula)) !== null) {
+          occurrences.push({ metric, start: match.index, end: match.index + match[0].length });
+          foundOnce = true;
+        }
+      }
+      
       if (foundOnce) {
         matches.push({
           metricId: metric.id,
@@ -111,17 +139,66 @@ export const MetricFormulaInput: React.FC<MetricFormulaInputProps> = ({
     onChangeRef.current(formulaWithIds, metricIds);
   }, [userFormula, availableMetrics]);
 
-  // Render the contenteditable from current userFormula and occurrences when not focused (initial/load)
+  // Render the contenteditable from current userFormula and occurrences
+  // This should update both when focused and not focused to show badges while typing
   useEffect(() => {
     if (!editorRef.current) return;
-    if (document.activeElement === editorRef.current) return;
+    
+    // Skip if userFormula is empty and no occurrences
+    if (!userFormula.trim() && metricOccurrences.length === 0) {
+      if (editorRef.current.innerHTML !== '') {
+        editorRef.current.innerHTML = '';
+      }
+      return;
+    }
+    
     const root = editorRef.current;
-    // Rebuild DOM: text + badge spans
-    root.innerHTML = '';
+    const isFocused = document.activeElement === editorRef.current;
+    
+    // Save cursor position before updating
+    const sel = window.getSelection();
+    let savedRange: Range | null = null;
+    let savedOffset = 0;
+    let savedNode: Node | null = null;
+    let savedOffsetInFormula = 0;
+    
+    if (isFocused && sel && sel.rangeCount > 0) {
+      savedRange = sel.getRangeAt(0).cloneRange();
+      savedOffset = savedRange.startOffset;
+      savedNode = savedRange.startContainer;
+      
+      // Calculate the offset in the userFormula string
+      // This is more reliable than trying to restore to the same node
+      const allNodes = Array.from(root.childNodes);
+      let currentOffset = 0;
+      for (const node of allNodes) {
+        if (node === savedNode) {
+          if (node.nodeType === Node.TEXT_NODE) {
+            savedOffsetInFormula = currentOffset + savedOffset;
+          } else {
+            savedOffsetInFormula = currentOffset;
+          }
+          break;
+        }
+        if (node.nodeType === Node.TEXT_NODE) {
+          currentOffset += (node as Text).textContent?.length || 0;
+        } else if (node.nodeType === Node.ELEMENT_NODE) {
+          // For badge spans, count the metric name length
+          const el = node as HTMLElement;
+          const metricName = el.dataset.metricName || '';
+          const normalizedName = metricName.toLowerCase().replace(/[^a-z0-9]/g, '');
+          currentOffset += normalizedName.length;
+        }
+      }
+    }
+    
+    // Build the new DOM structure with badges
+    const tempDiv = document.createElement('div');
     let last = 0;
+    
     metricOccurrences.forEach((occ) => {
       if (occ.start > last) {
-        root.appendChild(document.createTextNode(userFormula.slice(last, occ.start)));
+        tempDiv.appendChild(document.createTextNode(userFormula.slice(last, occ.start)));
       }
       const span = document.createElement('span');
       span.contentEditable = 'false';
@@ -129,36 +206,116 @@ export const MetricFormulaInput: React.FC<MetricFormulaInputProps> = ({
       span.dataset.metricName = occ.metric.name;
       span.className = 'inline-flex items-center px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 text-xs align-middle';
       span.innerText = occ.metric.name;
-      root.appendChild(span);
+      tempDiv.appendChild(span);
       last = occ.end;
     });
     if (last < userFormula.length) {
-      root.appendChild(document.createTextNode(userFormula.slice(last)));
+      tempDiv.appendChild(document.createTextNode(userFormula.slice(last)));
+    }
+    
+    // Only update if the content actually changed to avoid cursor jumping
+    const newContent = tempDiv.innerHTML;
+    const currentContent = root.innerHTML;
+    
+    if (currentContent !== newContent) {
+      // Replace content
+      root.innerHTML = newContent;
+      
+      // Restore cursor position if editor was focused
+      if (isFocused && savedRange && sel && savedOffsetInFormula >= 0) {
+        try {
+          // Calculate new cursor position based on saved offset in formula
+          const allNodes = Array.from(root.childNodes);
+          let currentOffset = 0;
+          let found = false;
+          
+          for (const node of allNodes) {
+            if (node.nodeType === Node.TEXT_NODE) {
+              const textNode = node as Text;
+              const nodeLength = textNode.textContent?.length || 0;
+              if (currentOffset + nodeLength >= savedOffsetInFormula) {
+                const newRange = document.createRange();
+                const actualOffset = Math.min(savedOffsetInFormula - currentOffset, nodeLength);
+                newRange.setStart(textNode, actualOffset);
+                newRange.collapse(true);
+                sel.removeAllRanges();
+                sel.addRange(newRange);
+                found = true;
+                break;
+              }
+              currentOffset += nodeLength;
+            } else if (node.nodeType === Node.ELEMENT_NODE) {
+              // For badge spans, count the metric name length
+              const el = node as HTMLElement;
+              const metricName = el.dataset.metricName || '';
+              const normalizedName = metricName.toLowerCase().replace(/[^a-z0-9]/g, '');
+              if (currentOffset + normalizedName.length >= savedOffsetInFormula) {
+                // Cursor was in the middle of a metric name, place after the badge
+                const newRange = document.createRange();
+                newRange.setStartAfter(node);
+                newRange.collapse(true);
+                sel.removeAllRanges();
+                sel.addRange(newRange);
+                found = true;
+                break;
+              }
+              currentOffset += normalizedName.length;
+            }
+          }
+          
+          if (!found) {
+            // If we can't find the exact position, place at end
+            const newRange = document.createRange();
+            newRange.selectNodeContents(root);
+            newRange.collapse(false);
+            sel.removeAllRanges();
+            sel.addRange(newRange);
+          }
+        } catch (e) {
+          // If cursor restoration fails, place at end
+          const newRange = document.createRange();
+          newRange.selectNodeContents(root);
+          newRange.collapse(false);
+          sel.removeAllRanges();
+          sel.addRange(newRange);
+        }
+      }
     }
   }, [metricOccurrences, userFormula]);
 
   // Initialize user formula from stored value
+  // Only initialize once when component first loads or when value changes externally
   useEffect(() => {
-    if (value && !isInitialized.current) {
-      let displayFormula = value;
+    // Skip if already initialized with this value
+    if (lastInitializedValue.current === value) {
+      return;
+    }
+
+    // Initialize only if we haven't initialized yet OR if value changed externally
+    if (!isInitialized.current || (value !== lastInitializedValue.current && value)) {
+      let displayFormula = value || '';
 
       // Check if value contains metric IDs (calculationFormula) or metric names (userFormula)
       // If it contains metric IDs, convert them to metric names
-      const hasMetricIds = metrics.some(metric => {
-        const regex = new RegExp(`\\b${metric.id}\\b`, 'g');
-        return regex.test(value);
-      });
-
-      if (hasMetricIds) {
-        // Convert metric IDs back to metric names for display
-        metrics.forEach(metric => {
-          const metricName = metric.name.toLowerCase().replace(/[^a-z0-9]/g, '');
+      if (displayFormula) {
+        const hasMetricIds = metrics.some(metric => {
           const regex = new RegExp(`\\b${metric.id}\\b`, 'g');
-          displayFormula = displayFormula.replace(regex, metricName);
+          return regex.test(displayFormula);
         });
+
+        if (hasMetricIds) {
+          // Convert metric IDs back to metric names for display
+          // Use normalized names (lowercase, no spaces) to match the matching logic
+          metrics.forEach(metric => {
+            const normalizedName = metric.name.toLowerCase().replace(/[^a-z0-9]/g, '');
+            const regex = new RegExp(`\\b${metric.id}\\b`, 'g');
+            displayFormula = displayFormula.replace(regex, normalizedName);
+          });
+        }
       }
 
       setUserFormula(displayFormula);
+      lastInitializedValue.current = value;
       isInitialized.current = true;
     }
   }, [value, metrics]);
@@ -183,30 +340,57 @@ export const MetricFormulaInput: React.FC<MetricFormulaInputProps> = ({
 
   const handleEditorInput = () => {
     const visual = readEditorAsUserFormula();
+    
+    // Clear any pending debounce
+    if (debounceTimeoutRef.current) {
+      clearTimeout(debounceTimeoutRef.current);
+    }
+    
+    // Update userFormula immediately
     setUserFormula(visual);
+    
+    // Debounce the DOM rebuild to avoid excessive updates while typing
+    // But make it fast enough to feel responsive
+    debounceTimeoutRef.current = setTimeout(() => {
+      // Force a re-render by updating a dummy state or triggering effect
+      // The effect will handle badge conversion based on metricOccurrences
+    }, 100);
   };
 
   const handleEditorKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
-    if (e.key !== 'Backspace') return;
-    const sel = window.getSelection();
-    if (!sel || !editorRef.current || sel.rangeCount === 0) return;
-    const range = sel.getRangeAt(0);
-    if (!range.collapsed) return;
-    const container = range.startContainer as Node;
-    let node: Node | null = container;
-    // Find previous sibling element from current caret position
-    if (node.nodeType === Node.TEXT_NODE) {
-      const textNode = node as Text;
-      if (range.startOffset > 0) return; // normal backspace within text
-      node = textNode.previousSibling;
-    } else {
-      node = (node as HTMLElement).childNodes[range.startOffset - 1] || (node as HTMLElement).previousSibling;
+    // Handle backspace to remove badges
+    if (e.key === 'Backspace') {
+      const sel = window.getSelection();
+      if (!sel || !editorRef.current || sel.rangeCount === 0) return;
+      const range = sel.getRangeAt(0);
+      if (!range.collapsed) return;
+      const container = range.startContainer as Node;
+      let node: Node | null = container;
+      // Find previous sibling element from current caret position
+      if (node.nodeType === Node.TEXT_NODE) {
+        const textNode = node as Text;
+        if (range.startOffset > 0) return; // normal backspace within text
+        node = textNode.previousSibling;
+      } else {
+        node = (node as HTMLElement).childNodes[range.startOffset - 1] || (node as HTMLElement).previousSibling;
+      }
+      const prevEl = node as HTMLElement | null;
+      if (prevEl && prevEl.nodeType === Node.ELEMENT_NODE && prevEl.dataset && prevEl.dataset.metricId) {
+        e.preventDefault();
+        prevEl.remove();
+        handleEditorInput();
+      }
+      return;
     }
-    const prevEl = node as HTMLElement | null;
-    if (prevEl && prevEl.nodeType === Node.ELEMENT_NODE && prevEl.dataset && prevEl.dataset.metricId) {
-      e.preventDefault();
-      prevEl.remove();
-      handleEditorInput();
+
+    // Handle space, operators, and other keys to trigger badge conversion
+    // After user types space or operator, convert any metric names to badges
+    const triggerKeys = [' ', '+', '-', '*', '/', '(', ')'];
+    if (triggerKeys.includes(e.key)) {
+      // Let the key be processed first, then update formula
+      setTimeout(() => {
+        handleEditorInput();
+      }, 10);
     }
   };
 
@@ -262,7 +446,13 @@ export const MetricFormulaInput: React.FC<MetricFormulaInputProps> = ({
     }
 
     // Validate using MetricFormulaParser
-    const parseResult = MetricFormulaParser.parseUserFormula(userFormula, metrics, currentMetricId);
+    // Cast metrics to shared type (metricType 'table' is treated as 'value' for calculation purposes)
+    // Ensure metricType is always 'value' or 'graph' (never undefined)
+    const sharedMetrics = metrics.map(metric => ({
+      ...metric,
+      metricType: (metric.metricType === 'table' ? 'value' : (metric.metricType || 'value')) as 'value' | 'graph'
+    })) as Array<Omit<typeof metrics[0], 'metricType'> & { metricType: 'value' | 'graph' }>;
+    const parseResult = MetricFormulaParser.parseUserFormula(userFormula, sharedMetrics, currentMetricId);
     if (!parseResult.isValid) {
       return { isValid: false, error: parseResult.error };
     }
@@ -310,15 +500,33 @@ export const MetricFormulaInput: React.FC<MetricFormulaInputProps> = ({
         )}
       </div>
 
-      {/* Metric Matches */}
-      {metricMatches.length > 0 && (
+      {/* Available Metrics Preview */}
+      {/* {availableMetrics.length > 0 && (
         <div>
-          <p className="text-sm font-medium text-gray-700 mb-2">Métriques détectées :</p>
+          <p className="text-sm font-medium text-gray-700 mb-2">Métriques disponibles :</p>
+          <div className="flex flex-wrap gap-2">
+            {availableMetrics.map(metric => (
+              <div key={metric.id} className="flex items-center space-x-1 px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs">
+                <span>{metric.name}</span>
+                <span className="text-blue-600">({metric.calculationType})</span>
+              </div>
+            ))}
+          </div>
+          <p className="text-xs text-gray-500 mt-1">
+            💡 Tapez le nom de la métrique dans la formule ou cliquez sur "Ajouter une métrique" pour l'insérer
+          </p>
+        </div>
+      )} */}
+
+      {/* Metric Matches - Only show when formula contains metrics */}
+      {metricMatches.length > 0 && userFormula.trim() && (
+        <div>
+          <p className="text-sm font-medium text-gray-700 mb-2">Métriques détectées dans la formule :</p>
           <div className="flex flex-wrap gap-2">
             {metricMatches.map(match => (
-              <div key={match.metricId} className="flex items-center space-x-1 px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs">
+              <div key={match.metricId} className="flex items-center space-x-1 px-2 py-1 bg-green-100 text-green-800 rounded text-xs">
                 <span>{match.metricName}</span>
-                <span className="text-blue-600">({match.calculationType})</span>
+                <span className="text-green-600">({match.calculationType})</span>
               </div>
             ))}
           </div>
@@ -482,7 +690,8 @@ export const MetricFormulaInput: React.FC<MetricFormulaInputProps> = ({
                 • <strong>Exemples :</strong> "Ventes + Frais", "Métrique A * 0.15", "Ventes / Visiteurs * 100"
               </p>
             </div>
-            <Button
+            {/* Help button - functionality can be added later if needed */}
+            {/* <Button
               type="button"
               variant="secondary"
               size="sm"
@@ -491,7 +700,7 @@ export const MetricFormulaInput: React.FC<MetricFormulaInputProps> = ({
             >
               <HelpCircle className="h-3 w-3" />
               <span className="text-xs">Aide</span>
-            </Button>
+            </Button> */}
           </div>
         </div>
       </div>
