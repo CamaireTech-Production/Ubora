@@ -28,9 +28,14 @@ import {
   Loader2,
   Power,
   Download,
-  AlertCircle
+  AlertCircle,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 import { ConfirmationModal } from '../components/ConfirmationModal';
+import { FormPreview } from '../components/FormPreview';
+import { DashboardPreview } from '../components/DashboardPreview';
+import { ReportPreview } from '../components/ReportPreview';
 
 export const UniversViewPage: React.FC = () => {
   const navigate = useNavigate();
@@ -55,6 +60,11 @@ export const UniversViewPage: React.FC = () => {
   const [upgradeProgress, setUpgradeProgress] = useState<string>('');
   const [activeTab, setActiveTab] = useState<'overview' | 'forms' | 'dashboards' | 'instructions' | 'lists' | 'reports'>('overview');
   const [formNamesMap, setFormNamesMap] = useState<Map<string, { title: string; fieldNames: Map<string, string> }>>(new Map());
+  // Accordion state management - track which item is expanded in each tab
+  const [expandedFormId, setExpandedFormId] = useState<string | null>(null);
+  const [expandedDashboardId, setExpandedDashboardId] = useState<string | null>(null);
+  const [expandedReportId, setExpandedReportId] = useState<string | null>(null);
+  const [expandedInstructionId, setExpandedInstructionId] = useState<string | null>(null);
 
   useEffect(() => {
     if (id && user?.id && user?.agencyId) {
@@ -703,228 +713,198 @@ export const UniversViewPage: React.FC = () => {
                   {/* Formulaires détaillés */}
                   {activeTab === 'forms' && univers.definitions.forms && univers.definitions.forms.length > 0 && (
                     <div className="space-y-4">
-                      {univers.definitions.forms.map((form, index) => (
-                        <div key={index} className="p-4 bg-blue-50 rounded-lg border border-blue-200">
-                          <div className="flex items-start justify-between mb-3">
-                            <div>
-                              <h4 className="text-lg font-semibold text-gray-900">{form.title || `Formulaire ${index + 1}`}</h4>
-                              {form.description && (
-                                <p className="text-sm text-gray-600 mt-1">{form.description}</p>
-                              )}
-                            </div>
-                            {form.fields && (
-                              <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-medium">
-                                {form.fields.length} champ{form.fields.length > 1 ? 's' : ''}
-                              </span>
+                      {univers.definitions.forms.map((form, index) => {
+                        const formId = form.id || `form-${index}`;
+                        const isExpanded = expandedFormId === formId;
+                        
+                        return (
+                          <div key={index} className="bg-blue-50 rounded-lg border border-blue-200 overflow-hidden">
+                            {/* Accordion Header */}
+                            <button
+                              onClick={() => {
+                                setExpandedFormId(isExpanded ? null : formId);
+                              }}
+                              className="w-full p-4 flex items-start justify-between hover:bg-blue-100 transition-colors"
+                            >
+                              <div className="flex-1 text-left">
+                                <div className="flex items-center space-x-3">
+                                  <h4 className="text-lg font-semibold text-gray-900">{form.title || `Formulaire ${index + 1}`}</h4>
+                                  {form.fields && (
+                                    <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-medium">
+                                      {form.fields.length} champ{form.fields.length > 1 ? 's' : ''}
+                                    </span>
+                                  )}
+                                </div>
+                                {form.description && (
+                                  <p className="text-sm text-gray-600 mt-1">{form.description}</p>
+                                )}
+                              </div>
+                              <div className="ml-4 flex-shrink-0">
+                                {isExpanded ? (
+                                  <ChevronUp className="h-5 w-5 text-gray-500" />
+                                ) : (
+                                  <ChevronDown className="h-5 w-5 text-gray-500" />
+                                )}
+                              </div>
+                            </button>
+                            
+                            {/* Accordion Content */}
+                            {isExpanded && (
+                              <div className="px-4 pb-4">
+                                <FormPreview form={form} />
+                              </div>
                             )}
                           </div>
-                          
-                          {form.fields && form.fields.length > 0 && (
-                            <div className="mt-4 space-y-2">
-                              <h5 className="text-sm font-medium text-gray-700 mb-2">Champs du formulaire:</h5>
-                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                {form.fields.map((field, fieldIndex) => (
-                                  <div key={fieldIndex} className="p-3 bg-white rounded-md border border-blue-100">
-                                    <div className="flex items-center justify-between mb-1">
-                                      <span className="text-sm font-medium text-gray-900">{field.label || `Champ ${fieldIndex + 1}`}</span>
-                                      <span className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded text-xs">{field.type}</span>
-                                    </div>
-                                    {field.placeholder && (
-                                      <p className="text-xs text-gray-500 mt-1">Placeholder: {field.placeholder}</p>
-                                    )}
-                                    {field.required && (
-                                      <span className="text-xs text-red-600 mt-1 inline-block">Requis</span>
-                                    )}
-                                    {field.options && field.options.length > 0 && (
-                                      <div className="mt-2">
-                                        <p className="text-xs text-gray-500 mb-1">Options:</p>
-                                        <div className="flex flex-wrap gap-1">
-                                          {field.options.map((opt, optIndex) => (
-                                            <span key={optIndex} className="px-2 py-0.5 bg-gray-100 text-gray-700 rounded text-xs">
-                                              {typeof opt === 'string' ? opt : (opt as any).label || (opt as any).value || String(opt)}
-                                            </span>
-                                          ))}
-                                        </div>
-                                      </div>
-                                    )}
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
 
                   {/* Dashboards détaillés */}
                   {activeTab === 'dashboards' && univers.definitions.dashboards && univers.definitions.dashboards.length > 0 && (
                     <div className="space-y-4">
-                      {univers.definitions.dashboards.map((dashboard, index) => (
-                        <div key={index} className="p-4 bg-purple-50 rounded-lg border border-purple-200">
-                          <div className="flex items-start justify-between mb-3">
-                            <div>
-                              <h4 className="text-lg font-semibold text-gray-900">{dashboard.name || `Tableau de bord ${index + 1}`}</h4>
-                              {dashboard.description && (
-                                <p className="text-sm text-gray-600 mt-1">{dashboard.description}</p>
-                              )}
-                            </div>
-                            {dashboard.metrics && (
-                              <span className="px-3 py-1 bg-purple-100 text-purple-700 rounded-full text-xs font-medium">
-                                {dashboard.metrics.length} métrique{dashboard.metrics.length > 1 ? 's' : ''}
-                              </span>
+                      {univers.definitions.dashboards.map((dashboard, index) => {
+                        const dashboardId = dashboard.id || `dashboard-${index}`;
+                        const isExpanded = expandedDashboardId === dashboardId;
+                        
+                        return (
+                          <div key={index} className="bg-purple-50 rounded-lg border border-purple-200 overflow-hidden">
+                            {/* Accordion Header */}
+                            <button
+                              onClick={() => {
+                                setExpandedDashboardId(isExpanded ? null : dashboardId);
+                              }}
+                              className="w-full p-4 flex items-start justify-between hover:bg-purple-100 transition-colors"
+                            >
+                              <div className="flex-1 text-left">
+                                <div className="flex items-center space-x-3">
+                                  <h4 className="text-lg font-semibold text-gray-900">{dashboard.name || `Tableau de bord ${index + 1}`}</h4>
+                                  {dashboard.metrics && (
+                                    <span className="px-3 py-1 bg-purple-100 text-purple-700 rounded-full text-xs font-medium">
+                                      {dashboard.metrics.length} métrique{dashboard.metrics.length > 1 ? 's' : ''}
+                                    </span>
+                                  )}
+                                </div>
+                                {dashboard.description && (
+                                  <p className="text-sm text-gray-600 mt-1">{dashboard.description}</p>
+                                )}
+                              </div>
+                              <div className="ml-4 flex-shrink-0">
+                                {isExpanded ? (
+                                  <ChevronUp className="h-5 w-5 text-gray-500" />
+                                ) : (
+                                  <ChevronDown className="h-5 w-5 text-gray-500" />
+                                )}
+                              </div>
+                            </button>
+                            
+                            {/* Accordion Content */}
+                            {isExpanded && (
+                              <div className="px-4 pb-4">
+                                <DashboardPreview dashboard={dashboard} />
+                              </div>
                             )}
                           </div>
-                          
-                          {dashboard.metrics && dashboard.metrics.length > 0 && (
-                            <div className="mt-4 space-y-2">
-                              <h5 className="text-sm font-medium text-gray-700 mb-2">Métriques:</h5>
-                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                {dashboard.metrics.map((metric, metricIndex) => {
-                                  const formId = (metric as any).formId;
-                                  const fieldId = (metric as any).fieldId;
-                                  const formInfo = formId ? formNamesMap.get(formId) : null;
-                                  const fieldName = formInfo && fieldId ? formInfo.fieldNames.get(fieldId) : null;
-                                  
-                                  return (
-                                    <div key={metricIndex} className="p-3 bg-white rounded-md border border-purple-100">
-                                      <div className="flex items-center justify-between mb-2">
-                                        <span className="text-sm font-semibold text-gray-900">{metric.name || `Métrique ${metricIndex + 1}`}</span>
-                                        <span className="px-2 py-0.5 bg-purple-100 text-purple-700 rounded text-xs font-medium">
-                                          {(metric as any).type || 'metric'}
-                                        </span>
-                                      </div>
-                                      <div className="space-y-1.5 mt-2">
-                                        {formInfo && (
-                                          <div className="flex items-center space-x-2">
-                                            <span className="text-xs text-gray-500">Formulaire:</span>
-                                            <span className="text-xs font-medium text-gray-900">{formInfo.title || formId}</span>
-                                          </div>
-                                        )}
-                                        {!formInfo && formId && (
-                                          <div className="flex items-center space-x-2">
-                                            <span className="text-xs text-gray-500">Formulaire ID:</span>
-                                            <span className="text-xs font-mono text-gray-600">{formId}</span>
-                                          </div>
-                                        )}
-                                        {fieldName && (
-                                          <div className="flex items-center space-x-2">
-                                            <span className="text-xs text-gray-500">Champ:</span>
-                                            <span className="text-xs font-medium text-gray-900">{fieldName}</span>
-                                          </div>
-                                        )}
-                                        {!fieldName && fieldId && (
-                                          <div className="flex items-center space-x-2">
-                                            <span className="text-xs text-gray-500">Champ ID:</span>
-                                            <span className="text-xs font-mono text-gray-600">{fieldId}</span>
-                                          </div>
-                                        )}
-                                        {(metric as any).aggregation && (
-                                          <div className="flex items-center space-x-2">
-                                            <span className="text-xs text-gray-500">Agrégation:</span>
-                                            <span className="text-xs font-medium text-blue-600 capitalize">
-                                              {(metric as any).aggregation}
-                                            </span>
-                                          </div>
-                                        )}
-                                        {(metric as any).chartType && (
-                                          <div className="flex items-center space-x-2">
-                                            <span className="text-xs text-gray-500">Type de graphique:</span>
-                                            <span className="text-xs font-medium text-indigo-600 capitalize">
-                                              {(metric as any).chartType}
-                                            </span>
-                                          </div>
-                                        )}
-                                        {(metric as any).xAxis && (
-                                          <div className="flex items-center space-x-2">
-                                            <span className="text-xs text-gray-500">Axe X:</span>
-                                            <span className="text-xs text-gray-700">{(metric as any).xAxis}</span>
-                                          </div>
-                                        )}
-                                        {(metric as any).yAxis && (
-                                          <div className="flex items-center space-x-2">
-                                            <span className="text-xs text-gray-500">Axe Y:</span>
-                                            <span className="text-xs text-gray-700">{(metric as any).yAxis}</span>
-                                          </div>
-                                        )}
-                                      </div>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
 
                   {/* Instructions détaillées */}
                   {activeTab === 'instructions' && univers.definitions.instructions && univers.definitions.instructions.length > 0 && (
                     <div className="space-y-4">
-                      {univers.definitions.instructions.map((instruction, index) => (
-                        <div key={index} className="p-4 bg-green-50 rounded-lg border border-green-200">
-                          <div className="flex items-start justify-between mb-3">
-                            <div>
-                              <h4 className="text-lg font-semibold text-gray-900">{instruction.title || `Instruction ${index + 1}`}</h4>
-                              {instruction.description && (
-                                <p className="text-sm text-gray-600 mt-1">{instruction.description}</p>
-                              )}
-                            </div>
-                            {instruction.frequency && (
-                              <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs font-medium">
-                                {instruction.frequency}
-                              </span>
-                            )}
-                          </div>
-                          
-                          <div className="mt-4 space-y-3">
-                            {instruction.question && (
-                              <div>
-                                <h5 className="text-sm font-medium text-gray-700 mb-1">Question:</h5>
-                                <p className="text-sm text-gray-900 bg-white p-3 rounded-md border border-green-100">{instruction.question}</p>
+                      {univers.definitions.instructions.map((instruction, index) => {
+                        const instructionId = instruction.id || `instruction-${index}`;
+                        const isExpanded = expandedInstructionId === instructionId;
+                        
+                        return (
+                          <div key={index} className="bg-green-50 rounded-lg border border-green-200 overflow-hidden">
+                            {/* Accordion Header */}
+                            <button
+                              onClick={() => {
+                                setExpandedInstructionId(isExpanded ? null : instructionId);
+                              }}
+                              className="w-full p-4 flex items-start justify-between hover:bg-green-100 transition-colors"
+                            >
+                              <div className="flex-1 text-left">
+                                <div className="flex items-center space-x-3">
+                                  <h4 className="text-lg font-semibold text-gray-900">{instruction.title || `Instruction ${index + 1}`}</h4>
+                                  {instruction.frequency && (
+                                    <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs font-medium">
+                                      {instruction.frequency}
+                                    </span>
+                                  )}
+                                </div>
+                                {instruction.description && (
+                                  <p className="text-sm text-gray-600 mt-1">{instruction.description}</p>
+                                )}
                               </div>
-                            )}
+                              <div className="ml-4 flex-shrink-0">
+                                {isExpanded ? (
+                                  <ChevronUp className="h-5 w-5 text-gray-500" />
+                                ) : (
+                                  <ChevronDown className="h-5 w-5 text-gray-500" />
+                                )}
+                              </div>
+                            </button>
                             
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                              {instruction.filters && (
-                                <div>
-                                  <h5 className="text-sm font-medium text-gray-700 mb-1">Filtres:</h5>
-                                  <div className="bg-white p-3 rounded-md border border-green-100 space-y-1">
-                                    {instruction.filters.period && (
-                                      <p className="text-xs text-gray-600">Période: {instruction.filters.period}</p>
-                                    )}
-                                    {instruction.filters.formId && (
-                                      <p className="text-xs text-gray-600">Formulaire: {instruction.filters.formId}</p>
-                                    )}
-                                    {instruction.filters.userId && (
-                                      <p className="text-xs text-gray-600">Utilisateur: {instruction.filters.userId}</p>
-                                    )}
+                            {/* Accordion Content */}
+                            {isExpanded && (
+                              <div className="px-4 pb-4 space-y-3">
+                                {instruction.question && (
+                                  <div>
+                                    <h5 className="text-sm font-medium text-gray-700 mb-1">Question:</h5>
+                                    <p className="text-sm text-gray-900 bg-white p-3 rounded-md border border-green-100">{instruction.question}</p>
+                                  </div>
+                                )}
+                                
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                  {instruction.filters && (
+                                    <div>
+                                      <h5 className="text-sm font-medium text-gray-700 mb-1">Filtres:</h5>
+                                      <div className="bg-white p-3 rounded-md border border-green-100 space-y-1">
+                                        {instruction.filters.period && (
+                                          <p className="text-xs text-gray-600">Période: {instruction.filters.period}</p>
+                                        )}
+                                        {instruction.filters.formId && (() => {
+                                          const formInfo = formNamesMap.get(instruction.filters.formId);
+                                          const formName = formInfo ? formInfo.title : instruction.filters.formId;
+                                          return (
+                                            <p className="text-xs text-gray-600">
+                                              Formulaire: {formName}
+                                            </p>
+                                          );
+                                        })()}
+                                        {instruction.filters.userId && (
+                                          <p className="text-xs text-gray-600">Utilisateur: {instruction.filters.userId}</p>
+                                        )}
+                                      </div>
+                                    </div>
+                                  )}
+                                  
+                                  <div>
+                                    <h5 className="text-sm font-medium text-gray-700 mb-1">Informations:</h5>
+                                    <div className="bg-white p-3 rounded-md border border-green-100 space-y-1">
+                                      {instruction.frequency && (
+                                        <p className="text-xs text-gray-600">Fréquence: {instruction.frequency}</p>
+                                      )}
+                                      {instruction.maxExecutions && (
+                                        <p className="text-xs text-gray-600">Max exécutions: {instruction.maxExecutions}</p>
+                                      )}
+                                      {instruction.selectedFormat && (
+                                        <p className="text-xs text-gray-600">Format: {instruction.selectedFormat}</p>
+                                      )}
+                                      {instruction.selectedFormats && instruction.selectedFormats.length > 0 && (
+                                        <p className="text-xs text-gray-600">Formats: {instruction.selectedFormats.join(', ')}</p>
+                                      )}
+                                    </div>
                                   </div>
                                 </div>
-                              )}
-                              
-                              <div>
-                                <h5 className="text-sm font-medium text-gray-700 mb-1">Informations:</h5>
-                                <div className="bg-white p-3 rounded-md border border-green-100 space-y-1">
-                                  {instruction.frequency && (
-                                    <p className="text-xs text-gray-600">Fréquence: {instruction.frequency}</p>
-                                  )}
-                                  {instruction.maxExecutions && (
-                                    <p className="text-xs text-gray-600">Max exécutions: {instruction.maxExecutions}</p>
-                                  )}
-                                  {instruction.selectedFormat && (
-                                    <p className="text-xs text-gray-600">Format: {instruction.selectedFormat}</p>
-                                  )}
-                                  {instruction.selectedFormats && instruction.selectedFormats.length > 0 && (
-                                    <p className="text-xs text-gray-600">Formats: {instruction.selectedFormats.join(', ')}</p>
-                                  )}
-                                </div>
                               </div>
-                            </div>
+                            )}
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
 
@@ -997,63 +977,55 @@ export const UniversViewPage: React.FC = () => {
                   {/* Rapports détaillés */}
                   {activeTab === 'reports' && univers.definitions.reports && univers.definitions.reports.length > 0 && (
                     <div className="space-y-4">
-                      {univers.definitions.reports.map((report, index) => (
-                        <div key={index} className="p-4 bg-indigo-50 rounded-lg border border-indigo-200">
-                          <div className="flex items-start justify-between mb-3">
-                            <div>
-                              <h4 className="text-lg font-semibold text-gray-900">{report.name || `Rapport ${index + 1}`}</h4>
-                              {report.description && (
-                                <p className="text-sm text-gray-600 mt-1">{report.description}</p>
-                              )}
-                            </div>
-                            {report.templateType && (
-                              <span className="px-3 py-1 bg-indigo-100 text-indigo-700 rounded-full text-xs font-medium">
-                                {report.templateType.toUpperCase()}
-                              </span>
-                            )}
-                          </div>
-                          
-                          <div className="mt-4 space-y-3">
-                            {report.placeholders && report.placeholders.length > 0 && (
-                              <div>
-                                <h5 className="text-sm font-medium text-gray-700 mb-2">Placeholders ({report.placeholders.length}):</h5>
-                                <div className="flex flex-wrap gap-2">
-                                  {report.placeholders.map((placeholder, phIndex) => (
-                                    <span key={phIndex} className="px-3 py-1 bg-white border border-indigo-100 rounded-md text-xs">
-                                      {placeholder.placeholder}
+                      {univers.definitions.reports.map((report, index) => {
+                        const reportId = report.id || `report-${index}`;
+                        const isExpanded = expandedReportId === reportId;
+                        
+                        return (
+                          <div key={index} className="bg-indigo-50 rounded-lg border border-indigo-200 overflow-hidden">
+                            {/* Accordion Header */}
+                            <button
+                              onClick={() => {
+                                setExpandedReportId(isExpanded ? null : reportId);
+                              }}
+                              className="w-full p-4 flex items-start justify-between hover:bg-indigo-100 transition-colors"
+                            >
+                              <div className="flex-1 text-left">
+                                <div className="flex items-center space-x-3">
+                                  <h4 className="text-lg font-semibold text-gray-900">{report.name || `Rapport ${index + 1}`}</h4>
+                                  {report.templateType && (
+                                    <span className="px-3 py-1 bg-indigo-100 text-indigo-700 rounded-full text-xs font-medium">
+                                      {report.templateType.toUpperCase()}
                                     </span>
-                                  ))}
+                                  )}
+                                  {report.placeholders && report.placeholders.length > 0 && (
+                                    <span className="px-3 py-1 bg-indigo-100 text-indigo-700 rounded-full text-xs font-medium">
+                                      {report.placeholders.length} placeholder{report.placeholders.length > 1 ? 's' : ''}
+                                    </span>
+                                  )}
                                 </div>
+                                {report.description && (
+                                  <p className="text-sm text-gray-600 mt-1">{report.description}</p>
+                                )}
                               </div>
-                            )}
+                              <div className="ml-4 flex-shrink-0">
+                                {isExpanded ? (
+                                  <ChevronUp className="h-5 w-5 text-gray-500" />
+                                ) : (
+                                  <ChevronDown className="h-5 w-5 text-gray-500" />
+                                )}
+                              </div>
+                            </button>
                             
-                            {report.mappings && report.mappings.length > 0 && (
-                              <div>
-                                <h5 className="text-sm font-medium text-gray-700 mb-2">Mappings ({report.mappings.length}):</h5>
-                                <div className="space-y-2">
-                                  {report.mappings.map((mapping, mapIndex) => (
-                                    <div key={mapIndex} className="p-3 bg-white rounded-md border border-indigo-100">
-                                      <div className="flex items-center justify-between">
-                                        <span className="text-sm text-gray-900">
-                                          {mapping.placeholderId} → {mapping.sourceType}: {mapping.sourceId}
-                                        </span>
-                                        {mapping.calculationType && (
-                                          <span className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded text-xs">
-                                            {mapping.calculationType}
-                                          </span>
-                                        )}
-                                      </div>
-                                      {mapping.fieldId && (
-                                        <p className="text-xs text-gray-500 mt-1">Champ: {mapping.fieldId}</p>
-                                      )}
-                                    </div>
-                                  ))}
-                                </div>
+                            {/* Accordion Content */}
+                            {isExpanded && (
+                              <div className="px-4 pb-4">
+                                <ReportPreview report={report} />
                               </div>
                             )}
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                 </div>
