@@ -2188,28 +2188,39 @@ class UniversService {
   ): Promise<void> {
     try {
       const docRef = doc(db, this.activeUniversCollectionName, directorId);
-      const activeUniversData: Omit<ActiveUnivers, 'directorId'> = {
+      
+      // Construire l'objet de mise à jour
+      const updateData: any = {
         agencyId,
         activeUniversId: universId,
-        activeInstanceId: instanceId, // undefined si non fourni, ce qui est correct pour le type optionnel
-        updatedAt: new Date()
+        updatedAt: serverTimestamp()
       };
 
-      await updateDoc(docRef, {
-        ...activeUniversData,
-        updatedAt: serverTimestamp()
-      });
+      // Gérer activeInstanceId : toujours utiliser null si undefined pour éviter les erreurs Firestore
+      // Si undefined, mettre null pour supprimer la valeur existante (si elle existe)
+      // Si défini, utiliser la valeur fournie
+      updateData.activeInstanceId = instanceId !== undefined ? instanceId : null;
+
+      await updateDoc(docRef, updateData);
     } catch (error: any) {
       // Si le document n'existe pas, le créer avec setDoc et merge: true
       if (error.code === 'not-found' || error.code === 'permission-denied' || error.code === 'failed-precondition') {
         const docRef = doc(db, this.activeUniversCollectionName, directorId);
-        await setDoc(docRef, {
+        
+        // Construire l'objet de données pour création
+        const docData: any = {
           directorId,
           agencyId,
           activeUniversId: universId,
-          activeInstanceId: instanceId, // undefined si non fourni
           updatedAt: serverTimestamp()
-        }, { merge: true });
+        };
+
+        // Gérer activeInstanceId : toujours utiliser null si undefined pour éviter les erreurs Firestore
+        // Si undefined, mettre null pour indiquer qu'il n'y a pas d'instance
+        // Si défini, utiliser la valeur fournie
+        docData.activeInstanceId = instanceId !== undefined ? instanceId : null;
+
+        await setDoc(docRef, docData, { merge: true });
       } else {
         console.error('Erreur lors de la mise à jour de l\'Univers actif:', error);
         throw error;
