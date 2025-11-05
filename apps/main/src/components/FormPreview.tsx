@@ -1,18 +1,19 @@
 import React from 'react';
-import { FormDefinition, FormField } from '@ubora/shared/types';
+import { FormDefinition, FormField, ListDefinition } from '@ubora/shared/types';
 import { Input } from './Input';
 import { Textarea } from './Textarea';
 import { Select } from './Select';
 
 interface FormPreviewProps {
   form: FormDefinition;
+  universLists?: ListDefinition[];
 }
 
 /**
  * FormPreview component - displays a read-only preview of a form
  * Shows all fields as they would appear when rendered, but in preview mode
  */
-export const FormPreview: React.FC<FormPreviewProps> = ({ form }) => {
+export const FormPreview: React.FC<FormPreviewProps> = ({ form, universLists = [] }) => {
   if (!form.fields || form.fields.length === 0) {
     return (
       <div className="text-center py-8 text-gray-500">
@@ -75,13 +76,47 @@ export const FormPreview: React.FC<FormPreviewProps> = ({ form }) => {
         );
 
       case 'select':
-        // Build options for select
-        const options = field.options 
-          ? field.options.map((opt) => ({
-              value: typeof opt === 'string' ? opt : (opt as any).label || (opt as any).value || String(opt),
-              label: typeof opt === 'string' ? opt : (opt as any).label || (opt as any).value || String(opt),
-            }))
-          : [{ value: '', label: 'Sélectionner...' }];
+        // Check if this field uses a List
+        let options: Array<{ value: string; label: string }> = [];
+        
+        if (field.listId && universLists.length > 0) {
+          // Find the list
+          const list = universLists.find(l => l.id === field.listId);
+          if (list && list.rows && list.rows.length > 0) {
+            // Find the display column
+            const displayColumn = list.columns.find(col => {
+              const colId = (col as any).id;
+              return colId === field.displayColumnId;
+            }) || list.columns[0];
+            
+            if (displayColumn) {
+              const displayColumnId = (displayColumn as any).id;
+              // Build options from list rows
+              options = list.rows.map((row, index) => {
+                const displayValue = displayColumnId 
+                  ? String((row as any)[displayColumnId] || '')
+                  : String(row[displayColumn as any] || '');
+                return {
+                  value: `list-${index}`,
+                  label: displayValue || `Ligne ${index + 1}`
+                };
+              });
+            }
+          }
+        }
+        
+        // Fallback to manual options if no list found
+        if (options.length === 0) {
+          options = field.options 
+            ? field.options.map((opt) => ({
+                value: typeof opt === 'string' ? opt : (opt as any).label || (opt as any).value || String(opt),
+                label: typeof opt === 'string' ? opt : (opt as any).label || (opt as any).value || String(opt),
+              }))
+            : [{ value: '', label: 'Sélectionner...' }];
+        } else {
+          // Add default option at the beginning
+          options = [{ value: '', label: 'Sélectionner...' }, ...options];
+        }
 
         return (
           <Select

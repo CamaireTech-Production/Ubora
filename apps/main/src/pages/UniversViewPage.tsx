@@ -751,7 +751,7 @@ export const UniversViewPage: React.FC = () => {
                             {/* Accordion Content */}
                             {isExpanded && (
                               <div className="px-4 pb-4">
-                                <FormPreview form={form} />
+                                <FormPreview form={form} universLists={univers.definitions.lists || []} />
                               </div>
                             )}
                           </div>
@@ -945,11 +945,15 @@ export const UniversViewPage: React.FC = () => {
                                     {list.rows && list.rows.length > 0 ? (
                                       list.rows.slice(0, 5).map((row, rowIndex) => (
                                         <tr key={rowIndex}>
-                                          {list.columns.map((_, colIndex) => (
-                                            <td key={colIndex} className="px-3 py-2 text-sm text-gray-900">
-                                              {row[colIndex] || '-'}
-                                            </td>
-                                          ))}
+                                          {list.columns.map((col) => {
+                                            const colId = (col as any).id;
+                                            const value = colId ? (row as any)[colId] : row[col as any];
+                                            return (
+                                              <td key={colId || `col-${col}`} className="px-3 py-2 text-sm text-gray-900">
+                                                {value !== null && value !== undefined && value !== '' ? String(value) : '-'}
+                                              </td>
+                                            );
+                                          })}
                                         </tr>
                                       ))
                                     ) : (
