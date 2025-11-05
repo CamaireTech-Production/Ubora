@@ -15,6 +15,7 @@ interface UniversCardProps {
   onDelete?: (universId: string) => void;
   onView?: (univers: Univers) => void;
   disabled?: boolean;
+  hideApprovalStatus?: boolean; // Masquer le badge de statut d'approbation (pour marketplace)
 }
 
 export const UniversCard: React.FC<UniversCardProps> = ({
@@ -22,7 +23,8 @@ export const UniversCard: React.FC<UniversCardProps> = ({
   onEdit,
   onDelete,
   onView,
-  disabled = false
+  disabled = false,
+  hideApprovalStatus = false
 }) => {
   const { user } = useAuth();
   const { activeUniversId } = useApp();
@@ -309,8 +311,8 @@ export const UniversCard: React.FC<UniversCardProps> = ({
           <span>{getOwnershipLabel()}</span>
         </div>
 
-        {/* Approval Status (for marketplace) */}
-        {univers.ownership.isMarketplaceTemplate && (
+        {/* Approval Status (for marketplace) - Masquer dans la marketplace publique */}
+        {univers.ownership.isMarketplaceTemplate && !hideApprovalStatus && (
           <div className="flex items-center space-x-2 text-sm">
             {getApprovalStatusIcon()}
             <span className={`font-medium ${

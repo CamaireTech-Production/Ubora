@@ -50,6 +50,8 @@ export const UniversApprovalsPage: React.FC = () => {
     setApprovingId(universId);
     try {
       await universService.approveNewVersion(universId, version, user.id);
+      // Attendre un peu plus pour laisser Firestore se synchroniser complètement
+      await new Promise(resolve => setTimeout(resolve, 1000));
       // Recharger la liste
       await loadPendingUnivers();
     } catch (error) {
@@ -178,8 +180,18 @@ export const UniversApprovalsPage: React.FC = () => {
                         <h2 className="text-xl font-semibold text-gray-900">
                           {univers.metadata.name}
                         </h2>
-                        <span className="px-2 py-1 bg-yellow-100 text-yellow-800 rounded text-xs font-medium">
-                          En attente
+                        <span className={`px-2 py-1 rounded text-xs font-medium ${
+                          univers.ownership.approvalStatus === 'pending' 
+                            ? 'bg-yellow-100 text-yellow-800' 
+                            : univers.ownership.approvalStatus === 'approved'
+                            ? 'bg-green-100 text-green-800'
+                            : 'bg-red-100 text-red-800'
+                        }`}>
+                          {univers.ownership.approvalStatus === 'pending' 
+                            ? 'En attente' 
+                            : univers.ownership.approvalStatus === 'approved'
+                            ? 'Approuvé'
+                            : 'Rejeté'}
                         </span>
                       </div>
                       {univers.metadata.description && (
@@ -214,47 +226,78 @@ export const UniversApprovalsPage: React.FC = () => {
                     <p className="text-sm text-gray-600">{getChangesSummary(pendingVersion.changes)}</p>
                   </div>
 
-                  {/* Actions */}
-                  <div className="flex flex-wrap items-center gap-3 pt-4 border-t border-gray-200">
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      onClick={() => navigate(`/univers-approvals/${univers.id}`)}
-                      className="flex items-center space-x-2"
-                    >
-                      <Eye className="h-4 w-4" />
-                      <span>Voir les détails</span>
-                    </Button>
-                    <Button
-                      variant="success"
-                      size="sm"
-                      onClick={() => handleApprove(univers.id, pendingVersion.version)}
-                      disabled={approvingId === univers.id || rejectingId === univers.id}
-                      className="flex items-center space-x-2"
-                    >
-                      {approvingId === univers.id ? (
-                        <>
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                          <span>Approbation...</span>
-                        </>
-                      ) : (
-                        <>
+                  {/* Actions - Seulement afficher Approuver/Rejeter pour les Univers en attente */}
+                  {pendingVersion.approvalStatus === 'pending' && univers.ownership.approvalStatus === 'pending' ? (
+                    <div className="flex flex-wrap items-center gap-3 pt-4 border-t border-gray-200">
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => navigate(`/univers-approvals/${univers.id}`)}
+                        className="flex items-center space-x-2"
+                      >
+                        <Eye className="h-4 w-4" />
+                        <span>Voir les détails</span>
+                      </Button>
+                      <Button
+                        variant="success"
+                        size="sm"
+                        onClick={() => handleApprove(univers.id, pendingVersion.version)}
+                        disabled={approvingId === univers.id || rejectingId === univers.id}
+                        className="flex items-center space-x-2"
+                      >
+                        {approvingId === univers.id ? (
+                          <>
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            <span>Approbation...</span>
+                          </>
+                        ) : (
+                          <>
+                            <CheckCircle className="h-4 w-4" />
+                            <span>Approuver</span>
+                          </>
+                        )}
+                      </Button>
+                      <Button
+                        variant="danger"
+                        size="sm"
+                        onClick={() => setShowRejectModal(univers.id)}
+                        disabled={approvingId === univers.id || rejectingId === univers.id}
+                        className="flex items-center space-x-2"
+                      >
+                        {rejectingId === univers.id ? (
+                          <>
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            <span>Rejet...</span>
+                          </>
+                        ) : (
+                          <>
+                            <XCircle className="h-4 w-4" />
+                            <span>Rejeter</span>
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-3 pt-4 border-t border-gray-200">
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => navigate(`/univers-approvals/${univers.id}`)}
+                        className="flex items-center space-x-2"
+                      >
+                        <Eye className="h-4 w-4" />
+                        <span>Voir les détails</span>
+                      </Button>
+                      {univers.ownership.approvedBy && univers.ownership.approvedAt && (
+                        <div className="flex items-center space-x-2 text-sm text-green-600">
                           <CheckCircle className="h-4 w-4" />
-                          <span>Approuver</span>
-                        </>
+                          <span>
+                            Approuvé le {formatDate(univers.ownership.approvedAt)}
+                          </span>
+                        </div>
                       )}
-                    </Button>
-                    <Button
-                      variant="danger"
-                      size="sm"
-                      onClick={() => setShowRejectModal(univers.id)}
-                      disabled={approvingId === univers.id || rejectingId === univers.id}
-                      className="flex items-center space-x-2"
-                    >
-                      <XCircle className="h-4 w-4" />
-                      <span>Rejeter</span>
-                    </Button>
-                  </div>
+                    </div>
+                  )}
                 </div>
               </Card>
             ))}

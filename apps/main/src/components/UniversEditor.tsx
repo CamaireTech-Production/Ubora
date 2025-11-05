@@ -501,10 +501,18 @@ export const UniversEditor: React.FC<UniversEditorProps> = ({
         // Préserver createdBy - ne JAMAIS le modifier
         createdBy: univers.ownership.createdBy,
         isMarketplaceTemplate: publishOption === 'marketplace',
-        approvalStatus: publishOption === 'marketplace' ? 'pending' as const : 'approved' as const,
-        // Si on passe en privé, retirer agencyId. Si on passe en marketplace, garder l'ancien (peut être undefined)
-        agencyId: publishOption === 'private' ? undefined : (univers.ownership.agencyId || undefined)
+        approvalStatus: publishOption === 'marketplace' ? 'pending' as const : 'approved' as const
       };
+      
+      // Gérer agencyId selon le publishOption
+      // Si on passe en marketplace, garder l'ancien s'il existe
+      if (publishOption === 'marketplace' && univers.ownership.agencyId) {
+        updatedOwnership.agencyId = univers.ownership.agencyId;
+      }
+      // Si on passe en privé et que l'Univers avait un agencyId, on doit le supprimer
+      // Mais on ne peut pas utiliser deleteField() ici car c'est côté client
+      // On laisse undefined, et dans universService.update on utilisera deleteField() si nécessaire
+      // Si on passe en privé, on ne met pas agencyId du tout (sera undefined et sera supprimé correctement)
       
       console.log('🔍 UniversEditor - Updated ownership:', updatedOwnership);
       

@@ -248,6 +248,7 @@ export const UniversMarketplacePage: React.FC = () => {
                   key={univers.id}
                   univers={univers}
                   onView={handleView}
+                  hideApprovalStatus={true}
                 />
               ))}
             </div>
