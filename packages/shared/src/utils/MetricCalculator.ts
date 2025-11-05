@@ -196,28 +196,49 @@ export class MetricCalculator {
    * Replace mathematical functions in formula
    */
   private static replaceMathematicalFunctions(formula: string): string {
-    // Replace SUM function
-    formula = formula.replace(/SUM\(([^)]+)\)/g, (match, args) => {
+    // Replace SUM function - handle empty arguments
+    formula = formula.replace(/SUM\(([^)]*)\)/g, (match, args) => {
+      if (!args || !args.trim()) {
+        return '0'; // Empty SUM() returns 0
+      }
       const values = args.split(',').map((arg: string) => parseFloat(arg.trim()) || 0);
       return values.reduce((sum: number, val: number) => sum + val, 0).toString();
     });
 
-    // Replace AVG function
-    formula = formula.replace(/AVG\(([^)]+)\)/g, (match, args) => {
+    // Replace AVG function - handle empty arguments
+    formula = formula.replace(/AVG\(([^)]*)\)/g, (match, args) => {
+      if (!args || !args.trim()) {
+        return '0'; // Empty AVG() returns 0
+      }
       const values = args.split(',').map((arg: string) => parseFloat(arg.trim()) || 0);
+      if (values.length === 0) {
+        return '0';
+      }
       const sum = values.reduce((sum: number, val: number) => sum + val, 0);
       return (sum / values.length).toString();
     });
 
-    // Replace MAX function
-    formula = formula.replace(/MAX\(([^)]+)\)/g, (match, args) => {
+    // Replace MAX function - handle empty arguments
+    formula = formula.replace(/MAX\(([^)]*)\)/g, (match, args) => {
+      if (!args || !args.trim()) {
+        return '0'; // Empty MAX() returns 0
+      }
       const values = args.split(',').map((arg: string) => parseFloat(arg.trim()) || 0);
+      if (values.length === 0) {
+        return '0';
+      }
       return Math.max(...values).toString();
     });
 
-    // Replace MIN function
-    formula = formula.replace(/MIN\(([^)]+)\)/g, (match, args) => {
+    // Replace MIN function - handle empty arguments
+    formula = formula.replace(/MIN\(([^)]*)\)/g, (match, args) => {
+      if (!args || !args.trim()) {
+        return '0'; // Empty MIN() returns 0
+      }
       const values = args.split(',').map((arg: string) => parseFloat(arg.trim()) || 0);
+      if (values.length === 0) {
+        return '0';
+      }
       return Math.min(...values).toString();
     });
 
@@ -229,8 +250,42 @@ export class MetricCalculator {
    */
   private static safeEvaluate(expression: string): number {
     try {
-      // Remove any potentially dangerous characters
-      const sanitized = expression.replace(/[^0-9+\-*/().\s]/g, '');
+      // First, handle empty or invalid expressions
+      if (!expression || !expression.trim()) {
+        return 0;
+      }
+
+      // Remove any potentially dangerous characters, but keep numbers, operators, parentheses, and decimal points
+      // Also allow spaces and handle negative numbers
+      const sanitized = expression
+        .replace(/[^0-9+\-*/().\s]/g, '') // Remove invalid characters
+        .replace(/\s+/g, ' ') // Normalize spaces
+        .trim();
+
+      // Check if expression is empty after sanitization
+      if (!sanitized || sanitized.length === 0) {
+        return 0;
+      }
+
+      // Validate that the expression has balanced parentheses
+      const openParens = (sanitized.match(/\(/g) || []).length;
+      const closeParens = (sanitized.match(/\)/g) || []).length;
+      if (openParens !== closeParens) {
+        console.warn('Unbalanced parentheses in formula:', sanitized);
+        return 0;
+      }
+
+      // Check for invalid patterns like empty parentheses (), consecutive operators, etc.
+      if (sanitized.includes('()') || sanitized.includes('( )')) {
+        console.warn('Empty parentheses in formula:', sanitized);
+        return 0;
+      }
+
+      // Check for invalid operator patterns
+      if (/[+\-*/]{2,}/.test(sanitized) || /^[+*/]/.test(sanitized)) {
+        console.warn('Invalid operator pattern in formula:', sanitized);
+        return 0;
+      }
 
       // Use Function constructor for safe evaluation
       const result = new Function('return ' + sanitized)();
@@ -238,6 +293,7 @@ export class MetricCalculator {
       return typeof result === 'number' && !isNaN(result) ? result : 0;
     } catch (error) {
       console.error('Error in safe evaluation:', error);
+      console.error('Expression that caused error:', expression);
       return 0;
     }
   }
