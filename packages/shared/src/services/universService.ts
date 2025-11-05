@@ -2280,6 +2280,9 @@ class UniversService {
         universInstanceId: tempInstanceId
       });
 
+      // Incrémenter le compteur d'utilisation (première instanciation des ressources)
+      await this.incrementUsage(univers.id);
+
       console.log(`✅ Ressources instanciées pour Univers ${univers.id} (sans créer d'instance)`);
     } catch (error) {
       console.error('❌ Erreur lors de l\'instanciation des ressources:', error);
