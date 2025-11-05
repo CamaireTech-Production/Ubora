@@ -146,9 +146,11 @@ export const UniversCreateFromTemplatePage: React.FC = () => {
       case 4:
         return <UniversWizardStep4 {...props} readOnly={true} templateData={templateUnivers || undefined} />;
       case 5:
-        return <UniversWizardStep5 {...props} readOnly={true} templateData={templateUnivers || undefined} />;
-      case 6:
+        // Step 5 = Rapports (UniversWizardStep6 affiche les rapports)
         return <UniversWizardStep6 {...props} readOnly={true} templateData={templateUnivers || undefined} />;
+      case 6:
+        // Step 6 = Instructions (UniversWizardStep5 affiche les instructions)
+        return <UniversWizardStep5 {...props} readOnly={true} templateData={templateUnivers || undefined} />;
       case 7:
         return <UniversWizardStep7 {...props} readOnly={true} templateData={templateUnivers || undefined} />;
       default:
