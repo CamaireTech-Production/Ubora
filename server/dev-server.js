@@ -4,12 +4,13 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 
-// Load environment variables from .env.local (if it exists)
-try {
-  dotenv.config({ path: '.env.local' });
-  console.log('✅ Loaded .env.local file');
-} catch (error) {
-  console.log('ℹ️  No .env.local file found, using system environment variables');
+// Prefer .env.local at project root; fallback to .env
+const loadedLocal = dotenv.config({ path: path.join(process.cwd(), '.env.local') });
+if (loadedLocal && loadedLocal.parsed) {
+  console.log('✅ Loaded .env.local');
+} else {
+  const loaded = dotenv.config({ path: path.join(process.cwd(), '.env') });
+  console.log(loaded && loaded.parsed ? '✅ Loaded .env' : 'ℹ️  No .env(.local) found, using system environment variables');
 }
 
 // Debug: Show which environment variables are loaded
@@ -22,7 +23,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 
 // Middleware - CORS configuration for development
 const corsOrigins = [
@@ -31,26 +32,33 @@ const corsOrigins = [
   'https://ubora-app.com',         // Production frontend
   'https://my.ubora.com',          // Alternative production domain
   'https://dev.ubora.com',         // Alternative dev domain
+  'https://pre.ubora-app.com',     // Pre-release frontend
   
   // API subdomains
   'https://apidev.ubora-app.com',  // API development subdomain
   'https://api.ubora-app.com',     // API production subdomain
+  'https://apirelease.ubora-app.com', // API pre-release subdomain
   'https://apidev.ubora.com',      // Alternative API dev subdomain
   'https://api.ubora.com',         // Alternative API prod subdomain
   
   // Admin subdomains
-  'https://admin.ubora-app.com',   // Admin development
-  'https://admin.ubora.com',       // Admin production
+  'https://admindev.ubora-app.com', // Admin development
+  'https://admin.ubora-app.com',    // Admin production
+  'https://adminpre.ubora-app.com', // Admin pre-release
+  'https://admin.ubora.com',         // Admin production (alternative)
   
   // Firebase hosting domains
   'https://studio-gpnfx.firebaseapp.com',  // Firebase auth domain
   'https://studio-gpnfx.web.app',          // Firebase hosting domain
   
   // Local development
-  'http://localhost:5173',         // Vite dev server
+  'http://localhost:5173',         // Main app dev server
+  'http://localhost:5174',         // Admin app dev server
   'http://localhost:3000',         // Local API server
-  'http://localhost:4173',         // Vite preview
-  'https://localhost:5173',        // HTTPS localhost
+  'http://localhost:4173',         // Main app preview
+  'http://localhost:4174',         // Admin app preview
+  'https://localhost:5173',        // HTTPS localhost main app
+  'https://localhost:5174',        // HTTPS localhost admin app
   'https://localhost:3000',        // HTTPS localhost API
   
   // HTTP versions (for development)
@@ -99,17 +107,15 @@ app.options('*', (req, res) => {
 app.use(express.json({ limit: '50mb' })); // Increase payload limit for large images
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
-// Import the AI handlers (CommonJS modules)
-import { createRequire } from 'module';
-const require = createRequire(import.meta.url);
-
-const askHandler = require('../api/ai/ask.js');
-const healthHandler = require('../api/ai/health.js');
+// Import the AI handlers (ES modules)
+import askHandler from '../api/ai/ask.js';
+import healthHandler from '../api/ai/health.js';
 
 console.log('🔄 Loading format handler...');
 let formatHandler;
 try {
-  formatHandler = require('../api/ai/format.js');
+  formatHandler = await import('../api/ai/format.js');
+  formatHandler = formatHandler.default;
   console.log('✅ Format handler loaded successfully:', typeof formatHandler);
 } catch (error) {
   console.error('❌ Failed to load format handler:', error);
@@ -117,18 +123,27 @@ try {
 }
 
 // OCR handlers
-const ocrExtractHandler = require('../api/ocr/extractText.js');
-const ocrPdfExtractHandler = require('../api/ocr/extractPdfText.js');
-const ocrHealthHandler = require('../api/ocr/health.js');
+import ocrExtractHandler from '../api/ocr/extractText.js';
+import ocrPdfExtractHandler from '../api/ocr/extractPdfText.js';
+import ocrHealthHandler from '../api/ocr/health.js';
 
 // File download handler
-const { downloadHandler } = require('../api/files/download.js');
+import { downloadHandler } from '../api/files/download.js';
+
+// FCM handler
+import fcmSendHandler from '../api/fcm/send.js';
+// Cron job handler
+import cronNotificationsHandler from '../api/cron/notifications.js';
+import emailSendHandler from '../api/email/send.js';
 
 // Routes
 app.post('/api/ai/ask', askHandler);
 app.get('/api/ai/health', healthHandler);
 app.post('/api/ai/format', formatHandler);
 app.get('/api/files/download', downloadHandler);
+app.post('/api/fcm/send', fcmSendHandler);
+app.post('/api/cron/notifications', cronNotificationsHandler);
+app.post('/api/email/send', emailSendHandler);
 
 // Test endpoint to verify server is running
 app.get('/api/test', (req, res) => {
@@ -146,6 +161,7 @@ app.get('/api/ai/format', (req, res) => {
 
 console.log('✅ Format route registered: POST /api/ai/format');
 console.log('✅ Download route registered: GET /api/files/download');
+console.log('✅ FCM route registered: POST /api/fcm/send');
 console.log('✅ Test route registered: GET /api/test');
 
 // OCR routes
@@ -201,19 +217,93 @@ app.listen(PORT, () => {
   console.log(`📡 AI endpoints available at:`);
   console.log(`   - POST http://localhost:${PORT}/api/ai/ask`);
   console.log(`   - GET  http://localhost:${PORT}/api/ai/health`);
+  console.log(`📡 FCM endpoints available at:`);
+  console.log(`   - POST http://localhost:${PORT}/api/fcm/send`);
   console.log(`📡 OCR endpoints available at:`);
   console.log(`   - POST http://localhost:${PORT}/api/ocr/extract`);
   console.log(`   - POST http://localhost:${PORT}/api/ocr/extractPdfText`);
   console.log(`   - GET  http://localhost:${PORT}/api/ocr/health`);
+  console.log(`📡 Cron endpoints available at:`);
+  console.log(`   - POST http://localhost:${PORT}/api/cron/notifications`);
   console.log(`\n🌐 CORS Configuration:`);
   console.log(`   Allowed origins: ${corsOrigins.join(', ')}`);
   console.log(`   Plus any localhost/127.0.0.1 variations`);
-  console.log(`\n💡 To start both frontend and backend:`);
+  console.log(`\n💡 To start backend, main app, and admin app:`);
   console.log(`   npm run dev:full`);
+  console.log(`\n📱 App URLs:`);
+  console.log(`   Main App:  http://localhost:5173`);
+  console.log(`   Admin App: http://localhost:5174`);
 });
 
-// Graceful shutdown
+// ========================================
+// AUTOMATIC CRON JOB SCHEDULER
+// ========================================
+
+let cronIntervalId = null;
+
+// Start automatic cron job scheduler
+function startCronScheduler() {
+  console.log('🔄 [CronScheduler] Starting automatic cron job scheduler...');
+  
+  // Run immediately on startup (with a small delay to ensure server is ready)
+  setTimeout(() => {
+    runCronJob();
+  }, 5000); // Wait 5 seconds after server startup
+  
+  // Then run every 2 minutes
+  cronIntervalId = setInterval(() => {
+    runCronJob();
+  }, 2 * 60 * 1000); // 2 minutes
+  
+  console.log('✅ [CronScheduler] Automatic cron job scheduler started (every 2 minutes)');
+}
+
+// Stop automatic cron job scheduler
+function stopCronScheduler() {
+  if (cronIntervalId) {
+    clearInterval(cronIntervalId);
+    cronIntervalId = null;
+    console.log('🛑 [CronScheduler] Automatic cron job scheduler stopped');
+  }
+}
+
+// Run the cron job
+async function runCronJob() {
+  try {
+    console.log('🔄 [CronScheduler] Running cron job...');
+    
+    // Create a mock request/response for the cron handler
+    const mockReq = {
+      method: 'POST',
+      body: {},
+      headers: {}
+    };
+    
+    const mockRes = {
+      status: (code) => ({
+        json: (data) => {
+          console.log(`📊 [CronScheduler] Cron job result:`, data);
+          return mockRes;
+        }
+      }),
+      setHeader: () => mockRes,
+      end: () => mockRes
+    };
+    
+    // Call the cron handler
+    await cronNotificationsHandler(mockReq, mockRes);
+    
+  } catch (error) {
+    console.error('❌ [CronScheduler] Error running cron job:', error);
+  }
+}
+
+// Start the scheduler
+startCronScheduler();
+
+// Graceful shutdown - stop scheduler
 process.on('SIGINT', () => {
   console.log('\n🛑 Shutting down development server...');
+  stopCronScheduler();
   process.exit(0);
 });

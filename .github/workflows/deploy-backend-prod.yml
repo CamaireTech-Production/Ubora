@@ -23,13 +23,21 @@ jobs:
 
     - name: Create environment file for backend
       run: |
+        # Create .env with Firebase private key handled separately to avoid quote issues
         cat > .env << EOF
         # Production Backend Environment Variables
         
         # Firebase Configuration
         FIREBASE_PROJECT_ID=${{ secrets.FIREBASE_PROJECT_ID }}
         FIREBASE_CLIENT_EMAIL=${{ secrets.FIREBASE_CLIENT_EMAIL }}
-        FIREBASE_PRIVATE_KEY=${{ secrets.FIREBASE_PRIVATE_KEY }}
+        EOF
+        # Append private key - simpler approach that preserves format better
+        # Convert actual newlines to literal \n but don't over-escape
+        printf 'FIREBASE_PRIVATE_KEY="' >> .env
+        # Only escape quotes and convert newlines - don't escape backslashes (to avoid double-escaping)
+        printf '%s' "${{ secrets.FIREBASE_PRIVATE_KEY }}" | sed -z 's/"/\\"/g; s/\n/\\n/g' >> .env
+        printf '"\n' >> .env
+        cat >> .env << EOF
         
         # OpenAI Configuration
         OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
@@ -38,9 +46,28 @@ jobs:
         PORT=3000
         NODE_ENV=production
         
-        # CORS Configuration - Match production server configuration
-        CORS_ORIGIN=https://dev.ubora-app.com,https://ubora-app.com,https://my.ubora-app.com,https://my.ubora.com,https://dev.ubora.com,https://apidev.ubora-app.com,https://api.ubora-app.com,https://apidev.ubora.com,https://api.ubora.com,https://admin.ubora-app.com,https://admin.ubora.com,https://studio-gpnfx.firebaseapp.com,https://studio-gpnfx.web.app,http://localhost:5173,http://localhost:3000,http://localhost:4173,https://localhost:5173,https://localhost:3000
+        # CORS Configuration - Match production server configuration (including pre-release)
+        CORS_ORIGIN=https://dev.ubora-app.com,https://ubora-app.com,https://my.ubora-app.com,https://my.ubora.com,https://dev.ubora.com,https://pre.ubora-app.com,https://apidev.ubora-app.com,https://api.ubora-app.com,https://apirelease.ubora-app.com,https://apidev.ubora.com,https://api.ubora.com,https://admin.ubora-app.com,https://admin.ubora.com,https://adminpre.ubora-app.com,https://admindev.ubora-app.com,https://studio-gpnfx.firebaseapp.com,https://studio-gpnfx.web.app,http://localhost:5173,http://localhost:3000,http://localhost:4173,https://localhost:5173,https://localhost:3000
         EOF
+
+    - name: Verify environment file format
+      run: |
+        echo "🔍 Verifying .env format..."
+        if grep -q '^FIREBASE_PRIVATE_KEY=""' .env; then
+          echo "❌ ERROR: Double quotes detected in FIREBASE_PRIVATE_KEY!"
+          exit 1
+        fi
+        if grep -c '^FIREBASE_PRIVATE_KEY=' .env | grep -vq '^1$'; then
+          echo "❌ ERROR: FIREBASE_PRIVATE_KEY appears multiple times or is split across lines!"
+          grep '^FIREBASE_PRIVATE_KEY=' .env | head -c 200
+          exit 1
+        fi
+        if ! grep -q '^FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----' .env; then
+          echo "⚠️  WARNING: FIREBASE_PRIVATE_KEY format might be incorrect"
+          grep '^FIREBASE_PRIVATE_KEY=' .env | head -c 150
+        else
+          echo "✅ FIREBASE_PRIVATE_KEY format looks correct (single line with quotes)"
+        fi
 
     - name: Create version stamp
       run: echo "${GITHUB_SHA}" > VERSION
@@ -50,8 +77,10 @@ jobs:
         tar --exclude-vcs -czf deploy.tar.gz \
           api \
           server \
+          scripts \
           package.json \
           package-lock.json \
+          ecosystem.config.js \
           .env \
           VERSION
 
@@ -72,6 +101,7 @@ jobs:
         username: ${{ secrets.VPS_USERNAME }}
         key: ${{ secrets.VPS_SSH_KEY }}
         port: ${{ secrets.VPS_PORT }}
+        command_timeout: 20m
         script: |
           set -e
           
@@ -102,36 +132,67 @@ jobs:
           echo "🔁 Updating current symlink"
           ln -sfn $NEW_RELEASE $CURRENT_LINK
           
-          # Enhanced PM2 management
+          # Enhanced PM2 management with cron worker
           echo "🛑 Managing PM2 processes"
           pm2 stop ubora-backend-prod || true
+          pm2 stop ubora-cron-worker-prod || true
           pm2 delete ubora-backend-prod || true
+          pm2 delete ubora-cron-worker-prod || true
           
-          # Start with basic configuration (compatible with older PM2 versions)
-          pm2 start $CURRENT_LINK/server/production-server.js \
+          # Start backend server
+          pm2 start $CURRENT_LINK/server/dev-server.js \
             --name ubora-backend-prod \
             --update-env \
-            --max-memory-restart 1G
+            --max-memory-restart 1G \
+            --env production
+            
+          # Start cron worker (if file exists)
+          if [ -f "$CURRENT_LINK/scripts/cron-worker.js" ]; then
+            pm2 start $CURRENT_LINK/scripts/cron-worker.js \
+              --name ubora-cron-worker-prod \
+              --update-env \
+              --max-memory-restart 512M \
+              --env production
+          else
+            echo "⚠️ Warning: cron-worker.js not found, skipping cron worker startup"
+          fi
           
           pm2 save
           
           # Wait and verify
-          echo "⏳ Waiting for app to boot"
+          echo "⏳ Waiting for processes to boot"
           sleep 15
+          
+          # Check PM2 processes
+          echo "📊 Checking PM2 processes"
+          pm2 status
           
           # Enhanced health check with retries
           echo "🧪 Health check with retries"
           HEALTH_OK=false
           for i in {1..5}; do
-            if curl -fsS http://localhost:3000/health > /dev/null; then
-              echo "✅ Health check passed (attempt $i)"
+            if curl -fsS http://localhost:3000/api/test > /dev/null; then
+              echo "✅ Backend health check passed (attempt $i)"
               HEALTH_OK=true
               break
             else
-              echo "⏳ Health check failed (attempt $i), retrying..."
+              echo "⏳ Backend health check failed (attempt $i), retrying..."
               sleep 5
             fi
           done
+          
+          # Check cron worker logs (if process exists)
+          if pm2 describe ubora-cron-worker-prod > /dev/null 2>&1; then
+            echo "📋 Checking cron worker logs (last 10 lines)"
+            LOG_FILE="$HOME/.pm2/logs/ubora-cron-worker-prod-out.log"
+            if [ -f "$LOG_FILE" ]; then
+              tail -n 10 "$LOG_FILE" || true
+            else
+              echo "⚠️ Log file not found yet"
+            fi
+          else
+            echo "⚠️ Cron worker not running (file may not exist)"
+          fi
           
           if [ "$HEALTH_OK" = false ]; then
             echo "❌ Health check failed after 5 attempts. Rolling back..."
@@ -139,11 +200,21 @@ jobs:
             if [ -n "$PREV" ]; then
               ln -sfn $PREV $CURRENT_LINK
               pm2 stop ubora-backend-prod || true
+              pm2 stop ubora-cron-worker-prod || true
               pm2 delete ubora-backend-prod || true
-              pm2 start $CURRENT_LINK/server/production-server.js \
+              pm2 delete ubora-cron-worker-prod || true
+              pm2 start $CURRENT_LINK/server/dev-server.js \
                 --name ubora-backend-prod \
                 --update-env \
-                --max-memory-restart 1G
+                --max-memory-restart 1G \
+                --env production
+              if [ -f "$CURRENT_LINK/scripts/cron-worker.js" ]; then
+                pm2 start $CURRENT_LINK/scripts/cron-worker.js \
+                  --name ubora-cron-worker-prod \
+                  --update-env \
+                  --max-memory-restart 512M \
+                  --env production
+              fi
               pm2 save
               sleep 10
               curl -fsS http://localhost:3000/health || true
@@ -207,35 +278,46 @@ jobs:
           # Reload nginx
           systemctl reload nginx
           
-          # Wait for DNS propagation
-          echo "⏳ Waiting for DNS propagation"
-          sleep 30
+          # SSL setup (non-blocking with timeouts)
+          echo "🔧 Setting up SSL (non-blocking)"
+          set +e  # Allow SSL setup to fail without stopping deployment
           
-          # Verify domain resolution
-          if ! nslookup $DOMAIN > /dev/null 2>&1; then
-            echo "⚠️ Domain resolution failed, skipping SSL setup"
-            exit 0
+          # Wait for DNS propagation (quick check)
+          echo "⏳ Checking domain resolution"
+          if timeout 10 nslookup $DOMAIN > /dev/null 2>&1; then
+            echo "✅ Domain resolves correctly"
+            
+            # Install certbot if needed (with timeout)
+            if ! command -v certbot >/dev/null 2>&1; then
+              echo "📦 Installing certbot (max 2 minutes)..."
+              timeout 120 bash -c 'apt-get update -y && apt-get install -y certbot python3-certbot-nginx' || {
+                echo "⚠️ Certbot installation timeout or failed, skipping SSL setup"
+                set -e
+                echo "✅ Production backend deployed successfully (without SSL)"
+                exit 0
+              }
+            fi
+            
+            # Issue or renew certificate with timeout (max 5 minutes)
+            if command -v certbot >/dev/null 2>&1; then
+              echo "🔐 Attempting SSL certificate setup (max 5 minutes)..."
+              timeout 300 certbot --nginx -d $DOMAIN --non-interactive --agree-tos -m admin@ubora-app.com --redirect --no-eff-email || {
+                echo "⚠️ SSL certificate setup failed or timed out, continuing with HTTP-only"
+                echo "🔧 Manual SSL setup: certbot --nginx -d $DOMAIN"
+              }
+            fi
+          else
+            echo "⚠️ Domain resolution failed or timed out, skipping SSL setup"
           fi
           
-          # Install/update SSL certificate
-          echo "🔐 Setting up SSL certificate"
-          if ! command -v certbot >/dev/null 2>&1; then
-            apt-get update -y
-            apt-get install -y certbot python3-certbot-nginx
-          fi
-          
-          # Issue or renew certificate
-          certbot --nginx -d $DOMAIN --non-interactive --agree-tos -m admin@ubora-app.com --redirect || {
-            echo "⚠️ SSL certificate setup failed, continuing with HTTP-only"
-            echo "🔧 Manual SSL setup: certbot --nginx -d $DOMAIN"
-          }
+          set -e  # Re-enable exit on error for final verification
           
           # Final verification
           echo "🧪 Final verification"
           nginx -t && systemctl reload nginx
           
-          # Test both HTTP and HTTPS
-          curl -fsS http://$DOMAIN/health > /dev/null && echo "✅ HTTP working"
-          curl -fsS https://$DOMAIN/health > /dev/null && echo "✅ HTTPS working" || echo "⚠️ HTTPS not working"
+          # Test HTTP (HTTPS is optional)
+          curl -fsS --max-time 5 http://$DOMAIN/health > /dev/null && echo "✅ HTTP working" || echo "⚠️ HTTP health check failed"
+          curl -fsS --max-time 5 https://$DOMAIN/health > /dev/null && echo "✅ HTTPS working" || echo "⚠️ HTTPS not working (non-critical)"
           
           echo "✅ Production backend deployed successfully"

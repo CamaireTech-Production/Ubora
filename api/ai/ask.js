@@ -1,7 +1,14 @@
-const { adminAuth, adminDb } = require('../lib/firebaseAdmin.js');
-const admin = require('firebase-admin');
-const OpenAI = require('openai');
-const { TokenCounter } = require('../lib/tokenCounter.js');
+import dotenv from 'dotenv';
+import path from 'path';
+const loadedLocalEnv = dotenv.config({ path: path.join(process.cwd(), '.env.local') });
+if (!loadedLocalEnv || !loadedLocalEnv.parsed) {
+  dotenv.config({ path: path.join(process.cwd(), '.env') });
+}
+
+import { adminAuth, adminDb } from '../lib/firebaseAdmin.js';
+import admin from 'firebase-admin';
+import OpenAI from 'openai';
+import { TokenCounter } from '../lib/tokenCounter.js';
 
 // Configuration OpenAI
 const openai = new OpenAI({
@@ -237,9 +244,50 @@ async function loadAndAggregateData(
   period,
   formId,
   userId,
-  selectedFormats
+  selectedFormats,
+  directorId = null,
+  userRole = null
 ) {
   const { start, end, label } = getPeriodDates(period);
+
+  // Récupérer l'Univers actif si c'est un directeur
+  let activeUniversId = null;
+  if (userRole === 'directeur' && directorId) {
+    try {
+      const activeUniversDoc = await adminDb.collection('activeUnivers').doc(directorId).get();
+      if (activeUniversDoc.exists()) {
+        const activeUniversData = activeUniversDoc.data();
+        activeUniversId = activeUniversData.activeUniversId;
+        console.log('✅ Univers actif trouvé pour Chat Archa:', activeUniversId);
+      } else {
+        console.log('⚠️ Aucun Univers actif trouvé pour le directeur:', directorId);
+      }
+    } catch (error) {
+      console.error('❌ Erreur lors de la récupération de l\'Univers actif:', error);
+      // Continue sans filtrage par Univers si erreur
+    }
+  }
+
+  // Récupérer les Forms du Univers actif si disponible
+  let activeFormIds = new Set();
+  if (activeUniversId) {
+    try {
+      const formsSnapshot = await adminDb
+        .collection('forms')
+        .where('agencyId', '==', agencyId)
+        .where('universId', '==', activeUniversId)
+        .get();
+      
+      formsSnapshot.docs.forEach(doc => {
+        activeFormIds.add(doc.id);
+      });
+      
+      console.log(`✅ ${activeFormIds.size} Forms du Univers actif trouvés pour Chat Archa`);
+    } catch (error) {
+      console.error('❌ Erreur lors de la récupération des Forms du Univers actif:', error);
+      // Continue sans filtrage par Univers si erreur
+    }
+  }
 
   // Requête de base pour récupérer TOUTES les données de l'agence
   // On récupère par agence puis on filtre/tri en mémoire
@@ -329,7 +377,9 @@ async function loadAndAggregateData(
     const matchForm = !formId || e.formId === formId;
     const matchSelectedForms = !selectedFormats || selectedFormats.length === 0 || selectedFormats.includes(e.formId);
     const matchUser = !userId || e.userId === userId;
-    return inDateRange && matchForm && matchSelectedForms && matchUser;
+    // Filtrer par Univers actif si disponible (seulement pour directeurs)
+    const matchActiveUnivers = activeUniversId === null || activeFormIds.size === 0 || activeFormIds.has(e.formId);
+    return inDateRange && matchForm && matchSelectedForms && matchUser && matchActiveUnivers;
   });
 
   // Trier par date desc (TOUTES les données sélectionnées)
@@ -344,8 +394,14 @@ async function loadAndAggregateData(
   // No artificial limits - send ALL selected data to AI
 
   // Charger les métadonnées (formulaires et utilisateurs)
+  // Filtrer les Forms par Univers actif si disponible
+  let formsQuery = adminDb.collection('forms').where('agencyId', '==', agencyId);
+  if (activeUniversId) {
+    formsQuery = formsQuery.where('universId', '==', activeUniversId);
+  }
+  
   const [formsSnapshot, usersSnapshot] = await Promise.all([
-    adminDb.collection('forms').where('agencyId', '==', agencyId).get(),
+    formsQuery.get(),
     adminDb.collection('users').where('agencyId', '==', agencyId).where('role', '==', 'employe').get()
   ]);
 
@@ -501,7 +557,7 @@ async function loadAndAggregateData(
   
 }
 
-module.exports = async function handler(req, res) {
+export default async function handler(req, res) {
   
   try {
     const startTime = Date.now(); // Track response time
@@ -533,7 +589,16 @@ module.exports = async function handler(req, res) {
       return res.status(405).json({ error: 'Méthode non autorisée' });
     }
     
-    // 1. Vérification du token Firebase
+    // 1. Authentification - support internal server-to-server and Firebase token
+    let uid;
+    const internalToken = req.headers['x-internal-token'];
+    if (internalToken && process.env.INTERNAL_API_KEY && internalToken === process.env.INTERNAL_API_KEY) {
+      // Server-to-server call: trust provided userId for execution context
+      uid = req.body.userId;
+      if (!uid) {
+        return res.status(400).json({ error: 'userId requis pour une exécution interne', code: 'MISSING_USER_ID' });
+      }
+    } else {
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return res.status(401).json({ 
@@ -541,13 +606,9 @@ module.exports = async function handler(req, res) {
         code: 'MISSING_TOKEN'
       });
     }
-
     const idToken = authHeader.split('Bearer ')[1];
-    
-    let decodedToken;
-    let uid;
     try {
-      decodedToken = await adminAuth.verifyIdToken(idToken);
+        const decodedToken = await adminAuth.verifyIdToken(idToken);
       uid = decodedToken.uid;
     } catch (authError) {
       return res.status(401).json({ 
@@ -555,6 +616,7 @@ module.exports = async function handler(req, res) {
         code: 'INVALID_TOKEN',
         details: authError.message
       });
+      }
     }
 
     // 2. Vérification du profil utilisateur
@@ -586,10 +648,16 @@ module.exports = async function handler(req, res) {
       });
     }
     
+    // Check if this is a scheduled question execution
+    const isScheduled = req.body.isScheduled === true;
+    console.log('🕐 [SCHEDULED CHECK] Is scheduled question:', isScheduled);
+    
     // Initialize conversationId and retrieve conversation context early
     let conversationId = req.body.conversationId;
     let conversationContext = null;
-    if (conversationId) {
+    
+    // Only retrieve conversation context for regular chat, not scheduled questions
+    if (!isScheduled && conversationId) {
       try {
         conversationContext = await getConversationContext(conversationId);
         console.log('📋 Conversation context retrieved:', {
@@ -637,6 +705,9 @@ module.exports = async function handler(req, res) {
 
     // Initialize savedUserMessage at function scope
     let savedUserMessage = null;
+    
+    // Initialize existingConversationContext at function scope
+    let existingConversationContext = null;
 
     // 4. Chargement et agrégation des données
     let data;
@@ -646,7 +717,9 @@ module.exports = async function handler(req, res) {
         filters?.period,
         filters?.formId,
         filters?.userId,
-        selectedFormats
+        selectedFormats,
+        uid, // directorId
+        userData.role // userRole
       );
     } catch (dataError) {
       return res.status(500).json({ 
@@ -1926,9 +1999,14 @@ Il serait pertinent de surveiller l'engagement des employés moins actifs et d'a
     // systemPrompt is already initialized above
     
     try {
-      // Get or create conversation with enhanced context
-      
-      if (!conversationId) {
+      // Handle scheduled questions differently from regular conversations
+      if (isScheduled) {
+        console.log('🕐 [SCHEDULED] Processing scheduled question - skipping conversation creation');
+        // For scheduled questions, we don't create conversations, just process and return response
+        // The response will be saved to scheduledQuestionResponses by the frontend
+      } else {
+        // Get or create conversation with enhanced context for regular chat
+        if (!conversationId) {
         // Create new conversation with enhanced metadata
         const conversationData = {
           directorId: uid,
@@ -2050,7 +2128,8 @@ Il serait pertinent de surveiller l'engagement des employés moins actifs et d'a
             throw updateError;
           }
         }
-      }
+      } // End of regular conversation logic
+    }
 
       // Get form titles for the selected forms
       const formTitles = [];
@@ -2093,22 +2172,27 @@ Il serait pertinent de surveiller l'engagement des employés moins actifs et d'a
         }
       };
       
-      // Save user message to Firebase and get the saved version
-      try {
-        const userMessageRef = await adminDb.collection('conversations').doc(conversationId).collection('messages').add(userMessage);
-        // Get the saved message with its Firebase ID and timestamp
-        const savedUserMessageDoc = await userMessageRef.get();
-        savedUserMessage = {
-          id: savedUserMessageDoc.id,
-          type: savedUserMessageDoc.data().type,
-          content: savedUserMessageDoc.data().content,
-          timestamp: savedUserMessageDoc.data().timestamp,
-          meta: savedUserMessageDoc.data().meta
-        };
-      } catch (saveError) {
-        console.error('❌ FIREBASE SAVE ERROR - Failed to save user message:', saveError);
-        // Don't throw error, just log it and continue without savedUserMessage
-        savedUserMessage = null;
+      // Save user message to Firebase and get the saved version (only for regular chat)
+      if (!isScheduled) {
+        try {
+          const userMessageRef = await adminDb.collection('conversations').doc(conversationId).collection('messages').add(userMessage);
+          // Get the saved message with its Firebase ID and timestamp
+          const savedUserMessageDoc = await userMessageRef.get();
+          savedUserMessage = {
+            id: savedUserMessageDoc.id,
+            type: savedUserMessageDoc.data().type,
+            content: savedUserMessageDoc.data().content,
+            timestamp: savedUserMessageDoc.data().timestamp,
+            meta: savedUserMessageDoc.data().meta
+          };
+        } catch (saveError) {
+          console.error('❌ FIREBASE SAVE ERROR - Failed to save user message:', saveError);
+          // Don't throw error, just log it and continue without savedUserMessage
+          savedUserMessage = null;
+        }
+      } else {
+        console.log('🕐 [SCHEDULED] Skipping user message save - will be saved to scheduledQuestionResponses by frontend');
+        savedUserMessage = null; // No user message for scheduled questions
       }
 
       // Function to detect which files (PDF and images) are actually referenced in the AI response
@@ -2316,11 +2400,16 @@ Il serait pertinent de surveiller l'engagement des employés moins actifs et d'a
         imageFiles: referencedImageFiles
       };
       
-      try {
-        await adminDb.collection('conversations').doc(conversationId).collection('messages').add(assistantMessage);
-      } catch (saveError) {
-        console.error('❌ FIREBASE SAVE ERROR - Failed to save assistant message:', saveError);
-        throw saveError;
+      // Only save messages to conversations for regular chat, not scheduled questions
+      if (!isScheduled) {
+        try {
+          await adminDb.collection('conversations').doc(conversationId).collection('messages').add(assistantMessage);
+        } catch (saveError) {
+          console.error('❌ FIREBASE SAVE ERROR - Failed to save assistant message:', saveError);
+          throw saveError;
+        }
+      } else {
+        console.log('🕐 [SCHEDULED] Skipping conversation message save - will be saved to scheduledQuestionResponses by frontend');
       }
 
       // Debug: Log package information
@@ -2450,15 +2539,20 @@ Il serait pertinent de surveiller l'engagement des employés moins actifs et d'a
         });
       }
       
-      try {
-        await adminDb.collection('conversations').doc(conversationId).update({
-          lastMessageAt: admin.firestore.FieldValue.serverTimestamp(),
-          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-          messageCount: admin.firestore.FieldValue.increment(2)
-        });
-      } catch (updateError) {
-        console.error('❌ FIREBASE SAVE ERROR - Failed to update conversation metadata:', updateError);
-        throw updateError;
+      // Only update conversation metadata for regular chat, not scheduled questions
+      if (!isScheduled) {
+        try {
+          await adminDb.collection('conversations').doc(conversationId).update({
+            lastMessageAt: admin.firestore.FieldValue.serverTimestamp(),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            messageCount: admin.firestore.FieldValue.increment(2)
+          });
+        } catch (updateError) {
+          console.error('❌ FIREBASE SAVE ERROR - Failed to update conversation metadata:', updateError);
+          throw updateError;
+        }
+      } else {
+        console.log('🕐 [SCHEDULED] Skipping conversation metadata update');
       }
 
     } catch (storeError) {
@@ -2473,7 +2567,8 @@ Il serait pertinent de surveiller l'engagement des employés moins actifs et d'a
     // 8. Enhanced response with context
     const response = {
       answer,
-      conversationId: req.body.conversationId || conversationId,
+      // Only include conversationId for regular chat, not scheduled questions
+      ...(isScheduled ? {} : { conversationId: req.body.conversationId || conversationId }),
       userMessage: savedUserMessage, // Include the saved user message (null if save failed)
       pdfFiles: referencedPDFFiles,
       imageFiles: referencedImageFiles,

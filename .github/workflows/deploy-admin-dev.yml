@@ -1,0 +1,172 @@
+name: Deploy Admin to Development (Hostinger)
+
+on:
+  push:
+    branches: [ dev ]
+  workflow_dispatch:
+
+env:
+  NODE_VERSION: '20'
+
+jobs:
+  build-and-deploy-admin:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        
+    - name: Setup npm cache
+      uses: actions/cache@v3
+      with:
+        path: ~/.npm
+        key: ${{ runner.os }}-npm-${{ hashFiles('**/package-lock.json') }}
+        restore-keys: |
+          ${{ runner.os }}-npm-
+          
+    - name: Install dependencies
+      run: |
+        npm install --include=optional
+        # Ensure Rollup's platform-specific binary is installed
+        npm install @rollup/rollup-linux-x64-gnu --save-optional --workspaces=false || true
+        # Reinstall rollup to ensure optional deps are linked
+        npm install rollup --workspaces=false --force || true
+      
+    - name: Create environment file for admin development
+      run: |
+        cat > .env.local << EOF
+        # Development Environment Variables for Admin App
+        
+        # Firebase Configuration
+        FIREBASE_PROJECT_ID=${{ secrets.FIREBASE_PROJECT_ID }}
+        FIREBASE_CLIENT_EMAIL=${{ secrets.FIREBASE_CLIENT_EMAIL }}
+        FIREBASE_PRIVATE_KEY=${{ secrets.FIREBASE_PRIVATE_KEY }}
+        
+        # OpenAI Configuration
+        OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
+       
+        # Development URLs - VPS Backend (HTTP temporarily)
+        VITE_API_URL=http://apidev.ubora-app.com/api/ai/ask
+        VITE_AI_ENDPOINT=http://apidev.ubora-app.com/api/ai/ask
+        VITE_FIREBASE_API_KEY=${{ secrets.FIREBASE_API_KEY }}
+        VITE_FIREBASE_AUTH_DOMAIN=${{ secrets.FIREBASE_AUTH_DOMAIN }}
+        VITE_FIREBASE_PROJECT_ID=${{ secrets.FIREBASE_PROJECT_ID }}
+        VITE_FIREBASE_STORAGE_BUCKET=${{ secrets.FIREBASE_STORAGE_BUCKET }}
+        VITE_FIREBASE_MESSAGING_SENDER_ID=${{ secrets.FIREBASE_MESSAGING_SENDER_ID }}
+        VITE_FIREBASE_APP_ID=${{ secrets.FIREBASE_APP_ID }}
+        VITE_FIREBASE_MEASUREMENT_ID=${{ secrets.FIREBASE_MEASUREMENT_ID }}
+        VITE_FIREBASE_VAPID_KEY=${{ secrets.FIREBASE_VAPID_KEY }}
+        
+        # PWA Configuration for Admin Development
+        VITE_APP_ENV=dev
+        NODE_ENV=development
+        
+        # Campay Configuration for Development
+        VITE_CAMPAY_ENVIRONMENT=live
+        VITE_CAMPAY_APP_ID=${{ secrets.CAMPAY_APP_ID }}
+        VITE_CAMPAY_DEMO_AMOUNT=10
+        VITE_CAMPAY_REDIRECT_URL=
+        EOF
+        
+    - name: Build admin application for development
+      run: |
+        npm run build:admin
+        
+    - name: Create deployment package for admin
+      run: |
+        # Create a deployment directory
+        mkdir -p deploy-admin-package
+        
+        # Copy built admin files
+        cp -r apps/admin/dist-admin/* deploy-admin-package/
+        
+        # Create .htaccess for Hostinger
+        cat > deploy-admin-package/.htaccess << 'EOF'
+        # Enable compression
+        <IfModule mod_deflate.c>
+            AddOutputFilterByType DEFLATE text/plain
+            AddOutputFilterByType DEFLATE text/html
+            AddOutputFilterByType DEFLATE text/xml
+            AddOutputFilterByType DEFLATE text/css
+            AddOutputFilterByType DEFLATE application/xml
+            AddOutputFilterByType DEFLATE application/xhtml+xml
+            AddOutputFilterByType DEFLATE application/rss+xml
+            AddOutputFilterByType DEFLATE application/javascript
+            AddOutputFilterByType DEFLATE application/x-javascript
+        </IfModule>
+        
+        # Cache static assets
+        <IfModule mod_expires.c>
+            ExpiresActive on
+            ExpiresByType text/css "access plus 1 year"
+            ExpiresByType application/javascript "access plus 1 year"
+            ExpiresByType image/png "access plus 1 year"
+            ExpiresByType image/jpg "access plus 1 year"
+            ExpiresByType image/jpeg "access plus 1 year"
+            ExpiresByType image/gif "access plus 1 year"
+            ExpiresByType image/svg+xml "access plus 1 year"
+        </IfModule>
+        
+        # Security headers
+        <IfModule mod_headers.c>
+            Header always set X-Content-Type-Options nosniff
+            Header always set X-Frame-Options DENY
+            Header always set X-XSS-Protection "1; mode=block"
+            Header always set Referrer-Policy "strict-origin-when-cross-origin"
+        </IfModule>
+        
+        # Handle client-side routing (React Router)
+        RewriteEngine On
+        RewriteBase /
+        
+        # Don't rewrite files that exist
+        RewriteCond %{REQUEST_FILENAME} !-f
+        RewriteCond %{REQUEST_FILENAME} !-d
+        RewriteCond %{REQUEST_FILENAME} !-l
+        
+        # Don't rewrite API calls
+        RewriteCond %{REQUEST_URI} !^/api/
+        
+        # Don't rewrite static assets
+        RewriteCond %{REQUEST_URI} !\.(css|js|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$
+        
+        # Rewrite everything else to index.html
+        RewriteRule . /index.html [L]
+        
+        # Handle favicon
+        RewriteRule ^favicon\.ico$ /favicon.ico [L]
+        EOF
+          
+    - name: Deploy admin app to Hostinger via FTP
+      uses: SamKirkland/FTP-Deploy-Action@v4.3.4
+      with:
+        server: ${{ secrets.ADMIN_DEV_FTP_HOST }}
+        username: ${{ secrets.ADMIN_DEV_FTP_USERNAME }}
+        password: ${{ secrets.ADMIN_DEV_FTP_PASSWORD }}
+        local-dir: ./deploy-admin-package/
+        server-dir: /
+        exclude: |
+          **/.git*
+          **/.git*/**
+          **/node_modules/**
+          **/.env*
+          **/README.md
+          **/.github/**
+          
+    - name: Notify deployment success
+      if: success()
+      run: |
+        echo "✅ Admin development deployment completed successfully!"
+        echo "🌐 Admin app deployed to: https://admindev.ubora-app.com"
+        
+    - name: Notify deployment failure
+      if: failure()
+      run: |
+        echo "❌ Admin development deployment failed!"
+        echo "Please check the logs for more details."
+
