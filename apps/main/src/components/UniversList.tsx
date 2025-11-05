@@ -114,6 +114,7 @@ export const UniversList: React.FC<UniversListProps> = ({
               onEdit={onEdit}
               onDelete={onDelete}
               onView={onView}
+              context="my-univers"
             />
           ))}
         </div>

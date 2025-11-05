@@ -16,6 +16,8 @@ interface UniversCardProps {
   onView?: (univers: Univers) => void;
   disabled?: boolean;
   hideApprovalStatus?: boolean; // Masquer le badge de statut d'approbation (pour marketplace)
+  context?: 'marketplace' | 'my-univers' | 'detail'; // Contexte d'affichage pour déterminer les boutons
+  onPurchase?: (univers: Univers) => void; // Callback pour l'achat (marketplace)
 }
 
 export const UniversCard: React.FC<UniversCardProps> = ({
@@ -24,10 +26,12 @@ export const UniversCard: React.FC<UniversCardProps> = ({
   onDelete,
   onView,
   disabled = false,
-  hideApprovalStatus = false
+  hideApprovalStatus = false,
+  context = 'my-univers',
+  onPurchase
 }) => {
   const { user } = useAuth();
-  const { activeUniversId } = useApp();
+  const { activeUniversId, refreshData } = useApp();
   const { showSuccess, showError } = useToast();
   const [isActivating, setIsActivating] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
@@ -42,6 +46,11 @@ export const UniversCard: React.FC<UniversCardProps> = ({
   const hasUpdateAvailable = userInstance?.updateAvailable === true;
   const currentVersion = userInstance?.universVersion || userInstance?.metadata?.universVersion || univers.metadata.version || 1;
   const latestVersion = userInstance?.latestAvailableVersion || univers.metadata.version || 1;
+  
+  // Déterminer si le Univers marketplace est acheté (a une instance)
+  const isPurchased = !!userInstance;
+  const isMarketplace = univers.ownership.isMarketplaceTemplate;
+  const isOwned = univers.ownership.createdBy === user?.id; // Univers créé par l'utilisateur
 
   const handleActivateClick = () => {
     setShowConfirmModal(true);
@@ -53,10 +62,16 @@ export const UniversCard: React.FC<UniversCardProps> = ({
     setIsActivating(true);
     try {
       await universService.activateUnivers(univers.id, user.id, user.agencyId);
-      showSuccess(`Univers "${univers.metadata.name}" activé avec succès`);
+      showSuccess(`Univers "${univers.metadata.name}" activé avec succès. Les ressources sont maintenant filtrées par cet Univers.`);
       setShowConfirmModal(false);
       
-      // Recharger la page pour mettre à jour les données filtrées
+      // Rafraîchir le contexte AppContext pour recharger l'Univers actif et les données filtrées
+      // Attendre un peu pour laisser Firestore se synchroniser
+      await new Promise(resolve => setTimeout(resolve, 500));
+      refreshData();
+      
+      // Recharger la page pour s'assurer que tout est à jour
+      // (le contexte sera mis à jour automatiquement via useEffect)
       window.location.reload();
     } catch (error) {
       console.error('Erreur lors de l\'activation du Univers:', error);
@@ -397,6 +412,7 @@ export const UniversCard: React.FC<UniversCardProps> = ({
       {/* Actions pour directeurs avec design moderne */}
       {isDirecteur && (
         <div className="mt-4 pt-4 border-t border-gray-200/50 space-y-2">
+          {/* Boutons selon le contexte et le statut */}
           {hasUpdateAvailable && (
             <Button
               variant="primary"
@@ -409,17 +425,56 @@ export const UniversCard: React.FC<UniversCardProps> = ({
               <span>Mettre à jour vers v{latestVersion}</span>
             </Button>
           )}
-          {!isActive && !hasUpdateAvailable && (
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={handleActivateClick}
-              className="w-full flex items-center justify-center space-x-2 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 shadow-lg hover:shadow-xl transition-all duration-200"
-              disabled={disabled}
-            >
-              <Power className="h-4 w-4" />
-              <span>Activer ce Univers</span>
-            </Button>
+          {!hasUpdateAvailable && (
+            <>
+              {/* Marketplace : Acheter si non acheté, Activer si acheté */}
+              {context === 'marketplace' && isMarketplace && (
+                <>
+                  {!isPurchased && !isOwned && (
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      onClick={() => onPurchase ? onPurchase(univers) : onView?.(univers)}
+                      className="w-full flex items-center justify-center space-x-2 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 shadow-lg hover:shadow-xl transition-all duration-200"
+                      disabled={disabled}
+                    >
+                      <Globe className="h-4 w-4" />
+                      <span>
+                        {univers.metadata.price === 0 || univers.metadata.price === null || univers.metadata.price === undefined
+                          ? 'Utiliser ce template'
+                          : `Acheter (${univers.metadata.price?.toLocaleString('fr-FR')} ${univers.metadata.currency || 'XAF'})`}
+                      </span>
+                    </Button>
+                  )}
+                  {isPurchased && !isActive && (
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      onClick={handleActivateClick}
+                      className="w-full flex items-center justify-center space-x-2 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 shadow-lg hover:shadow-xl transition-all duration-200"
+                      disabled={disabled}
+                    >
+                      <Power className="h-4 w-4" />
+                      <span>Activer ce Univers</span>
+                    </Button>
+                  )}
+                </>
+              )}
+              
+              {/* Mes Univers ou Detail : Activer si non actif */}
+              {(context === 'my-univers' || context === 'detail') && !isActive && (
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={handleActivateClick}
+                  className="w-full flex items-center justify-center space-x-2 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 shadow-lg hover:shadow-xl transition-all duration-200"
+                  disabled={disabled}
+                >
+                  <Power className="h-4 w-4" />
+                  <span>Activer ce Univers</span>
+                </Button>
+              )}
+            </>
           )}
         </div>
       )}

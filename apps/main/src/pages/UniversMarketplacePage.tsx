@@ -138,6 +138,11 @@ export const UniversMarketplacePage: React.FC = () => {
     navigate(`/univers/${univers.id}`);
   };
 
+  const handlePurchase = (univers: Univers) => {
+    // Rediriger vers la page de création depuis template
+    navigate(`/univers/create-from-template/${univers.id}`);
+  };
+
   if (!user?.id || !user?.agencyId) {
     return (
       <Layout title="Marketplace">
@@ -248,7 +253,9 @@ export const UniversMarketplacePage: React.FC = () => {
                   key={univers.id}
                   univers={univers}
                   onView={handleView}
+                  onPurchase={handlePurchase}
                   hideApprovalStatus={true}
+                  context="marketplace"
                 />
               ))}
             </div>

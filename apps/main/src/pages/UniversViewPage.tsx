@@ -37,7 +37,7 @@ export const UniversViewPage: React.FC = () => {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
-  const { activeUniversId } = useApp();
+  const { activeUniversId, refreshData } = useApp();
   const { toast, showSuccess, showError } = useToast();
   const [univers, setUnivers] = useState<Univers | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -159,10 +159,15 @@ export const UniversViewPage: React.FC = () => {
     setIsActivating(true);
     try {
       await universService.activateUnivers(univers.id, user.id, user.agencyId);
-      showSuccess(`Univers "${univers.metadata.name}" activé avec succès`);
+      showSuccess(`Univers "${univers.metadata.name}" activé avec succès. Les ressources sont maintenant filtrées par cet Univers.`);
       setShowActivateModal(false);
       
-      // Recharger la page pour mettre à jour les données filtrées
+      // Rafraîchir le contexte AppContext pour recharger l'Univers actif et les données filtrées
+      // Attendre un peu pour laisser Firestore se synchroniser
+      await new Promise(resolve => setTimeout(resolve, 500));
+      refreshData();
+      
+      // Recharger la page pour s'assurer que tout est à jour
       window.location.reload();
     } catch (error) {
       console.error('Erreur lors de l\'activation du Univers:', error);
@@ -499,7 +504,7 @@ export const UniversViewPage: React.FC = () => {
 
               {/* Definitions Preview */}
               <Card title="Contenu du Univers">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
                   {/* Forms */}
                   <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
                     <div className="flex items-center space-x-3 mb-2">
@@ -569,6 +574,134 @@ export const UniversViewPage: React.FC = () => {
                       {univers.definitions.reports?.length === 1 ? 'rapport' : 'rapports'}
                     </p>
                   </div>
+                </div>
+
+                {/* Détails de chaque aspect */}
+                <div className="space-y-6 border-t border-gray-200 pt-6">
+                  {/* Formulaires détaillés */}
+                  {univers.definitions.forms && univers.definitions.forms.length > 0 && (
+                    <div>
+                      <h4 className="text-sm font-semibold text-gray-900 mb-3 flex items-center space-x-2">
+                        <FileText className="h-4 w-4 text-blue-600" />
+                        <span>Formulaires ({univers.definitions.forms.length})</span>
+                      </h4>
+                      <div className="space-y-2">
+                        {univers.definitions.forms.map((form, index) => (
+                          <div key={index} className="p-3 bg-blue-50 rounded-lg border border-blue-200">
+                            <p className="font-medium text-gray-900">{form.title || `Formulaire ${index + 1}`}</p>
+                            {form.description && (
+                              <p className="text-sm text-gray-600 mt-1">{form.description}</p>
+                            )}
+                            {form.fields && (
+                              <p className="text-xs text-gray-500 mt-1">
+                                {form.fields.length} champ{form.fields.length > 1 ? 's' : ''}
+                              </p>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Dashboards détaillés */}
+                  {univers.definitions.dashboards && univers.definitions.dashboards.length > 0 && (
+                    <div>
+                      <h4 className="text-sm font-semibold text-gray-900 mb-3 flex items-center space-x-2">
+                        <BarChart3 className="h-4 w-4 text-purple-600" />
+                        <span>Tableaux de bord ({univers.definitions.dashboards.length})</span>
+                      </h4>
+                      <div className="space-y-2">
+                        {univers.definitions.dashboards.map((dashboard, index) => (
+                          <div key={index} className="p-3 bg-purple-50 rounded-lg border border-purple-200">
+                            <p className="font-medium text-gray-900">{dashboard.title || `Tableau de bord ${index + 1}`}</p>
+                            {dashboard.description && (
+                              <p className="text-sm text-gray-600 mt-1">{dashboard.description}</p>
+                            )}
+                            {dashboard.widgets && (
+                              <p className="text-xs text-gray-500 mt-1">
+                                {dashboard.widgets.length} widget{dashboard.widgets.length > 1 ? 's' : ''}
+                              </p>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Instructions détaillées */}
+                  {univers.definitions.instructions && univers.definitions.instructions.length > 0 && (
+                    <div>
+                      <h4 className="text-sm font-semibold text-gray-900 mb-3 flex items-center space-x-2">
+                        <Calendar className="h-4 w-4 text-green-600" />
+                        <span>Instructions ({univers.definitions.instructions.length})</span>
+                      </h4>
+                      <div className="space-y-2">
+                        {univers.definitions.instructions.map((instruction, index) => (
+                          <div key={index} className="p-3 bg-green-50 rounded-lg border border-green-200">
+                            <p className="font-medium text-gray-900">{instruction.title || `Instruction ${index + 1}`}</p>
+                            {instruction.question && (
+                              <p className="text-sm text-gray-600 mt-1">{instruction.question}</p>
+                            )}
+                            {instruction.frequency && (
+                              <p className="text-xs text-gray-500 mt-1">
+                                Fréquence: {instruction.frequency}
+                              </p>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Listes détaillées */}
+                  {univers.definitions.lists && univers.definitions.lists.length > 0 && (
+                    <div>
+                      <h4 className="text-sm font-semibold text-gray-900 mb-3 flex items-center space-x-2">
+                        <Database className="h-4 w-4 text-orange-600" />
+                        <span>Listes ({univers.definitions.lists.length})</span>
+                      </h4>
+                      <div className="space-y-2">
+                        {univers.definitions.lists.map((list, index) => (
+                          <div key={index} className="p-3 bg-orange-50 rounded-lg border border-orange-200">
+                            <p className="font-medium text-gray-900">{list.name || `Liste ${index + 1}`}</p>
+                            {list.description && (
+                              <p className="text-sm text-gray-600 mt-1">{list.description}</p>
+                            )}
+                            {list.columns && (
+                              <p className="text-xs text-gray-500 mt-1">
+                                {list.columns.length} colonne{list.columns.length > 1 ? 's' : ''}
+                              </p>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Rapports détaillés */}
+                  {univers.definitions.reports && univers.definitions.reports.length > 0 && (
+                    <div>
+                      <h4 className="text-sm font-semibold text-gray-900 mb-3 flex items-center space-x-2">
+                        <FileBarChart className="h-4 w-4 text-indigo-600" />
+                        <span>Rapports ({univers.definitions.reports.length})</span>
+                      </h4>
+                      <div className="space-y-2">
+                        {univers.definitions.reports.map((report, index) => (
+                          <div key={index} className="p-3 bg-indigo-50 rounded-lg border border-indigo-200">
+                            <p className="font-medium text-gray-900">{report.name || `Rapport ${index + 1}`}</p>
+                            {report.description && (
+                              <p className="text-sm text-gray-600 mt-1">{report.description}</p>
+                            )}
+                            {report.templateType && (
+                              <p className="text-xs text-gray-500 mt-1">
+                                Type: {report.templateType}
+                              </p>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </Card>
             </div>

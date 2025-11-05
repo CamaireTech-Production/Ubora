@@ -1,4 +1,5 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { X, Sparkles, FileText } from 'lucide-react';
 import { Button } from './Button';
 
@@ -13,6 +14,13 @@ export const UniversCreateModal: React.FC<UniversCreateModalProps> = ({
   onClose,
   onCreateFromScratch
 }) => {
+  const navigate = useNavigate();
+  
+  const handleCreateFromTemplate = () => {
+    onClose();
+    navigate('/univers/marketplace');
+  };
+  
   if (!isOpen) return null;
 
   return (
@@ -62,10 +70,13 @@ export const UniversCreateModal: React.FC<UniversCreateModalProps> = ({
           </button>
 
           {/* Option 2: Create from template */}
-          <div className="p-4 sm:p-5 rounded-lg border-2 border-gray-200 bg-gray-50 opacity-75">
+          <button
+            onClick={handleCreateFromTemplate}
+            className="w-full text-left p-4 sm:p-5 rounded-lg border-2 border-transparent hover:border-purple-500 bg-purple-50 hover:bg-purple-100 transition-all duration-200 group"
+          >
             <div className="flex items-start space-x-3 sm:space-x-4">
-              <div className="flex-shrink-0 w-10 h-10 sm:w-12 sm:h-12 bg-gray-200 rounded-lg flex items-center justify-center">
-                <Sparkles className="h-5 w-5 sm:h-6 sm:w-6 text-gray-400" />
+              <div className="flex-shrink-0 w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-purple-500 to-pink-600 rounded-lg flex items-center justify-center group-hover:scale-105 transition-transform">
+                <Sparkles className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
               </div>
               <div className="flex-1 min-w-0">
                 <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-1">
@@ -74,14 +85,12 @@ export const UniversCreateModal: React.FC<UniversCreateModalProps> = ({
                 <p className="text-xs sm:text-sm text-gray-600 mb-3">
                   Utilisez un template existant du marketplace pour créer rapidement votre Univers
                 </p>
-                <div className="bg-yellow-50 border border-yellow-200 rounded-md px-2.5 py-1.5 sm:px-3 sm:py-2">
-                  <p className="text-xs sm:text-sm font-medium text-yellow-800">
-                    Bientôt disponible
-                  </p>
-                </div>
+                <span className="inline-block px-3 py-1.5 text-sm font-medium rounded-lg bg-purple-600 text-white cursor-pointer">
+                  Parcourir le marketplace
+                </span>
               </div>
             </div>
-          </div>
+          </button>
         </div>
 
         {/* Footer */}
