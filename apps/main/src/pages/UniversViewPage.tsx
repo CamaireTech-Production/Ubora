@@ -422,7 +422,7 @@ export const UniversViewPage: React.FC = () => {
                 )}
               </div>
             </div>
-            <div className="flex items-center space-x-2">
+            <div className="flex items-center space-x-2 ml-auto sm:ml-0">
               {hasUpdateAvailable && isDirecteur && (
                 <Button
                   variant="primary"
@@ -565,6 +565,19 @@ export const UniversViewPage: React.FC = () => {
                     >
                       Vue d'ensemble
                     </button>
+                    {univers.definitions.lists && univers.definitions.lists.length > 0 && (
+                      <button
+                        onClick={() => setActiveTab('lists')}
+                        className={`px-4 py-2 text-sm font-medium whitespace-nowrap border-b-2 transition-colors flex items-center space-x-1 ${
+                          activeTab === 'lists'
+                            ? 'border-orange-500 text-orange-600'
+                            : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                        }`}
+                      >
+                        <Database className="h-4 w-4" />
+                        <span>Listes ({univers.definitions.lists.length})</span>
+                      </button>
+                    )}
                     {univers.definitions.forms && univers.definitions.forms.length > 0 && (
                       <button
                         onClick={() => setActiveTab('forms')}
@@ -591,32 +604,6 @@ export const UniversViewPage: React.FC = () => {
                         <span>Dashboards ({univers.definitions.dashboards.length})</span>
                       </button>
                     )}
-                    {univers.definitions.instructions && univers.definitions.instructions.length > 0 && (
-                      <button
-                        onClick={() => setActiveTab('instructions')}
-                        className={`px-4 py-2 text-sm font-medium whitespace-nowrap border-b-2 transition-colors flex items-center space-x-1 ${
-                          activeTab === 'instructions'
-                            ? 'border-green-500 text-green-600'
-                            : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                        }`}
-                      >
-                        <Calendar className="h-4 w-4" />
-                        <span>Instructions ({univers.definitions.instructions.length})</span>
-                      </button>
-                    )}
-                    {univers.definitions.lists && univers.definitions.lists.length > 0 && (
-                      <button
-                        onClick={() => setActiveTab('lists')}
-                        className={`px-4 py-2 text-sm font-medium whitespace-nowrap border-b-2 transition-colors flex items-center space-x-1 ${
-                          activeTab === 'lists'
-                            ? 'border-orange-500 text-orange-600'
-                            : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                        }`}
-                      >
-                        <Database className="h-4 w-4" />
-                        <span>Listes ({univers.definitions.lists.length})</span>
-                      </button>
-                    )}
                     {univers.definitions.reports && univers.definitions.reports.length > 0 && (
                       <button
                         onClick={() => setActiveTab('reports')}
@@ -630,6 +617,19 @@ export const UniversViewPage: React.FC = () => {
                         <span>Rapports ({univers.definitions.reports.length})</span>
                       </button>
                     )}
+                    {univers.definitions.instructions && univers.definitions.instructions.length > 0 && (
+                      <button
+                        onClick={() => setActiveTab('instructions')}
+                        className={`px-4 py-2 text-sm font-medium whitespace-nowrap border-b-2 transition-colors flex items-center space-x-1 ${
+                          activeTab === 'instructions'
+                            ? 'border-green-500 text-green-600'
+                            : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                        }`}
+                      >
+                        <Calendar className="h-4 w-4" />
+                        <span>Instructions ({univers.definitions.instructions.length})</span>
+                      </button>
+                    )}
                   </nav>
                 </div>
 
@@ -637,7 +637,7 @@ export const UniversViewPage: React.FC = () => {
                 <div className="mt-6">
                   {/* Vue d'ensemble */}
                   {activeTab === 'overview' && (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-2 sm:grid-cols-2 gap-4">
                       {/* Forms */}
                       <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
                         <div className="flex items-center space-x-3 mb-2">
@@ -695,7 +695,7 @@ export const UniversViewPage: React.FC = () => {
                       </div>
 
                       {/* Reports */}
-                      <div className="p-4 bg-indigo-50 rounded-lg border border-indigo-200 sm:col-span-2">
+                      <div className="p-4 bg-indigo-50 rounded-lg border border-indigo-200 col-span-2">
                         <div className="flex items-center space-x-3 mb-2">
                           <FileBarChart className="h-5 w-5 text-indigo-600" />
                           <h3 className="font-semibold text-gray-900">Rapports</h3>

@@ -11,36 +11,46 @@ interface ReportPreviewProps {
  */
 export const ReportPreview: React.FC<ReportPreviewProps> = ({ report }) => {
   // Generate mock values for placeholders
+  // All numeric/metric values should show 0 since there's no data (like dashboard preview)
   const getMockValue = (placeholder: string): string => {
-    const placeholderName = placeholder.replace(/[{}]/g, '').toLowerCase();
+    const placeholderName = placeholder.replace(/[{}]/g, '').trim().toLowerCase();
     
     // Generate mock values based on placeholder name patterns
-    if (placeholderName.includes('total') || placeholderName.includes('somme')) {
-      return '1 250 000';
+    // For numeric/metric types, show 0 (no data available)
+    if (placeholderName.includes('total') || placeholderName.includes('somme') || placeholderName.includes('revenus')) {
+      return '0';
     }
     if (placeholderName.includes('moyenne') || placeholderName.includes('average')) {
-      return '125 000';
+      return '0';
     }
-    if (placeholderName.includes('nombre') || placeholderName.includes('count')) {
-      return '10';
+    if (placeholderName.includes('nombre') || placeholderName.includes('count') || placeholderName.includes('vente')) {
+      return '0';
     }
+    if (placeholderName.includes('montant') || placeholderName.includes('amount') || placeholderName.includes('prix')) {
+      return '0';
+    }
+    if (placeholderName.includes('benefice') || placeholderName.includes('profit')) {
+      return '0';
+    }
+    if (placeholderName.includes('depense') || placeholderName.includes('expense')) {
+      return '0';
+    }
+    if (placeholderName.includes('pourcentage') || placeholderName.includes('percentage') || placeholderName.includes('%')) {
+      return '0%';
+    }
+    // For date placeholders, show actual date
     if (placeholderName.includes('date')) {
       return new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
     }
+    // For text placeholders
     if (placeholderName.includes('nom') || placeholderName.includes('name')) {
       return 'Exemple Nom';
     }
     if (placeholderName.includes('email')) {
       return 'exemple@email.com';
     }
-    if (placeholderName.includes('montant') || placeholderName.includes('amount')) {
-      return '500 000';
-    }
-    if (placeholderName.includes('pourcentage') || placeholderName.includes('percentage')) {
-      return '75%';
-    }
-    // Default mock value
-    return '[Valeur]';
+    // Default mock value - use 0 for numeric metrics (no data available)
+    return '0';
   };
 
   // Replace placeholders in template content with mock values
@@ -56,20 +66,43 @@ export const ReportPreview: React.FC<ReportPreviewProps> = ({ report }) => {
     let content = report.templateContent;
 
     // Replace placeholders with mock values
+    // First, try to replace using the placeholders array
     if (report.placeholders && report.placeholders.length > 0) {
       report.placeholders.forEach((placeholder) => {
         const mockValue = getMockValue(placeholder.placeholder);
-        // Replace placeholder with mock value, keeping the same format
+        const placeholderText = placeholder.placeholder;
+        
+        // Escape special regex characters in placeholder, but handle curly braces properly
+        // Replace { and } with escaped versions for regex
+        const escapedPlaceholder = placeholderText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        
+        // Replace all occurrences of the placeholder
         content = content.replace(
-          new RegExp(placeholder.placeholder.replace(/[{}]/g, '\\$&'), 'g'),
-          `<span class="bg-yellow-100 text-yellow-800 px-1 rounded">${mockValue}</span>`
+          new RegExp(escapedPlaceholder, 'gi'),
+          mockValue
         );
       });
     }
 
-    // If it's HTML content (from ReactQuill), render it as HTML
-    // Otherwise, treat it as plain text
-    if (content.includes('<') && content.includes('>')) {
+    // Also replace any remaining placeholders that might be in the format {{placeholder}} 
+    // This handles cases where placeholders might not be in the placeholders array
+    const placeholderRegex = /\{\{\s*([^}]+)\s*\}\}/g;
+    content = content.replace(placeholderRegex, (match) => {
+      // Check if we already replaced this (shouldn't happen, but just in case)
+      // If the match still contains {{, it means it wasn't replaced
+      if (match.includes('{{')) {
+        const mockValue = getMockValue(match);
+        return mockValue;
+      }
+      return match;
+    });
+
+    // If it's HTML content (from ReactQuill), we need to handle HTML tags properly
+    // First, check if content has HTML tags (but not just from our replacements)
+    const hasHtmlTags = /<[^>]+>/g.test(content);
+    
+    if (hasHtmlTags) {
+      // Content is HTML - render it as HTML
       return (
         <div 
           className="prose prose-sm max-w-none report-preview-content"
@@ -78,13 +111,13 @@ export const ReportPreview: React.FC<ReportPreviewProps> = ({ report }) => {
       );
     }
 
-    // Plain text - convert line breaks to <br>
+    // Plain text - convert line breaks to <br> and preserve whitespace
     const lines = content.split('\n');
     return (
       <div className="prose prose-sm max-w-none report-preview-content">
         {lines.map((line, index) => (
-          <p key={index} className="whitespace-pre-wrap">
-            {line || <br />}
+          <p key={index} className="whitespace-pre-wrap mb-2">
+            {line || '\u00A0'}
           </p>
         ))}
       </div>
