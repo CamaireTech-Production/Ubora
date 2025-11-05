@@ -915,10 +915,16 @@ service cloud.firestore {
     
     match /universVersions/{versionId} {
       // LECTURE des versions Univers
+      // Pour les requêtes (list), permettre si l'utilisateur peut créer des formulaires
+      // (seuls les créateurs d'univers peuvent mettre à jour leurs univers)
+      // Pour les lectures individuelles (get), vérifier que createdBy correspond
       allow read: if isAuthenticated() && (
         isAdmin() ||
-        // Creator can read versions of their own Univers
-        (resource.data.createdBy == request.auth.uid)
+        // Creator can read versions of their own Univers (for individual reads)
+        (resource.data.createdBy == request.auth.uid) ||
+        // Allow queries if user can create forms (directors/employees with access)
+        // This allows where queries, but only users who can create forms can query
+        canCreateForms()
       );
       
       // CRÉATION des versions Univers (généralement par le créateur lors d'une mise à jour)

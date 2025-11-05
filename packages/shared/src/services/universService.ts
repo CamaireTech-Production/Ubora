@@ -260,32 +260,76 @@ class UniversService {
   }
 
   async update(id: string, updates: Partial<Univers>, updatedBy?: string): Promise<void> {
+    // Déclarer les variables en dehors du try pour qu'elles soient accessibles dans le catch
+    let currentUnivers: Univers | null = null;
+    let finalUpdateData: any = null;
+    
     try {
+      console.log('🔍 universService.update - START', {
+        universId: id,
+        updatedBy,
+        hasUpdates: !!updates,
+        updateKeys: updates ? Object.keys(updates) : []
+      });
+
       const docRef = doc(db, this.collectionName, id);
       
       // 1. Récupérer le Univers actuel pour obtenir la version actuelle
-      const currentUnivers = await this.getById(id);
+      console.log('🔍 universService.update - Fetching current Univers...');
+      currentUnivers = await this.getById(id);
       if (!currentUnivers) {
         throw new Error(`Univers not found: ${id}`);
       }
 
+      console.log('🔍 universService.update - Current Univers data:', {
+        id: currentUnivers.id,
+        version: currentUnivers.metadata.version,
+        isMarketplace: currentUnivers.ownership.isMarketplaceTemplate,
+        approvalStatus: currentUnivers.ownership.approvalStatus,
+        createdBy: currentUnivers.ownership.createdBy,
+        updatedBy: updatedBy
+      });
+
       const currentVersion = currentUnivers.metadata.version || 1;
-      const newVersion = currentVersion + 1;
       const wasMarketplace = currentUnivers.ownership.isMarketplaceTemplate;
 
       // 2. Initialiser updateData avec les updates (sans nettoyer undefined maintenant)
       // On nettoiera undefined après avoir défini les valeurs ownership
       const updateData: any = { ...updates };
       
-      // 3. Incrémenter automatiquement metadata.version
+      // 3. Gérer isMarketplaceTemplate et approvalStatus
+      // Détecter si on passe en marketplace (via ownership.isMarketplaceTemplate)
+      const isNowMarketplace = updateData.ownership?.isMarketplaceTemplate ?? wasMarketplace;
+
+      // 4. Calculer la nouvelle version en fonction du type d'univers et des versions approuvées
+      let newVersion: number;
+      
+      if (isNowMarketplace) {
+        // Pour marketplace, déterminer la version basée sur les versions approuvées
+        const versions = await this.getVersionsByUnivers(id);
+        const approvedVersions = versions.filter(v => v.approvalStatus === 'approved');
+        
+        if (approvedVersions.length === 0) {
+          // Aucune version approuvée : utiliser v1 (première soumission ou resoumission après rejet)
+          newVersion = 1;
+          console.log(`📌 Univers marketplace: aucune version approuvée, nouvelle version = v1`);
+        } else {
+          // Au moins une version approuvée : incrémenter à partir de la dernière version approuvée
+          const lastApprovedVersion = approvedVersions[0]; // Déjà trié par version desc
+          newVersion = lastApprovedVersion.version + 1;
+          console.log(`📌 Univers marketplace: dernière version approuvée = v${lastApprovedVersion.version}, nouvelle version = v${newVersion}`);
+        }
+      } else {
+        // Pour les univers privés, incrémenter normalement
+        newVersion = currentVersion + 1;
+        console.log(`📌 Univers privé: version actuelle = v${currentVersion}, nouvelle version = v${newVersion}`);
+      }
+
+      // 5. Incrémenter automatiquement metadata.version
       if (!updateData.metadata) {
         updateData.metadata = {};
       }
       updateData.metadata.version = newVersion;
-
-      // 4. Gérer isMarketplaceTemplate et approvalStatus
-      // Détecter si on passe en marketplace (via ownership.isMarketplaceTemplate)
-      const isNowMarketplace = updateData.ownership?.isMarketplaceTemplate ?? wasMarketplace;
       const isBecomingMarketplace = !wasMarketplace && isNowMarketplace;
       const isStayingMarketplace = wasMarketplace && isNowMarketplace;
       
@@ -315,26 +359,32 @@ class UniversService {
         }
       }
 
+      // IMPORTANT: deleteField() doit être utilisé au niveau supérieur avec notation pointée
+      // On va construire un objet séparé pour les champs à supprimer
+      const fieldsToDelete: Record<string, any> = {};
+
       // Si on passe en marketplace pour la première fois
       if (isBecomingMarketplace) {
         console.log('🔍 universService.update - Becoming marketplace for first time');
         updateData.ownership.isMarketplaceTemplate = true;
         updateData.ownership.approvalStatus = 'pending';
-        updateData.ownership.approvedBy = deleteField();
-        updateData.ownership.approvedAt = deleteField();
-        updateData.ownership.rejectionReason = deleteField();
+        // Utiliser la notation pointée pour deleteField()
+        fieldsToDelete['ownership.approvedBy'] = deleteField();
+        fieldsToDelete['ownership.approvedAt'] = deleteField();
+        fieldsToDelete['ownership.rejectionReason'] = deleteField();
       }
       // Si c'était déjà marketplace et qu'on modifie
       else if (isStayingMarketplace) {
         console.log('🔍 universService.update - Staying marketplace, current approvalStatus:', currentUnivers.ownership.approvalStatus);
         // Mettre approvalStatus = pending si c'était approved (modification nécessite réapprobation)
-        if (currentUnivers.ownership.approvalStatus === 'approved') {
-          console.log('🔍 universService.update - Approved marketplace template modified, setting to pending');
+        // OU si c'était rejected (resoumission après rejet)
+        if (currentUnivers.ownership.approvalStatus === 'approved' || currentUnivers.ownership.approvalStatus === 'rejected') {
+          console.log(`🔍 universService.update - Marketplace template (${currentUnivers.ownership.approvalStatus}) modified, setting to pending`);
           updateData.ownership.approvalStatus = 'pending';
-          // Réinitialiser les champs d'approbation
-          updateData.ownership.approvedBy = deleteField();
-          updateData.ownership.approvedAt = deleteField();
-          updateData.ownership.rejectionReason = deleteField();
+          // Réinitialiser les champs d'approbation et de rejet avec notation pointée
+          fieldsToDelete['ownership.approvedBy'] = deleteField();
+          fieldsToDelete['ownership.approvedAt'] = deleteField();
+          fieldsToDelete['ownership.rejectionReason'] = deleteField();
         }
         // S'assurer que isMarketplaceTemplate reste true
         updateData.ownership.isMarketplaceTemplate = true;
@@ -344,13 +394,14 @@ class UniversService {
         console.log('🔍 universService.update - Switching from marketplace to private');
         updateData.ownership.isMarketplaceTemplate = false;
         updateData.ownership.approvalStatus = 'approved';
-        updateData.ownership.approvedBy = deleteField();
-        updateData.ownership.approvedAt = deleteField();
-        updateData.ownership.rejectionReason = deleteField();
+        // Utiliser la notation pointée pour deleteField()
+        fieldsToDelete['ownership.approvedBy'] = deleteField();
+        fieldsToDelete['ownership.approvedAt'] = deleteField();
+        fieldsToDelete['ownership.rejectionReason'] = deleteField();
         // Si agencyId existe et qu'on passe en privé, on peut le supprimer
         // Mais seulement si il n'est pas explicitement fourni dans les updates
         if (currentUnivers.ownership.agencyId && !updates.ownership?.hasOwnProperty('agencyId')) {
-          updateData.ownership.agencyId = deleteField();
+          fieldsToDelete['ownership.agencyId'] = deleteField();
         }
       }
       
@@ -358,19 +409,60 @@ class UniversService {
       if (!isNowMarketplace && !wasMarketplace && currentUnivers.ownership.agencyId) {
         // Si agencyId n'est pas fourni dans les updates, on veut le supprimer
         if (!updates.ownership?.hasOwnProperty('agencyId')) {
-          updateData.ownership.agencyId = deleteField();
+          fieldsToDelete['ownership.agencyId'] = deleteField();
         }
       }
       
       // Convertir les dates en Timestamps Firestore
+      // Vérifier que ce sont bien des objets Date avant de convertir
+      // Ne pas convertir les FieldValue comme deleteField() ou serverTimestamp()
+      const isFieldValue = (value: any): boolean => {
+        // Vérifier si c'est un FieldValue Firestore (deleteField, serverTimestamp, etc.)
+        return value && typeof value === 'object' && (
+          value._methodName !== undefined ||
+          value._delegate !== undefined ||
+          typeof value._toFieldTransform === 'function'
+        );
+      };
+
       if (updateData.metadata?.createdAt) {
-        updateData.metadata.createdAt = Timestamp.fromDate(updateData.metadata.createdAt);
+        if (isFieldValue(updateData.metadata.createdAt)) {
+          // C'est un FieldValue (deleteField, serverTimestamp, etc.), ne pas convertir
+          // Ne rien faire
+        } else if (updateData.metadata.createdAt instanceof Date) {
+          updateData.metadata.createdAt = Timestamp.fromDate(updateData.metadata.createdAt);
+        } else if (updateData.metadata.createdAt?.toDate) {
+          // Déjà un Timestamp Firestore, le garder tel quel
+          // Ne rien faire
+        } else {
+          console.warn('⚠️ metadata.createdAt is not a Date or Timestamp, skipping conversion');
+        }
       }
       if (updateData.ownership?.approvedAt) {
-        updateData.ownership.approvedAt = Timestamp.fromDate(updateData.ownership.approvedAt);
+        if (isFieldValue(updateData.ownership.approvedAt)) {
+          // C'est un FieldValue (deleteField, serverTimestamp, etc.), ne pas convertir
+          // Ne rien faire
+        } else if (updateData.ownership.approvedAt instanceof Date) {
+          updateData.ownership.approvedAt = Timestamp.fromDate(updateData.ownership.approvedAt);
+        } else if (updateData.ownership.approvedAt?.toDate) {
+          // Déjà un Timestamp Firestore, le garder tel quel
+          // Ne rien faire
+        } else {
+          console.warn('⚠️ ownership.approvedAt is not a Date or Timestamp, skipping conversion');
+        }
       }
       if (updateData.usage?.lastUsedAt) {
-        updateData.usage.lastUsedAt = Timestamp.fromDate(updateData.usage.lastUsedAt);
+        if (isFieldValue(updateData.usage.lastUsedAt)) {
+          // C'est un FieldValue (deleteField, serverTimestamp, etc.), ne pas convertir
+          // Ne rien faire
+        } else if (updateData.usage.lastUsedAt instanceof Date) {
+          updateData.usage.lastUsedAt = Timestamp.fromDate(updateData.usage.lastUsedAt);
+        } else if (updateData.usage.lastUsedAt?.toDate) {
+          // Déjà un Timestamp Firestore, le garder tel quel
+          // Ne rien faire
+        } else {
+          console.warn('⚠️ usage.lastUsedAt is not a Date or Timestamp, skipping conversion');
+        }
       }
       
       // Ensure arrays are never undefined (use empty array instead)
@@ -389,10 +481,26 @@ class UniversService {
       
       // 5. Supprimer les champs undefined après avoir défini toutes les valeurs
       // Cela supprimera approvedBy, approvedAt, rejectionReason si on passe en marketplace
-      const finalUpdateData = this.removeUndefinedValues(updateData);
+      finalUpdateData = this.removeUndefinedValues(updateData);
+      
+      // 5b. Ajouter les champs à supprimer avec notation pointée (deleteField doit être au niveau supérieur)
+      if (Object.keys(fieldsToDelete).length > 0) {
+        Object.assign(finalUpdateData, fieldsToDelete);
+      }
       
       // CRITIQUE: S'assurer que ownership contient toujours createdBy après nettoyage
+      // IMPORTANT: Ne pas inclure deleteField() dans l'objet ownership imbriqué
+      // Les deleteField() sont déjà dans fieldsToDelete avec notation pointée
       if (finalUpdateData.ownership) {
+        // Supprimer tout deleteField() qui pourrait être dans ownership (ne devrait pas arriver)
+        const ownershipKeys = Object.keys(finalUpdateData.ownership);
+        for (const key of ownershipKeys) {
+          if (isFieldValue(finalUpdateData.ownership[key])) {
+            console.warn(`⚠️ Found FieldValue in ownership.${key}, removing it (should use notation pointée)`);
+            delete finalUpdateData.ownership[key];
+          }
+        }
+        
         // Si createdBy manque après nettoyage, le récupérer du Univers actuel
         if (!finalUpdateData.ownership.createdBy) {
           console.warn('⚠️ createdBy missing after cleanup, restoring from current Univers');
@@ -401,14 +509,14 @@ class UniversService {
         
         // S'assurer que ownership contient au moins createdBy, isMarketplaceTemplate, et approvalStatus
         // Si ownership est vide ou presque vide, c'est un problème
-        const ownershipKeys = Object.keys(finalUpdateData.ownership);
+        const ownershipKeysAfterCleanup = Object.keys(finalUpdateData.ownership);
         const requiredKeys = ['createdBy', 'isMarketplaceTemplate', 'approvalStatus'];
-        const hasRequiredKeys = requiredKeys.every(key => ownershipKeys.includes(key));
+        const hasRequiredKeys = requiredKeys.every(key => ownershipKeysAfterCleanup.includes(key));
         
         if (!hasRequiredKeys) {
           console.warn('⚠️ Ownership missing required fields after cleanup, restoring:', {
-            current: ownershipKeys,
-            missing: requiredKeys.filter(k => !ownershipKeys.includes(k))
+            current: ownershipKeysAfterCleanup,
+            missing: requiredKeys.filter(k => !ownershipKeysAfterCleanup.includes(k))
           });
           
           // Restaurer les champs critiques depuis le Univers actuel
@@ -420,7 +528,10 @@ class UniversService {
           };
           
           // Préserver agencyId s'il existe dans les updates ou dans le Univers actuel
-          if (finalUpdateData.ownership.agencyId === undefined && currentUnivers.ownership.agencyId) {
+          // Mais seulement si on ne veut pas le supprimer (pas dans fieldsToDelete)
+          if (finalUpdateData.ownership.agencyId === undefined && 
+              currentUnivers.ownership.agencyId && 
+              !fieldsToDelete['ownership.agencyId']) {
             // Ne pas restaurer agencyId si on veut le supprimer (sera undefined dans les updates)
             // Mais si agencyId n'était pas dans les updates, on peut le préserver
             if (!updates.ownership?.hasOwnProperty('agencyId')) {
@@ -439,13 +550,50 @@ class UniversService {
         };
       }
       
-      // 6. Créer un document UniversVersion pour tracking
-      const versionData: Omit<UniversVersion, 'id'> = {
+      // 6. Créer ou mettre à jour un document UniversVersion pour tracking
+      // Calculer previousVersion : si nouvelle version est v1, alors previousVersion = 0
+      // Sinon, previousVersion = nouvelle version - 1 (car basée sur la dernière approuvée)
+      const previousVersion = newVersion === 1 ? 0 : newVersion - 1;
+      
+      // CRITIQUE: createdBy doit correspondre à l'utilisateur authentifié pour que les règles Firestore passent
+      // Si updatedBy n'est pas fourni, utiliser le créateur de l'univers (qui devrait être l'utilisateur actuel)
+      const versionCreatedBy = updatedBy || currentUnivers.ownership.createdBy;
+      
+      // Vérifier s'il existe déjà un document UniversVersion avec cette version
+      // (peut arriver si une version a été rejetée et qu'on resoumet)
+      console.log('🔍 universService.update - Checking for existing UniversVersion...', {
+        universId: id,
+        newVersion,
+        versionCreatedBy
+      });
+
+      const existingVersionsQuery = query(
+        collection(db, this.versionsCollectionName),
+        where('universId', '==', id),
+        where('version', '==', newVersion)
+      );
+      
+      let existingVersionsSnapshot;
+      try {
+        existingVersionsSnapshot = await getDocs(existingVersionsQuery);
+        console.log('🔍 universService.update - Existing versions query result:', {
+          found: !existingVersionsSnapshot.empty,
+          count: existingVersionsSnapshot.size
+        });
+      } catch (error: any) {
+        console.error('❌ universService.update - Error querying existing versions:', {
+          error: error.message,
+          code: error.code,
+          stack: error.stack
+        });
+        throw error;
+      }
+      
+      const versionData: Partial<UniversVersion> = {
         universId: id,
         version: newVersion,
-        previousVersion: currentVersion,
-        createdBy: updatedBy || currentUnivers.ownership.createdBy,
-        createdAt: new Date(),
+        previousVersion: previousVersion,
+        createdBy: versionCreatedBy,
         approvalStatus: isNowMarketplace ? 'pending' : 'approved', // Marketplace requires approval
         changes: {
           metadata: !!updates.metadata,
@@ -459,22 +607,156 @@ class UniversService {
         }
       };
 
-      // Créer le document UniversVersion en parallèle avec la mise à jour
-      const versionDocRef = doc(collection(db, this.versionsCollectionName));
-      await Promise.all([
-        updateDoc(docRef, finalUpdateData),
-        setDoc(versionDocRef, {
+      // Si un document existe déjà avec cette version, le mettre à jour
+      // Sinon, créer un nouveau document
+      let versionDocPromise: Promise<void>;
+      
+      if (!existingVersionsSnapshot.empty) {
+        // Mettre à jour le document existant (par exemple, une version rejetée qui est resoumise)
+        const existingVersionDoc = existingVersionsSnapshot.docs[0];
+        const existingVersionData = existingVersionDoc.data();
+        const existingVersionRef = doc(db, this.versionsCollectionName, existingVersionDoc.id);
+        
+        console.log('🔍 universService.update - Updating existing UniversVersion:', {
+          versionId: existingVersionDoc.id,
+          existingCreatedBy: existingVersionData.createdBy,
+          versionCreatedBy,
+          currentUserId: updatedBy || currentUnivers.ownership.createdBy
+        });
+        
+        // IMPORTANT: Ne pas modifier createdBy lors de la mise à jour (doit rester celui du créateur original)
+        // Les règles Firestore vérifient que resource.data.createdBy == request.auth.uid
+        // On ne peut mettre à jour que si le createdBy correspond à l'utilisateur actuel
+        
+        // Mettre à jour le document existant avec les nouvelles données (sans modifier createdBy)
+        const updateVersionData: any = {
+          universId: versionData.universId,
+          version: versionData.version,
+          previousVersion: versionData.previousVersion,
+          // Ne pas inclure createdBy - il reste celui du document existant
+          approvalStatus: versionData.approvalStatus,
+          changes: versionData.changes,
+          rejectionReason: deleteField() // Supprimer le rejectionReason si présent
+        };
+        
+        console.log('🔍 universService.update - UniversVersion update data:', {
+          updateVersionData,
+          existingCreatedBy: existingVersionData.createdBy
+        });
+        
+        try {
+          versionDocPromise = updateDoc(existingVersionRef, updateVersionData);
+          console.log(`📝 Mise à jour du document UniversVersion existant (v${newVersion})`);
+        } catch (error: any) {
+          console.error('❌ universService.update - Error updating UniversVersion:', {
+            error: error.message,
+            code: error.code,
+            versionId: existingVersionDoc.id,
+            existingCreatedBy: existingVersionData.createdBy,
+            currentUserId: updatedBy || currentUnivers.ownership.createdBy
+          });
+          throw error;
+        }
+      } else {
+        // Créer un nouveau document UniversVersion
+        console.log('🔍 universService.update - Creating new UniversVersion:', {
+          versionData,
+          versionCreatedBy
+        });
+        
+        const versionDocRef = doc(collection(db, this.versionsCollectionName));
+        
+        const newVersionDocData = {
           ...versionData,
           createdAt: serverTimestamp()
-        })
-      ]);
+        };
+        
+        console.log('🔍 universService.update - New UniversVersion data:', newVersionDocData);
+        
+        try {
+          versionDocPromise = setDoc(versionDocRef, newVersionDocData);
+          console.log(`📝 Création d'un nouveau document UniversVersion (v${newVersion})`);
+        } catch (error: any) {
+          console.error('❌ universService.update - Error creating UniversVersion:', {
+            error: error.message,
+            code: error.code,
+            versionData,
+            versionCreatedBy
+          });
+          throw error;
+        }
+      }
+
+      // Exécuter la mise à jour du Univers et la création/mise à jour du UniversVersion en parallèle
+      console.log('🔍 universService.update - Final update data for Univers:', {
+        finalUpdateData,
+        ownership: finalUpdateData.ownership,
+        metadata: finalUpdateData.metadata ? { version: finalUpdateData.metadata.version } : null
+      });
+      
+      try {
+        console.log('🔍 universService.update - Attempting to update Univers document...');
+        await updateDoc(docRef, finalUpdateData);
+        console.log('✅ universService.update - Univers document updated successfully');
+      } catch (error: any) {
+        console.error('❌ universService.update - Error updating Univers document:', {
+          error: error.message,
+          code: error.code,
+          universId: id,
+          currentCreatedBy: currentUnivers.ownership.createdBy,
+          finalUpdateDataOwnership: finalUpdateData.ownership,
+          stack: error.stack
+        });
+        throw error;
+      }
+      
+      try {
+        console.log('🔍 universService.update - Attempting to create/update UniversVersion...');
+        await versionDocPromise;
+        console.log('✅ universService.update - UniversVersion created/updated successfully');
+      } catch (error: any) {
+        console.error('❌ universService.update - Error with UniversVersion:', {
+          error: error.message,
+          code: error.code,
+          versionCreatedBy,
+          stack: error.stack
+        });
+        throw error;
+      }
 
       console.log(`✅ Univers updated: ${id} (v${currentVersion} → v${newVersion})`);
       if (isNowMarketplace) {
         console.log(`   Approval status set to: pending (requires admin approval)`);
       }
-    } catch (error) {
-      console.error('Erreur lors de la mise à jour du Univers:', error);
+    } catch (error: any) {
+      console.error('❌ universService.update - ERROR DETAILS:', {
+        error: error.message,
+        code: error.code,
+        stack: error.stack,
+        universId: id,
+        updatedBy,
+        errorName: error.name
+      });
+      
+      // Log supplémentaire pour les erreurs de permissions
+      if (error.code === 'permission-denied' || error.message?.toLowerCase().includes('permission')) {
+        console.error('🔒 PERMISSION DENIED - Details:', {
+          universId: id,
+          updatedBy,
+          errorCode: error.code,
+          errorMessage: error.message,
+          // Ces variables peuvent ne pas être définies si l'erreur se produit tôt
+          hasCurrentUnivers: currentUnivers !== null,
+          currentUnivers: currentUnivers ? {
+            createdBy: currentUnivers.ownership?.createdBy,
+            isMarketplace: currentUnivers.ownership?.isMarketplaceTemplate,
+            approvalStatus: currentUnivers.ownership?.approvalStatus
+          } : null,
+          hasFinalUpdateData: finalUpdateData !== null,
+          finalUpdateDataOwnership: finalUpdateData?.ownership || null
+        });
+      }
+      
       throw error;
     }
   }
@@ -1371,7 +1653,6 @@ class UniversService {
 
           const userData = userDoc.data();
           const userEmail = userData.email;
-          const userName = userData.name || 'Utilisateur';
           const userRole = userData.role || 'directeur';
           const agencyId = userData.agencyId;
 
@@ -1910,7 +2191,7 @@ class UniversService {
       const activeUniversData: Omit<ActiveUnivers, 'directorId'> = {
         agencyId,
         activeUniversId: universId,
-        activeInstanceId: instanceId ?? null, // Convertir undefined en null pour Firestore
+        activeInstanceId: instanceId, // undefined si non fourni, ce qui est correct pour le type optionnel
         updatedAt: new Date()
       };
 
@@ -1926,7 +2207,7 @@ class UniversService {
           directorId,
           agencyId,
           activeUniversId: universId,
-          activeInstanceId: instanceId ?? null, // Convertir undefined en null pour Firestore
+          activeInstanceId: instanceId, // undefined si non fourni
           updatedAt: serverTimestamp()
         }, { merge: true });
       } else {
