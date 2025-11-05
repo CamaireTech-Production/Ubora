@@ -7,7 +7,7 @@ import { useAuth } from '@ubora/shared/contexts/AuthContext';
 import { useToast } from '@ubora/shared/hooks/useToast';
 import { universService } from '@ubora/shared/services/universService';
 import { UniversInstance } from '@ubora/shared/types';
-import { Edit, Trash2, Eye, Globe, Lock, Building2, CheckCircle, Clock, XCircle, Power, Download, AlertCircle } from 'lucide-react';
+import { Edit, Trash2, Eye, Globe, Lock, Building2, CheckCircle, Clock, XCircle, Power, Download, AlertCircle, ChevronDown, ChevronUp } from 'lucide-react';
 
 interface UniversCardProps {
   univers: Univers;
@@ -40,6 +40,7 @@ export const UniversCard: React.FC<UniversCardProps> = ({
   const [upgradeProgress, setUpgradeProgress] = useState<string>('');
   const [userInstance, setUserInstance] = useState<UniversInstance | null>(null);
   const [isLoadingInstance, setIsLoadingInstance] = useState(false);
+  const [showRejectionReason, setShowRejectionReason] = useState(false);
 
   const isActive = univers.id === activeUniversId;
   const isDirecteur = user?.role === 'directeur';
@@ -328,15 +329,40 @@ export const UniversCard: React.FC<UniversCardProps> = ({
 
         {/* Approval Status (for marketplace) - Masquer dans la marketplace publique */}
         {univers.ownership.isMarketplaceTemplate && !hideApprovalStatus && (
-          <div className="flex items-center space-x-2 text-sm">
-            {getApprovalStatusIcon()}
-            <span className={`font-medium ${
-              univers.ownership.approvalStatus === 'approved' ? 'text-green-600' :
-              univers.ownership.approvalStatus === 'pending' ? 'text-yellow-600' :
-              'text-red-600'
-            }`}>
-              {getApprovalStatusLabel()}
-            </span>
+          <div className="space-y-2">
+            <div className="flex items-center space-x-2 text-sm">
+              {getApprovalStatusIcon()}
+              <span className={`font-medium ${
+                univers.ownership.approvalStatus === 'approved' ? 'text-green-600' :
+                univers.ownership.approvalStatus === 'pending' ? 'text-yellow-600' :
+                'text-red-600'
+              }`}>
+                {getApprovalStatusLabel()}
+              </span>
+              {/* Dropdown pour voir la raison du rejet */}
+              {univers.ownership.approvalStatus === 'rejected' && univers.ownership.rejectionReason && (
+                <button
+                  onClick={() => setShowRejectionReason(!showRejectionReason)}
+                  className="ml-2 p-1 text-red-600 hover:text-red-700 hover:bg-red-50 rounded transition-colors"
+                  title="Voir la raison du rejet"
+                >
+                  {showRejectionReason ? (
+                    <ChevronUp className="h-4 w-4" />
+                  ) : (
+                    <ChevronDown className="h-4 w-4" />
+                  )}
+                </button>
+              )}
+            </div>
+            {/* Afficher la raison du rejet si le dropdown est ouvert */}
+            {univers.ownership.approvalStatus === 'rejected' && 
+             univers.ownership.rejectionReason && 
+             showRejectionReason && (
+              <div className="ml-6 mt-2 p-3 bg-red-50 border border-red-200 rounded-lg">
+                <p className="text-xs font-medium text-red-900 mb-1">Raison du rejet:</p>
+                <p className="text-xs text-red-700">{univers.ownership.rejectionReason}</p>
+              </div>
+            )}
           </div>
         )}
 
@@ -446,7 +472,10 @@ export const UniversCard: React.FC<UniversCardProps> = ({
                       </span>
                     </Button>
                   )}
-                  {isPurchased && !isActive && (
+                  {isPurchased && 
+                   !isActive && 
+                   univers.ownership.approvalStatus !== 'pending' && 
+                   univers.ownership.approvalStatus !== 'rejected' && (
                     <Button
                       variant="primary"
                       size="sm"
@@ -461,8 +490,11 @@ export const UniversCard: React.FC<UniversCardProps> = ({
                 </>
               )}
               
-              {/* Mes Univers ou Detail : Activer si non actif */}
-              {(context === 'my-univers' || context === 'detail') && !isActive && (
+              {/* Mes Univers ou Detail : Activer si non actif, mais seulement si approuvé */}
+              {(context === 'my-univers' || context === 'detail') && 
+               !isActive && 
+               univers.ownership.approvalStatus !== 'pending' && 
+               univers.ownership.approvalStatus !== 'rejected' && (
                 <Button
                   variant="primary"
                   size="sm"
