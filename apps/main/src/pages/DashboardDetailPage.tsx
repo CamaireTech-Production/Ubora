@@ -44,7 +44,8 @@ import {
   ChevronDown,
   BellPlus,
   Bell,
-  Clock
+  Clock,
+  Calculator
 } from 'lucide-react';
 
 export const DashboardDetailPage: React.FC = () => {
@@ -877,14 +878,41 @@ export const DashboardDetailPage: React.FC = () => {
 
                   {/* Source information */}
                   <div className="text-xs text-gray-500 border-t border-gray-200 pt-2">
-                    <div className="flex items-center space-x-1 mb-1">
-                      <Eye className="h-3 w-3" />
-                      <span className="truncate">{getFormTitle(metric.formId)}</span>
-                    </div>
-                    <div className="flex items-center space-x-1">
-                      {getFieldIcon(metric.fieldType)}
-                      <span className="truncate">{getFieldLabel(metric.formId, metric.fieldId)}</span>
-                    </div>
+                    {metric.sourceType === 'computed' ? (
+                      <>
+                        <div className="flex items-center space-x-1 mb-1">
+                          <Calculator className="h-3 w-3" />
+                          <span className="font-medium">Métrique calculée</span>
+                        </div>
+                        {metric.userFormula && (
+                          <div className="flex items-center space-x-1 mb-1">
+                            <span className="truncate">Formule: {metric.userFormula}</span>
+                          </div>
+                        )}
+                        {metric.dependsOn && metric.dependsOn.length > 0 && (
+                          <div className="flex items-center space-x-1">
+                            <span className="truncate">
+                              Dépend de {metric.dependsOn.length} métrique{metric.dependsOn.length > 1 ? 's' : ''}
+                            </span>
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        {metric.formId && (
+                          <div className="flex items-center space-x-1 mb-1">
+                            <Eye className="h-3 w-3" />
+                            <span className="truncate">{getFormTitle(metric.formId)}</span>
+                          </div>
+                        )}
+                        {metric.fieldId && (
+                          <div className="flex items-center space-x-1">
+                            {getFieldIcon(metric.fieldType)}
+                            <span className="truncate">{getFieldLabel(metric.formId, metric.fieldId)}</span>
+                          </div>
+                        )}
+                      </>
+                    )}
                   </div>
                 </Card>
               );

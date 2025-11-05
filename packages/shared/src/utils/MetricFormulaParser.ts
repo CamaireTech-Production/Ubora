@@ -33,9 +33,11 @@ export class MetricFormulaParser {
 
     try {
       // Get available numeric metrics for calculation (exclude current metric and non-numeric types)
+      // Also exclude other computed metrics (they can't be used as dependencies)
       const availableMetrics = metrics.filter(metric =>
         metric.id !== currentMetricId &&
-        this.isNumericMetric(metric)
+        this.isNumericMetric(metric) &&
+        metric.sourceType !== 'computed' // Computed metrics can't depend on other computed metrics for now
       );
 
       const metricIds: string[] = [];
@@ -136,13 +138,20 @@ export class MetricFormulaParser {
 
   /**
    * Check if a metric is numeric (can be used in calculations)
-   * Only sum, average, min, max are considered numeric
+   * Only metrics with numeric calculation types and metricType 'value' are considered numeric
    * @param metric - The metric to check
    * @returns True if metric is numeric
    */
   static isNumericMetric(metric: DashboardMetric): boolean {
-    // Only numeric calculation types can be used in computed metrics
-    return ['sum', 'average', 'min', 'max'].includes(metric.calculationType);
+    // Only metrics with numeric calculation types can be used in computed metrics
+    // count is included because it produces a numeric value (a number)
+    // unique is excluded as it's about distinct values, not numeric aggregation
+    const numericCalculationTypes = ['count', 'sum', 'average', 'min', 'max'];
+    
+    // Metric must have metricType 'value' (not graph) to be usable in calculations
+    const hasValidMetricType = metric.metricType === 'value' || !metric.metricType;
+    
+    return numericCalculationTypes.includes(metric.calculationType) && hasValidMetricType;
   }
 
   /**

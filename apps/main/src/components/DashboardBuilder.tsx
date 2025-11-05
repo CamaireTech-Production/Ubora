@@ -120,7 +120,7 @@ export const DashboardBuilder: React.FC<DashboardBuilderProps> = ({
       fieldId: '',
       fieldType: 'text',
       calculationType: 'count',
-      metricType: 'value',
+      metricType: 'value', // Always 'value' for computed metrics
       graphConfig: undefined
     };
 
@@ -165,6 +165,11 @@ export const DashboardBuilder: React.FC<DashboardBuilderProps> = ({
           newErrors.push(`Le champ de la métrique ${index + 1} est requis`);
         }
       } else if (sourceType === 'computed') {
+        // Computed metrics must have metricType: 'value' (no graphs)
+        if (metric.metricType !== 'value') {
+          newErrors.push(`Les métriques calculées doivent être de type "Valeur numérique" (métrique ${index + 1})`);
+        }
+        
         // Computed metrics require a formula
         if (!metric.calculationFormula || !metric.calculationFormula.trim()) {
           newErrors.push(`La formule de calcul de la métrique ${index + 1} est requise`);
@@ -297,7 +302,7 @@ export const DashboardBuilder: React.FC<DashboardBuilderProps> = ({
                             required
                           />
 
-                          <div>
+                            <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">
                               Type de métrique *
                             </label>
@@ -307,6 +312,10 @@ export const DashboardBuilder: React.FC<DashboardBuilderProps> = ({
                                 const sourceType = e.target.value as 'field' | 'computed';
                                 updateMetric(index, { 
                                   sourceType,
+                                  // Force metricType to 'value' for computed metrics
+                                  metricType: sourceType === 'computed' ? 'value' : (metric.metricType || 'value'),
+                                  // Reset graphConfig for computed metrics
+                                  graphConfig: sourceType === 'computed' ? undefined : metric.graphConfig,
                                   // Reset form/field when switching to computed
                                   formId: sourceType === 'computed' ? undefined : metric.formId,
                                   fieldId: sourceType === 'computed' ? undefined : metric.fieldId,
@@ -369,7 +378,7 @@ export const DashboardBuilder: React.FC<DashboardBuilderProps> = ({
                               )}
                             </div>
 
-                            {selectedForm && (
+                            {selectedForm && (metric.sourceType || 'field') === 'field' && (
                               <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">
                                   Type d'affichage
@@ -442,8 +451,8 @@ export const DashboardBuilder: React.FC<DashboardBuilderProps> = ({
                           placeholder="Description de la métrique..."
                         />
 
-                      {/* Value type configuration */}
-                      {metric.metricType === 'value' && metric.fieldId && (
+                      {/* Value type configuration - only for field-based metrics */}
+                      {metric.metricType === 'value' && (metric.sourceType || 'field') === 'field' && metric.fieldId && (
                         <div className="mt-4">
                           <label className="block text-sm font-medium text-gray-700 mb-1">
                             Type de calcul

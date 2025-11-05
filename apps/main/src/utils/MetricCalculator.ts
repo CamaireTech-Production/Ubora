@@ -22,11 +22,23 @@ export class MetricCalculator {
     }
 
     // Default behavior: field-based metric
-    if (!metric.formId || !metric.fieldId) {
+    // Check if this is actually a field-based metric that's missing required fields
+    const sourceType = metric.sourceType || 'field';
+    if (sourceType === 'field' && (!metric.formId || !metric.fieldId)) {
       return {
         value: 0,
         displayValue: '0',
         description: 'Configuration de métrique invalide'
+      };
+    }
+    
+    // If sourceType is not 'computed' and not 'field', or if it's 'field' but missing formId/fieldId
+    // This shouldn't happen, but handle gracefully
+    if (sourceType !== 'computed' && sourceType !== 'field') {
+      return {
+        value: 0,
+        displayValue: '0',
+        description: 'Type de métrique non supporté'
       };
     }
     // Filter entries for the specific form

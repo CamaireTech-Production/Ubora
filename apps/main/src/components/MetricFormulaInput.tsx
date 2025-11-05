@@ -43,10 +43,12 @@ export const MetricFormulaInput: React.FC<MetricFormulaInputProps> = ({
   }, [onChange]);
 
   // Get available numeric metrics for calculation (exclude current metric and non-numeric types)
+  // Also exclude other computed metrics (they can't be used as dependencies)
   const availableMetrics = useMemo(() =>
     metrics.filter(metric =>
       metric.id !== currentMetricId &&
-      MetricFormulaParser.isNumericMetric(metric)
+      MetricFormulaParser.isNumericMetric(metric) &&
+      metric.sourceType !== 'computed' // Computed metrics can't depend on other computed metrics for now
     ), [metrics, currentMetricId]
   );
 
