@@ -1,8 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
+import { useApp } from '@ubora/shared/contexts/AppContext';
 import { usePermissions } from '@ubora/shared/hooks/usePermissions';
 import { useUnreadNotifications } from '@ubora/shared/hooks/useUnreadNotifications';
+import { universService } from '@ubora/shared/services/universService';
 import { Button } from './Button';
 import { LogoutConfirmationModal } from './LogoutConfirmationModal';
 import { 
@@ -17,7 +19,8 @@ import {
   Bell,
   Package,
   Database,
-  FileBarChart
+  FileBarChart,
+  Globe
 } from 'lucide-react';
 
 interface ProfileDropdownProps {
@@ -26,6 +29,7 @@ interface ProfileDropdownProps {
 
 export const ProfileDropdown: React.FC<ProfileDropdownProps> = ({ className = '' }) => {
   const { user, logout } = useAuth();
+  const { activeUniversId } = useApp();
   const { hasDirectorDashboardAccess } = usePermissions();
   const unreadCount = useUnreadNotifications();
   const navigate = useNavigate();
@@ -33,7 +37,33 @@ export const ProfileDropdown: React.FC<ProfileDropdownProps> = ({ className = ''
   const [isOpen, setIsOpen] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [activeUnivers, setActiveUnivers] = useState<{ name: string } | null>(null);
+  const [isLoadingUnivers, setIsLoadingUnivers] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Charger l'Univers actif pour les directeurs
+  useEffect(() => {
+    if (user?.role === 'directeur' && activeUniversId) {
+      setIsLoadingUnivers(true);
+      universService.getById(activeUniversId)
+        .then(univers => {
+          if (univers) {
+            setActiveUnivers({ name: univers.metadata.name });
+          } else {
+            setActiveUnivers(null);
+          }
+        })
+        .catch(error => {
+          console.error('Erreur lors du chargement de l\'Univers actif:', error);
+          setActiveUnivers(null);
+        })
+        .finally(() => {
+          setIsLoadingUnivers(false);
+        });
+    } else {
+      setActiveUnivers(null);
+    }
+  }, [activeUniversId, user?.role]);
 
   // Fermer le dropdown quand on clique à l'extérieur
   useEffect(() => {
@@ -174,7 +204,7 @@ export const ProfileDropdown: React.FC<ProfileDropdownProps> = ({ className = ''
                   <p className="text-xs text-gray-500 truncate">
                     {user.email}
                   </p>
-                  <div className="flex items-center space-x-1 mt-1">
+                  <div className="flex flex-wrap items-center gap-1.5 mt-1">
                     <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
                       user.role === 'directeur' 
                         ? 'bg-purple-100 text-purple-800' 
@@ -186,6 +216,15 @@ export const ProfileDropdown: React.FC<ProfileDropdownProps> = ({ className = ''
                       <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
                         <Shield className="h-3 w-3 mr-1" />
                         Accès Directeur
+                      </span>
+                    )}
+                    {/* Affichage de l'Univers actif pour les directeurs */}
+                    {user.role === 'directeur' && (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200">
+                        <Globe className="h-3 w-3 mr-1 flex-shrink-0" />
+                        <span className="truncate max-w-[100px] sm:max-w-[140px]">
+                          {isLoadingUnivers ? 'Chargement...' : activeUnivers ? activeUnivers.name : 'Aucun Univers'}
+                        </span>
                       </span>
                     )}
                   </div>
