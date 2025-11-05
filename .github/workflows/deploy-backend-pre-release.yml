@@ -124,6 +124,18 @@ jobs:
           tar -xzf $UPLOADS_DIR/deploy.tar.gz -C $NEW_RELEASE
           
           cd $NEW_RELEASE
+          
+          # Verify .env file was extracted
+          if [ -f ".env" ]; then
+            echo "✅ .env file found in extracted tarball"
+            echo "📋 Verifying .env file content (first 5 lines):"
+            head -n 5 .env | sed 's/FIREBASE_PRIVATE_KEY=.*/FIREBASE_PRIVATE_KEY=<hidden>/' || true
+          else
+            echo "❌ ERROR: .env file not found in extracted tarball!"
+            echo "📁 Listing files in $NEW_RELEASE:"
+            ls -la | head -20 || true
+            exit 1
+          fi
           echo "📥 Installing dependencies (root)"
           npm ci --production || npm install --production
           echo "📥 Installing dependencies (api)"
@@ -140,20 +152,35 @@ jobs:
           pm2 delete ubora-backend-pre-release || true
           pm2 delete ubora-cron-worker-pre-release || true
           
-          # Start backend server
-          pm2 start $CURRENT_LINK/server/dev-server.js \
+          # Start backend server with working directory set to release root
+          cd $CURRENT_LINK
+          
+          # Verify .env file is accessible before starting PM2
+          if [ ! -f ".env" ]; then
+            echo "❌ ERROR: .env file not found at $CURRENT_LINK/.env"
+            echo "📁 Current directory: $(pwd)"
+            echo "📁 Listing files:"
+            ls -la | head -20
+            exit 1
+          fi
+          
+          echo "✅ Starting PM2 with .env file at $CURRENT_LINK/.env"
+          pm2 start server/dev-server.js \
             --name ubora-backend-pre-release \
             --update-env \
             --max-memory-restart 1G \
-            --env production
+            --env production \
+            --cwd $CURRENT_LINK \
+            --interpreter node
             
           # Start cron worker (if file exists)
           if [ -f "$CURRENT_LINK/scripts/cron-worker.js" ]; then
-            pm2 start $CURRENT_LINK/scripts/cron-worker.js \
+            pm2 start scripts/cron-worker.js \
               --name ubora-cron-worker-pre-release \
               --update-env \
               --max-memory-restart 512M \
-              --env production
+              --env production \
+              --cwd $CURRENT_LINK
           else
             echo "⚠️ Warning: cron-worker.js not found, skipping cron worker startup"
           fi
@@ -168,17 +195,36 @@ jobs:
           echo "📊 Checking PM2 processes"
           pm2 status
           
+          # Verify .env file exists
+          echo "🔍 Verifying .env file location"
+          if [ -f "$CURRENT_LINK/.env" ]; then
+            echo "✅ .env file found at $CURRENT_LINK/.env"
+            echo "📋 First few lines of .env:"
+            head -n 5 "$CURRENT_LINK/.env" | sed 's/FIREBASE_PRIVATE_KEY=.*/FIREBASE_PRIVATE_KEY=<hidden>/' || true
+          else
+            echo "❌ ERROR: .env file not found at $CURRENT_LINK/.env"
+            echo "📁 Listing files in $CURRENT_LINK:"
+            ls -la "$CURRENT_LINK" | head -20 || true
+          fi
+          
           # Enhanced health check with retries
           echo "🧪 Health check with retries"
           HEALTH_OK=false
-          for i in {1..5}; do
+          for i in {1..10}; do
             if curl -fsS http://localhost:3002/api/test > /dev/null; then
               echo "✅ Backend health check passed (attempt $i)"
               HEALTH_OK=true
               break
             else
               echo "⏳ Backend health check failed (attempt $i), retrying..."
-              sleep 5
+              if [ $i -le 5 ]; then
+                sleep 5
+              else
+                sleep 10
+              fi
+              # Check PM2 logs for errors
+              echo "📋 PM2 logs (last 10 lines):"
+              pm2 logs ubora-backend-pre-release --lines 10 --nostream || true
             fi
           done
           
@@ -204,17 +250,20 @@ jobs:
               pm2 stop ubora-cron-worker-pre-release || true
               pm2 delete ubora-backend-pre-release || true
               pm2 delete ubora-cron-worker-pre-release || true
-              pm2 start $CURRENT_LINK/server/dev-server.js \
+              cd $CURRENT_LINK
+              pm2 start server/dev-server.js \
                 --name ubora-backend-pre-release \
                 --update-env \
                 --max-memory-restart 1G \
-                --env production
+                --env production \
+                --cwd $CURRENT_LINK
               if [ -f "$CURRENT_LINK/scripts/cron-worker.js" ]; then
-                pm2 start $CURRENT_LINK/scripts/cron-worker.js \
+                pm2 start scripts/cron-worker.js \
                   --name ubora-cron-worker-pre-release \
                   --update-env \
                   --max-memory-restart 512M \
-                  --env production
+                  --env production \
+                  --cwd $CURRENT_LINK
               fi
               pm2 save
               sleep 10

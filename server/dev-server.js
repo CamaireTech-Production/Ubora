@@ -4,13 +4,34 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 // Prefer .env.local at project root; fallback to .env
-const loadedLocal = dotenv.config({ path: path.join(process.cwd(), '.env.local') });
-if (loadedLocal && loadedLocal.parsed) {
-  console.log('✅ Loaded .env.local');
-} else {
-  const loaded = dotenv.config({ path: path.join(process.cwd(), '.env') });
-  console.log(loaded && loaded.parsed ? '✅ Loaded .env' : 'ℹ️  No .env(.local) found, using system environment variables');
+// Also try loading from the same directory as the script
+const scriptDir = path.dirname(__dirname);
+const envPaths = [
+  path.join(process.cwd(), '.env.local'),
+  path.join(process.cwd(), '.env'),
+  path.join(scriptDir, '..', '.env.local'),
+  path.join(scriptDir, '..', '.env'),
+];
+
+let envLoaded = false;
+for (const envPath of envPaths) {
+  const loaded = dotenv.config({ path: envPath });
+  if (loaded && !loaded.error) {
+    console.log(`✅ Loaded environment from: ${envPath}`);
+    envLoaded = true;
+    break;
+  }
+}
+
+if (!envLoaded) {
+  console.log('ℹ️  No .env(.local) found, using system environment variables');
+  console.log(`📁 Current working directory: ${process.cwd()}`);
+  console.log(`📁 Script directory: ${scriptDir}`);
+  console.log(`📁 Attempted paths: ${envPaths.join(', ')}`);
 }
 
 // Debug: Show which environment variables are loaded
@@ -18,9 +39,6 @@ console.log('🔧 Environment variables:');
 console.log(`   CORS_ORIGIN: ${process.env.CORS_ORIGIN || 'Not set'}`);
 console.log(`   FIREBASE_PROJECT_ID: ${process.env.FIREBASE_PROJECT_ID ? 'Set' : 'Not set'}`);
 console.log(`   OPENAI_API_KEY: ${process.env.OPENAI_API_KEY ? 'Set' : 'Not set'}`);
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 const app = express();
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
