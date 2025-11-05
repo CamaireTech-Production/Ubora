@@ -32,16 +32,19 @@ const corsOrigins = [
   'https://ubora-app.com',         // Production frontend
   'https://my.ubora.com',          // Alternative production domain
   'https://dev.ubora.com',         // Alternative dev domain
+  'https://pre.ubora-app.com',     // Pre-release frontend
   
   // API subdomains
   'https://apidev.ubora-app.com',  // API development subdomain
   'https://api.ubora-app.com',     // API production subdomain
+  'https://apirelease.ubora-app.com', // API pre-release subdomain
   'https://apidev.ubora.com',      // Alternative API dev subdomain
   'https://api.ubora.com',         // Alternative API prod subdomain
   
   // Admin subdomains
   'https://admindev.ubora-app.com', // Admin development
   'https://admin.ubora-app.com',    // Admin production
+  'https://adminpre.ubora-app.com', // Admin pre-release
   'https://admin.ubora.com',         // Admin production (alternative)
   
   // Firebase hosting domains

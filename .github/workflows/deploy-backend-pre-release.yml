@@ -1,8 +1,9 @@
-name: Deploy Backend to VPS (Production)
+name: Deploy Backend to VPS (Pre-Release)
 
 on:
   push:
-    branches: [ master ]
+    branches: [ pre-release ]
+  workflow_dispatch:
 
 jobs:
   deploy-backend:
@@ -25,7 +26,7 @@ jobs:
       run: |
         # Create .env with Firebase private key handled separately to avoid quote issues
         cat > .env << EOF
-        # Production Backend Environment Variables
+        # Pre-Release Backend Environment Variables
         
         # Firebase Configuration
         FIREBASE_PROJECT_ID=${{ secrets.FIREBASE_PROJECT_ID }}
@@ -43,10 +44,10 @@ jobs:
         OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
         
         # Server Configuration
-        PORT=3000
+        PORT=3002
         NODE_ENV=production
         
-        # CORS Configuration - Match production server configuration (including pre-release)
+        # CORS Configuration - Include pre-release domains
         CORS_ORIGIN=https://dev.ubora-app.com,https://ubora-app.com,https://my.ubora-app.com,https://my.ubora.com,https://dev.ubora.com,https://pre.ubora-app.com,https://apidev.ubora-app.com,https://api.ubora-app.com,https://apirelease.ubora-app.com,https://apidev.ubora.com,https://api.ubora.com,https://admin.ubora-app.com,https://admin.ubora.com,https://adminpre.ubora-app.com,https://admindev.ubora-app.com,https://studio-gpnfx.firebaseapp.com,https://studio-gpnfx.web.app,http://localhost:5173,http://localhost:3000,http://localhost:4173,https://localhost:5173,https://localhost:3000
         EOF
 
@@ -92,7 +93,7 @@ jobs:
         key: ${{ secrets.VPS_SSH_KEY }}
         port: ${{ secrets.VPS_PORT }}
         source: "deploy.tar.gz"
-        target: "/var/www/ubora-backend-prod/uploads/"
+        target: "/var/www/ubora-backend-pre-release/uploads/"
 
     - name: Deploy on VPS (Enhanced with robust error handling)
       uses: appleboy/ssh-action@v1.0.3
@@ -106,13 +107,13 @@ jobs:
           set -e
           
           # Configuration
-          BASE_DIR=/var/www/ubora-backend-prod
+          BASE_DIR=/var/www/ubora-backend-pre-release
           RELEASES_DIR=$BASE_DIR/releases
           UPLOADS_DIR=$BASE_DIR/uploads
           TS=$(date +%Y%m%d%H%M%S)
           NEW_RELEASE=$RELEASES_DIR/$TS
           CURRENT_LINK=$BASE_DIR/current
-          DOMAIN=api.ubora-app.com
+          DOMAIN=apirelease.ubora-app.com
           
           # Create directories
           mkdir -p $RELEASES_DIR $UPLOADS_DIR /var/log/pm2
@@ -134,14 +135,14 @@ jobs:
           
           # Enhanced PM2 management with cron worker
           echo "🛑 Managing PM2 processes"
-          pm2 stop ubora-backend-prod || true
-          pm2 stop ubora-cron-worker-prod || true
-          pm2 delete ubora-backend-prod || true
-          pm2 delete ubora-cron-worker-prod || true
+          pm2 stop ubora-backend-pre-release || true
+          pm2 stop ubora-cron-worker-pre-release || true
+          pm2 delete ubora-backend-pre-release || true
+          pm2 delete ubora-cron-worker-pre-release || true
           
           # Start backend server
           pm2 start $CURRENT_LINK/server/dev-server.js \
-            --name ubora-backend-prod \
+            --name ubora-backend-pre-release \
             --update-env \
             --max-memory-restart 1G \
             --env production
@@ -149,7 +150,7 @@ jobs:
           # Start cron worker (if file exists)
           if [ -f "$CURRENT_LINK/scripts/cron-worker.js" ]; then
             pm2 start $CURRENT_LINK/scripts/cron-worker.js \
-              --name ubora-cron-worker-prod \
+              --name ubora-cron-worker-pre-release \
               --update-env \
               --max-memory-restart 512M \
               --env production
@@ -171,7 +172,7 @@ jobs:
           echo "🧪 Health check with retries"
           HEALTH_OK=false
           for i in {1..5}; do
-            if curl -fsS http://localhost:3000/api/test > /dev/null; then
+            if curl -fsS http://localhost:3002/api/test > /dev/null; then
               echo "✅ Backend health check passed (attempt $i)"
               HEALTH_OK=true
               break
@@ -182,9 +183,9 @@ jobs:
           done
           
           # Check cron worker logs (if process exists)
-          if pm2 describe ubora-cron-worker-prod > /dev/null 2>&1; then
+          if pm2 describe ubora-cron-worker-pre-release > /dev/null 2>&1; then
             echo "📋 Checking cron worker logs (last 10 lines)"
-            LOG_FILE="$HOME/.pm2/logs/ubora-cron-worker-prod-out.log"
+            LOG_FILE="$HOME/.pm2/logs/ubora-cron-worker-pre-release-out.log"
             if [ -f "$LOG_FILE" ]; then
               tail -n 10 "$LOG_FILE" || true
             else
@@ -199,25 +200,25 @@ jobs:
             PREV=$(ls -1dt $RELEASES_DIR/* | sed -n '2p')
             if [ -n "$PREV" ]; then
               ln -sfn $PREV $CURRENT_LINK
-              pm2 stop ubora-backend-prod || true
-              pm2 stop ubora-cron-worker-prod || true
-              pm2 delete ubora-backend-prod || true
-              pm2 delete ubora-cron-worker-prod || true
+              pm2 stop ubora-backend-pre-release || true
+              pm2 stop ubora-cron-worker-pre-release || true
+              pm2 delete ubora-backend-pre-release || true
+              pm2 delete ubora-cron-worker-pre-release || true
               pm2 start $CURRENT_LINK/server/dev-server.js \
-                --name ubora-backend-prod \
+                --name ubora-backend-pre-release \
                 --update-env \
                 --max-memory-restart 1G \
                 --env production
               if [ -f "$CURRENT_LINK/scripts/cron-worker.js" ]; then
                 pm2 start $CURRENT_LINK/scripts/cron-worker.js \
-                  --name ubora-cron-worker-prod \
+                  --name ubora-cron-worker-pre-release \
                   --update-env \
                   --max-memory-restart 512M \
                   --env production
               fi
               pm2 save
               sleep 10
-              curl -fsS http://localhost:3000/health || true
+              curl -fsS http://localhost:3002/health || true
             fi
             exit 1
           fi
@@ -231,14 +232,13 @@ jobs:
           
           # Clean up conflicting configurations
           rm -f /etc/nginx/sites-enabled/default
-          rm -f /etc/nginx/sites-enabled/api-dev.ubora-app.com
           
           # Create HTTP-only configuration first
           echo "🔧 Creating HTTP-only Nginx configuration for $DOMAIN"
           cat > /etc/nginx/sites-available/$DOMAIN << 'EOF'
           server {
               listen 80;
-              server_name api.ubora-app.com;
+              server_name apirelease.ubora-app.com;
               
               client_max_body_size 100M;
               proxy_connect_timeout 300s;
@@ -247,7 +247,7 @@ jobs:
               send_timeout 300s;
               
               location / {
-                  proxy_pass http://localhost:3000;
+                  proxy_pass http://localhost:3002;
                   proxy_http_version 1.1;
                   proxy_set_header Upgrade $http_upgrade;
                   proxy_set_header Connection 'upgrade';
@@ -260,7 +260,7 @@ jobs:
               
               # Health check endpoint
               location /health {
-                  proxy_pass http://localhost:3000/health;
+                  proxy_pass http://localhost:3002/health;
                   access_log off;
               }
           }
@@ -293,7 +293,7 @@ jobs:
               timeout 120 bash -c 'apt-get update -y && apt-get install -y certbot python3-certbot-nginx' || {
                 echo "⚠️ Certbot installation timeout or failed, skipping SSL setup"
                 set -e
-                echo "✅ Production backend deployed successfully (without SSL)"
+                echo "✅ Pre-Release backend deployed successfully (without SSL)"
                 exit 0
               }
             fi
@@ -320,4 +320,5 @@ jobs:
           curl -fsS --max-time 5 http://$DOMAIN/health > /dev/null && echo "✅ HTTP working" || echo "⚠️ HTTP health check failed"
           curl -fsS --max-time 5 https://$DOMAIN/health > /dev/null && echo "✅ HTTPS working" || echo "⚠️ HTTPS not working (non-critical)"
           
-          echo "✅ Production backend deployed successfully"
+          echo "✅ Pre-Release backend deployed successfully"
+

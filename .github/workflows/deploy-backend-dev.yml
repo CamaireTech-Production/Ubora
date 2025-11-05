@@ -47,8 +47,8 @@ jobs:
         PORT=3001
         NODE_ENV=development
         
-        # CORS Configuration - Match local dev server configuration (including HTTP for dev)
-        CORS_ORIGIN=https://dev.ubora-app.com,https://ubora-app.com,https://my.ubora.com,https://dev.ubora.com,https://apidev.ubora-app.com,https://api.ubora-app.com,https://apidev.ubora.com,https://api.ubora.com,https://admin.ubora-app.com,https://admin.ubora.com,https://studio-gpnfx.firebaseapp.com,https://studio-gpnfx.web.app,http://localhost:5173,http://localhost:3000,http://localhost:4173,https://localhost:5173,https://localhost:3000,http://dev.ubora.com,http://my.ubora.com,http://dev.ubora-app.com,http://ubora-app.com,http://apidev.ubora-app.com
+        # CORS Configuration - Match local dev server configuration (including HTTP for dev and pre-release)
+        CORS_ORIGIN=https://dev.ubora-app.com,https://ubora-app.com,https://my.ubora.com,https://dev.ubora.com,https://pre.ubora-app.com,https://apidev.ubora-app.com,https://api.ubora-app.com,https://apirelease.ubora-app.com,https://apidev.ubora.com,https://api.ubora.com,https://admin.ubora-app.com,https://admin.ubora.com,https://adminpre.ubora-app.com,https://admindev.ubora-app.com,https://studio-gpnfx.firebaseapp.com,https://studio-gpnfx.web.app,http://localhost:5173,http://localhost:3000,http://localhost:4173,https://localhost:5173,https://localhost:3000,http://dev.ubora.com,http://my.ubora.com,http://dev.ubora-app.com,http://ubora-app.com,http://apidev.ubora-app.com
         EOF
         
     - name: Verify environment file format
