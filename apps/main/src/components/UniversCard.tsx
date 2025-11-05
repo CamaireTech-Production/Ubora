@@ -533,6 +533,7 @@ export const UniversCard: React.FC<UniversCardProps> = ({
       cancelText="Annuler"
       variant="info"
       isLoading={isActivating}
+      loadingText="Activation..."
     />
 
     {/* Modal de confirmation mise à jour */}

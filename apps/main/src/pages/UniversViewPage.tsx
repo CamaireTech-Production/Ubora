@@ -1154,6 +1154,7 @@ export const UniversViewPage: React.FC = () => {
         cancelText="Annuler"
         variant="info"
         isLoading={isActivating}
+        loadingText="Activation..."
       />
 
       {/* Modal de confirmation mise à jour */}

@@ -1008,13 +1008,39 @@ class UniversService {
 
       // 2. Pour chaque Univers marketplace, vérifier s'il a des versions en attente
       for (const universDoc of universSnapshot.docs) {
-        const univers = this.convertFirestoreToUnivers(universDoc.id, universDoc.data());
+        const rawData = universDoc.data();
+        const univers = this.convertFirestoreToUnivers(universDoc.id, rawData);
+        
+        // Exclure immédiatement les univers qui ont déjà été approuvés (approvedAt existe)
+        // et qui ont un statut approuvé
+        if (univers.ownership.approvalStatus === 'approved' && univers.ownership.approvedAt) {
+          // Vérifier s'il y a une nouvelle version en attente (supérieure à la version actuelle)
+          const versions = await this.getVersionsByUnivers(univers.id);
+          const pendingVersion = versions.find(v => 
+            v.approvalStatus === 'pending' && 
+            !v.approvedAt &&
+            v.version > (univers.metadata.version || 1)
+          );
+          
+          // Seulement inclure si une nouvelle version est vraiment en attente
+          if (pendingVersion) {
+            results.push({ univers, pendingVersion });
+          }
+          continue;
+        }
         
         // Récupérer toutes les versions pour ce Univers une seule fois
         const versions = await this.getVersionsByUnivers(univers.id);
         
         // Si le Univers lui-même est en attente (première création)
         if (univers.ownership.approvalStatus === 'pending') {
+          // Vérifier si le Univers a été approuvé récemment en vérifiant approvedAt
+          // Si approvedAt existe dans ownership, le Univers est approuvé même si approvalStatus est pending
+          if (rawData.ownership?.approvedAt) {
+            // Le Univers a été approuvé, ne pas l'inclure
+            continue;
+          }
+          
           // Vérifier s'il existe une version approuvée pour la version actuelle du Univers
           // Cela peut arriver si le Univers a été approuvé mais le snapshot n'est pas encore à jour
           const approvedVersion = versions.find(v => 
@@ -1025,13 +1051,6 @@ class UniversService {
           // Si une version approuvée existe pour cette version, le Univers a été approuvé
           // Ne pas l'inclure dans les résultats
           if (!approvedVersion) {
-            // Vérifier aussi si le Univers a été approuvé récemment en vérifiant approvedAt
-            // Si approvedAt existe dans ownership, le Univers est approuvé même si approvalStatus est pending
-            const rawData = universDoc.data();
-            if (rawData.ownership?.approvedAt) {
-              // Le Univers a été approuvé, ne pas l'inclure
-              continue;
-            }
             
             // Créer une version virtuelle pour le Univers initial en attente
             const pendingVersion: UniversVersion = {
@@ -1053,14 +1072,6 @@ class UniversService {
                 }
               }
             };
-            results.push({ univers, pendingVersion });
-          }
-        } else if (univers.ownership.approvalStatus === 'approved') {
-          // Si le Univers est approuvé, vérifier s'il a des versions en attente
-          const pendingVersion = versions.find(v => v.approvalStatus === 'pending');
-          
-          // Seulement ajouter si on trouve une version en attente
-          if (pendingVersion) {
             results.push({ univers, pendingVersion });
           }
         }
@@ -1899,7 +1910,7 @@ class UniversService {
       const activeUniversData: Omit<ActiveUnivers, 'directorId'> = {
         agencyId,
         activeUniversId: universId,
-        activeInstanceId: instanceId,
+        activeInstanceId: instanceId ?? null, // Convertir undefined en null pour Firestore
         updatedAt: new Date()
       };
 
@@ -1915,7 +1926,7 @@ class UniversService {
           directorId,
           agencyId,
           activeUniversId: universId,
-          activeInstanceId: instanceId || null,
+          activeInstanceId: instanceId ?? null, // Convertir undefined en null pour Firestore
           updatedAt: serverTimestamp()
         }, { merge: true });
       } else {

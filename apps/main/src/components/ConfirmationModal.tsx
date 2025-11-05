@@ -13,6 +13,7 @@ interface ConfirmationModalProps {
   variant?: 'danger' | 'warning' | 'info';
   isLoading?: boolean;
   disabled?: boolean;
+  loadingText?: string; // Texte personnalisé pendant le chargement
 }
 
 export const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
@@ -25,7 +26,8 @@ export const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
   cancelText = 'Annuler',
   variant = 'danger',
   isLoading = false,
-  disabled = false
+  disabled = false,
+  loadingText = 'Suppression...' // Texte par défaut pour le chargement
 }) => {
   if (!isOpen) return null;
 
@@ -133,7 +135,7 @@ export const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
               {isLoading ? (
                 <div className="flex items-center space-x-2">
                   <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                  <span>Suppression...</span>
+                  <span>{loadingText}</span>
                 </div>
               ) : (
                 confirmText
