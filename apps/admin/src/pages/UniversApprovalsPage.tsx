@@ -169,7 +169,28 @@ export const UniversApprovalsPage: React.FC = () => {
           </Card>
         ) : (
           <div className="space-y-4">
-            {pendingUnivers.map(({ univers, pendingVersion }) => (
+            {pendingUnivers
+              .filter(({ univers, pendingVersion }) => {
+                // Ne montrer que les univers vraiment en attente
+                // Exclure les univers qui ont déjà été approuvés (approvedAt existe)
+                if (univers.ownership.approvalStatus === 'approved' && univers.ownership.approvedAt) {
+                  return false;
+                }
+                // Exclure si la version en attente a déjà été approuvée
+                if (pendingVersion.approvalStatus !== 'pending' || pendingVersion.approvedAt) {
+                  return false;
+                }
+                // Exclure si le Univers a un statut approuvé
+                if (univers.ownership.approvalStatus === 'approved') {
+                  // Vérifier si la version en attente est vraiment une nouvelle version
+                  // (supérieure à la version actuelle approuvée)
+                  if (pendingVersion.version <= (univers.metadata.version || 1)) {
+                    return false;
+                  }
+                }
+                return true;
+              })
+              .map(({ univers, pendingVersion }) => (
               <Card key={univers.id} className="border-l-4 border-yellow-400">
                 <div className="space-y-4">
                   {/* Univers Header */}
