@@ -33,11 +33,11 @@ export class MetricFormulaParser {
 
     try {
       // Get available numeric metrics for calculation (exclude current metric and non-numeric types)
-      // Also exclude other computed metrics (they can't be used as dependencies)
+      // Computed metrics can now be used as dependencies (circular dependencies are detected and prevented)
       const availableMetrics = metrics.filter(metric =>
         metric.id !== currentMetricId &&
-        this.isNumericMetric(metric) &&
-        metric.sourceType !== 'computed' // Computed metrics can't depend on other computed metrics for now
+        metric.name && metric.name.trim() && // Exclude metrics without names
+        this.isNumericMetric(metric)
       );
 
       const metricIds: string[] = [];
@@ -143,6 +143,11 @@ export class MetricFormulaParser {
    * @returns True if metric is numeric
    */
   static isNumericMetric(metric: DashboardMetric): boolean {
+    // Computed metrics always produce numeric values, so they can be used in calculations
+    if (metric.sourceType === 'computed') {
+      return true;
+    }
+    
     // Only metrics with numeric calculation types can be used in computed metrics
     // count is included because it produces a numeric value (a number)
     // unique is excluded as it's about distinct values, not numeric aggregation

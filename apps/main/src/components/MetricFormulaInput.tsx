@@ -45,11 +45,13 @@ export const MetricFormulaInput: React.FC<MetricFormulaInputProps> = ({
   }, [onChange]);
 
   // Get available numeric metrics for calculation (exclude current metric and non-numeric types)
-  // Also exclude other computed metrics (they can't be used as dependencies)
+  // Computed metrics can now be used as dependencies (circular dependencies are detected and prevented)
   const availableMetrics = useMemo(() =>
     metrics.filter(metric => {
+      // Exclude current metric
       if (metric.id === currentMetricId) return false;
-      if (metric.sourceType === 'computed') return false; // Computed metrics can't depend on other computed metrics for now
+      // Exclude metrics without names (not yet configured)
+      if (!metric.name || !metric.name.trim()) return false;
       // Cast to shared type for MetricFormulaParser (metricType 'table' is treated as 'value' for calculation purposes)
       // Ensure metricType is always 'value' or 'graph' (never undefined)
       const metricType: 'value' | 'graph' = metric.metricType === 'table' ? 'value' : (metric.metricType || 'value');
