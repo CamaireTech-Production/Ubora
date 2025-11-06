@@ -53,12 +53,12 @@ const corsOrigins = [
   
   // Local development
   'http://localhost:5173',         // Main app dev server
-  'http://localhost:5174',         // Admin app dev server
+  'http://localhost:5172',         // Admin app dev server
   'http://localhost:3000',         // Local API server
   'http://localhost:4173',         // Main app preview
-  'http://localhost:4174',         // Admin app preview
+  'http://localhost:4172',         // Admin app preview
   'https://localhost:5173',        // HTTPS localhost main app
-  'https://localhost:5174',        // HTTPS localhost admin app
+  'https://localhost:5172',        // HTTPS localhost admin app
   'https://localhost:3000',        // HTTPS localhost API
   
   // HTTP versions (for development)
@@ -232,7 +232,7 @@ app.listen(PORT, () => {
   console.log(`   npm run dev:full`);
   console.log(`\n📱 App URLs:`);
   console.log(`   Main App:  http://localhost:5173`);
-  console.log(`   Admin App: http://localhost:5174`);
+  console.log(`   Admin App: http://localhost:5172`);
 });
 
 // ========================================

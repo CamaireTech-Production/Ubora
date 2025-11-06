@@ -1024,7 +1024,10 @@ export const UniversViewPage: React.FC = () => {
                             {/* Accordion Content */}
                             {isExpanded && (
                               <div className="px-4 pb-4">
-                                <ReportPreview report={report} />
+                                <ReportPreview 
+                                  report={report} 
+                                  dashboards={univers.definitions.dashboards || []}
+                                />
                               </div>
                             )}
                           </div>

@@ -4,11 +4,11 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite --host --port 5174",
+    "dev": "vite --host --port 5172",
     "build": "vite build",
     "build:dev": "vite build --mode development",
     "build:prod": "vite build --mode production",
-    "preview": "vite preview --port 4174"
+    "preview": "vite preview --port 4172"
   },
   "dependencies": {
     "@ubora/shared": "file:../../packages/shared",

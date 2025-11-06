@@ -945,9 +945,17 @@ const PlaceholderMappingModal: React.FC<PlaceholderMappingModalProps> = ({
                                 currentMetricId: metricId
                               });
                               
-                              // The select value should always be the metric ID
-                              // Just set it directly - HTML select guarantees the value attribute is used
-                              setMetricId(selectedValue);
+                              // Primary: set ID directly
+                              let nextId = selectedValue;
+                              // Safety: if somehow the value is the display label, resolve by name
+                              if (selectedDashboard.metrics && !selectedDashboard.metrics.some(m => m.id === nextId)) {
+                                const foundByLabel = selectedDashboard.metrics.find(m => `${m.name} (${getMetricTypeLabel(m.metricType || 'value')})` === selectedValue);
+                                if (foundByLabel) {
+                                  console.warn('Metric value looked like label; resolved to ID:', { selectedValue, resolvedId: foundByLabel.id });
+                                  nextId = foundByLabel.id;
+                                }
+                              }
+                              setMetricId(nextId);
                             }}
                             disabled={!selectedDashboard.metrics || selectedDashboard.metrics.length === 0}
                             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"

@@ -1,18 +1,19 @@
 import React from 'react';
-import { ReportDefinition } from '@ubora/shared/types';
+import { ReportDefinition, DashboardDefinition } from '@ubora/shared/types';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { TableMetricDisplay } from './TableMetricDisplay';
 import { MetricCalculator } from '@ubora/shared/utils/MetricCalculator';
 
 interface ReportPreviewProps {
   report: ReportDefinition;
+  dashboards?: DashboardDefinition[]; // Optional dashboards to access real metric configurations
 }
 
 /**
  * ReportPreview component - displays a preview of a report template
  * Shows the report template as a document with placeholders replaced with mock values
  */
-export const ReportPreview: React.FC<ReportPreviewProps> = ({ report }) => {
+export const ReportPreview: React.FC<ReportPreviewProps> = ({ report, dashboards = [] }) => {
   // Placeholder chart data (same as dashboard preview)
   const placeholderChartData = [
     { x: 'Jan', y: 0 },
@@ -152,11 +153,21 @@ export const ReportPreview: React.FC<ReportPreviewProps> = ({ report }) => {
     content = content.replace(placeholderRegex, (match) => {
       if (match.includes('{{')) {
         const mockValue = getMockValue(match);
-        // Find mapping for this placeholder by matching text
-        const mapping = report.mappings?.find(m => {
-          const placeholder = report.placeholders?.find(p => p.id === m.placeholderId);
-          return placeholder?.placeholder === match;
-        });
+        // Resolve mapping robustly by normalizing placeholder text and matching via placeholderId
+        const normalize = (s: string) => s.replace(/[{}]/g, '').replace(/\s+/g, '').toLowerCase();
+        const normalizedMatch = normalize(match);
+        const matchedPlaceholder = report.placeholders?.find(p => normalize(p.placeholder) === normalizedMatch);
+        const mapping = matchedPlaceholder
+          ? report.mappings?.find(m => m.placeholderId === matchedPlaceholder.id)
+          : undefined;
+        if (!mapping) {
+          console.log('ReportPreview: no mapping for placeholder (regex pass)', {
+            placeholderText: match,
+            normalizedMatch,
+            availablePlaceholders: report.placeholders?.map(p => p.placeholder),
+            mappingsById: report.mappings?.map(m => m.placeholderId),
+          });
+        }
         
         if (mockValue === '__TABLE_PLACEHOLDER__') {
           const uniqueMarker = `__TABLE_PLACEHOLDER_${markerCounter++}__`;
@@ -254,78 +265,78 @@ export const ReportPreview: React.FC<ReportPreviewProps> = ({ report }) => {
             if (part.type === 'table') {
               // Render table structure for preview
               // The part.type === 'table' means we detected a table placeholder
-              // In real reports, this would use actual data from mappings
+              // Use the same approach as DashboardPreview: find the real metric from dashboards
               const mapping = part.mapping;
               
-              // If we have a mapping with metricId, try to use it
-              // Otherwise, create a generic table structure
-              if (mapping && mapping.metricId) {
-                // Check if mapping indicates it's a table metric
-                // Use mapping.metricType if available, otherwise assume it's a table since part.type === 'table'
-                const isTableMetric = mapping.metricType === 'table' || !mapping.metricType;
+              // Try to find the real metric from dashboards - same logic as DashboardPreview
+              // If mapping indicates it's a table (metricType === 'table'), find the real metric
+              let realMetric = null;
+              
+              // Check if mapping indicates this is a table metric
+              const isTableMapping = mapping?.metricType === 'table' || part.type === 'table';
+              
+              if (isTableMapping && mapping && dashboards.length > 0) {
+                // First, try to find dashboard by sourceId
+                if (mapping.sourceId) {
+                  const dashboard = dashboards.find(d => d.id === mapping.sourceId);
+                  if (dashboard && dashboard.metrics && mapping.metricId) {
+                    realMetric = dashboard.metrics.find(m => m.id === mapping.metricId);
+                  }
+                }
                 
-                if (isTableMetric) {
-                  // Try to find the metric from the report's dashboard reference
-                  // For preview, we create a mock metric with table structure
-                  // In actual report generation, we would use the real metric from the dashboard
-                  const mockMetric = {
-                    id: mapping.metricId,
-                    name: 'Tableau',
-                    metricType: 'table' as const,
-                    tableConfig: {
-                      columns: [
-                        { id: 'col1', name: 'Colonne 1', source: 'field' as const },
-                        { id: 'col2', name: 'Colonne 2', source: 'field' as const },
-                        { id: 'col3', name: 'Colonne 3', source: 'field' as const }
-                      ]
+                // If not found, search all dashboards for the metric (fallback)
+                // This handles cases where sourceId might not match but metricId does
+                if (!realMetric && mapping.metricId) {
+                  for (const dash of dashboards) {
+                    if (dash.metrics) {
+                      const foundMetric = dash.metrics.find(m => m.id === mapping.metricId);
+                      if (foundMetric && foundMetric.metricType === 'table') {
+                        realMetric = foundMetric;
+                        break;
+                      }
                     }
-                  };
-                  
-                  return (
-                    <React.Fragment key={index}>
-                      <div className="bg-white rounded-lg border border-gray-200 p-2 my-4">
-                        <p className="text-xs text-gray-500 mb-2 text-center">
-                          Tableau (données réelles dans le rapport généré)
-                        </p>
-                        <TableMetricDisplay
-                          metric={mockMetric as any}
-                          rows={[]}
-                          compact={true}
-                          maxRows={3}
-                        />
-                      </div>
-                    </React.Fragment>
-                  );
+                  }
                 }
               }
               
-              // If no mapping or mapping doesn't indicate table, but part.type === 'table',
-              // still show a generic table structure since we detected it as a table placeholder
-              const genericTableMetric = {
-                id: 'generic-table',
-                name: 'Tableau',
-                metricType: 'table' as const,
-                tableConfig: {
-                  columns: [
-                    { id: 'col1', name: 'Colonne 1', source: 'field' as const },
-                    { id: 'col2', name: 'Colonne 2', source: 'field' as const },
-                    { id: 'col3', name: 'Colonne 3', source: 'field' as const }
-                  ]
-                }
-              };
+              // Use real metric if found (same as DashboardPreview does)
+              // DashboardPreview passes metric directly, so we do the same here
+              const metricToDisplay = realMetric && realMetric.metricType === 'table'
+                ? realMetric
+                : null;
               
+              // If we found a real metric, use it (same as DashboardPreview)
+              if (metricToDisplay) {
+                return (
+                  <React.Fragment key={index}>
+                    <div className="bg-white rounded-lg border border-gray-200 p-2 my-4">
+                      <p className="text-xs text-gray-500 mb-2 text-center">
+                        Tableau (données réelles dans le rapport généré)
+                      </p>
+                      <TableMetricDisplay
+                        metric={metricToDisplay}
+                        rows={[]}
+                        compact={true}
+                        maxRows={3}
+                      />
+                    </div>
+                  </React.Fragment>
+                );
+              }
+              
+              // Fallback: if we couldn't find the metric, show a message
+              // This should rarely happen if dashboards are passed correctly
               return (
                 <React.Fragment key={index}>
                   <div className="bg-white rounded-lg border border-gray-200 p-2 my-4">
                     <p className="text-xs text-gray-500 mb-2 text-center">
-                      Tableau (données réelles dans le rapport généré)
+                      Tableau (métrique non trouvée - vérifiez le mapping)
                     </p>
-                    <TableMetricDisplay
-                      metric={genericTableMetric as any}
-                      rows={[]}
-                      compact={true}
-                      maxRows={3}
-                    />
+                    <div className="text-center py-4 text-gray-400">
+                      <p className="text-sm">Impossible de charger la structure du tableau</p>
+                      <p className="text-xs mt-1">Mapping: {mapping?.sourceId ? `Dashboard ${mapping.sourceId}` : 'Non mappé'}</p>
+                      <p className="text-xs">Métrique: {mapping?.metricId || 'Non spécifiée'}</p>
+                    </div>
                   </div>
                 </React.Fragment>
               );
