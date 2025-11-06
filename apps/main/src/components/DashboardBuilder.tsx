@@ -145,7 +145,7 @@ export const DashboardBuilder: React.FC<DashboardBuilderProps> = ({
     if (!name.trim()) {
       newErrors.push('Le nom du tableau de bord est requis');
     }
-
+    
     if (metrics.length === 0) {
       newErrors.push('Au moins une métrique est requise');
     }

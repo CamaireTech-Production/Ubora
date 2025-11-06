@@ -39,9 +39,10 @@ export const TableMetricDisplay: React.FC<TableMetricDisplayProps> = ({
     );
   }
 
-  // Limit rows for previews
-  const displayRows = maxRows ? rows.slice(0, maxRows) : rows;
-  const hasMoreRows = maxRows && rows.length > maxRows;
+  // Limit rows for previews (default to 10 for previews)
+  const previewLimit = maxRows || (compact ? 10 : undefined);
+  const displayRows = previewLimit ? rows.slice(0, previewLimit) : rows;
+  const hasMoreRows = previewLimit && rows.length > previewLimit;
 
   return (
     <div className="w-full">
@@ -72,9 +73,23 @@ export const TableMetricDisplay: React.FC<TableMetricDisplayProps> = ({
                   <tr key={rowIndex} className="hover:bg-gray-50 transition-colors">
                     {columns.map((column: TableColumnConfig) => {
                       const cellValue = row[column.id];
-                      const displayValue = cellValue !== null && cellValue !== undefined && cellValue !== ''
-                        ? String(cellValue) 
-                        : '';
+                      
+                      // Handle mixed data types: convert to string for display
+                      // Supports: numbers, strings, booleans, dates, arrays, objects
+                      let displayValue = '';
+                      if (cellValue !== null && cellValue !== undefined) {
+                        if (typeof cellValue === 'boolean') {
+                          displayValue = cellValue ? 'Oui' : 'Non';
+                        } else if (cellValue instanceof Date) {
+                          displayValue = cellValue.toLocaleDateString('fr-FR');
+                        } else if (Array.isArray(cellValue)) {
+                          displayValue = cellValue.join(', ');
+                        } else if (typeof cellValue === 'object') {
+                          displayValue = JSON.stringify(cellValue);
+                        } else {
+                          displayValue = String(cellValue);
+                        }
+                      }
 
                       return (
                         <td
@@ -102,8 +117,8 @@ export const TableMetricDisplay: React.FC<TableMetricDisplayProps> = ({
 
       {/* Show more rows indicator */}
       {hasMoreRows && (
-        <div className="mt-2 text-center text-xs text-gray-500">
-          {rows.length - (maxRows || 0)} ligne{rows.length - (maxRows || 0) > 1 ? 's' : ''} supplémentaire{rows.length - (maxRows || 0) > 1 ? 's' : ''}
+        <div className="mt-2 text-center text-xs text-gray-500 bg-gray-50 py-2 rounded border border-gray-200">
+          {rows.length - (previewLimit || 0)} ligne{rows.length - (previewLimit || 0) > 1 ? 's' : ''} supplémentaire{rows.length - (previewLimit || 0) > 1 ? 's' : ''}
         </div>
       )}
 

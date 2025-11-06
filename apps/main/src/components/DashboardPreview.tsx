@@ -211,7 +211,7 @@ export const DashboardPreview: React.FC<DashboardPreviewProps> = ({ dashboard })
                 metric={metric}
                 rows={[]}
                 compact={true}
-                maxRows={3}
+                maxRows={10}
               />
             </div>
             <p className="text-xs text-gray-500 mt-2 text-center">
