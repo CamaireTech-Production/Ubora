@@ -207,8 +207,16 @@ export const DashboardPreview: React.FC<DashboardPreviewProps> = ({ dashboard })
         ) : metricType === 'table' ? (
           <div className="mb-2">
             <div className="bg-white rounded-lg border border-gray-200 p-2">
-              {renderPlaceholderTable(metric)}
+              <TableMetricDisplay
+                metric={metric}
+                rows={[]}
+                compact={true}
+                maxRows={3}
+              />
             </div>
+            <p className="text-xs text-gray-500 mt-2 text-center">
+              Aperçu du tableau - Aucune donnée disponible
+            </p>
           </div>
         ) : (
           <div className="mb-2">

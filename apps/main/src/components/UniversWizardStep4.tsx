@@ -535,6 +535,7 @@ export const UniversWizardStep4: React.FC<UniversWizardStepProps> = ({
 
                             const getMetricTypeLabel = () => {
                               if (metric.metricType === 'graph') return '📊 Graphique';
+                              if (metric.metricType === 'table') return '📋 Tableau';
                               const calcLabels: Record<string, string> = {
                                 'sum': 'Somme',
                                 'average': 'Moyenne',

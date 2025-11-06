@@ -17,6 +17,7 @@ import { DashboardEditModal } from '../components/DashboardEditModal';
 import { MetricEditModal } from '../components/MetricEditModal';
 import { GraphPreview } from '../components/charts/GraphPreview';
 import { GraphModal } from '../components/charts/GraphModal';
+import { TableMetricDisplay } from '../components/TableMetricDisplay';
 import { getValidYAxisFields, validateYAxisField } from '@ubora/shared/utils/GraphFieldValidator';
 import { metricReminderService } from '@ubora/shared/services/metricReminderService';
 import { ImpersonationHeader } from '../components/ImpersonationHeader';
@@ -45,7 +46,8 @@ import {
   BellPlus,
   Bell,
   Clock,
-  Calculator
+  Calculator,
+  Table
 } from 'lucide-react';
 
 export const DashboardDetailPage: React.FC = () => {
@@ -840,9 +842,21 @@ export const DashboardDetailPage: React.FC = () => {
                   {/* Row 3: Symbols and type on the left */}
                   <div className="flex items-center space-x-2 mb-3">
                     {getFieldIcon(metric.fieldType)}
-                    {getCalculationIcon(metric.calculationType)}
-                    <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
-                      {getCalculationLabel(metric.calculationType)}
+                    {metric.metricType === 'table' ? (
+                      <Table className="h-4 w-4 text-purple-600" />
+                    ) : metric.metricType === 'graph' ? (
+                      <BarChart3 className="h-4 w-4 text-blue-600" />
+                    ) : (
+                      getCalculationIcon(metric.calculationType)
+                    )}
+                    <span className={`text-xs px-2 py-1 rounded ${
+                      metric.metricType === 'table'
+                        ? 'bg-purple-100 text-purple-700 border border-purple-200'
+                        : metric.metricType === 'graph'
+                        ? 'bg-blue-100 text-blue-700 border border-blue-200'
+                        : 'text-gray-500 bg-gray-100'
+                    }`}>
+                      {metric.metricType === 'table' ? '📋 Tableau' : metric.metricType === 'graph' ? '📊 Graphique' : getCalculationLabel(metric.calculationType)}
                     </span>
                   </div>
 
@@ -856,6 +870,14 @@ export const DashboardDetailPage: React.FC = () => {
                           formEntries={filteredEntries}
                           forms={forms}
                           onExpand={() => handleExpandGraph(metric)}
+                          compact={true}
+                        />
+                      </div>
+                    ) : metric.metricType === 'table' ? (
+                      <div className="w-full bg-white rounded-lg border border-gray-200 p-2">
+                        <TableMetricDisplay
+                          metric={metric}
+                          rows={Array.isArray(result.value) ? result.value : []}
                           compact={true}
                         />
                       </div>
@@ -878,7 +900,12 @@ export const DashboardDetailPage: React.FC = () => {
 
                   {/* Source information */}
                   <div className="text-xs text-gray-500 border-t border-gray-200 pt-2">
-                    {metric.sourceType === 'computed' ? (
+                    {metric.metricType === 'table' ? (
+                      <div className="flex items-center space-x-1">
+                        <Table className="h-3 w-3" />
+                        <span>Tableau avec {metric.tableConfig?.columns?.length || 0} colonne{(metric.tableConfig?.columns?.length || 0) > 1 ? 's' : ''}</span>
+                      </div>
+                    ) : metric.sourceType === 'computed' ? (
                       <>
                         <div className="flex items-center space-x-1 mb-1">
                           <Calculator className="h-3 w-3" />

@@ -3,7 +3,8 @@ import { Dashboard, FormEntry, Form } from '../types';
 import { Button } from './Button';
 import { Card } from './Card';
 import { MetricCalculator } from '@ubora/shared/utils/MetricCalculator';
-import { X, BarChart3, TrendingUp, TrendingDown, Minus, Hash, Type, Mail, Calendar, CheckSquare, Upload, Eye, Edit, Trash2 } from 'lucide-react';
+import { TableMetricDisplay } from './TableMetricDisplay';
+import { X, BarChart3, TrendingUp, TrendingDown, Minus, Hash, Type, Mail, Calendar, CheckSquare, Upload, Eye, Edit, Trash2, Table } from 'lucide-react';
 
 interface DashboardDetailModalProps {
   isOpen: boolean;
@@ -200,9 +201,17 @@ export const DashboardDetailModal: React.FC<DashboardDetailModalProps> = ({
                     <div className="flex items-center justify-between mb-2 sm:mb-3">
                       <div className="flex items-center space-x-1 sm:space-x-2">
                         {getFieldIcon(metric.fieldType)}
-                        {getCalculationIcon(metric.calculationType)}
-                        <span className="text-xs text-gray-500 bg-gray-100 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded">
-                          {getCalculationLabel(metric.calculationType)}
+                        {metric.metricType === 'table' ? (
+                          <Table className="h-4 w-4 text-purple-600" />
+                        ) : (
+                          getCalculationIcon(metric.calculationType)
+                        )}
+                        <span className={`text-xs px-1.5 sm:px-2 py-0.5 sm:py-1 rounded ${
+                          metric.metricType === 'table'
+                            ? 'bg-purple-100 text-purple-700 border border-purple-200'
+                            : 'text-gray-500 bg-gray-100'
+                        }`}>
+                          {metric.metricType === 'table' ? '📋 Tableau' : getCalculationLabel(metric.calculationType)}
                         </span>
                       </div>
                       <div className="flex items-center space-x-1">
@@ -245,16 +254,28 @@ export const DashboardDetailModal: React.FC<DashboardDetailModalProps> = ({
 
                     {/* Metric value and result */}
                     <div className="mb-2 sm:mb-3">
-                      <div className="text-lg sm:text-xl lg:text-2xl font-bold text-blue-600 mb-1">
-                        {result.displayValue}
-                      </div>
-                      <p className="text-xs sm:text-sm text-gray-500">
-                        {result.description}
-                      </p>
-                      {result.value === 0 && (
-                        <p className="text-xs text-orange-500 mt-1">
-                          Vérifiez que des données existent pour ce formulaire
-                        </p>
+                      {metric.metricType === 'table' ? (
+                        <div className="bg-white rounded-lg border border-gray-200 p-2">
+                          <TableMetricDisplay
+                            metric={metric}
+                            rows={Array.isArray(result.value) ? result.value : []}
+                            compact={true}
+                          />
+                        </div>
+                      ) : (
+                        <>
+                          <div className="text-lg sm:text-xl lg:text-2xl font-bold text-blue-600 mb-1">
+                            {result.displayValue}
+                          </div>
+                          <p className="text-xs sm:text-sm text-gray-500">
+                            {result.description}
+                          </p>
+                          {result.value === 0 && (
+                            <p className="text-xs text-orange-500 mt-1">
+                              Vérifiez que des données existent pour ce formulaire
+                            </p>
+                          )}
+                        </>
                       )}
                     </div>
 

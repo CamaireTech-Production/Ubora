@@ -5,7 +5,8 @@ import { Button } from './Button';
 import { MetricCalculator } from '@ubora/shared/utils/MetricCalculator';
 import { GraphPreview } from './charts/GraphPreview';
 import { GraphModal } from './charts/GraphModal';
-import { BarChart3, TrendingUp, TrendingDown, Minus, Hash, Type, Mail, Calendar, CheckSquare, Upload, Eye, Edit, Trash2, Crown, User as UserIcon, FileBarChart } from 'lucide-react';
+import { TableMetricDisplay } from './TableMetricDisplay';
+import { BarChart3, TrendingUp, TrendingDown, Minus, Hash, Type, Mail, Calendar, CheckSquare, Upload, Eye, Edit, Trash2, Crown, User as UserIcon, FileBarChart, Table } from 'lucide-react';
 import { UniversBadge } from './UniversBadge';
 
 interface DashboardDisplayProps {
@@ -301,18 +302,22 @@ export const DashboardDisplay: React.FC<DashboardDisplayProps> = ({
                 <div className="flex items-start justify-between mb-2 sm:mb-3">
                   <div className="flex items-center space-x-1 sm:space-x-2">
                     {getFieldIcon(metric.fieldType)}
-                    {metric.metricType === 'graph' ? (
+                    {metric.metricType === 'table' ? (
+                      <Table className="h-4 w-4 text-purple-600" />
+                    ) : metric.metricType === 'graph' ? (
                       <BarChart3 className="h-4 w-4" />
                     ) : (
                       getCalculationIcon(metric.calculationType)
                     )}
                   </div>
                   <span className={`text-xs px-1 sm:px-2 py-0.5 sm:py-1 rounded text-xs ${
-                    metric.metricType === 'graph' 
+                    metric.metricType === 'table'
+                      ? 'bg-purple-100 text-purple-700 border border-purple-200'
+                      : metric.metricType === 'graph' 
                       ? 'bg-blue-100 text-blue-700 border border-blue-200' 
                       : 'bg-white text-gray-500'
                   }`}>
-                    {metric.metricType === 'graph' ? '📊 Graphique' : getCalculationLabel(metric.calculationType)}
+                    {metric.metricType === 'table' ? '📋 Tableau' : metric.metricType === 'graph' ? '📊 Graphique' : getCalculationLabel(metric.calculationType)}
                   </span>
                 </div>
 
@@ -339,6 +344,16 @@ export const DashboardDisplay: React.FC<DashboardDisplayProps> = ({
                       />
                     </div>
                   </div>
+                ) : metric.metricType === 'table' ? (
+                  <div className="mb-2 sm:mb-3">
+                    <div className="bg-white rounded-lg border border-gray-200 p-2">
+                      <TableMetricDisplay
+                        metric={metric}
+                        rows={Array.isArray(result.value) ? result.value : []}
+                        compact={true}
+                      />
+                    </div>
+                  </div>
                 ) : (
                   <div className="mb-2 sm:mb-3">
                     <div className="text-lg sm:text-2xl font-bold text-blue-600 mb-0.5 sm:mb-1">
@@ -351,14 +366,23 @@ export const DashboardDisplay: React.FC<DashboardDisplayProps> = ({
                 )}
 
                 <div className="text-xs text-gray-500 border-t border-gray-200 pt-1 sm:pt-2">
-                  <div className="flex items-center space-x-1 mb-0.5 sm:mb-1">
-                    <Eye className="h-2 w-2 sm:h-3 sm:w-3" />
-                    <span className="truncate">{getFormTitle(metric.formId)}</span>
-                  </div>
-                  <div className="flex items-center space-x-1">
-                    {getFieldIcon(metric.fieldType)}
-                    <span className="truncate">{getFieldLabel(metric.formId, metric.fieldId)}</span>
-                  </div>
+                  {metric.metricType === 'table' ? (
+                    <div className="flex items-center space-x-1">
+                      <Table className="h-2 w-2 sm:h-3 sm:w-3" />
+                      <span className="truncate">Tableau avec {metric.tableConfig?.columns?.length || 0} colonne{(metric.tableConfig?.columns?.length || 0) > 1 ? 's' : ''}</span>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="flex items-center space-x-1 mb-0.5 sm:mb-1">
+                        <Eye className="h-2 w-2 sm:h-3 sm:w-3" />
+                        <span className="truncate">{getFormTitle(metric.formId)}</span>
+                      </div>
+                      <div className="flex items-center space-x-1">
+                        {getFieldIcon(metric.fieldType)}
+                        <span className="truncate">{getFieldLabel(metric.formId, metric.fieldId)}</span>
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
             );
