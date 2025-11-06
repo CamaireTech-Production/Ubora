@@ -44,14 +44,30 @@ export const UniversCard: React.FC<UniversCardProps> = ({
 
   const isActive = univers.id === activeUniversId;
   const isDirecteur = user?.role === 'directeur';
-  const hasUpdateAvailable = userInstance?.updateAvailable === true;
-  const currentVersion = userInstance?.universVersion || userInstance?.metadata?.universVersion || univers.metadata.version || 1;
-  const latestVersion = userInstance?.latestAvailableVersion || univers.metadata.version || 1;
+  
+  // Détecter les mises à jour disponibles (même logique que UniversViewPage)
+  // Pour le propriétaire : vérifier si le Univers a une version plus récente que l'instance
+  // Pour les non-propriétaires : utiliser updateAvailable de l'instance
+  const isOwner = univers.ownership.createdBy === user?.id;
+  const instanceVersion = userInstance?.universVersion || userInstance?.metadata?.universVersion || 1;
+  const universVersion = univers.metadata.version || 1;
+  
+  let hasUpdateAvailable = false;
+  if (isOwner && userInstance) {
+    // Pour le propriétaire : vérifier si le Univers template a une version plus récente
+    hasUpdateAvailable = universVersion > instanceVersion;
+  } else if (userInstance) {
+    // Pour les non-propriétaires : utiliser le marqueur updateAvailable
+    hasUpdateAvailable = userInstance.updateAvailable === true;
+  }
+  
+  const currentVersion = instanceVersion;
+  const latestVersion = userInstance?.latestAvailableVersion || universVersion;
   
   // Déterminer si le Univers marketplace est acheté (a une instance)
   const isPurchased = !!userInstance;
   const isMarketplace = univers.ownership.isMarketplaceTemplate;
-  const isOwned = univers.ownership.createdBy === user?.id; // Univers créé par l'utilisateur
+  const isOwned = isOwner; // Univers créé par l'utilisateur
 
   const handleActivateClick = () => {
     setShowConfirmModal(true);

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
 import { usePermissions } from '@ubora/shared/hooks/usePermissions';
 import { Info, X } from 'lucide-react';
@@ -11,6 +12,7 @@ interface ImpersonationHeaderProps {
 }
 
 export const ImpersonationHeader: React.FC<ImpersonationHeaderProps> = ({ onExit }) => {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const { hasDirectorDashboardAccess } = usePermissions();
   const [directorEmail, setDirectorEmail] = useState<string>('');
@@ -55,7 +57,7 @@ export const ImpersonationHeader: React.FC<ImpersonationHeaderProps> = ({ onExit
       onExit();
     } else {
       // Default behavior: redirect to employee dashboard
-      window.location.href = '/employe/dashboard';
+      navigate('/employe/dashboard');
     }
   };
 

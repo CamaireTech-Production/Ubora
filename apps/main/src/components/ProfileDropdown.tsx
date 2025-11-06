@@ -27,7 +27,7 @@ interface ProfileDropdownProps {
   className?: string;
 }
 
-export const ProfileDropdown: React.FC<ProfileDropdownProps> = ({ className = '' }) => {
+export const ProfileDropdown: React.FC<ProfileDropdownProps> = React.memo(({ className = '' }) => {
   const { user, logout } = useAuth();
   const { activeUniversId } = useApp();
   const { hasDirectorDashboardAccess } = usePermissions();
@@ -398,4 +398,4 @@ export const ProfileDropdown: React.FC<ProfileDropdownProps> = ({ className = ''
       />
     </div>
   );
-};
+});

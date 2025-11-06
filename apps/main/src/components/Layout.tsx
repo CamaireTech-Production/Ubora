@@ -15,7 +15,7 @@ interface LayoutProps {
   title: string;
 }
 
-export const Layout: React.FC<LayoutProps> = ({ children, title }) => {
+export const Layout: React.FC<LayoutProps> = React.memo(({ children, title }) => {
   const { user } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
@@ -98,7 +98,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, title }) => {
                 <Button
                   variant={isChat ? "primary" : "secondary"}
                   size="sm"
-                  onClick={() => window.location.href = '/directeur/chat'}
+                  onClick={() => navigate('/directeur/chat')}
                   className="flex items-center space-x-2"
                 >
                   <MessageSquare className="h-4 w-4" />
@@ -108,7 +108,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, title }) => {
                 <Button
                   variant={isDashboard ? "primary" : "secondary"}
                   size="sm"
-                  onClick={() => window.location.href = '/directeur/dashboard'}
+                  onClick={() => navigate('/directeur/dashboard')}
                   className="flex items-center space-x-2"
                 >
                   <BarChart3 className="h-4 w-4" />
@@ -230,4 +230,4 @@ export const Layout: React.FC<LayoutProps> = ({ children, title }) => {
       <Footer />
     </div>
   );
-};
+});

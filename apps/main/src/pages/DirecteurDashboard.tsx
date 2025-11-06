@@ -121,7 +121,7 @@ export const DirecteurDashboard: React.FC = () => {
              }
            };
            loadUniversData();
-         }, [user]);
+         }, [user?.id, user?.agencyId]);
 
   // Trigger highlight animation on mount
   useEffect(() => {

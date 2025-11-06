@@ -727,6 +727,64 @@ class UniversService {
       console.log(`✅ Univers updated: ${id} (v${currentVersion} → v${newVersion})`);
       if (isNowMarketplace) {
         console.log(`   Approval status set to: pending (requires admin approval)`);
+      } else {
+        // Pour les Univers privés, appliquer automatiquement la mise à jour aux instances actives
+        // Pas de validation requise, la mise à jour est immédiate
+        console.log(`   Univers privé: application automatique de la mise à jour...`);
+        try {
+          // Trouver toutes les instances actives de ce Univers
+          const instances = await this.getInstancesByUnivers(id);
+          const activeInstances = instances.filter(inst => inst.isActive);
+          
+          if (activeInstances.length > 0) {
+            console.log(`   ${activeInstances.length} instance(s) active(s) trouvée(s), mise à jour automatique...`);
+            
+            // Pour chaque instance active, mettre à jour automatiquement vers la nouvelle version
+            for (const instance of activeInstances) {
+              try {
+                // Vérifier si l'instance est à une version antérieure
+                const instanceVersion = instance.universVersion || instance.metadata?.universVersion || 1;
+                if (instanceVersion < newVersion) {
+                  console.log(`   Mise à jour automatique de l'instance ${instance.id} (v${instanceVersion} → v${newVersion})...`);
+                  
+                  // Mettre à jour l'instance vers la nouvelle version
+                  // On utilise upgradeInstance pour gérer la migration des données
+                  // Récupérer le rôle de l'utilisateur depuis la base de données
+                  let userRole: 'directeur' | 'employe' | 'admin' = 'directeur';
+                  try {
+                    const userDoc = await getDoc(doc(db, 'users', instance.userId));
+                    if (userDoc.exists()) {
+                      const userData = userDoc.data();
+                      userRole = (userData.role || 'directeur') as 'directeur' | 'employe' | 'admin';
+                    }
+                  } catch (roleError) {
+                    console.warn(`⚠️ Impossible de récupérer le rôle de l'utilisateur ${instance.userId}, utilisation de 'directeur' par défaut`);
+                  }
+                  
+                  await this.upgradeInstance(
+                    instance.id,
+                    instance.userId,
+                    userRole,
+                    instance.agencyId
+                  );
+                  
+                  console.log(`   ✅ Instance ${instance.id} mise à jour automatiquement vers v${newVersion}`);
+                } else {
+                  console.log(`   Instance ${instance.id} déjà à la version ${instanceVersion}, pas de mise à jour nécessaire`);
+                }
+              } catch (upgradeError) {
+                console.error(`   ⚠️ Erreur lors de la mise à jour automatique de l'instance ${instance.id}:`, upgradeError);
+                // Ne pas faire échouer la mise à jour du Univers si une instance échoue
+                // L'utilisateur pourra mettre à jour manuellement via le bouton
+              }
+            }
+          } else {
+            console.log(`   Aucune instance active trouvée, pas de mise à jour automatique nécessaire`);
+          }
+        } catch (autoUpdateError) {
+          console.error(`   ⚠️ Erreur lors de l'application automatique de la mise à jour (non-blocking):`, autoUpdateError);
+          // Ne pas faire échouer la mise à jour du Univers si l'application automatique échoue
+        }
       }
     } catch (error: any) {
       console.error('❌ universService.update - ERROR DETAILS:', {
@@ -1930,25 +1988,32 @@ class UniversService {
         throw new Error(`Instance not found: ${oldInstanceId}`);
       }
 
-      // 2. Vérifier qu'une mise à jour est disponible
-      if (!oldInstance.updateAvailable || !oldInstance.latestAvailableVersion) {
-        throw new Error('No update available for this instance');
-      }
-
-      const newVersion = oldInstance.latestAvailableVersion;
-      const currentVersion = oldInstance.universVersion || oldInstance.metadata?.universVersion || 1;
-
-      if (newVersion <= currentVersion) {
-        throw new Error(`New version ${newVersion} is not greater than current version ${currentVersion}`);
-      }
-
-      // 3. Récupérer le template Univers avec la nouvelle version
+      // 2. Récupérer le template Univers et vérifier qu'une mise à jour est disponible
       const univers = await this.getById(oldInstance.universId);
       if (!univers) {
         throw new Error(`Univers template not found: ${oldInstance.universId}`);
       }
 
-      // Vérifier que le Univers a la bonne version
+      const currentVersion = oldInstance.universVersion || oldInstance.metadata?.universVersion || 1;
+      const latestVersion = univers.metadata.version || 1;
+      
+      // Déterminer la nouvelle version à utiliser
+      let newVersion: number;
+      if (oldInstance.updateAvailable && oldInstance.latestAvailableVersion) {
+        // Utiliser la version marquée comme disponible dans l'instance
+        newVersion = oldInstance.latestAvailableVersion;
+      } else if (latestVersion > currentVersion) {
+        // Si pas de marqueur mais que le Univers template a une version plus récente, l'utiliser
+        newVersion = latestVersion;
+      } else {
+        throw new Error('No update available for this instance');
+      }
+
+      if (newVersion <= currentVersion) {
+        throw new Error(`New version ${newVersion} is not greater than current version ${currentVersion}`);
+      }
+
+      // 3. Vérifier que le Univers template a la bonne version
       if (univers.metadata.version !== newVersion) {
         throw new Error(`Univers template version ${univers.metadata.version} does not match expected version ${newVersion}`);
       }
@@ -2314,10 +2379,10 @@ class UniversService {
 
       const isOwner = univers.ownership.createdBy === directorId;
       
-      // 3. Vérifier si c'est une instance achetée
+      // 3. Vérifier si c'est une instance achetée ou créer/trouver une instance pour le propriétaire
       let instanceId: string | undefined;
       if (univers.ownership.isMarketplaceTemplate && !isOwner) {
-        // Chercher une instance de ce Univers pour ce directeur
+        // Chercher une instance de ce Univers pour ce directeur (non-propriétaire)
         const instances = await this.getInstancesByUser(directorId, agencyId);
         const instance = instances.find(inst => inst.universId === universId);
         if (instance) {
@@ -2330,32 +2395,38 @@ class UniversService {
       } else if (!isOwner) {
         throw new Error('Vous ne pouvez pas activer ce Univers');
       } else {
-        // 4. Pour les Univers créés directement (propriétaire), vérifier si les ressources existent
-        // Si non, les instancier automatiquement
-        const resourcesExist = await this.checkIfResourcesExist(universId, agencyId);
-        if (!resourcesExist) {
-          console.log(`📦 Ressources non trouvées pour Univers ${universId}, instanciation automatique...`);
-          await this.instantiateResourcesOnly(univers, directorId, agencyId);
-          console.log(`✅ Ressources instanciées avec succès pour Univers ${universId}`);
-          // incrementUsage is already called in instantiateResourcesOnly
-        } else {
-          console.log(`✅ Ressources déjà existantes pour Univers ${universId}`);
+        // 4. Pour le propriétaire, créer ou trouver une instance pour tracker la version
+        const instances = await this.getInstancesByUser(directorId, agencyId);
+        let instance = instances.find(inst => inst.universId === universId);
+        
+        if (!instance) {
+          // Aucune instance existante : créer une instance complète pour tracker la version
+          console.log(`📦 Création d'une instance pour le propriétaire du Univers ${universId}...`);
+          const { instanceId: newInstanceId } = await this.instantiate(
+            universId,
+            directorId,
+            'directeur',
+            agencyId
+          );
+          instanceId = newInstanceId;
           
-          // For marketplace Universes owned by creator, check if usage was already counted
-          // If it's a marketplace Univers and resources exist but usage is 0, increment it
-          // This handles the case where owner created marketplace Univers and used it before we fixed the increment
+          // Incrémenter l'usage pour les Univers marketplace
           if (univers.ownership.isMarketplaceTemplate) {
-            const currentUsage = univers.usage?.totalUsages || 0;
-            // Check if there's an instance for this owner (if yes, usage should already be counted)
-            const instances = await this.getInstancesByUser(directorId, agencyId);
-            const hasInstance = instances.some(inst => inst.universId === universId);
-            
-            // If no instance exists but resources exist, it means owner used their own marketplace Univers
-            // and usage wasn't counted. Increment it now.
-            if (!hasInstance && currentUsage === 0) {
-              console.log(`📊 Univers marketplace du propriétaire avec ressources existantes mais usage non compté, incrémentation...`);
-              await this.incrementUsage(universId);
-            }
+            await this.incrementUsage(universId);
+          }
+          
+          console.log(`✅ Instance créée pour le propriétaire: ${instanceId}`);
+        } else {
+          // Instance existante : l'utiliser
+          instanceId = instance.id;
+          console.log(`✅ Instance existante trouvée pour le propriétaire: ${instanceId}`);
+          
+          // Vérifier si les ressources existent, sinon les créer
+          const resourcesExist = await this.checkIfResourcesExist(universId, agencyId);
+          if (!resourcesExist) {
+            console.log(`📦 Ressources non trouvées, instanciation automatique...`);
+            await this.instantiateResourcesOnly(univers, directorId, agencyId);
+            console.log(`✅ Ressources instanciées avec succès`);
           }
         }
       }
@@ -2374,14 +2445,15 @@ class UniversService {
         }
       }
 
-      // 6. Activer le nouveau Univers
+      // 6. Activer le nouveau Univers (toujours via instance maintenant)
       if (instanceId) {
-        // Activer l'instance (Univers acheté)
+        // Activer l'instance (tous les cas : acheté ou propriétaire)
         const instanceRef = doc(db, this.instancesCollectionName, instanceId);
         await updateDoc(instanceRef, { isActive: true });
         await this.setActiveUnivers(directorId, agencyId, universId, instanceId);
       } else {
-        // Activer le template Univers (Univers créé directement)
+        // Fallback : si aucune instance n'a été créée (ne devrait pas arriver)
+        console.warn(`⚠️ Aucune instance trouvée pour Univers ${universId}, activation du template directement`);
         const universRef = doc(db, this.collectionName, universId);
         await updateDoc(universRef, { 'metadata.isActive': true });
         await this.setActiveUnivers(directorId, agencyId, universId);

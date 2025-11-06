@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { FormField, Form } from '../types';
 import { Button } from './Button';
 import { Input } from './Input';
@@ -48,6 +49,7 @@ export const FormBuilder: React.FC<FormBuilderProps> = ({
   isLoading = false,
   universLists = []
 }) => {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const canUseFileUploads = user ? UserSessionService.canUseFileUploads(user) : false;
   // Initialiser les états avec les valeurs du formulaire existant ou vides
@@ -673,7 +675,7 @@ export const FormBuilder: React.FC<FormBuilderProps> = ({
                     <strong>📁 Téléversements de fichiers indisponibles :</strong> Les téléchargements de fichiers (images/PDF) sont disponibles à partir du package Starter. 
                     <div className="mt-2">
                       <button 
-                        onClick={() => window.location.href = '/packages/manage?section=packages&highlight=starter'}
+                        onClick={() => navigate('/packages/manage?section=packages&highlight=starter')}
                         className="text-blue-600 hover:text-blue-800 underline font-medium"
                       >
                         Mettre à niveau vers Starter →
