@@ -158,12 +158,16 @@ export const DashboardBuilder: React.FC<DashboardBuilderProps> = ({
       const sourceType = metric.sourceType || 'field';
       
       if (sourceType === 'field') {
-        // Field-based metrics require formId and fieldId
-        if (!metric.formId) {
-          newErrors.push(`Le formulaire de la métrique ${index + 1} est requis`);
-        }
-        if (!metric.fieldId) {
-          newErrors.push(`Le champ de la métrique ${index + 1} est requis`);
+        // Field-based metrics require formId and fieldId (only for value and graph types)
+        // Table metrics don't need formId/fieldId as they use columns configuration
+        if (metric.metricType !== 'table') {
+          if (!metric.formId) {
+            newErrors.push(`Le formulaire de la métrique ${index + 1} est requis`);
+          }
+          // fieldId is only required for value type (not for graph)
+          if (metric.metricType === 'value' && !metric.fieldId) {
+            newErrors.push(`Le champ de la métrique ${index + 1} est requis`);
+          }
         }
       } else if (sourceType === 'computed') {
         // Computed metrics must have metricType: 'value' (no graphs, no tables)
@@ -367,76 +371,83 @@ export const DashboardBuilder: React.FC<DashboardBuilderProps> = ({
                         {/* Field-based metric configuration */}
                         {(metric.sourceType || 'field') === 'field' && (
                           <>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            {/* Type d'affichage - visible immédiatement */}
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-1">
+                                Type d'affichage *
+                              </label>
                               <Select
-                                label="Formulaire *"
-                                value={metric.formId || ''}
+                                value={metric.metricType || 'value'}
                                 onChange={(e) => {
+                                  const metricType = e.target.value as 'value' | 'graph' | 'table';
                                   updateMetric(index, { 
-                                    formId: e.target.value,
-                                    fieldId: '', // Reset field when form changes
-                                    fieldType: 'text'
+                                    metricType,
+                                    graphConfig: metricType === 'graph' ? {
+                                      xAxisType: 'time',
+                                      yAxisType: 'count',
+                                      chartType: 'line'
+                                    } : undefined,
+                                    // Initialize tableConfig when switching to table
+                                    tableConfig: metricType === 'table' ? (metric.tableConfig || {
+                                      columns: []
+                                    }) : undefined,
+                                    // Reset form/field when switching to table (not needed for table)
+                                    formId: metricType === 'table' ? undefined : metric.formId,
+                                    fieldId: metricType === 'table' ? undefined : metric.fieldId,
+                                    fieldType: metricType === 'table' ? undefined : metric.fieldType
                                   });
                                 }}
                                 options={[
-                                  { value: '', label: 'Choisir un formulaire...' },
-                                  ...forms.map(form => ({
-                                    value: form.id,
-                                    label: form.title
-                                  }))
+                                  { value: 'value', label: 'Valeur numérique' },
+                                  { value: 'graph', label: 'Graphique' },
+                                  { value: 'table', label: 'Tableau' }
                                 ]}
                               />
+                            </div>
 
-                              {selectedForm && (
+                            {/* Formulaire et Champ - seulement pour Valeur numérique et Graphique */}
+                            {(metric.metricType === 'value' || metric.metricType === 'graph' || !metric.metricType) && (
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <Select
-                                  label="Champ du formulaire *"
-                                  value={metric.fieldId || ''}
+                                  label="Formulaire *"
+                                  value={metric.formId || ''}
                                   onChange={(e) => {
-                                    const field = selectedForm.fields.find((f: FormField) => f.id === e.target.value);
                                     updateMetric(index, { 
-                                      fieldId: e.target.value,
-                                      fieldType: field?.type || 'text'
+                                      formId: e.target.value,
+                                      fieldId: '', // Reset field when form changes
+                                      fieldType: 'text'
                                     });
                                   }}
                                   options={[
-                                    { value: '', label: 'Choisir un champ...' },
-                                    ...selectedForm.fields.map((field: FormField) => ({
-                                      value: field.id,
-                                      label: `${field.label} (${field.type})`
+                                    { value: '', label: 'Choisir un formulaire...' },
+                                    ...forms.map(form => ({
+                                      value: form.id,
+                                      label: form.title
                                     }))
                                   ]}
                                 />
-                              )}
-                            </div>
 
-                            {selectedForm && (metric.sourceType || 'field') === 'field' && (
-                              <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">
-                                  Type d'affichage
-                                </label>
-                                <Select
-                                  value={metric.metricType || 'value'}
-                                  onChange={(e) => {
-                                    const metricType = e.target.value as 'value' | 'graph' | 'table';
-                                    updateMetric(index, { 
-                                      metricType,
-                                      graphConfig: metricType === 'graph' ? {
-                                        xAxisType: 'time',
-                                        yAxisType: 'count',
-                                        chartType: 'line'
-                                      } : undefined,
-                                      // Initialize tableConfig when switching to table
-                                      tableConfig: metricType === 'table' ? (metric.tableConfig || {
-                                        columns: []
-                                      }) : undefined
-                                    });
-                                  }}
-                                  options={[
-                                    { value: 'value', label: 'Valeur numérique' },
-                                    { value: 'graph', label: 'Graphique' },
-                                    { value: 'table', label: 'Tableau' }
-                                  ]}
-                                />
+                                {/* Champ du formulaire - seulement pour Valeur numérique */}
+                                {selectedForm && metric.metricType === 'value' && (
+                                  <Select
+                                    label="Champ du formulaire *"
+                                    value={metric.fieldId || ''}
+                                    onChange={(e) => {
+                                      const field = selectedForm.fields.find((f: FormField) => f.id === e.target.value);
+                                      updateMetric(index, { 
+                                        fieldId: e.target.value,
+                                        fieldType: field?.type || 'text'
+                                      });
+                                    }}
+                                    options={[
+                                      { value: '', label: 'Choisir un champ...' },
+                                      ...selectedForm.fields.map((field: FormField) => ({
+                                        value: field.id,
+                                        label: `${field.label} (${field.type})`
+                                      }))
+                                    ]}
+                                  />
+                                )}
                               </div>
                             )}
                           </>
