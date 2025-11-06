@@ -922,7 +922,7 @@ export const DashboardBuilder: React.FC<DashboardBuilderProps> = ({
                                   className="flex items-center space-x-1"
                                 >
                                   <Package className="h-4 w-4" />
-                                  <span>Preset Stocks</span>
+                                  <span>Préréglage Stocks</span>
                                 </Button>
                               ) : null}
                             <Button
