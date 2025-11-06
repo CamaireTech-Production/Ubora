@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from '@ubora/shared/contexts/AuthContext';
+import { AIResponseProvider } from '@ubora/shared/contexts/AIResponseContext';
 import { AppProvider } from '@ubora/shared/contexts/AppContext';
 import { ConversationProvider } from '@ubora/shared/contexts/ConversationContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
@@ -131,9 +132,10 @@ function App() {
   return (
     <ErrorBoundary>
       <AuthProvider>
-        <AppProvider>
-          <ConversationProvider>
-            <Router>
+        <AIResponseProvider>
+          <AppProvider>
+            <ConversationProvider>
+              <Router>
               <ServiceWorkerMessageHandler />
               <AuthenticatedServices />
               <PWAUpdateNotification />
@@ -467,6 +469,7 @@ function App() {
             </Router>
           </ConversationProvider>
         </AppProvider>
+        </AIResponseProvider>
       </AuthProvider>
     </ErrorBoundary>
   );
