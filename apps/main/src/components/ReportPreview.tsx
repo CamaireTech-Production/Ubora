@@ -253,42 +253,82 @@ export const ReportPreview: React.FC<ReportPreviewProps> = ({ report }) => {
             }
             if (part.type === 'table') {
               // Render table structure for preview
+              // The part.type === 'table' means we detected a table placeholder
               // In real reports, this would use actual data from mappings
               const mapping = part.mapping;
-              if (mapping && mapping.metricId && mapping.metricType === 'table') {
-                // Try to find the metric from the report's dashboard reference
-                // For preview, we create a mock metric with table structure
-                // In actual report generation, we would use the real metric from the dashboard
-                const mockMetric = {
-                  id: mapping.metricId,
-                  name: 'Tableau',
-                  metricType: 'table' as const,
-                  tableConfig: {
-                    columns: [
-                      { id: 'col1', name: 'Colonne 1', source: 'field' as const },
-                      { id: 'col2', name: 'Colonne 2', source: 'field' as const },
-                      { id: 'col3', name: 'Colonne 3', source: 'field' as const }
-                    ]
-                  }
-                };
+              
+              // If we have a mapping with metricId, try to use it
+              // Otherwise, create a generic table structure
+              if (mapping && mapping.metricId) {
+                // Check if mapping indicates it's a table metric
+                // Use mapping.metricType if available, otherwise assume it's a table since part.type === 'table'
+                const isTableMetric = mapping.metricType === 'table' || !mapping.metricType;
                 
-                return (
-                  <React.Fragment key={index}>
-                    <div className="bg-white rounded-lg border border-gray-200 p-2 my-4">
-                      <p className="text-xs text-gray-500 mb-2 text-center">
-                        Tableau (données réelles dans le rapport généré)
-                      </p>
-                      <TableMetricDisplay
-                        metric={mockMetric as any}
-                        rows={[]}
-                        compact={true}
-                        maxRows={3}
-                      />
-                    </div>
-                  </React.Fragment>
-                );
+                if (isTableMetric) {
+                  // Try to find the metric from the report's dashboard reference
+                  // For preview, we create a mock metric with table structure
+                  // In actual report generation, we would use the real metric from the dashboard
+                  const mockMetric = {
+                    id: mapping.metricId,
+                    name: 'Tableau',
+                    metricType: 'table' as const,
+                    tableConfig: {
+                      columns: [
+                        { id: 'col1', name: 'Colonne 1', source: 'field' as const },
+                        { id: 'col2', name: 'Colonne 2', source: 'field' as const },
+                        { id: 'col3', name: 'Colonne 3', source: 'field' as const }
+                      ]
+                    }
+                  };
+                  
+                  return (
+                    <React.Fragment key={index}>
+                      <div className="bg-white rounded-lg border border-gray-200 p-2 my-4">
+                        <p className="text-xs text-gray-500 mb-2 text-center">
+                          Tableau (données réelles dans le rapport généré)
+                        </p>
+                        <TableMetricDisplay
+                          metric={mockMetric as any}
+                          rows={[]}
+                          compact={true}
+                          maxRows={3}
+                        />
+                      </div>
+                    </React.Fragment>
+                  );
+                }
               }
-              return <React.Fragment key={index}>{renderPlaceholderGraph()}</React.Fragment>;
+              
+              // If no mapping or mapping doesn't indicate table, but part.type === 'table',
+              // still show a generic table structure since we detected it as a table placeholder
+              const genericTableMetric = {
+                id: 'generic-table',
+                name: 'Tableau',
+                metricType: 'table' as const,
+                tableConfig: {
+                  columns: [
+                    { id: 'col1', name: 'Colonne 1', source: 'field' as const },
+                    { id: 'col2', name: 'Colonne 2', source: 'field' as const },
+                    { id: 'col3', name: 'Colonne 3', source: 'field' as const }
+                  ]
+                }
+              };
+              
+              return (
+                <React.Fragment key={index}>
+                  <div className="bg-white rounded-lg border border-gray-200 p-2 my-4">
+                    <p className="text-xs text-gray-500 mb-2 text-center">
+                      Tableau (données réelles dans le rapport généré)
+                    </p>
+                    <TableMetricDisplay
+                      metric={genericTableMetric as any}
+                      rows={[]}
+                      compact={true}
+                      maxRows={3}
+                    />
+                  </div>
+                </React.Fragment>
+              );
             }
             if (part.type === 'html') {
               return (
