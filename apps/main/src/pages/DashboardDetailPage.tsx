@@ -15,7 +15,7 @@ import { tableDataService } from '../services/tableDataService';
 import { useToast } from '@ubora/shared/hooks/useToast';
 import { Toast } from '../components/Toast';
 import { ComingSoonModal } from '../components/ComingSoonModal';
-import { DashboardEditModal } from '../components/DashboardEditModal';
+import { DashboardBuilder } from '../components/DashboardBuilder';
 import { MetricEditModal } from '../components/MetricEditModal';
 import { GraphPreview } from '../components/charts/GraphPreview';
 import { GraphModal } from '../components/charts/GraphModal';
@@ -113,7 +113,7 @@ export const DashboardDetailPage: React.FC = () => {
   const [showGraphPreview, setShowGraphPreview] = useState(false);
   
   // Edit modals state
-  const [showEditDashboardModal, setShowEditDashboardModal] = useState(false);
+  const [showDashboardBuilder, setShowDashboardBuilder] = useState(false);
   const [showEditMetricModal, setShowEditMetricModal] = useState(false);
   const [editingMetricIndex, setEditingMetricIndex] = useState<number>(-1);
   
@@ -424,7 +424,7 @@ export const DashboardDetailPage: React.FC = () => {
   };
 
   const handleEditDashboard = () => {
-    setShowEditDashboardModal(true);
+    setShowDashboardBuilder(true);
   };
 
   const handlePushIndicatorClick = (metric: DashboardMetric) => {
@@ -442,15 +442,30 @@ export const DashboardDetailPage: React.FC = () => {
     setShowEditMetricModal(true);
   };
 
-  const handleSaveDashboardEdit = async (dashboardId: string, updates: any) => {
+  const handleSaveDashboardBuilder = async (dashboardData: {
+    name: string;
+    description: string;
+    metrics: Omit<DashboardMetric, 'id' | 'createdAt' | 'createdBy' | 'agencyId'>[];
+  }) => {
+    if (!dashboard) return;
+    
     try {
-      await updateDashboard(dashboardId, updates);
+      await updateDashboard(dashboard.id, {
+        name: dashboardData.name,
+        description: dashboardData.description,
+        metrics: dashboardData.metrics
+      });
       showSuccess('Tableau de bord modifié avec succès !');
+      setShowDashboardBuilder(false);
     } catch (error) {
       console.error('Erreur lors de la modification du tableau de bord:', error);
       showError('Erreur lors de la modification du tableau de bord. Veuillez réessayer.');
       throw error;
     }
+  };
+
+  const handleCancelDashboardBuilder = () => {
+    setShowDashboardBuilder(false);
   };
 
   const handleSaveMetricEdit = async (metricIndex: number, updatedMetric: any) => {
@@ -1523,13 +1538,39 @@ export const DashboardDetailPage: React.FC = () => {
         description="Cette fonctionnalité sera bientôt disponible."
       />
 
-      {/* Edit Dashboard Modal */}
-      <DashboardEditModal
-        isOpen={showEditDashboardModal}
-        onClose={() => setShowEditDashboardModal(false)}
-        onSave={handleSaveDashboardEdit}
-        dashboard={dashboard}
-      />
+      {/* Edit Dashboard with DashboardBuilder */}
+      {showDashboardBuilder && dashboard && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-start justify-center p-4 z-50 overflow-y-auto">
+          <div className="bg-white rounded-lg shadow-xl max-w-6xl w-full my-8 max-h-[90vh] overflow-y-auto">
+            <DashboardBuilder
+              onSave={handleSaveDashboardBuilder}
+              onCancel={handleCancelDashboardBuilder}
+              forms={forms}
+              formEntries={formEntries}
+              currentUserId={user?.id || ''}
+              agencyId={user?.agencyId || ''}
+              initialDashboard={{
+                name: dashboard.name,
+                description: dashboard.description || '',
+                metrics: dashboard.metrics.map(metric => ({
+                  name: metric.name,
+                  description: metric.description,
+                  formId: metric.formId,
+                  fieldId: metric.fieldId,
+                  fieldType: metric.fieldType,
+                  calculationType: metric.calculationType,
+                  metricType: metric.metricType,
+                  graphConfig: metric.graphConfig,
+                  tableConfig: metric.tableConfig,
+                  sourceType: metric.sourceType,
+                  userFormula: metric.userFormula,
+                  dependsOn: metric.dependsOn
+                }))
+              }}
+            />
+          </div>
+        </div>
+      )}
 
       {/* Edit Metric Modal */}
       <MetricEditModal
