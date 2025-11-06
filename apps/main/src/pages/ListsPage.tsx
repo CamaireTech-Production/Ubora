@@ -4,6 +4,7 @@ import { useAuth } from '@ubora/shared/contexts/AuthContext';
 import { useApp } from '@ubora/shared/contexts/AppContext';
 import { Layout } from '../components/Layout';
 import { ListCard } from '../components/ListCard';
+import { ListViewModal } from '../components/ListViewModal';
 import { List } from '../types';
 import { listsService } from '@ubora/shared/services/listsService';
 import { useToast } from '@ubora/shared/hooks/useToast';
@@ -30,6 +31,8 @@ export const ListsPage: React.FC = () => {
     usages: { formId: string; formTitle: string; fieldLabel: string }[];
   } | null>(null);
   const [isCheckingUsage, setIsCheckingUsage] = useState(false);
+  const [viewingList, setViewingList] = useState<List | null>(null);
+  const [isViewModalOpen, setIsViewModalOpen] = useState(false);
 
   useEffect(() => {
     if (user?.id && user?.agencyId) {
@@ -61,6 +64,20 @@ export const ListsPage: React.FC = () => {
 
   const handleEdit = (list: List) => {
     navigate(`/lists/${list.id}/edit`);
+  };
+
+  const handleView = (list: List) => {
+    setViewingList(list);
+    setIsViewModalOpen(true);
+  };
+
+  const handleCloseViewModal = () => {
+    setIsViewModalOpen(false);
+    setViewingList(null);
+  };
+
+  const handleListUpdated = () => {
+    loadLists();
   };
 
   const handleDelete = async (listId: string) => {
@@ -219,6 +236,7 @@ export const ListsPage: React.FC = () => {
                 <ListCard
                   key={list.id}
                   list={list}
+                  onView={handleView}
                   onEdit={handleEdit}
                   onDelete={handleDelete}
                 />
@@ -276,6 +294,16 @@ export const ListsPage: React.FC = () => {
       />
 
       {toast && <Toast {...toast} />}
+
+      {/* List View Modal */}
+      {viewingList && (
+        <ListViewModal
+          list={viewingList}
+          isOpen={isViewModalOpen}
+          onClose={handleCloseViewModal}
+          onListUpdated={handleListUpdated}
+        />
+      )}
     </>
   );
 };

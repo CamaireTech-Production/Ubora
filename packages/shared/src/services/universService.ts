@@ -2396,7 +2396,7 @@ class UniversService {
         throw new Error('Vous ne pouvez pas activer ce Univers');
       } else {
         // 4. Pour le propriétaire, créer ou trouver une instance pour tracker la version
-        const instances = await this.getInstancesByUser(directorId, agencyId);
+            const instances = await this.getInstancesByUser(directorId, agencyId);
         let instance = instances.find(inst => inst.universId === universId);
         
         if (!instance) {
@@ -2412,8 +2412,8 @@ class UniversService {
           
           // Incrémenter l'usage pour les Univers marketplace
           if (univers.ownership.isMarketplaceTemplate) {
-            await this.incrementUsage(universId);
-          }
+              await this.incrementUsage(universId);
+            }
           
           console.log(`✅ Instance créée pour le propriétaire: ${instanceId}`);
         } else {

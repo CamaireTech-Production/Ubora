@@ -1,12 +1,13 @@
 import React from 'react';
 import { List } from '../types';
 import { Button } from './Button';
-import { Edit, Trash2, Database, Calendar } from 'lucide-react';
+import { Edit, Trash2, Database, Calendar, Eye } from 'lucide-react';
 
 interface ListCardProps {
   list: List;
   onEdit?: (list: List) => void;
   onDelete?: (listId: string) => void;
+  onView?: (list: List) => void;
   disabled?: boolean;
 }
 
@@ -14,6 +15,7 @@ export const ListCard: React.FC<ListCardProps> = ({
   list,
   onEdit,
   onDelete,
+  onView,
   disabled = false
 }) => {
   const formatDate = (date: Date) => {
@@ -28,12 +30,24 @@ export const ListCard: React.FC<ListCardProps> = ({
     <div className="bg-white rounded-xl border border-gray-200 p-6 hover:shadow-md transition-shadow relative group">
       {/* Actions buttons - shown on hover */}
       <div className="absolute top-4 right-4 z-10 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex space-x-2">
+        {onView && !disabled && (
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => onView(list)}
+            className="p-1.5 h-8 w-8 shadow-lg"
+            title="Voir les détails"
+          >
+            <Eye className="h-3 w-3" />
+          </Button>
+        )}
         {onEdit && !disabled && (
           <Button
             variant="secondary"
             size="sm"
             onClick={() => onEdit(list)}
             className="p-1.5 h-8 w-8 shadow-lg"
+            title="Modifier"
           >
             <Edit className="h-3 w-3" />
           </Button>
@@ -44,6 +58,7 @@ export const ListCard: React.FC<ListCardProps> = ({
             size="sm"
             onClick={() => onDelete(list.id)}
             className="p-1.5 h-8 w-8 shadow-lg"
+            title="Supprimer"
           >
             <Trash2 className="h-3 w-3" />
           </Button>

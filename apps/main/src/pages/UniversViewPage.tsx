@@ -194,8 +194,8 @@ export const UniversViewPage: React.FC = () => {
       await new Promise(resolve => setTimeout(resolve, 500));
       refreshData();
       
-      // Recharger la page pour s'assurer que tout est à jour
-      window.location.reload();
+      // Rediriger vers la liste des univers au lieu de recharger la page
+      navigate('/univers');
     } catch (error) {
       console.error('Erreur lors de l\'activation du Univers:', error);
       const errorMessage = error instanceof Error 
@@ -468,7 +468,11 @@ export const UniversViewPage: React.FC = () => {
               ) : (
                 // Si on vient de Mes Univers, montrer "Activer" si non actif
                 <>
-                  {isDirecteur && !isActive && !hasUpdateAvailable && (
+                  {isDirecteur && 
+                   !isActive && 
+                   !hasUpdateAvailable &&
+                   univers.ownership.approvalStatus !== 'pending' && 
+                   univers.ownership.approvalStatus !== 'rejected' && (
                     <Button
                       variant="primary"
                       onClick={handleActivateClick}

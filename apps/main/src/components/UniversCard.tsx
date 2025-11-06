@@ -74,7 +74,7 @@ export const UniversCard: React.FC<UniversCardProps> = ({
   };
 
   const handleConfirmActivation = async () => {
-    if (!user?.id || !user?.agencyId) return;
+    if (!univers || !user?.id || !user?.agencyId) return;
 
     setIsActivating(true);
     try {
@@ -508,7 +508,9 @@ export const UniversCard: React.FC<UniversCardProps> = ({
               
               {/* Mes Univers ou Detail : Activer si non actif, mais seulement si approuvé */}
               {(context === 'my-univers' || context === 'detail') && 
+               isDirecteur &&
                !isActive && 
+               !hasUpdateAvailable &&
                univers.ownership.approvalStatus !== 'pending' && 
                univers.ownership.approvalStatus !== 'rejected' && (
                 <Button

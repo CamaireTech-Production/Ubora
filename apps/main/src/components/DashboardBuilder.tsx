@@ -1231,7 +1231,7 @@ export const DashboardBuilder: React.FC<DashboardBuilderProps> = ({
                                       </label>
                                       <Select
                                         value={(column as any).type || (column as any).source || 'aggregate'}
-                                      onChange={(e) => {
+                                        onChange={(e) => {
                                         const columnType = e.target.value;
                                         const currentTableConfig = ensureTableConfig(metric.tableConfig);
                                         const columns = [...currentTableConfig.columns];
@@ -1267,13 +1267,13 @@ export const DashboardBuilder: React.FC<DashboardBuilderProps> = ({
                                           } as DerivedColumn;
                                         }
                                         
-                                        updateMetric(index, {
+                                          updateMetric(index, {
                                           tableConfig: {
                                             ...currentTableConfig,
                                             columns
                                           }
-                                        });
-                                      }}
+                                          });
+                                        }}
                                         options={[
                                           { value: 'label', label: 'Label (depuis liste)' },
                                           { value: 'aggregate', label: 'Agrégat (depuis formulaire)' },
