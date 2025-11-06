@@ -33,7 +33,7 @@ export const UniversWizardStep4: React.FC<UniversWizardStepProps> = ({
     ? (templateData.definitions.dashboards || [])
     : ((wizardData.definitions.dashboards as DashboardDefinition[]) || []);
 
-  const [dashboards, setDashboards] = useState<DashboardDefinition[]>(initialDashboards);
+  const [dashboards, setDashboards] = useState<DashboardDefinition[]>(initialDashboards as DashboardDefinition[]);
   const [showDashboardBuilder, setShowDashboardBuilder] = useState(false);
   const [editingDashboardId, setEditingDashboardId] = useState<string | null>(null);
   const [expandedDashboards, setExpandedDashboards] = useState<Set<string>>(new Set());
@@ -72,6 +72,23 @@ export const UniversWizardStep4: React.FC<UniversWizardStepProps> = ({
     }));
   }, [wizardData.definitions.forms, user]);
 
+  // Convert List definitions to List objects for DashboardBuilder
+  const universLists = useMemo(() => {
+    const listDefinitions = (wizardData.definitions.lists || []) as any[];
+    return listDefinitions.map((listDef): any => ({
+      id: listDef.id,
+      name: listDef.name,
+      description: listDef.description,
+      columns: listDef.columns || [],
+      rows: listDef.rows || [],
+      createdBy: user?.id || '',
+      createdByRole: 'directeur' as const,
+      agencyId: user?.agencyId || '',
+      createdAt: new Date(),
+      updatedAt: new Date()
+    }));
+  }, [wizardData.definitions.lists, user]);
+
   // Check if forms exist
   const hasForms = universForms.length > 0;
   const hasDashboards = dashboards.length > 0;
@@ -81,7 +98,7 @@ export const UniversWizardStep4: React.FC<UniversWizardStepProps> = ({
     if (!readOnly) {
       updateWizardData({
         definitions: {
-          dashboards: dashboards
+          dashboards: dashboards as any
         }
       });
 
@@ -368,6 +385,7 @@ export const UniversWizardStep4: React.FC<UniversWizardStepProps> = ({
           currentUserId={user?.id || ''}
           agencyId={user?.agencyId || ''}
           isLoading={false}
+          universLists={universLists}
           initialDashboard={editingDashboard ? {
             name: editingDashboard.name,
             description: editingDashboard.description,

@@ -5,13 +5,14 @@ import { Input } from './Input';
 import { Textarea } from './Textarea';
 import { Select } from './Select';
 import { Card } from './Card';
-import { Plus, Trash2, AlertCircle, FileText, Hash, Type, Mail, Calendar, CheckSquare, Upload, AlertTriangle, ArrowLeft, Calculator, Table, ArrowUp, ArrowDown, Package, Sparkles } from 'lucide-react';
+import { Plus, Trash2, AlertCircle, FileText, Hash, Type, Mail, Calendar, CheckSquare, Upload, AlertTriangle, ArrowLeft, Calculator, Table, ArrowUp, ArrowDown, Package } from 'lucide-react';
 import { GraphPreview } from './charts/GraphPreview';
 import { getValidYAxisFields, validateYAxisField } from '@ubora/shared/utils/GraphFieldValidator';
 import { MetricFormulaInput } from './MetricFormulaInput';
 import { MetricFormulaParser } from '../utils/MetricFormulaParser';
 import { listsService } from '@ubora/shared/services';
 import { useApp } from '@ubora/shared/contexts/AppContext';
+import { useAuth } from '@ubora/shared/contexts/AuthContext';
 
 interface DashboardBuilderProps {
   onSave: (dashboard: {
@@ -30,6 +31,7 @@ interface DashboardBuilderProps {
     description?: string;
     metrics: Omit<DashboardMetric, 'id' | 'createdAt' | 'createdBy' | 'agencyId'>[];
   };
+  universLists?: List[]; // Optional Univers lists (for Univers edit context)
 }
 
 export const DashboardBuilder: React.FC<DashboardBuilderProps> = ({
@@ -40,9 +42,11 @@ export const DashboardBuilder: React.FC<DashboardBuilderProps> = ({
   currentUserId,
   agencyId,
   isLoading = false,
-  initialDashboard
+  initialDashboard,
+  universLists
 }) => {
-  const { user, activeUniversId } = useApp();
+  const { user } = useAuth();
+  const { activeUniversId } = useApp();
   const [name, setName] = useState(initialDashboard?.name || '');
   const [description, setDescription] = useState(initialDashboard?.description || '');
   const [metrics, setMetrics] = useState<Omit<DashboardMetric, 'id' | 'createdAt' | 'createdBy' | 'agencyId'>[]>(initialDashboard?.metrics || []);
@@ -59,17 +63,31 @@ export const DashboardBuilder: React.FC<DashboardBuilderProps> = ({
       
       setIsLoadingLists(true);
       try {
-        const userLists = await listsService.getByUser(user.id, user.agencyId, user.role, activeUniversId || null);
-        setLists(userLists);
+        // Load lists from database
+        const dbLists = await listsService.getByUser(user.id, user.agencyId, user.role, activeUniversId || null);
+        
+        // Merge Univers lists with DB lists (Univers lists take precedence by ID)
+        const mergedLists: List[] = universLists ? [...universLists] : [];
+        dbLists.forEach(dbList => {
+          if (!mergedLists.find(l => l.id === dbList.id)) {
+            mergedLists.push(dbList);
+          }
+        });
+        
+        setLists(mergedLists);
       } catch (error) {
         console.error('Error loading lists:', error);
+        // If DB load fails, still use Univers lists if available
+        if (universLists) {
+          setLists(universLists);
+        }
       } finally {
         setIsLoadingLists(false);
       }
     };
     
     loadLists();
-  }, [user, activeUniversId]);
+  }, [user, activeUniversId, universLists]);
   
   // Auto-scroll to errors when they appear (mobile-responsive)
   useEffect(() => {
@@ -158,7 +176,7 @@ export const DashboardBuilder: React.FC<DashboardBuilderProps> = ({
     // Find Products list (or first list if Products doesn't exist)
     const productsList = lists.find(l => l.name.toLowerCase().includes('produit')) || lists[0];
     if (!productsList) {
-      alert('Veuillez d\'abord créer une liste de produits');
+      // Don't show alert, just return silently - user can configure manually
       return;
     }
 
@@ -277,10 +295,33 @@ export const DashboardBuilder: React.FC<DashboardBuilderProps> = ({
     setMetrics(metrics.filter((_, i) => i !== index));
   };
 
+  // Helper to ensure tableConfig has required structure
+  const ensureTableConfig = (tableConfig: any): any => {
+    if (!tableConfig) {
+      return {
+        rowSource: { type: 'entries' as const, formId: '' },
+        columns: []
+      };
+    }
+    return {
+      ...tableConfig,
+      rowSource: tableConfig.rowSource || { type: 'entries' as const, formId: '' },
+      columns: tableConfig.columns || []
+    };
+  };
+
   const updateMetric = (index: number, updates: Partial<Omit<DashboardMetric, 'id' | 'createdAt' | 'createdBy' | 'agencyId'>>) => {
-    setMetrics(metrics.map((metric, i) => 
-      i === index ? { ...metric, ...updates } : metric
-    ));
+    setMetrics(metrics.map((metric, i) => {
+      if (i === index) {
+        const updated = { ...metric, ...updates };
+        // Ensure tableConfig is properly structured if it exists
+        if (updated.tableConfig) {
+          updated.tableConfig = ensureTableConfig(updated.tableConfig);
+        }
+        return updated;
+      }
+      return metric;
+    }));
   };
 
   const handleSave = useCallback(() => {
@@ -326,13 +367,23 @@ export const DashboardBuilder: React.FC<DashboardBuilderProps> = ({
         
         // Check for circular dependencies
         if (metric.dependsOn && metric.dependsOn.length > 0) {
+          // Convert metrics to shared package format for validation
+          const metricsForValidation = metrics.map((m, i) => {
+            const baseMetric = {
+              ...m,
+              id: `metric_${i + 1}`, // Temporary IDs for validation
+              createdAt: new Date(),
+              createdBy: currentUserId,
+              agencyId: agencyId
+            };
+            // Remove tableConfig if present to avoid type conflicts
+            const { tableConfig, ...rest } = baseMetric as any;
+            return rest;
+          });
           const hasCircular = MetricFormulaParser.hasCircularDependency(
             `metric_${index + 1}`, // Temporary ID for validation
             metric.dependsOn,
-            metrics.map((m, i) => ({
-              ...m,
-              id: `metric_${i + 1}` // Temporary IDs for validation
-            }))
+            metricsForValidation as any
           );
           
           if (hasCircular) {
@@ -347,6 +398,19 @@ export const DashboardBuilder: React.FC<DashboardBuilderProps> = ({
         if (!metric.tableConfig || !metric.tableConfig.columns || metric.tableConfig.columns.length === 0) {
           newErrors.push(`La métrique tableau ${index + 1} doit avoir au moins une colonne`);
         } else {
+          // Validate rowSource
+          if (!metric.tableConfig.rowSource) {
+            newErrors.push(`La source des lignes de la métrique tableau ${index + 1} est requise`);
+          } else if (metric.tableConfig.rowSource.type === 'list') {
+            if (!metric.tableConfig.rowSource.listId) {
+              newErrors.push(`La liste de la métrique tableau ${index + 1} est requise`);
+            }
+          } else if (metric.tableConfig.rowSource.type === 'entries') {
+            if (!metric.tableConfig.rowSource.formId) {
+              newErrors.push(`Le formulaire de la métrique tableau ${index + 1} est requis`);
+            }
+          }
+          
           // Validate each column
           metric.tableConfig.columns.forEach((column, colIndex) => {
             // Column name is required
@@ -354,17 +418,27 @@ export const DashboardBuilder: React.FC<DashboardBuilderProps> = ({
               newErrors.push(`Le nom de la colonne ${colIndex + 1} de la métrique tableau ${index + 1} est requis`);
             }
 
-            // Source and sourceId are required based on source type
-            if (column.source === 'field') {
-              if (!column.formId || !column.formId.trim()) {
+            // Validate based on column type
+            if ((column as any).type === 'aggregate') {
+              const aggCol = column as AggregateColumn;
+              if (!aggCol.formId || !aggCol.formId.trim()) {
                 newErrors.push(`Le formulaire de la colonne ${colIndex + 1} de la métrique tableau ${index + 1} est requis`);
               }
-              if (!column.fieldId || !column.fieldId.trim()) {
-                newErrors.push(`Le champ de la colonne ${colIndex + 1} de la métrique tableau ${index + 1} est requis`);
+              if (!aggCol.rowKeyFieldId || !aggCol.rowKeyFieldId.trim()) {
+                newErrors.push(`Le champ de référence de la colonne ${colIndex + 1} de la métrique tableau ${index + 1} est requis`);
               }
-            } else if (column.source === 'metric') {
-              if (!column.metricId || !column.metricId.trim()) {
-                newErrors.push(`La métrique de la colonne ${colIndex + 1} de la métrique tableau ${index + 1} est requise`);
+              if (!aggCol.valueFieldId || !aggCol.valueFieldId.trim()) {
+                newErrors.push(`Le champ de valeur de la colonne ${colIndex + 1} de la métrique tableau ${index + 1} est requis`);
+              }
+            } else if ((column as any).type === 'derived') {
+              const derivedCol = column as DerivedColumn;
+              if (!derivedCol.formula || !derivedCol.formula.trim()) {
+                newErrors.push(`La formule de la colonne ${colIndex + 1} de la métrique tableau ${index + 1} est requise`);
+              }
+            } else if ((column as any).type === 'label') {
+              const labelCol = column as LabelColumn;
+              if (!labelCol.labelFieldId || !labelCol.labelFieldId.trim()) {
+                newErrors.push(`Le champ label de la colonne ${colIndex + 1} de la métrique tableau ${index + 1} est requis`);
               }
             }
           });
@@ -608,17 +682,20 @@ export const DashboardBuilder: React.FC<DashboardBuilderProps> = ({
                             
                             <MetricFormulaInput
                               value={metric.userFormula || metric.calculationFormula || ''}
-                              onChange={(formula, metricIds) => {
+                              onChange={(formula) => {
                                 // Create metrics with temporary IDs for parsing
                                 const metricsWithTempIds = metrics.map((m, i) => ({
                                   ...m,
-                                  id: m.id || `temp_${i}` // Use existing ID or generate temp
-                                }));
+                                  id: `temp_${i}`, // Generate temp ID for parsing
+                                  createdAt: new Date(),
+                                  createdBy: currentUserId,
+                                  agencyId: agencyId
+                                })) as DashboardMetric[];
                                 
                                 const parseResult = MetricFormulaParser.parseUserFormula(
                                   formula,
-                                  metricsWithTempIds,
-                                  metricsWithTempIds[index].id
+                                  metricsWithTempIds as any,
+                                  `temp_${index}`
                                 );
 
                                 updateMetric(index, {
@@ -629,9 +706,12 @@ export const DashboardBuilder: React.FC<DashboardBuilderProps> = ({
                               }}
                               metrics={metrics.map((m, i) => ({
                                 ...m,
-                                id: m.id || `temp_${i}` // Use existing ID or generate temp
-                              }))}
-                              currentMetricId={metrics[index]?.id || `temp_${index}`}
+                                id: `temp_${i}`, // Generate temp ID for parsing
+                                createdAt: new Date(),
+                                createdBy: currentUserId,
+                                agencyId: agencyId
+                              })) as any as DashboardMetric[]}
+                              currentMetricId={`temp_${index}`}
                             />
                           </div>
                         )}
@@ -852,19 +932,18 @@ export const DashboardBuilder: React.FC<DashboardBuilderProps> = ({
                               onClick={() => {
                                 const newColumn: TableColumnConfig = {
                                   id: `col_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-                                    type: 'aggregate',
+                                  type: 'aggregate',
                                   name: '',
-                                    formId: '',
-                                    rowKeyFieldId: '',
-                                    valueFieldId: '',
-                                    agg: 'sum'
-                                  } as AggregateColumn;
-                                const currentColumns = metric.tableConfig?.columns || [];
-                                  const currentRowSource = metric.tableConfig?.rowSource || { type: 'entries', formId: '' };
+                                  formId: '',
+                                  rowKeyFieldId: '',
+                                  valueFieldId: '',
+                                  agg: 'sum'
+                                } as AggregateColumn;
+                                const currentTableConfig = ensureTableConfig(metric.tableConfig);
                                 updateMetric(index, {
                                   tableConfig: {
-                                      rowSource: currentRowSource,
-                                    columns: [...currentColumns, newColumn]
+                                    ...currentTableConfig,
+                                    columns: [...currentTableConfig.columns, newColumn]
                                   }
                                 });
                               }}
@@ -889,25 +968,38 @@ export const DashboardBuilder: React.FC<DashboardBuilderProps> = ({
                                   value="list"
                                   checked={metric.tableConfig?.rowSource?.type === 'list'}
                                   onChange={() => {
+                                    // Allow selection even if lists are still loading or empty
+                                    // User can select a list from dropdown once lists are loaded
                                     const firstList = lists[0];
-                                    if (!firstList) {
-                                      alert('Veuillez d\'abord créer une liste');
-                                      return;
+                                    const currentTableConfig = ensureTableConfig(metric.tableConfig);
+                                    if (firstList) {
+                                      const keyField = firstList.columns[0];
+                                      const labelField = firstList.columns.find(c => c.id !== keyField.id) || firstList.columns[0];
+                                      updateMetric(index, {
+                                        tableConfig: {
+                                          ...currentTableConfig,
+                                          rowSource: {
+                                            type: 'list',
+                                            listId: firstList.id,
+                                            keyFieldId: keyField.id,
+                                            labelFieldId: labelField.id
+                                          }
+                                        }
+                                      });
+                                    } else {
+                                      // Set rowSource to list type but without listId (user will select from dropdown)
+                                      updateMetric(index, {
+                                        tableConfig: {
+                                          ...currentTableConfig,
+                                          rowSource: {
+                                            type: 'list',
+                                            listId: '',
+                                            keyFieldId: '',
+                                            labelFieldId: ''
+                                          }
+                                        }
+                                      });
                                     }
-                                    const keyField = firstList.columns[0];
-                                    const labelField = firstList.columns.find(c => c.id !== keyField.id) || firstList.columns[0];
-                                    updateMetric(index, {
-                                      tableConfig: {
-                                        ...metric.tableConfig,
-                                        rowSource: {
-                                          type: 'list',
-                                          listId: firstList.id,
-                                          keyFieldId: keyField.id,
-                                          labelFieldId: labelField.id
-                                        },
-                                        columns: metric.tableConfig?.columns || []
-                                      }
-                                    });
                                   }}
                                   className="text-purple-600 focus:ring-purple-500"
                                 />
@@ -920,14 +1012,14 @@ export const DashboardBuilder: React.FC<DashboardBuilderProps> = ({
                                   value="entries"
                                   checked={metric.tableConfig?.rowSource?.type === 'entries' || !metric.tableConfig?.rowSource}
                                   onChange={() => {
+                                    const currentTableConfig = ensureTableConfig(metric.tableConfig);
                                     updateMetric(index, {
                                       tableConfig: {
-                                        ...metric.tableConfig,
+                                        ...currentTableConfig,
                                         rowSource: {
                                           type: 'entries',
                                           formId: metric.formId || ''
-                                        },
-                                        columns: metric.tableConfig?.columns || []
+                                        }
                                       }
                                     });
                                   }}
@@ -948,9 +1040,10 @@ export const DashboardBuilder: React.FC<DashboardBuilderProps> = ({
                                     if (!selectedList) return;
                                     const keyField = selectedList.columns[0];
                                     const labelField = selectedList.columns.find(c => c.id !== keyField.id) || selectedList.columns[0];
+                                    const currentTableConfig = ensureTableConfig(metric.tableConfig);
                                     updateMetric(index, {
                                       tableConfig: {
-                                        ...metric.tableConfig,
+                                        ...currentTableConfig,
                                         rowSource: {
                                           type: 'list',
                                           listId: selectedList.id,
@@ -960,12 +1053,13 @@ export const DashboardBuilder: React.FC<DashboardBuilderProps> = ({
                                       }
                                     });
                                   }}
+                                  disabled={isLoadingLists}
                                   options={[
-                                    { value: '', label: 'Choisir une liste...' },
-                                    ...lists.map(list => ({
+                                    { value: '', label: isLoadingLists ? 'Chargement...' : 'Choisir une liste...' },
+                                    ...(isLoadingLists ? [] : lists.map(list => ({
                                       value: list.id,
                                       label: list.name
-                                    }))
+                                    })))
                                   ]}
                                 />
                                 {(() => {
@@ -978,9 +1072,10 @@ export const DashboardBuilder: React.FC<DashboardBuilderProps> = ({
                                         label="Champ clé *"
                                         value={rowSource?.keyFieldId || ''}
                                         onChange={(e) => {
+                                          const currentTableConfig = ensureTableConfig(metric.tableConfig);
                                           updateMetric(index, {
                                             tableConfig: {
-                                              ...metric.tableConfig,
+                                              ...currentTableConfig,
                                               rowSource: {
                                                 ...rowSource!,
                                                 keyFieldId: e.target.value
@@ -1000,9 +1095,10 @@ export const DashboardBuilder: React.FC<DashboardBuilderProps> = ({
                                         label="Champ label *"
                                         value={rowSource?.labelFieldId || ''}
                                         onChange={(e) => {
+                                          const currentTableConfig = ensureTableConfig(metric.tableConfig);
                                           updateMetric(index, {
                                             tableConfig: {
-                                              ...metric.tableConfig,
+                                              ...currentTableConfig,
                                               rowSource: {
                                                 ...rowSource!,
                                                 labelFieldId: e.target.value
@@ -1049,10 +1145,12 @@ export const DashboardBuilder: React.FC<DashboardBuilderProps> = ({
                                           variant="secondary"
                                           size="sm"
                                           onClick={() => {
-                                            const columns = [...(metric.tableConfig?.columns || [])];
+                                            const currentTableConfig = ensureTableConfig(metric.tableConfig);
+                                            const columns = [...currentTableConfig.columns];
                                             [columns[colIndex - 1], columns[colIndex]] = [columns[colIndex], columns[colIndex - 1]];
                                             updateMetric(index, {
                                               tableConfig: {
+                                                ...currentTableConfig,
                                                 columns
                                               }
                                             });
@@ -1069,10 +1167,12 @@ export const DashboardBuilder: React.FC<DashboardBuilderProps> = ({
                                           variant="secondary"
                                           size="sm"
                                           onClick={() => {
-                                            const columns = [...(metric.tableConfig?.columns || [])];
+                                            const currentTableConfig = ensureTableConfig(metric.tableConfig);
+                                            const columns = [...currentTableConfig.columns];
                                             [columns[colIndex], columns[colIndex + 1]] = [columns[colIndex + 1], columns[colIndex]];
                                             updateMetric(index, {
                                               tableConfig: {
+                                                ...currentTableConfig,
                                                 columns
                                               }
                                             });
@@ -1088,9 +1188,11 @@ export const DashboardBuilder: React.FC<DashboardBuilderProps> = ({
                                         variant="danger"
                                         size="sm"
                                         onClick={() => {
-                                          const columns = (metric.tableConfig?.columns || []).filter((_, i) => i !== colIndex);
+                                          const currentTableConfig = ensureTableConfig(metric.tableConfig);
+                                          const columns = currentTableConfig.columns.filter((_: any, i: number) => i !== colIndex);
                                           updateMetric(index, {
                                             tableConfig: {
+                                              ...currentTableConfig,
                                               columns
                                             }
                                           });
@@ -1108,10 +1210,14 @@ export const DashboardBuilder: React.FC<DashboardBuilderProps> = ({
                                       label="Nom de la colonne *"
                                       value={column.name}
                                       onChange={(e) => {
-                                        const columns = [...(metric.tableConfig?.columns || [])];
-                                        columns[colIndex] = { ...columns[colIndex], name: e.target.value };
+                                        const currentTableConfig = ensureTableConfig(metric.tableConfig);
+                                        const columns = [...currentTableConfig.columns];
+                                        columns[colIndex] = { ...columns[colIndex] as any, name: e.target.value };
                                         updateMetric(index, {
-                                          tableConfig: { columns }
+                                          tableConfig: {
+                                            ...currentTableConfig,
+                                            columns
+                                          }
                                         });
                                       }}
                                       placeholder="Ex: Produit, Stock initial, etc."
@@ -1125,45 +1231,49 @@ export const DashboardBuilder: React.FC<DashboardBuilderProps> = ({
                                       </label>
                                       <Select
                                         value={(column as any).type || (column as any).source || 'aggregate'}
-                                        onChange={(e) => {
-                                          const columnType = e.target.value;
-                                          const columns = [...(metric.tableConfig?.columns || [])];
-                                          
-                                          // Create new column based on type
-                                          if (columnType === 'label') {
-                                            const rowSource = metric.tableConfig?.rowSource as Extract<TableRowSource, { type: 'list' }> | undefined;
-                                            const selectedList = lists.find(l => l.id === rowSource?.listId);
-                                            const labelField = selectedList?.columns[0];
+                                      onChange={(e) => {
+                                        const columnType = e.target.value;
+                                        const currentTableConfig = ensureTableConfig(metric.tableConfig);
+                                        const columns = [...currentTableConfig.columns];
+                                        
+                                        // Create new column based on type
+                                        if (columnType === 'label') {
+                                          const rowSource = currentTableConfig.rowSource as Extract<TableRowSource, { type: 'list' }> | undefined;
+                                          const selectedList = lists.find(l => l.id === rowSource?.listId);
+                                          const labelField = selectedList?.columns[0];
                                           columns[colIndex] = {
-                                              id: column.id,
-                                              type: 'label',
-                                              name: column.name,
-                                              source: 'list',
-                                              labelFieldId: labelField?.id || ''
-                                            } as LabelColumn;
-                                          } else if (columnType === 'aggregate') {
-                                            columns[colIndex] = {
-                                              id: column.id,
-                                              type: 'aggregate',
-                                              name: column.name,
-                                              formId: (column as any).formId || '',
-                                              rowKeyFieldId: (column as any).rowKeyFieldId || '',
-                                              valueFieldId: (column as any).valueFieldId || '',
-                                              agg: (column as any).agg || 'sum'
-                                            } as AggregateColumn;
-                                          } else if (columnType === 'derived') {
-                                            columns[colIndex] = {
-                                              id: column.id,
-                                              type: 'derived',
-                                              name: column.name,
-                                              formula: (column as any).formula || ''
-                                            } as DerivedColumn;
+                                            id: column.id,
+                                            type: 'label',
+                                            name: column.name,
+                                            source: 'list',
+                                            labelFieldId: labelField?.id || ''
+                                          } as LabelColumn;
+                                        } else if (columnType === 'aggregate') {
+                                          columns[colIndex] = {
+                                            id: column.id,
+                                            type: 'aggregate',
+                                            name: column.name,
+                                            formId: (column as any).formId || '',
+                                            rowKeyFieldId: (column as any).rowKeyFieldId || '',
+                                            valueFieldId: (column as any).valueFieldId || '',
+                                            agg: (column as any).agg || 'sum'
+                                          } as AggregateColumn;
+                                        } else if (columnType === 'derived') {
+                                          columns[colIndex] = {
+                                            id: column.id,
+                                            type: 'derived',
+                                            name: column.name,
+                                            formula: (column as any).formula || ''
+                                          } as DerivedColumn;
+                                        }
+                                        
+                                        updateMetric(index, {
+                                          tableConfig: {
+                                            ...currentTableConfig,
+                                            columns
                                           }
-                                          
-                                          updateMetric(index, {
-                                            tableConfig: { columns }
-                                          });
-                                        }}
+                                        });
+                                      }}
                                         options={[
                                           { value: 'label', label: 'Label (depuis liste)' },
                                           { value: 'aggregate', label: 'Agrégat (depuis formulaire)' },
@@ -1179,13 +1289,17 @@ export const DashboardBuilder: React.FC<DashboardBuilderProps> = ({
                                           label="Champ de la liste à afficher *"
                                           value={(column as LabelColumn).labelFieldId || ''}
                                           onChange={(e) => {
-                                            const columns = [...(metric.tableConfig?.columns || [])];
+                                            const currentTableConfig = ensureTableConfig(metric.tableConfig);
+                                            const columns = [...currentTableConfig.columns];
                                             columns[colIndex] = {
                                               ...columns[colIndex],
                                               labelFieldId: e.target.value
                                             } as LabelColumn;
                                             updateMetric(index, {
-                                              tableConfig: { columns }
+                                              tableConfig: {
+                                                ...currentTableConfig,
+                                                columns
+                                              }
                                             });
                                           }}
                                           options={(() => {
@@ -1215,15 +1329,19 @@ export const DashboardBuilder: React.FC<DashboardBuilderProps> = ({
                                           label="Formulaire *"
                                             value={(column as AggregateColumn).formId || ''}
                                           onChange={(e) => {
-                                            const columns = [...(metric.tableConfig?.columns || [])];
+                                            const currentTableConfig = ensureTableConfig(metric.tableConfig);
+                                            const columns = [...currentTableConfig.columns];
                                             columns[colIndex] = {
                                               ...columns[colIndex],
                                               formId: e.target.value,
-                                                rowKeyFieldId: '',
-                                                valueFieldId: ''
-                                              } as AggregateColumn;
+                                              rowKeyFieldId: '',
+                                              valueFieldId: ''
+                                            } as AggregateColumn;
                                             updateMetric(index, {
-                                              tableConfig: { columns }
+                                              tableConfig: {
+                                                ...currentTableConfig,
+                                                columns
+                                              }
                                             });
                                           }}
                                           options={[
@@ -1238,13 +1356,17 @@ export const DashboardBuilder: React.FC<DashboardBuilderProps> = ({
                                             label="Fonction d'agrégation *"
                                             value={(column as AggregateColumn).agg || 'sum'}
                                             onChange={(e) => {
-                                              const columns = [...(metric.tableConfig?.columns || [])];
+                                              const currentTableConfig = ensureTableConfig(metric.tableConfig);
+                                              const columns = [...currentTableConfig.columns];
                                               columns[colIndex] = {
                                                 ...columns[colIndex],
                                                 agg: e.target.value as any
                                               } as AggregateColumn;
                                               updateMetric(index, {
-                                                tableConfig: { columns }
+                                                tableConfig: {
+                                                  ...currentTableConfig,
+                                                  columns
+                                                }
                                               });
                                             }}
                                             options={[
@@ -1272,13 +1394,17 @@ export const DashboardBuilder: React.FC<DashboardBuilderProps> = ({
                                                 label="Champ de référence (produit) *"
                                                 value={aggCol.rowKeyFieldId || ''}
                                               onChange={(e) => {
-                                                const columns = [...(metric.tableConfig?.columns || [])];
+                                                const currentTableConfig = ensureTableConfig(metric.tableConfig);
+                                                const columns = [...currentTableConfig.columns];
                                                 columns[colIndex] = {
                                                   ...columns[colIndex],
-                                                    rowKeyFieldId: e.target.value
-                                                  } as AggregateColumn;
+                                                  rowKeyFieldId: e.target.value
+                                                } as AggregateColumn;
                                                 updateMetric(index, {
-                                                  tableConfig: { columns }
+                                                  tableConfig: {
+                                                    ...currentTableConfig,
+                                                    columns
+                                                  }
                                                 });
                                               }}
                                               options={[
@@ -1295,13 +1421,17 @@ export const DashboardBuilder: React.FC<DashboardBuilderProps> = ({
                                                 label="Champ de valeur (quantité) *"
                                                 value={aggCol.valueFieldId || ''}
                                                 onChange={(e) => {
-                                                  const columns = [...(metric.tableConfig?.columns || [])];
+                                                  const currentTableConfig = ensureTableConfig(metric.tableConfig);
+                                                  const columns = [...currentTableConfig.columns];
                                                   columns[colIndex] = {
                                                     ...columns[colIndex],
                                                     valueFieldId: e.target.value
                                                   } as AggregateColumn;
                                                   updateMetric(index, {
-                                                    tableConfig: { columns }
+                                                    tableConfig: {
+                                                      ...currentTableConfig,
+                                                      columns
+                                                    }
                                                   });
                                                 }}
                                                 options={[
@@ -1332,13 +1462,17 @@ export const DashboardBuilder: React.FC<DashboardBuilderProps> = ({
                                         <Input
                                           value={(column as DerivedColumn).formula || ''}
                                           onChange={(e) => {
-                                            const columns = [...(metric.tableConfig?.columns || [])];
+                                            const currentTableConfig = ensureTableConfig(metric.tableConfig);
+                                            const columns = [...currentTableConfig.columns];
                                             columns[colIndex] = {
                                               ...columns[colIndex],
                                               formula: e.target.value
                                             } as DerivedColumn;
                                             updateMetric(index, {
-                                              tableConfig: { columns }
+                                              tableConfig: {
+                                                ...currentTableConfig,
+                                                columns
+                                              }
                                             });
                                           }}
                                           placeholder="Ex: col_initial + col_in - col_out"
@@ -1396,8 +1530,10 @@ export const DashboardBuilder: React.FC<DashboardBuilderProps> = ({
                                   id: `preview-${index}`,
                                   createdAt: new Date(),
                                   createdBy: currentUserId,
-                                  agencyId: agencyId
-                                }}
+                                  agencyId: agencyId,
+                                  // Remove tableConfig to avoid type conflicts with shared package
+                                  tableConfig: undefined
+                                } as any}
                                 formEntries={formEntries.filter(entry => entry.formId === metric.formId)}
                                 forms={forms}
                                 compact={true}
