@@ -221,10 +221,21 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks: (id) => {
-          // Vendor chunks
-          if (id.includes('node_modules/react') || id.includes('node_modules/react-dom')) {
+          // PRIORITÉ 1: Toutes les dépendances React (y compris celles du shared package)
+          // Cela évite les erreurs "Cannot read properties of undefined (reading 'createContext')"
+          if (
+            id.includes('node_modules/react') || 
+            id.includes('node_modules/react-dom') ||
+            id.includes('node_modules/react-router') ||
+            // React-dependent code from shared package (contexts, hooks, components)
+            id.includes('packages/shared/src/contexts') ||
+            id.includes('packages/shared/src/hooks') ||
+            id.includes('packages/shared/src/components')
+          ) {
             return 'vendor-react';
           }
+          
+          // PRIORITÉ 2: Autres vendors
           if (id.includes('node_modules/firebase')) {
             return 'vendor-firebase';
           }
@@ -232,7 +243,7 @@ export default defineConfig({
             return 'vendor-ui';
           }
           
-          // Shared package chunks
+          // PRIORITÉ 3: Autres parties du shared package (non-React)
           if (id.includes('packages/shared')) {
             return 'shared';
           }
