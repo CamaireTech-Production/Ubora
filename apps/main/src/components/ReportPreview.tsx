@@ -1,6 +1,8 @@
 import React from 'react';
 import { ReportDefinition } from '@ubora/shared/types';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { TableMetricDisplay } from './TableMetricDisplay';
+import { MetricCalculator } from '@ubora/shared/utils/MetricCalculator';
 
 interface ReportPreviewProps {
   report: ReportDefinition;
@@ -25,6 +27,12 @@ export const ReportPreview: React.FC<ReportPreviewProps> = ({ report }) => {
   // All numeric/metric values should show 0 since there's no data (like dashboard preview)
   const getMockValue = (placeholder: string): string => {
     const placeholderName = placeholder.replace(/[{}]/g, '').trim().toLowerCase();
+    
+    // Check for table placeholders - return special marker that we'll replace with React component
+    if (placeholderName.includes('table') || placeholderName.includes('tableau')) {
+      // Return a unique marker that we'll detect and replace with actual React table component
+      return '__TABLE_PLACEHOLDER__';
+    }
     
     // Check for graph/chart placeholders - return special marker that we'll replace with React component
     if (placeholderName.includes('graph') || placeholderName.includes('graphe') || 
@@ -102,18 +110,32 @@ export const ReportPreview: React.FC<ReportPreviewProps> = ({ report }) => {
     }
 
     let content = report.templateContent;
-    const graphPlaceholderMarkers: Array<{ original: string; marker: string }> = [];
+    const graphPlaceholderMarkers: Array<{ original: string; marker: string; mapping?: any }> = [];
+    const tablePlaceholderMarkers: Array<{ original: string; marker: string; mapping?: any }> = [];
     let markerCounter = 0;
 
-    // First pass: Find all graph placeholders and create unique markers
+    // First pass: Find all graph and table placeholders and create unique markers
     if (report.placeholders && report.placeholders.length > 0) {
       report.placeholders.forEach((placeholder) => {
         const placeholderText = placeholder.placeholder;
         const mockValue = getMockValue(placeholderText);
         
-        if (mockValue === '__GRAPH_PLACEHOLDER__') {
+        // Find mapping for this placeholder
+        const mapping = report.mappings?.find(m => m.placeholderId === placeholder.id);
+        
+        if (mockValue === '__TABLE_PLACEHOLDER__') {
+          const uniqueMarker = `__TABLE_PLACEHOLDER_${markerCounter++}__`;
+          tablePlaceholderMarkers.push({ original: placeholderText, marker: uniqueMarker, mapping });
+          
+          // Replace placeholder with unique marker
+          const escapedPlaceholder = placeholderText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          content = content.replace(
+            new RegExp(escapedPlaceholder, 'gi'),
+            uniqueMarker
+          );
+        } else if (mockValue === '__GRAPH_PLACEHOLDER__') {
           const uniqueMarker = `__GRAPH_PLACEHOLDER_${markerCounter++}__`;
-          graphPlaceholderMarkers.push({ original: placeholderText, marker: uniqueMarker });
+          graphPlaceholderMarkers.push({ original: placeholderText, marker: uniqueMarker, mapping });
           
           // Replace placeholder with unique marker
           const escapedPlaceholder = placeholderText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -130,9 +152,19 @@ export const ReportPreview: React.FC<ReportPreviewProps> = ({ report }) => {
     content = content.replace(placeholderRegex, (match) => {
       if (match.includes('{{')) {
         const mockValue = getMockValue(match);
-        if (mockValue === '__GRAPH_PLACEHOLDER__') {
+        // Find mapping for this placeholder by matching text
+        const mapping = report.mappings?.find(m => {
+          const placeholder = report.placeholders?.find(p => p.id === m.placeholderId);
+          return placeholder?.placeholder === match;
+        });
+        
+        if (mockValue === '__TABLE_PLACEHOLDER__') {
+          const uniqueMarker = `__TABLE_PLACEHOLDER_${markerCounter++}__`;
+          tablePlaceholderMarkers.push({ original: match, marker: uniqueMarker, mapping });
+          return uniqueMarker;
+        } else if (mockValue === '__GRAPH_PLACEHOLDER__') {
           const uniqueMarker = `__GRAPH_PLACEHOLDER_${markerCounter++}__`;
-          graphPlaceholderMarkers.push({ original: match, marker: uniqueMarker });
+          graphPlaceholderMarkers.push({ original: match, marker: uniqueMarker, mapping });
           return uniqueMarker;
         }
         return mockValue;
@@ -146,8 +178,8 @@ export const ReportPreview: React.FC<ReportPreviewProps> = ({ report }) => {
         const placeholderText = placeholder.placeholder;
         const mockValue = getMockValue(placeholderText);
         
-        // Skip if already replaced (graph placeholder)
-        if (mockValue !== '__GRAPH_PLACEHOLDER__') {
+        // Skip if already replaced (graph or table placeholder)
+        if (mockValue !== '__GRAPH_PLACEHOLDER__' && mockValue !== '__TABLE_PLACEHOLDER__') {
           const escapedPlaceholder = placeholderText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
           content = content.replace(
             new RegExp(escapedPlaceholder, 'gi'),
@@ -160,13 +192,19 @@ export const ReportPreview: React.FC<ReportPreviewProps> = ({ report }) => {
     // Check if content has HTML tags
     const hasHtmlTags = /<[^>]+>/g.test(content);
     
-    // Split content by graph placeholder markers and render mixed content
-    if (graphPlaceholderMarkers.length > 0) {
-      const parts: Array<{ type: 'html' | 'text' | 'graph'; content: string }> = [];
+    // Combine all placeholder markers (graph and table)
+    const allPlaceholderMarkers = [
+      ...graphPlaceholderMarkers.map(m => ({ ...m, type: 'graph' as const })),
+      ...tablePlaceholderMarkers.map(m => ({ ...m, type: 'table' as const }))
+    ];
+    
+    // Split content by placeholder markers (graph and table) and render mixed content
+    if (allPlaceholderMarkers.length > 0) {
+      const parts: Array<{ type: 'html' | 'text' | 'graph' | 'table'; content: string; mapping?: any }> = [];
       let remainingContent = content;
       
       // Sort markers by position in content (process from end to start to preserve indices)
-      const sortedMarkers = [...graphPlaceholderMarkers].sort((a, b) => {
+      const sortedMarkers = [...allPlaceholderMarkers].sort((a, b) => {
         const indexA = remainingContent.indexOf(a.marker);
         const indexB = remainingContent.indexOf(b.marker);
         return indexA - indexB;
@@ -186,10 +224,11 @@ export const ReportPreview: React.FC<ReportPreviewProps> = ({ report }) => {
               });
             }
           }
-          // Add graph component
+          // Add placeholder component (graph or table)
           parts.push({
-            type: 'graph',
-            content: markerInfo.marker
+            type: markerInfo.type,
+            content: markerInfo.marker,
+            mapping: markerInfo.mapping
           });
           lastIndex = markerIndex + markerInfo.marker.length;
         }
@@ -210,6 +249,49 @@ export const ReportPreview: React.FC<ReportPreviewProps> = ({ report }) => {
         <div className="prose prose-sm max-w-none report-preview-content">
           {parts.map((part, index) => {
             if (part.type === 'graph') {
+              return <React.Fragment key={index}>{renderPlaceholderGraph()}</React.Fragment>;
+            }
+            if (part.type === 'table') {
+              // Render placeholder table for preview
+              // In real reports, this would use actual data from mappings
+              const mapping = part.mapping;
+              if (mapping && mapping.metricId) {
+                // For preview, we show empty table structure
+                // In actual report generation, we would calculate the metric and show real data
+                return (
+                  <React.Fragment key={index}>
+                    <div className="bg-white rounded-lg border border-gray-200 p-2 my-4">
+                      <p className="text-xs text-gray-500 mb-2 text-center">
+                        Tableau (données réelles dans le rapport généré)
+                      </p>
+                      <div className="w-full overflow-x-auto">
+                        <table className="min-w-full divide-y divide-gray-200">
+                          <thead className="bg-gray-50">
+                            <tr>
+                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Colonne 1
+                              </th>
+                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Colonne 2
+                              </th>
+                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Colonne 3
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody className="bg-white divide-y divide-gray-200">
+                            <tr>
+                              <td className="px-4 py-2 text-sm text-gray-500">-</td>
+                              <td className="px-4 py-2 text-sm text-gray-500">-</td>
+                              <td className="px-4 py-2 text-sm text-gray-500">-</td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </React.Fragment>
+                );
+              }
               return <React.Fragment key={index}>{renderPlaceholderGraph()}</React.Fragment>;
             }
             if (part.type === 'html') {

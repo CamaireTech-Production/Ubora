@@ -415,16 +415,34 @@ export class MetricCalculator {
       }
 
       // Pre-calculate metrics for metric-based columns (they have the same value for all rows)
+      // This handles recursive calculation of computed metrics
       const metricValues: Record<string, string> = {};
       if (dashboard) {
         for (const column of columns) {
           if (column.source === 'metric' && column.metricId) {
             const depMetric = dashboard.metrics.find(m => m.id === column.metricId);
-            if (depMetric) {
+            if (!depMetric) {
+              // Metric not found - log error and use empty value
+              console.warn(`Table metric: Dependent metric ${column.metricId} not found in dashboard`);
+              metricValues[column.id] = '';
+              continue;
+            }
+            
+            // Check for circular dependency (metric depends on itself through table)
+            // This is a basic check - full circular dependency detection is handled in MetricFormulaParser
+            if (depMetric.metricType === 'table' && depMetric.id === metric.id) {
+              console.error(`Table metric: Circular dependency detected - metric ${metric.id} depends on itself`);
+              metricValues[column.id] = '[Erreur: dépendance circulaire]';
+              continue;
+            }
+            
+            try {
+              // Recursively calculate the dependent metric (handles computed metrics)
               const metricResult = this.calculateMetric(depMetric, formEntries, dashboard);
               metricValues[column.id] = metricResult.displayValue || String(metricResult.value) || '';
-            } else {
-              metricValues[column.id] = '';
+            } catch (error) {
+              console.error(`Table metric: Error calculating dependent metric ${column.metricId}:`, error);
+              metricValues[column.id] = '[Erreur de calcul]';
             }
           }
         }
