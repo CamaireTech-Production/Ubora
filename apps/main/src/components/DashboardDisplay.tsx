@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Dashboard, FormEntry, Form, DashboardMetric, User } from '../types';
 import { Card } from './Card';
 import { Button } from './Button';
@@ -6,6 +6,7 @@ import { MetricCalculator } from '@ubora/shared/utils/MetricCalculator';
 import { GraphPreview } from './charts/GraphPreview';
 import { GraphModal } from './charts/GraphModal';
 import { TableMetricDisplay } from './TableMetricDisplay';
+import { tableDataService } from '../services/tableDataService';
 import { BarChart3, TrendingUp, TrendingDown, Minus, Hash, Type, Mail, Calendar, CheckSquare, Upload, Eye, Edit, Trash2, Crown, User as UserIcon, FileBarChart, Table } from 'lucide-react';
 import { UniversBadge } from './UniversBadge';
 
@@ -35,6 +36,40 @@ export const DashboardDisplay: React.FC<DashboardDisplayProps> = ({
   universName
 }) => {
   const [expandedGraph, setExpandedGraph] = useState<DashboardMetric | null>(null);
+  const [tableRows, setTableRows] = useState<Record<string, any[]>>({});
+  const [isLoadingTableRows, setIsLoadingTableRows] = useState<Record<string, boolean>>({});
+
+  // Calculate table metric rows using the new service
+  useEffect(() => {
+    const calculateTableRows = async () => {
+      const tableMetrics = dashboard.metrics.filter(m => m.metricType === 'table');
+      if (tableMetrics.length === 0) return;
+
+      const newTableRows: Record<string, any[]> = {};
+      const newLoadingState: Record<string, boolean> = {};
+
+      for (const metric of tableMetrics) {
+        const metricId = metric.id || `temp_${dashboard.metrics.indexOf(metric)}`;
+        newLoadingState[metricId] = true;
+        
+        try {
+          // No period filter for DashboardDisplay (shows all time)
+          const rows = await tableDataService.getRowsForTableMetric(metric, formEntries, undefined);
+          newTableRows[metricId] = rows;
+        } catch (error) {
+          console.error(`Error calculating table rows for metric ${metricId}:`, error);
+          newTableRows[metricId] = [];
+        } finally {
+          newLoadingState[metricId] = false;
+        }
+      }
+
+      setTableRows(newTableRows);
+      setIsLoadingTableRows(newLoadingState);
+    };
+
+    calculateTableRows();
+  }, [dashboard, formEntries]);
   const getFieldIcon = (fieldType: string) => {
     switch (fieldType) {
       case 'text': return <Type className="h-4 w-4" />;
@@ -290,7 +325,24 @@ export const DashboardDisplay: React.FC<DashboardDisplayProps> = ({
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-4">
           {dashboard.metrics.map((metric, index) => {
-            const result = MetricCalculator.calculateMetric(metric, formEntries, dashboard);
+            const metricId = metric.id || `temp_${index}`;
+            
+            // For table metrics, use the new service; for others, use MetricCalculator
+            let result;
+            let tableRowsData: any[] = [];
+            
+            if (metric.metricType === 'table') {
+              // Use table data service results
+              tableRowsData = tableRows[metricId] || [];
+              result = {
+                value: tableRowsData,
+                displayValue: `${tableRowsData.length} ligne${tableRowsData.length > 1 ? 's' : ''}`,
+                description: isLoadingTableRows[metricId] ? 'Calcul en cours...' : `${tableRowsData.length} ligne${tableRowsData.length > 1 ? 's' : ''} dans le tableau`
+              };
+            } else {
+              // Use MetricCalculator for non-table metrics
+              result = MetricCalculator.calculateMetric(metric, formEntries, dashboard);
+            }
             
             return (
               <div
@@ -347,11 +399,18 @@ export const DashboardDisplay: React.FC<DashboardDisplayProps> = ({
                 ) : metric.metricType === 'table' ? (
                   <div className="mb-2 sm:mb-3">
                     <div className="bg-white rounded-lg border border-gray-200 p-2">
-                      <TableMetricDisplay
-                        metric={metric}
-                        rows={Array.isArray(result.value) ? result.value : []}
-                        compact={true}
-                      />
+                      {isLoadingTableRows[metricId] ? (
+                        <div className="text-center py-6 text-gray-500">
+                          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-purple-600 mx-auto mb-2"></div>
+                          <p className="text-sm">Calcul en cours...</p>
+                        </div>
+                      ) : (
+                        <TableMetricDisplay
+                          metric={metric}
+                          rows={tableRowsData}
+                          compact={true}
+                        />
+                      )}
                     </div>
                   </div>
                 ) : (

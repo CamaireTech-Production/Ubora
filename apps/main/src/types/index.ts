@@ -463,24 +463,124 @@ export interface ScheduledQuestionResponse {
 // Types pour les tableaux de bord et métriques
 
 /**
- * Configuration for a table column in a table metric
+ * Row source configuration for table metrics
+ * Determines where table rows come from
  */
-export interface TableColumnConfig {
+export type TableRowSource =
+  | { 
+      type: 'list'; // Rows come from a List (e.g., Products list)
+      listId: string; // ID of the List
+      keyFieldId: string; // Field ID in the list that serves as unique key (typically 'id')
+      labelFieldId: string; // Field ID in the list to display as row label (typically 'name')
+    }
+  | { 
+      type: 'entries'; // Rows come from form entries (legacy behavior)
+      formId: string; // Form ID to get entries from
+    };
+
+/**
+ * Aggregation function types for aggregate columns
+ */
+export type TableAggFn = 'sum' | 'average' | 'min' | 'max' | 'count' | 'latest' | 'oldest';
+
+/**
+ * Filter configuration for aggregate columns
+ * Allows filtering submissions by field values (e.g., movementType = 'in')
+ */
+export interface TableFilter {
+  fieldId: string; // Field ID to filter on
+  op: 'eq' | 'neq' | 'in' | 'nin'; // Comparison operator
+  value: any | any[]; // Value(s) to compare against
+}
+
+/**
+ * Display options for columns
+ */
+export interface ColumnDisplayOptions {
+  suffix?: string; // Suffix to append to values (e.g., ' units')
+  precision?: number; // Decimal precision for numbers (default: 2)
+  blankAsZero?: boolean; // Show blank values as 0 (default: false)
+}
+
+/**
+ * Aggregate column configuration
+ * Aggregates form submission data per row (e.g., sum of quantities per product)
+ */
+export interface AggregateColumn {
   id: string; // Unique identifier for the column
+  type: 'aggregate';
   name: string; // Column header name
-  source: 'field' | 'metric'; // Source type: 'field' = from form field, 'metric' = from another metric
-  // When source is 'field':
-  formId?: string; // Form ID containing the field
-  fieldId?: string; // Field ID to extract data from
-  // When source is 'metric':
-  metricId?: string; // Metric ID to use as column data
+  // Data source
+  formId: string; // Form ID containing the data
+  rowKeyFieldId: string; // Field ID in form that references the row key (e.g., product select field)
+  valueFieldId: string; // Numeric field ID to aggregate (e.g., quantity field)
+  dateFieldId?: string; // Optional explicit date field; defaults to submission timestamp
+  agg: TableAggFn; // Aggregation function (sum, average, min, max, count, latest, oldest)
+  filters?: TableFilter[]; // Optional filters to apply (e.g., movementType = 'in')
+  display?: ColumnDisplayOptions; // Display options
+}
+
+/**
+ * Derived column configuration
+ * Calculates values from other columns using formulas (e.g., End = Initial + In - Out)
+ */
+export interface DerivedColumn {
+  id: string; // Unique identifier for the column
+  type: 'derived';
+  name: string; // Column header name
+  formula: string; // Formula expression using column IDs (e.g., "col_initial + col_in - col_out")
+  display?: ColumnDisplayOptions; // Display options
+}
+
+/**
+ * Label column configuration
+ * Displays a field from the list (typically the product name)
+ */
+export interface LabelColumn {
+  id: string; // Unique identifier for the column
+  type: 'label';
+  name: string; // Column header name
+  source: 'list'; // Source is always 'list' for label columns
+  labelFieldId: string; // Field ID in the list to display (typically 'name')
+}
+
+/**
+ * Legacy column configuration (for backward compatibility)
+ * @deprecated Use AggregateColumn, DerivedColumn, or LabelColumn instead
+ */
+export interface LegacyTableColumnConfig {
+  id: string;
+  name: string;
+  source: 'field' | 'metric';
+  formId?: string;
+  fieldId?: string;
+  metricId?: string;
+}
+
+/**
+ * Union type for all column configurations
+ */
+export type TableColumnConfig = AggregateColumn | DerivedColumn | LabelColumn | LegacyTableColumnConfig;
+
+/**
+ * Period configuration for table metrics
+ * Controls which time period to use for data aggregation
+ */
+export interface TablePeriodConfig {
+  useDashboardPeriod: boolean; // Use the dashboard viewer's period filter (default: true)
+  start?: Date; // Optional explicit start date (if useDashboardPeriod is false)
+  end?: Date; // Optional explicit end date (if useDashboardPeriod is false)
+  timezone?: string; // Timezone for date calculations (default: agency timezone)
 }
 
 /**
  * Table configuration for table-type metrics
  */
 export interface TableConfig {
+  rowSource: TableRowSource; // Source of table rows (list or entries)
   columns: TableColumnConfig[]; // Array of column configurations
+  period?: TablePeriodConfig; // Period configuration (defaults to dashboard period)
+  emptyRows?: 'show' | 'hide'; // Whether to show rows with all blanks/zeros (default: 'show')
 }
 
 export interface DashboardMetric {

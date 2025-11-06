@@ -1,20 +1,23 @@
 import React from 'react';
 import { DashboardMetric, TableColumnConfig } from '../types';
 import { TableRowData } from '../utils/MetricCalculator';
-import { Table, AlertCircle } from 'lucide-react';
+import { Table, AlertCircle, Maximize2 } from 'lucide-react';
+import { Button } from './Button';
 
 interface TableMetricDisplayProps {
   metric: DashboardMetric;
   rows: TableRowData[];
   compact?: boolean;
   maxRows?: number; // Maximum number of rows to display (for previews)
+  onExpand?: () => void; // Callback when expand button is clicked
 }
 
 export const TableMetricDisplay: React.FC<TableMetricDisplayProps> = ({
   metric,
   rows,
   compact = false,
-  maxRows
+  maxRows,
+  onExpand
 }) => {
   // Get column configurations
   const columns = metric.tableConfig?.columns || [];
@@ -49,7 +52,7 @@ export const TableMetricDisplay: React.FC<TableMetricDisplayProps> = ({
   const hasMoreRows = previewLimit && rowsToDisplay.length > previewLimit && !isEmpty;
 
   return (
-    <div className="w-full">
+    <div className="w-full relative group">
       {/* Scrollable container for mobile - responsive horizontal scroll */}
       <div className="overflow-x-auto -mx-2 sm:mx-0 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
         <div className="inline-block min-w-full align-middle">
@@ -136,16 +139,34 @@ export const TableMetricDisplay: React.FC<TableMetricDisplayProps> = ({
           </div>
         </div>
       </div>
-
-      {/* Show more rows indicator */}
-      {hasMoreRows && (
-        <div className="mt-2 text-center text-xs text-gray-500 bg-gray-50 py-2 rounded border border-gray-200">
-          {rows.length - (previewLimit || 0)} ligne{rows.length - (previewLimit || 0) > 1 ? 's' : ''} supplémentaire{rows.length - (previewLimit || 0) > 1 ? 's' : ''}
+      
+      {/* Floating expand button - shows on hover (desktop) or always (mobile) */}
+      {hasMoreRows && onExpand && (
+        <div className="absolute bottom-4 right-4 sm:bottom-6 sm:right-6 z-10">
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={(e) => {
+              e.stopPropagation();
+              onExpand();
+            }}
+            className="p-1 h-8 w-8 sm:h-9 sm:w-9 bg-white/90 hover:bg-white shadow-lg border border-gray-200 hover:border-gray-300 transition-all duration-200 sm:opacity-0 sm:group-hover:opacity-100 opacity-100"
+            title="Voir tout le tableau"
+          >
+            <Maximize2 className="h-4 w-4 sm:h-5 sm:w-5" />
+          </Button>
         </div>
       )}
 
       {/* Row count info */}
-      {!compact && !isEmpty && rows.length > 0 && (
+      {hasMoreRows && (
+        <div className="mt-2 text-xs text-gray-500 text-center">
+          {rows.length - (previewLimit || 0)} ligne{rows.length - (previewLimit || 0) > 1 ? 's' : ''} supplémentaire{rows.length - (previewLimit || 0) > 1 ? 's' : ''}
+        </div>
+      )}
+
+      {/* Row count info (when no expand button) */}
+      {!hasMoreRows && !compact && !isEmpty && rows.length > 0 && (
         <div className="mt-2 text-xs text-gray-500 text-center">
           {rows.length} ligne{rows.length > 1 ? 's' : ''} au total
         </div>

@@ -1,15 +1,17 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { DashboardMetric, Form, FormField, TableColumnConfig } from '../types';
+import { DashboardMetric, Form, FormField, TableColumnConfig, TableRowSource, AggregateColumn, DerivedColumn, LabelColumn, List } from '../types';
 import { Button } from './Button';
 import { Input } from './Input';
 import { Textarea } from './Textarea';
 import { Select } from './Select';
 import { Card } from './Card';
-import { Plus, Trash2, AlertCircle, FileText, Hash, Type, Mail, Calendar, CheckSquare, Upload, AlertTriangle, ArrowLeft, Calculator, Table, ArrowUp, ArrowDown } from 'lucide-react';
+import { Plus, Trash2, AlertCircle, FileText, Hash, Type, Mail, Calendar, CheckSquare, Upload, AlertTriangle, ArrowLeft, Calculator, Table, ArrowUp, ArrowDown, Package, Sparkles } from 'lucide-react';
 import { GraphPreview } from './charts/GraphPreview';
 import { getValidYAxisFields, validateYAxisField } from '@ubora/shared/utils/GraphFieldValidator';
 import { MetricFormulaInput } from './MetricFormulaInput';
 import { MetricFormulaParser } from '../utils/MetricFormulaParser';
+import { listsService } from '@ubora/shared/services';
+import { useApp } from '@ubora/shared/contexts/AppContext';
 
 interface DashboardBuilderProps {
   onSave: (dashboard: {
@@ -40,12 +42,34 @@ export const DashboardBuilder: React.FC<DashboardBuilderProps> = ({
   isLoading = false,
   initialDashboard
 }) => {
+  const { user, activeUniversId } = useApp();
   const [name, setName] = useState(initialDashboard?.name || '');
   const [description, setDescription] = useState(initialDashboard?.description || '');
   const [metrics, setMetrics] = useState<Omit<DashboardMetric, 'id' | 'createdAt' | 'createdBy' | 'agencyId'>[]>(initialDashboard?.metrics || []);
   const [errors, setErrors] = useState<string[]>([]);
   const errorRef = useRef<HTMLDivElement>(null);
   const [showGraphPreviews, setShowGraphPreviews] = useState<Record<number, boolean>>({});
+  const [lists, setLists] = useState<List[]>([]);
+  const [isLoadingLists, setIsLoadingLists] = useState(false);
+  
+  // Load lists for table metrics
+  useEffect(() => {
+    const loadLists = async () => {
+      if (!user?.id || !user?.agencyId) return;
+      
+      setIsLoadingLists(true);
+      try {
+        const userLists = await listsService.getByUser(user.id, user.agencyId, user.role, activeUniversId || null);
+        setLists(userLists);
+      } catch (error) {
+        console.error('Error loading lists:', error);
+      } finally {
+        setIsLoadingLists(false);
+      }
+    };
+    
+    loadLists();
+  }, [user, activeUniversId]);
   
   // Auto-scroll to errors when they appear (mobile-responsive)
   useEffect(() => {
@@ -127,6 +151,126 @@ export const DashboardBuilder: React.FC<DashboardBuilderProps> = ({
 
     setMetrics([...metrics, newMetric]);
     setErrors([]);
+  };
+
+  // Stock management table preset
+  const applyStockPreset = (metricIndex: number) => {
+    // Find Products list (or first list if Products doesn't exist)
+    const productsList = lists.find(l => l.name.toLowerCase().includes('produit')) || lists[0];
+    if (!productsList) {
+      alert('Veuillez d\'abord créer une liste de produits');
+      return;
+    }
+
+    // Find key and label fields (typically 'id' and 'name')
+    const keyField = productsList.columns.find(c => c.id === 'id' || c.name.toLowerCase().includes('id')) || productsList.columns[0];
+    const labelField = productsList.columns.find(c => c.name.toLowerCase().includes('nom') || c.name.toLowerCase().includes('name')) || productsList.columns.find(c => c.id !== keyField.id) || productsList.columns[0];
+
+    // Find Physical Stock and Movement forms
+    const physicalStockForm = forms.find(f => f.title.toLowerCase().includes('stock') && f.title.toLowerCase().includes('physique')) || forms.find(f => f.title.toLowerCase().includes('stock'));
+    const movementForm = forms.find(f => f.title.toLowerCase().includes('mouvement')) || forms.find(f => f.title.toLowerCase().includes('entrée') || f.title.toLowerCase().includes('sortie'));
+
+    if (!physicalStockForm || !movementForm) {
+      alert('Veuillez d\'abord créer les formulaires "Stock Physique" et "Mouvement"');
+      return;
+    }
+
+    // Find product select field in forms
+    const productFieldPhysical = physicalStockForm.fields.find(f => f.type === 'select' && f.listId === productsList.id) || physicalStockForm.fields.find(f => f.type === 'select');
+    const productFieldMovement = movementForm.fields.find(f => f.type === 'select' && f.listId === productsList.id) || movementForm.fields.find(f => f.type === 'select');
+    const qtyFieldPhysical = physicalStockForm.fields.find(f => f.type === 'number' && (f.label.toLowerCase().includes('quantité') || f.label.toLowerCase().includes('qty'))) || physicalStockForm.fields.find(f => f.type === 'number');
+    const qtyFieldMovement = movementForm.fields.find(f => f.type === 'number' && (f.label.toLowerCase().includes('quantité') || f.label.toLowerCase().includes('qty'))) || movementForm.fields.find(f => f.type === 'number');
+    const movementTypeField = movementForm.fields.find(f => f.type === 'select' && (f.label.toLowerCase().includes('type') || f.label.toLowerCase().includes('mouvement')));
+
+    if (!productFieldPhysical || !productFieldMovement || !qtyFieldPhysical || !qtyFieldMovement) {
+      alert('Les formulaires doivent contenir des champs de sélection de produit et des champs numériques de quantité');
+      return;
+    }
+
+    // Create stock preset columns
+    const columns: TableColumnConfig[] = [
+      {
+        id: 'col_name',
+        type: 'label',
+        name: 'Produit',
+        source: 'list',
+        labelFieldId: labelField.id
+      } as LabelColumn,
+      {
+        id: 'col_initial',
+        type: 'aggregate',
+        name: 'Stock initial',
+        formId: physicalStockForm.id,
+        rowKeyFieldId: productFieldPhysical.id,
+        valueFieldId: qtyFieldPhysical.id,
+        agg: 'latest'
+      } as AggregateColumn,
+      {
+        id: 'col_in',
+        type: 'aggregate',
+        name: 'Entrées',
+        formId: movementForm.id,
+        rowKeyFieldId: productFieldMovement.id,
+        valueFieldId: qtyFieldMovement.id,
+        agg: 'sum',
+        filters: movementTypeField ? [{
+          fieldId: movementTypeField.id,
+          op: 'eq',
+          value: 'in'
+        }] : undefined
+      } as AggregateColumn,
+      {
+        id: 'col_out',
+        type: 'aggregate',
+        name: 'Sorties',
+        formId: movementForm.id,
+        rowKeyFieldId: productFieldMovement.id,
+        valueFieldId: qtyFieldMovement.id,
+        agg: 'sum',
+        filters: movementTypeField ? [{
+          fieldId: movementTypeField.id,
+          op: 'eq',
+          value: 'out'
+        }] : undefined
+      } as AggregateColumn,
+      {
+        id: 'col_end',
+        type: 'derived',
+        name: 'Stock théorique',
+        formula: 'col_initial + col_in - col_out'
+      } as DerivedColumn,
+      {
+        id: 'col_physical',
+        type: 'aggregate',
+        name: 'Physique',
+        formId: physicalStockForm.id,
+        rowKeyFieldId: productFieldPhysical.id,
+        valueFieldId: qtyFieldPhysical.id,
+        agg: 'latest'
+      } as AggregateColumn,
+      {
+        id: 'col_variance',
+        type: 'derived',
+        name: 'Écart',
+        formula: 'col_physical - col_end'
+      } as DerivedColumn
+    ];
+
+    updateMetric(metricIndex, {
+      name: 'Gestion des stocks',
+      description: 'Tableau de gestion des stocks avec calculs automatiques',
+      metricType: 'table',
+      tableConfig: {
+        rowSource: {
+          type: 'list',
+          listId: productsList.id,
+          keyFieldId: keyField.id,
+          labelFieldId: labelField.id
+        },
+        columns,
+        emptyRows: 'show'
+      }
+    });
   };
 
   const removeMetric = (index: number) => {
@@ -389,6 +533,7 @@ export const DashboardBuilder: React.FC<DashboardBuilderProps> = ({
                                     } : undefined,
                                     // Initialize tableConfig when switching to table
                                     tableConfig: metricType === 'table' ? (metric.tableConfig || {
+                                      rowSource: { type: 'entries', formId: '' },
                                       columns: []
                                     }) : undefined,
                                     // Reset form/field when switching to table (not needed for table)
@@ -686,6 +831,20 @@ export const DashboardBuilder: React.FC<DashboardBuilderProps> = ({
                               <Table className="h-5 w-5 text-purple-600" />
                               <h5 className="font-medium text-purple-900">Configuration du tableau</h5>
                             </div>
+                            <div className="flex items-center space-x-2">
+                              {/* Stock preset button */}
+                              {!metric.tableConfig?.rowSource || (metric.tableConfig.rowSource.type === 'list' && lists.length > 0) ? (
+                                <Button
+                                  type="button"
+                                  variant="secondary"
+                                  size="sm"
+                                  onClick={() => applyStockPreset(index)}
+                                  className="flex items-center space-x-1"
+                                >
+                                  <Package className="h-4 w-4" />
+                                  <span>Preset Stocks</span>
+                                </Button>
+                              ) : null}
                             <Button
                               type="button"
                               variant="secondary"
@@ -693,14 +852,18 @@ export const DashboardBuilder: React.FC<DashboardBuilderProps> = ({
                               onClick={() => {
                                 const newColumn: TableColumnConfig = {
                                   id: `col_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                                    type: 'aggregate',
                                   name: '',
-                                  source: 'field',
-                                  formId: metric.formId || '',
-                                  fieldId: ''
-                                };
+                                    formId: '',
+                                    rowKeyFieldId: '',
+                                    valueFieldId: '',
+                                    agg: 'sum'
+                                  } as AggregateColumn;
                                 const currentColumns = metric.tableConfig?.columns || [];
+                                  const currentRowSource = metric.tableConfig?.rowSource || { type: 'entries', formId: '' };
                                 updateMetric(index, {
                                   tableConfig: {
+                                      rowSource: currentRowSource,
                                     columns: [...currentColumns, newColumn]
                                   }
                                 });
@@ -710,6 +873,156 @@ export const DashboardBuilder: React.FC<DashboardBuilderProps> = ({
                               <Plus className="h-4 w-4" />
                               <span>Ajouter une colonne</span>
                             </Button>
+                            </div>
+                          </div>
+
+                          {/* Row source selection */}
+                          <div className="p-3 bg-white rounded-lg border border-purple-200">
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                              Source des lignes *
+                            </label>
+                            <div className="flex space-x-4">
+                              <label className="flex items-center space-x-2 cursor-pointer">
+                                <input
+                                  type="radio"
+                                  name={`rowSource-${index}`}
+                                  value="list"
+                                  checked={metric.tableConfig?.rowSource?.type === 'list'}
+                                  onChange={() => {
+                                    const firstList = lists[0];
+                                    if (!firstList) {
+                                      alert('Veuillez d\'abord créer une liste');
+                                      return;
+                                    }
+                                    const keyField = firstList.columns[0];
+                                    const labelField = firstList.columns.find(c => c.id !== keyField.id) || firstList.columns[0];
+                                    updateMetric(index, {
+                                      tableConfig: {
+                                        ...metric.tableConfig,
+                                        rowSource: {
+                                          type: 'list',
+                                          listId: firstList.id,
+                                          keyFieldId: keyField.id,
+                                          labelFieldId: labelField.id
+                                        },
+                                        columns: metric.tableConfig?.columns || []
+                                      }
+                                    });
+                                  }}
+                                  className="text-purple-600 focus:ring-purple-500"
+                                />
+                                <span className="text-sm text-gray-700">Liste (ex: Produits)</span>
+                              </label>
+                              <label className="flex items-center space-x-2 cursor-pointer">
+                                <input
+                                  type="radio"
+                                  name={`rowSource-${index}`}
+                                  value="entries"
+                                  checked={metric.tableConfig?.rowSource?.type === 'entries' || !metric.tableConfig?.rowSource}
+                                  onChange={() => {
+                                    updateMetric(index, {
+                                      tableConfig: {
+                                        ...metric.tableConfig,
+                                        rowSource: {
+                                          type: 'entries',
+                                          formId: metric.formId || ''
+                                        },
+                                        columns: metric.tableConfig?.columns || []
+                                      }
+                                    });
+                                  }}
+                                  className="text-purple-600 focus:ring-purple-500"
+                                />
+                                <span className="text-sm text-gray-700">Entrées de formulaire</span>
+                              </label>
+                            </div>
+
+                            {/* List field selection when rowSource=list */}
+                            {metric.tableConfig?.rowSource?.type === 'list' && (
+                              <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                <Select
+                                  label="Liste *"
+                                  value={(metric.tableConfig.rowSource as Extract<TableRowSource, { type: 'list' }>).listId || ''}
+                                  onChange={(e) => {
+                                    const selectedList = lists.find(l => l.id === e.target.value);
+                                    if (!selectedList) return;
+                                    const keyField = selectedList.columns[0];
+                                    const labelField = selectedList.columns.find(c => c.id !== keyField.id) || selectedList.columns[0];
+                                    updateMetric(index, {
+                                      tableConfig: {
+                                        ...metric.tableConfig,
+                                        rowSource: {
+                                          type: 'list',
+                                          listId: selectedList.id,
+                                          keyFieldId: keyField.id,
+                                          labelFieldId: labelField.id
+                                        }
+                                      }
+                                    });
+                                  }}
+                                  options={[
+                                    { value: '', label: 'Choisir une liste...' },
+                                    ...lists.map(list => ({
+                                      value: list.id,
+                                      label: list.name
+                                    }))
+                                  ]}
+                                />
+                                {(() => {
+                                  const rowSource = metric.tableConfig?.rowSource as Extract<TableRowSource, { type: 'list' }> | undefined;
+                                  const selectedList = lists.find(l => l.id === rowSource?.listId);
+                                  if (!selectedList) return null;
+                                  return (
+                                    <>
+                                      <Select
+                                        label="Champ clé *"
+                                        value={rowSource?.keyFieldId || ''}
+                                        onChange={(e) => {
+                                          updateMetric(index, {
+                                            tableConfig: {
+                                              ...metric.tableConfig,
+                                              rowSource: {
+                                                ...rowSource!,
+                                                keyFieldId: e.target.value
+                                              }
+                                            }
+                                          });
+                                        }}
+                                        options={[
+                                          { value: '', label: 'Choisir un champ...' },
+                                          ...selectedList.columns.map(col => ({
+                                            value: col.id,
+                                            label: col.name
+                                          }))
+                                        ]}
+                                      />
+                                      <Select
+                                        label="Champ label *"
+                                        value={rowSource?.labelFieldId || ''}
+                                        onChange={(e) => {
+                                          updateMetric(index, {
+                                            tableConfig: {
+                                              ...metric.tableConfig,
+                                              rowSource: {
+                                                ...rowSource!,
+                                                labelFieldId: e.target.value
+                                              }
+                                            }
+                                          });
+                                        }}
+                                        options={[
+                                          { value: '', label: 'Choisir un champ...' },
+                                          ...selectedList.columns.map(col => ({
+                                            value: col.id,
+                                            label: col.name
+                                          }))
+                                        ]}
+                                      />
+                                    </>
+                                  );
+                                })()}
+                              </div>
+                            )}
                           </div>
 
                           {(!metric.tableConfig?.columns || metric.tableConfig.columns.length === 0) ? (
@@ -801,52 +1114,114 @@ export const DashboardBuilder: React.FC<DashboardBuilderProps> = ({
                                           tableConfig: { columns }
                                         });
                                       }}
-                                      placeholder="Ex: Nom du client"
+                                      placeholder="Ex: Produit, Stock initial, etc."
                                       required
                                     />
 
-                                    {/* Source type */}
+                                    {/* Column type selection */}
                                     <div>
                                       <label className="block text-sm font-medium text-gray-700 mb-1">
-                                        Source de données *
+                                        Type de colonne *
                                       </label>
                                       <Select
-                                        value={column.source}
+                                        value={(column as any).type || (column as any).source || 'aggregate'}
                                         onChange={(e) => {
-                                          const source = e.target.value as 'field' | 'metric';
+                                          const columnType = e.target.value;
                                           const columns = [...(metric.tableConfig?.columns || [])];
+                                          
+                                          // Create new column based on type
+                                          if (columnType === 'label') {
+                                            const rowSource = metric.tableConfig?.rowSource as Extract<TableRowSource, { type: 'list' }> | undefined;
+                                            const selectedList = lists.find(l => l.id === rowSource?.listId);
+                                            const labelField = selectedList?.columns[0];
                                           columns[colIndex] = {
-                                            ...columns[colIndex],
-                                            source,
-                                            // Reset source-specific fields when changing source
-                                            formId: source === 'field' ? (columns[colIndex].formId || metric.formId || '') : undefined,
-                                            fieldId: source === 'field' ? (columns[colIndex].fieldId || '') : undefined,
-                                            metricId: source === 'metric' ? undefined : undefined
-                                          };
+                                              id: column.id,
+                                              type: 'label',
+                                              name: column.name,
+                                              source: 'list',
+                                              labelFieldId: labelField?.id || ''
+                                            } as LabelColumn;
+                                          } else if (columnType === 'aggregate') {
+                                            columns[colIndex] = {
+                                              id: column.id,
+                                              type: 'aggregate',
+                                              name: column.name,
+                                              formId: (column as any).formId || '',
+                                              rowKeyFieldId: (column as any).rowKeyFieldId || '',
+                                              valueFieldId: (column as any).valueFieldId || '',
+                                              agg: (column as any).agg || 'sum'
+                                            } as AggregateColumn;
+                                          } else if (columnType === 'derived') {
+                                            columns[colIndex] = {
+                                              id: column.id,
+                                              type: 'derived',
+                                              name: column.name,
+                                              formula: (column as any).formula || ''
+                                            } as DerivedColumn;
+                                          }
+                                          
                                           updateMetric(index, {
                                             tableConfig: { columns }
                                           });
                                         }}
                                         options={[
-                                          { value: 'field', label: 'Champ de formulaire' },
-                                          { value: 'metric', label: 'Autre métrique' }
+                                          { value: 'label', label: 'Label (depuis liste)' },
+                                          { value: 'aggregate', label: 'Agrégat (depuis formulaire)' },
+                                          { value: 'derived', label: 'Calculé (formule)' }
                                         ]}
                                       />
                                     </div>
 
-                                    {/* Field source configuration */}
-                                    {column.source === 'field' && (
+                                    {/* Label column configuration */}
+                                    {(column as any).type === 'label' && (
+                                      <div>
+                                        <Select
+                                          label="Champ de la liste à afficher *"
+                                          value={(column as LabelColumn).labelFieldId || ''}
+                                          onChange={(e) => {
+                                            const columns = [...(metric.tableConfig?.columns || [])];
+                                            columns[colIndex] = {
+                                              ...columns[colIndex],
+                                              labelFieldId: e.target.value
+                                            } as LabelColumn;
+                                            updateMetric(index, {
+                                              tableConfig: { columns }
+                                            });
+                                          }}
+                                          options={(() => {
+                                            const rowSource = metric.tableConfig?.rowSource as Extract<TableRowSource, { type: 'list' }> | undefined;
+                                            const selectedList = lists.find(l => l.id === rowSource?.listId);
+                                            if (!selectedList) return [{ value: '', label: 'Aucune liste sélectionnée' }];
+                                            return [
+                                              { value: '', label: 'Choisir un champ...' },
+                                              ...selectedList.columns.map(col => ({
+                                                value: col.id,
+                                                label: col.name
+                                              }))
+                                            ];
+                                          })()}
+                                        />
+                                        <p className="mt-1 text-xs text-purple-600">
+                                          💡 Affiche un champ de la liste (ex: nom du produit)
+                                        </p>
+                                      </div>
+                                    )}
+
+                                    {/* Aggregate column configuration */}
+                                    {(column as any).type === 'aggregate' && (
+                                      <div className="space-y-4">
                                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                         <Select
                                           label="Formulaire *"
-                                          value={column.formId || ''}
+                                            value={(column as AggregateColumn).formId || ''}
                                           onChange={(e) => {
                                             const columns = [...(metric.tableConfig?.columns || [])];
                                             columns[colIndex] = {
                                               ...columns[colIndex],
                                               formId: e.target.value,
-                                              fieldId: '' // Reset field when form changes
-                                            };
+                                                rowKeyFieldId: '',
+                                                valueFieldId: ''
+                                              } as AggregateColumn;
                                             updateMetric(index, {
                                               tableConfig: { columns }
                                             });
@@ -859,71 +1234,131 @@ export const DashboardBuilder: React.FC<DashboardBuilderProps> = ({
                                             }))
                                           ]}
                                         />
-
-                                        {column.formId && (() => {
-                                          const columnForm = forms.find(f => f.id === column.formId);
-                                          return columnForm ? (
+                                          <Select
+                                            label="Fonction d'agrégation *"
+                                            value={(column as AggregateColumn).agg || 'sum'}
+                                            onChange={(e) => {
+                                              const columns = [...(metric.tableConfig?.columns || [])];
+                                              columns[colIndex] = {
+                                                ...columns[colIndex],
+                                                agg: e.target.value as any
+                                              } as AggregateColumn;
+                                              updateMetric(index, {
+                                                tableConfig: { columns }
+                                              });
+                                            }}
+                                            options={[
+                                              { value: 'sum', label: 'Somme' },
+                                              { value: 'average', label: 'Moyenne' },
+                                              { value: 'min', label: 'Minimum' },
+                                              { value: 'max', label: 'Maximum' },
+                                              { value: 'count', label: 'Nombre' },
+                                              { value: 'latest', label: 'Dernière valeur' },
+                                              { value: 'oldest', label: 'Première valeur' }
+                                            ]}
+                                          />
+                                        </div>
+                                        {(() => {
+                                          const aggCol = column as AggregateColumn;
+                                          const columnForm = forms.find(f => f.id === aggCol.formId);
+                                          if (!columnForm) return null;
+                                          
+                                          const rowSource = metric.tableConfig?.rowSource as Extract<TableRowSource, { type: 'list' }> | undefined;
+                                          const selectedList = lists.find(l => l.id === rowSource?.listId);
+                                          
+                                          return (
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                             <Select
-                                              label="Champ du formulaire *"
-                                              value={column.fieldId || ''}
+                                                label="Champ de référence (produit) *"
+                                                value={aggCol.rowKeyFieldId || ''}
                                               onChange={(e) => {
                                                 const columns = [...(metric.tableConfig?.columns || [])];
                                                 columns[colIndex] = {
                                                   ...columns[colIndex],
-                                                  fieldId: e.target.value
-                                                };
+                                                    rowKeyFieldId: e.target.value
+                                                  } as AggregateColumn;
                                                 updateMetric(index, {
                                                   tableConfig: { columns }
                                                 });
                                               }}
                                               options={[
                                                 { value: '', label: 'Choisir un champ...' },
-                                                ...columnForm.fields.map((field: FormField) => ({
+                                                  ...columnForm.fields
+                                                    .filter(f => f.type === 'select' && (selectedList ? f.listId === selectedList.id : true))
+                                                    .map((field: FormField) => ({
                                                   value: field.id,
                                                   label: `${field.label} (${field.type})`
                                                 }))
                                               ]}
                                             />
-                                          ) : null;
+                                              <Select
+                                                label="Champ de valeur (quantité) *"
+                                                value={aggCol.valueFieldId || ''}
+                                                onChange={(e) => {
+                                                  const columns = [...(metric.tableConfig?.columns || [])];
+                                                  columns[colIndex] = {
+                                                    ...columns[colIndex],
+                                                    valueFieldId: e.target.value
+                                                  } as AggregateColumn;
+                                                  updateMetric(index, {
+                                                    tableConfig: { columns }
+                                                  });
+                                                }}
+                                                options={[
+                                                  { value: '', label: 'Choisir un champ...' },
+                                                  ...columnForm.fields
+                                                    .filter(f => f.type === 'number' || f.type === 'calculated')
+                                                    .map((field: FormField) => ({
+                                                      value: field.id,
+                                                      label: `${field.label} (${field.type})`
+                                                    }))
+                                                ]}
+                                              />
+                                            </div>
+                                          );
                                         })()}
+                                        <p className="text-xs text-purple-600">
+                                          💡 Agrège les valeurs du formulaire par produit (ex: somme des quantités)
+                                        </p>
                                       </div>
                                     )}
 
-                                    {/* Metric source configuration */}
-                                    {column.source === 'metric' && (
+                                    {/* Derived column configuration */}
+                                    {(column as any).type === 'derived' && (
                                       <div>
                                         <label className="block text-sm font-medium text-gray-700 mb-1">
-                                          Métrique *
+                                          Formule *
                                         </label>
-                                        <Select
-                                          value={column.metricId || ''}
+                                        <Input
+                                          value={(column as DerivedColumn).formula || ''}
                                           onChange={(e) => {
                                             const columns = [...(metric.tableConfig?.columns || [])];
                                             columns[colIndex] = {
                                               ...columns[colIndex],
-                                              metricId: e.target.value
-                                            };
+                                              formula: e.target.value
+                                            } as DerivedColumn;
                                             updateMetric(index, {
                                               tableConfig: { columns }
                                             });
                                           }}
-                                          options={[
-                                            { value: '', label: 'Choisir une métrique...' },
-                                            ...metrics
-                                              .filter((m, mIndex) => 
-                                                mIndex !== index && // Exclude current metric
-                                                m.metricType !== 'table' && // Exclude table metrics
-                                                m.name && m.name.trim() // Only include metrics with names
-                                              )
-                                              .map((m, mIndex) => ({
-                                                value: m.id || `temp_${mIndex}`,
-                                                label: m.name || `Métrique ${mIndex + 1}`
-                                              }))
-                                          ]}
+                                          placeholder="Ex: col_initial + col_in - col_out"
+                                          required
                                         />
                                         <p className="mt-1 text-xs text-purple-600">
-                                          💡 Seules les métriques de type valeur ou graphique sont disponibles
+                                          💡 Utilisez les IDs des colonnes (ex: col_initial, col_in, col_out) avec +, -, *, /
                                         </p>
+                                        <div className="mt-2 p-2 bg-purple-50 rounded text-xs">
+                                          <p className="font-medium mb-1">Colonnes disponibles:</p>
+                                          <div className="flex flex-wrap gap-1">
+                                            {metric.tableConfig?.columns
+                                              .filter((c, i) => i !== colIndex && (c as any).id)
+                                              .map((c, i) => (
+                                                <code key={i} className="px-1 py-0.5 bg-white rounded text-purple-700">
+                                                  {(c as any).id}
+                                                </code>
+                                              ))}
+                                          </div>
+                                        </div>
                                       </div>
                                     )}
                                   </div>
