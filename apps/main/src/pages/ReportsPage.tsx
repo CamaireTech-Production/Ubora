@@ -5,6 +5,7 @@ import { useApp } from '@ubora/shared/contexts/AppContext';
 import { Layout } from '../components/Layout';
 import { Report, ReportDefinition } from '../types';
 import { reportsService } from '@ubora/shared/services';
+import { universService } from '@ubora/shared/services/universService';
 import { useToast } from '@ubora/shared/hooks/useToast';
 import { Toast } from '../components/Toast';
 import { Button } from '../components/Button';
@@ -46,13 +47,61 @@ export const ReportsPage: React.FC = () => {
 
     setIsLoading(true);
     try {
-      const userReports = await reportsService.getByUser(
-        user.id,
-        user.agencyId,
-        user.role,
-        activeUniversId || null
+      const allReports: Report[] = [];
+
+      // 1. Load reports from Firestore (reports collection)
+      try {
+        const userReports = await reportsService.getByUser(
+          user.id,
+          user.agencyId,
+          user.role,
+          activeUniversId || null
+        );
+        allReports.push(...userReports);
+      } catch (error) {
+        console.error('Erreur lors du chargement des rapports Firestore:', error);
+      }
+
+      // 2. Load reports from active Univers definitions (like UniversViewPage does)
+      if (activeUniversId) {
+        try {
+          const univers = await universService.getById(activeUniversId);
+          if (univers && univers.definitions.reports && univers.definitions.reports.length > 0) {
+            // Convert ReportDefinition[] to Report[]
+            const universReports: Report[] = univers.definitions.reports.map((reportDef: ReportDefinition): Report => ({
+              id: reportDef.id,
+              name: reportDef.name,
+              description: reportDef.description,
+              templateType: reportDef.templateType,
+              templateContent: reportDef.templateContent,
+              templateFileUrl: reportDef.templateFileUrl,
+              templateFileStoragePath: reportDef.templateFileStoragePath,
+              templateFileName: reportDef.templateFileName,
+              placeholders: reportDef.placeholders || [],
+              mappings: reportDef.mappings || [],
+              createdBy: user.id,
+              createdByRole: user.role === 'employe' ? 'employe' : 'directeur',
+              createdByEmployeeId: user.role === 'employe' ? user.id : undefined,
+              agencyId: user.agencyId,
+              universId: activeUniversId,
+              universInstanceId: null,
+              fromUnivers: true,
+              createdAt: new Date(),
+              updatedAt: new Date()
+            }));
+            allReports.push(...universReports);
+          }
+        } catch (error) {
+          console.error('Erreur lors du chargement des rapports du Univers:', error);
+        }
+      }
+
+      // Remove duplicates based on ID
+      const uniqueReports = Array.from(
+        new Map(allReports.map(report => [report.id, report])).values()
       );
-      setReports(userReports);
+
+      setReports(uniqueReports);
     } catch (error) {
       console.error('Erreur lors du chargement des rapports:', error);
       const errorMessage = error instanceof Error 
