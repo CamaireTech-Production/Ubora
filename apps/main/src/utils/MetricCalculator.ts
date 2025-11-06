@@ -1,9 +1,13 @@
 import { FormEntry, DashboardMetric, Dashboard } from '../types';
 
 export interface MetricResult {
-  value: number | string;
+  value: number | string | TableRowData[];
   displayValue: string;
   description: string;
+}
+
+export interface TableRowData {
+  [columnId: string]: any; // Key is column ID, value is the cell data
 }
 
 export class MetricCalculator {
@@ -16,6 +20,11 @@ export class MetricCalculator {
     formEntries: FormEntry[],
     dashboard?: Dashboard
   ): MetricResult {
+    // Check if this is a table metric
+    if (metric.metricType === 'table') {
+      return this.calculateTableMetric(metric, formEntries, dashboard);
+    }
+
     // Check if this is a computed metric
     if (metric.sourceType === 'computed') {
       return this.calculateComputedMetric(metric, formEntries, dashboard);
@@ -359,6 +368,110 @@ export class MetricCalculator {
       return num.toString();
     }
     return num.toFixed(2);
+  }
+
+  /**
+   * Calculate table metric data from form entries
+   * Returns an array of rows, where each row contains values for each column
+   */
+  static calculateTableMetric(
+    metric: DashboardMetric,
+    formEntries: FormEntry[],
+    dashboard?: Dashboard
+  ): MetricResult {
+    // Validate table configuration
+    if (!metric.tableConfig || !metric.tableConfig.columns || metric.tableConfig.columns.length === 0) {
+      return {
+        value: [],
+        displayValue: '0',
+        description: 'Configuration de tableau invalide : aucune colonne configurée'
+      };
+    }
+
+    try {
+      const columns = metric.tableConfig.columns;
+      const rows: TableRowData[] = [];
+
+      // Get all unique form entries that should be used for the table
+      // For table metrics, we need to collect entries from all forms referenced by columns
+      const formIds = new Set<string>();
+      columns.forEach(column => {
+        if (column.source === 'field' && column.formId) {
+          formIds.add(column.formId);
+        }
+      });
+
+      // Get all entries from the forms used in the table
+      const relevantEntries = formEntries.filter(entry => 
+        formIds.size === 0 || formIds.has(entry.formId)
+      );
+
+      if (relevantEntries.length === 0) {
+        return {
+          value: [],
+          displayValue: '0',
+          description: 'Aucune donnée disponible'
+        };
+      }
+
+      // Pre-calculate metrics for metric-based columns (they have the same value for all rows)
+      const metricValues: Record<string, string> = {};
+      if (dashboard) {
+        for (const column of columns) {
+          if (column.source === 'metric' && column.metricId) {
+            const depMetric = dashboard.metrics.find(m => m.id === column.metricId);
+            if (depMetric) {
+              const metricResult = this.calculateMetric(depMetric, formEntries, dashboard);
+              metricValues[column.id] = metricResult.displayValue || String(metricResult.value) || '';
+            } else {
+              metricValues[column.id] = '';
+            }
+          }
+        }
+      }
+
+      // For each form entry, create a row
+      for (const entry of relevantEntries) {
+        const row: TableRowData = {};
+
+        // Process each column
+        for (const column of columns) {
+          if (column.source === 'field') {
+            // Extract value from form entry for field-based columns
+            if (column.formId && column.fieldId) {
+              // Only extract if this entry matches the column's form
+              if (entry.formId === column.formId) {
+                const fieldValue = entry.answers[column.fieldId];
+                row[column.id] = fieldValue !== null && fieldValue !== undefined ? fieldValue : '';
+              } else {
+                // If entry doesn't match column's form, leave empty
+                row[column.id] = '';
+              }
+            } else {
+              row[column.id] = '';
+            }
+          } else if (column.source === 'metric') {
+            // Use pre-calculated metric value (same for all rows)
+            row[column.id] = metricValues[column.id] || '';
+          }
+        }
+
+        rows.push(row);
+      }
+
+      return {
+        value: rows,
+        displayValue: rows.length.toString(),
+        description: `${rows.length} ligne${rows.length > 1 ? 's' : ''} dans le tableau`
+      };
+    } catch (error) {
+      console.error('Error calculating table metric:', error);
+      return {
+        value: [],
+        displayValue: '0',
+        description: 'Erreur lors du calcul du tableau'
+      };
+    }
   }
 
   /**
