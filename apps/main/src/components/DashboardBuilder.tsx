@@ -1,11 +1,11 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { DashboardMetric, Form, FormField } from '../types';
+import { DashboardMetric, Form, FormField, TableColumnConfig } from '../types';
 import { Button } from './Button';
 import { Input } from './Input';
 import { Textarea } from './Textarea';
 import { Select } from './Select';
 import { Card } from './Card';
-import { Plus, Trash2, AlertCircle, FileText, Hash, Type, Mail, Calendar, CheckSquare, Upload, AlertTriangle, ArrowLeft, Calculator } from 'lucide-react';
+import { Plus, Trash2, AlertCircle, FileText, Hash, Type, Mail, Calendar, CheckSquare, Upload, AlertTriangle, ArrowLeft, Calculator, Table, ArrowUp, ArrowDown } from 'lucide-react';
 import { GraphPreview } from './charts/GraphPreview';
 import { getValidYAxisFields, validateYAxisField } from '@ubora/shared/utils/GraphFieldValidator';
 import { MetricFormulaInput } from './MetricFormulaInput';
@@ -120,8 +120,9 @@ export const DashboardBuilder: React.FC<DashboardBuilderProps> = ({
       fieldId: '',
       fieldType: 'text',
       calculationType: 'count',
-      metricType: 'value', // Always 'value' for computed metrics
-      graphConfig: undefined
+      metricType: 'value', // Default to 'value'
+      graphConfig: undefined,
+      tableConfig: undefined
     };
 
     setMetrics([...metrics, newMetric]);
@@ -165,7 +166,7 @@ export const DashboardBuilder: React.FC<DashboardBuilderProps> = ({
           newErrors.push(`Le champ de la métrique ${index + 1} est requis`);
         }
       } else if (sourceType === 'computed') {
-        // Computed metrics must have metricType: 'value' (no graphs)
+        // Computed metrics must have metricType: 'value' (no graphs, no tables)
         if (metric.metricType !== 'value') {
           newErrors.push(`Les métriques calculées doivent être de type "Valeur numérique" (métrique ${index + 1})`);
         }
@@ -189,6 +190,36 @@ export const DashboardBuilder: React.FC<DashboardBuilderProps> = ({
           if (hasCircular) {
             newErrors.push(`La métrique ${index + 1} a une dépendance circulaire`);
           }
+        }
+      }
+
+      // Table metrics validation
+      if (metric.metricType === 'table') {
+        // Table metrics require at least one column
+        if (!metric.tableConfig || !metric.tableConfig.columns || metric.tableConfig.columns.length === 0) {
+          newErrors.push(`La métrique tableau ${index + 1} doit avoir au moins une colonne`);
+        } else {
+          // Validate each column
+          metric.tableConfig.columns.forEach((column, colIndex) => {
+            // Column name is required
+            if (!column.name || !column.name.trim()) {
+              newErrors.push(`Le nom de la colonne ${colIndex + 1} de la métrique tableau ${index + 1} est requis`);
+            }
+
+            // Source and sourceId are required based on source type
+            if (column.source === 'field') {
+              if (!column.formId || !column.formId.trim()) {
+                newErrors.push(`Le formulaire de la colonne ${colIndex + 1} de la métrique tableau ${index + 1} est requis`);
+              }
+              if (!column.fieldId || !column.fieldId.trim()) {
+                newErrors.push(`Le champ de la colonne ${colIndex + 1} de la métrique tableau ${index + 1} est requis`);
+              }
+            } else if (column.source === 'metric') {
+              if (!column.metricId || !column.metricId.trim()) {
+                newErrors.push(`La métrique de la colonne ${colIndex + 1} de la métrique tableau ${index + 1} est requise`);
+              }
+            }
+          });
         }
       }
     });
@@ -386,19 +417,24 @@ export const DashboardBuilder: React.FC<DashboardBuilderProps> = ({
                                 <Select
                                   value={metric.metricType || 'value'}
                                   onChange={(e) => {
-                                    const metricType = e.target.value as 'value' | 'graph';
+                                    const metricType = e.target.value as 'value' | 'graph' | 'table';
                                     updateMetric(index, { 
                                       metricType,
                                       graphConfig: metricType === 'graph' ? {
                                         xAxisType: 'time',
                                         yAxisType: 'count',
                                         chartType: 'line'
-                                      } : undefined
+                                      } : undefined,
+                                      // Initialize tableConfig when switching to table
+                                      tableConfig: metricType === 'table' ? (metric.tableConfig || {
+                                        columns: []
+                                      }) : undefined
                                     });
                                   }}
                                   options={[
                                     { value: 'value', label: 'Valeur numérique' },
-                                    { value: 'graph', label: 'Graphique' }
+                                    { value: 'graph', label: 'Graphique' },
+                                    { value: 'table', label: 'Tableau' }
                                   ]}
                                 />
                               </div>
@@ -628,6 +664,262 @@ export const DashboardBuilder: React.FC<DashboardBuilderProps> = ({
                               ]}
                             />
                           </div>
+                        </div>
+                      )}
+
+                      {/* Table type configuration */}
+                      {metric.metricType === 'table' && (
+                        <div className="mt-4 space-y-4 p-4 bg-purple-50 rounded-lg border border-purple-200">
+                          <div className="flex items-center justify-between mb-4">
+                            <div className="flex items-center space-x-2">
+                              <Table className="h-5 w-5 text-purple-600" />
+                              <h5 className="font-medium text-purple-900">Configuration du tableau</h5>
+                            </div>
+                            <Button
+                              type="button"
+                              variant="secondary"
+                              size="sm"
+                              onClick={() => {
+                                const newColumn: TableColumnConfig = {
+                                  id: `col_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                                  name: '',
+                                  source: 'field',
+                                  formId: metric.formId || '',
+                                  fieldId: ''
+                                };
+                                const currentColumns = metric.tableConfig?.columns || [];
+                                updateMetric(index, {
+                                  tableConfig: {
+                                    columns: [...currentColumns, newColumn]
+                                  }
+                                });
+                              }}
+                              className="flex items-center space-x-1"
+                            >
+                              <Plus className="h-4 w-4" />
+                              <span>Ajouter une colonne</span>
+                            </Button>
+                          </div>
+
+                          {(!metric.tableConfig?.columns || metric.tableConfig.columns.length === 0) ? (
+                            <div className="text-center py-6 text-purple-600">
+                              <Table className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                              <p className="text-sm">Aucune colonne configurée. Cliquez sur "Ajouter une colonne" pour commencer.</p>
+                            </div>
+                          ) : (
+                            <div className="space-y-3">
+                              {metric.tableConfig.columns.map((column, colIndex) => (
+                                <Card key={column.id} className="p-4 bg-white border border-purple-200">
+                                  <div className="flex items-start justify-between mb-3">
+                                    <div className="flex items-center space-x-2">
+                                      <Table className="h-4 w-4 text-purple-600" />
+                                      <span className="text-sm font-medium text-gray-700">
+                                        Colonne {colIndex + 1}
+                                      </span>
+                                    </div>
+                                    <div className="flex items-center space-x-1">
+                                      {/* Move up button */}
+                                      {colIndex > 0 && (
+                                        <Button
+                                          type="button"
+                                          variant="secondary"
+                                          size="sm"
+                                          onClick={() => {
+                                            const columns = [...(metric.tableConfig?.columns || [])];
+                                            [columns[colIndex - 1], columns[colIndex]] = [columns[colIndex], columns[colIndex - 1]];
+                                            updateMetric(index, {
+                                              tableConfig: {
+                                                columns
+                                              }
+                                            });
+                                          }}
+                                          className="p-1"
+                                        >
+                                          <ArrowUp className="h-3 w-3" />
+                                        </Button>
+                                      )}
+                                      {/* Move down button */}
+                                      {colIndex < (metric.tableConfig?.columns.length || 0) - 1 && (
+                                        <Button
+                                          type="button"
+                                          variant="secondary"
+                                          size="sm"
+                                          onClick={() => {
+                                            const columns = [...(metric.tableConfig?.columns || [])];
+                                            [columns[colIndex], columns[colIndex + 1]] = [columns[colIndex + 1], columns[colIndex]];
+                                            updateMetric(index, {
+                                              tableConfig: {
+                                                columns
+                                              }
+                                            });
+                                          }}
+                                          className="p-1"
+                                        >
+                                          <ArrowDown className="h-3 w-3" />
+                                        </Button>
+                                      )}
+                                      {/* Delete button */}
+                                      <Button
+                                        type="button"
+                                        variant="danger"
+                                        size="sm"
+                                        onClick={() => {
+                                          const columns = (metric.tableConfig?.columns || []).filter((_, i) => i !== colIndex);
+                                          updateMetric(index, {
+                                            tableConfig: {
+                                              columns
+                                            }
+                                          });
+                                        }}
+                                        className="p-1"
+                                      >
+                                        <Trash2 className="h-3 w-3" />
+                                      </Button>
+                                    </div>
+                                  </div>
+
+                                  <div className="space-y-3">
+                                    {/* Column name */}
+                                    <Input
+                                      label="Nom de la colonne *"
+                                      value={column.name}
+                                      onChange={(e) => {
+                                        const columns = [...(metric.tableConfig?.columns || [])];
+                                        columns[colIndex] = { ...columns[colIndex], name: e.target.value };
+                                        updateMetric(index, {
+                                          tableConfig: { columns }
+                                        });
+                                      }}
+                                      placeholder="Ex: Nom du client"
+                                      required
+                                    />
+
+                                    {/* Source type */}
+                                    <div>
+                                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        Source de données *
+                                      </label>
+                                      <Select
+                                        value={column.source}
+                                        onChange={(e) => {
+                                          const source = e.target.value as 'field' | 'metric';
+                                          const columns = [...(metric.tableConfig?.columns || [])];
+                                          columns[colIndex] = {
+                                            ...columns[colIndex],
+                                            source,
+                                            // Reset source-specific fields when changing source
+                                            formId: source === 'field' ? (columns[colIndex].formId || metric.formId || '') : undefined,
+                                            fieldId: source === 'field' ? (columns[colIndex].fieldId || '') : undefined,
+                                            metricId: source === 'metric' ? undefined : undefined
+                                          };
+                                          updateMetric(index, {
+                                            tableConfig: { columns }
+                                          });
+                                        }}
+                                        options={[
+                                          { value: 'field', label: 'Champ de formulaire' },
+                                          { value: 'metric', label: 'Autre métrique' }
+                                        ]}
+                                      />
+                                    </div>
+
+                                    {/* Field source configuration */}
+                                    {column.source === 'field' && (
+                                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                        <Select
+                                          label="Formulaire *"
+                                          value={column.formId || ''}
+                                          onChange={(e) => {
+                                            const columns = [...(metric.tableConfig?.columns || [])];
+                                            columns[colIndex] = {
+                                              ...columns[colIndex],
+                                              formId: e.target.value,
+                                              fieldId: '' // Reset field when form changes
+                                            };
+                                            updateMetric(index, {
+                                              tableConfig: { columns }
+                                            });
+                                          }}
+                                          options={[
+                                            { value: '', label: 'Choisir un formulaire...' },
+                                            ...forms.map(form => ({
+                                              value: form.id,
+                                              label: form.title
+                                            }))
+                                          ]}
+                                        />
+
+                                        {column.formId && (() => {
+                                          const columnForm = forms.find(f => f.id === column.formId);
+                                          return columnForm ? (
+                                            <Select
+                                              label="Champ du formulaire *"
+                                              value={column.fieldId || ''}
+                                              onChange={(e) => {
+                                                const columns = [...(metric.tableConfig?.columns || [])];
+                                                columns[colIndex] = {
+                                                  ...columns[colIndex],
+                                                  fieldId: e.target.value
+                                                };
+                                                updateMetric(index, {
+                                                  tableConfig: { columns }
+                                                });
+                                              }}
+                                              options={[
+                                                { value: '', label: 'Choisir un champ...' },
+                                                ...columnForm.fields.map((field: FormField) => ({
+                                                  value: field.id,
+                                                  label: `${field.label} (${field.type})`
+                                                }))
+                                              ]}
+                                            />
+                                          ) : null;
+                                        })()}
+                                      </div>
+                                    )}
+
+                                    {/* Metric source configuration */}
+                                    {column.source === 'metric' && (
+                                      <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                                          Métrique *
+                                        </label>
+                                        <Select
+                                          value={column.metricId || ''}
+                                          onChange={(e) => {
+                                            const columns = [...(metric.tableConfig?.columns || [])];
+                                            columns[colIndex] = {
+                                              ...columns[colIndex],
+                                              metricId: e.target.value
+                                            };
+                                            updateMetric(index, {
+                                              tableConfig: { columns }
+                                            });
+                                          }}
+                                          options={[
+                                            { value: '', label: 'Choisir une métrique...' },
+                                            ...metrics
+                                              .filter((m, mIndex) => 
+                                                mIndex !== index && // Exclude current metric
+                                                m.metricType !== 'table' && // Exclude table metrics
+                                                m.name && m.name.trim() // Only include metrics with names
+                                              )
+                                              .map((m, mIndex) => ({
+                                                value: m.id || `temp_${mIndex}`,
+                                                label: m.name || `Métrique ${mIndex + 1}`
+                                              }))
+                                          ]}
+                                        />
+                                        <p className="mt-1 text-xs text-purple-600">
+                                          💡 Seules les métriques de type valeur ou graphique sont disponibles
+                                        </p>
+                                      </div>
+                                    )}
+                                  </div>
+                                </Card>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       )}
 
