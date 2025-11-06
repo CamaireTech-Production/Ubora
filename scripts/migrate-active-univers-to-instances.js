@@ -209,10 +209,19 @@ async function migrate() {
       console.log(`   Marketplace: ${univers.ownership?.isMarketplaceTemplate ? 'Oui' : 'Non'}`);
       console.log(`   Propriétaire: ${univers.ownership?.createdBy || 'Inconnu'}`);
       
-      // 4. Vérifier que c'est le propriétaire
+      // 4. Vérifier que c'est le propriétaire ET que c'est un Univers marketplace
       const isOwner = univers.ownership?.createdBy === directorId;
+      const isMarketplace = univers.ownership?.isMarketplaceTemplate === true;
+      
       if (!isOwner) {
         console.log(`   ⚠️  Le directeur n'est pas le propriétaire, ignoré (cas d'achat marketplace)`);
+        stats.skipped++;
+        continue;
+      }
+
+      // Vérifier que c'est un Univers marketplace (les Univers privés n'ont pas besoin d'instance)
+      if (!isMarketplace) {
+        console.log(`   ⚠️  Univers privé (non marketplace), pas besoin d'instance pour le propriétaire, ignoré`);
         stats.skipped++;
         continue;
       }
