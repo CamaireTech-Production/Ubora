@@ -31,6 +31,7 @@ import { UniversViewPage } from './pages/UniversViewPage';
 import { UniversMarketplacePage } from './pages/UniversMarketplacePage';
 import { ListsPage } from './pages/ListsPage';
 import { ListEditorPage } from './pages/ListEditorPage';
+import { ReportsPage } from './pages/ReportsPage';
 import PushTestPage from './pages/PushTestPage';
 import { HybridPWAManager } from './components/HybridPWAManager';
 import { EmployeeManagement } from './components/EmployeeManagement';
@@ -427,6 +428,19 @@ function App() {
                       <ListEditorPage />
                     </ProtectedRoute>
                   }
+                />
+                
+                {/* Reports - Main page */}
+                <Route 
+                  path="/reports" 
+                  element={
+                    <ProtectedRoute 
+                      allowedRoles={['directeur', 'employe']} 
+                      requireDirectorDashboardAccess={true}
+                    >
+                      <ReportsPage />
+                    </ProtectedRoute>
+                  } 
                 />
                 
                 {/* Dev/Test: Push Notifications */}

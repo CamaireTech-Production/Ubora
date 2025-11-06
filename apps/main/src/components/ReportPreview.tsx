@@ -1,19 +1,22 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { ReportDefinition, DashboardDefinition } from '@ubora/shared/types';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { TableMetricDisplay } from './TableMetricDisplay';
 import { MetricCalculator } from '@ubora/shared/utils/MetricCalculator';
+import { tableDataService } from '../services/tableDataService';
+import { DashboardMetric } from '../types';
 
 interface ReportPreviewProps {
   report: ReportDefinition;
   dashboards?: DashboardDefinition[]; // Optional dashboards to access real metric configurations
+  formEntries?: any[]; // Optional filtered form entries for calculating real metric values
 }
 
 /**
  * ReportPreview component - displays a preview of a report template
  * Shows the report template as a document with placeholders replaced with mock values
  */
-export const ReportPreview: React.FC<ReportPreviewProps> = ({ report, dashboards = [] }) => {
+export const ReportPreview: React.FC<ReportPreviewProps> = ({ report, dashboards = [], formEntries = [] }) => {
   // Placeholder chart data (same as dashboard preview)
   const placeholderChartData = [
     { x: 'Jan', y: 0 },
@@ -24,9 +27,42 @@ export const ReportPreview: React.FC<ReportPreviewProps> = ({ report, dashboards
     { x: 'Jun', y: 0 },
   ];
 
+  // Get real metric value from mapping if formEntries are provided
+  const getRealMetricValue = (placeholder: string, mapping?: any): string | null => {
+    if (!formEntries || formEntries.length === 0 || !mapping) {
+      return null; // No data or no mapping, use mock value
+    }
+
+    // Find the metric from dashboards using the mapping
+    if (mapping.sourceId && mapping.metricId && dashboards.length > 0) {
+      const dashboard = dashboards.find(d => d.id === mapping.sourceId);
+      if (dashboard && dashboard.metrics) {
+        const metric = dashboard.metrics.find(m => m.id === mapping.metricId);
+        if (metric) {
+          try {
+            // Use MetricCalculator to calculate the real value
+            const result = MetricCalculator.calculateMetric(metric, formEntries, dashboard);
+            if (result && result.displayValue !== undefined) {
+              return String(result.displayValue);
+            }
+          } catch (error) {
+            console.error('Error calculating metric value:', error);
+          }
+        }
+      }
+    }
+
+    return null; // Fallback to mock value
+  };
+
   // Generate mock values for placeholders
   // All numeric/metric values should show 0 since there's no data (like dashboard preview)
-  const getMockValue = (placeholder: string): string => {
+  const getMockValue = (placeholder: string, mapping?: any): string => {
+    // Try to get real value first if formEntries are available
+    const realValue = getRealMetricValue(placeholder, mapping);
+    if (realValue !== null) {
+      return realValue;
+    }
     const placeholderName = placeholder.replace(/[{}]/g, '').trim().toLowerCase();
     
     // Check for table placeholders - return special marker that we'll replace with React component
@@ -119,10 +155,10 @@ export const ReportPreview: React.FC<ReportPreviewProps> = ({ report, dashboards
     if (report.placeholders && report.placeholders.length > 0) {
       report.placeholders.forEach((placeholder) => {
         const placeholderText = placeholder.placeholder;
-        const mockValue = getMockValue(placeholderText);
         
         // Find mapping for this placeholder
         const mapping = report.mappings?.find(m => m.placeholderId === placeholder.id);
+        const mockValue = getMockValue(placeholderText, mapping);
         
         if (mockValue === '__TABLE_PLACEHOLDER__') {
           const uniqueMarker = `__TABLE_PLACEHOLDER_${markerCounter++}__`;
@@ -152,7 +188,6 @@ export const ReportPreview: React.FC<ReportPreviewProps> = ({ report, dashboards
     const placeholderRegex = /\{\{\s*([^}]+)\s*\}\}/g;
     content = content.replace(placeholderRegex, (match) => {
       if (match.includes('{{')) {
-        const mockValue = getMockValue(match);
         // Resolve mapping robustly by normalizing placeholder text and matching via placeholderId
         const normalize = (s: string) => s.replace(/[{}]/g, '').replace(/\s+/g, '').toLowerCase();
         const normalizedMatch = normalize(match);
@@ -160,6 +195,7 @@ export const ReportPreview: React.FC<ReportPreviewProps> = ({ report, dashboards
         const mapping = matchedPlaceholder
           ? report.mappings?.find(m => m.placeholderId === matchedPlaceholder.id)
           : undefined;
+        const mockValue = getMockValue(match, mapping);
         if (!mapping) {
           console.log('ReportPreview: no mapping for placeholder (regex pass)', {
             placeholderText: match,
@@ -187,7 +223,8 @@ export const ReportPreview: React.FC<ReportPreviewProps> = ({ report, dashboards
     if (report.placeholders && report.placeholders.length > 0) {
       report.placeholders.forEach((placeholder) => {
         const placeholderText = placeholder.placeholder;
-        const mockValue = getMockValue(placeholderText);
+        const mapping = report.mappings?.find(m => m.placeholderId === placeholder.id);
+        const mockValue = getMockValue(placeholderText, mapping);
         
         // Skip if already replaced (graph or table placeholder)
         if (mockValue !== '__GRAPH_PLACEHOLDER__' && mockValue !== '__TABLE_PLACEHOLDER__') {
@@ -305,22 +342,15 @@ export const ReportPreview: React.FC<ReportPreviewProps> = ({ report, dashboards
                 ? realMetric
                 : null;
               
-              // If we found a real metric, use it (same as DashboardPreview)
+              // If we found a real metric, use it with real data if formEntries are available
               if (metricToDisplay) {
                 return (
-                  <React.Fragment key={index}>
-                    <div className="bg-white rounded-lg border border-gray-200 p-2 my-4">
-                      <p className="text-xs text-gray-500 mb-2 text-center">
-                        Tableau (données réelles dans le rapport généré)
-                      </p>
-                      <TableMetricDisplay
-                        metric={metricToDisplay}
-                        rows={[]}
-                        compact={true}
-                        maxRows={3}
-                      />
-                    </div>
-                  </React.Fragment>
+                  <TableMetricWithData
+                    key={index}
+                    metric={metricToDisplay}
+                    formEntries={formEntries}
+                    dashboard={dashboards.find(d => d.id === mapping?.sourceId)}
+                  />
                 );
               }
               
@@ -384,6 +414,66 @@ export const ReportPreview: React.FC<ReportPreviewProps> = ({ report, dashboards
             {line || '\u00A0'}
           </p>
         ))}
+      </div>
+    );
+  };
+
+  // Component to render table metric with real data
+  const TableMetricWithData: React.FC<{
+    metric: DashboardMetric;
+    formEntries: any[];
+    dashboard?: DashboardDefinition;
+  }> = ({ metric, formEntries, dashboard }) => {
+    const [tableRows, setTableRows] = useState<any[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+
+    useEffect(() => {
+      const loadTableData = async () => {
+        if (!formEntries || formEntries.length === 0) {
+          setTableRows([]);
+          setIsLoading(false);
+          return;
+        }
+
+        setIsLoading(true);
+        try {
+          // Use tableDataService to calculate rows with filtered formEntries
+          const period = undefined; // Use all time for reports (period is already filtered in formEntries)
+          const rows = await tableDataService.getRowsForTableMetric(metric, formEntries, period);
+          setTableRows(rows);
+        } catch (error) {
+          console.error('Error loading table data for report:', error);
+          setTableRows([]);
+        } finally {
+          setIsLoading(false);
+        }
+      };
+
+      loadTableData();
+    }, [metric, formEntries]);
+
+    if (isLoading) {
+      return (
+        <div className="bg-white rounded-lg border border-gray-200 p-2 my-4">
+          <div className="text-center py-4">
+            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto mb-2"></div>
+            <p className="text-xs text-gray-500">Chargement des données...</p>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="bg-white rounded-lg border border-gray-200 p-2 my-4">
+        <p className="text-xs text-gray-500 mb-2 text-center">
+          Tableau (données réelles dans le rapport généré)
+        </p>
+        <TableMetricDisplay
+          metric={metric}
+          rows={tableRows}
+          compact={true}
+          maxRows={10}
+        />
       </div>
     );
   };
