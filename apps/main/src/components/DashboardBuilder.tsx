@@ -1391,7 +1391,7 @@ export const DashboardBuilder: React.FC<DashboardBuilderProps> = ({
                                           return (
                                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                             <Select
-                                                label="Champ de référence (produit) *"
+                                                label="Champ de référence (groupement) *"
                                                 value={aggCol.rowKeyFieldId || ''}
                                               onChange={(e) => {
                                                 const currentTableConfig = ensureTableConfig(metric.tableConfig);
@@ -1410,7 +1410,16 @@ export const DashboardBuilder: React.FC<DashboardBuilderProps> = ({
                                               options={[
                                                 { value: '', label: 'Choisir un champ...' },
                                                   ...columnForm.fields
-                                                    .filter(f => f.type === 'select' && (selectedList ? f.listId === selectedList.id : true))
+                                                    // Accept text, select, number - any field that can serve as a key
+                                                    .filter(f => {
+                                                      // Only filter by list if rowSource is explicitly 'list' type AND a list is selected
+                                                      if (rowSource?.type === 'list' && selectedList) {
+                                                        // For list-based rows, only show select fields that use that list
+                                                        return f.type === 'select' && f.listId === selectedList.id;
+                                                      }
+                                                      // Otherwise, show text, select, and number fields (all can serve as keys)
+                                                      return f.type === 'text' || f.type === 'select' || f.type === 'number';
+                                                    })
                                                     .map((field: FormField) => ({
                                                   value: field.id,
                                                   label: `${field.label} (${field.type})`
@@ -1418,7 +1427,7 @@ export const DashboardBuilder: React.FC<DashboardBuilderProps> = ({
                                               ]}
                                             />
                                               <Select
-                                                label="Champ de valeur (quantité) *"
+                                                label="Champ de valeur (agrégation) *"
                                                 value={aggCol.valueFieldId || ''}
                                                 onChange={(e) => {
                                                   const currentTableConfig = ensureTableConfig(metric.tableConfig);
@@ -1437,7 +1446,9 @@ export const DashboardBuilder: React.FC<DashboardBuilderProps> = ({
                                                 options={[
                                                   { value: '', label: 'Choisir un champ...' },
                                                   ...columnForm.fields
-                                                    .filter(f => f.type === 'number' || f.type === 'calculated')
+                                                    // Accept number, calculated, and text fields
+                                                    // Text fields can be used with latest/oldest aggregation functions
+                                                    .filter(f => f.type === 'number' || f.type === 'calculated' || f.type === 'text')
                                                     .map((field: FormField) => ({
                                                       value: field.id,
                                                       label: `${field.label} (${field.type})`
@@ -1448,7 +1459,7 @@ export const DashboardBuilder: React.FC<DashboardBuilderProps> = ({
                                           );
                                         })()}
                                         <p className="text-xs text-purple-600">
-                                          💡 Agrège les valeurs du formulaire par produit (ex: somme des quantités)
+                                          💡 Agrège les valeurs du formulaire par le champ de référence sélectionné (ex: somme des montants par client)
                                         </p>
                                       </div>
                                     )}
