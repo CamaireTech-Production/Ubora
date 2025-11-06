@@ -252,42 +252,38 @@ export const ReportPreview: React.FC<ReportPreviewProps> = ({ report }) => {
               return <React.Fragment key={index}>{renderPlaceholderGraph()}</React.Fragment>;
             }
             if (part.type === 'table') {
-              // Render placeholder table for preview
+              // Render table structure for preview
               // In real reports, this would use actual data from mappings
               const mapping = part.mapping;
-              if (mapping && mapping.metricId) {
-                // For preview, we show empty table structure
-                // In actual report generation, we would calculate the metric and show real data
+              if (mapping && mapping.metricId && mapping.metricType === 'table') {
+                // Try to find the metric from the report's dashboard reference
+                // For preview, we create a mock metric with table structure
+                // In actual report generation, we would use the real metric from the dashboard
+                const mockMetric = {
+                  id: mapping.metricId,
+                  name: 'Tableau',
+                  metricType: 'table' as const,
+                  tableConfig: {
+                    columns: [
+                      { id: 'col1', name: 'Colonne 1', source: 'field' as const },
+                      { id: 'col2', name: 'Colonne 2', source: 'field' as const },
+                      { id: 'col3', name: 'Colonne 3', source: 'field' as const }
+                    ]
+                  }
+                };
+                
                 return (
                   <React.Fragment key={index}>
                     <div className="bg-white rounded-lg border border-gray-200 p-2 my-4">
                       <p className="text-xs text-gray-500 mb-2 text-center">
                         Tableau (données réelles dans le rapport généré)
                       </p>
-                      <div className="w-full overflow-x-auto">
-                        <table className="min-w-full divide-y divide-gray-200">
-                          <thead className="bg-gray-50">
-                            <tr>
-                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Colonne 1
-                              </th>
-                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Colonne 2
-                              </th>
-                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Colonne 3
-                              </th>
-                            </tr>
-                          </thead>
-                          <tbody className="bg-white divide-y divide-gray-200">
-                            <tr>
-                              <td className="px-4 py-2 text-sm text-gray-500">-</td>
-                              <td className="px-4 py-2 text-sm text-gray-500">-</td>
-                              <td className="px-4 py-2 text-sm text-gray-500">-</td>
-                            </tr>
-                          </tbody>
-                        </table>
-                      </div>
+                      <TableMetricDisplay
+                        metric={mockMetric as any}
+                        rows={[]}
+                        compact={true}
+                        maxRows={3}
+                      />
                     </div>
                   </React.Fragment>
                 );

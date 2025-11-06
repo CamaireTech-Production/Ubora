@@ -215,9 +215,6 @@ export const DashboardPreview: React.FC<DashboardPreviewProps> = ({ dashboard })
                 maxRows={10}
               />
             </div>
-            <p className="text-xs text-gray-500 mt-2 text-center">
-              Aperçu du tableau - Aucune donnée disponible
-            </p>
           </div>
         ) : (
           <div className="mb-2">
