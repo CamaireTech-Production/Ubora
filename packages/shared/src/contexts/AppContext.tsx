@@ -76,6 +76,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [dashboards, setDashboards] = useState<Dashboard[]>([]);
   const [activeUnivers, setActiveUnivers] = useState<ActiveUnivers | null>(null);
   const [activeUniversId, setActiveUniversId] = useState<string | null>(null);
+  const [activeInstanceId, setActiveInstanceId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -85,6 +86,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!firebaseUser || !user || !user.agencyId) {
       setActiveUnivers(null);
       setActiveUniversId(null);
+      setActiveInstanceId(null);
       return;
     }
 
@@ -92,6 +94,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (user.role !== 'directeur') {
       setActiveUnivers(null);
       setActiveUniversId(null);
+      setActiveInstanceId(null);
       return;
     }
 
@@ -110,16 +113,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (activeUnivers) {
           setActiveUnivers(activeUnivers);
           setActiveUniversId(activeUnivers.activeUniversId);
-          console.log('✅ Univers actif chargé:', activeUnivers.activeUniversId);
+          setActiveInstanceId(activeUnivers.activeInstanceId || null);
+          console.log('✅ Univers actif chargé:', activeUnivers.activeUniversId, activeUnivers.activeInstanceId ? `(Instance: ${activeUnivers.activeInstanceId})` : '(Pas d\'instance)');
         } else {
           setActiveUnivers(null);
           setActiveUniversId(null);
+          setActiveInstanceId(null);
           console.warn('⚠️ Aucun Univers actif trouvé après ensureDefaultUnivers');
         }
       } catch (error) {
         console.error('Erreur lors du chargement de l\'Univers actif:', error);
         setActiveUnivers(null);
         setActiveUniversId(null);
+        setActiveInstanceId(null);
       }
     };
 
@@ -144,17 +150,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
 
     // Écouter les formulaires selon le rôle de l'utilisateur
-    // Filtrer par Univers actif si disponible (pour les directeurs)
+    // Filtrer par Univers actif et instance active si disponible (pour les directeurs)
     let formsQuery;
     if (user.role === 'directeur') {
       // Les directeurs voient les formulaires du Univers actif
       if (activeUniversId) {
-        formsQuery = query(
-          collection(db, 'forms'),
-          where('agencyId', '==', user.agencyId),
-          where('universId', '==', activeUniversId),
-          orderBy('createdAt', 'desc')
-        );
+        // Si activeInstanceId est disponible, filtrer par universInstanceId pour éviter les doublons
+        if (activeInstanceId) {
+          formsQuery = query(
+            collection(db, 'forms'),
+            where('agencyId', '==', user.agencyId),
+            where('universInstanceId', '==', activeInstanceId),
+            orderBy('createdAt', 'desc')
+          );
+        } else {
+          // Rétrocompatibilité : filtrer par universId si pas d'instance
+          formsQuery = query(
+            collection(db, 'forms'),
+            where('agencyId', '==', user.agencyId),
+            where('universId', '==', activeUniversId),
+            orderBy('createdAt', 'desc')
+          );
+        }
       } else {
         // Rétrocompatibilité temporaire : si pas de Univers actif, charger tous les forms
         // (ne devrait pas arriver après la migration)
@@ -168,14 +185,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       // Les employés voient les formulaires qui leur sont assignés ET ceux qu'ils ont créés
       // Note: Firestore ne supporte pas les requêtes OR complexes, donc on récupère tous les formulaires
       // et on filtre côté client
-      // Pour les employés, on filtre aussi par Univers actif s'il existe
+      // Pour les employés, on filtre aussi par Univers actif et instance active s'il existe
       if (activeUniversId) {
-        formsQuery = query(
-          collection(db, 'forms'),
-          where('agencyId', '==', user.agencyId),
-          where('universId', '==', activeUniversId),
-          orderBy('createdAt', 'desc')
-        );
+        // Si activeInstanceId est disponible, filtrer par universInstanceId
+        if (activeInstanceId) {
+          formsQuery = query(
+            collection(db, 'forms'),
+            where('agencyId', '==', user.agencyId),
+            where('universInstanceId', '==', activeInstanceId),
+            orderBy('createdAt', 'desc')
+          );
+        } else {
+          formsQuery = query(
+            collection(db, 'forms'),
+            where('agencyId', '==', user.agencyId),
+            where('universId', '==', activeUniversId),
+            orderBy('createdAt', 'desc')
+          );
+        }
       } else {
         formsQuery = query(
           collection(db, 'forms'),
@@ -290,20 +317,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
 
     // Écouter les tableaux de bord de l'agence
-    // Filtrer par Univers actif si disponible
+    // Filtrer par Univers actif et instance active si disponible
     let unsubscribeDashboards: (() => void) | undefined;
     
     // Les directeurs et employés avec accès peuvent voir les tableaux de bord
     if (user.role === 'directeur' || PermissionManager.hasDirectorDashboardAccess(user)) {
       let dashboardsQuery;
       if (activeUniversId) {
-        // Filtrer par Univers actif
-        dashboardsQuery = query(
-          collection(db, 'dashboards'),
-          where('agencyId', '==', user.agencyId),
-          where('universId', '==', activeUniversId),
-          orderBy('createdAt', 'desc')
-        );
+        // Si activeInstanceId est disponible, filtrer par universInstanceId pour éviter les doublons
+        if (activeInstanceId) {
+          dashboardsQuery = query(
+            collection(db, 'dashboards'),
+            where('agencyId', '==', user.agencyId),
+            where('universInstanceId', '==', activeInstanceId),
+            orderBy('createdAt', 'desc')
+          );
+        } else {
+          // Rétrocompatibilité : filtrer par universId si pas d'instance
+          dashboardsQuery = query(
+            collection(db, 'dashboards'),
+            where('agencyId', '==', user.agencyId),
+            where('universId', '==', activeUniversId),
+            orderBy('createdAt', 'desc')
+          );
+        }
       } else {
         // Rétrocompatibilité temporaire : si pas de Univers actif, charger tous les dashboards
         dashboardsQuery = query(
@@ -354,7 +391,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         unsubscribeDashboards();
       }
     };
-  }, [user, firebaseUser, activeUniversId]);
+  }, [user, firebaseUser, activeUniversId, activeInstanceId]);
 
   const createForm = async (formData: Omit<Form, 'id' | 'createdAt'>) => {
     if (!user || !user.agencyId) {
