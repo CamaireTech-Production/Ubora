@@ -21,6 +21,29 @@ import { Univers, UniversInstance, UniversDefinitions, UniversMetadata, UniversO
 import { universInstantiationService, InstantiationResult } from './universInstantiationService';
 import { unifiedNotificationService } from './unifiedNotificationService';
 
+/**
+ * Interface pour le résultat de la vérification des ressources
+ */
+interface ResourcesCheckResult {
+  exists: boolean;
+  isConsistent: boolean;
+  actualCounts: {
+    forms: number;
+    dashboards: number;
+    instructions: number;
+    lists: number;
+    reports: number;
+  };
+  expectedCounts: {
+    forms: number;
+    dashboards: number;
+    instructions: number;
+    lists: number;
+    reports: number;
+  };
+  inconsistencies: string[];
+}
+
 class UniversService {
   private readonly collectionName = 'univers';
   private readonly instancesCollectionName = 'universInstances';
@@ -2167,10 +2190,26 @@ class UniversService {
       if (wasActive) {
         await this.setActiveUnivers(userId, agencyId, oldInstance.universId, newInstanceId);
         
-        // Mettre à jour toutes les ressources existantes avec le nouveau universInstanceId
-        // Cela garantit que toutes les ressources (anciennes et nouvelles) sont synchronisées avec l'instance active
-        console.log(`🔄 Mise à jour des ressources existantes avec le nouveau universInstanceId=${newInstanceId}...`);
-        await this.updateExistingResourcesWithInstanceId(oldInstance.universId, newInstanceId, agencyId);
+        // Vérifier que les nouvelles ressources créées sont complètes et cohérentes
+        // Note: instantiate() crée déjà toutes les ressources nécessaires pour la nouvelle instance
+        // On ne doit PAS mettre à jour les ressources de l'ancienne instance pour éviter les doublons
+        console.log(`🔍 Vérification de la cohérence des ressources pour la nouvelle instance ${newInstanceId}...`);
+        const resourcesCheck = await this.checkIfResourcesExistForInstance(newInstanceId, oldInstance.universId, agencyId, univers);
+        
+        if (!resourcesCheck.exists) {
+          // Les ressources n'existent pas : cela ne devrait pas arriver car instantiate() les crée
+          console.warn(`⚠️ Aucune ressource trouvée pour la nouvelle instance ${newInstanceId}. Recréation des ressources...`);
+          await this.instantiateResourcesOnly(univers, userId, agencyId, newInstanceId);
+          console.log(`✅ Ressources recréées avec succès pour la nouvelle instance`);
+        } else if (!resourcesCheck.isConsistent) {
+          // Les ressources existent mais sont incohérentes : les recréer
+          console.warn(`⚠️ Ressources incohérentes détectées pour la nouvelle instance:`, resourcesCheck.inconsistencies);
+          console.log(`🔄 Recréation des ressources pour corriger les incohérences...`);
+          await this.instantiateResourcesOnly(univers, userId, agencyId, newInstanceId);
+          console.log(`✅ Ressources recréées avec succès pour la nouvelle instance`);
+        } else {
+          console.log(`✅ Ressources complètes et cohérentes pour la nouvelle instance ${newInstanceId}`);
+        }
       }
 
       console.log(`✅ Instance upgraded successfully: ${oldInstanceId} → ${newInstanceId} (v${currentVersion} → v${newVersion})`);
@@ -2370,30 +2409,184 @@ class UniversService {
   }
 
   /**
-   * Vérifier si des ressources existent déjà pour une instance spécifique
-   * (pour éviter de créer des doublons lors de l'activation)
+   * Vérifier la cohérence des ressources existantes avec les définitions du Univers
+   */
+  private async checkResourcesConsistency(
+    instanceId: string,
+    universId: string,
+    agencyId: string,
+    univers: Univers
+  ): Promise<ResourcesCheckResult> {
+    const result: ResourcesCheckResult = {
+      exists: false,
+      isConsistent: false,
+      actualCounts: {
+        forms: 0,
+        dashboards: 0,
+        instructions: 0,
+        lists: 0,
+        reports: 0
+      },
+      expectedCounts: {
+        forms: univers.definitions?.forms?.length || 0,
+        dashboards: univers.definitions?.dashboards?.length || 0,
+        instructions: univers.definitions?.instructions?.length || 0,
+        lists: univers.definitions?.lists?.length || 0,
+        reports: univers.definitions?.reports?.length || 0
+      },
+      inconsistencies: []
+    };
+
+    try {
+      // 1. Compter les formulaires
+      try {
+        const formsQuery = query(
+          collection(db, 'forms'),
+          where('agencyId', '==', agencyId),
+          where('universId', '==', universId),
+          where('universInstanceId', '==', instanceId)
+        );
+        const formsSnapshot = await getDocs(formsQuery);
+        result.actualCounts.forms = formsSnapshot.size;
+      } catch (error) {
+        console.warn('⚠️ Erreur lors du comptage des formulaires:', error);
+      }
+
+      // 2. Compter les dashboards
+      try {
+        const dashboardsQuery = query(
+          collection(db, 'dashboards'),
+          where('agencyId', '==', agencyId),
+          where('universId', '==', universId),
+          where('universInstanceId', '==', instanceId)
+        );
+        const dashboardsSnapshot = await getDocs(dashboardsQuery);
+        result.actualCounts.dashboards = dashboardsSnapshot.size;
+      } catch (error) {
+        console.warn('⚠️ Erreur lors du comptage des dashboards:', error);
+      }
+
+      // 3. Compter les instructions
+      try {
+        const instructionsQuery = query(
+          collection(db, 'scheduledQuestions'),
+          where('agencyId', '==', agencyId),
+          where('universId', '==', universId),
+          where('universInstanceId', '==', instanceId)
+        );
+        const instructionsSnapshot = await getDocs(instructionsQuery);
+        result.actualCounts.instructions = instructionsSnapshot.size;
+      } catch (error) {
+        console.warn('⚠️ Erreur lors du comptage des instructions:', error);
+      }
+
+      // 4. Compter les listes
+      try {
+        const listsQuery = query(
+          collection(db, 'lists'),
+          where('agencyId', '==', agencyId),
+          where('universId', '==', universId),
+          where('universInstanceId', '==', instanceId)
+        );
+        const listsSnapshot = await getDocs(listsQuery);
+        result.actualCounts.lists = listsSnapshot.size;
+      } catch (error) {
+        console.warn('⚠️ Erreur lors du comptage des listes:', error);
+      }
+
+      // 5. Compter les rapports
+      try {
+        const reportsQuery = query(
+          collection(db, 'reports'),
+          where('agencyId', '==', agencyId),
+          where('universId', '==', universId),
+          where('universInstanceId', '==', instanceId)
+        );
+        const reportsSnapshot = await getDocs(reportsQuery);
+        result.actualCounts.reports = reportsSnapshot.size;
+      } catch (error) {
+        console.warn('⚠️ Erreur lors du comptage des rapports:', error);
+      }
+
+      // Vérifier l'existence (au moins une ressource existe)
+      result.exists = result.actualCounts.forms > 0 || 
+                     result.actualCounts.dashboards > 0 || 
+                     result.actualCounts.instructions > 0 || 
+                     result.actualCounts.lists > 0 || 
+                     result.actualCounts.reports > 0;
+
+      // Vérifier la cohérence
+      if (result.actualCounts.forms !== result.expectedCounts.forms) {
+        result.inconsistencies.push(
+          `Formulaires: ${result.actualCounts.forms} trouvé(s) au lieu de ${result.expectedCounts.forms}`
+        );
+      }
+      if (result.actualCounts.dashboards !== result.expectedCounts.dashboards) {
+        result.inconsistencies.push(
+          `Dashboards: ${result.actualCounts.dashboards} trouvé(s) au lieu de ${result.expectedCounts.dashboards}`
+        );
+      }
+      if (result.actualCounts.instructions !== result.expectedCounts.instructions) {
+        result.inconsistencies.push(
+          `Instructions: ${result.actualCounts.instructions} trouvée(s) au lieu de ${result.expectedCounts.instructions}`
+        );
+      }
+      if (result.actualCounts.lists !== result.expectedCounts.lists) {
+        result.inconsistencies.push(
+          `Listes: ${result.actualCounts.lists} trouvée(s) au lieu de ${result.expectedCounts.lists}`
+        );
+      }
+      if (result.actualCounts.reports !== result.expectedCounts.reports) {
+        result.inconsistencies.push(
+          `Rapports: ${result.actualCounts.reports} trouvé(s) au lieu de ${result.expectedCounts.reports}`
+        );
+      }
+
+      result.isConsistent = result.inconsistencies.length === 0;
+
+      return result;
+    } catch (error) {
+      console.warn('⚠️ Erreur lors de la vérification de cohérence des ressources:', error);
+      return result;
+    }
+  }
+
+  /**
+   * Vérifier si les ressources existent pour une instance et si elles sont cohérentes
    */
   private async checkIfResourcesExistForInstance(
     instanceId: string,
     universId: string,
-    agencyId: string
-  ): Promise<boolean> {
+    agencyId: string,
+    univers?: Univers
+  ): Promise<ResourcesCheckResult> {
     try {
-      // Vérifier si au moins un formulaire existe avec ce universInstanceId
-      const formsQuery = query(
-        collection(db, 'forms'),
-        where('agencyId', '==', agencyId),
-        where('universId', '==', universId),
-        where('universInstanceId', '==', instanceId)
-      );
-      const formsSnapshot = await getDocs(formsQuery);
-      
-      // Si au moins un formulaire existe pour cette instance, les ressources existent déjà
-      return !formsSnapshot.empty;
+      // Si le Univers n'est pas fourni, le récupérer
+      if (!univers) {
+        univers = await this.getById(universId);
+        if (!univers) {
+          return {
+            exists: false,
+            isConsistent: false,
+            actualCounts: { forms: 0, dashboards: 0, instructions: 0, lists: 0, reports: 0 },
+            expectedCounts: { forms: 0, dashboards: 0, instructions: 0, lists: 0, reports: 0 },
+            inconsistencies: ['Univers non trouvé']
+          };
+        }
+      }
+
+      // Utiliser la fonction de vérification de cohérence
+      return await this.checkResourcesConsistency(instanceId, universId, agencyId, univers);
     } catch (error) {
       // Si l'index n'existe pas ou erreur, considérer qu'aucune ressource n'existe pour cette instance
       console.warn('⚠️ Erreur lors de la vérification des ressources pour l\'instance:', error);
-      return false;
+      return {
+        exists: false,
+        isConsistent: false,
+        actualCounts: { forms: 0, dashboards: 0, instructions: 0, lists: 0, reports: 0 },
+        expectedCounts: { forms: 0, dashboards: 0, instructions: 0, lists: 0, reports: 0 },
+        inconsistencies: ['Erreur lors de la vérification']
+      };
     }
   }
 
@@ -2579,8 +2772,146 @@ class UniversService {
   }
 
   /**
+   * Supprimer les ressources existantes pour une instance (pour éviter les doublons lors de la recréation)
+   */
+  private async deleteResourcesForInstance(
+    instanceId: string,
+    universId: string,
+    agencyId: string
+  ): Promise<void> {
+    try {
+      const MAX_BATCH_SIZE = 500;
+      let batch = writeBatch(db);
+      let batchCount = 0;
+      let totalDeleted = 0;
+
+      const commitBatch = async () => {
+        if (batchCount > 0) {
+          await batch.commit();
+          batch = writeBatch(db);
+          batchCount = 0;
+        }
+      };
+
+      // 1. Supprimer les formulaires
+      try {
+        const formsQuery = query(
+          collection(db, 'forms'),
+          where('agencyId', '==', agencyId),
+          where('universId', '==', universId),
+          where('universInstanceId', '==', instanceId)
+        );
+        const formsSnapshot = await getDocs(formsQuery);
+        for (const formDoc of formsSnapshot.docs) {
+          batch.delete(doc(db, 'forms', formDoc.id));
+          batchCount++;
+          totalDeleted++;
+          if (batchCount >= MAX_BATCH_SIZE) {
+            await commitBatch();
+          }
+        }
+      } catch (error) {
+        console.warn('⚠️ Erreur lors de la suppression des formulaires:', error);
+      }
+
+      // 2. Supprimer les dashboards
+      try {
+        const dashboardsQuery = query(
+          collection(db, 'dashboards'),
+          where('agencyId', '==', agencyId),
+          where('universId', '==', universId),
+          where('universInstanceId', '==', instanceId)
+        );
+        const dashboardsSnapshot = await getDocs(dashboardsQuery);
+        for (const dashboardDoc of dashboardsSnapshot.docs) {
+          batch.delete(doc(db, 'dashboards', dashboardDoc.id));
+          batchCount++;
+          totalDeleted++;
+          if (batchCount >= MAX_BATCH_SIZE) {
+            await commitBatch();
+          }
+        }
+      } catch (error) {
+        console.warn('⚠️ Erreur lors de la suppression des dashboards:', error);
+      }
+
+      // 3. Supprimer les instructions
+      try {
+        const instructionsQuery = query(
+          collection(db, 'scheduledQuestions'),
+          where('agencyId', '==', agencyId),
+          where('universId', '==', universId),
+          where('universInstanceId', '==', instanceId)
+        );
+        const instructionsSnapshot = await getDocs(instructionsQuery);
+        for (const instructionDoc of instructionsSnapshot.docs) {
+          batch.delete(doc(db, 'scheduledQuestions', instructionDoc.id));
+          batchCount++;
+          totalDeleted++;
+          if (batchCount >= MAX_BATCH_SIZE) {
+            await commitBatch();
+          }
+        }
+      } catch (error) {
+        console.warn('⚠️ Erreur lors de la suppression des instructions:', error);
+      }
+
+      // 4. Supprimer les listes
+      try {
+        const listsQuery = query(
+          collection(db, 'lists'),
+          where('agencyId', '==', agencyId),
+          where('universId', '==', universId),
+          where('universInstanceId', '==', instanceId)
+        );
+        const listsSnapshot = await getDocs(listsQuery);
+        for (const listDoc of listsSnapshot.docs) {
+          batch.delete(doc(db, 'lists', listDoc.id));
+          batchCount++;
+          totalDeleted++;
+          if (batchCount >= MAX_BATCH_SIZE) {
+            await commitBatch();
+          }
+        }
+      } catch (error) {
+        console.warn('⚠️ Erreur lors de la suppression des listes:', error);
+      }
+
+      // 5. Supprimer les rapports
+      try {
+        const reportsQuery = query(
+          collection(db, 'reports'),
+          where('agencyId', '==', agencyId),
+          where('universId', '==', universId),
+          where('universInstanceId', '==', instanceId)
+        );
+        const reportsSnapshot = await getDocs(reportsQuery);
+        for (const reportDoc of reportsSnapshot.docs) {
+          batch.delete(doc(db, 'reports', reportDoc.id));
+          batchCount++;
+          totalDeleted++;
+          if (batchCount >= MAX_BATCH_SIZE) {
+            await commitBatch();
+          }
+        }
+      } catch (error) {
+        console.warn('⚠️ Erreur lors de la suppression des rapports:', error);
+      }
+
+      await commitBatch();
+      if (totalDeleted > 0) {
+        console.log(`🗑️ ${totalDeleted} ressource(s) supprimée(s) pour l'instance ${instanceId}`);
+      }
+    } catch (error) {
+      console.error('❌ Erreur lors de la suppression des ressources:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Instancier les ressources d'un Univers pour une instance existante
    * (pour les Univers créés directement, pas achetés)
+   * Supprime les anciennes ressources incohérentes avant de créer les nouvelles pour éviter les doublons
    */
   private async instantiateResourcesOnly(
     univers: Univers,
@@ -2592,6 +2923,11 @@ class UniversService {
       if (!univers.definitions) {
         throw new Error('Univers sans définitions');
       }
+
+      // Supprimer les anciennes ressources incohérentes pour cette instance avant de créer les nouvelles
+      // Cela évite les doublons lors de la recréation
+      console.log(`🗑️ Suppression des anciennes ressources incohérentes pour l'instance ${instanceId}...`);
+      await this.deleteResourcesForInstance(instanceId, univers.id, agencyId);
 
       // Utiliser l'instanceId fourni pour créer les ressources
       // Appeler le service d'instanciation pour créer les ressources réelles
@@ -2661,11 +2997,37 @@ class UniversService {
           instanceId = instance.id;
           console.log(`✅ Instance trouvée pour Univers acheté: ${instanceId}`);
           
-          // Mettre à jour les ressources existantes avec le bon universInstanceId
-          const resourcesExist = await this.checkIfResourcesExist(universId, agencyId);
-          if (resourcesExist) {
-            console.log(`🔄 Ressources existantes trouvées, mise à jour avec universInstanceId=${instanceId}...`);
-            await this.updateExistingResourcesWithInstanceId(universId, instanceId, agencyId);
+          // Vérifier si les ressources existent déjà pour cette instance et si elles sont cohérentes
+          const resourcesCheck = await this.checkIfResourcesExistForInstance(instanceId, universId, agencyId, univers);
+          
+          if (!resourcesCheck.exists) {
+            // Vérifier si des ressources existent avec un autre universInstanceId
+            const resourcesExist = await this.checkIfResourcesExist(universId, agencyId);
+            if (resourcesExist) {
+              console.log(`🔄 Ressources existantes trouvées, mise à jour avec universInstanceId=${instanceId}...`);
+              await this.updateExistingResourcesWithInstanceId(universId, instanceId, agencyId);
+              
+              // Après la mise à jour, vérifier à nouveau si les ressources existent et sont cohérentes
+              const afterUpdateCheck = await this.checkIfResourcesExistForInstance(instanceId, universId, agencyId, univers);
+              if (!afterUpdateCheck.exists) {
+                console.log(`⚠️ Après mise à jour, aucune ressource trouvée pour cette instance, création des ressources...`);
+                // Pour les Univers achetés, on ne peut pas créer de nouvelles ressources
+                // car on n'a pas accès aux définitions du Univers (seul le propriétaire peut)
+                console.warn(`⚠️ Impossible de créer des ressources pour un Univers acheté. Veuillez contacter le propriétaire.`);
+              } else if (!afterUpdateCheck.isConsistent) {
+                console.warn(`⚠️ Ressources incohérentes après mise à jour:`, afterUpdateCheck.inconsistencies);
+                console.warn(`⚠️ Impossible de corriger les ressources pour un Univers acheté. Veuillez contacter le propriétaire.`);
+              } else {
+                console.log(`✅ Ressources mises à jour avec succès pour cette instance`);
+              }
+            }
+          } else if (!resourcesCheck.isConsistent) {
+            // Les ressources existent mais sont incohérentes
+            console.warn(`⚠️ Ressources incohérentes détectées:`, resourcesCheck.inconsistencies);
+            console.warn(`⚠️ Impossible de corriger les ressources pour un Univers acheté. Veuillez contacter le propriétaire.`);
+          } else {
+            // Les ressources existent et sont cohérentes : ne rien faire
+            console.log(`✅ Ressources déjà existantes et cohérentes pour cette instance, pas de mise à jour nécessaire`);
           }
         } else {
           throw new Error('Vous devez d\'abord acheter ce Univers depuis le marketplace');
@@ -2699,10 +3061,10 @@ class UniversService {
           instanceId = instance.id;
           console.log(`✅ Instance existante trouvée pour le propriétaire: ${instanceId}`);
           
-          // Vérifier si les ressources existent déjà pour cette instance spécifique
-          const resourcesExistForInstance = await this.checkIfResourcesExistForInstance(instanceId, universId, agencyId);
+          // Vérifier si les ressources existent déjà pour cette instance et si elles sont cohérentes
+          const resourcesCheck = await this.checkIfResourcesExistForInstance(instanceId, universId, agencyId, univers);
           
-          if (!resourcesExistForInstance) {
+          if (!resourcesCheck.exists) {
             // Vérifier si des ressources existent avec un autre universInstanceId
             const resourcesExist = await this.checkIfResourcesExist(universId, agencyId);
             if (!resourcesExist) {
@@ -2714,10 +3076,32 @@ class UniversService {
               // Des ressources existent mais pas pour cette instance : mettre à jour leur universInstanceId
               console.log(`🔄 Ressources existantes trouvées, mise à jour avec universInstanceId=${instanceId}...`);
               await this.updateExistingResourcesWithInstanceId(universId, instanceId, agencyId);
+              
+              // Après la mise à jour, vérifier à nouveau si les ressources existent et sont cohérentes
+              const afterUpdateCheck = await this.checkIfResourcesExistForInstance(instanceId, universId, agencyId, univers);
+              if (!afterUpdateCheck.exists) {
+                console.log(`⚠️ Après mise à jour, aucune ressource trouvée pour cette instance, création des ressources...`);
+                await this.instantiateResourcesOnly(univers, directorId, agencyId, instanceId);
+                console.log(`✅ Ressources créées après mise à jour`);
+              } else if (!afterUpdateCheck.isConsistent) {
+                // Les ressources existent mais sont incohérentes : les recréer
+                console.warn(`⚠️ Ressources incohérentes après mise à jour:`, afterUpdateCheck.inconsistencies);
+                console.log(`🔄 Recréation des ressources pour corriger les incohérences...`);
+                await this.instantiateResourcesOnly(univers, directorId, agencyId, instanceId);
+                console.log(`✅ Ressources recréées avec succès`);
+              } else {
+                console.log(`✅ Ressources mises à jour avec succès pour cette instance`);
+              }
             }
+          } else if (!resourcesCheck.isConsistent) {
+            // Les ressources existent mais sont incohérentes : les recréer
+            console.warn(`⚠️ Ressources incohérentes détectées:`, resourcesCheck.inconsistencies);
+            console.log(`🔄 Recréation des ressources pour corriger les incohérences...`);
+            await this.instantiateResourcesOnly(univers, directorId, agencyId, instanceId);
+            console.log(`✅ Ressources recréées avec succès`);
           } else {
-            // Les ressources existent déjà pour cette instance : ne rien faire
-            console.log(`✅ Ressources déjà existantes pour cette instance, pas de création nécessaire`);
+            // Les ressources existent et sont cohérentes : ne rien faire
+            console.log(`✅ Ressources déjà existantes et cohérentes pour cette instance, pas de création nécessaire`);
           }
         }
       }

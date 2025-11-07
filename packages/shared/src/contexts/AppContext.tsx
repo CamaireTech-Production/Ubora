@@ -166,12 +166,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           );
         } else {
           // Rétrocompatibilité : filtrer par universId si pas d'instance
-          formsQuery = query(
-            collection(db, 'forms'),
-            where('agencyId', '==', user.agencyId),
-            where('universId', '==', activeUniversId),
-            orderBy('createdAt', 'desc')
-          );
+        formsQuery = query(
+          collection(db, 'forms'),
+          where('agencyId', '==', user.agencyId),
+          where('universId', '==', activeUniversId),
+          orderBy('createdAt', 'desc')
+        );
         }
       } else {
         // Rétrocompatibilité temporaire : si pas de Univers actif, charger tous les forms
@@ -197,12 +197,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             orderBy('createdAt', 'desc')
           );
         } else {
-          formsQuery = query(
-            collection(db, 'forms'),
-            where('agencyId', '==', user.agencyId),
-            where('universId', '==', activeUniversId),
-            orderBy('createdAt', 'desc')
-          );
+        formsQuery = query(
+          collection(db, 'forms'),
+          where('agencyId', '==', user.agencyId),
+          where('universId', '==', activeUniversId),
+          orderBy('createdAt', 'desc')
+        );
         }
       } else {
         formsQuery = query(
@@ -335,12 +335,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           );
         } else {
           // Rétrocompatibilité : filtrer par universId si pas d'instance
-          dashboardsQuery = query(
-            collection(db, 'dashboards'),
-            where('agencyId', '==', user.agencyId),
-            where('universId', '==', activeUniversId),
-            orderBy('createdAt', 'desc')
-          );
+        dashboardsQuery = query(
+          collection(db, 'dashboards'),
+          where('agencyId', '==', user.agencyId),
+          where('universId', '==', activeUniversId),
+          orderBy('createdAt', 'desc')
+        );
         }
       } else {
         // Rétrocompatibilité temporaire : si pas de Univers actif, charger tous les dashboards

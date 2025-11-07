@@ -877,7 +877,15 @@ service cloud.firestore {
     
     match /lists/{listId} {
       // LECTURE des lists
-      allow read: if isAuthenticated() && (isAdmin() || isSameAgency(resource.data.agencyId));
+      // Permettre la lecture si l'utilisateur est admin ou appartient à la même agence
+      // Si la ressource n'existe pas, Firestore retournera null (pas d'erreur de permissions)
+      allow read: if isAuthenticated() && (
+        isAdmin() || 
+        (resource != null && 
+         resource.data != null && 
+         resource.data.agencyId != null && 
+         isSameAgency(resource.data.agencyId))
+      );
       
       // CRÉATION des lists
       allow create: if (isAdmin() || canCreateForms()) && 

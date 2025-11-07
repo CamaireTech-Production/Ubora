@@ -136,8 +136,13 @@ class TableDataService {
     let list: List | null = null;
     try {
       list = await listsService.getById(rowSource.listId);
-    } catch (error) {
-      console.error('TableDataService: Error loading list:', error);
+    } catch (error: any) {
+      // Gérer les erreurs de permissions ou de liste inexistante
+      if (error?.code === 'permission-denied' || error?.code === 'missing-or-insufficient-permissions') {
+        console.warn(`TableDataService: Permission denied or list not found for listId: ${rowSource.listId}`);
+      } else {
+        console.error('TableDataService: Error loading list:', error);
+      }
       return [];
     }
 
