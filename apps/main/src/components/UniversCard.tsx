@@ -490,8 +490,9 @@ export const UniversCard: React.FC<UniversCardProps> = ({
                   )}
                   {isPurchased && 
                    !isActive && 
-                   univers.ownership.approvalStatus !== 'pending' && 
-                   univers.ownership.approvalStatus !== 'rejected' && (
+                   // Pour les univers achetés (non-propriétaires), bloquer si en attente ou rejeté
+                   // Pour le propriétaire, permettre l'activation même en attente
+                   (isOwner || (univers.ownership.approvalStatus !== 'pending' && univers.ownership.approvalStatus !== 'rejected')) && (
                     <Button
                       variant="primary"
                       size="sm"
@@ -506,13 +507,15 @@ export const UniversCard: React.FC<UniversCardProps> = ({
                 </>
               )}
               
-              {/* Mes Univers ou Detail : Activer si non actif, mais seulement si approuvé */}
+              {/* Mes Univers ou Detail : Activer si non actif
+                  Pour le propriétaire, permettre l'activation même en attente
+                  Pour les non-propriétaires, bloquer si en attente ou rejeté */}
               {(context === 'my-univers' || context === 'detail') && 
                isDirecteur &&
                !isActive && 
                !hasUpdateAvailable &&
-               univers.ownership.approvalStatus !== 'pending' && 
-               univers.ownership.approvalStatus !== 'rejected' && (
+               // Le propriétaire peut toujours activer, même en attente
+               (isOwner || (univers.ownership.approvalStatus !== 'pending' && univers.ownership.approvalStatus !== 'rejected')) && (
                 <Button
                   variant="primary"
                   size="sm"

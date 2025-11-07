@@ -467,12 +467,13 @@ export const UniversViewPage: React.FC = () => {
                 )
               ) : (
                 // Si on vient de Mes Univers, montrer "Activer" si non actif
+                // Pour le propriétaire, permettre l'activation même en attente
                 <>
                   {isDirecteur && 
                    !isActive && 
                    !hasUpdateAvailable &&
-                   univers.ownership.approvalStatus !== 'pending' && 
-                   univers.ownership.approvalStatus !== 'rejected' && (
+                   // Le propriétaire peut toujours activer, même en attente
+                   (isOwner || (univers.ownership.approvalStatus !== 'pending' && univers.ownership.approvalStatus !== 'rejected')) && (
                     <Button
                       variant="primary"
                       onClick={handleActivateClick}
