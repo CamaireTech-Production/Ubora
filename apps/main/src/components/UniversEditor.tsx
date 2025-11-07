@@ -410,7 +410,9 @@ export const UniversEditor: React.FC<UniversEditorProps> = ({
     markStepSkipped,
     goToStep,
     goToNextStep,
-    goToPreviousStep
+    goToPreviousStep,
+    universId: univers.id, // Pass the Univers ID being edited
+    universInstanceId: null // When editing a Univers (not an instance), instanceId is null
   });
 
   // Save handler

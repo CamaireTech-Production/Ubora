@@ -33,6 +33,7 @@ interface AppContextType {
   dashboards: Dashboard[];
   activeUnivers: ActiveUnivers | null; // Univers actif pour le directeur
   activeUniversId: string | null; // ID du Univers actif (pour filtrage)
+  activeInstanceId: string | null; // ID de l'instance active (pour filtrage)
   createForm: (form: Omit<Form, 'id' | 'createdAt'>) => Promise<void>;
   updateForm: (formId: string, form: Partial<Omit<Form, 'id' | 'createdAt' | 'createdBy' | 'agencyId'>>) => Promise<void>;
   submitFormEntry: (entry: Omit<FormEntry, 'id' | 'submittedAt' | 'userId' | 'agencyId'>) => Promise<string>;
@@ -1328,6 +1329,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       dashboards,
       activeUnivers,
       activeUniversId,
+      activeInstanceId,
       createForm,
       updateForm,
       submitFormEntry,
@@ -1370,6 +1372,7 @@ export const useApp = () => {
       dashboards: [],
       activeUnivers: null,
       activeUniversId: null,
+      activeInstanceId: null,
       createForm: async () => {},
       updateForm: async () => {},
       submitFormEntry: async () => {},

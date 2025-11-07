@@ -478,5 +478,7 @@ export interface UniversWizardStepProps {
   goToStep: (step: number) => void;
   goToNextStep: () => void;
   goToPreviousStep: () => void;
+  universId?: string | null; // ID of the Univers being edited (for filtering lists)
+  universInstanceId?: string | null; // ID of the Univers instance being edited (for filtering lists)
 }
 

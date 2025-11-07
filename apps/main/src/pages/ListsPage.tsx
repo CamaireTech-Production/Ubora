@@ -18,7 +18,7 @@ import { canDeleteList } from '@ubora/shared/utils/listUsageChecker';
 export const ListsPage: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { activeUniversId } = useApp();
+  const { activeUniversId, activeInstanceId } = useApp();
   const { toast, showSuccess, showError } = useToast();
   const [lists, setLists] = useState<List[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -38,14 +38,14 @@ export const ListsPage: React.FC = () => {
     if (user?.id && user?.agencyId) {
       loadLists();
     }
-  }, [user, activeUniversId]);
+  }, [user, activeUniversId, activeInstanceId]);
 
   const loadLists = async () => {
     if (!user?.id || !user?.agencyId) return;
 
     setIsLoading(true);
     try {
-      const userLists = await listsService.getByUser(user.id, user.agencyId, user.role, activeUniversId || null);
+      const userLists = await listsService.getByUser(user.id, user.agencyId, user.role, activeUniversId || null, activeInstanceId || null);
       setLists(userLists);
     } catch (error) {
       console.error('Erreur lors du chargement des Lists:', error);

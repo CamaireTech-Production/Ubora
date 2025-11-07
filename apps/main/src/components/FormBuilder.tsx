@@ -15,6 +15,7 @@ import { ConditionalLogicBuilder } from './ConditionalLogicBuilder';
 import { DesktopRecommendationInfo } from './DesktopRecommendationInfo';
 import { ConfirmationModal } from './ConfirmationModal';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
+import { useApp } from '@ubora/shared/contexts/AppContext';
 import { UserSessionService } from '@ubora/shared/services/userSessionService';
 import { listsService } from '@ubora/shared/services/listsService';
 import { List, ListDefinition } from '../types';
@@ -38,6 +39,8 @@ interface FormBuilderProps {
   initialForm?: Pick<Form, 'id' | 'title' | 'description' | 'fields' | 'assignedTo' | 'timeRestrictions'>;
   isLoading?: boolean;
   universLists?: ListDefinition[]; // Lists from Univers wizard context
+  universId?: string | null; // ID of the Univers being edited (for filtering lists)
+  universInstanceId?: string | null; // ID of the Univers instance being edited (for filtering lists)
 }
 
 export const FormBuilder: React.FC<FormBuilderProps> = ({
@@ -47,10 +50,13 @@ export const FormBuilder: React.FC<FormBuilderProps> = ({
   currentUser,
   initialForm,
   isLoading = false,
-  universLists = []
+  universLists = [],
+  universId: editingUniversId,
+  universInstanceId: editingUniversInstanceId
 }) => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { activeUniversId, activeInstanceId } = useApp();
   const canUseFileUploads = user ? UserSessionService.canUseFileUploads(user) : false;
   // Initialiser les états avec les valeurs du formulaire existant ou vides
   const [title, setTitle] = useState(initialForm?.title || '');
@@ -84,11 +90,6 @@ export const FormBuilder: React.FC<FormBuilderProps> = ({
       
       setLoadingLists(true);
       try {
-        // Load lists from database (filtrées par Univers actif)
-        // Note: activeUniversId sera disponible via AppContext, mais pour l'instant on passe null
-        // car ce composant est utilisé dans le wizard Univers où on veut toutes les lists
-        const dbLists = await listsService.getByUser(user.id, user.agencyId, user.role, null);
-        
         // Convert ListDefinitions to List format (for Univers context)
         const universListObjects: List[] = (universLists || []).map(listDef => ({
           id: listDef.id,
@@ -103,15 +104,30 @@ export const FormBuilder: React.FC<FormBuilderProps> = ({
           updatedAt: new Date()
         }));
         
-        // Merge Univers lists with DB lists (Univers lists take precedence by ID)
-        const mergedLists: List[] = [...universListObjects];
-        dbLists.forEach(dbList => {
-          if (!mergedLists.find(l => l.id === dbList.id)) {
-            mergedLists.push(dbList);
-          }
-        });
+        // Si on est dans le contexte d'édition d'un Univers (universLists fourni),
+        // utiliser SEULEMENT les listes du Univers, ne pas charger depuis la DB
+        if (universLists.length > 0) {
+          setAvailableLists(universListObjects);
+          setLoadingLists(false);
+          return;
+        }
         
-        setAvailableLists(mergedLists);
+        // Sinon, charger depuis la DB avec filtrage par univers/instance
+        // Si on édite un Univers spécifique (editingUniversId fourni), utiliser cet ID
+        // Sinon, filtrer par univers actif et instance active
+        const universIdToUse = editingUniversId ?? activeUniversId;
+        const instanceIdToUse = editingUniversInstanceId ?? activeInstanceId;
+        
+        const dbLists = await listsService.getByUser(
+          user.id, 
+          user.agencyId, 
+          user.role, 
+          universIdToUse,
+          instanceIdToUse
+        );
+        
+        // Utiliser uniquement les listes de la DB (pas de merge avec universLists car on n'est pas dans le contexte Univers)
+        setAvailableLists(dbLists);
       } catch (error) {
         console.error('Erreur lors du chargement des listes:', error);
       } finally {
@@ -120,7 +136,7 @@ export const FormBuilder: React.FC<FormBuilderProps> = ({
     };
     
     loadLists();
-  }, [user, universLists]);
+  }, [user, universLists, activeUniversId, activeInstanceId, editingUniversId, editingUniversInstanceId]);
 
   // Auto-scroll to errors when they appear (mobile-responsive)
   useEffect(() => {
