@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { DashboardMetric, Form, FormField, TableColumnConfig, TableRowSource, AggregateColumn, DerivedColumn, LabelColumn, List, TableFilter } from '../types';
+import { ColumnFormulaInput } from './ColumnFormulaInput';
 import { Button } from './Button';
 import { Input } from './Input';
 import { Textarea } from './Textarea';
@@ -46,7 +47,7 @@ export const DashboardBuilder: React.FC<DashboardBuilderProps> = ({
   universLists
 }) => {
   const { user } = useAuth();
-  const { activeUniversId } = useApp();
+  const { activeUniversId, activeInstanceId } = useApp();
   const [name, setName] = useState(initialDashboard?.name || '');
   const [description, setDescription] = useState(initialDashboard?.description || '');
   const [metrics, setMetrics] = useState<Omit<DashboardMetric, 'id' | 'createdAt' | 'createdBy' | 'agencyId'>[]>(initialDashboard?.metrics || []);
@@ -64,7 +65,7 @@ export const DashboardBuilder: React.FC<DashboardBuilderProps> = ({
       setIsLoadingLists(true);
       try {
         // Load lists from database
-        const dbLists = await listsService.getByUser(user.id, user.agencyId, user.role, activeUniversId || null);
+        const dbLists = await listsService.getByUser(user.id, user.agencyId, user.role, activeUniversId || null, activeInstanceId || null);
         
         // Merge Univers lists with DB lists (Univers lists take precedence by ID)
         const mergedLists: List[] = universLists ? [...universLists] : [];
@@ -1701,15 +1702,76 @@ export const DashboardBuilder: React.FC<DashboardBuilderProps> = ({
                                                             {(() => {
                                                               const fieldType = filterField?.type || 'text';
                                                               
-                                                              if (fieldType === 'select' && filter.op === 'in' || filter.op === 'nin') {
+                                                              // Helper function to get select field options
+                                                              const getSelectOptions = (field: FormField) => {
+                                                                // Check if field uses a list
+                                                                if (field?.listId && lists.length > 0) {
+                                                                  const list = lists.find(l => l.id === field.listId);
+                                                                  if (list) {
+                                                                    // Find display column (use displayColumnId or first column)
+                                                                    const displayColumn = list.columns.find(c => c.id === field.displayColumnId) || list.columns[0];
+                                                                    if (displayColumn) {
+                                                                      // Extract options from list rows
+                                                                      return list.rows.map((row, index) => {
+                                                                        const displayValue = String(row[displayColumn.id] || '');
+                                                                        return {
+                                                                          value: displayValue,
+                                                                          label: displayValue || `Ligne ${index + 1}`
+                                                                        };
+                                                                      });
+                                                                    }
+                                                                  }
+                                                                }
+                                                                
+                                                                // Fallback: use manual options
+                                                                return (field?.options || []).map(option => ({
+                                                                  value: typeof option === 'string' ? option : String(option),
+                                                                  label: typeof option === 'string' ? option : String(option)
+                                                                }));
+                                                              };
+                                                              
+                                                              if (fieldType === 'select' && (filter.op === 'eq' || filter.op === 'neq')) {
+                                                                // Single select dropdown for 'eq' and 'neq' operators
+                                                                const selectOptions = getSelectOptions(filterField!);
+                                                                return (
+                                                                  <Select
+                                                                    value={typeof filter.value === 'string' ? filter.value : ''}
+                                                                    onChange={(e) => {
+                                                                      const currentTableConfig = ensureTableConfig(metric.tableConfig);
+                                                                      const columns = [...currentTableConfig.columns];
+                                                                      const aggCol = columns[colIndex] as AggregateColumn;
+                                                                      const updatedFilters = [...(aggCol.filters || [])];
+                                                                      updatedFilters[filterIndex] = {
+                                                                        ...filter,
+                                                                        value: e.target.value
+                                                                      };
+                                                                      columns[colIndex] = {
+                                                                        ...aggCol,
+                                                                        filters: updatedFilters
+                                                                      } as AggregateColumn;
+                                                                      updateMetric(index, {
+                                                                        tableConfig: {
+                                                                          ...currentTableConfig,
+                                                                          columns
+                                                                        }
+                                                                      });
+                                                                    }}
+                                                                    options={[
+                                                                      { value: '', label: 'Sélectionner...' },
+                                                                      ...selectOptions
+                                                                    ]}
+                                                                  />
+                                                                );
+                                                              } else if (fieldType === 'select' && (filter.op === 'in' || filter.op === 'nin')) {
                                                                 // Multi-select for 'in' and 'nin' operators
+                                                                const selectOptions = getSelectOptions(filterField!);
                                                                 return (
                                                                   <div className="space-y-1">
-                                                                    {filterField?.options?.map((option: string, optIndex: number) => (
+                                                                    {selectOptions.map((option, optIndex) => (
                                                                       <label key={optIndex} className="flex items-center space-x-2 text-xs">
                                                                         <input
                                                                           type="checkbox"
-                                                                          checked={Array.isArray(filter.value) && filter.value.includes(option)}
+                                                                          checked={Array.isArray(filter.value) && filter.value.includes(option.value)}
                                                                           onChange={(e) => {
                                                                             const currentTableConfig = ensureTableConfig(metric.tableConfig);
                                                                             const columns = [...currentTableConfig.columns];
@@ -1717,8 +1779,8 @@ export const DashboardBuilder: React.FC<DashboardBuilderProps> = ({
                                                                             const updatedFilters = [...(aggCol.filters || [])];
                                                                             const currentValues = Array.isArray(filter.value) ? filter.value : [];
                                                                             const newValues = e.target.checked
-                                                                              ? [...currentValues, option]
-                                                                              : currentValues.filter(v => v !== option);
+                                                                              ? [...currentValues, option.value]
+                                                                              : currentValues.filter(v => v !== option.value);
                                                                             updatedFilters[filterIndex] = {
                                                                               ...filter,
                                                                               value: newValues
@@ -1736,7 +1798,7 @@ export const DashboardBuilder: React.FC<DashboardBuilderProps> = ({
                                                                           }}
                                                                           className="text-blue-600 focus:ring-blue-500"
                                                                         />
-                                                                        <span>{option}</span>
+                                                                        <span>{option.label}</span>
                                                                       </label>
                                                                     ))}
                                                                   </div>
@@ -1888,17 +1950,14 @@ export const DashboardBuilder: React.FC<DashboardBuilderProps> = ({
                                     {/* Derived column configuration */}
                                     {(column as any).type === 'derived' && (
                                       <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                                          Formule *
-                                        </label>
-                                        <Input
+                                        <ColumnFormulaInput
                                           value={(column as DerivedColumn).formula || ''}
-                                          onChange={(e) => {
+                                          onChange={(formula: string, columnIds: string[]) => {
                                             const currentTableConfig = ensureTableConfig(metric.tableConfig);
                                             const columns = [...currentTableConfig.columns];
                                             columns[colIndex] = {
                                               ...columns[colIndex],
-                                              formula: e.target.value
+                                              formula: formula
                                             } as DerivedColumn;
                                             updateMetric(index, {
                                               tableConfig: {
@@ -1907,24 +1966,9 @@ export const DashboardBuilder: React.FC<DashboardBuilderProps> = ({
                                               }
                                             });
                                           }}
-                                          placeholder="Ex: col_initial + col_in - col_out"
-                                          required
+                                          columns={metric.tableConfig?.columns || []}
+                                          currentColumnId={column.id}
                                         />
-                                        <p className="mt-1 text-xs text-purple-600">
-                                          💡 Utilisez les IDs des colonnes (ex: col_initial, col_in, col_out) avec +, -, *, /
-                                        </p>
-                                        <div className="mt-2 p-2 bg-purple-50 rounded text-xs">
-                                          <p className="font-medium mb-1">Colonnes disponibles:</p>
-                                          <div className="flex flex-wrap gap-1">
-                                            {metric.tableConfig?.columns
-                                              .filter((c, i) => i !== colIndex && (c as any).id)
-                                              .map((c, i) => (
-                                                <code key={i} className="px-1 py-0.5 bg-white rounded text-purple-700">
-                                                  {(c as any).id}
-                                                </code>
-                                              ))}
-                                          </div>
-                                        </div>
                                       </div>
                                     )}
                                   </div>
