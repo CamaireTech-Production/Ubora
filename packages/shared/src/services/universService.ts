@@ -1997,16 +1997,43 @@ class UniversService {
       const currentVersion = oldInstance.universVersion || oldInstance.metadata?.universVersion || 1;
       const latestVersion = univers.metadata.version || 1;
       
+      // Vérifier si l'utilisateur est le propriétaire du template
+      const isOwner = univers.ownership.createdBy === userId;
+      
+      console.log(`🔍 Upgrade check:`, {
+        instanceId: oldInstanceId,
+        universId: oldInstance.universId,
+        currentVersion,
+        latestVersion,
+        isOwner,
+        updateAvailable: oldInstance.updateAvailable,
+        latestAvailableVersion: oldInstance.latestAvailableVersion,
+        userId
+      });
+      
       // Déterminer la nouvelle version à utiliser
       let newVersion: number;
-      if (oldInstance.updateAvailable && oldInstance.latestAvailableVersion) {
-        // Utiliser la version marquée comme disponible dans l'instance
-        newVersion = oldInstance.latestAvailableVersion;
-      } else if (latestVersion > currentVersion) {
-        // Si pas de marqueur mais que le Univers template a une version plus récente, l'utiliser
+      
+      // Pour le propriétaire : toujours utiliser la version du template (ignore latestAvailableVersion)
+      if (isOwner && latestVersion > currentVersion) {
+        // Propriétaire : toujours utiliser la dernière version du template
         newVersion = latestVersion;
+        console.log(`📌 Owner: using latest template version: v${newVersion}`);
+      } else if (oldInstance.updateAvailable && oldInstance.latestAvailableVersion) {
+        // Non-propriétaire : utiliser la version marquée comme disponible dans l'instance
+        newVersion = oldInstance.latestAvailableVersion;
+        console.log(`📌 Using marked available version: v${newVersion}`);
+      } else if (latestVersion > currentVersion) {
+        // Si pas de marqueur mais que le Univers template a une version plus récente
+        // Pour les non-propriétaires, vérifier que la version est approuvée
+        if (univers.ownership.approvalStatus === 'approved') {
+          newVersion = latestVersion;
+          console.log(`📌 Non-owner: using approved template version: v${newVersion}`);
+        } else {
+          throw new Error(`No approved update available. Template version ${latestVersion} is ${univers.ownership.approvalStatus}`);
+        }
       } else {
-        throw new Error('No update available for this instance');
+        throw new Error(`No update available. Current version: v${currentVersion}, Latest version: v${latestVersion}`);
       }
 
       if (newVersion <= currentVersion) {

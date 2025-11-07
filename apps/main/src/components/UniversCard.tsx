@@ -144,21 +144,39 @@ export const UniversCard: React.FC<UniversCardProps> = ({
       window.location.reload();
     } catch (error) {
       console.error('Erreur lors de la mise à jour du Univers:', error);
+      console.error('Détails de l\'erreur:', {
+        error,
+        errorType: typeof error,
+        errorMessage: error instanceof Error ? error.message : String(error),
+        errorStack: error instanceof Error ? error.stack : undefined,
+        userInstance: userInstance?.id,
+        universId: univers?.id,
+        currentVersion,
+        latestVersion
+      });
+      
       let errorMessage = 'Une erreur est survenue lors de la mise à jour du Univers.';
       if (error instanceof Error) {
-        if (error.message.includes('No update available')) {
-          errorMessage = 'Aucune mise à jour disponible pour cette instance.';
-        } else if (error.message.includes('not found')) {
+        const message = error.message.toLowerCase();
+        if (message.includes('no update available') || message.includes('not greater than')) {
+          errorMessage = 'Aucune mise à jour disponible pour cette instance. La version disponible n\'est pas supérieure à la version actuelle.';
+        } else if (message.includes('not found')) {
           errorMessage = 'Instance ou Univers introuvable. Veuillez réessayer.';
-        } else if (error.message.includes('version')) {
+        } else if (message.includes('version') || message.includes('does not match')) {
           errorMessage = `Erreur de version : ${error.message}`;
+        } else if (message.includes('permission') || message.includes('permission-denied')) {
+          errorMessage = 'Vous n\'avez pas la permission de mettre à jour cet univers.';
         } else {
-          errorMessage = error.message;
+          errorMessage = `Erreur : ${error.message}`;
         }
+      } else {
+        errorMessage = `Erreur inattendue : ${String(error)}`;
       }
+      
       showError(errorMessage);
       setIsUpgrading(false);
       setUpgradeProgress('');
+      setShowUpgradeModal(false);
     }
   };
 
@@ -601,6 +619,7 @@ export const UniversCard: React.FC<UniversCardProps> = ({
       cancelText="Annuler"
       variant="warning"
       isLoading={isUpgrading}
+      loadingText={upgradeProgress || "Mise à jour en cours..."}
     />
     </>
   );

@@ -242,6 +242,9 @@ class UniversInstantiationService {
 
     for (const instructionDef of instructionDefinitions) {
       try {
+        // Support legacy instructions without 'frequency' field (fallback to 'once')
+        const instructionFrequency = instructionDef.frequency || 'once';
+        
         // Normaliser scheduledAt pour garantir une Date valide
         const rawScheduledAt = (instructionDef as any).scheduledAt;
         let scheduledAt = rawScheduledAt ? this.normalizeDate(rawScheduledAt) : new Date();
@@ -255,14 +258,21 @@ class UniversInstantiationService {
         // Calculate nextExecution based on frequency
         let nextExecution = scheduledQuestionService.calculateNextExecution(
           scheduledAt,
-          instructionDef.frequency
+          instructionFrequency
         );
 
         // Vérifier que nextExecution est une Date valide
         if (!nextExecution || isNaN(nextExecution.getTime())) {
           console.warn(`⚠️ Invalid nextExecution for instruction "${instructionDef.title}", calculating from current date`);
-          nextExecution = scheduledQuestionService.calculateNextExecution(new Date(), instructionDef.frequency);
+          nextExecution = scheduledQuestionService.calculateNextExecution(new Date(), instructionFrequency);
         }
+
+        // Support legacy instructions without 'filters' field (fallback to defaults)
+        const instructionFilters = instructionDef.filters || {
+          period: 'all',
+          formId: '',
+          userId: params.userId
+        };
 
         // Create a ScheduledQuestion from InstructionDefinition
         const scheduledQuestionData: any = {
@@ -271,15 +281,15 @@ class UniversInstantiationService {
           question: instructionDef.question,
           title: instructionDef.title,
           filters: {
-            period: instructionDef.filters.period,
-            formId: idMappings.forms.get(instructionDef.filters.formId) || instructionDef.filters.formId, // Map definition ID to instance ID if available
-            userId: instructionDef.filters.userId
+            period: instructionFilters.period || 'all',
+            formId: idMappings.forms.get(instructionFilters.formId) || instructionFilters.formId || '', // Map definition ID to instance ID if available
+            userId: instructionFilters.userId || params.userId
           },
-          selectedFormat: instructionDef.selectedFormat,
+          selectedFormat: instructionDef.selectedFormat || null,
           selectedFormats: instructionDef.selectedFormats || [],
-          selectedFormIds: instructionDef.selectedFormIds.map(formDefId => idMappings.forms.get(formDefId) || formDefId), // Map definition IDs to instance IDs
+          selectedFormIds: (instructionDef.selectedFormIds || []).map(formDefId => idMappings.forms.get(formDefId) || formDefId), // Map definition IDs to instance IDs
           scheduledAt: scheduledAt,
-          frequency: instructionDef.frequency,
+          frequency: instructionFrequency,
           nextExecution: nextExecution,
           status: 'pending',
           universId: params.universId,
