@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { DashboardMetric, Form, FormField, TableColumnConfig, TableRowSource, AggregateColumn, DerivedColumn, LabelColumn, List } from '../types';
+import { DashboardMetric, Form, FormField, TableColumnConfig, TableRowSource, AggregateColumn, DerivedColumn, LabelColumn, List, TableFilter } from '../types';
 import { Button } from './Button';
 import { Input } from './Input';
 import { Textarea } from './Textarea';
@@ -429,6 +429,35 @@ export const DashboardBuilder: React.FC<DashboardBuilderProps> = ({
               }
               if (!aggCol.valueFieldId || !aggCol.valueFieldId.trim()) {
                 newErrors.push(`Le champ de valeur de la colonne ${colIndex + 1} de la métrique tableau ${index + 1} est requis`);
+              }
+              
+              // Validate filters
+              if (aggCol.filters && aggCol.filters.length > 0) {
+                const columnForm = forms.find(f => f.id === aggCol.formId);
+                if (columnForm) {
+                  aggCol.filters.forEach((filter, filterIndex) => {
+                    if (!filter.fieldId || !filter.fieldId.trim()) {
+                      newErrors.push(`La métrique "${metric.name || `Métrique ${index + 1}`}" (tableau) - Colonne ${colIndex + 1} - Filtre ${filterIndex + 1} : Le champ est requis`);
+                    } else {
+                      const filterField = columnForm.fields.find(f => f.id === filter.fieldId);
+                      if (!filterField) {
+                        newErrors.push(`La métrique "${metric.name || `Métrique ${index + 1}`}" (tableau) - Colonne ${colIndex + 1} - Filtre ${filterIndex + 1} : Le champ sélectionné n'existe pas dans le formulaire`);
+                      } else {
+                        // Validate filter value based on operator
+                        if (filter.op !== 'is_empty' && filter.op !== 'is_not_empty') {
+                          if (filter.value === null || filter.value === undefined || filter.value === '') {
+                            newErrors.push(`La métrique "${metric.name || `Métrique ${index + 1}`}" (tableau) - Colonne ${colIndex + 1} - Filtre ${filterIndex + 1} : La valeur est requise`);
+                          } else if ((filter.op === 'in' || filter.op === 'nin') && (!Array.isArray(filter.value) || filter.value.length === 0)) {
+                            newErrors.push(`La métrique "${metric.name || `Métrique ${index + 1}`}" (tableau) - Colonne ${colIndex + 1} - Filtre ${filterIndex + 1} : Au moins une valeur doit être sélectionnée`);
+                          } else if ((filter.op === 'greater_than' || filter.op === 'less_than' || filter.op === 'greater_equal' || filter.op === 'less_equal') && 
+                                    (filterField.type !== 'number' && filterField.type !== 'calculated' && filterField.type !== 'date')) {
+                            newErrors.push(`La métrique "${metric.name || `Métrique ${index + 1}`}" (tableau) - Colonne ${colIndex + 1} - Filtre ${filterIndex + 1} : Les opérateurs de comparaison ne peuvent être utilisés qu'avec des champs numériques ou de date`);
+                          }
+                        }
+                      }
+                    }
+                  });
+                }
               }
             } else if ((column as any).type === 'derived') {
               const derivedCol = column as DerivedColumn;
@@ -1458,7 +1487,399 @@ export const DashboardBuilder: React.FC<DashboardBuilderProps> = ({
                                             </div>
                                           );
                                         })()}
-                                        <p className="text-xs text-purple-600">
+                                        {/* Filters section */}
+                                        <div className="mt-4 pt-4 border-t border-gray-200">
+                                          <div className="flex items-center justify-between mb-3">
+                                            <label className="block text-sm font-medium text-gray-700">
+                                              Filtres (optionnel)
+                                            </label>
+                                            <Button
+                                              type="button"
+                                              variant="secondary"
+                                              size="sm"
+                                              onClick={() => {
+                                                const currentTableConfig = ensureTableConfig(metric.tableConfig);
+                                                const columns = [...currentTableConfig.columns];
+                                                const aggCol = columns[colIndex] as AggregateColumn;
+                                                const newFilter: TableFilter = {
+                                                  id: `filter_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                                                  fieldId: '',
+                                                  op: 'eq',
+                                                  value: ''
+                                                };
+                                                columns[colIndex] = {
+                                                  ...aggCol,
+                                                  filters: [...(aggCol.filters || []), newFilter]
+                                                } as AggregateColumn;
+                                                updateMetric(index, {
+                                                  tableConfig: {
+                                                    ...currentTableConfig,
+                                                    columns
+                                                  }
+                                                });
+                                              }}
+                                              className="flex items-center space-x-1"
+                                            >
+                                              <Plus className="h-3 w-3" />
+                                              <span className="text-xs">Ajouter un filtre</span>
+                                            </Button>
+                                          </div>
+                                          
+                                          {(() => {
+                                            const aggCol = column as AggregateColumn;
+                                            const filters = aggCol.filters || [];
+                                            const columnForm = forms.find((f: Form) => f.id === aggCol.formId);
+                                            
+                                            if (filters.length === 0) {
+                                              return (
+                                                <p className="text-xs text-gray-500 italic">
+                                                  Aucun filtre configuré. Toutes les données du formulaire seront utilisées.
+                                                </p>
+                                              );
+                                            }
+                                            
+                                            if (!columnForm) {
+                                              return (
+                                                <p className="text-xs text-red-600">
+                                                  ⚠️ Formulaire non trouvé
+                                                </p>
+                                              );
+                                            }
+                                            
+                                            return (
+                                              <div className="space-y-3">
+                                                {filters.map((filter, filterIndex) => {
+                                                  const filterField = columnForm.fields.find((f: FormField) => f.id === filter.fieldId);
+                                                  
+                                                  return (
+                                                    <div key={filter.id} className="p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                                                      <div className="flex items-start justify-between mb-2">
+                                                        <span className="text-xs font-medium text-gray-700">
+                                                          Filtre {filterIndex + 1}
+                                                        </span>
+                                                        <Button
+                                                          type="button"
+                                                          variant="secondary"
+                                                          size="sm"
+                                                          onClick={() => {
+                                                            const currentTableConfig = ensureTableConfig(metric.tableConfig);
+                                                            const columns = [...currentTableConfig.columns];
+                                                            const aggCol = columns[colIndex] as AggregateColumn;
+                                                            columns[colIndex] = {
+                                                              ...aggCol,
+                                                              filters: aggCol.filters?.filter(f => f.id !== filter.id) || []
+                                                            } as AggregateColumn;
+                                                            updateMetric(index, {
+                                                              tableConfig: {
+                                                                ...currentTableConfig,
+                                                                columns
+                                                              }
+                                                            });
+                                                          }}
+                                                          className="p-1"
+                                                        >
+                                                          <Trash2 className="h-3 w-3 text-red-600" />
+                                                        </Button>
+                                                      </div>
+                                                      
+                                                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                                                        <Select
+                                                          label="Champ"
+                                                          value={filter.fieldId}
+                                                          onChange={(e) => {
+                                                            const currentTableConfig = ensureTableConfig(metric.tableConfig);
+                                                            const columns = [...currentTableConfig.columns];
+                                                            const aggCol = columns[colIndex] as AggregateColumn;
+                                                            const updatedFilters = [...(aggCol.filters || [])];
+                                                            updatedFilters[filterIndex] = {
+                                                              ...filter,
+                                                              fieldId: e.target.value,
+                                                              value: '' // Reset value when field changes
+                                                            };
+                                                            columns[colIndex] = {
+                                                              ...aggCol,
+                                                              filters: updatedFilters
+                                                            } as AggregateColumn;
+                                                            updateMetric(index, {
+                                                              tableConfig: {
+                                                                ...currentTableConfig,
+                                                                columns
+                                                              }
+                                                            });
+                                                          }}
+                                                          options={[
+                                                            { value: '', label: 'Choisir un champ...' },
+                                                            ...(columnForm ? columnForm.fields
+                                                              .filter((f: FormField) => f.id !== aggCol.rowKeyFieldId && f.id !== aggCol.valueFieldId) // Don't allow filtering on the same fields used for aggregation
+                                                              .map((field: FormField) => ({
+                                                                value: field.id,
+                                                                label: `${field.label} (${field.type})`
+                                                              })) : [])
+                                                          ]}
+                                                        />
+                                                        
+                                                        <Select
+                                                          label="Opérateur"
+                                                          value={filter.op}
+                                                          onChange={(e) => {
+                                                            const currentTableConfig = ensureTableConfig(metric.tableConfig);
+                                                            const columns = [...currentTableConfig.columns];
+                                                            const aggCol = columns[colIndex] as AggregateColumn;
+                                                            const updatedFilters = [...(aggCol.filters || [])];
+                                                            const newOp = e.target.value as TableFilter['op'];
+                                                            updatedFilters[filterIndex] = {
+                                                              ...filter,
+                                                              op: newOp,
+                                                              // Reset value for empty operators
+                                                              value: (newOp === 'is_empty' || newOp === 'is_not_empty') ? undefined : filter.value
+                                                            };
+                                                            columns[colIndex] = {
+                                                              ...aggCol,
+                                                              filters: updatedFilters
+                                                            } as AggregateColumn;
+                                                            updateMetric(index, {
+                                                              tableConfig: {
+                                                                ...currentTableConfig,
+                                                                columns
+                                                              }
+                                                            });
+                                                          }}
+                                                          options={(() => {
+                                                            const fieldType = filterField?.type || 'text';
+                                                            const baseOps = [
+                                                              { value: 'eq', label: 'Égal à' },
+                                                              { value: 'neq', label: 'Différent de' }
+                                                            ];
+                                                            
+                                                            if (fieldType === 'text' || fieldType === 'textarea' || fieldType === 'email') {
+                                                              return [
+                                                                ...baseOps,
+                                                                { value: 'contains', label: 'Contient' },
+                                                                { value: 'not_contains', label: 'Ne contient pas' },
+                                                                { value: 'is_empty', label: 'Est vide' },
+                                                                { value: 'is_not_empty', label: 'N\'est pas vide' }
+                                                              ];
+                                                            } else if (fieldType === 'number' || fieldType === 'calculated') {
+                                                              return [
+                                                                ...baseOps,
+                                                                { value: 'greater_than', label: 'Supérieur à' },
+                                                                { value: 'less_than', label: 'Inférieur à' },
+                                                                { value: 'greater_equal', label: 'Supérieur ou égal à' },
+                                                                { value: 'less_equal', label: 'Inférieur ou égal à' },
+                                                                { value: 'is_empty', label: 'Est vide' },
+                                                                { value: 'is_not_empty', label: 'N\'est pas vide' }
+                                                              ];
+                                                            } else if (fieldType === 'select' || fieldType === 'checkbox') {
+                                                              return [
+                                                                ...baseOps,
+                                                                { value: 'in', label: 'Dans la liste' },
+                                                                { value: 'nin', label: 'Pas dans la liste' },
+                                                                { value: 'is_empty', label: 'Est vide' },
+                                                                { value: 'is_not_empty', label: 'N\'est pas vide' }
+                                                              ];
+                                                            } else if (fieldType === 'date') {
+                                                              return [
+                                                                ...baseOps,
+                                                                { value: 'greater_than', label: 'Après' },
+                                                                { value: 'less_than', label: 'Avant' },
+                                                                { value: 'greater_equal', label: 'Après ou égal à' },
+                                                                { value: 'less_equal', label: 'Avant ou égal à' },
+                                                                { value: 'is_empty', label: 'Est vide' },
+                                                                { value: 'is_not_empty', label: 'N\'est pas vide' }
+                                                              ];
+                                                            }
+                                                            
+                                                            return baseOps;
+                                                          })()}
+                                                        />
+                                                        
+                                                        {filter.op !== 'is_empty' && filter.op !== 'is_not_empty' && (
+                                                          <div>
+                                                            <label className="block text-xs font-medium text-gray-700 mb-1">
+                                                              Valeur
+                                                            </label>
+                                                            {(() => {
+                                                              const fieldType = filterField?.type || 'text';
+                                                              
+                                                              if (fieldType === 'select' && filter.op === 'in' || filter.op === 'nin') {
+                                                                // Multi-select for 'in' and 'nin' operators
+                                                                return (
+                                                                  <div className="space-y-1">
+                                                                    {filterField?.options?.map((option: string, optIndex: number) => (
+                                                                      <label key={optIndex} className="flex items-center space-x-2 text-xs">
+                                                                        <input
+                                                                          type="checkbox"
+                                                                          checked={Array.isArray(filter.value) && filter.value.includes(option)}
+                                                                          onChange={(e) => {
+                                                                            const currentTableConfig = ensureTableConfig(metric.tableConfig);
+                                                                            const columns = [...currentTableConfig.columns];
+                                                                            const aggCol = columns[colIndex] as AggregateColumn;
+                                                                            const updatedFilters = [...(aggCol.filters || [])];
+                                                                            const currentValues = Array.isArray(filter.value) ? filter.value : [];
+                                                                            const newValues = e.target.checked
+                                                                              ? [...currentValues, option]
+                                                                              : currentValues.filter(v => v !== option);
+                                                                            updatedFilters[filterIndex] = {
+                                                                              ...filter,
+                                                                              value: newValues
+                                                                            };
+                                                                            columns[colIndex] = {
+                                                                              ...aggCol,
+                                                                              filters: updatedFilters
+                                                                            } as AggregateColumn;
+                                                                            updateMetric(index, {
+                                                                              tableConfig: {
+                                                                                ...currentTableConfig,
+                                                                                columns
+                                                                              }
+                                                                            });
+                                                                          }}
+                                                                          className="text-blue-600 focus:ring-blue-500"
+                                                                        />
+                                                                        <span>{option}</span>
+                                                                      </label>
+                                                                    ))}
+                                                                  </div>
+                                                                );
+                                                              } else if (fieldType === 'checkbox') {
+                                                                // Boolean checkbox
+                                                                return (
+                                                                  <select
+                                                                    value={String(filter.value)}
+                                                                    onChange={(e) => {
+                                                                      const currentTableConfig = ensureTableConfig(metric.tableConfig);
+                                                                      const columns = [...currentTableConfig.columns];
+                                                                      const aggCol = columns[colIndex] as AggregateColumn;
+                                                                      const updatedFilters = [...(aggCol.filters || [])];
+                                                                      updatedFilters[filterIndex] = {
+                                                                        ...filter,
+                                                                        value: e.target.value === 'true'
+                                                                      };
+                                                                      columns[colIndex] = {
+                                                                        ...aggCol,
+                                                                        filters: updatedFilters
+                                                                      } as AggregateColumn;
+                                                                      updateMetric(index, {
+                                                                        tableConfig: {
+                                                                          ...currentTableConfig,
+                                                                          columns
+                                                                        }
+                                                                      });
+                                                                    }}
+                                                                    className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                                                  >
+                                                                    <option value="true">Oui</option>
+                                                                    <option value="false">Non</option>
+                                                                  </select>
+                                                                );
+                                                              } else if (fieldType === 'date') {
+                                                                // Date input
+                                                                return (
+                                                                  <input
+                                                                    type="date"
+                                                                    value={filter.value || ''}
+                                                                    onChange={(e) => {
+                                                                      const currentTableConfig = ensureTableConfig(metric.tableConfig);
+                                                                      const columns = [...currentTableConfig.columns];
+                                                                      const aggCol = columns[colIndex] as AggregateColumn;
+                                                                      const updatedFilters = [...(aggCol.filters || [])];
+                                                                      updatedFilters[filterIndex] = {
+                                                                        ...filter,
+                                                                        value: e.target.value
+                                                                      };
+                                                                      columns[colIndex] = {
+                                                                        ...aggCol,
+                                                                        filters: updatedFilters
+                                                                      } as AggregateColumn;
+                                                                      updateMetric(index, {
+                                                                        tableConfig: {
+                                                                          ...currentTableConfig,
+                                                                          columns
+                                                                        }
+                                                                      });
+                                                                    }}
+                                                                    className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                                                  />
+                                                                );
+                                                              } else if (fieldType === 'number' || fieldType === 'calculated') {
+                                                                // Number input
+                                                                return (
+                                                                  <input
+                                                                    type="number"
+                                                                    value={filter.value || ''}
+                                                                    onChange={(e) => {
+                                                                      const currentTableConfig = ensureTableConfig(metric.tableConfig);
+                                                                      const columns = [...currentTableConfig.columns];
+                                                                      const aggCol = columns[colIndex] as AggregateColumn;
+                                                                      const updatedFilters = [...(aggCol.filters || [])];
+                                                                      updatedFilters[filterIndex] = {
+                                                                        ...filter,
+                                                                        value: e.target.value ? parseFloat(e.target.value) : ''
+                                                                      };
+                                                                      columns[colIndex] = {
+                                                                        ...aggCol,
+                                                                        filters: updatedFilters
+                                                                      } as AggregateColumn;
+                                                                      updateMetric(index, {
+                                                                        tableConfig: {
+                                                                          ...currentTableConfig,
+                                                                          columns
+                                                                        }
+                                                                      });
+                                                                    }}
+                                                                    className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                                                  />
+                                                                );
+                                                              } else {
+                                                                // Text input (default)
+                                                                return (
+                                                                  <input
+                                                                    type="text"
+                                                                    value={filter.value || ''}
+                                                                    onChange={(e) => {
+                                                                      const currentTableConfig = ensureTableConfig(metric.tableConfig);
+                                                                      const columns = [...currentTableConfig.columns];
+                                                                      const aggCol = columns[colIndex] as AggregateColumn;
+                                                                      const updatedFilters = [...(aggCol.filters || [])];
+                                                                      updatedFilters[filterIndex] = {
+                                                                        ...filter,
+                                                                        value: e.target.value
+                                                                      };
+                                                                      columns[colIndex] = {
+                                                                        ...aggCol,
+                                                                        filters: updatedFilters
+                                                                      } as AggregateColumn;
+                                                                      updateMetric(index, {
+                                                                        tableConfig: {
+                                                                          ...currentTableConfig,
+                                                                          columns
+                                                                        }
+                                                                      });
+                                                                    }}
+                                                                    placeholder="Valeur du filtre"
+                                                                    className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                                                  />
+                                                                );
+                                                              }
+                                                            })()}
+                                                          </div>
+                                                        )}
+                                                      </div>
+                                                      
+                                                      {filter.fieldId && !filterField && (
+                                                        <p className="text-xs text-red-600 mt-1">
+                                                          ⚠️ Champ non trouvé dans le formulaire
+                                                        </p>
+                                                      )}
+                                                    </div>
+                                                  );
+                                                })}
+                                              </div>
+                                            );
+                                          })()}
+                                        </div>
+                                        
+                                        <p className="text-xs text-purple-600 mt-3">
                                           💡 Agrège les valeurs du formulaire par le champ de référence sélectionné (ex: somme des montants par client)
                                         </p>
                                       </div>

@@ -488,9 +488,10 @@ export type TableAggFn = 'sum' | 'average' | 'min' | 'max' | 'count' | 'latest' 
  * Allows filtering submissions by field values (e.g., movementType = 'in')
  */
 export interface TableFilter {
+  id: string; // Unique identifier for the filter
   fieldId: string; // Field ID to filter on
-  op: 'eq' | 'neq' | 'in' | 'nin'; // Comparison operator
-  value: any | any[]; // Value(s) to compare against
+  op: 'eq' | 'neq' | 'in' | 'nin' | 'contains' | 'not_contains' | 'greater_than' | 'less_than' | 'greater_equal' | 'less_equal' | 'is_empty' | 'is_not_empty'; // Comparison operator
+  value: any | any[]; // Value(s) to compare against (not needed for is_empty/is_not_empty)
 }
 
 /**

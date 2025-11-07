@@ -583,11 +583,17 @@ export class MetricCalculator {
       return '';
     }
 
-    // Filter entries matching the form and row key
-    const matchingEntries = formEntries.filter(entry => {
-      if (entry.formId !== column.formId) return false;
+    // Optimize: Filter entries by formId first (most selective filter)
+    const formEntriesFiltered = formEntries.filter(entry => entry.formId === column.formId);
+    
+    // Filter entries matching the row key and filters
+    const matchingEntries = formEntriesFiltered.filter(entry => {
+      // Match row key first (most selective filter)
+      const entryRowKey = entry.answers[column.rowKeyFieldId];
+      if (String(entryRowKey) !== rowKey) return false;
       
-      // Apply filters if any
+      // Apply filters if any (all filters must match - AND logic)
+      // Early exit if any filter doesn't match (performance optimization)
       if (column.filters && column.filters.length > 0) {
         for (const filter of column.filters) {
           const fieldValue = entry.answers[filter.fieldId];
@@ -608,6 +614,46 @@ export class MetricCalculator {
               const filterValuesNot = Array.isArray(filter.value) ? filter.value : [filter.value];
               matches = !filterValuesNot.some(v => String(fieldValue) === String(v));
               break;
+            case 'contains':
+              const fieldValueStr = String(fieldValue || '').toLowerCase();
+              const filterValueStr = String(filter.value || '').toLowerCase();
+              matches = fieldValueStr.includes(filterValueStr);
+              break;
+            case 'not_contains':
+              const fieldValueStr2 = String(fieldValue || '').toLowerCase();
+              const filterValueStr2 = String(filter.value || '').toLowerCase();
+              matches = !fieldValueStr2.includes(filterValueStr2);
+              break;
+            case 'greater_than':
+              const numValue = typeof fieldValue === 'number' ? fieldValue : parseFloat(String(fieldValue));
+              const numFilter = typeof filter.value === 'number' ? filter.value : parseFloat(String(filter.value));
+              matches = !isNaN(numValue) && !isNaN(numFilter) && numValue > numFilter;
+              break;
+            case 'less_than':
+              const numValue2 = typeof fieldValue === 'number' ? fieldValue : parseFloat(String(fieldValue));
+              const numFilter2 = typeof filter.value === 'number' ? filter.value : parseFloat(String(filter.value));
+              matches = !isNaN(numValue2) && !isNaN(numFilter2) && numValue2 < numFilter2;
+              break;
+            case 'greater_equal':
+              const numValue3 = typeof fieldValue === 'number' ? fieldValue : parseFloat(String(fieldValue));
+              const numFilter3 = typeof filter.value === 'number' ? filter.value : parseFloat(String(filter.value));
+              matches = !isNaN(numValue3) && !isNaN(numFilter3) && numValue3 >= numFilter3;
+              break;
+            case 'less_equal':
+              const numValue4 = typeof fieldValue === 'number' ? fieldValue : parseFloat(String(fieldValue));
+              const numFilter4 = typeof filter.value === 'number' ? filter.value : parseFloat(String(filter.value));
+              matches = !isNaN(numValue4) && !isNaN(numFilter4) && numValue4 <= numFilter4;
+              break;
+            case 'is_empty':
+              matches = fieldValue === null || fieldValue === undefined || fieldValue === '' || 
+                       (Array.isArray(fieldValue) && fieldValue.length === 0);
+              break;
+            case 'is_not_empty':
+              matches = fieldValue !== null && fieldValue !== undefined && fieldValue !== '' && 
+                       !(Array.isArray(fieldValue) && fieldValue.length === 0);
+              break;
+            default:
+              matches = false;
           }
           
           if (!matches) return false;
