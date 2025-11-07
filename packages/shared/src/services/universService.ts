@@ -2370,6 +2370,34 @@ class UniversService {
   }
 
   /**
+   * Vérifier si des ressources existent déjà pour une instance spécifique
+   * (pour éviter de créer des doublons lors de l'activation)
+   */
+  private async checkIfResourcesExistForInstance(
+    instanceId: string,
+    universId: string,
+    agencyId: string
+  ): Promise<boolean> {
+    try {
+      // Vérifier si au moins un formulaire existe avec ce universInstanceId
+      const formsQuery = query(
+        collection(db, 'forms'),
+        where('agencyId', '==', agencyId),
+        where('universId', '==', universId),
+        where('universInstanceId', '==', instanceId)
+      );
+      const formsSnapshot = await getDocs(formsQuery);
+      
+      // Si au moins un formulaire existe pour cette instance, les ressources existent déjà
+      return !formsSnapshot.empty;
+    } catch (error) {
+      // Si l'index n'existe pas ou erreur, considérer qu'aucune ressource n'existe pour cette instance
+      console.warn('⚠️ Erreur lors de la vérification des ressources pour l\'instance:', error);
+      return false;
+    }
+  }
+
+  /**
    * Mettre à jour toutes les ressources existantes avec le bon universInstanceId
    * Cette fonction est appelée lors de l'activation pour synchroniser les ressources avec l'instance active
    */
@@ -2551,36 +2579,48 @@ class UniversService {
   }
 
   /**
-   * Instancier les ressources d'un Univers sans créer d'instance UniversInstance
+   * Instancier les ressources d'un Univers pour une instance existante
    * (pour les Univers créés directement, pas achetés)
    */
   private async instantiateResourcesOnly(
     univers: Univers,
     directorId: string,
-    agencyId: string
+    agencyId: string,
+    instanceId: string
   ): Promise<void> {
     try {
       if (!univers.definitions) {
         throw new Error('Univers sans définitions');
       }
 
-      // Générer un ID d'instance temporaire pour l'instanciation
-      const tempInstanceId = `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-
+      // Utiliser l'instanceId fourni pour créer les ressources
       // Appeler le service d'instanciation pour créer les ressources réelles
-      await universInstantiationService.instantiate({
+      const instantiationResult = await universInstantiationService.instantiate({
         definitions: univers.definitions,
         userId: directorId,
         userRole: 'directeur',
         agencyId,
         universId: univers.id,
-        universInstanceId: tempInstanceId
+        universInstanceId: instanceId
+      });
+
+      // Mettre à jour l'instance avec les IDs des ressources créées
+      const instanceRef = doc(db, this.instancesCollectionName, instanceId);
+      await updateDoc(instanceRef, {
+        instances: {
+          forms: instantiationResult.forms,
+          dashboards: instantiationResult.dashboards,
+          instructions: instantiationResult.instructions,
+          lists: instantiationResult.lists,
+          reports: instantiationResult.reports
+        },
+        updatedAt: serverTimestamp()
       });
 
       // Incrémenter le compteur d'utilisation (première instanciation des ressources)
       await this.incrementUsage(univers.id);
 
-      console.log(`✅ Ressources instanciées pour Univers ${univers.id} (sans créer d'instance)`);
+      console.log(`✅ Ressources instanciées pour Univers ${univers.id} avec instanceId=${instanceId}`);
     } catch (error) {
       console.error('❌ Erreur lors de l\'instanciation des ressources:', error);
       throw new Error(`Échec de l'instanciation des ressources: ${error instanceof Error ? error.message : 'Erreur inconnue'}`);
@@ -2659,16 +2699,25 @@ class UniversService {
           instanceId = instance.id;
           console.log(`✅ Instance existante trouvée pour le propriétaire: ${instanceId}`);
           
-          // Vérifier si les ressources existent, sinon les créer
-          const resourcesExist = await this.checkIfResourcesExist(universId, agencyId);
-          if (!resourcesExist) {
-            console.log(`📦 Ressources non trouvées, instanciation automatique...`);
-            await this.instantiateResourcesOnly(univers, directorId, agencyId);
-            console.log(`✅ Ressources instanciées avec succès`);
+          // Vérifier si les ressources existent déjà pour cette instance spécifique
+          const resourcesExistForInstance = await this.checkIfResourcesExistForInstance(instanceId, universId, agencyId);
+          
+          if (!resourcesExistForInstance) {
+            // Vérifier si des ressources existent avec un autre universInstanceId
+            const resourcesExist = await this.checkIfResourcesExist(universId, agencyId);
+            if (!resourcesExist) {
+              // Aucune ressource n'existe : créer les ressources avec l'instanceId correct
+              console.log(`📦 Ressources non trouvées, instanciation automatique...`);
+              await this.instantiateResourcesOnly(univers, directorId, agencyId, instanceId);
+              console.log(`✅ Ressources instanciées avec succès`);
+            } else {
+              // Des ressources existent mais pas pour cette instance : mettre à jour leur universInstanceId
+              console.log(`🔄 Ressources existantes trouvées, mise à jour avec universInstanceId=${instanceId}...`);
+              await this.updateExistingResourcesWithInstanceId(universId, instanceId, agencyId);
+            }
           } else {
-            // Ressources existent : mettre à jour leur universInstanceId avec l'instance active
-            console.log(`🔄 Ressources existantes trouvées, mise à jour avec universInstanceId=${instanceId}...`);
-            await this.updateExistingResourcesWithInstanceId(universId, instanceId, agencyId);
+            // Les ressources existent déjà pour cette instance : ne rien faire
+            console.log(`✅ Ressources déjà existantes pour cette instance, pas de création nécessaire`);
           }
         }
       }
