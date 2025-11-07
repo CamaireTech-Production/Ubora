@@ -1010,8 +1010,10 @@ class UniversService {
    */
   async createInstance(instance: Omit<UniversInstance, 'id'>): Promise<string> {
     try {
+      // Remove undefined values before saving to Firestore
+      const cleanInstance = this.removeUndefinedValues(instance);
       const docRef = await addDoc(collection(db, this.instancesCollectionName), {
-        ...instance,
+        ...cleanInstance,
         createdAt: serverTimestamp()
       });
       
@@ -1167,7 +1169,8 @@ class UniversService {
       });
 
       // 4. Create the UniversInstance document with all instantiated resource IDs
-      const instanceData: Omit<UniversInstance, 'id'> = {
+      // Note: Firestore doesn't accept undefined values, so we omit optional fields
+      const instanceData: any = {
         universId,
         universVersion: univers.metadata.version || 1,
         userId,
@@ -1185,16 +1188,16 @@ class UniversService {
         metadata: {
           universName: univers.metadata.name,
           universVersion: univers.metadata.version || 1,
-          isFromMarketplace: univers.ownership.isMarketplaceTemplate || false,
-          paymentId: undefined, // Will be set if purchased
-          purchaseDate: undefined // Will be set if purchased
+          isFromMarketplace: univers.ownership.isMarketplaceTemplate || false
+          // paymentId and purchaseDate will be added later if purchased
         },
-        versionHistory: undefined,
-        latestAvailableVersion: undefined,
         updateAvailable: false
+        // versionHistory and latestAvailableVersion will be added later if needed
       };
 
-      const instanceId = await this.createInstance(instanceData);
+      // Remove undefined values before saving to Firestore
+      const cleanInstanceData = this.removeUndefinedValues(instanceData);
+      const instanceId = await this.createInstance(cleanInstanceData);
       // Note: createInstance already increments usage counter via incrementUsage()
 
       console.log(`✅ Univers instantiated successfully: ${universId} → Instance ${instanceId}`);
@@ -2111,26 +2114,33 @@ class UniversService {
       });
 
       // Ajouter l'historique de version à l'ancienne instance
-      const versionHistoryEntry = {
+      const versionHistoryEntry: any = {
         previousVersion: currentVersion,
         upgradedAt: new Date(),
-        upgradedFromInstanceId: undefined as string | undefined,
         dataMigrated: true
       };
+      // Ne pas inclure upgradedFromInstanceId si undefined (Firestore ne permet pas undefined)
+      // upgradedFromInstanceId n'est défini que pour la nouvelle instance, pas pour l'ancienne
 
       const oldVersionHistory = oldInstance.versionHistory || [];
+      const updatedVersionHistory = [...oldVersionHistory, versionHistoryEntry];
       batch.update(oldInstanceRef, {
-        versionHistory: [...oldVersionHistory, versionHistoryEntry]
+        versionHistory: updatedVersionHistory
       });
 
       // Activer la nouvelle instance si l'ancienne était active
       const newInstanceRef = doc(db, this.instancesCollectionName, newInstanceId);
-      batch.update(newInstanceRef, {
+      const newInstanceUpdate: any = {
         isActive: wasActive,
         updateAvailable: false,
-        latestAvailableVersion: undefined,
         updatedAt: serverTimestamp()
-      });
+      };
+      // Ne pas inclure latestAvailableVersion si undefined (Firestore ne permet pas undefined)
+      // On utilise deleteField() pour supprimer le champ s'il existe
+      if (oldInstance.latestAvailableVersion !== undefined) {
+        newInstanceUpdate.latestAvailableVersion = deleteField();
+      }
+      batch.update(newInstanceRef, newInstanceUpdate);
 
       // Ajouter l'historique de version à la nouvelle instance
       batch.update(newInstanceRef, {
