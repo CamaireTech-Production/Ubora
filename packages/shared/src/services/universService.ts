@@ -1155,17 +1155,18 @@ class UniversService {
         throw new Error('Univers template has no definitions');
       }
 
-      // 2. Generate a unique instance ID
-      const universInstanceId = `instance_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      // 2. Generate a unique instance ID (ce sera l'ID de l'instance Firestore)
+      const instanceId = `instance_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
       // 3. Call the instantiation service to create concrete resources
+      // On utilise le même instanceId pour les ressources et l'instance Firestore
       const instantiationResult = await universInstantiationService.instantiate({
         definitions: univers.definitions,
         userId,
         userRole,
         agencyId,
         universId,
-        universInstanceId
+        universInstanceId: instanceId // Utiliser le même ID que l'instance Firestore
       });
 
       // 4. Create the UniversInstance document with all instantiated resource IDs
@@ -1197,8 +1198,16 @@ class UniversService {
 
       // Remove undefined values before saving to Firestore
       const cleanInstanceData = this.removeUndefinedValues(instanceData);
-      const instanceId = await this.createInstance(cleanInstanceData);
-      // Note: createInstance already increments usage counter via incrementUsage()
+      
+      // Créer l'instance avec setDoc en utilisant l'instanceId généré
+      const instanceRef = doc(db, this.instancesCollectionName, instanceId);
+      await setDoc(instanceRef, {
+        ...cleanInstanceData,
+        createdAt: serverTimestamp()
+      });
+      
+      // Mettre à jour le compteur d'utilisation du Univers
+      await this.incrementUsage(universId);
 
       console.log(`✅ Univers instantiated successfully: ${universId} → Instance ${instanceId}`);
       console.log(`   Created: ${instantiationResult.forms.length} forms, ${instantiationResult.dashboards.length} dashboards, ${instantiationResult.instructions.length} instructions, ${instantiationResult.lists.length} lists, ${instantiationResult.reports.length} reports`);
@@ -2157,6 +2166,11 @@ class UniversService {
       // 8. Si l'ancienne instance était active, mettre à jour ActiveUnivers
       if (wasActive) {
         await this.setActiveUnivers(userId, agencyId, oldInstance.universId, newInstanceId);
+        
+        // Mettre à jour toutes les ressources existantes avec le nouveau universInstanceId
+        // Cela garantit que toutes les ressources (anciennes et nouvelles) sont synchronisées avec l'instance active
+        console.log(`🔄 Mise à jour des ressources existantes avec le nouveau universInstanceId=${newInstanceId}...`);
+        await this.updateExistingResourcesWithInstanceId(oldInstance.universId, newInstanceId, agencyId);
       }
 
       console.log(`✅ Instance upgraded successfully: ${oldInstanceId} → ${newInstanceId} (v${currentVersion} → v${newVersion})`);
@@ -2356,6 +2370,187 @@ class UniversService {
   }
 
   /**
+   * Mettre à jour toutes les ressources existantes avec le bon universInstanceId
+   * Cette fonction est appelée lors de l'activation pour synchroniser les ressources avec l'instance active
+   */
+  private async updateExistingResourcesWithInstanceId(
+    universId: string,
+    instanceId: string,
+    agencyId: string
+  ): Promise<void> {
+    try {
+      console.log(`🔄 Mise à jour des ressources existantes avec universInstanceId=${instanceId}...`);
+      
+      const MAX_BATCH_SIZE = 500; // Limite Firestore
+      let batch = writeBatch(db);
+      let batchCount = 0;
+      let totalUpdated = 0;
+
+      const commitBatch = async () => {
+        if (batchCount > 0) {
+          await batch.commit();
+          batch = writeBatch(db);
+          batchCount = 0;
+        }
+      };
+
+      // 1. Mettre à jour les formulaires
+      try {
+        const formsQuery = query(
+          collection(db, 'forms'),
+          where('agencyId', '==', agencyId),
+          where('universId', '==', universId)
+        );
+        const formsSnapshot = await getDocs(formsQuery);
+        
+        for (const formDoc of formsSnapshot.docs) {
+          const formData = formDoc.data();
+          // Mettre à jour seulement si universInstanceId est différent ou manquant
+          if (formData.universInstanceId !== instanceId) {
+            const formRef = doc(db, 'forms', formDoc.id);
+            batch.update(formRef, {
+              universInstanceId: instanceId,
+              updatedAt: serverTimestamp()
+            });
+            batchCount++;
+            totalUpdated++;
+
+            if (batchCount >= MAX_BATCH_SIZE) {
+              await commitBatch();
+            }
+          }
+        }
+      } catch (error) {
+        console.warn('⚠️ Erreur lors de la mise à jour des formulaires:', error);
+      }
+
+      // 2. Mettre à jour les dashboards
+      try {
+        const dashboardsQuery = query(
+          collection(db, 'dashboards'),
+          where('agencyId', '==', agencyId),
+          where('universId', '==', universId)
+        );
+        const dashboardsSnapshot = await getDocs(dashboardsQuery);
+        
+        for (const dashboardDoc of dashboardsSnapshot.docs) {
+          const dashboardData = dashboardDoc.data();
+          if (dashboardData.universInstanceId !== instanceId) {
+            const dashboardRef = doc(db, 'dashboards', dashboardDoc.id);
+            batch.update(dashboardRef, {
+              universInstanceId: instanceId,
+              updatedAt: serverTimestamp()
+            });
+            batchCount++;
+            totalUpdated++;
+
+            if (batchCount >= MAX_BATCH_SIZE) {
+              await commitBatch();
+            }
+          }
+        }
+      } catch (error) {
+        console.warn('⚠️ Erreur lors de la mise à jour des dashboards:', error);
+      }
+
+      // 3. Mettre à jour les listes
+      try {
+        const listsQuery = query(
+          collection(db, 'lists'),
+          where('agencyId', '==', agencyId),
+          where('universId', '==', universId)
+        );
+        const listsSnapshot = await getDocs(listsQuery);
+        
+        for (const listDoc of listsSnapshot.docs) {
+          const listData = listDoc.data();
+          if (listData.universInstanceId !== instanceId) {
+            const listRef = doc(db, 'lists', listDoc.id);
+            batch.update(listRef, {
+              universInstanceId: instanceId,
+              updatedAt: serverTimestamp()
+            });
+            batchCount++;
+            totalUpdated++;
+
+            if (batchCount >= MAX_BATCH_SIZE) {
+              await commitBatch();
+            }
+          }
+        }
+      } catch (error) {
+        console.warn('⚠️ Erreur lors de la mise à jour des listes:', error);
+      }
+
+      // 4. Mettre à jour les instructions (scheduledQuestions)
+      try {
+        const instructionsQuery = query(
+          collection(db, 'scheduledQuestions'),
+          where('agencyId', '==', agencyId),
+          where('universId', '==', universId)
+        );
+        const instructionsSnapshot = await getDocs(instructionsQuery);
+        
+        for (const instructionDoc of instructionsSnapshot.docs) {
+          const instructionData = instructionDoc.data();
+          if (instructionData.universInstanceId !== instanceId) {
+            const instructionRef = doc(db, 'scheduledQuestions', instructionDoc.id);
+            batch.update(instructionRef, {
+              universInstanceId: instanceId,
+              updatedAt: serverTimestamp()
+            });
+            batchCount++;
+            totalUpdated++;
+
+            if (batchCount >= MAX_BATCH_SIZE) {
+              await commitBatch();
+            }
+          }
+        }
+      } catch (error) {
+        console.warn('⚠️ Erreur lors de la mise à jour des instructions:', error);
+      }
+
+      // 5. Mettre à jour les rapports
+      try {
+        const reportsQuery = query(
+          collection(db, 'reports'),
+          where('agencyId', '==', agencyId),
+          where('universId', '==', universId)
+        );
+        const reportsSnapshot = await getDocs(reportsQuery);
+        
+        for (const reportDoc of reportsSnapshot.docs) {
+          const reportData = reportDoc.data();
+          if (reportData.universInstanceId !== instanceId) {
+            const reportRef = doc(db, 'reports', reportDoc.id);
+            batch.update(reportRef, {
+              universInstanceId: instanceId,
+              updatedAt: serverTimestamp()
+            });
+            batchCount++;
+            totalUpdated++;
+
+            if (batchCount >= MAX_BATCH_SIZE) {
+              await commitBatch();
+            }
+          }
+        }
+      } catch (error) {
+        console.warn('⚠️ Erreur lors de la mise à jour des rapports:', error);
+      }
+
+      // Commit les dernières mises à jour
+      await commitBatch();
+
+      console.log(`✅ ${totalUpdated} ressource(s) mise(s) à jour avec universInstanceId=${instanceId}`);
+    } catch (error) {
+      console.error('❌ Erreur lors de la mise à jour des ressources existantes:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Instancier les ressources d'un Univers sans créer d'instance UniversInstance
    * (pour les Univers créés directement, pas achetés)
    */
@@ -2424,8 +2619,14 @@ class UniversService {
         const instance = instances.find(inst => inst.universId === universId);
         if (instance) {
           instanceId = instance.id;
-          // Pour les Univers achetés, les ressources sont déjà instanciées lors de l'achat
           console.log(`✅ Instance trouvée pour Univers acheté: ${instanceId}`);
+          
+          // Mettre à jour les ressources existantes avec le bon universInstanceId
+          const resourcesExist = await this.checkIfResourcesExist(universId, agencyId);
+          if (resourcesExist) {
+            console.log(`🔄 Ressources existantes trouvées, mise à jour avec universInstanceId=${instanceId}...`);
+            await this.updateExistingResourcesWithInstanceId(universId, instanceId, agencyId);
+          }
         } else {
           throw new Error('Vous devez d\'abord acheter ce Univers depuis le marketplace');
         }
@@ -2464,6 +2665,10 @@ class UniversService {
             console.log(`📦 Ressources non trouvées, instanciation automatique...`);
             await this.instantiateResourcesOnly(univers, directorId, agencyId);
             console.log(`✅ Ressources instanciées avec succès`);
+          } else {
+            // Ressources existent : mettre à jour leur universInstanceId avec l'instance active
+            console.log(`🔄 Ressources existantes trouvées, mise à jour avec universInstanceId=${instanceId}...`);
+            await this.updateExistingResourcesWithInstanceId(universId, instanceId, agencyId);
           }
         }
       }

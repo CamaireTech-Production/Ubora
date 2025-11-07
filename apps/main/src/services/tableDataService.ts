@@ -46,6 +46,12 @@ class TableDataService {
 
     const tableConfig = metric.tableConfig;
     
+    // Validate rowSource exists
+    if (!tableConfig.rowSource) {
+      console.warn('TableDataService: tableConfig.rowSource is missing');
+      return [];
+    }
+    
     // Get period to use (from config or parameter)
     const effectivePeriod = this.getEffectivePeriod(tableConfig.period, period);
 
