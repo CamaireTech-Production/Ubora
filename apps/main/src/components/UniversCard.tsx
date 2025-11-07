@@ -62,7 +62,11 @@ export const UniversCard: React.FC<UniversCardProps> = ({
   }
   
   const currentVersion = instanceVersion;
-  const latestVersion = userInstance?.latestAvailableVersion || universVersion;
+  // Pour le propriétaire : toujours utiliser la version du template (la plus récente)
+  // Pour les non-propriétaires : utiliser la version approuvée disponible
+  const latestVersion = isOwner && userInstance 
+    ? universVersion 
+    : (userInstance?.latestAvailableVersion || universVersion);
   
   // Déterminer si le Univers marketplace est acheté (a une instance)
   const isPurchased = !!userInstance;
@@ -446,7 +450,7 @@ export const UniversCard: React.FC<UniversCardProps> = ({
         <div className="flex items-center space-x-2 px-3 py-1.5 bg-gradient-to-r from-gray-50 to-gray-100 rounded-lg border border-gray-200/50 shadow-sm hover:shadow-md transition-all duration-200">
           <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Version</span>
           <span className="px-2 py-0.5 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-md text-xs font-bold shadow-sm">
-            v{univers.metadata.version || 1}
+            v{latestVersion}
           </span>
         </div>
       </div>

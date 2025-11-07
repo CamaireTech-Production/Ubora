@@ -228,7 +228,11 @@ export const UniversViewPage: React.FC = () => {
   }
   
   const currentVersion = instanceVersion;
-  const latestVersion = userInstance?.latestAvailableVersion || universVersion;
+  // Pour le propriétaire : toujours utiliser la version du template (la plus récente)
+  // Pour les non-propriétaires : utiliser la version approuvée disponible
+  const latestVersion = isOwner && userInstance 
+    ? universVersion 
+    : (userInstance?.latestAvailableVersion || universVersion);
   const isDirecteur = user?.role === 'directeur';
 
   const handleUpgradeClick = () => {
