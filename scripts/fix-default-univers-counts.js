@@ -52,11 +52,15 @@ async function getRealResourcesForUnivers(universId) {
     const dashboardsSnapshot = await db.collection('dashboards')
       .where('universId', '==', universId)
       .get();
-    resources.dashboards = dashboardsSnapshot.docs.map(doc => ({
-      id: doc.id,
-      title: doc.data().title || 'Tableau de bord sans titre',
-      ...doc.data()
-    }));
+    resources.dashboards = dashboardsSnapshot.docs.map(doc => {
+      const data = doc.data();
+      return {
+        id: doc.id,
+        // Support both name and title (legacy compatibility)
+        name: data.name || data.title || 'Tableau de bord sans nom',
+        ...data
+      };
+    });
 
     // Récupérer les instructions
     const instructionsSnapshot = await db.collection('scheduledQuestions')
@@ -108,7 +112,7 @@ function createDefinitionsFromResources(resources) {
     })),
     dashboards: resources.dashboards.map(dashboard => ({
       id: dashboard.id,
-      title: dashboard.title,
+      name: dashboard.name || dashboard.title || 'Tableau de bord sans nom',
       description: dashboard.description || '',
       metrics: dashboard.metrics || []
     })),

@@ -182,8 +182,11 @@ class UniversInstantiationService {
           return newMetric;
         });
 
+        // Support legacy dashboards with 'title' field (fallback to 'name')
+        const dashboardName = dashboardDef.name || (dashboardDef as any).title || 'Dashboard sans nom';
+        
         const dashboardData: any = {
-          name: dashboardDef.name,
+          name: dashboardName,
           description: dashboardDef.description || '',
           metrics: metricsToCreate,
           createdBy: params.userId,
@@ -210,10 +213,12 @@ class UniversInstantiationService {
         
         createdDashboardIds.push(dashboardRef.id);
         
-        console.log(`✅ Dashboard instantiated: ${dashboardDef.name} (ID: ${dashboardRef.id})`);
+        const dashboardNameForLog = dashboardDef.name || (dashboardDef as any).title || 'Dashboard sans nom';
+        console.log(`✅ Dashboard instantiated: ${dashboardNameForLog} (ID: ${dashboardRef.id})`);
       } catch (error) {
-        console.error(`❌ Error instantiating dashboard ${dashboardDef.name}:`, error);
-        throw new Error(`Failed to instantiate dashboard "${dashboardDef.name}": ${error instanceof Error ? error.message : 'Unknown error'}`);
+        const dashboardNameForLog = dashboardDef.name || (dashboardDef as any).title || 'Dashboard sans nom';
+        console.error(`❌ Error instantiating dashboard ${dashboardNameForLog}:`, error);
+        throw new Error(`Failed to instantiate dashboard "${dashboardNameForLog}": ${error instanceof Error ? error.message : 'Unknown error'}`);
       }
     }
 
