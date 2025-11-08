@@ -8,6 +8,7 @@ import { Card } from './Card';
 import { List, ListColumn, ListRow } from '../types';
 import { Plus, Trash2, Save, X, Upload, Minus } from 'lucide-react';
 import { ListsCSVImport } from './ListsCSVImport';
+import { ListRowsEditor } from './ListRowsEditor';
 import { useToast } from '@ubora/shared/hooks/useToast';
 import { validateValueAgainstType as validateTypeUtil } from '@ubora/shared/utils/csvTypeDetector';
 
@@ -114,30 +115,7 @@ export const ListEditor: React.FC<ListEditorProps> = ({
     setEditingColumnName('');
   };
 
-  // Add a new row
-  const handleAddRow = () => {
-    const newRow: ListRow = {};
-    columns.forEach(col => {
-      newRow[col.id] = '';
-    });
-    setRows([...rows, newRow]);
-  };
-
-  // Update a row value
-  const handleUpdateRowValue = (rowIndex: number, columnId: string, value: any) => {
-    const updatedRows = [...rows];
-    updatedRows[rowIndex] = {
-      ...updatedRows[rowIndex],
-      [columnId]: value
-    };
-    setRows(updatedRows);
-  };
-
-  // Delete a row
-  const handleDeleteRow = (rowIndex: number) => {
-    setRows(rows.filter((_, index) => index !== rowIndex));
-    showSuccess('Ligne supprimée');
-  };
+  // Row management is now handled by ListRowsEditor component
 
   // Handle CSV import completion
   const handleCSVImportComplete = (importedColumns: ListColumn[], importedRows: ListRow[]) => {
@@ -307,10 +285,8 @@ export const ListEditor: React.FC<ListEditorProps> = ({
         </div>
       </Card>
 
-      {/* Unified Table View - Spreadsheet Style */}
-      <Card 
-        title={`Données (${columns.length} colonne${columns.length > 1 ? 's' : ''}, ${rows.length} ligne${rows.length > 1 ? 's' : ''})`}
-      >
+      {/* Columns Configuration */}
+      <Card title={`Colonnes (${columns.length} colonne${columns.length > 1 ? 's' : ''})`}>
         {columns.length === 0 ? (
           <div className="text-center py-12">
             <div className="mx-auto w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mb-4">
@@ -413,85 +389,24 @@ export const ListEditor: React.FC<ListEditorProps> = ({
                   </th>
                 </tr>
               </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {rows.length === 0 ? (
-                  <tr>
-                    <td colSpan={columns.length + 1} className="px-2 md:px-4 py-4 md:py-8 text-center">
-                      <div className="flex flex-col items-center space-y-3">
-                        <p className="text-sm text-gray-500">Aucune ligne ajoutée</p>
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          onClick={handleAddRow}
-                          className="flex items-center space-x-2"
-                        >
-                          <Plus className="h-4 w-4" />
-                          <span>Ajouter une ligne</span>
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                ) : (
-                  <>
-                    {rows.map((row, rowIndex) => (
-                      <tr key={rowIndex} className="hover:bg-gray-50">
-                        {columns.map((col) => (
-                          <td key={col.id} className="px-2 md:px-4 py-2 whitespace-nowrap">
-                            <Input
-                              value={row[col.id] !== null && row[col.id] !== undefined ? String(row[col.id]) : ''}
-                              onChange={(e) => {
-                                const column = columns.find(c => c.id === col.id);
-                                if (column) {
-                                  let value: any = e.target.value;
-                                  // Convert based on type
-                                  if (column.type === 'number') {
-                                    value = value ? parseFloat(value) || 0 : '';
-                                  } else if (column.type === 'boolean') {
-                                    value = value === 'true' || value === '1' || value.toLowerCase() === 'oui';
-                                  }
-                                  handleUpdateRowValue(rowIndex, col.id, value);
-                                }
-                              }}
-                              placeholder={`${col.name} (${col.type})`}
-                              type={col.type === 'number' ? 'number' : col.type === 'email' ? 'email' : col.type === 'date' ? 'date' : 'text'}
-                              className="w-full text-sm"
-                            />
-                          </td>
-                        ))}
-                        <td className="px-2 md:px-4 py-2 whitespace-nowrap">
-                          <Button
-                            type="button"
-                            variant="danger"
-                            size="sm"
-                            onClick={() => handleDeleteRow(rowIndex)}
-                            className="p-1.5 h-8 w-8 flex items-center justify-center"
-                            title="Supprimer la ligne"
-                          >
-                            <Trash2 className="h-4 w-4 text-white" />
-                          </Button>
-                        </td>
-                      </tr>
-                    ))}
-                    <tr>
-                      <td colSpan={columns.length + 1} className="px-2 md:px-4 py-2 md:py-3 border-t border-gray-300">
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          onClick={handleAddRow}
-                          className="flex items-center space-x-2"
-                        >
-                          <Plus className="h-4 w-4" />
-                          <span>Ajouter une ligne</span>
-                        </Button>
-                      </td>
-                    </tr>
-                  </>
-                )}
-              </tbody>
             </table>
           </div>
         )}
       </Card>
+
+      {/* Rows Editor - Using the new ListRowsEditor component */}
+      {columns.length > 0 && (
+        <ListRowsEditor
+          columns={columns}
+          rows={rows}
+          onRowsChange={setRows}
+          onValidationError={(errors) => {
+            if (errors.length > 0) {
+              showError(errors[0]);
+            }
+          }}
+        />
+      )}
 
       {/* CSV Import Modal */}
       {showCSVImport && createPortal(

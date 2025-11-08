@@ -2,6 +2,7 @@ import React from 'react';
 import { DashboardDefinition, DashboardMetric } from '@ubora/shared/types';
 import { BarChart3, Hash, TrendingUp, TrendingDown, Minus, Table } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, AreaChart, Area } from 'recharts';
+import { TableMetricDisplay } from './TableMetricDisplay';
 
 interface DashboardPreviewProps {
   dashboard: DashboardDefinition;
@@ -207,7 +208,12 @@ export const DashboardPreview: React.FC<DashboardPreviewProps> = ({ dashboard })
         ) : metricType === 'table' ? (
           <div className="mb-2">
             <div className="bg-white rounded-lg border border-gray-200 p-2">
-              {renderPlaceholderTable(metric)}
+              <TableMetricDisplay
+                metric={metric}
+                rows={[]}
+                compact={true}
+                maxRows={10}
+              />
             </div>
           </div>
         ) : (

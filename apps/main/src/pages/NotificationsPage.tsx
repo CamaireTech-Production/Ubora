@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Layout } from '../components/Layout';
 import { PushNotificationSettings } from '../components/PushNotificationSettings';
 import { Card } from '../components/Card';
@@ -12,6 +13,7 @@ import { doc, collection, query, where, orderBy, limit, onSnapshot, writeBatch }
 import { db } from '@ubora/shared/firebaseConfig';
 
 export const NotificationsPage: React.FC = () => {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const { permission, isSupported, requestPermission } = usePushNotifications();
   const [notifications, setNotifications] = useState<UnifiedNotification[]>([]);
@@ -218,8 +220,14 @@ export const NotificationsPage: React.FC = () => {
     // Preferred redirect path from notification
     const path = notification.data?.redirectPath || notification.redirectUrl || '/';
     const isAbsolute = /^https?:\/\//i.test(path);
-    const target = isAbsolute ? path : `${window.location.origin}${path}`;
-    window.location.assign(target);
+    
+    if (isAbsolute) {
+      // For absolute URLs (external links), use window.location
+      window.location.assign(path);
+    } else {
+      // For relative paths, use React Router navigation
+      navigate(path);
+    }
   };
 
 
@@ -240,7 +248,7 @@ export const NotificationsPage: React.FC = () => {
             pour vérifier que les notifications apparaissent dans le système de notifications.
           </p>
           <Button
-            onClick={() => window.location.href = '/dev/push-test'}
+            onClick={() => navigate('/dev/push-test')}
             className="flex items-center gap-2"
           >
             <TestTube className="w-4 h-4" />

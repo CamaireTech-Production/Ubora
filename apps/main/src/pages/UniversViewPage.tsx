@@ -194,8 +194,8 @@ export const UniversViewPage: React.FC = () => {
       await new Promise(resolve => setTimeout(resolve, 500));
       refreshData();
       
-      // Recharger la page pour s'assurer que tout est à jour
-      window.location.reload();
+      // Rediriger vers la liste des univers au lieu de recharger la page
+      navigate('/univers');
     } catch (error) {
       console.error('Erreur lors de l\'activation du Univers:', error);
       const errorMessage = error instanceof Error 
@@ -211,9 +211,28 @@ export const UniversViewPage: React.FC = () => {
     setIsActivating(false);
   };
 
-  const hasUpdateAvailable = userInstance?.updateAvailable === true;
-  const currentVersion = userInstance?.universVersion || userInstance?.metadata?.universVersion || univers?.metadata.version || 1;
-  const latestVersion = userInstance?.latestAvailableVersion || univers?.metadata.version || 1;
+  // Détecter les mises à jour disponibles
+  // Pour le propriétaire : vérifier si le Univers a une version plus récente que l'instance
+  // Pour les non-propriétaires : utiliser updateAvailable de l'instance
+  const isOwner = univers?.ownership.createdBy === user?.id;
+  const instanceVersion = userInstance?.universVersion || userInstance?.metadata?.universVersion || 1;
+  const universVersion = univers?.metadata.version || 1;
+  
+  let hasUpdateAvailable = false;
+  if (isOwner && userInstance) {
+    // Pour le propriétaire : vérifier si le Univers template a une version plus récente
+    hasUpdateAvailable = universVersion > instanceVersion;
+  } else if (userInstance) {
+    // Pour les non-propriétaires : utiliser le marqueur updateAvailable
+    hasUpdateAvailable = userInstance.updateAvailable === true;
+  }
+  
+  const currentVersion = instanceVersion;
+  // Pour le propriétaire : toujours utiliser la version du template (la plus récente)
+  // Pour les non-propriétaires : utiliser la version approuvée disponible
+  const latestVersion = isOwner && userInstance 
+    ? universVersion 
+    : (userInstance?.latestAvailableVersion || universVersion);
   const isDirecteur = user?.role === 'directeur';
 
   const handleUpgradeClick = () => {
@@ -251,21 +270,39 @@ export const UniversViewPage: React.FC = () => {
       window.location.reload();
     } catch (error) {
       console.error('Erreur lors de la mise à jour du Univers:', error);
+      console.error('Détails de l\'erreur:', {
+        error,
+        errorType: typeof error,
+        errorMessage: error instanceof Error ? error.message : String(error),
+        errorStack: error instanceof Error ? error.stack : undefined,
+        userInstance: userInstance?.id,
+        universId: univers?.id,
+        currentVersion,
+        latestVersion
+      });
+      
       let errorMessage = 'Une erreur est survenue lors de la mise à jour du Univers.';
       if (error instanceof Error) {
-        if (error.message.includes('No update available')) {
-          errorMessage = 'Aucune mise à jour disponible pour cette instance.';
-        } else if (error.message.includes('not found')) {
+        const message = error.message.toLowerCase();
+        if (message.includes('no update available') || message.includes('not greater than')) {
+          errorMessage = 'Aucune mise à jour disponible pour cette instance. La version disponible n\'est pas supérieure à la version actuelle.';
+        } else if (message.includes('not found')) {
           errorMessage = 'Instance ou Univers introuvable. Veuillez réessayer.';
-        } else if (error.message.includes('version')) {
+        } else if (message.includes('version') || message.includes('does not match')) {
           errorMessage = `Erreur de version : ${error.message}`;
+        } else if (message.includes('permission') || message.includes('permission-denied')) {
+          errorMessage = 'Vous n\'avez pas la permission de mettre à jour cet univers.';
         } else {
-          errorMessage = error.message;
+          errorMessage = `Erreur : ${error.message}`;
         }
+      } else {
+        errorMessage = `Erreur inattendue : ${String(error)}`;
       }
+      
       showError(errorMessage);
       setIsUpgrading(false);
       setUpgradeProgress('');
+      setShowUpgradeModal(false);
     }
   };
 
@@ -452,8 +489,13 @@ export const UniversViewPage: React.FC = () => {
                 )
               ) : (
                 // Si on vient de Mes Univers, montrer "Activer" si non actif
+                // Pour le propriétaire, permettre l'activation même en attente
                 <>
-                  {isDirecteur && !isActive && !hasUpdateAvailable && (
+                  {isDirecteur && 
+                   !isActive && 
+                   !hasUpdateAvailable &&
+                   // Le propriétaire peut toujours activer, même en attente
+                   (isOwner || (univers.ownership.approvalStatus !== 'pending' && univers.ownership.approvalStatus !== 'rejected')) && (
                     <Button
                       variant="primary"
                       onClick={handleActivateClick}
@@ -1024,7 +1066,10 @@ export const UniversViewPage: React.FC = () => {
                             {/* Accordion Content */}
                             {isExpanded && (
                               <div className="px-4 pb-4">
-                                <ReportPreview report={report} />
+                                <ReportPreview 
+                                  report={report} 
+                                  dashboards={univers.definitions.dashboards || []}
+                                />
                               </div>
                             )}
                           </div>
@@ -1175,6 +1220,7 @@ export const UniversViewPage: React.FC = () => {
         cancelText="Annuler"
         variant="warning"
         isLoading={isUpgrading}
+        loadingText={upgradeProgress || "Mise à jour en cours..."}
       />
 
       {/* Instantiate Confirmation Modal */}

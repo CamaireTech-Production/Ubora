@@ -461,6 +461,28 @@ export interface ScheduledQuestionResponse {
 }
 
 // Types pour les tableaux de bord et métriques
+
+/**
+ * Configuration for a table column in a table metric
+ */
+export interface TableColumnConfig {
+  id: string; // Unique identifier for the column
+  name: string; // Column header name
+  source: 'field' | 'metric'; // Source type: 'field' = from form field, 'metric' = from another metric
+  // When source is 'field':
+  formId?: string; // Form ID containing the field
+  fieldId?: string; // Field ID to extract data from
+  // When source is 'metric':
+  metricId?: string; // Metric ID to use as column data
+}
+
+/**
+ * Table configuration for table-type metrics
+ */
+export interface TableConfig {
+  columns: TableColumnConfig[]; // Array of column configurations
+}
+
 export interface DashboardMetric {
   id: string;
   name: string;
@@ -470,7 +492,7 @@ export interface DashboardMetric {
   fieldId?: string; // Required when sourceType is 'field', optional for 'computed'
   fieldType: 'text' | 'number' | 'email' | 'textarea' | 'select' | 'checkbox' | 'date' | 'file' | 'calculated';
   calculationType: 'count' | 'sum' | 'average' | 'min' | 'max' | 'unique';
-  metricType: 'value' | 'graph'; // New: type of metric display
+  metricType: 'value' | 'graph' | 'table'; // New: type of metric display
   // Graph configuration (only used when metricType is 'graph')
   graphConfig?: {
     xAxisFieldId?: string; // Field for X axis
@@ -479,6 +501,8 @@ export interface DashboardMetric {
     yAxisType?: 'field' | 'count' | 'sum' | 'average'; // Type of Y axis
     chartType?: 'line' | 'bar' | 'area'; // Chart type
   };
+  // Table configuration (only used when metricType is 'table')
+  tableConfig?: TableConfig; // Table column configurations
   // Computed metric properties (only used when sourceType is 'computed')
   calculationFormula?: string; // Formula with metric IDs (e.g., "metric1 + metric2 * 0.15")
   userFormula?: string; // User-friendly formula with metric names (e.g., "Ventes + Frais * 0.15")

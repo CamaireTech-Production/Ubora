@@ -142,7 +142,7 @@ async function updateUniversCounts(universId, counts, write) {
   // Créer des définitions minimales basées sur les ressources réelles
   const updates = {
     'definitions.forms': resourceIds.forms.map(id => ({ id, title: 'Ressource migrée', placeholder: true })),
-    'definitions.dashboards': resourceIds.dashboards.map(id => ({ id, title: 'Ressource migrée', placeholder: true })),
+    'definitions.dashboards': resourceIds.dashboards.map(id => ({ id, name: 'Ressource migrée', placeholder: true })),
     'definitions.instructions': resourceIds.instructions.map(id => ({ id, title: 'Ressource migrée', placeholder: true })),
     'definitions.lists': resourceIds.lists.map(id => ({ id, title: 'Ressource migrée', placeholder: true })),
     'definitions.reports': resourceIds.reports.map(id => ({ id, title: 'Ressource migrée', placeholder: true })),

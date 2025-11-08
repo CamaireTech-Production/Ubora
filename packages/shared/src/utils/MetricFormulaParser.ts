@@ -143,6 +143,11 @@ export class MetricFormulaParser {
    * @returns True if metric is numeric
    */
   static isNumericMetric(metric: DashboardMetric): boolean {
+    // Table metrics cannot be used in calculations (they produce table data, not numeric values)
+    if (metric.metricType === 'table') {
+      return false;
+    }
+    
     // Computed metrics always produce numeric values, so they can be used in calculations
     if (metric.sourceType === 'computed') {
       return true;

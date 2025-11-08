@@ -52,9 +52,14 @@ export const MetricFormulaInput: React.FC<MetricFormulaInputProps> = ({
       if (metric.id === currentMetricId) return false;
       // Exclude metrics without names (not yet configured)
       if (!metric.name || !metric.name.trim()) return false;
-      // Cast to shared type for MetricFormulaParser (metricType 'table' is treated as 'value' for calculation purposes)
+      // Exclude table metrics - they cannot be used in calculations
+      if (metric.metricType === 'table') {
+        return false;
+      }
+      
+      // Cast to shared type for MetricFormulaParser
       // Ensure metricType is always 'value' or 'graph' (never undefined)
-      const metricType: 'value' | 'graph' = metric.metricType === 'table' ? 'value' : (metric.metricType || 'value');
+      const metricType: 'value' | 'graph' = metric.metricType || 'value';
       const sharedMetric = { ...metric, metricType } as Omit<typeof metric, 'metricType'> & { metricType: 'value' | 'graph' };
       return MetricFormulaParser.isNumericMetric(sharedMetric);
     }), [metrics, currentMetricId]
@@ -448,12 +453,14 @@ export const MetricFormulaInput: React.FC<MetricFormulaInputProps> = ({
     }
 
     // Validate using MetricFormulaParser
-    // Cast metrics to shared type (metricType 'table' is treated as 'value' for calculation purposes)
-    // Ensure metricType is always 'value' or 'graph' (never undefined)
-    const sharedMetrics = metrics.map(metric => ({
-      ...metric,
-      metricType: (metric.metricType === 'table' ? 'value' : (metric.metricType || 'value')) as 'value' | 'graph'
-    })) as Array<Omit<typeof metrics[0], 'metricType'> & { metricType: 'value' | 'graph' }>;
+    // Filter out table metrics and cast to shared type
+    // Table metrics cannot be used in calculations, so exclude them
+    const sharedMetrics = metrics
+      .filter(metric => metric.metricType !== 'table') // Exclude table metrics
+      .map(metric => ({
+        ...metric,
+        metricType: (metric.metricType || 'value') as 'value' | 'graph'
+      })) as Array<Omit<typeof metrics[0], 'metricType'> & { metricType: 'value' | 'graph' }>;
     const parseResult = MetricFormulaParser.parseUserFormula(userFormula, sharedMetrics, currentMetricId);
     if (!parseResult.isValid) {
       return { isValid: false, error: parseResult.error };

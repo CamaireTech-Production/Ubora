@@ -21,6 +21,29 @@ import { Univers, UniversInstance, UniversDefinitions, UniversMetadata, UniversO
 import { universInstantiationService, InstantiationResult } from './universInstantiationService';
 import { unifiedNotificationService } from './unifiedNotificationService';
 
+/**
+ * Interface pour le résultat de la vérification des ressources
+ */
+interface ResourcesCheckResult {
+  exists: boolean;
+  isConsistent: boolean;
+  actualCounts: {
+    forms: number;
+    dashboards: number;
+    instructions: number;
+    lists: number;
+    reports: number;
+  };
+  expectedCounts: {
+    forms: number;
+    dashboards: number;
+    instructions: number;
+    lists: number;
+    reports: number;
+  };
+  inconsistencies: string[];
+}
+
 class UniversService {
   private readonly collectionName = 'univers';
   private readonly instancesCollectionName = 'universInstances';
@@ -727,6 +750,64 @@ class UniversService {
       console.log(`✅ Univers updated: ${id} (v${currentVersion} → v${newVersion})`);
       if (isNowMarketplace) {
         console.log(`   Approval status set to: pending (requires admin approval)`);
+      } else {
+        // Pour les Univers privés, appliquer automatiquement la mise à jour aux instances actives
+        // Pas de validation requise, la mise à jour est immédiate
+        console.log(`   Univers privé: application automatique de la mise à jour...`);
+        try {
+          // Trouver toutes les instances actives de ce Univers
+          const instances = await this.getInstancesByUnivers(id);
+          const activeInstances = instances.filter(inst => inst.isActive);
+          
+          if (activeInstances.length > 0) {
+            console.log(`   ${activeInstances.length} instance(s) active(s) trouvée(s), mise à jour automatique...`);
+            
+            // Pour chaque instance active, mettre à jour automatiquement vers la nouvelle version
+            for (const instance of activeInstances) {
+              try {
+                // Vérifier si l'instance est à une version antérieure
+                const instanceVersion = instance.universVersion || instance.metadata?.universVersion || 1;
+                if (instanceVersion < newVersion) {
+                  console.log(`   Mise à jour automatique de l'instance ${instance.id} (v${instanceVersion} → v${newVersion})...`);
+                  
+                  // Mettre à jour l'instance vers la nouvelle version
+                  // On utilise upgradeInstance pour gérer la migration des données
+                  // Récupérer le rôle de l'utilisateur depuis la base de données
+                  let userRole: 'directeur' | 'employe' | 'admin' = 'directeur';
+                  try {
+                    const userDoc = await getDoc(doc(db, 'users', instance.userId));
+                    if (userDoc.exists()) {
+                      const userData = userDoc.data();
+                      userRole = (userData.role || 'directeur') as 'directeur' | 'employe' | 'admin';
+                    }
+                  } catch (roleError) {
+                    console.warn(`⚠️ Impossible de récupérer le rôle de l'utilisateur ${instance.userId}, utilisation de 'directeur' par défaut`);
+                  }
+                  
+                  await this.upgradeInstance(
+                    instance.id,
+                    instance.userId,
+                    userRole,
+                    instance.agencyId
+                  );
+                  
+                  console.log(`   ✅ Instance ${instance.id} mise à jour automatiquement vers v${newVersion}`);
+                } else {
+                  console.log(`   Instance ${instance.id} déjà à la version ${instanceVersion}, pas de mise à jour nécessaire`);
+                }
+              } catch (upgradeError) {
+                console.error(`   ⚠️ Erreur lors de la mise à jour automatique de l'instance ${instance.id}:`, upgradeError);
+                // Ne pas faire échouer la mise à jour du Univers si une instance échoue
+                // L'utilisateur pourra mettre à jour manuellement via le bouton
+              }
+            }
+          } else {
+            console.log(`   Aucune instance active trouvée, pas de mise à jour automatique nécessaire`);
+          }
+        } catch (autoUpdateError) {
+          console.error(`   ⚠️ Erreur lors de l'application automatique de la mise à jour (non-blocking):`, autoUpdateError);
+          // Ne pas faire échouer la mise à jour du Univers si l'application automatique échoue
+        }
       }
     } catch (error: any) {
       console.error('❌ universService.update - ERROR DETAILS:', {
@@ -952,8 +1033,10 @@ class UniversService {
    */
   async createInstance(instance: Omit<UniversInstance, 'id'>): Promise<string> {
     try {
+      // Remove undefined values before saving to Firestore
+      const cleanInstance = this.removeUndefinedValues(instance);
       const docRef = await addDoc(collection(db, this.instancesCollectionName), {
-        ...instance,
+        ...cleanInstance,
         createdAt: serverTimestamp()
       });
       
@@ -1095,21 +1178,23 @@ class UniversService {
         throw new Error('Univers template has no definitions');
       }
 
-      // 2. Generate a unique instance ID
-      const universInstanceId = `instance_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      // 2. Generate a unique instance ID (ce sera l'ID de l'instance Firestore)
+      const instanceId = `instance_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
       // 3. Call the instantiation service to create concrete resources
+      // On utilise le même instanceId pour les ressources et l'instance Firestore
       const instantiationResult = await universInstantiationService.instantiate({
         definitions: univers.definitions,
         userId,
         userRole,
         agencyId,
         universId,
-        universInstanceId
+        universInstanceId: instanceId // Utiliser le même ID que l'instance Firestore
       });
 
       // 4. Create the UniversInstance document with all instantiated resource IDs
-      const instanceData: Omit<UniversInstance, 'id'> = {
+      // Note: Firestore doesn't accept undefined values, so we omit optional fields
+      const instanceData: any = {
         universId,
         universVersion: univers.metadata.version || 1,
         userId,
@@ -1127,17 +1212,25 @@ class UniversService {
         metadata: {
           universName: univers.metadata.name,
           universVersion: univers.metadata.version || 1,
-          isFromMarketplace: univers.ownership.isMarketplaceTemplate || false,
-          paymentId: undefined, // Will be set if purchased
-          purchaseDate: undefined // Will be set if purchased
+          isFromMarketplace: univers.ownership.isMarketplaceTemplate || false
+          // paymentId and purchaseDate will be added later if purchased
         },
-        versionHistory: undefined,
-        latestAvailableVersion: undefined,
         updateAvailable: false
+        // versionHistory and latestAvailableVersion will be added later if needed
       };
 
-      const instanceId = await this.createInstance(instanceData);
-      // Note: createInstance already increments usage counter via incrementUsage()
+      // Remove undefined values before saving to Firestore
+      const cleanInstanceData = this.removeUndefinedValues(instanceData);
+      
+      // Créer l'instance avec setDoc en utilisant l'instanceId généré
+      const instanceRef = doc(db, this.instancesCollectionName, instanceId);
+      await setDoc(instanceRef, {
+        ...cleanInstanceData,
+        createdAt: serverTimestamp()
+      });
+      
+      // Mettre à jour le compteur d'utilisation du Univers
+      await this.incrementUsage(universId);
 
       console.log(`✅ Univers instantiated successfully: ${universId} → Instance ${instanceId}`);
       console.log(`   Created: ${instantiationResult.forms.length} forms, ${instantiationResult.dashboards.length} dashboards, ${instantiationResult.instructions.length} instructions, ${instantiationResult.lists.length} lists, ${instantiationResult.reports.length} reports`);
@@ -1930,25 +2023,59 @@ class UniversService {
         throw new Error(`Instance not found: ${oldInstanceId}`);
       }
 
-      // 2. Vérifier qu'une mise à jour est disponible
-      if (!oldInstance.updateAvailable || !oldInstance.latestAvailableVersion) {
-        throw new Error('No update available for this instance');
-      }
-
-      const newVersion = oldInstance.latestAvailableVersion;
-      const currentVersion = oldInstance.universVersion || oldInstance.metadata?.universVersion || 1;
-
-      if (newVersion <= currentVersion) {
-        throw new Error(`New version ${newVersion} is not greater than current version ${currentVersion}`);
-      }
-
-      // 3. Récupérer le template Univers avec la nouvelle version
+      // 2. Récupérer le template Univers et vérifier qu'une mise à jour est disponible
       const univers = await this.getById(oldInstance.universId);
       if (!univers) {
         throw new Error(`Univers template not found: ${oldInstance.universId}`);
       }
 
-      // Vérifier que le Univers a la bonne version
+      const currentVersion = oldInstance.universVersion || oldInstance.metadata?.universVersion || 1;
+      const latestVersion = univers.metadata.version || 1;
+      
+      // Vérifier si l'utilisateur est le propriétaire du template
+      const isOwner = univers.ownership.createdBy === userId;
+      
+      console.log(`🔍 Upgrade check:`, {
+        instanceId: oldInstanceId,
+        universId: oldInstance.universId,
+        currentVersion,
+        latestVersion,
+        isOwner,
+        updateAvailable: oldInstance.updateAvailable,
+        latestAvailableVersion: oldInstance.latestAvailableVersion,
+        userId
+      });
+      
+      // Déterminer la nouvelle version à utiliser
+      let newVersion: number;
+      
+      // Pour le propriétaire : toujours utiliser la version du template (ignore latestAvailableVersion)
+      if (isOwner && latestVersion > currentVersion) {
+        // Propriétaire : toujours utiliser la dernière version du template
+        newVersion = latestVersion;
+        console.log(`📌 Owner: using latest template version: v${newVersion}`);
+      } else if (oldInstance.updateAvailable && oldInstance.latestAvailableVersion) {
+        // Non-propriétaire : utiliser la version marquée comme disponible dans l'instance
+        newVersion = oldInstance.latestAvailableVersion;
+        console.log(`📌 Using marked available version: v${newVersion}`);
+      } else if (latestVersion > currentVersion) {
+        // Si pas de marqueur mais que le Univers template a une version plus récente
+        // Pour les non-propriétaires, vérifier que la version est approuvée
+        if (univers.ownership.approvalStatus === 'approved') {
+          newVersion = latestVersion;
+          console.log(`📌 Non-owner: using approved template version: v${newVersion}`);
+        } else {
+          throw new Error(`No approved update available. Template version ${latestVersion} is ${univers.ownership.approvalStatus}`);
+        }
+      } else {
+        throw new Error(`No update available. Current version: v${currentVersion}, Latest version: v${latestVersion}`);
+      }
+
+      if (newVersion <= currentVersion) {
+        throw new Error(`New version ${newVersion} is not greater than current version ${currentVersion}`);
+      }
+
+      // 3. Vérifier que le Univers template a la bonne version
       if (univers.metadata.version !== newVersion) {
         throw new Error(`Univers template version ${univers.metadata.version} does not match expected version ${newVersion}`);
       }
@@ -2019,26 +2146,33 @@ class UniversService {
       });
 
       // Ajouter l'historique de version à l'ancienne instance
-      const versionHistoryEntry = {
+      const versionHistoryEntry: any = {
         previousVersion: currentVersion,
         upgradedAt: new Date(),
-        upgradedFromInstanceId: undefined as string | undefined,
         dataMigrated: true
       };
+      // Ne pas inclure upgradedFromInstanceId si undefined (Firestore ne permet pas undefined)
+      // upgradedFromInstanceId n'est défini que pour la nouvelle instance, pas pour l'ancienne
 
       const oldVersionHistory = oldInstance.versionHistory || [];
+      const updatedVersionHistory = [...oldVersionHistory, versionHistoryEntry];
       batch.update(oldInstanceRef, {
-        versionHistory: [...oldVersionHistory, versionHistoryEntry]
+        versionHistory: updatedVersionHistory
       });
 
       // Activer la nouvelle instance si l'ancienne était active
       const newInstanceRef = doc(db, this.instancesCollectionName, newInstanceId);
-      batch.update(newInstanceRef, {
+      const newInstanceUpdate: any = {
         isActive: wasActive,
         updateAvailable: false,
-        latestAvailableVersion: undefined,
         updatedAt: serverTimestamp()
-      });
+      };
+      // Ne pas inclure latestAvailableVersion si undefined (Firestore ne permet pas undefined)
+      // On utilise deleteField() pour supprimer le champ s'il existe
+      if (oldInstance.latestAvailableVersion !== undefined) {
+        newInstanceUpdate.latestAvailableVersion = deleteField();
+      }
+      batch.update(newInstanceRef, newInstanceUpdate);
 
       // Ajouter l'historique de version à la nouvelle instance
       batch.update(newInstanceRef, {
@@ -2055,6 +2189,27 @@ class UniversService {
       // 8. Si l'ancienne instance était active, mettre à jour ActiveUnivers
       if (wasActive) {
         await this.setActiveUnivers(userId, agencyId, oldInstance.universId, newInstanceId);
+        
+        // Vérifier que les nouvelles ressources créées sont complètes et cohérentes
+        // Note: instantiate() crée déjà toutes les ressources nécessaires pour la nouvelle instance
+        // On ne doit PAS mettre à jour les ressources de l'ancienne instance pour éviter les doublons
+        console.log(`🔍 Vérification de la cohérence des ressources pour la nouvelle instance ${newInstanceId}...`);
+        const resourcesCheck = await this.checkIfResourcesExistForInstance(newInstanceId, oldInstance.universId, agencyId, univers);
+        
+        if (!resourcesCheck.exists) {
+          // Les ressources n'existent pas : cela ne devrait pas arriver car instantiate() les crée
+          console.warn(`⚠️ Aucune ressource trouvée pour la nouvelle instance ${newInstanceId}. Recréation des ressources...`);
+          await this.instantiateResourcesOnly(univers, userId, agencyId, newInstanceId);
+          console.log(`✅ Ressources recréées avec succès pour la nouvelle instance`);
+        } else if (!resourcesCheck.isConsistent) {
+          // Les ressources existent mais sont incohérentes : les recréer
+          console.warn(`⚠️ Ressources incohérentes détectées pour la nouvelle instance:`, resourcesCheck.inconsistencies);
+          console.log(`🔄 Recréation des ressources pour corriger les incohérences...`);
+          await this.instantiateResourcesOnly(univers, userId, agencyId, newInstanceId);
+          console.log(`✅ Ressources recréées avec succès pour la nouvelle instance`);
+        } else {
+          console.log(`✅ Ressources complètes et cohérentes pour la nouvelle instance ${newInstanceId}`);
+        }
       }
 
       console.log(`✅ Instance upgraded successfully: ${oldInstanceId} → ${newInstanceId} (v${currentVersion} → v${newVersion})`);
@@ -2254,36 +2409,554 @@ class UniversService {
   }
 
   /**
-   * Instancier les ressources d'un Univers sans créer d'instance UniversInstance
+   * Vérifier la cohérence des ressources existantes avec les définitions du Univers
+   */
+  private async checkResourcesConsistency(
+    instanceId: string,
+    universId: string,
+    agencyId: string,
+    univers: Univers
+  ): Promise<ResourcesCheckResult> {
+    const result: ResourcesCheckResult = {
+      exists: false,
+      isConsistent: false,
+      actualCounts: {
+        forms: 0,
+        dashboards: 0,
+        instructions: 0,
+        lists: 0,
+        reports: 0
+      },
+      expectedCounts: {
+        forms: univers.definitions?.forms?.length || 0,
+        dashboards: univers.definitions?.dashboards?.length || 0,
+        instructions: univers.definitions?.instructions?.length || 0,
+        lists: univers.definitions?.lists?.length || 0,
+        reports: univers.definitions?.reports?.length || 0
+      },
+      inconsistencies: []
+    };
+
+    try {
+      // 1. Compter les formulaires
+      try {
+        const formsQuery = query(
+          collection(db, 'forms'),
+          where('agencyId', '==', agencyId),
+          where('universId', '==', universId),
+          where('universInstanceId', '==', instanceId)
+        );
+        const formsSnapshot = await getDocs(formsQuery);
+        result.actualCounts.forms = formsSnapshot.size;
+      } catch (error) {
+        console.warn('⚠️ Erreur lors du comptage des formulaires:', error);
+      }
+
+      // 2. Compter les dashboards
+      try {
+        const dashboardsQuery = query(
+          collection(db, 'dashboards'),
+          where('agencyId', '==', agencyId),
+          where('universId', '==', universId),
+          where('universInstanceId', '==', instanceId)
+        );
+        const dashboardsSnapshot = await getDocs(dashboardsQuery);
+        result.actualCounts.dashboards = dashboardsSnapshot.size;
+      } catch (error) {
+        console.warn('⚠️ Erreur lors du comptage des dashboards:', error);
+      }
+
+      // 3. Compter les instructions
+      try {
+        const instructionsQuery = query(
+          collection(db, 'scheduledQuestions'),
+          where('agencyId', '==', agencyId),
+          where('universId', '==', universId),
+          where('universInstanceId', '==', instanceId)
+        );
+        const instructionsSnapshot = await getDocs(instructionsQuery);
+        result.actualCounts.instructions = instructionsSnapshot.size;
+      } catch (error) {
+        console.warn('⚠️ Erreur lors du comptage des instructions:', error);
+      }
+
+      // 4. Compter les listes
+      try {
+        const listsQuery = query(
+          collection(db, 'lists'),
+          where('agencyId', '==', agencyId),
+          where('universId', '==', universId),
+          where('universInstanceId', '==', instanceId)
+        );
+        const listsSnapshot = await getDocs(listsQuery);
+        result.actualCounts.lists = listsSnapshot.size;
+      } catch (error) {
+        console.warn('⚠️ Erreur lors du comptage des listes:', error);
+      }
+
+      // 5. Compter les rapports
+      try {
+        const reportsQuery = query(
+          collection(db, 'reports'),
+          where('agencyId', '==', agencyId),
+          where('universId', '==', universId),
+          where('universInstanceId', '==', instanceId)
+        );
+        const reportsSnapshot = await getDocs(reportsQuery);
+        result.actualCounts.reports = reportsSnapshot.size;
+      } catch (error) {
+        console.warn('⚠️ Erreur lors du comptage des rapports:', error);
+      }
+
+      // Vérifier l'existence (au moins une ressource existe)
+      result.exists = result.actualCounts.forms > 0 || 
+                     result.actualCounts.dashboards > 0 || 
+                     result.actualCounts.instructions > 0 || 
+                     result.actualCounts.lists > 0 || 
+                     result.actualCounts.reports > 0;
+
+      // Vérifier la cohérence
+      if (result.actualCounts.forms !== result.expectedCounts.forms) {
+        result.inconsistencies.push(
+          `Formulaires: ${result.actualCounts.forms} trouvé(s) au lieu de ${result.expectedCounts.forms}`
+        );
+      }
+      if (result.actualCounts.dashboards !== result.expectedCounts.dashboards) {
+        result.inconsistencies.push(
+          `Dashboards: ${result.actualCounts.dashboards} trouvé(s) au lieu de ${result.expectedCounts.dashboards}`
+        );
+      }
+      if (result.actualCounts.instructions !== result.expectedCounts.instructions) {
+        result.inconsistencies.push(
+          `Instructions: ${result.actualCounts.instructions} trouvée(s) au lieu de ${result.expectedCounts.instructions}`
+        );
+      }
+      if (result.actualCounts.lists !== result.expectedCounts.lists) {
+        result.inconsistencies.push(
+          `Listes: ${result.actualCounts.lists} trouvée(s) au lieu de ${result.expectedCounts.lists}`
+        );
+      }
+      if (result.actualCounts.reports !== result.expectedCounts.reports) {
+        result.inconsistencies.push(
+          `Rapports: ${result.actualCounts.reports} trouvé(s) au lieu de ${result.expectedCounts.reports}`
+        );
+      }
+
+      result.isConsistent = result.inconsistencies.length === 0;
+
+      return result;
+    } catch (error) {
+      console.warn('⚠️ Erreur lors de la vérification de cohérence des ressources:', error);
+      return result;
+    }
+  }
+
+  /**
+   * Vérifier si les ressources existent pour une instance et si elles sont cohérentes
+   */
+  private async checkIfResourcesExistForInstance(
+    instanceId: string,
+    universId: string,
+    agencyId: string,
+    univers?: Univers
+  ): Promise<ResourcesCheckResult> {
+    try {
+      // Si le Univers n'est pas fourni, le récupérer
+      if (!univers) {
+        univers = await this.getById(universId);
+        if (!univers) {
+          return {
+            exists: false,
+            isConsistent: false,
+            actualCounts: { forms: 0, dashboards: 0, instructions: 0, lists: 0, reports: 0 },
+            expectedCounts: { forms: 0, dashboards: 0, instructions: 0, lists: 0, reports: 0 },
+            inconsistencies: ['Univers non trouvé']
+          };
+        }
+      }
+
+      // Utiliser la fonction de vérification de cohérence
+      return await this.checkResourcesConsistency(instanceId, universId, agencyId, univers);
+    } catch (error) {
+      // Si l'index n'existe pas ou erreur, considérer qu'aucune ressource n'existe pour cette instance
+      console.warn('⚠️ Erreur lors de la vérification des ressources pour l\'instance:', error);
+      return {
+        exists: false,
+        isConsistent: false,
+        actualCounts: { forms: 0, dashboards: 0, instructions: 0, lists: 0, reports: 0 },
+        expectedCounts: { forms: 0, dashboards: 0, instructions: 0, lists: 0, reports: 0 },
+        inconsistencies: ['Erreur lors de la vérification']
+      };
+    }
+  }
+
+  /**
+   * Mettre à jour toutes les ressources existantes avec le bon universInstanceId
+   * Cette fonction est appelée lors de l'activation pour synchroniser les ressources avec l'instance active
+   */
+  private async updateExistingResourcesWithInstanceId(
+    universId: string,
+    instanceId: string,
+    agencyId: string
+  ): Promise<void> {
+    try {
+      console.log(`🔄 Mise à jour des ressources existantes avec universInstanceId=${instanceId}...`);
+      
+      const MAX_BATCH_SIZE = 500; // Limite Firestore
+      let batch = writeBatch(db);
+      let batchCount = 0;
+      let totalUpdated = 0;
+
+      const commitBatch = async () => {
+        if (batchCount > 0) {
+          await batch.commit();
+          batch = writeBatch(db);
+          batchCount = 0;
+        }
+      };
+
+      // 1. Mettre à jour les formulaires
+      try {
+        const formsQuery = query(
+          collection(db, 'forms'),
+          where('agencyId', '==', agencyId),
+          where('universId', '==', universId)
+        );
+        const formsSnapshot = await getDocs(formsQuery);
+        
+        for (const formDoc of formsSnapshot.docs) {
+          const formData = formDoc.data();
+          // Mettre à jour seulement si universInstanceId est différent ou manquant
+          if (formData.universInstanceId !== instanceId) {
+            const formRef = doc(db, 'forms', formDoc.id);
+            batch.update(formRef, {
+              universInstanceId: instanceId,
+              updatedAt: serverTimestamp()
+            });
+            batchCount++;
+            totalUpdated++;
+
+            if (batchCount >= MAX_BATCH_SIZE) {
+              await commitBatch();
+            }
+          }
+        }
+      } catch (error) {
+        console.warn('⚠️ Erreur lors de la mise à jour des formulaires:', error);
+      }
+
+      // 2. Mettre à jour les dashboards
+      try {
+        const dashboardsQuery = query(
+          collection(db, 'dashboards'),
+          where('agencyId', '==', agencyId),
+          where('universId', '==', universId)
+        );
+        const dashboardsSnapshot = await getDocs(dashboardsQuery);
+        
+        for (const dashboardDoc of dashboardsSnapshot.docs) {
+          const dashboardData = dashboardDoc.data();
+          if (dashboardData.universInstanceId !== instanceId) {
+            const dashboardRef = doc(db, 'dashboards', dashboardDoc.id);
+            batch.update(dashboardRef, {
+              universInstanceId: instanceId,
+              updatedAt: serverTimestamp()
+            });
+            batchCount++;
+            totalUpdated++;
+
+            if (batchCount >= MAX_BATCH_SIZE) {
+              await commitBatch();
+            }
+          }
+        }
+      } catch (error) {
+        console.warn('⚠️ Erreur lors de la mise à jour des dashboards:', error);
+      }
+
+      // 3. Mettre à jour les listes
+      try {
+        const listsQuery = query(
+          collection(db, 'lists'),
+          where('agencyId', '==', agencyId),
+          where('universId', '==', universId)
+        );
+        const listsSnapshot = await getDocs(listsQuery);
+        
+        for (const listDoc of listsSnapshot.docs) {
+          const listData = listDoc.data();
+          if (listData.universInstanceId !== instanceId) {
+            const listRef = doc(db, 'lists', listDoc.id);
+            batch.update(listRef, {
+              universInstanceId: instanceId,
+              updatedAt: serverTimestamp()
+            });
+            batchCount++;
+            totalUpdated++;
+
+            if (batchCount >= MAX_BATCH_SIZE) {
+              await commitBatch();
+            }
+          }
+        }
+      } catch (error) {
+        console.warn('⚠️ Erreur lors de la mise à jour des listes:', error);
+      }
+
+      // 4. Mettre à jour les instructions (scheduledQuestions)
+      try {
+        const instructionsQuery = query(
+          collection(db, 'scheduledQuestions'),
+          where('agencyId', '==', agencyId),
+          where('universId', '==', universId)
+        );
+        const instructionsSnapshot = await getDocs(instructionsQuery);
+        
+        for (const instructionDoc of instructionsSnapshot.docs) {
+          const instructionData = instructionDoc.data();
+          if (instructionData.universInstanceId !== instanceId) {
+            const instructionRef = doc(db, 'scheduledQuestions', instructionDoc.id);
+            batch.update(instructionRef, {
+              universInstanceId: instanceId,
+              updatedAt: serverTimestamp()
+            });
+            batchCount++;
+            totalUpdated++;
+
+            if (batchCount >= MAX_BATCH_SIZE) {
+              await commitBatch();
+            }
+          }
+        }
+      } catch (error) {
+        console.warn('⚠️ Erreur lors de la mise à jour des instructions:', error);
+      }
+
+      // 5. Mettre à jour les rapports
+      try {
+        const reportsQuery = query(
+          collection(db, 'reports'),
+          where('agencyId', '==', agencyId),
+          where('universId', '==', universId)
+        );
+        const reportsSnapshot = await getDocs(reportsQuery);
+        
+        for (const reportDoc of reportsSnapshot.docs) {
+          const reportData = reportDoc.data();
+          if (reportData.universInstanceId !== instanceId) {
+            const reportRef = doc(db, 'reports', reportDoc.id);
+            batch.update(reportRef, {
+              universInstanceId: instanceId,
+              updatedAt: serverTimestamp()
+            });
+            batchCount++;
+            totalUpdated++;
+
+            if (batchCount >= MAX_BATCH_SIZE) {
+              await commitBatch();
+            }
+          }
+        }
+      } catch (error) {
+        console.warn('⚠️ Erreur lors de la mise à jour des rapports:', error);
+      }
+
+      // Commit les dernières mises à jour
+      await commitBatch();
+
+      console.log(`✅ ${totalUpdated} ressource(s) mise(s) à jour avec universInstanceId=${instanceId}`);
+    } catch (error) {
+      console.error('❌ Erreur lors de la mise à jour des ressources existantes:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Supprimer les ressources existantes pour une instance (pour éviter les doublons lors de la recréation)
+   */
+  private async deleteResourcesForInstance(
+    instanceId: string,
+    universId: string,
+    agencyId: string
+  ): Promise<void> {
+    try {
+      const MAX_BATCH_SIZE = 500;
+      let batch = writeBatch(db);
+      let batchCount = 0;
+      let totalDeleted = 0;
+
+      const commitBatch = async () => {
+        if (batchCount > 0) {
+          await batch.commit();
+          batch = writeBatch(db);
+          batchCount = 0;
+        }
+      };
+
+      // 1. Supprimer les formulaires
+      try {
+        const formsQuery = query(
+          collection(db, 'forms'),
+          where('agencyId', '==', agencyId),
+          where('universId', '==', universId),
+          where('universInstanceId', '==', instanceId)
+        );
+        const formsSnapshot = await getDocs(formsQuery);
+        for (const formDoc of formsSnapshot.docs) {
+          batch.delete(doc(db, 'forms', formDoc.id));
+          batchCount++;
+          totalDeleted++;
+          if (batchCount >= MAX_BATCH_SIZE) {
+            await commitBatch();
+          }
+        }
+      } catch (error) {
+        console.warn('⚠️ Erreur lors de la suppression des formulaires:', error);
+      }
+
+      // 2. Supprimer les dashboards
+      try {
+        const dashboardsQuery = query(
+          collection(db, 'dashboards'),
+          where('agencyId', '==', agencyId),
+          where('universId', '==', universId),
+          where('universInstanceId', '==', instanceId)
+        );
+        const dashboardsSnapshot = await getDocs(dashboardsQuery);
+        for (const dashboardDoc of dashboardsSnapshot.docs) {
+          batch.delete(doc(db, 'dashboards', dashboardDoc.id));
+          batchCount++;
+          totalDeleted++;
+          if (batchCount >= MAX_BATCH_SIZE) {
+            await commitBatch();
+          }
+        }
+      } catch (error) {
+        console.warn('⚠️ Erreur lors de la suppression des dashboards:', error);
+      }
+
+      // 3. Supprimer les instructions
+      try {
+        const instructionsQuery = query(
+          collection(db, 'scheduledQuestions'),
+          where('agencyId', '==', agencyId),
+          where('universId', '==', universId),
+          where('universInstanceId', '==', instanceId)
+        );
+        const instructionsSnapshot = await getDocs(instructionsQuery);
+        for (const instructionDoc of instructionsSnapshot.docs) {
+          batch.delete(doc(db, 'scheduledQuestions', instructionDoc.id));
+          batchCount++;
+          totalDeleted++;
+          if (batchCount >= MAX_BATCH_SIZE) {
+            await commitBatch();
+          }
+        }
+      } catch (error) {
+        console.warn('⚠️ Erreur lors de la suppression des instructions:', error);
+      }
+
+      // 4. Supprimer les listes
+      try {
+        const listsQuery = query(
+          collection(db, 'lists'),
+          where('agencyId', '==', agencyId),
+          where('universId', '==', universId),
+          where('universInstanceId', '==', instanceId)
+        );
+        const listsSnapshot = await getDocs(listsQuery);
+        for (const listDoc of listsSnapshot.docs) {
+          batch.delete(doc(db, 'lists', listDoc.id));
+          batchCount++;
+          totalDeleted++;
+          if (batchCount >= MAX_BATCH_SIZE) {
+            await commitBatch();
+          }
+        }
+      } catch (error) {
+        console.warn('⚠️ Erreur lors de la suppression des listes:', error);
+      }
+
+      // 5. Supprimer les rapports
+      try {
+        const reportsQuery = query(
+          collection(db, 'reports'),
+          where('agencyId', '==', agencyId),
+          where('universId', '==', universId),
+          where('universInstanceId', '==', instanceId)
+        );
+        const reportsSnapshot = await getDocs(reportsQuery);
+        for (const reportDoc of reportsSnapshot.docs) {
+          batch.delete(doc(db, 'reports', reportDoc.id));
+          batchCount++;
+          totalDeleted++;
+          if (batchCount >= MAX_BATCH_SIZE) {
+            await commitBatch();
+          }
+        }
+      } catch (error) {
+        console.warn('⚠️ Erreur lors de la suppression des rapports:', error);
+      }
+
+      await commitBatch();
+      if (totalDeleted > 0) {
+        console.log(`🗑️ ${totalDeleted} ressource(s) supprimée(s) pour l'instance ${instanceId}`);
+      }
+    } catch (error) {
+      console.error('❌ Erreur lors de la suppression des ressources:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Instancier les ressources d'un Univers pour une instance existante
    * (pour les Univers créés directement, pas achetés)
+   * Supprime les anciennes ressources incohérentes avant de créer les nouvelles pour éviter les doublons
    */
   private async instantiateResourcesOnly(
     univers: Univers,
     directorId: string,
-    agencyId: string
+    agencyId: string,
+    instanceId: string
   ): Promise<void> {
     try {
       if (!univers.definitions) {
         throw new Error('Univers sans définitions');
       }
 
-      // Générer un ID d'instance temporaire pour l'instanciation
-      const tempInstanceId = `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      // Supprimer les anciennes ressources incohérentes pour cette instance avant de créer les nouvelles
+      // Cela évite les doublons lors de la recréation
+      console.log(`🗑️ Suppression des anciennes ressources incohérentes pour l'instance ${instanceId}...`);
+      await this.deleteResourcesForInstance(instanceId, univers.id, agencyId);
 
+      // Utiliser l'instanceId fourni pour créer les ressources
       // Appeler le service d'instanciation pour créer les ressources réelles
-      await universInstantiationService.instantiate({
+      const instantiationResult = await universInstantiationService.instantiate({
         definitions: univers.definitions,
         userId: directorId,
         userRole: 'directeur',
         agencyId,
         universId: univers.id,
-        universInstanceId: tempInstanceId
+        universInstanceId: instanceId
+      });
+
+      // Mettre à jour l'instance avec les IDs des ressources créées
+      const instanceRef = doc(db, this.instancesCollectionName, instanceId);
+      await updateDoc(instanceRef, {
+        instances: {
+          forms: instantiationResult.forms,
+          dashboards: instantiationResult.dashboards,
+          instructions: instantiationResult.instructions,
+          lists: instantiationResult.lists,
+          reports: instantiationResult.reports
+        },
+        updatedAt: serverTimestamp()
       });
 
       // Incrémenter le compteur d'utilisation (première instanciation des ressources)
       await this.incrementUsage(univers.id);
 
-      console.log(`✅ Ressources instanciées pour Univers ${univers.id} (sans créer d'instance)`);
+      console.log(`✅ Ressources instanciées pour Univers ${univers.id} avec instanceId=${instanceId}`);
     } catch (error) {
       console.error('❌ Erreur lors de l\'instanciation des ressources:', error);
       throw new Error(`Échec de l'instanciation des ressources: ${error instanceof Error ? error.message : 'Erreur inconnue'}`);
@@ -2314,48 +2987,121 @@ class UniversService {
 
       const isOwner = univers.ownership.createdBy === directorId;
       
-      // 3. Vérifier si c'est une instance achetée
+      // 3. Vérifier si c'est une instance achetée ou créer/trouver une instance pour le propriétaire
       let instanceId: string | undefined;
       if (univers.ownership.isMarketplaceTemplate && !isOwner) {
-        // Chercher une instance de ce Univers pour ce directeur
+        // Chercher une instance de ce Univers pour ce directeur (non-propriétaire)
         const instances = await this.getInstancesByUser(directorId, agencyId);
         const instance = instances.find(inst => inst.universId === universId);
         if (instance) {
           instanceId = instance.id;
-          // Pour les Univers achetés, les ressources sont déjà instanciées lors de l'achat
           console.log(`✅ Instance trouvée pour Univers acheté: ${instanceId}`);
+          
+          // Vérifier si les ressources existent déjà pour cette instance et si elles sont cohérentes
+          const resourcesCheck = await this.checkIfResourcesExistForInstance(instanceId, universId, agencyId, univers);
+          
+          if (!resourcesCheck.exists) {
+            // Vérifier si des ressources existent avec un autre universInstanceId
+            const resourcesExist = await this.checkIfResourcesExist(universId, agencyId);
+            if (resourcesExist) {
+              console.log(`🔄 Ressources existantes trouvées, mise à jour avec universInstanceId=${instanceId}...`);
+              await this.updateExistingResourcesWithInstanceId(universId, instanceId, agencyId);
+              
+              // Après la mise à jour, vérifier à nouveau si les ressources existent et sont cohérentes
+              const afterUpdateCheck = await this.checkIfResourcesExistForInstance(instanceId, universId, agencyId, univers);
+              if (!afterUpdateCheck.exists) {
+                console.log(`⚠️ Après mise à jour, aucune ressource trouvée pour cette instance, création des ressources...`);
+                // Pour les Univers achetés, on ne peut pas créer de nouvelles ressources
+                // car on n'a pas accès aux définitions du Univers (seul le propriétaire peut)
+                console.warn(`⚠️ Impossible de créer des ressources pour un Univers acheté. Veuillez contacter le propriétaire.`);
+              } else if (!afterUpdateCheck.isConsistent) {
+                console.warn(`⚠️ Ressources incohérentes après mise à jour:`, afterUpdateCheck.inconsistencies);
+                console.warn(`⚠️ Impossible de corriger les ressources pour un Univers acheté. Veuillez contacter le propriétaire.`);
+              } else {
+                console.log(`✅ Ressources mises à jour avec succès pour cette instance`);
+              }
+            }
+          } else if (!resourcesCheck.isConsistent) {
+            // Les ressources existent mais sont incohérentes
+            console.warn(`⚠️ Ressources incohérentes détectées:`, resourcesCheck.inconsistencies);
+            console.warn(`⚠️ Impossible de corriger les ressources pour un Univers acheté. Veuillez contacter le propriétaire.`);
+          } else {
+            // Les ressources existent et sont cohérentes : ne rien faire
+            console.log(`✅ Ressources déjà existantes et cohérentes pour cette instance, pas de mise à jour nécessaire`);
+          }
         } else {
           throw new Error('Vous devez d\'abord acheter ce Univers depuis le marketplace');
         }
       } else if (!isOwner) {
         throw new Error('Vous ne pouvez pas activer ce Univers');
       } else {
-        // 4. Pour les Univers créés directement (propriétaire), vérifier si les ressources existent
-        // Si non, les instancier automatiquement
-        const resourcesExist = await this.checkIfResourcesExist(universId, agencyId);
-        if (!resourcesExist) {
-          console.log(`📦 Ressources non trouvées pour Univers ${universId}, instanciation automatique...`);
-          await this.instantiateResourcesOnly(univers, directorId, agencyId);
-          console.log(`✅ Ressources instanciées avec succès pour Univers ${universId}`);
-          // incrementUsage is already called in instantiateResourcesOnly
-        } else {
-          console.log(`✅ Ressources déjà existantes pour Univers ${universId}`);
-          
-          // For marketplace Universes owned by creator, check if usage was already counted
-          // If it's a marketplace Univers and resources exist but usage is 0, increment it
-          // This handles the case where owner created marketplace Univers and used it before we fixed the increment
-          if (univers.ownership.isMarketplaceTemplate) {
-            const currentUsage = univers.usage?.totalUsages || 0;
-            // Check if there's an instance for this owner (if yes, usage should already be counted)
+        // 4. Pour le propriétaire, créer ou trouver une instance pour tracker la version
             const instances = await this.getInstancesByUser(directorId, agencyId);
-            const hasInstance = instances.some(inst => inst.universId === universId);
-            
-            // If no instance exists but resources exist, it means owner used their own marketplace Univers
-            // and usage wasn't counted. Increment it now.
-            if (!hasInstance && currentUsage === 0) {
-              console.log(`📊 Univers marketplace du propriétaire avec ressources existantes mais usage non compté, incrémentation...`);
+        let instance = instances.find(inst => inst.universId === universId);
+        
+        if (!instance) {
+          // Aucune instance existante : créer une instance complète pour tracker la version
+          console.log(`📦 Création d'une instance pour le propriétaire du Univers ${universId}...`);
+          const { instanceId: newInstanceId } = await this.instantiate(
+            universId,
+            directorId,
+            'directeur',
+            agencyId
+          );
+          instanceId = newInstanceId;
+          
+          // Incrémenter l'usage pour les Univers marketplace
+          if (univers.ownership.isMarketplaceTemplate) {
               await this.incrementUsage(universId);
             }
+          
+          console.log(`✅ Instance créée pour le propriétaire: ${instanceId}`);
+        } else {
+          // Instance existante : l'utiliser
+          instanceId = instance.id;
+          console.log(`✅ Instance existante trouvée pour le propriétaire: ${instanceId}`);
+          
+          // Vérifier si les ressources existent déjà pour cette instance et si elles sont cohérentes
+          const resourcesCheck = await this.checkIfResourcesExistForInstance(instanceId, universId, agencyId, univers);
+          
+          if (!resourcesCheck.exists) {
+            // Vérifier si des ressources existent avec un autre universInstanceId
+            const resourcesExist = await this.checkIfResourcesExist(universId, agencyId);
+            if (!resourcesExist) {
+              // Aucune ressource n'existe : créer les ressources avec l'instanceId correct
+              console.log(`📦 Ressources non trouvées, instanciation automatique...`);
+              await this.instantiateResourcesOnly(univers, directorId, agencyId, instanceId);
+              console.log(`✅ Ressources instanciées avec succès`);
+            } else {
+              // Des ressources existent mais pas pour cette instance : mettre à jour leur universInstanceId
+              console.log(`🔄 Ressources existantes trouvées, mise à jour avec universInstanceId=${instanceId}...`);
+              await this.updateExistingResourcesWithInstanceId(universId, instanceId, agencyId);
+              
+              // Après la mise à jour, vérifier à nouveau si les ressources existent et sont cohérentes
+              const afterUpdateCheck = await this.checkIfResourcesExistForInstance(instanceId, universId, agencyId, univers);
+              if (!afterUpdateCheck.exists) {
+                console.log(`⚠️ Après mise à jour, aucune ressource trouvée pour cette instance, création des ressources...`);
+                await this.instantiateResourcesOnly(univers, directorId, agencyId, instanceId);
+                console.log(`✅ Ressources créées après mise à jour`);
+              } else if (!afterUpdateCheck.isConsistent) {
+                // Les ressources existent mais sont incohérentes : les recréer
+                console.warn(`⚠️ Ressources incohérentes après mise à jour:`, afterUpdateCheck.inconsistencies);
+                console.log(`🔄 Recréation des ressources pour corriger les incohérences...`);
+                await this.instantiateResourcesOnly(univers, directorId, agencyId, instanceId);
+                console.log(`✅ Ressources recréées avec succès`);
+              } else {
+                console.log(`✅ Ressources mises à jour avec succès pour cette instance`);
+              }
+            }
+          } else if (!resourcesCheck.isConsistent) {
+            // Les ressources existent mais sont incohérentes : les recréer
+            console.warn(`⚠️ Ressources incohérentes détectées:`, resourcesCheck.inconsistencies);
+            console.log(`🔄 Recréation des ressources pour corriger les incohérences...`);
+            await this.instantiateResourcesOnly(univers, directorId, agencyId, instanceId);
+            console.log(`✅ Ressources recréées avec succès`);
+          } else {
+            // Les ressources existent et sont cohérentes : ne rien faire
+            console.log(`✅ Ressources déjà existantes et cohérentes pour cette instance, pas de création nécessaire`);
           }
         }
       }
@@ -2374,14 +3120,15 @@ class UniversService {
         }
       }
 
-      // 6. Activer le nouveau Univers
+      // 6. Activer le nouveau Univers (toujours via instance maintenant)
       if (instanceId) {
-        // Activer l'instance (Univers acheté)
+        // Activer l'instance (tous les cas : acheté ou propriétaire)
         const instanceRef = doc(db, this.instancesCollectionName, instanceId);
         await updateDoc(instanceRef, { isActive: true });
         await this.setActiveUnivers(directorId, agencyId, universId, instanceId);
       } else {
-        // Activer le template Univers (Univers créé directement)
+        // Fallback : si aucune instance n'a été créée (ne devrait pas arriver)
+        console.warn(`⚠️ Aucune instance trouvée pour Univers ${universId}, activation du template directement`);
         const universRef = doc(db, this.collectionName, universId);
         await updateDoc(universRef, { 'metadata.isActive': true });
         await this.setActiveUnivers(directorId, agencyId, universId);

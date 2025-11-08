@@ -1,11 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Dashboard, FormEntry, Form, DashboardMetric, User } from '../types';
 import { Card } from './Card';
 import { Button } from './Button';
 import { MetricCalculator } from '@ubora/shared/utils/MetricCalculator';
 import { GraphPreview } from './charts/GraphPreview';
 import { GraphModal } from './charts/GraphModal';
-import { BarChart3, TrendingUp, TrendingDown, Minus, Hash, Type, Mail, Calendar, CheckSquare, Upload, Eye, Edit, Trash2, Crown, User as UserIcon, FileBarChart } from 'lucide-react';
+import { TableMetricDisplay } from './TableMetricDisplay';
+import { tableDataService } from '../services/tableDataService';
+import { BarChart3, TrendingUp, TrendingDown, Minus, Hash, Type, Mail, Calendar, CheckSquare, Upload, Eye, Edit, Trash2, Crown, User as UserIcon, FileBarChart, Table } from 'lucide-react';
 import { UniversBadge } from './UniversBadge';
 
 interface DashboardDisplayProps {
@@ -34,6 +36,40 @@ export const DashboardDisplay: React.FC<DashboardDisplayProps> = ({
   universName
 }) => {
   const [expandedGraph, setExpandedGraph] = useState<DashboardMetric | null>(null);
+  const [tableRows, setTableRows] = useState<Record<string, any[]>>({});
+  const [isLoadingTableRows, setIsLoadingTableRows] = useState<Record<string, boolean>>({});
+
+  // Calculate table metric rows using the new service
+  useEffect(() => {
+    const calculateTableRows = async () => {
+      const tableMetrics = dashboard.metrics.filter(m => m.metricType === 'table');
+      if (tableMetrics.length === 0) return;
+
+      const newTableRows: Record<string, any[]> = {};
+      const newLoadingState: Record<string, boolean> = {};
+
+      for (const metric of tableMetrics) {
+        const metricId = metric.id || `temp_${dashboard.metrics.indexOf(metric)}`;
+        newLoadingState[metricId] = true;
+        
+        try {
+          // No period filter for DashboardDisplay (shows all time)
+          const rows = await tableDataService.getRowsForTableMetric(metric, formEntries, undefined);
+          newTableRows[metricId] = rows;
+        } catch (error) {
+          console.error(`Error calculating table rows for metric ${metricId}:`, error);
+          newTableRows[metricId] = [];
+        } finally {
+          newLoadingState[metricId] = false;
+        }
+      }
+
+      setTableRows(newTableRows);
+      setIsLoadingTableRows(newLoadingState);
+    };
+
+    calculateTableRows();
+  }, [dashboard, formEntries]);
   const getFieldIcon = (fieldType: string) => {
     switch (fieldType) {
       case 'text': return <Type className="h-4 w-4" />;
@@ -289,7 +325,24 @@ export const DashboardDisplay: React.FC<DashboardDisplayProps> = ({
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-4">
           {dashboard.metrics.map((metric, index) => {
-            const result = MetricCalculator.calculateMetric(metric, formEntries, dashboard);
+            const metricId = metric.id || `temp_${index}`;
+            
+            // For table metrics, use the new service; for others, use MetricCalculator
+            let result;
+            let tableRowsData: any[] = [];
+            
+            if (metric.metricType === 'table') {
+              // Use table data service results
+              tableRowsData = tableRows[metricId] || [];
+              result = {
+                value: tableRowsData,
+                displayValue: `${tableRowsData.length} ligne${tableRowsData.length > 1 ? 's' : ''}`,
+                description: isLoadingTableRows[metricId] ? 'Calcul en cours...' : `${tableRowsData.length} ligne${tableRowsData.length > 1 ? 's' : ''} dans le tableau`
+              };
+            } else {
+              // Use MetricCalculator for non-table metrics
+              result = MetricCalculator.calculateMetric(metric, formEntries, dashboard);
+            }
             
             return (
               <div
@@ -301,18 +354,22 @@ export const DashboardDisplay: React.FC<DashboardDisplayProps> = ({
                 <div className="flex items-start justify-between mb-2 sm:mb-3">
                   <div className="flex items-center space-x-1 sm:space-x-2">
                     {getFieldIcon(metric.fieldType)}
-                    {metric.metricType === 'graph' ? (
+                    {metric.metricType === 'table' ? (
+                      <Table className="h-4 w-4 text-purple-600" />
+                    ) : metric.metricType === 'graph' ? (
                       <BarChart3 className="h-4 w-4" />
                     ) : (
                       getCalculationIcon(metric.calculationType)
                     )}
                   </div>
                   <span className={`text-xs px-1 sm:px-2 py-0.5 sm:py-1 rounded text-xs ${
-                    metric.metricType === 'graph' 
+                    metric.metricType === 'table'
+                      ? 'bg-purple-100 text-purple-700 border border-purple-200'
+                      : metric.metricType === 'graph' 
                       ? 'bg-blue-100 text-blue-700 border border-blue-200' 
                       : 'bg-white text-gray-500'
                   }`}>
-                    {metric.metricType === 'graph' ? '📊 Graphique' : getCalculationLabel(metric.calculationType)}
+                    {metric.metricType === 'table' ? '📋 Tableau' : metric.metricType === 'graph' ? '📊 Graphique' : getCalculationLabel(metric.calculationType)}
                   </span>
                 </div>
 
@@ -339,6 +396,23 @@ export const DashboardDisplay: React.FC<DashboardDisplayProps> = ({
                       />
                     </div>
                   </div>
+                ) : metric.metricType === 'table' ? (
+                  <div className="mb-2 sm:mb-3">
+                    <div className="bg-white rounded-lg border border-gray-200 p-2">
+                      {isLoadingTableRows[metricId] ? (
+                        <div className="text-center py-6 text-gray-500">
+                          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-purple-600 mx-auto mb-2"></div>
+                          <p className="text-sm">Calcul en cours...</p>
+                        </div>
+                      ) : (
+                        <TableMetricDisplay
+                          metric={metric}
+                          rows={tableRowsData}
+                          compact={true}
+                        />
+                      )}
+                    </div>
+                  </div>
                 ) : (
                   <div className="mb-2 sm:mb-3">
                     <div className="text-lg sm:text-2xl font-bold text-blue-600 mb-0.5 sm:mb-1">
@@ -351,14 +425,23 @@ export const DashboardDisplay: React.FC<DashboardDisplayProps> = ({
                 )}
 
                 <div className="text-xs text-gray-500 border-t border-gray-200 pt-1 sm:pt-2">
-                  <div className="flex items-center space-x-1 mb-0.5 sm:mb-1">
-                    <Eye className="h-2 w-2 sm:h-3 sm:w-3" />
-                    <span className="truncate">{getFormTitle(metric.formId)}</span>
-                  </div>
-                  <div className="flex items-center space-x-1">
-                    {getFieldIcon(metric.fieldType)}
-                    <span className="truncate">{getFieldLabel(metric.formId, metric.fieldId)}</span>
-                  </div>
+                  {metric.metricType === 'table' ? (
+                    <div className="flex items-center space-x-1">
+                      <Table className="h-2 w-2 sm:h-3 sm:w-3" />
+                      <span className="truncate">Tableau avec {metric.tableConfig?.columns?.length || 0} colonne{(metric.tableConfig?.columns?.length || 0) > 1 ? 's' : ''}</span>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="flex items-center space-x-1 mb-0.5 sm:mb-1">
+                        <Eye className="h-2 w-2 sm:h-3 sm:w-3" />
+                        <span className="truncate">{getFormTitle(metric.formId)}</span>
+                      </div>
+                      <div className="flex items-center space-x-1">
+                        {getFieldIcon(metric.fieldType)}
+                        <span className="truncate">{getFieldLabel(metric.formId, metric.fieldId)}</span>
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
             );

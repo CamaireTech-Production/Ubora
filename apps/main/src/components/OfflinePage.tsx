@@ -1,15 +1,18 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card } from './Card';
 import { WifiOff, RefreshCw, Home } from 'lucide-react';
 import { Button } from './Button';
 
 export const OfflinePage: React.FC = () => {
+  const navigate = useNavigate();
+  
   const handleRefresh = () => {
     window.location.reload();
   };
 
   const handleGoHome = () => {
-    window.location.href = '/';
+    navigate('/');
   };
 
   return (

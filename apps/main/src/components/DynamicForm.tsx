@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Form, FormField, FileAttachment } from '../types';
 import { Button } from './Button';
 import { Input } from './Input';
@@ -63,6 +64,7 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
   isEditMode = false,
   isLoading = false
 }: DynamicFormProps) => {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const { showError, showSuccess } = useToast();
   const [answers, setAnswers] = useState<Record<string, unknown>>(initialAnswers);
@@ -837,7 +839,7 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
                     <strong>📁 Téléversement de fichiers indisponible :</strong> Cette fonctionnalité est disponible à partir du package Starter. 
                     <div className="mt-2">
                       <button 
-                        onClick={() => window.location.href = '/packages/manage?section=packages&highlight=starter'}
+                        onClick={() => navigate('/packages/manage?section=packages&highlight=starter')}
                         className="text-blue-600 hover:text-blue-800 underline font-medium"
                       >
                         Mettre à niveau vers Starter →

@@ -10,13 +10,17 @@ import { ConfirmationModal } from '../components/ConfirmationModal';
 import { Input } from '../components/Input';
 import { Select } from '../components/Select';
 import { MetricCalculator } from '@ubora/shared/utils/MetricCalculator';
+import { TableRowData } from '../utils/MetricCalculator';
+import { tableDataService } from '../services/tableDataService';
 import { useToast } from '@ubora/shared/hooks/useToast';
 import { Toast } from '../components/Toast';
 import { ComingSoonModal } from '../components/ComingSoonModal';
-import { DashboardEditModal } from '../components/DashboardEditModal';
+import { DashboardBuilder } from '../components/DashboardBuilder';
 import { MetricEditModal } from '../components/MetricEditModal';
 import { GraphPreview } from '../components/charts/GraphPreview';
 import { GraphModal } from '../components/charts/GraphModal';
+import { TableMetricDisplay } from '../components/TableMetricDisplay';
+import { TableMetricModal } from '../components/TableMetricModal';
 import { getValidYAxisFields, validateYAxisField } from '@ubora/shared/utils/GraphFieldValidator';
 import { metricReminderService } from '@ubora/shared/services/metricReminderService';
 import { ImpersonationHeader } from '../components/ImpersonationHeader';
@@ -45,7 +49,8 @@ import {
   BellPlus,
   Bell,
   Clock,
-  Calculator
+  Calculator,
+  Table
 } from 'lucide-react';
 
 export const DashboardDetailPage: React.FC = () => {
@@ -77,6 +82,7 @@ export const DashboardDetailPage: React.FC = () => {
   const errorRef = useRef<HTMLDivElement>(null);
   const [showDeleteDashboardModal, setShowDeleteDashboardModal] = useState(false);
   const [showAccessDeniedModal, setShowAccessDeniedModal] = useState(false);
+  const [expandedTableMetric, setExpandedTableMetric] = useState<{ metric: DashboardMetric; rows: TableRowData[] } | null>(null);
   
   // Auto-scroll to errors when they appear (mobile-responsive)
   useEffect(() => {
@@ -107,7 +113,7 @@ export const DashboardDetailPage: React.FC = () => {
   const [showGraphPreview, setShowGraphPreview] = useState(false);
   
   // Edit modals state
-  const [showEditDashboardModal, setShowEditDashboardModal] = useState(false);
+  const [showDashboardBuilder, setShowDashboardBuilder] = useState(false);
   const [showEditMetricModal, setShowEditMetricModal] = useState(false);
   const [editingMetricIndex, setEditingMetricIndex] = useState<number>(-1);
   
@@ -134,6 +140,10 @@ export const DashboardDetailPage: React.FC = () => {
     isOpen: boolean;
     reminder: MetricReminder | null;
   }>({ isOpen: false, reminder: null });
+
+  // Table metric rows state (for list-based tables)
+  const [tableRows, setTableRows] = useState<Record<string, any[]>>({});
+  const [isLoadingTableRows, setIsLoadingTableRows] = useState<Record<string, boolean>>({});
 
   // Load active reminders
   useEffect(() => {
@@ -220,6 +230,49 @@ export const DashboardDetailPage: React.FC = () => {
       isDateInRange(new Date(entry.submittedAt), start, end)
     );
   };
+
+  // Get period for table data service
+  const getPeriod = () => {
+    const { start, end } = getDateRange(timeFilter);
+    return {
+      start: start || undefined,
+      end: end || undefined
+    };
+  };
+
+  // Calculate table metric rows using the new service
+  useEffect(() => {
+    if (!dashboard) return;
+
+    const calculateTableRows = async () => {
+      const tableMetrics = dashboard.metrics.filter(m => m.metricType === 'table');
+      if (tableMetrics.length === 0) return;
+
+      const period = getPeriod();
+      const newTableRows: Record<string, any[]> = {};
+      const newLoadingState: Record<string, boolean> = {};
+
+      for (const metric of tableMetrics) {
+        const metricId = metric.id || `temp_${dashboard.metrics.indexOf(metric)}`;
+        newLoadingState[metricId] = true;
+        
+        try {
+          const rows = await tableDataService.getRowsForTableMetric(metric, formEntries, period);
+          newTableRows[metricId] = rows;
+        } catch (error) {
+          console.error(`Error calculating table rows for metric ${metricId}:`, error);
+          newTableRows[metricId] = [];
+        } finally {
+          newLoadingState[metricId] = false;
+        }
+      }
+
+      setTableRows(newTableRows);
+      setIsLoadingTableRows(newLoadingState);
+    };
+
+    calculateTableRows();
+  }, [dashboard, formEntries, timeFilter, customDateRange]);
 
   const getFieldIcon = (fieldType: string) => {
     switch (fieldType) {
@@ -371,7 +424,7 @@ export const DashboardDetailPage: React.FC = () => {
   };
 
   const handleEditDashboard = () => {
-    setShowEditDashboardModal(true);
+    setShowDashboardBuilder(true);
   };
 
   const handlePushIndicatorClick = (metric: DashboardMetric) => {
@@ -389,15 +442,30 @@ export const DashboardDetailPage: React.FC = () => {
     setShowEditMetricModal(true);
   };
 
-  const handleSaveDashboardEdit = async (dashboardId: string, updates: any) => {
+  const handleSaveDashboardBuilder = async (dashboardData: {
+    name: string;
+    description: string;
+    metrics: Omit<DashboardMetric, 'id' | 'createdAt' | 'createdBy' | 'agencyId'>[];
+  }) => {
+    if (!dashboard) return;
+    
     try {
-      await updateDashboard(dashboardId, updates);
+      await updateDashboard(dashboard.id, {
+        name: dashboardData.name,
+        description: dashboardData.description,
+        metrics: dashboardData.metrics
+      });
       showSuccess('Tableau de bord modifié avec succès !');
+      setShowDashboardBuilder(false);
     } catch (error) {
       console.error('Erreur lors de la modification du tableau de bord:', error);
       showError('Erreur lors de la modification du tableau de bord. Veuillez réessayer.');
       throw error;
     }
+  };
+
+  const handleCancelDashboardBuilder = () => {
+    setShowDashboardBuilder(false);
   };
 
   const handleSaveMetricEdit = async (metricIndex: number, updatedMetric: any) => {
@@ -786,7 +854,24 @@ export const DashboardDetailPage: React.FC = () => {
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 lg:gap-6">
             {dashboard.metrics.map((metric, index) => {
               const filteredEntries = getFilteredFormEntries();
-              const result = MetricCalculator.calculateMetric(metric, filteredEntries, dashboard || undefined);
+              const metricId = metric.id || `temp_${index}`;
+              
+              // For table metrics, use the new service; for others, use MetricCalculator
+              let result;
+              let tableRowsData: any[] = [];
+              
+              if (metric.metricType === 'table') {
+                // Use table data service results
+                tableRowsData = tableRows[metricId] || [];
+                result = {
+                  value: tableRowsData,
+                  displayValue: `${tableRowsData.length} ligne${tableRowsData.length > 1 ? 's' : ''}`,
+                  description: isLoadingTableRows[metricId] ? 'Calcul en cours...' : `${tableRowsData.length} ligne${tableRowsData.length > 1 ? 's' : ''} dans le tableau`
+                };
+              } else {
+                // Use MetricCalculator for non-table metrics
+                result = MetricCalculator.calculateMetric(metric, filteredEntries, dashboard || undefined);
+              }
               
               return (
                 <Card key={metric.id || index} className="hover:shadow-lg transition-shadow h-full flex flex-col">
@@ -840,9 +925,21 @@ export const DashboardDetailPage: React.FC = () => {
                   {/* Row 3: Symbols and type on the left */}
                   <div className="flex items-center space-x-2 mb-3">
                     {getFieldIcon(metric.fieldType)}
-                    {getCalculationIcon(metric.calculationType)}
-                    <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
-                      {getCalculationLabel(metric.calculationType)}
+                    {metric.metricType === 'table' ? (
+                      <Table className="h-4 w-4 text-purple-600" />
+                    ) : metric.metricType === 'graph' ? (
+                      <BarChart3 className="h-4 w-4 text-blue-600" />
+                    ) : (
+                      getCalculationIcon(metric.calculationType)
+                    )}
+                    <span className={`text-xs px-2 py-1 rounded ${
+                      metric.metricType === 'table'
+                        ? 'bg-purple-100 text-purple-700 border border-purple-200'
+                        : metric.metricType === 'graph'
+                        ? 'bg-blue-100 text-blue-700 border border-blue-200'
+                        : 'text-gray-500 bg-gray-100'
+                    }`}>
+                      {metric.metricType === 'table' ? '📋 Tableau' : metric.metricType === 'graph' ? '📊 Graphique' : getCalculationLabel(metric.calculationType)}
                     </span>
                   </div>
 
@@ -858,6 +955,23 @@ export const DashboardDetailPage: React.FC = () => {
                           onExpand={() => handleExpandGraph(metric)}
                           compact={true}
                         />
+                      </div>
+                    ) : metric.metricType === 'table' ? (
+                      <div className="w-full bg-white rounded-lg border border-gray-200 p-2">
+                        {isLoadingTableRows[metricId] ? (
+                          <div className="text-center py-6 text-gray-500">
+                            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-purple-600 mx-auto mb-2"></div>
+                            <p className="text-sm">Calcul en cours...</p>
+                          </div>
+                        ) : (
+                          <TableMetricDisplay
+                            metric={metric}
+                            rows={tableRowsData}
+                            compact={true}
+                            maxRows={3}
+                            onExpand={() => setExpandedTableMetric({ metric, rows: tableRowsData })}
+                          />
+                        )}
                       </div>
                     ) : (
                       <div className="flex flex-col justify-center h-32">
@@ -878,7 +992,12 @@ export const DashboardDetailPage: React.FC = () => {
 
                   {/* Source information */}
                   <div className="text-xs text-gray-500 border-t border-gray-200 pt-2">
-                    {metric.sourceType === 'computed' ? (
+                    {metric.metricType === 'table' ? (
+                      <div className="flex items-center space-x-1">
+                        <Table className="h-3 w-3" />
+                        <span>Tableau avec {metric.tableConfig?.columns?.length || 0} colonne{(metric.tableConfig?.columns?.length || 0) > 1 ? 's' : ''}</span>
+                      </div>
+                    ) : metric.sourceType === 'computed' ? (
                       <>
                         <div className="flex items-center space-x-1 mb-1">
                           <Calculator className="h-3 w-3" />
@@ -1419,13 +1538,39 @@ export const DashboardDetailPage: React.FC = () => {
         description="Cette fonctionnalité sera bientôt disponible."
       />
 
-      {/* Edit Dashboard Modal */}
-      <DashboardEditModal
-        isOpen={showEditDashboardModal}
-        onClose={() => setShowEditDashboardModal(false)}
-        onSave={handleSaveDashboardEdit}
-        dashboard={dashboard}
-      />
+      {/* Edit Dashboard with DashboardBuilder */}
+      {showDashboardBuilder && dashboard && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-start justify-center p-4 z-50 overflow-y-auto">
+          <div className="bg-white rounded-lg shadow-xl max-w-6xl w-full my-8 max-h-[90vh] overflow-y-auto">
+            <DashboardBuilder
+              onSave={handleSaveDashboardBuilder}
+              onCancel={handleCancelDashboardBuilder}
+              forms={forms}
+              formEntries={formEntries}
+              currentUserId={user?.id || ''}
+              agencyId={user?.agencyId || ''}
+              initialDashboard={{
+                name: dashboard.name,
+                description: dashboard.description || '',
+                metrics: dashboard.metrics.map(metric => ({
+                  name: metric.name,
+                  description: metric.description,
+                  formId: metric.formId,
+                  fieldId: metric.fieldId,
+                  fieldType: metric.fieldType,
+                  calculationType: metric.calculationType,
+                  metricType: metric.metricType,
+                  graphConfig: metric.graphConfig,
+                  tableConfig: metric.tableConfig,
+                  sourceType: metric.sourceType,
+                  userFormula: metric.userFormula,
+                  dependsOn: metric.dependsOn
+                }))
+              }}
+            />
+          </div>
+        </div>
+      )}
 
       {/* Edit Metric Modal */}
       <MetricEditModal
@@ -1673,6 +1818,16 @@ export const DashboardDetailPage: React.FC = () => {
         onClose={() => setShowAccessDeniedModal(false)}
         feature="push-indicators"
       />
+
+      {/* Table Metric Modal */}
+      {expandedTableMetric && (
+        <TableMetricModal
+          isOpen={!!expandedTableMetric}
+          onClose={() => setExpandedTableMetric(null)}
+          metric={expandedTableMetric.metric}
+          rows={expandedTableMetric.rows}
+        />
+      )}
     </Layout>
     </>
   );

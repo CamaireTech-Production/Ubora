@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
 import { useApp } from '@ubora/shared/contexts/AppContext';
 import { useConversation } from '@ubora/shared/contexts/ConversationContext';
@@ -40,10 +41,9 @@ if (!AI_ENDPOINT) {
   console.error("❌ Aucun endpoint ARCHA configuré. ARCHA ne fonctionnera pas.");
 }
 
-
-const DirecteurChat: React.FC = () => {
-  
-  const { user, firebaseUser, isLoading, logout } = useAuth();
+export const DirecteurChat: React.FC = () => {
+  const navigate = useNavigate();
+  const { user, firebaseUser, isLoading, logout, refreshUserData } = useAuth();
   const { forms, formEntries, employees, isLoading: appLoading } = useApp();
   const { setAIResponseActive } = useAIResponse();
   
@@ -734,8 +734,8 @@ RÉPONSE :
             formEntries={formEntries}
             onLoadConversation={loadConversation}
             onCreateConversation={createNewConversation}
-            onGoDashboard={() => (window.location.href = '/directeur/dashboard')}
-            onGoScheduledQuestions={() => (window.location.href = '/directeur/scheduled-questions')}
+            onGoDashboard={() => navigate('/directeur/dashboard')}
+            onGoScheduledQuestions={() => navigate('/directeur/scheduled-questions')}
           />
 
           {/* Token Limit Modal */}

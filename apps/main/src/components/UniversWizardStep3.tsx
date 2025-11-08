@@ -37,7 +37,9 @@ export const UniversWizardStep3: React.FC<UniversWizardStepProps> = ({
   updateWizardData,
   markStepCompleted,
   readOnly = false,
-  templateData
+  templateData,
+  universId,
+  universInstanceId
 }) => {
   const { employees } = useApp();
   const { user } = useAuth();
@@ -295,6 +297,8 @@ export const UniversWizardStep3: React.FC<UniversWizardStepProps> = ({
             timeRestrictions: editingForm.timeRestrictions
           } : undefined}
           universLists={wizardData.definitions.lists as any[]}
+          universId={universId}
+          universInstanceId={universInstanceId}
         />
       </div>
     );
