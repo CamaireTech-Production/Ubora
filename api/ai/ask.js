@@ -255,7 +255,7 @@ async function loadAndAggregateData(
   if (userRole === 'directeur' && directorId) {
     try {
       const activeUniversDoc = await adminDb.collection('activeUnivers').doc(directorId).get();
-      if (activeUniversDoc.exists()) {
+      if (activeUniversDoc.exists) {
         const activeUniversData = activeUniversDoc.data();
         activeUniversId = activeUniversData.activeUniversId;
         console.log('✅ Univers actif trouvé pour Chat Archa:', activeUniversId);
