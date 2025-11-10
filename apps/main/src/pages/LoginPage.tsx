@@ -75,6 +75,15 @@ export const LoginPage: React.FC = () => {
     }
   }, [user, isLoading, navigate]);
 
+  // Afficher un loader pendant le chargement pour éviter l'affichage de la page de login
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
+
   // Rediriger si déjà connecté
   if (user) {
     if (user.role === 'directeur') {

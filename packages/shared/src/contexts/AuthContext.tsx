@@ -278,9 +278,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       clearTimeout(timeoutId);
       
       // Set loading immediately when auth state changes
+      // IMPORTANT: Garder isLoading à true jusqu'à ce que user soit complètement chargé
       setIsLoading(true);
       setError(null);
       
+      // Utiliser un délai minimal pour éviter les appels concurrents
+      // Mais s'assurer que isLoading reste true pendant tout le processus
       timeoutId = setTimeout(async () => {
         
         if (firebaseUser) {

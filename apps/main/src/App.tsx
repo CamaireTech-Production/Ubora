@@ -491,6 +491,7 @@ const RoleBasedRedirect: React.FC = () => {
   try {
     const { user, isLoading } = useAuth();
 
+    // Afficher le loader pendant le chargement
     if (isLoading) {
       return (
         <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -501,17 +502,15 @@ const RoleBasedRedirect: React.FC = () => {
 
     // Ne pas rediriger vers login si on est en train de charger
     // Cela évite la redirection pendant l'inscription
-    if (!user && !isLoading) {
-      return <Navigate to="/login" replace />;
-    }
-    
-    // Si on charge, afficher le loader
-    if (isLoading) {
-      return (
-        <div className="min-h-screen flex items-center justify-center bg-gray-50">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-        </div>
-      );
+    // Vérifier aussi si on est déjà sur la page de login pour éviter les boucles
+    if (!user) {
+      const currentPath = window.location.pathname;
+      // Ne pas rediriger si on est déjà sur /login ou /packages
+      if (currentPath !== '/login' && currentPath !== '/packages') {
+        return <Navigate to="/login" replace />;
+      }
+      // Si on est sur /login, laisser LoginPage gérer la redirection
+      return null;
     }
 
     // Admin users should use admin app - redirect to login (they should use admin subdomain)
