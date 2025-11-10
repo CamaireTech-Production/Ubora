@@ -133,9 +133,10 @@ class UniversService {
         throw new Error('Le créateur du Univers est requis');
       }
 
-      // Validation: au moins un formulaire est requis
+      // Validation: au moins un formulaire est requis (sauf pour l'univers par défaut)
       const forms = univers.definitions?.forms || [];
-      if (forms.length === 0) {
+      const isDefault = univers.metadata?.isDefault === true;
+      if (forms.length === 0 && !isDefault) {
         throw new Error('Au moins un formulaire est requis pour créer un Univers');
       }
 

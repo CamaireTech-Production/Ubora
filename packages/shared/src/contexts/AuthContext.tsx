@@ -277,9 +277,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Clear any pending operations to prevent concurrent calls
       clearTimeout(timeoutId);
       
+      // Set loading immediately when auth state changes
+      setIsLoading(true);
+      setError(null);
+      
       timeoutId = setTimeout(async () => {
-        setIsLoading(true);
-        setError(null);
         
         if (firebaseUser) {
           try {
@@ -445,6 +447,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               ...userData
             });
             setFirebaseUser(firebaseUser);
+            
+            // Créer l'univers par défaut pour les directeurs si nécessaire
+            // (après que l'utilisateur soit complètement chargé et que les permissions Firestore soient propagées)
+            if (userData.role === 'directeur' && userData.agencyId) {
+              // Utiliser setTimeout pour permettre à Firestore de propager les permissions
+              setTimeout(async () => {
+                try {
+                  await universService.ensureDefaultUnivers(firebaseUser.uid, userData.agencyId);
+                  console.log('✅ Univers par défaut créé/vérifié pour le directeur:', firebaseUser.uid);
+                } catch (universError) {
+                  console.error('Erreur lors de la création/vérification de l\'univers par défaut:', universError);
+                  // Ne pas bloquer la connexion si l'univers par défaut ne peut pas être créé
+                  // Il sera créé lors de la prochaine connexion
+                }
+              }, 500); // Attendre 500ms pour que les permissions Firestore soient propagées
+            }
           } else {
             // Document utilisateur manquant, déconnecter
             await signOut(auth);
@@ -722,17 +740,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       await setDoc(doc(db, 'users', userCredential.user.uid), userData);
       
-      // Créer l'univers par défaut pour les directeurs immédiatement après l'inscription
-      if (role === 'directeur') {
-        try {
-          await universService.ensureDefaultUnivers(userCredential.user.uid, agencyId.trim());
-          console.log('✅ Univers par défaut créé pour le directeur:', userCredential.user.uid);
-        } catch (universError) {
-          console.error('Erreur lors de la création de l\'univers par défaut:', universError);
-          // Ne pas bloquer l'inscription si l'univers par défaut ne peut pas être créé
-          // Il sera créé lors de la première connexion
-        }
-      }
+      // Note: L'univers par défaut sera créé automatiquement dans onAuthStateChanged
+      // après que l'utilisateur soit complètement chargé et que les permissions Firestore soient propagées
+      
+      // Forcer le rechargement immédiat de l'utilisateur après l'inscription
+      // Cela déclenchera onAuthStateChanged immédiatement
+      // Pas besoin d'attendre, Firebase Auth est déjà mis à jour
       
       // Track user addition in subscription session (only for employees added by directors)
       if (role === 'employe') {

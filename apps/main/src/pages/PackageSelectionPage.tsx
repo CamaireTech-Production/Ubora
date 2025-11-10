@@ -384,6 +384,52 @@ export const PackageSelectionPage: React.FC = () => {
           </p>
         </div>
 
+        {/* Sélecteur de période global */}
+        <div className="mb-8">
+          <Card className="bg-white shadow-lg">
+            <div className="p-6">
+              <label className="block text-lg font-semibold text-gray-900 mb-4 text-center">
+                Période d'abonnement
+              </label>
+              <div className="flex flex-wrap justify-center gap-4">
+                {(['30days', '6months', '1year'] as SubscriptionPeriod[]).map((period) => {
+                  const isSelected = selectedPeriod === period;
+                  return (
+                    <button
+                      key={period}
+                      type="button"
+                      onClick={() => setSelectedPeriod(period)}
+                      className={`px-6 py-4 rounded-xl border-2 transition-all duration-200 min-w-[140px] ${
+                        isSelected
+                          ? 'border-blue-500 bg-blue-50 shadow-lg scale-105'
+                          : 'border-gray-200 hover:border-gray-300 bg-white hover:shadow-md'
+                      }`}
+                    >
+                      <div className="text-center">
+                        <div className={`font-bold text-lg mb-1 ${
+                          isSelected ? 'text-blue-600' : 'text-gray-700'
+                        }`}>
+                          {SubscriptionPriceCalculator.getPeriodDisplayName(period)}
+                        </div>
+                        {period === '6months' && (
+                          <div className="text-xs text-green-600 font-medium">
+                            10% de réduction
+                          </div>
+                        )}
+                        {period === '1year' && (
+                          <div className="text-xs text-green-600 font-medium">
+                            20% de réduction
+                          </div>
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </Card>
+        </div>
+
         {/* Grille des packages */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">
           {packages.map((pkg) => (
@@ -413,61 +459,36 @@ export const PackageSelectionPage: React.FC = () => {
                   {getPackageDisplayName(pkg)}
                 </h3>
                 
-                {/* Prix avec sélection de période pour packages payants */}
+                {/* Prix avec période sélectionnée pour packages payants */}
                 {pkg !== 'free' ? (
                   <div className="mb-4">
-                    {/* Sélection de période */}
-                    <div className="mb-4">
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Période d'abonnement
-                      </label>
-                      <div className="flex flex-col space-y-2">
-                        {(['30days', '6months', '1year'] as SubscriptionPeriod[]).map((period) => {
-                          const priceCalc = SubscriptionPriceCalculator.calculatePrice(pkg, period);
-                          const isSelected = selectedPackage === pkg && selectedPeriod === period;
-                          return (
-                            <button
-                              key={period}
-                              type="button"
-                              onClick={() => {
-                                setSelectedPackage(pkg);
-                                setSelectedPeriod(period);
-                              }}
-                              className={`text-left px-4 py-3 rounded-lg border-2 transition-all ${
-                                isSelected
-                                  ? 'border-blue-500 bg-blue-50'
-                                  : 'border-gray-200 hover:border-gray-300'
-                              }`}
-                            >
-                              <div className="flex items-center justify-between">
-                                <div>
-                                  <div className="font-semibold text-gray-900">
-                                    {SubscriptionPriceCalculator.getPeriodDisplayName(period)}
-                                  </div>
-                                  {priceCalc.discountApplied > 0 && (
-                                    <div className="text-xs text-green-600 mt-1">
-                                      {priceCalc.discountApplied * 100}% de réduction
-                                    </div>
+                    {(() => {
+                      const priceCalc = SubscriptionPriceCalculator.calculatePrice(pkg, selectedPeriod);
+                      return (
+                        <div className="text-center">
+                          <div className="mb-2">
+                            <p className="text-4xl font-bold text-blue-600 mb-1">
+                              {SubscriptionPriceCalculator.formatPrice(priceCalc.totalAmount)}
+                            </p>
+                            {priceCalc.discountApplied > 0 && (
+                              <div className="flex items-center justify-center gap-2">
+                                <span className="text-sm text-gray-500 line-through">
+                                  {SubscriptionPriceCalculator.formatPrice(
+                                    priceCalc.monthlyAmount * (priceCalc.totalPeriodDays / 30)
                                   )}
-                                </div>
-                                <div className="text-right">
-                                  <div className="text-lg font-bold text-blue-600">
-                                    {SubscriptionPriceCalculator.formatPrice(priceCalc.totalAmount)}
-                                  </div>
-                                  {priceCalc.discountApplied > 0 && (
-                                    <div className="text-xs text-gray-500 line-through">
-                                      {SubscriptionPriceCalculator.formatPrice(
-                                        priceCalc.monthlyAmount * (priceCalc.totalPeriodDays / 30)
-                                      )}
-                                    </div>
-                                  )}
-                                </div>
+                                </span>
+                                <span className="text-sm font-semibold text-green-600">
+                                  {priceCalc.discountApplied * 100}% de réduction
+                                </span>
                               </div>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
+                            )}
+                          </div>
+                          <div className="text-sm text-gray-600">
+                            pour {SubscriptionPriceCalculator.getPeriodDisplayName(selectedPeriod)}
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </div>
                 ) : (
                   <div>
@@ -498,7 +519,10 @@ export const PackageSelectionPage: React.FC = () => {
 
               {/* Bouton de sélection */}
               <Button
-                onClick={() => handlePackageSelection(pkg)}
+                onClick={() => {
+                  setSelectedPackage(pkg);
+                  handlePackageSelection(pkg);
+                }}
                 disabled={isCreatingPayment || (pkg !== 'free' && !selectedPeriod)}
                 className={`w-full py-4 text-lg font-semibold rounded-lg transition-all duration-200 ${
                   pkg === 'standard' 
@@ -512,18 +536,9 @@ export const PackageSelectionPage: React.FC = () => {
                     <span>Initialisation du paiement...</span>
                   </div>
                 ) : (
-                  <div className="flex flex-col items-center justify-center space-y-1">
-                    <div className="flex items-center space-x-3">
-                      <span>Choisir ce package</span>
-                      <ArrowRight className="h-6 w-6" />
-                    </div>
-                    {pkg !== 'free' && selectedPackage === pkg && selectedPeriod && (
-                      <div className="text-sm font-normal opacity-90">
-                        {SubscriptionPriceCalculator.formatPrice(
-                          SubscriptionPriceCalculator.calculatePrice(pkg, selectedPeriod).totalAmount
-                        )}
-                      </div>
-                    )}
+                  <div className="flex items-center justify-center space-x-3">
+                    <span>Choisir ce package</span>
+                    <ArrowRight className="h-6 w-6" />
                   </div>
                 )}
               </Button>

@@ -759,14 +759,21 @@ service cloud.firestore {
         // Everyone can read approved marketplace templates
         (resource.data.ownership != null &&
          resource.data.ownership.isMarketplaceTemplate == true &&
-         resource.data.ownership.approvalStatus == 'approved')
+         resource.data.ownership.approvalStatus == 'approved') ||
+        // Fallback: allow directors to read Univers they created (for queries)
+        (isDirecteur() && resource.data.ownership != null && 
+         resource.data.ownership.createdBy == request.auth.uid)
       );
       
       // CRÉATION des Univers
       allow create: if isAuthenticated() && (
         isAdmin() ||
-        (canCreateForms() && 
+        // Allow directors to create their own Univers (including default Univers)
+        (isDirecteur() && 
          request.resource.data.ownership.createdBy == request.auth.uid &&
+         request.resource.data.keys().hasAll(['metadata', 'ownership', 'definitions', 'usage'])) ||
+        // Fallback: allow if user is authenticated and creating their own Univers
+        (request.resource.data.ownership.createdBy == request.auth.uid &&
          request.resource.data.keys().hasAll(['metadata', 'ownership', 'definitions', 'usage']))
       );
       
@@ -853,7 +860,9 @@ service cloud.firestore {
       // LECTURE de l'Univers actif
       allow read: if isAuthenticated() && (
         isAdmin() ||
-        (isDirecteur() && request.auth.uid == directorId)
+        (isDirecteur() && request.auth.uid == directorId) ||
+        // Fallback: allow if user is authenticated and reading their own activeUnivers
+        (request.auth.uid == directorId)
       );
       
       // CRÉATION de l'Univers actif
@@ -861,6 +870,10 @@ service cloud.firestore {
         isAdmin() ||
         (isDirecteur() && 
          request.auth.uid == directorId &&
+         request.resource.data.directorId == directorId &&
+         request.resource.data.keys().hasAll(['directorId', 'agencyId', 'activeUniversId', 'updatedAt'])) ||
+        // Fallback: allow if user is authenticated and creating their own activeUnivers
+        (request.auth.uid == directorId &&
          request.resource.data.directorId == directorId &&
          request.resource.data.keys().hasAll(['directorId', 'agencyId', 'activeUniversId', 'updatedAt']))
       );

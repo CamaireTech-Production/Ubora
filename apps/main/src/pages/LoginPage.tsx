@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Navigate, useSearchParams } from 'react-router-dom';
+import { Navigate, useSearchParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
 import { Button } from '../components/Button';
 import { Input } from '../components/Input';
@@ -9,6 +9,7 @@ import { Lock, Mail, AlertCircle } from 'lucide-react';
 
 export const LoginPage: React.FC = () => {
   const { user, login, loginWithGoogle, register, resetPassword, isLoading, error } = useAuth();
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -66,15 +67,23 @@ export const LoginPage: React.FC = () => {
     }
   }, [error]);
 
+  // Rediriger automatiquement après l'inscription quand l'utilisateur est chargé
+  // On attend que isLoading soit false pour s'assurer que l'utilisateur est complètement chargé
+  useEffect(() => {
+    if (!isLoading && user && user.role === 'directeur' && user.needsPackageSelection) {
+      navigate('/packages', { replace: true });
+    }
+  }, [user, isLoading, navigate]);
+
   // Rediriger si déjà connecté
   if (user) {
     if (user.role === 'directeur') {
       if (user.needsPackageSelection) {
-        return <Navigate to="/packages" />;
+        return <Navigate to="/packages" replace />;
       }
-      return <Navigate to="/directeur/chat" />;
+      return <Navigate to="/directeur/dashboard" replace />;
     } else if (user.role === 'employe') {
-      return <Navigate to="/employe/dashboard" />;
+      return <Navigate to="/employe/dashboard" replace />;
     }
   }
 
@@ -102,6 +111,7 @@ export const LoginPage: React.FC = () => {
           setEmail('');
           setPassword('');
           setName('');
+          // La redirection se fera automatiquement via useEffect quand user sera chargé
         } else if (error === 'ACCOUNT_EXISTS') {
           setShowAccountExistsModal(true);
         }
