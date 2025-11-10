@@ -187,43 +187,51 @@ export const usePackageAccess = () => {
   const getLimit = (limit: keyof PackageLimits): number => {
     if (!user) return 0;
     
-    // For employees with director access, use director's package limits if available
-    if (user.role === 'employe' && user.hasDirectorDashboardAccess && directorPackageInfo) {
-      // Get the director's package limits from the package info
-      const packageLimits = directorPackageInfo.packageLimits || {};
+    // Get package type from userPackageInfo or directorPackageInfo
+    let packageType: PackageType | null = null;
+    
+    // For employees with director access, use director's package type
+    if (user.role === 'employe' && user.hasDirectorDashboardAccess) {
+      packageType = directorPackageInfo?.packageType as PackageType || null;
+    } else if (user.role === 'directeur') {
+      // For directors, use their own package type
+      packageType = (userPackageInfo?.packageType || packageInfo?.packageType) as PackageType || null;
+    }
+    
+    // If we have a package type, get limits directly from PACKAGE_LIMITS
+    if (packageType && packageType in PACKAGE_LIMITS) {
+      const packageConfig = PACKAGE_LIMITS[packageType];
       // Handle the mismatch between maxTokens and monthlyTokens
       if (limit === 'monthlyTokens') {
-        return packageLimits.maxTokens || 0;
+        return packageConfig.monthlyTokens === -1 ? -1 : packageConfig.monthlyTokens;
       } else if (limit === 'additionalUserCost') {
-        // additionalUserCost is not returned by getPackageLimits, get it from package config
-        const packageType = directorPackageInfo.packageType as PackageType;
-        if (packageType && packageType in PACKAGE_LIMITS) {
-          const packageConfig = PACKAGE_LIMITS[packageType];
-          return packageConfig?.additionalUserCost || 0;
-        } else {
-          return 0;
-        }
+        return packageConfig.additionalUserCost || 0;
       } else {
-        return packageLimits[limit] || 0;
+        // Return the limit value, preserving -1 for unlimited
+        const limitValue = packageConfig[limit];
+        return limitValue === -1 ? -1 : (limitValue || 0);
       }
     }
     
+    // Fallback: use getPackageLimits (may use old system, but preserves -1)
     const limits = UserSessionService.getPackageLimits(user);
     // Handle the mismatch between maxTokens and monthlyTokens
     if (limit === 'monthlyTokens') {
       return limits.maxTokens || 0;
     } else if (limit === 'additionalUserCost') {
       // additionalUserCost is not returned by getPackageLimits, get it from package config
-      const packageInfo = UserSessionService.getUserPackageInfo(user);
-      const packageType = packageInfo?.packageType as PackageType;
-      if (packageType && packageType in PACKAGE_LIMITS) {
-        const packageConfig = PACKAGE_LIMITS[packageType];
+      // Try to get package type from userPackageInfo or from session
+      const fallbackPackageType = (userPackageInfo?.packageType || packageInfo?.packageType) as PackageType;
+      if (fallbackPackageType && fallbackPackageType in PACKAGE_LIMITS) {
+        const packageConfig = PACKAGE_LIMITS[fallbackPackageType];
         return packageConfig?.additionalUserCost || 0;
       } else {
         return 0;
       }
     } else {
-      return limits[limit] || 0;
+      // Return the limit value, preserving -1 for unlimited
+      const limitValue = limits[limit];
+      return limitValue === -1 ? -1 : (limitValue || 0);
     }
   };
 
@@ -328,34 +336,16 @@ export const usePackageAccess = () => {
   const canAddUser = (currentUserCount: number): boolean => {
     if (!user) return false;
     
-    // Si un univers actif existe, autoriser l'ajout (les utilisateurs peuvent être ajoutés même dans un univers actif)
-    // Note: Les utilisateurs ne sont pas directement dans les univers, mais on autorise quand même si un univers est actif
-    // car cela signifie que l'utilisateur a un compte actif
-    if (user.role === 'directeur' && user.agencyId && hasActiveUnivers) {
-      // Vérifier quand même les limites du package pour les utilisateurs
-      // (les utilisateurs ne sont pas des ressources d'univers comme les forms/dashboards)
-      return UserSessionService.canPerformAction(user, 'addUser', currentUserCount);
-    }
+    // Use getLimit which correctly handles unlimited (-1) case
+    const maxUsers = getLimit('maxUsers');
     
-    // For employees with director access, use director's package limits if available
-    if (user.role === 'employe' && user.hasDirectorDashboardAccess) {
-      // If still loading director info, allow creation (will be validated later)
-      if (isLoadingDirectorInfo) {
-        return true;
-      }
-      
-      if (directorPackageInfo) {
-        const packageLimits = directorPackageInfo.packageLimits || {};
-        const maxUsers = packageLimits.maxUsers || 0;
-        return maxUsers === -1 || currentUserCount < maxUsers;
-      }
-      
-      // If we have director access but no package info yet, allow creation
-      // This prevents the modal from showing while the director's info is being fetched
+    // Handle unlimited case (-1) - always allow if unlimited
+    if (maxUsers === -1) {
       return true;
     }
     
-    return UserSessionService.canPerformAction(user, 'addUser', currentUserCount);
+    // Check if current count is below limit
+    return currentUserCount < maxUsers;
   };
 
   // Obtenir le nombre de tokens mensuels disponibles
