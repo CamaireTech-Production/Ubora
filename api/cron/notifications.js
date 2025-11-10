@@ -211,6 +211,20 @@ export default async (req, res) => {
     sentCount += instructionReminders.sent;
     errorCount += instructionReminders.errors;
 
+    // 4. Process subscription renewals
+    console.log('🔄 [Cron] Processing subscription renewals...');
+    const renewalResults = await processSubscriptionRenewals(now);
+    processedCount += renewalResults.processed;
+    sentCount += renewalResults.renewed;
+    errorCount += renewalResults.errors;
+
+    // 5. Handle expired subscriptions
+    console.log('⏰ [Cron] Handling expired subscriptions...');
+    const expirationResults = await handleExpiredSubscriptions(now);
+    processedCount += expirationResults.processed;
+    sentCount += expirationResults.expired;
+    errorCount += expirationResults.errors;
+
     console.log(`✅ [Cron] Unified notification cron job completed: ${processedCount} processed, ${sentCount} sent, ${errorCount} errors`);
 
     return res.status(200).json({
@@ -937,6 +951,258 @@ function calculateNextScheduledTime(frequency, time, fromDate) {
   }
   
   return nextScheduled;
+}
+
+/**
+ * Process subscription renewals
+ * Checks for active sessions with nextRenewalDate <= now and renews them automatically
+ */
+async function processSubscriptionRenewals(now) {
+  ensureDbInitialized();
+  try {
+    const stats = {
+      processed: 0,
+      renewed: 0,
+      errors: 0
+    };
+
+    // Query active sessions with autoRenew enabled and nextRenewalDate <= now
+    const sessionsSnapshot = await db.collection('subscriptionSessions')
+      .where('isActive', '==', true)
+      .where('autoRenew', '==', true)
+      .get();
+
+    stats.processed = sessionsSnapshot.size;
+    console.log(`🔄 [Cron] Found ${stats.processed} active sessions to check for renewal`);
+
+    for (const docSnapshot of sessionsSnapshot.docs) {
+      try {
+        const sessionData = docSnapshot.data();
+        const sessionId = docSnapshot.id;
+        const userId = sessionData.userId;
+
+        // Convert Firestore Timestamp to Date
+        const nextRenewalDate = sessionData.nextRenewalDate?.toDate ? sessionData.nextRenewalDate.toDate() : new Date(sessionData.nextRenewalDate);
+        const endDate = sessionData.endDate?.toDate ? sessionData.endDate.toDate() : new Date(sessionData.endDate);
+        const renewalCount = sessionData.renewalCount || 0;
+        const maxRenewals = sessionData.maxRenewals || 0;
+
+        // Check if renewal is due
+        if (nextRenewalDate > now) {
+          continue; // Not due yet
+        }
+
+        // Check if max renewals reached
+        if (renewalCount >= maxRenewals) {
+          console.log(`⏭️ [Cron] Session ${sessionId} has reached max renewals (${renewalCount}/${maxRenewals})`);
+          continue;
+        }
+
+        // Check if total period has ended
+        if (endDate <= now) {
+          console.log(`⏭️ [Cron] Session ${sessionId} has reached end date`);
+          continue;
+        }
+
+        // Perform renewal: update renewal count and next renewal date
+        const newRenewalCount = renewalCount + 1;
+        const nextRenewal = new Date(now);
+        nextRenewal.setDate(nextRenewal.getDate() + 30); // 30 days from now
+
+        await docSnapshot.ref.update({
+          renewalCount: newRenewalCount,
+          nextRenewalDate: Timestamp.fromDate(nextRenewal),
+          updatedAt: Timestamp.fromDate(now)
+        });
+
+        stats.renewed++;
+        console.log(`✅ [Cron] Session ${sessionId} renewed successfully (${newRenewalCount}/${maxRenewals})`);
+
+      } catch (error) {
+        stats.errors++;
+        console.error(`❌ [Cron] Error processing session ${docSnapshot.id}:`, error);
+      }
+    }
+
+    console.log(`✅ [Cron] Subscription renewals completed: ${stats.renewed} renewed, ${stats.errors} errors`);
+    return stats;
+
+  } catch (error) {
+    console.error('❌ [Cron] Error processing subscription renewals:', error);
+    return { processed: 0, renewed: 0, errors: 1 };
+  }
+}
+
+/**
+ * Handle expired subscriptions
+ * Detects expired sessions and creates a default free session
+ */
+async function handleExpiredSubscriptions(now) {
+  ensureDbInitialized();
+  try {
+    const stats = {
+      processed: 0,
+      expired: 0,
+      errors: 0
+    };
+
+    // Query active sessions that have expired
+    const sessionsSnapshot = await db.collection('subscriptionSessions')
+      .where('isActive', '==', true)
+      .get();
+
+    stats.processed = sessionsSnapshot.size;
+    console.log(`⏰ [Cron] Checking ${stats.processed} active sessions for expiration`);
+
+    for (const docSnapshot of sessionsSnapshot.docs) {
+      try {
+        const sessionData = docSnapshot.data();
+        const sessionId = docSnapshot.id;
+        const userId = sessionData.userId;
+        const packageType = sessionData.packageType;
+
+        // Skip free packages
+        if (packageType === 'free') {
+          continue;
+        }
+
+        // Convert Firestore Timestamp to Date
+        const endDate = sessionData.endDate?.toDate ? sessionData.endDate.toDate() : new Date(sessionData.endDate);
+        const renewalCount = sessionData.renewalCount || 0;
+        const maxRenewals = sessionData.maxRenewals || 0;
+
+        // Check if subscription has expired
+        // Expired if: endDate passed OR maxRenewals reached
+        const isExpired = endDate <= now || renewalCount >= maxRenewals;
+
+        if (!isExpired) {
+          continue; // Not expired yet
+        }
+
+        // Get user data for notification
+        const userDoc = await db.collection('users').doc(userId).get();
+        const userData = userDoc.exists ? userDoc.data() : null;
+
+        // Deactivate expired session
+        await docSnapshot.ref.update({
+          isActive: false,
+          updatedAt: Timestamp.fromDate(now)
+        });
+
+        // Create free default session
+        const freeSessionData = {
+          userId: userId,
+          packageType: 'free',
+          subscriptionPeriod: '30days',
+          totalPeriodDays: 30,
+          renewalIntervalDays: 30,
+          sessionType: 'downgrade',
+          startDate: Timestamp.fromDate(now),
+          endDate: Timestamp.fromDate(new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000)),
+          nextRenewalDate: Timestamp.fromDate(new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000)),
+          amountPaid: 0,
+          monthlyAmount: 0,
+          discountApplied: 0,
+          paymentId: 'N/A_FREE',
+          durationDays: 30,
+          isActive: true,
+          autoRenew: false,
+          renewalCount: 0,
+          maxRenewals: 0,
+          packageResources: {
+            tokensIncluded: 0,
+            formsIncluded: 0,
+            dashboardsIncluded: 0,
+            usersIncluded: 0
+          },
+          payAsYouGoResources: {
+            tokens: 0,
+            forms: 0,
+            dashboards: 0,
+            users: 0,
+            purchases: []
+          },
+          usage: {
+            tokensUsed: 0,
+            formsCreated: 0,
+            dashboardsCreated: 0,
+            usersAdded: 0
+          },
+          createdAt: Timestamp.fromDate(now),
+          updatedAt: Timestamp.fromDate(now)
+        };
+
+        // Deactivate any existing active session for this user
+        const activeSessionsQuery = await db.collection('subscriptionSessions')
+          .where('userId', '==', userId)
+          .where('isActive', '==', true)
+          .get();
+        
+        const batch = db.batch();
+        activeSessionsQuery.docs.forEach(doc => {
+          batch.update(doc.ref, { isActive: false, updatedAt: Timestamp.fromDate(now) });
+        });
+
+        // Add the new free session
+        const newSessionRef = db.collection('subscriptionSessions').doc();
+        const newSessionId = newSessionRef.id;
+        batch.set(newSessionRef, freeSessionData);
+
+        // Update user document to reference the new active session
+        if (userDoc.exists) {
+          batch.update(userDoc.ref, {
+            currentSubscriptionSessionId: newSessionId,
+            needsPackageSelection: false,
+            updatedAt: Timestamp.fromDate(now)
+          });
+        }
+
+        await batch.commit();
+
+        // Create expiration notification
+        if (userData) {
+          const notificationDoc = {
+            title: 'Votre abonnement a expiré',
+            body: 'Votre abonnement a expiré. Vous êtes maintenant sur le package gratuit. Vous pouvez renouveler votre abonnement à tout moment.',
+            type: 'subscription_expired',
+            recipientId: userId,
+            recipientRole: 'directeur',
+            agencyId: userData.agencyId || 'unknown',
+            data: {
+              action: 'upgrade_subscription',
+              packageType: 'free',
+              timestamp: now.getTime().toString()
+            },
+            redirectUrl: '/directeur/packages',
+            read: false,
+            status: 'sent',
+            createdAt: Timestamp.fromDate(now),
+            sentAt: Timestamp.fromDate(now),
+            emailAddress: userData.email,
+            idempotencyKey: `subscription_expired:${sessionId}:${now.toISOString()}`
+          };
+
+          const notificationId = `subscription_expired:${sessionId}:${now.toISOString()}`;
+          await db.collection('notifications').doc(notificationId).set(notificationDoc, { merge: true });
+          console.log(`📧 [Cron] Expiration notification created for user ${userId}`);
+        }
+
+        stats.expired++;
+        console.log(`✅ [Cron] Session ${sessionId} expired, free session created: ${newSessionId}`);
+
+      } catch (error) {
+        stats.errors++;
+        console.error(`❌ [Cron] Error processing session ${docSnapshot.id}:`, error);
+      }
+    }
+
+    console.log(`✅ [Cron] Expired subscriptions handled: ${stats.expired} expired, ${stats.errors} errors`);
+    return stats;
+
+  } catch (error) {
+    console.error('❌ [Cron] Error handling expired subscriptions:', error);
+    return { processed: 0, expired: 0, errors: 1 };
+  }
 }
 
 /**

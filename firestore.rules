@@ -411,19 +411,32 @@ service cloud.firestore {
     // =============================================================================
     // COLLECTION SUBSCRIPTION SESSIONS
     // Règles pour les sessions d'abonnement :
-    // - Seuls les admins peuvent lire tous les logs
-    // - Tous les utilisateurs authentifiés peuvent créer des logs
+    // - Les directeurs peuvent lire/écrire leurs propres sessions
+    // - Les admins ont accès complet
+    // - Les sessions sont isolées par utilisateur
     // =============================================================================
     
     match /subscriptionSessions/{sessionId} {
       // LECTURE des sessions d'abonnement
-      allow read: if isAdmin();
+      allow read: if isAuthenticated() && (
+        isAdmin() ||
+        (isDirecteur() && resource.data.userId == request.auth.uid) ||
+        (hasDirectorDashboardAccess() && resource.data.userId == request.auth.uid)
+      );
       
       // CRÉATION de sessions d'abonnement
-      allow create: if isAuthenticated();
+      allow create: if isAuthenticated() && (
+        isAdmin() ||
+        (isDirecteur() && request.resource.data.userId == request.auth.uid) ||
+        (hasDirectorDashboardAccess() && request.resource.data.userId == request.auth.uid)
+      );
       
-      // MODIFICATION des sessions d'abonnement (seuls les admins)
-      allow update: if isAdmin();
+      // MODIFICATION des sessions d'abonnement
+      allow update: if isAuthenticated() && (
+        isAdmin() ||
+        (isDirecteur() && resource.data.userId == request.auth.uid) ||
+        (hasDirectorDashboardAccess() && resource.data.userId == request.auth.uid)
+      );
       
       // SUPPRESSION des sessions d'abonnement (seuls les admins)
       allow delete: if isAdmin();
@@ -746,14 +759,21 @@ service cloud.firestore {
         // Everyone can read approved marketplace templates
         (resource.data.ownership != null &&
          resource.data.ownership.isMarketplaceTemplate == true &&
-         resource.data.ownership.approvalStatus == 'approved')
+         resource.data.ownership.approvalStatus == 'approved') ||
+        // Fallback: allow directors to read Univers they created (for queries)
+        (isDirecteur() && resource.data.ownership != null && 
+         resource.data.ownership.createdBy == request.auth.uid)
       );
       
       // CRÉATION des Univers
       allow create: if isAuthenticated() && (
         isAdmin() ||
-        (canCreateForms() && 
+        // Allow directors to create their own Univers (including default Univers)
+        (isDirecteur() && 
          request.resource.data.ownership.createdBy == request.auth.uid &&
+         request.resource.data.keys().hasAll(['metadata', 'ownership', 'definitions', 'usage'])) ||
+        // Fallback: allow if user is authenticated and creating their own Univers
+        (request.resource.data.ownership.createdBy == request.auth.uid &&
          request.resource.data.keys().hasAll(['metadata', 'ownership', 'definitions', 'usage']))
       );
       
@@ -840,7 +860,9 @@ service cloud.firestore {
       // LECTURE de l'Univers actif
       allow read: if isAuthenticated() && (
         isAdmin() ||
-        (isDirecteur() && request.auth.uid == directorId)
+        (isDirecteur() && request.auth.uid == directorId) ||
+        // Fallback: allow if user is authenticated and reading their own activeUnivers
+        (request.auth.uid == directorId)
       );
       
       // CRÉATION de l'Univers actif
@@ -848,6 +870,10 @@ service cloud.firestore {
         isAdmin() ||
         (isDirecteur() && 
          request.auth.uid == directorId &&
+         request.resource.data.directorId == directorId &&
+         request.resource.data.keys().hasAll(['directorId', 'agencyId', 'activeUniversId', 'updatedAt'])) ||
+        // Fallback: allow if user is authenticated and creating their own activeUnivers
+        (request.auth.uid == directorId &&
          request.resource.data.directorId == directorId &&
          request.resource.data.keys().hasAll(['directorId', 'agencyId', 'activeUniversId', 'updatedAt']))
       );

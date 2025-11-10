@@ -255,7 +255,7 @@ async function loadAndAggregateData(
   if (userRole === 'directeur' && directorId) {
     try {
       const activeUniversDoc = await adminDb.collection('activeUnivers').doc(directorId).get();
-      if (activeUniversDoc.exists()) {
+      if (activeUniversDoc.exists) {
         const activeUniversData = activeUniversDoc.data();
         activeUniversId = activeUniversData.activeUniversId;
         console.log('✅ Univers actif trouvé pour Chat Archa:', activeUniversId);
@@ -1521,12 +1521,35 @@ TOP FORMULAIRES : ${data.formStats.slice(0, 3).map(f => `${f.title} (${f.count} 
       };
     };
     
-    // Get session-based package limits and token usage
-    const currentSessionId = userData.currentSessionId;
-    const subscriptionSessions = userData.subscriptionSessions || [];
-    const currentSession = subscriptionSessions.find(session => 
-      session.id === currentSessionId && session.isActive
-    );
+    // Get session-based package limits and token usage (using new collection)
+    let currentSession = null;
+    
+    // Try to get active session from new collection first
+    if (userData.currentSubscriptionSessionId) {
+      try {
+        const sessionDoc = await adminDb.collection('subscriptionSessions')
+          .doc(userData.currentSubscriptionSessionId)
+          .get();
+        
+        if (sessionDoc.exists) {
+          const sessionData = sessionDoc.data();
+          if (sessionData.isActive) {
+            currentSession = { id: sessionDoc.id, ...sessionData };
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching session from collection:', error);
+      }
+    }
+    
+    // Fallback to legacy array if no session in collection
+    if (!currentSession) {
+      const currentSessionId = userData.currentSessionId;
+      const subscriptionSessions = userData.subscriptionSessions || [];
+      currentSession = subscriptionSessions.find(session => 
+        session.id === currentSessionId && session.isActive
+      );
+    }
     
     let packageLimit, currentTokensUsed, payAsYouGoTokens, subscriptionExpired;
     
@@ -1534,7 +1557,7 @@ TOP FORMULAIRES : ${data.formStats.slice(0, 3).map(f => `${f.title} (${f.count} 
       // Use session-based data
       packageLimit = currentSession.packageResources?.tokensIncluded || 0;
       currentTokensUsed = currentSession.usage?.tokensUsed || 0;
-      payAsYouGoTokens = currentSession.payAsYouGoResources?.tokensPurchased || 0;
+      payAsYouGoTokens = currentSession.payAsYouGoResources?.tokens || 0;
       subscriptionExpired = new Date() > new Date(currentSession.endDate);
       
       console.log('📊 SESSION-BASED TOKEN CHECK:', {
@@ -2434,12 +2457,36 @@ Il serait pertinent de surveiller l'engagement des employés moins actifs et d'a
           const freshUserDoc = await adminDb.collection('users').doc(uid).get();
           const freshUserData = freshUserDoc.data();
           
-          // Get current active session
-          const currentSessionId = freshUserData.currentSessionId;
-          const subscriptionSessions = freshUserData.subscriptionSessions || [];
-          const currentSession = subscriptionSessions.find(session => 
-            session.id === currentSessionId && session.isActive
-          );
+          // Get current active session (using new collection)
+          let currentSession = null;
+          let sessionDocRef = null;
+          
+          // Try to get active session from new collection first
+          if (freshUserData.currentSubscriptionSessionId) {
+            try {
+              sessionDocRef = adminDb.collection('subscriptionSessions')
+                .doc(freshUserData.currentSubscriptionSessionId);
+              const sessionDoc = await sessionDocRef.get();
+              
+              if (sessionDoc.exists) {
+                const sessionData = sessionDoc.data();
+                if (sessionData.isActive) {
+                  currentSession = { id: sessionDoc.id, ...sessionData };
+                }
+              }
+            } catch (error) {
+              console.error('Error fetching session from collection:', error);
+            }
+          }
+          
+          // Fallback to legacy array if no session in collection
+          if (!currentSession) {
+            const currentSessionId = freshUserData.currentSessionId;
+            const subscriptionSessions = freshUserData.subscriptionSessions || [];
+            currentSession = subscriptionSessions.find(session => 
+              session.id === currentSessionId && session.isActive
+            );
+          }
           
           if (!currentSession) {
             console.error('❌ No active session found for user:', uid);
@@ -2479,52 +2526,64 @@ Il serait pertinent de surveiller l'engagement des employés moins actifs et d'a
             console.log('💰 SESSION TOKEN TRACKING - ACTIVE SESSION FOUND:', {
               sessionId: currentSession.id,
               packageType: currentSession.packageType,
-              currentTokensUsed: currentSession.usage?.tokensUsed || 0
+              currentTokensUsed: currentSession.usage?.tokensUsed || 0,
+              isFromCollection: !!sessionDocRef
             });
             
             // Update the current session's token usage
-            const updatedSessions = subscriptionSessions.map(session => {
-              if (session.id === currentSessionId) {
-                const currentUsage = session.usage || {
-                  tokensUsed: 0,
-                  formsCreated: 0,
-                  dashboardsCreated: 0,
-                  usersAdded: 0
-                };
-                
-                return {
-                  ...session,
-                  usage: {
-                    ...currentUsage,
-                    tokensUsed: currentUsage.tokensUsed + finalUserTokens,
-                    lastTokenUsed: new Date()
-                  },
-                  updatedAt: new Date()
-                };
-              }
-              return session;
-            });
+            const currentUsage = currentSession.usage || {
+              tokensUsed: 0,
+              formsCreated: 0,
+              dashboardsCreated: 0,
+              usersAdded: 0
+            };
             
-            // Update user document with updated sessions
-            await adminDb.collection('users').doc(uid).update({
-              subscriptionSessions: updatedSessions,
-              updatedAt: admin.firestore.FieldValue.serverTimestamp()
-            });
+            const newTokensUsed = currentUsage.tokensUsed + finalUserTokens;
+            
+            // Update session in collection if it's from the new collection
+            if (sessionDocRef) {
+              await sessionDocRef.update({
+                'usage.tokensUsed': newTokensUsed,
+                'usage.lastTokenUsed': admin.firestore.FieldValue.serverTimestamp(),
+                updatedAt: admin.firestore.FieldValue.serverTimestamp()
+              });
+            } else {
+              // Fallback: Update legacy array in user document
+              const subscriptionSessions = freshUserData.subscriptionSessions || [];
+              const updatedSessions = subscriptionSessions.map(session => {
+                if (session.id === currentSession.id) {
+                  return {
+                    ...session,
+                    usage: {
+                      ...currentUsage,
+                      tokensUsed: newTokensUsed,
+                      lastTokenUsed: new Date()
+                    },
+                    updatedAt: new Date()
+                  };
+                }
+                return session;
+              });
+              
+              await adminDb.collection('users').doc(uid).update({
+                subscriptionSessions: updatedSessions,
+                updatedAt: admin.firestore.FieldValue.serverTimestamp()
+              });
+            }
             
             // Calculate remaining tokens for response
-            const sessionTokensUsed = (currentSession.usage?.tokensUsed || 0) + finalUserTokens;
             const sessionPackageLimit = currentSession.packageResources?.tokensIncluded || 0;
-            const sessionPayAsYouGoTokens = currentSession.payAsYouGoResources?.tokensPurchased || 0;
+            const sessionPayAsYouGoTokens = currentSession.payAsYouGoResources?.tokens || 0;
             
-            updatedTokensUsed = sessionTokensUsed;
+            updatedTokensUsed = newTokensUsed;
             updatedPayAsYouGoTokens = sessionPayAsYouGoTokens;
             
             console.log('✅ SESSION TOKEN TRACKING SUCCESS:', {
               finalUserTokens,
-              sessionTokensUsed,
+              sessionTokensUsed: newTokensUsed,
               sessionPackageLimit,
               sessionPayAsYouGoTokens,
-              remainingTokens: sessionPackageLimit === -1 ? -1 : Math.max(0, (sessionPackageLimit + sessionPayAsYouGoTokens) - sessionTokensUsed)
+              remainingTokens: sessionPackageLimit === -1 ? -1 : Math.max(0, (sessionPackageLimit + sessionPayAsYouGoTokens) - newTokensUsed)
             });
           }
         } catch (tokenError) {

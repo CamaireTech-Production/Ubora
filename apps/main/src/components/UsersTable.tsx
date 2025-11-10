@@ -1,7 +1,9 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AdminUser } from '../types';
 import { EnhancedAdminService } from '../admin/services/enhancedAdminService';
+import { SubscriptionSessionCollectionService } from '@ubora/shared/services/subscriptionSessionCollectionService';
+import { SubscriptionSession } from '@ubora/shared/types';
 import { Pagination } from './Pagination';
 import { Button } from './Button';
 import { 
@@ -33,6 +35,56 @@ interface UsersTableProps {
 
 type SortField = 'name' | 'email' | 'role' | 'createdAt' | 'lastLogin' | 'package' | 'subscriptionStatus' | 'totalAppUsageTime' | 'pushNotificationsSent';
 type SortDirection = 'asc' | 'desc';
+
+// Component to display user package with async session loading
+const UserPackageCell: React.FC<{ user: AdminUser }> = ({ user }) => {
+  const [packageType, setPackageType] = React.useState<string | null>(null);
+
+  useEffect(() => {
+    const loadPackageType = async () => {
+      // First check legacy package field
+      if (user.package) {
+        setPackageType(user.package);
+        return;
+      }
+
+      // Try to get active session from new collection
+      if (user.currentSubscriptionSessionId) {
+        try {
+          const session = await SubscriptionSessionCollectionService.getActiveSession(user.id);
+          if (session?.packageType) {
+            setPackageType(session.packageType);
+            return;
+          }
+        } catch (error) {
+          console.error('Error loading session for user:', user.id, error);
+        }
+      }
+
+      // Fallback to legacy array
+      if (user.subscriptionSessions && user.subscriptionSessions.length > 0) {
+        const activeSession = user.subscriptionSessions.find(s => s.isActive);
+        if (activeSession?.packageType) {
+          setPackageType(activeSession.packageType);
+          return;
+        }
+      }
+
+      setPackageType('N/A');
+    };
+
+    loadPackageType();
+  }, [user]);
+
+  return (
+    <div className="flex items-center">
+      <Package className="h-4 w-4 text-gray-400 mr-2" />
+      <span className="text-sm text-gray-900">
+        {packageType || 'N/A'}
+      </span>
+    </div>
+  );
+};
 
 export const UsersTable: React.FC<UsersTableProps> = ({ users, onRefresh }) => {
   const navigate = useNavigate();
@@ -329,15 +381,7 @@ export const UsersTable: React.FC<UsersTableProps> = ({ users, onRefresh }) => {
                   </span>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="flex items-center">
-                    <Package className="h-4 w-4 text-gray-400 mr-2" />
-                    <span className="text-sm text-gray-900">
-                      {user.package || 
-                       (user.subscriptionSessions && user.subscriptionSessions.length > 0 
-                         ? user.subscriptionSessions.find(s => s.isActive)?.packageType || 'N/A'
-                         : 'N/A')}
-                    </span>
-                  </div>
+                  <UserPackageCell user={user} />
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <div className="flex items-center">

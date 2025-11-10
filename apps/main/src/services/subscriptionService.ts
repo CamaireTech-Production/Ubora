@@ -67,12 +67,12 @@ export class SubscriptionService {
   }
 
   /**
-   * Check if user's subscription is active (using new session system)
+   * Check if user's subscription is active (using new session system - async version)
    * @param userData - Données utilisateur
-   * @returns boolean - true si l'abonnement est actif
+   * @returns Promise<boolean> - true si l'abonnement est actif
    */
-  static isSubscriptionActive(userData: any): boolean {
-    const currentSession = SubscriptionSessionService.getCurrentSession(userData);
+  static async isSubscriptionActive(userData: any): Promise<boolean> {
+    const currentSession = await SubscriptionSessionService.getCurrentSession(userData);
     if (!currentSession) return false;
     
     const now = new Date();
@@ -81,12 +81,25 @@ export class SubscriptionService {
   }
 
   /**
-   * Get days until subscription expires (using new session system)
-   * @param userData - Données utilisateur
-   * @returns number - Nombre de jours restants (-1 si pas d'abonnement)
+   * Check if user's subscription is active (sync version - for backward compatibility)
+   * @deprecated Use isSubscriptionActive() async version instead
    */
-  static getDaysUntilExpiration(userData: any): number {
-    const currentSession = SubscriptionSessionService.getCurrentSession(userData);
+  static isSubscriptionActiveSync(userData: any): boolean {
+    const currentSession = SubscriptionSessionService.getCurrentSessionSync(userData);
+    if (!currentSession) return false;
+    
+    const now = new Date();
+    const endDate = new Date(currentSession.endDate);
+    return currentSession.isActive && endDate > now;
+  }
+
+  /**
+   * Get days until subscription expires (using new session system - async version)
+   * @param userData - Données utilisateur
+   * @returns Promise<number> - Nombre de jours restants (-1 si pas d'abonnement)
+   */
+  static async getDaysUntilExpiration(userData: any): Promise<number> {
+    const currentSession = await SubscriptionSessionService.getCurrentSession(userData);
     if (!currentSession) return -1;
     
     const now = new Date();
@@ -98,14 +111,30 @@ export class SubscriptionService {
   }
 
   /**
-   * Get subscription status (using new session system)
-   * @param userData - Données utilisateur
-   * @returns object - Statut de l'abonnement
+   * Get days until subscription expires (sync version - for backward compatibility)
+   * @deprecated Use getDaysUntilExpiration() async version instead
    */
-  static getSubscriptionStatus(userData: any) {
-    const isActive = this.isSubscriptionActive(userData);
-    const daysLeft = this.getDaysUntilExpiration(userData);
-    const currentSession = SubscriptionSessionService.getCurrentSession(userData);
+  static getDaysUntilExpirationSync(userData: any): number {
+    const currentSession = SubscriptionSessionService.getCurrentSessionSync(userData);
+    if (!currentSession) return -1;
+    
+    const now = new Date();
+    const endDate = new Date(currentSession.endDate);
+    const diffTime = endDate.getTime() - now.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    return Math.max(0, diffDays);
+  }
+
+  /**
+   * Get subscription status (using new session system - async version)
+   * @param userData - Données utilisateur
+   * @returns Promise<object> - Statut de l'abonnement
+   */
+  static async getSubscriptionStatus(userData: any) {
+    const isActive = await this.isSubscriptionActive(userData);
+    const daysLeft = await this.getDaysUntilExpiration(userData);
+    const currentSession = await SubscriptionSessionService.getCurrentSession(userData);
     
     return {
       isActive,
@@ -118,22 +147,70 @@ export class SubscriptionService {
   }
 
   /**
-   * Get current subscription session
-   * @param userData - Données utilisateur
-   * @returns SubscriptionSession | null
+   * Get subscription status (sync version - for backward compatibility)
+   * @deprecated Use getSubscriptionStatus() async version instead
    */
-  static getCurrentSession(userData: any) {
-    return SubscriptionSessionService.getCurrentSession(userData);
+  static getSubscriptionStatusSync(userData: any) {
+    const isActive = this.isSubscriptionActiveSync(userData);
+    const daysLeft = this.getDaysUntilExpirationSync(userData);
+    const currentSession = SubscriptionSessionService.getCurrentSessionSync(userData);
+    
+    return {
+      isActive,
+      daysLeft,
+      status: isActive ? 'active' : 'expired',
+      subscriptionEndDate: currentSession?.endDate || userData.subscriptionEndDate,
+      package: currentSession?.packageType || userData.package,
+      currentSession
+    };
   }
 
   /**
-   * Get subscription history summary
+   * Get current subscription session (async version)
    * @param userData - Données utilisateur
-   * @returns Object with summary statistics
+   * @returns Promise<SubscriptionSession | null>
    */
-  static getSubscriptionHistorySummary(userData: any) {
-    const allSessions = SubscriptionSessionService.getAllSessions(userData);
-    const currentSession = SubscriptionSessionService.getCurrentSession(userData);
+  static async getCurrentSession(userData: any) {
+    return await SubscriptionSessionService.getCurrentSession(userData);
+  }
+
+  /**
+   * Get current subscription session (sync version - for backward compatibility)
+   * @deprecated Use getCurrentSession() async version instead
+   */
+  static getCurrentSessionSync(userData: any) {
+    return SubscriptionSessionService.getCurrentSessionSync(userData);
+  }
+
+  /**
+   * Get subscription history summary (async version)
+   * @param userData - Données utilisateur
+   * @returns Promise<Object> with summary statistics
+   */
+  static async getSubscriptionHistorySummary(userData: any) {
+    const allSessions = await SubscriptionSessionService.getAllSessions(userData);
+    const currentSession = await SubscriptionSessionService.getCurrentSession(userData);
+    
+    const totalSessions = allSessions.length;
+    const activeSessions = allSessions.filter(session => session.isActive).length;
+    const totalAmountPaid = allSessions.reduce((sum, session) => sum + session.amountPaid, 0);
+    
+    return {
+      totalSessions,
+      activeSessions,
+      totalAmountPaid,
+      currentSession,
+      allSessions: allSessions.slice(0, 10) // Last 10 sessions
+    };
+  }
+
+  /**
+   * Get subscription history summary (sync version - for backward compatibility)
+   * @deprecated Use getSubscriptionHistorySummary() async version instead
+   */
+  static getSubscriptionHistorySummarySync(userData: any) {
+    const allSessions = SubscriptionSessionService.getAllSessionsSync(userData);
+    const currentSession = SubscriptionSessionService.getCurrentSessionSync(userData);
     
     const totalSessions = allSessions.length;
     const activeSessions = allSessions.filter(session => session.isActive).length;

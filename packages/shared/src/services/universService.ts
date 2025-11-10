@@ -57,6 +57,7 @@ class UniversService {
       id,
       metadata: {
         ...data.metadata,
+        isDefault: data.metadata?.isDefault === true, // S'assurer que isDefault est bien préservé
         createdAt: data.metadata?.createdAt?.toDate() || new Date()
       },
       ownership: {
@@ -133,9 +134,10 @@ class UniversService {
         throw new Error('Le créateur du Univers est requis');
       }
 
-      // Validation: au moins un formulaire est requis
+      // Validation: au moins un formulaire est requis (sauf pour l'univers par défaut)
       const forms = univers.definitions?.forms || [];
-      if (forms.length === 0) {
+      const isDefault = univers.metadata?.isDefault === true;
+      if (forms.length === 0 && !isDefault) {
         throw new Error('Au moins un formulaire est requis pour créer un Univers');
       }
 
@@ -156,7 +158,11 @@ class UniversService {
         category: univers.metadata.category || undefined,
         tags: univers.metadata.tags || [],
         version: univers.metadata.version || 1,
-        createdAt: univers.metadata.createdAt || new Date()
+        createdAt: univers.metadata.createdAt || new Date(),
+        // INCLURE TOUS LES CHAMPS IMPORTANTS DE univers.metadata
+        isDefault: univers.metadata.isDefault === true,
+        isActive: univers.metadata.isActive === true,
+        packageAccess: univers.metadata.packageAccess || undefined
       };
 
       // Préparer l'ownership avec valeurs par défaut
@@ -2251,7 +2257,8 @@ class UniversService {
 
   /**
    * Créer ou activer le Univers par défaut pour un directeur
-   * Si aucun Univers actif n'existe, active le Univers par défaut
+   * Version simplifiée : active directement sans créer d'instance
+   * L'instance sera créée à la demande lors de la première création de ressource
    */
   async ensureDefaultUnivers(directorId: string, agencyId: string): Promise<string> {
     try {
@@ -2259,7 +2266,7 @@ class UniversService {
       let defaultUnivers = await this.getDefaultUnivers(directorId);
 
       if (!defaultUnivers) {
-        // 2. Créer le Univers par défaut
+        // 2. Créer le Univers par défaut (sans instance)
         const defaultId = await this.create({
           metadata: {
             name: 'Univers par défaut', // Nom fixe, non modifiable
@@ -2267,7 +2274,12 @@ class UniversService {
             isDefault: true,
             isActive: true, // Actif par défaut
             version: 1,
-            createdAt: new Date()
+            createdAt: new Date(),
+            packageAccess: {
+              free: true, // Accessible pour tous les packages (gratuit)
+              starter: true,
+              standard: true
+            }
           },
           ownership: {
             createdBy: directorId,
@@ -2296,8 +2308,10 @@ class UniversService {
       const activeUnivers = await this.getActiveUnivers(directorId, agencyId);
       
       if (!activeUnivers) {
-        // 4. Activer le Univers par défaut si aucun n'est actif
-        await this.activateUnivers(defaultUnivers.id, directorId, agencyId);
+        // 4. Activer directement sans instance (pour univers par défaut vide)
+        // L'instance sera créée à la demande lors de la première création de ressource
+        await this.setActiveUnivers(directorId, agencyId, defaultUnivers.id);
+        console.log(`✅ Univers par défaut activé directement (sans instance) pour directeur ${directorId}`);
       }
 
       return defaultUnivers.id;
@@ -2979,13 +2993,39 @@ class UniversService {
         throw new Error('Univers non trouvé');
       }
 
-      // 2. Validation: au moins un formulaire est requis pour activation
+      // 2. Validation: au moins un formulaire est requis pour activation (sauf pour les univers par défaut)
       const forms = univers.definitions?.forms || [];
-      if (forms.length === 0) {
+      const isDefault = univers.metadata?.isDefault === true;
+      
+      // Debug: vérifier les valeurs
+      console.log('🔍 [activateUnivers] Vérification:', {
+        universId,
+        formsCount: forms.length,
+        isDefault,
+        metadata: univers.metadata
+      });
+      
+      if (forms.length === 0 && !isDefault) {
         throw new Error('Au moins un formulaire est requis pour activer un Univers. Veuillez ajouter au moins un formulaire avant d\'activer.');
       }
 
       const isOwner = univers.ownership.createdBy === directorId;
+
+      // CAS SIMPLIFIÉ : Univers par défaut vide - activation directe sans instance
+      if (isDefault && forms.length === 0 && isOwner) {
+        // Désactiver l'ancien Univers actif
+        const currentActive = await this.getActiveUnivers(directorId, agencyId);
+        if (currentActive && currentActive.activeInstanceId) {
+          // Désactiver l'instance existante si elle existe
+          const instanceRef = doc(db, this.instancesCollectionName, currentActive.activeInstanceId);
+          await updateDoc(instanceRef, { isActive: false });
+        }
+        
+        // Activer directement sans instance
+        await this.setActiveUnivers(directorId, agencyId, universId);
+        console.log(`✅ Univers par défaut activé directement (sans instance) pour directeur ${directorId}`);
+        return; // Fin - pas besoin d'instance ni de vérifications
+      }
       
       // 3. Vérifier si c'est une instance achetée ou créer/trouver une instance pour le propriétaire
       let instanceId: string | undefined;
@@ -3138,6 +3178,159 @@ class UniversService {
     } catch (error) {
       console.error('Erreur lors de l\'activation du Univers:', error);
       throw error;
+    }
+  }
+
+  /**
+   * Créer une instance pour l'univers actif si elle n'existe pas encore
+   * Cette méthode est appelée à la demande lors de la première création de ressource
+   * pour un univers par défaut qui a été activé sans instance
+   */
+  async ensureInstanceForActiveUnivers(
+    directorId: string,
+    agencyId: string
+  ): Promise<string | null> {
+    try {
+      // 1. Récupérer l'univers actif
+      const activeUnivers = await this.getActiveUnivers(directorId, agencyId);
+      if (!activeUnivers) {
+        console.warn('⚠️ Aucun univers actif trouvé pour créer une instance');
+        return null;
+      }
+
+      // 2. Si une instance existe déjà, la retourner
+      if (activeUnivers.activeInstanceId) {
+        return activeUnivers.activeInstanceId;
+      }
+
+      // 3. Récupérer l'univers
+      const univers = await this.getById(activeUnivers.activeUniversId);
+      if (!univers) {
+        console.warn('⚠️ Univers non trouvé pour créer une instance');
+        return null;
+      }
+
+      // 4. Vérifier si une instance existe déjà pour cet univers
+      const instances = await this.getInstancesByUser(directorId, agencyId);
+      const existingInstance = instances.find(inst => inst.universId === univers.id);
+      
+      if (existingInstance) {
+        // Utiliser l'instance existante et la mettre à jour dans activeUnivers
+        await this.setActiveUnivers(directorId, agencyId, univers.id, existingInstance.id);
+        await updateDoc(doc(db, this.instancesCollectionName, existingInstance.id), { 
+          isActive: true 
+        });
+        console.log(`✅ Instance existante réutilisée: ${existingInstance.id}`);
+        return existingInstance.id;
+      }
+
+      // 5. Créer une nouvelle instance vide (sans ressources pour l'instant)
+      // Les ressources seront ajoutées progressivement lors de leur création
+      const instanceId = `instance_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      
+      const instanceData: any = {
+        universId: univers.id,
+        universVersion: univers.metadata.version || 1,
+        userId: directorId,
+        agencyId,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        isActive: true,
+        instances: {
+          forms: [],
+          dashboards: [],
+          instructions: [],
+          lists: [],
+          reports: []
+        },
+        metadata: {
+          universName: univers.metadata.name,
+          universVersion: univers.metadata.version || 1,
+          isFromMarketplace: univers.ownership.isMarketplaceTemplate || false
+        },
+        updateAvailable: false
+      };
+
+      const instanceRef = doc(db, this.instancesCollectionName, instanceId);
+      await setDoc(instanceRef, instanceData);
+
+      // 6. Mettre à jour activeUnivers avec la nouvelle instance
+      await this.setActiveUnivers(directorId, agencyId, univers.id, instanceId);
+
+      console.log(`✅ Instance créée à la demande pour univers ${univers.id}: ${instanceId}`);
+      return instanceId;
+    } catch (error) {
+      console.error('❌ Erreur lors de la création de l\'instance à la demande:', error);
+      // Ne pas bloquer si l'instance ne peut pas être créée
+      return null;
+    }
+  }
+
+  /**
+   * Ajouter une ressource à l'instance de l'univers actif
+   * Cette méthode est appelée après la création d'une ressource (form, dashboard, etc.)
+   */
+  async addResourceToInstance(
+    directorId: string,
+    agencyId: string,
+    resourceId: string,
+    resourceType: 'form' | 'dashboard' | 'instruction' | 'list' | 'report'
+  ): Promise<void> {
+    try {
+      // 1. Récupérer l'univers actif
+      const activeUnivers = await this.getActiveUnivers(directorId, agencyId);
+      if (!activeUnivers || !activeUnivers.activeInstanceId) {
+        // Pas d'instance active, ne rien faire (ressource créée sans instance)
+        return;
+      }
+
+      // 2. Mettre à jour l'instance avec la nouvelle ressource
+      const instanceRef = doc(db, this.instancesCollectionName, activeUnivers.activeInstanceId);
+      const instanceDoc = await getDoc(instanceRef);
+      
+      if (!instanceDoc.exists()) {
+        console.warn(`⚠️ Instance ${activeUnivers.activeInstanceId} non trouvée pour ajouter la ressource`);
+        return;
+      }
+
+      const instanceData = instanceDoc.data() as UniversInstance;
+      const currentInstances = instanceData.instances || {
+        forms: [],
+        dashboards: [],
+        instructions: [],
+        lists: [],
+        reports: []
+      };
+
+      // Ajouter la ressource au tableau approprié si elle n'existe pas déjà
+      // Mapping des types de ressources vers les noms de propriétés dans l'instance
+      const resourceTypeMap: Record<typeof resourceType, keyof typeof currentInstances> = {
+        form: 'forms',
+        dashboard: 'dashboards',
+        instruction: 'instructions',
+        list: 'lists',
+        report: 'reports'
+      };
+      
+      const resourceArrayKey = resourceTypeMap[resourceType];
+      const resourceArray = currentInstances[resourceArrayKey] as string[];
+      
+      if (!resourceArray.includes(resourceId)) {
+        resourceArray.push(resourceId);
+        
+        await updateDoc(instanceRef, {
+          instances: {
+            ...currentInstances,
+            [resourceArrayKey]: resourceArray
+          },
+          updatedAt: serverTimestamp()
+        });
+        
+        console.log(`✅ Ressource ${resourceType} ${resourceId} ajoutée à l'instance ${activeUnivers.activeInstanceId}`);
+      }
+    } catch (error) {
+      console.warn(`⚠️ Erreur lors de l'ajout de la ressource à l'instance (non bloquant):`, error);
+      // Ne pas bloquer si l'instance ne peut pas être mise à jour
     }
   }
 

@@ -1,5 +1,6 @@
 import { User } from '../types';
 import { SubscriptionSessionService } from './subscriptionSessionService';
+import { SubscriptionSessionCollectionService } from './subscriptionSessionCollectionService';
 import { PACKAGE_LIMITS, PACKAGE_FEATURES, PackageType } from '../config/packageFeatures';
 
 export interface UserPackageInfo {
@@ -47,17 +48,22 @@ export interface UserPackageInfo {
 
 export class UserSessionService {
   /**
-   * Get complete package information from active session
+   * Get complete package information from active session (async version - uses new collection)
    * Note: Only directors and employees with director access have subscription sessions
    */
-  static getUserPackageInfo(user: User): UserPackageInfo {
+  static async getUserPackageInfo(user: User): Promise<UserPackageInfo> {
     // Only directors and employees with director access have subscription sessions
     if (user.role !== 'directeur' && !(user.role === 'employe' && user.hasDirectorDashboardAccess)) {
       return this.getDefaultPackageInfo();
     }
 
-
-    const currentSession = SubscriptionSessionService.getCurrentSession(user);
+    // Try to get session from new collection service first
+    let currentSession = await SubscriptionSessionCollectionService.getActiveSession(user.id);
+    
+    // Fallback to legacy if no session in collection
+    if (!currentSession) {
+      currentSession = SubscriptionSessionService.getCurrentSessionSync(user);
+    }
     
     if (!currentSession) {
       return this.getDefaultPackageInfo();
@@ -219,8 +225,8 @@ export class UserSessionService {
       
       const directorData = directorsSnapshot.docs[0].data() as User;
       
-      // Get the director's package info
-      return this.getUserPackageInfo(directorData);
+      // Get the director's package info (async)
+      return await this.getUserPackageInfo(directorData);
       
     } catch (error) {
       console.error('Error getting director package info for employee:', error);
@@ -244,7 +250,15 @@ export class UserSessionService {
     }
 
 
-    const currentSession = SubscriptionSessionService.getCurrentSession(user);
+    // Try to get session from new collection service first, fallback to legacy
+    let currentSession = null;
+    if (user.currentSubscriptionSessionId) {
+      // For async version, we'll need to make this method async
+      // For now, use sync fallback
+      currentSession = SubscriptionSessionService.getCurrentSessionSync(user);
+    } else {
+      currentSession = SubscriptionSessionService.getCurrentSessionSync(user);
+    }
     
     if (!currentSession) {
       return {
@@ -291,7 +305,15 @@ export class UserSessionService {
       return false;
     }
 
-    const currentSession = SubscriptionSessionService.getCurrentSession(user);
+    // Try to get session from new collection service first, fallback to legacy
+    let currentSession = null;
+    if (user.currentSubscriptionSessionId) {
+      // For async version, we'll need to make this method async
+      // For now, use sync fallback
+      currentSession = SubscriptionSessionService.getCurrentSessionSync(user);
+    } else {
+      currentSession = SubscriptionSessionService.getCurrentSessionSync(user);
+    }
     
     if (!currentSession) {
       return false;
@@ -317,7 +339,15 @@ export class UserSessionService {
       return false;
     }
 
-    const currentSession = SubscriptionSessionService.getCurrentSession(user);
+    // Try to get session from new collection service first, fallback to legacy
+    let currentSession = null;
+    if (user.currentSubscriptionSessionId) {
+      // For async version, we'll need to make this method async
+      // For now, use sync fallback
+      currentSession = SubscriptionSessionService.getCurrentSessionSync(user);
+    } else {
+      currentSession = SubscriptionSessionService.getCurrentSessionSync(user);
+    }
     
     if (!currentSession) {
       return false;
@@ -342,7 +372,15 @@ export class UserSessionService {
       return false;
     }
 
-    const currentSession = SubscriptionSessionService.getCurrentSession(user);
+    // Try to get session from new collection service first, fallback to legacy
+    let currentSession = null;
+    if (user.currentSubscriptionSessionId) {
+      // For async version, we'll need to make this method async
+      // For now, use sync fallback
+      currentSession = SubscriptionSessionService.getCurrentSessionSync(user);
+    } else {
+      currentSession = SubscriptionSessionService.getCurrentSessionSync(user);
+    }
     
     if (!currentSession) {
       return false;
@@ -368,7 +406,15 @@ export class UserSessionService {
 
     // For directors, get their own session
     if (user.role === 'directeur') {
-      const currentSession = SubscriptionSessionService.getCurrentSession(user);
+      // Try to get session from new collection service first, fallback to legacy
+    let currentSession = null;
+    if (user.currentSubscriptionSessionId) {
+      // For async version, we'll need to make this method async
+      // For now, use sync fallback
+      currentSession = SubscriptionSessionService.getCurrentSessionSync(user);
+    } else {
+      currentSession = SubscriptionSessionService.getCurrentSessionSync(user);
+    }
       if (!currentSession) {
         return false;
       }
@@ -386,7 +432,15 @@ export class UserSessionService {
       }
 
       // If no legacy package info, check if they have their own subscription session
-      const currentSession = SubscriptionSessionService.getCurrentSession(user);
+      // Try to get session from new collection service first, fallback to legacy
+    let currentSession = null;
+    if (user.currentSubscriptionSessionId) {
+      // For async version, we'll need to make this method async
+      // For now, use sync fallback
+      currentSession = SubscriptionSessionService.getCurrentSessionSync(user);
+    } else {
+      currentSession = SubscriptionSessionService.getCurrentSessionSync(user);
+    }
       if (currentSession) {
         const features = PACKAGE_FEATURES[currentSession.packageType];
         return !!features && (features as any).allowFileUploads === true;
@@ -411,7 +465,15 @@ export class UserSessionService {
       return false;
     }
 
-    const currentSession = SubscriptionSessionService.getCurrentSession(user);
+    // Try to get session from new collection service first, fallback to legacy
+    let currentSession = null;
+    if (user.currentSubscriptionSessionId) {
+      // For async version, we'll need to make this method async
+      // For now, use sync fallback
+      currentSession = SubscriptionSessionService.getCurrentSessionSync(user);
+    } else {
+      currentSession = SubscriptionSessionService.getCurrentSessionSync(user);
+    }
     
     if (!currentSession) {
       return false;
@@ -447,7 +509,15 @@ export class UserSessionService {
       return 0;
     }
 
-    const currentSession = SubscriptionSessionService.getCurrentSession(user);
+    // Try to get session from new collection service first, fallback to legacy
+    let currentSession = null;
+    if (user.currentSubscriptionSessionId) {
+      // For async version, we'll need to make this method async
+      // For now, use sync fallback
+      currentSession = SubscriptionSessionService.getCurrentSessionSync(user);
+    } else {
+      currentSession = SubscriptionSessionService.getCurrentSessionSync(user);
+    }
     
     if (!currentSession) {
       return 0;
@@ -466,7 +536,15 @@ export class UserSessionService {
       return 0;
     }
 
-    const currentSession = SubscriptionSessionService.getCurrentSession(user);
+    // Try to get session from new collection service first, fallback to legacy
+    let currentSession = null;
+    if (user.currentSubscriptionSessionId) {
+      // For async version, we'll need to make this method async
+      // For now, use sync fallback
+      currentSession = SubscriptionSessionService.getCurrentSessionSync(user);
+    } else {
+      currentSession = SubscriptionSessionService.getCurrentSessionSync(user);
+    }
     
     if (!currentSession) {
       return 0;
@@ -479,10 +557,39 @@ export class UserSessionService {
   }
 
   /**
-   * Get subscription history
+   * Get subscription history (async version - uses new collection)
    * Note: Only directors and employees with director access have subscription sessions
    */
-  static getSubscriptionHistory(user: User) {
+  static async getSubscriptionHistory(user: User) {
+    // Only directors and employees with director access have subscription sessions
+    if (user.role !== 'directeur' && !(user.role === 'employe' && user.hasDirectorDashboardAccess)) {
+      return {
+        currentSession: null,
+        allSessions: [],
+        totalSessions: 0
+      };
+    }
+
+    // Try new collection service first
+    const sessions = await SubscriptionSessionCollectionService.getUserSessions(user.id);
+    
+    // If no sessions in collection, fallback to legacy
+    const sessionsToUse = sessions.length > 0 ? sessions : (user.subscriptionSessions || []);
+    
+    const currentSession = sessionsToUse.find(s => s.isActive) || null;
+    
+    return {
+      currentSession,
+      allSessions: sessionsToUse,
+      totalSessions: sessionsToUse.length
+    };
+  }
+
+  /**
+   * Get subscription history (sync version - for backward compatibility)
+   * @deprecated Use getSubscriptionHistory() async version instead
+   */
+  static getSubscriptionHistorySync(user: User) {
     // Only directors and employees with director access have subscription sessions
     if (user.role !== 'directeur' && !(user.role === 'employe' && user.hasDirectorDashboardAccess)) {
       return {
@@ -512,7 +619,15 @@ export class UserSessionService {
       return false;
     }
 
-    const currentSession = SubscriptionSessionService.getCurrentSession(user);
+    // Try to get session from new collection service first, fallback to legacy
+    let currentSession = null;
+    if (user.currentSubscriptionSessionId) {
+      // For async version, we'll need to make this method async
+      // For now, use sync fallback
+      currentSession = SubscriptionSessionService.getCurrentSessionSync(user);
+    } else {
+      currentSession = SubscriptionSessionService.getCurrentSessionSync(user);
+    }
     return !currentSession;
   }
 

@@ -7,7 +7,7 @@ export interface UnifiedNotification {
   id?: string;
   title: string;
   body: string;
-  type: 'form_assignment' | 'form_reminder' | 'metric_reminder' | 'programmed_instruction' | 'univers_version_available';
+  type: 'form_assignment' | 'form_reminder' | 'metric_reminder' | 'programmed_instruction' | 'univers_version_available' | 'subscription_expired';
   recipientId: string;
   recipientRole?: 'directeur' | 'employe';
   agencyId: string;
@@ -598,6 +598,33 @@ class UnifiedNotificationService {
         instructionId,
         instructionTitle,
         action: 'show_response'
+      }
+    });
+  }
+
+  /**
+   * Create subscription expired notification
+   */
+  async createSubscriptionExpiredNotification(
+    recipientId: string,
+    agencyId: string,
+    emailAddress?: string
+  ): Promise<string> {
+    const title = 'Votre abonnement a expiré';
+    const body = 'Votre abonnement a expiré. Vous êtes maintenant sur le package gratuit. Vous pouvez renouveler votre abonnement à tout moment.';
+
+    return await this.sendNotification({
+      title,
+      body,
+      type: 'subscription_expired',
+      recipientId,
+      recipientRole: 'directeur',
+      agencyId,
+      redirectUrl: '/directeur/packages',
+      emailAddress,
+      data: {
+        action: 'upgrade_subscription',
+        packageType: 'free'
       }
     });
   }

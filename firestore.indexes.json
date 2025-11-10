@@ -323,6 +323,34 @@
       ]
     },
     {
+      "collectionGroup": "subscriptionSessions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "userId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "isActive",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "subscriptionSessions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "isActive",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "autoRenew",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
       "collectionGroup": "purchaseHistory",
       "queryScope": "COLLECTION",
       "fields": [

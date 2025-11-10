@@ -51,9 +51,65 @@
     <link rel="apple-touch-startup-image" href="/fav-icons/apple-icon-180x180.png" media="(device-width: 1024px) and (device-height: 1366px) and (-webkit-device-pixel-ratio: 2)" />
     
     <title>Ubora - Gestion des Formulaires avec ARCHA</title>
+    
+    <!-- Campay SDK - Loaded synchronously for global availability -->
+    <!-- This ensures campay is available globally before React components load -->
+    <script src="https://www.campay.net/sdk/js?app-id=Muw-QotZAcx8PbngvT7lbsnc1OomeDkw31sWjv5XftEBoSy_opiLcFz17UhClFC6ZNm8AOdL6xFCH7KoUEUN5Q"></script>
     <script>
-      // Simplified Campay preload - let components handle the loading
-      console.log('Campay preload: Component-based loading will be used');
+      // Wait for Campay SDK to be fully loaded
+      // The SDK may take a moment to initialize even after the script loads
+      // Use DOMContentLoaded to ensure DOM is ready (like in campaytest.html)
+      document.addEventListener('DOMContentLoaded', function() {
+        let retryCount = 0;
+        const maxRetries = 100; // Maximum 5 seconds (100 * 50ms)
+        
+        (function waitForCampay() {
+          retryCount++;
+          
+          // Check multiple ways campay might be available
+          let campayObj = null;
+          try {
+            if (typeof campay !== 'undefined' && campay) {
+              campayObj = campay;
+            } else if (typeof window.campay !== 'undefined' && window.campay) {
+              campayObj = window.campay;
+            } else if (typeof globalThis.campay !== 'undefined' && globalThis.campay) {
+              campayObj = globalThis.campay;
+            }
+          } catch (e) {
+            // Ignore errors when checking
+          }
+          
+          if (campayObj && typeof campayObj.options === 'function') {
+            console.log('Campay: SDK loaded successfully after', retryCount, 'retries');
+            // Ensure window.campay is set for consistency
+            if (!window.campay) {
+              window.campay = campayObj;
+            }
+            // Also set on globalThis for compatibility
+            if (!globalThis.campay) {
+              globalThis.campay = campayObj;
+            }
+          } else if (retryCount >= maxRetries) {
+            console.error('Campay: SDK failed to load after', maxRetries, 'retries');
+            console.error('Campay: Available window properties:', Object.keys(window).filter(k => k.toLowerCase().includes('campay')));
+          } else {
+            // Retry after a short delay
+            setTimeout(waitForCampay, 50);
+          }
+        })();
+      });
+      
+      // Also try immediately (before DOMContentLoaded) in case script loads synchronously
+      if (typeof campay !== 'undefined' && campay && typeof campay.options === 'function') {
+        console.log('Campay: SDK loaded immediately');
+        if (!window.campay) {
+          window.campay = campay;
+        }
+        if (!globalThis.campay) {
+          globalThis.campay = campay;
+        }
+      }
     </script>
   </head>
   <body>
