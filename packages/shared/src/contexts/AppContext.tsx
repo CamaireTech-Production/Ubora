@@ -1284,13 +1284,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
       }
 
-      const docData: any = {
-        name: dashboardData.name.trim(),
-        description: dashboardData.description?.trim() || '',
-        metrics: dashboardData.metrics.map(metric => ({
-          ...metric,
+      // Nettoyer les métriques pour supprimer les valeurs undefined
+      const cleanedMetrics = (dashboardData.metrics || []).map(metric => {
+        const cleanedMetric: any = {
           createdAt: new Date()
-        })),
+        };
+        
+        // Copier uniquement les propriétés définies (non undefined)
+        Object.keys(metric || {}).forEach(key => {
+          const value = (metric as any)[key];
+          if (value !== undefined) {
+            cleanedMetric[key] = value;
+          }
+        });
+        
+        return cleanedMetric;
+      });
+
+      const docData: any = {
+        name: dashboardData.name?.trim() || '',
+        description: dashboardData.description?.trim() || '',
+        metrics: cleanedMetrics,
         createdBy: user.id,
         createdByRole: user.role,
         agencyId: user.agencyId,
@@ -1312,8 +1326,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (user.role === 'employe') {
         docData.createdByEmployeeId = user.id;
       }
+      
+      // Nettoyer le docData final pour supprimer toutes les valeurs undefined
+      const finalDocData: any = {};
+      Object.keys(docData).forEach(key => {
+        const value = docData[key];
+        if (value !== undefined) {
+          finalDocData[key] = value;
+        }
+      });
 
-      const dashboardRef = await addDoc(collection(db, 'dashboards'), docData);
+      const dashboardRef = await addDoc(collection(db, 'dashboards'), finalDocData);
       
       // Ajouter la ressource à l'instance si elle existe
       if (universInstanceIdToAssociate && user.role === 'directeur') {
