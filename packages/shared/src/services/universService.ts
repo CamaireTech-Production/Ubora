@@ -2267,7 +2267,12 @@ class UniversService {
             isDefault: true,
             isActive: true, // Actif par défaut
             version: 1,
-            createdAt: new Date()
+            createdAt: new Date(),
+            packageAccess: {
+              free: true, // Accessible pour tous les packages (gratuit)
+              starter: true,
+              standard: true
+            }
           },
           ownership: {
             createdBy: directorId,

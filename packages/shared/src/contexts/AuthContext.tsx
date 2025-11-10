@@ -18,6 +18,7 @@ import { SubscriptionSessionService } from '../services/subscriptionSessionServi
 import { SubscriptionSessionCollectionService } from '../services/subscriptionSessionCollectionService';
 import { UserSessionService } from '../services/userSessionService';
 import { withFirebaseErrorHandling, FirebaseErrorHandler } from '../services/firebaseErrorHandler';
+import { universService } from '../services/universService';
 
 interface AuthContextType {
   user: User | null;
@@ -720,6 +721,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       };
       
       await setDoc(doc(db, 'users', userCredential.user.uid), userData);
+      
+      // Créer l'univers par défaut pour les directeurs immédiatement après l'inscription
+      if (role === 'directeur') {
+        try {
+          await universService.ensureDefaultUnivers(userCredential.user.uid, agencyId.trim());
+          console.log('✅ Univers par défaut créé pour le directeur:', userCredential.user.uid);
+        } catch (universError) {
+          console.error('Erreur lors de la création de l\'univers par défaut:', universError);
+          // Ne pas bloquer l'inscription si l'univers par défaut ne peut pas être créé
+          // Il sera créé lors de la première connexion
+        }
+      }
       
       // Track user addition in subscription session (only for employees added by directors)
       if (role === 'employe') {

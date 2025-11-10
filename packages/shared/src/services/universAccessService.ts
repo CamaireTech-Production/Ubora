@@ -2,6 +2,7 @@ import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firesto
 import { db } from '../firebaseConfig';
 import { Univers, PackageType } from '../types';
 import { SubscriptionSessionCollectionService } from './subscriptionSessionCollectionService';
+import { UniversPurchaseService } from './universPurchaseService';
 
 export class UniversAccessService {
   /**
@@ -39,16 +40,29 @@ export class UniversAccessService {
       }
 
       // Check access based on package type
+      let hasPackageAccess = false;
       switch (packageType) {
         case 'free':
-          return packageAccess.free === true;
+          hasPackageAccess = packageAccess.free === true;
+          break;
         case 'starter':
-          return packageAccess.starter === true;
+          hasPackageAccess = packageAccess.starter === true;
+          break;
         case 'standard':
-          return packageAccess.standard === true;
+          hasPackageAccess = packageAccess.standard === true;
+          break;
         default:
-          return false;
+          hasPackageAccess = false;
       }
+
+      // Si l'utilisateur a accès via son package, autoriser
+      if (hasPackageAccess) {
+        return true;
+      }
+
+      // Si pas d'accès via package, vérifier si l'utilisateur a acheté cet univers
+      const hasPurchased = await UniversPurchaseService.hasPurchasedUnivers(userId, universId);
+      return hasPurchased;
 
     } catch (error) {
       console.error('Erreur lors de la vérification de l\'accès univers:', error);

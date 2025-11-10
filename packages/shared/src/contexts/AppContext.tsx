@@ -410,6 +410,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     // Vérifier les limites du package (pour les directeurs et employés avec accès directeur)
+    // Note: Si un univers actif existe, canCreateForm() retourne true automatiquement
+    // car les ressources dans un univers actif peuvent dépasser les limites du package
     if ((user.role === 'directeur' || (user.role === 'employe' && user.hasDirectorDashboardAccess)) && !canCreateForm(forms.length)) {
       if (user.role === 'employe') {
         throw new Error('Limite de formulaires atteinte. Contactez votre directeur pour cette agence.');
@@ -1171,6 +1173,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     // Vérifier les limites du package (pour les directeurs et employés avec accès directeur)
+    // Note: Si un univers actif existe, canCreateDashboard() retourne true automatiquement
+    // car les ressources dans un univers actif peuvent dépasser les limites du package
     if ((user.role === 'directeur' || (user.role === 'employe' && user.hasDirectorDashboardAccess)) && !canCreateDashboard(dashboards.length)) {
       if (user.role === 'employe') {
         throw new Error('Limite de tableaux de bord atteinte. Contactez votre directeur pour cette agence.');

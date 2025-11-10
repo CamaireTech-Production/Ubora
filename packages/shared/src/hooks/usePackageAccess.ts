@@ -10,6 +10,8 @@ import { useState, useEffect, useMemo } from 'react';
 import { db } from '../firebaseConfig';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { useTokenStats } from './useTokenStats';
+import { UniversResourceService } from '../services/universResourceService';
+import { universService } from '../services/universService';
 
 // Hook principal pour vérifier l'accès aux fonctionnalités
 export const usePackageAccess = () => {
@@ -20,6 +22,27 @@ export const usePackageAccess = () => {
 
   const [userPackageInfo, setUserPackageInfo] = useState<any>(null);
   const [isLoadingUserPackageInfo, setIsLoadingUserPackageInfo] = useState(false);
+  const [hasActiveUnivers, setHasActiveUnivers] = useState<boolean>(false);
+
+  // Check if user has an active univers
+  useEffect(() => {
+    const checkActiveUnivers = async () => {
+      if (!user || user.role !== 'directeur' || !user.agencyId) {
+        setHasActiveUnivers(false);
+        return;
+      }
+
+      try {
+        const activeUnivers = await universService.getActiveUnivers(user.id, user.agencyId);
+        setHasActiveUnivers(activeUnivers !== null);
+      } catch (error) {
+        console.error('Error checking active univers:', error);
+        setHasActiveUnivers(false);
+      }
+    };
+
+    checkActiveUnivers();
+  }, [user]);
 
   // Get current package info from active session (async)
   useEffect(() => {
@@ -243,6 +266,12 @@ export const usePackageAccess = () => {
   const canCreateForm = (currentFormCount: number): boolean => {
     if (!user) return false;
     
+    // Si un univers actif existe, autoriser la création (la ressource sera créée dans l'univers actif)
+    // Les ressources dans un univers actif peuvent dépasser les limites du package
+    if (user.role === 'directeur' && user.agencyId && hasActiveUnivers) {
+      return true;
+    }
+    
     // For employees with director access, use director's package limits if available
     if (user.role === 'employe' && user.hasDirectorDashboardAccess) {
       // If still loading director info, allow creation (will be validated later)
@@ -268,6 +297,12 @@ export const usePackageAccess = () => {
   const canCreateDashboard = (currentDashboardCount: number): boolean => {
     if (!user) return false;
     
+    // Si un univers actif existe, autoriser la création (la ressource sera créée dans l'univers actif)
+    // Les ressources dans un univers actif peuvent dépasser les limites du package
+    if (user.role === 'directeur' && user.agencyId && hasActiveUnivers) {
+      return true;
+    }
+    
     // For employees with director access, use director's package limits if available
     if (user.role === 'employe' && user.hasDirectorDashboardAccess) {
       // If still loading director info, allow creation (will be validated later)
@@ -292,6 +327,15 @@ export const usePackageAccess = () => {
   // Vérifier si l'utilisateur peut ajouter un nouvel utilisateur
   const canAddUser = (currentUserCount: number): boolean => {
     if (!user) return false;
+    
+    // Si un univers actif existe, autoriser l'ajout (les utilisateurs peuvent être ajoutés même dans un univers actif)
+    // Note: Les utilisateurs ne sont pas directement dans les univers, mais on autorise quand même si un univers est actif
+    // car cela signifie que l'utilisateur a un compte actif
+    if (user.role === 'directeur' && user.agencyId && hasActiveUnivers) {
+      // Vérifier quand même les limites du package pour les utilisateurs
+      // (les utilisateurs ne sont pas des ressources d'univers comme les forms/dashboards)
+      return UserSessionService.canPerformAction(user, 'addUser', currentUserCount);
+    }
     
     // For employees with director access, use director's package limits if available
     if (user.role === 'employe' && user.hasDirectorDashboardAccess) {
