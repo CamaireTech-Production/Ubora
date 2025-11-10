@@ -499,8 +499,19 @@ const RoleBasedRedirect: React.FC = () => {
       );
     }
 
-    if (!user) {
+    // Ne pas rediriger vers login si on est en train de charger
+    // Cela évite la redirection pendant l'inscription
+    if (!user && !isLoading) {
       return <Navigate to="/login" replace />;
+    }
+    
+    // Si on charge, afficher le loader
+    if (isLoading) {
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-gray-50">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        </div>
+      );
     }
 
     // Admin users should use admin app - redirect to login (they should use admin subdomain)

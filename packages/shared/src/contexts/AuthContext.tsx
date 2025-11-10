@@ -448,18 +448,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             });
             setFirebaseUser(firebaseUser);
             
+            // Marquer le chargement comme terminé seulement après avoir défini l'utilisateur
+            setIsLoading(false);
+            
             // Créer l'univers par défaut pour les directeurs si nécessaire
             // (après que l'utilisateur soit complètement chargé et que les permissions Firestore soient propagées)
             if (userData.role === 'directeur' && userData.agencyId) {
               // Utiliser setTimeout pour permettre à Firestore de propager les permissions
               setTimeout(async () => {
                 try {
+                  // Créer l'univers par défaut (sans l'activer si cela échoue, ce n'est pas bloquant)
                   await universService.ensureDefaultUnivers(firebaseUser.uid, userData.agencyId);
                   console.log('✅ Univers par défaut créé/vérifié pour le directeur:', firebaseUser.uid);
                 } catch (universError) {
-                  console.error('Erreur lors de la création/vérification de l\'univers par défaut:', universError);
+                  console.warn('⚠️ Erreur lors de la création/vérification de l\'univers par défaut (non bloquant):', universError);
                   // Ne pas bloquer la connexion si l'univers par défaut ne peut pas être créé
-                  // Il sera créé lors de la prochaine connexion
+                  // L'utilisateur pourra continuer et l'univers sera créé plus tard si nécessaire
                 }
               }, 500); // Attendre 500ms pour que les permissions Firestore soient propagées
             }
@@ -467,6 +471,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             // Document utilisateur manquant, déconnecter
             await signOut(auth);
             setError('Profil utilisateur non trouvé. Veuillez vous réinscrire.');
+            setIsLoading(false);
           }
         } catch (err) {
           console.error('Erreur lors de la récupération des données utilisateur:', err);
@@ -498,13 +503,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               await signOut(auth);
             }
           } catch {}
+          
+          setIsLoading(false);
         }
         } else {
           setUser(null);
           setFirebaseUser(null);
+          setIsLoading(false);
         }
-        
-        setIsLoading(false);
       }, 100); // Small delay to prevent rapid successive calls
     });
 

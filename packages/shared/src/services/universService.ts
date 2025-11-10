@@ -57,6 +57,7 @@ class UniversService {
       id,
       metadata: {
         ...data.metadata,
+        isDefault: data.metadata?.isDefault === true, // S'assurer que isDefault est bien préservé
         createdAt: data.metadata?.createdAt?.toDate() || new Date()
       },
       ownership: {
@@ -157,7 +158,11 @@ class UniversService {
         category: univers.metadata.category || undefined,
         tags: univers.metadata.tags || [],
         version: univers.metadata.version || 1,
-        createdAt: univers.metadata.createdAt || new Date()
+        createdAt: univers.metadata.createdAt || new Date(),
+        // INCLURE TOUS LES CHAMPS IMPORTANTS DE univers.metadata
+        isDefault: univers.metadata.isDefault === true,
+        isActive: univers.metadata.isActive === true,
+        packageAccess: univers.metadata.packageAccess || undefined
       };
 
       // Préparer l'ownership avec valeurs par défaut
@@ -2303,7 +2308,14 @@ class UniversService {
       
       if (!activeUnivers) {
         // 4. Activer le Univers par défaut si aucun n'est actif
-        await this.activateUnivers(defaultUnivers.id, directorId, agencyId);
+        // Note: Les univers par défaut peuvent être activés sans formulaire
+        try {
+          await this.activateUnivers(defaultUnivers.id, directorId, agencyId);
+        } catch (activationError) {
+          // Si l'activation échoue, on continue quand même (l'univers sera activé plus tard)
+          console.warn('⚠️ Impossible d\'activer l\'univers par défaut immédiatement:', activationError);
+          // Ne pas bloquer la création de l'univers par défaut
+        }
       }
 
       return defaultUnivers.id;
@@ -2985,9 +2997,19 @@ class UniversService {
         throw new Error('Univers non trouvé');
       }
 
-      // 2. Validation: au moins un formulaire est requis pour activation
+      // 2. Validation: au moins un formulaire est requis pour activation (sauf pour les univers par défaut)
       const forms = univers.definitions?.forms || [];
-      if (forms.length === 0) {
+      const isDefault = univers.metadata?.isDefault === true;
+      
+      // Debug: vérifier les valeurs
+      console.log('🔍 [activateUnivers] Vérification:', {
+        universId,
+        formsCount: forms.length,
+        isDefault,
+        metadata: univers.metadata
+      });
+      
+      if (forms.length === 0 && !isDefault) {
         throw new Error('Au moins un formulaire est requis pour activer un Univers. Veuillez ajouter au moins un formulaire avant d\'activer.');
       }
 

@@ -104,11 +104,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       try {
         let activeUnivers = await universService.getActiveUnivers(user.id, user.agencyId);
         
-        // Si aucun Univers actif, créer/activer le Univers par défaut
+        // Si aucun Univers actif, essayer de l'activer (il devrait déjà exister, créé dans AuthContext)
+        // Ne pas créer l'univers ici pour éviter les duplications
         if (!activeUnivers) {
-          console.log('Aucun Univers actif trouvé, création du Univers par défaut...');
-          await universService.ensureDefaultUnivers(user.id, user.agencyId);
-          activeUnivers = await universService.getActiveUnivers(user.id, user.agencyId);
+          console.log('Aucun Univers actif trouvé, tentative d\'activation de l\'univers par défaut...');
+          try {
+            // Chercher l'univers par défaut existant
+            const defaultUnivers = await universService.getDefaultUnivers(user.id);
+            if (defaultUnivers) {
+              // Essayer d'activer l'univers par défaut existant
+              try {
+                await universService.activateUnivers(defaultUnivers.id, user.id, user.agencyId);
+                activeUnivers = await universService.getActiveUnivers(user.id, user.agencyId);
+              } catch (activationError) {
+                console.warn('⚠️ Impossible d\'activer l\'univers par défaut (non bloquant):', activationError);
+                // Continuer sans univers actif (l'utilisateur pourra en créer un plus tard)
+              }
+            }
+            // Ne JAMAIS créer l'univers ici - il sera créé dans AuthContext uniquement
+            // Cela évite les duplications
+          } catch (error) {
+            console.warn('⚠️ Impossible de charger/activer l\'univers actif:', error);
+            // Continuer sans univers actif (l'utilisateur pourra en créer un plus tard)
+          }
         }
 
         if (activeUnivers) {
