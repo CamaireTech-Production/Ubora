@@ -1,6 +1,7 @@
 import { PaymentService, PaymentRequest } from './paymentService';
 import { User } from '../types';
 import { CampayPaymentData } from '../types/payment';
+import { SubscriptionSessionCollectionService } from './subscriptionSessionCollectionService';
 
 export interface PayAsYouGoPaymentRequest {
   userId: string;
@@ -187,19 +188,8 @@ export class PayAsYouGoPaymentService {
     try {
       console.log('addTokensToSession: Starting...', { userId, quantity, paymentId, amount });
       
-      // Get current user data to find active session
-      const userDoc = await import('../firebaseConfig').then(({ db }) => 
-        import('firebase/firestore').then(({ doc, getDoc }) => 
-          getDoc(doc(db, 'users', userId))
-        )
-      );
-      
-      if (!userDoc.exists()) {
-        throw new Error('User not found');
-      }
-
-      const userData = userDoc.data() as User;
-      const activeSession = userData.subscriptionSessions?.find(s => s.isActive);
+      // Get active session from new collection
+      const activeSession = await SubscriptionSessionCollectionService.getActiveSession(userId);
 
       if (!activeSession) {
         throw new Error('No active session found');
@@ -210,54 +200,41 @@ export class PayAsYouGoPaymentService {
         currentTokens: activeSession.payAsYouGoResources?.tokens || 0 
       });
 
-      // Update the active session with additional tokens
-      const updatedSessions = (userData.subscriptionSessions || []).map(session => {
-        if (session.id === activeSession.id) {
-          const currentPayAsYouGo = session.payAsYouGoResources || {
-            tokens: 0,
-            forms: 0,
-            dashboards: 0,
-            users: 0,
-            purchases: []
-          };
+      const currentPayAsYouGo = activeSession.payAsYouGoResources || {
+        tokens: 0,
+        forms: 0,
+        dashboards: 0,
+        users: 0,
+        purchases: []
+      };
 
-          return {
-            ...session,
-            payAsYouGoResources: {
-              ...currentPayAsYouGo,
-              tokens: currentPayAsYouGo.tokens + quantity,
-              purchases: [
-                ...currentPayAsYouGo.purchases,
-                {
-                  id: `paygo-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-                  purchaseDate: new Date(),
-                  itemType: 'tokens',
-                  quantity,
-                  amountPaid: amount, // Get amount from payment record
-                  paymentMethod: 'campay',
-                  paymentReference: paymentId,
-                  notes: `Pay-as-you-go: ${quantity.toLocaleString()} tokens`
-                }
-              ]
-            },
-            updatedAt: new Date()
-          };
+      // Update session in collection
+      console.log('addTokensToSession: Updating session in collection...');
+      const success = await SubscriptionSessionCollectionService.updateSession(activeSession.id, {
+        payAsYouGoResources: {
+          ...currentPayAsYouGo,
+          tokens: currentPayAsYouGo.tokens + quantity,
+          purchases: [
+            ...(currentPayAsYouGo.purchases || []),
+            {
+              id: `paygo-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+              purchaseDate: new Date(),
+              itemType: 'tokens',
+              quantity,
+              amountPaid: amount,
+              paymentMethod: 'campay',
+              paymentReference: paymentId,
+              notes: `Pay-as-you-go: ${quantity.toLocaleString()} tokens`
+            }
+          ]
         }
-        return session;
       });
 
-      // Update user document
-      const { db } = await import('../firebaseConfig');
-      const { doc, updateDoc, serverTimestamp } = await import('firebase/firestore');
+      if (success) {
+        console.log('addTokensToSession: Successfully updated session with tokens');
+      }
       
-      console.log('addTokensToSession: Updating user document...');
-      await updateDoc(doc(db, 'users', userId), {
-        subscriptionSessions: updatedSessions,
-        updatedAt: serverTimestamp()
-      });
-
-      console.log('addTokensToSession: Successfully updated user session with tokens');
-      return true;
+      return success;
     } catch (error) {
       console.error('Error adding tokens to session:', error);
       return false;
@@ -274,70 +251,41 @@ export class PayAsYouGoPaymentService {
     amount: number
   ): Promise<boolean> {
     try {
-      // Get current user data to find active session
-      const userDoc = await import('../firebaseConfig').then(({ db }) => 
-        import('firebase/firestore').then(({ doc, getDoc }) => 
-          getDoc(doc(db, 'users', userId))
-        )
-      );
-      
-      if (!userDoc.exists()) {
-        throw new Error('User not found');
-      }
-
-      const userData = userDoc.data() as User;
-      const activeSession = userData.subscriptionSessions?.find(s => s.isActive);
+      // Get active session from new collection
+      const activeSession = await SubscriptionSessionCollectionService.getActiveSession(userId);
 
       if (!activeSession) {
         throw new Error('No active session found');
       }
 
-      // Update the active session with additional forms
-      const updatedSessions = (userData.subscriptionSessions || []).map(session => {
-        if (session.id === activeSession.id) {
-          const currentPayAsYouGo = session.payAsYouGoResources || {
-            tokens: 0,
-            forms: 0,
-            dashboards: 0,
-            users: 0,
-            purchases: []
-          };
+      const currentPayAsYouGo = activeSession.payAsYouGoResources || {
+        tokens: 0,
+        forms: 0,
+        dashboards: 0,
+        users: 0,
+        purchases: []
+      };
 
-          return {
-            ...session,
-            payAsYouGoResources: {
-              ...currentPayAsYouGo,
-              forms: currentPayAsYouGo.forms + quantity,
-              purchases: [
-                ...currentPayAsYouGo.purchases,
-                {
-                  id: `paygo-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-                  purchaseDate: new Date(),
-                  itemType: 'forms',
-                  quantity,
-                  amountPaid: amount, // Get amount from payment record
-                  paymentMethod: 'campay',
-                  paymentReference: paymentId,
-                  notes: `Pay-as-you-go: ${quantity} formulaires`
-                }
-              ]
-            },
-            updatedAt: new Date()
-          };
+      // Update session in collection
+      return await SubscriptionSessionCollectionService.updateSession(activeSession.id, {
+        payAsYouGoResources: {
+          ...currentPayAsYouGo,
+          forms: currentPayAsYouGo.forms + quantity,
+          purchases: [
+            ...(currentPayAsYouGo.purchases || []),
+            {
+              id: `paygo-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+              purchaseDate: new Date(),
+              itemType: 'forms',
+              quantity,
+              amountPaid: amount,
+              paymentMethod: 'campay',
+              paymentReference: paymentId,
+              notes: `Pay-as-you-go: ${quantity} formulaires`
+            }
+          ]
         }
-        return session;
       });
-
-      // Update user document
-      const { db } = await import('../firebaseConfig');
-      const { doc, updateDoc, serverTimestamp } = await import('firebase/firestore');
-      
-      await updateDoc(doc(db, 'users', userId), {
-        subscriptionSessions: updatedSessions,
-        updatedAt: serverTimestamp()
-      });
-
-      return true;
     } catch (error) {
       console.error('Error adding forms to session:', error);
       return false;
@@ -354,70 +302,41 @@ export class PayAsYouGoPaymentService {
     amount: number
   ): Promise<boolean> {
     try {
-      // Get current user data to find active session
-      const userDoc = await import('../firebaseConfig').then(({ db }) => 
-        import('firebase/firestore').then(({ doc, getDoc }) => 
-          getDoc(doc(db, 'users', userId))
-        )
-      );
-      
-      if (!userDoc.exists()) {
-        throw new Error('User not found');
-      }
-
-      const userData = userDoc.data() as User;
-      const activeSession = userData.subscriptionSessions?.find(s => s.isActive);
+      // Get active session from new collection
+      const activeSession = await SubscriptionSessionCollectionService.getActiveSession(userId);
 
       if (!activeSession) {
         throw new Error('No active session found');
       }
 
-      // Update the active session with additional dashboards
-      const updatedSessions = (userData.subscriptionSessions || []).map(session => {
-        if (session.id === activeSession.id) {
-          const currentPayAsYouGo = session.payAsYouGoResources || {
-            tokens: 0,
-            forms: 0,
-            dashboards: 0,
-            users: 0,
-            purchases: []
-          };
+      const currentPayAsYouGo = activeSession.payAsYouGoResources || {
+        tokens: 0,
+        forms: 0,
+        dashboards: 0,
+        users: 0,
+        purchases: []
+      };
 
-          return {
-            ...session,
-            payAsYouGoResources: {
-              ...currentPayAsYouGo,
-              dashboards: currentPayAsYouGo.dashboards + quantity,
-              purchases: [
-                ...currentPayAsYouGo.purchases,
-                {
-                  id: `paygo-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-                  purchaseDate: new Date(),
-                  itemType: 'dashboards',
-                  quantity,
-                  amountPaid: amount, // Get amount from payment record
-                  paymentMethod: 'campay',
-                  paymentReference: paymentId,
-                  notes: `Pay-as-you-go: ${quantity} tableaux de bord`
-                }
-              ]
-            },
-            updatedAt: new Date()
-          };
+      // Update session in collection
+      return await SubscriptionSessionCollectionService.updateSession(activeSession.id, {
+        payAsYouGoResources: {
+          ...currentPayAsYouGo,
+          dashboards: currentPayAsYouGo.dashboards + quantity,
+          purchases: [
+            ...(currentPayAsYouGo.purchases || []),
+            {
+              id: `paygo-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+              purchaseDate: new Date(),
+              itemType: 'dashboards',
+              quantity,
+              amountPaid: amount,
+              paymentMethod: 'campay',
+              paymentReference: paymentId,
+              notes: `Pay-as-you-go: ${quantity} tableaux de bord`
+            }
+          ]
         }
-        return session;
       });
-
-      // Update user document
-      const { db } = await import('../firebaseConfig');
-      const { doc, updateDoc, serverTimestamp } = await import('firebase/firestore');
-      
-      await updateDoc(doc(db, 'users', userId), {
-        subscriptionSessions: updatedSessions,
-        updatedAt: serverTimestamp()
-      });
-
-      return true;
     } catch (error) {
       console.error('Error adding dashboards to session:', error);
       return false;
@@ -434,70 +353,41 @@ export class PayAsYouGoPaymentService {
     amount: number
   ): Promise<boolean> {
     try {
-      // Get current user data to find active session
-      const userDoc = await import('../firebaseConfig').then(({ db }) => 
-        import('firebase/firestore').then(({ doc, getDoc }) => 
-          getDoc(doc(db, 'users', userId))
-        )
-      );
-      
-      if (!userDoc.exists()) {
-        throw new Error('User not found');
-      }
-
-      const userData = userDoc.data() as User;
-      const activeSession = userData.subscriptionSessions?.find(s => s.isActive);
+      // Get active session from new collection
+      const activeSession = await SubscriptionSessionCollectionService.getActiveSession(userId);
 
       if (!activeSession) {
         throw new Error('No active session found');
       }
 
-      // Update the active session with additional users
-      const updatedSessions = (userData.subscriptionSessions || []).map(session => {
-        if (session.id === activeSession.id) {
-          const currentPayAsYouGo = session.payAsYouGoResources || {
-            tokens: 0,
-            forms: 0,
-            dashboards: 0,
-            users: 0,
-            purchases: []
-          };
+      const currentPayAsYouGo = activeSession.payAsYouGoResources || {
+        tokens: 0,
+        forms: 0,
+        dashboards: 0,
+        users: 0,
+        purchases: []
+      };
 
-          return {
-            ...session,
-            payAsYouGoResources: {
-              ...currentPayAsYouGo,
-              users: currentPayAsYouGo.users + quantity,
-              purchases: [
-                ...currentPayAsYouGo.purchases,
-                {
-                  id: `paygo-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-                  purchaseDate: new Date(),
-                  itemType: 'users',
-                  quantity,
-                  amountPaid: amount, // Get amount from payment record
-                  paymentMethod: 'campay',
-                  paymentReference: paymentId,
-                  notes: `Pay-as-you-go: ${quantity} utilisateurs`
-                }
-              ]
-            },
-            updatedAt: new Date()
-          };
+      // Update session in collection
+      return await SubscriptionSessionCollectionService.updateSession(activeSession.id, {
+        payAsYouGoResources: {
+          ...currentPayAsYouGo,
+          users: currentPayAsYouGo.users + quantity,
+          purchases: [
+            ...(currentPayAsYouGo.purchases || []),
+            {
+              id: `paygo-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+              purchaseDate: new Date(),
+              itemType: 'users',
+              quantity,
+              amountPaid: amount,
+              paymentMethod: 'campay',
+              paymentReference: paymentId,
+              notes: `Pay-as-you-go: ${quantity} utilisateurs`
+            }
+          ]
         }
-        return session;
       });
-
-      // Update user document
-      const { db } = await import('../firebaseConfig');
-      const { doc, updateDoc, serverTimestamp } = await import('firebase/firestore');
-      
-      await updateDoc(doc(db, 'users', userId), {
-        subscriptionSessions: updatedSessions,
-        updatedAt: serverTimestamp()
-      });
-
-      return true;
     } catch (error) {
       console.error('Error adding users to session:', error);
       return false;

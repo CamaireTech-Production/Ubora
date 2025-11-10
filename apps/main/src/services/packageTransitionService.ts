@@ -2,6 +2,7 @@ import { doc, updateDoc, getDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 import { SubscriptionSession, User } from '../types';
 import { SubscriptionSessionService } from './subscriptionSessionService';
+import { SubscriptionSessionCollectionService } from '@ubora/shared/services/subscriptionSessionCollectionService';
 import { PACKAGE_LIMITS, getPackagePrice, PackageLimits } from '@ubora/shared/config/packageFeatures';
 import { PaymentService } from './paymentService';
 
@@ -116,12 +117,12 @@ export class PackageTransitionService {
    * - Session tracking: Always maintained
    * - No proration: User pays full price for new package
    */
-  static calculateTransition(
+  static async calculateTransition(
     userData: User,
     newPackageType: 'free' | 'starter' | 'standard',
     options: PackageTransitionOptions = {}
-  ): TransitionCalculation | null {
-    const currentSession = SubscriptionSessionService.getCurrentSession(userData);
+  ): Promise<TransitionCalculation | null> {
+    const currentSession = await SubscriptionSessionService.getCurrentSession(userData);
     if (!currentSession) return null;
 
     const now = new Date();
@@ -132,7 +133,7 @@ export class PackageTransitionService {
     const unusedPackageTokens = Math.max(0, (currentSession.packageResources?.tokensIncluded || 0) - (currentSession.usage?.tokensUsed || 0));
     
     // Get UNUSED pay-as-you-go tokens from all sessions
-    const unusedPayAsYouGoTokens = this.getUnusedPayAsYouGoTokens(userData);
+    const unusedPayAsYouGoTokens = await this.getUnusedPayAsYouGoTokens(userData);
     
     // Calculate new package cost (no proration)
     const newPackagePrice = this.getPackagePriceNumeric(newPackageType);
@@ -182,7 +183,7 @@ export class PackageTransitionService {
         return false;
       }
       
-      const calculation = this.calculateTransition(userData, newPackageType, options);
+      const calculation = await this.calculateTransition(userData, newPackageType, options);
       
       if (!calculation) {
         console.error('Impossible de calculer la transition');
@@ -215,13 +216,47 @@ export class PackageTransitionService {
   }
 
   /**
-   * Get UNUSED pay-as-you-go tokens from all sessions
+   * Get unused pay-as-you-go tokens from all sessions (async version - uses new collection)
    */
-  private static getUnusedPayAsYouGoTokens(userData: User): number {
+  private static async getUnusedPayAsYouGoTokens(userData: User): Promise<number> {
+    // Try new collection service first
+    const sessions = await SubscriptionSessionCollectionService.getUserSessions(userData.id);
+    
+    // Filter active sessions and calculate unused pay-as-you-go tokens
+    const activeSessions = sessions.filter(session => session.isActive);
+    
+    // Calculate unused pay-as-you-go tokens (not package tokens)
+    // Pay-as-you-go tokens are stored in payAsYouGoResources.tokens
+    const unusedPayAsYouGoTokens = activeSessions.reduce((total, session) => {
+      const payAsYouGoTokens = session.payAsYouGoResources?.tokens || 0;
+      // Note: We don't track usage of pay-as-you-go tokens separately
+      // So we consider all pay-as-you-go tokens as "unused" for preservation
+      return total + payAsYouGoTokens;
+    }, 0);
+    
+    // If no sessions in collection, fallback to legacy
+    if (sessions.length === 0 && userData.subscriptionSessions) {
+      const legacySessions = userData.subscriptionSessions.filter(session => session.isActive);
+      return legacySessions.reduce((total, session) => {
+        const payAsYouGoTokens = session.payAsYouGoResources?.tokens || 0;
+        return total + payAsYouGoTokens;
+      }, 0);
+    }
+    
+    return unusedPayAsYouGoTokens;
+  }
+
+  /**
+   * Get unused pay-as-you-go tokens from all sessions (sync version - for backward compatibility)
+   * @deprecated Use getUnusedPayAsYouGoTokens() async version instead
+   */
+  private static getUnusedPayAsYouGoTokensSync(userData: User): number {
     const sessions = userData.subscriptionSessions || [];
-    return sessions
-      .filter(session => session.isActive)
-      .reduce((total, session) => total + ((session.packageResources?.tokensIncluded || 0) - (session.usage?.tokensUsed || 0)), 0);
+    const activeSessions = sessions.filter(session => session.isActive);
+    return activeSessions.reduce((total, session) => {
+      const payAsYouGoTokens = session.payAsYouGoResources?.tokens || 0;
+      return total + payAsYouGoTokens;
+    }, 0);
   }
 
 
@@ -322,24 +357,17 @@ export class PackageTransitionService {
       return;
     }
 
-    const userDocRef = doc(db, 'users', userId);
-    const userDoc = await getDoc(userDocRef);
-    const userData = userDoc.data() as User;
+    // Get active session from new collection
+    const currentSession = await SubscriptionSessionCollectionService.getActiveSession(userId);
     
-    if (!userData.subscriptionSessions) return;
+    if (!currentSession) {
+      return;
+    }
 
-    // Mark current session as inactive
-    const updatedSessions = userData.subscriptionSessions.map(session => {
-      if (session.id === calculation.currentSession.id) {
-        return { ...session, isActive: false, updatedAt: new Date() };
-      }
-      return session;
-    });
-
-    await updateDoc(userDocRef, {
-      subscriptionSessions: updatedSessions,
-      updatedAt: serverTimestamp()
-    });
+    // Preserve pay-as-you-go tokens in the new session
+    // This is handled when creating the new transition session
+    // The new session will include the preserved pay-as-you-go tokens
+    // No need to manually update here as the new session creation handles it
   }
 
   /**
@@ -424,21 +452,46 @@ export class PackageTransitionService {
   }
 
   /**
-   * Get total available tokens (new package + preserved pay-as-you-go)
+   * Get total available tokens (new package + preserved pay-as-you-go) (async version)
    */
-  static getTotalAvailableTokens(userData: User, newPackageType: 'free' | 'starter' | 'standard'): number {
+  static async getTotalAvailableTokens(userData: User, newPackageType: 'free' | 'starter' | 'standard'): Promise<number> {
     const newPackageTokens = PACKAGE_LIMITS[newPackageType].monthlyTokens;
-    const preservedPayAsYouGoTokens = this.getUnusedPayAsYouGoTokens(userData);
+    const preservedPayAsYouGoTokens = await this.getUnusedPayAsYouGoTokens(userData);
     
     return newPackageTokens + preservedPayAsYouGoTokens;
   }
 
   /**
-   * Get current total available tokens (current package + unused pay-as-you-go)
+   * Get total available tokens (new package + preserved pay-as-you-go) (sync version - for backward compatibility)
+   * @deprecated Use getTotalAvailableTokens() async version instead
    */
-  static getCurrentTotalAvailableTokens(userData: User): number {
-    const currentSession = SubscriptionSessionService.getCurrentSession(userData);
-    const unusedPayAsYouGoTokens = this.getUnusedPayAsYouGoTokens(userData);
+  static getTotalAvailableTokensSync(userData: User, newPackageType: 'free' | 'starter' | 'standard'): number {
+    const newPackageTokens = PACKAGE_LIMITS[newPackageType].monthlyTokens;
+    const preservedPayAsYouGoTokens = this.getUnusedPayAsYouGoTokensSync(userData);
+    
+    return newPackageTokens + preservedPayAsYouGoTokens;
+  }
+
+  /**
+   * Get current total available tokens (current package + unused pay-as-you-go) (async version)
+   */
+  static async getCurrentTotalAvailableTokens(userData: User): Promise<number> {
+    const currentSession = await SubscriptionSessionService.getCurrentSession(userData);
+    const unusedPayAsYouGoTokens = await this.getUnusedPayAsYouGoTokens(userData);
+    
+    if (!currentSession) return unusedPayAsYouGoTokens;
+    
+    const currentPackageTokens = (currentSession.packageResources?.tokensIncluded || 0) - (currentSession.usage?.tokensUsed || 0);
+    return currentPackageTokens + unusedPayAsYouGoTokens;
+  }
+
+  /**
+   * Get current total available tokens (current package + unused pay-as-you-go) (sync version - for backward compatibility)
+   * @deprecated Use getCurrentTotalAvailableTokens() async version instead
+   */
+  static getCurrentTotalAvailableTokensSync(userData: User): number {
+    const currentSession = SubscriptionSessionService.getCurrentSessionSync(userData);
+    const unusedPayAsYouGoTokens = this.getUnusedPayAsYouGoTokensSync(userData);
     
     if (!currentSession) return unusedPayAsYouGoTokens;
     
@@ -592,15 +645,15 @@ export class PackageTransitionService {
   }
 
   /**
-   * Enhanced transition calculation with cost reduction and pay-as-you-go logic
+   * Enhanced transition calculation with cost reduction and pay-as-you-go logic (async version)
    */
-  static calculateEnhancedTransition(
+  static async calculateEnhancedTransition(
     userData: User,
     newPackageType: 'free' | 'starter' | 'standard',
     userNeeds: UserNeeds = {},
     options: PackageTransitionOptions = {}
-  ): EnhancedTransitionCalculation | null {
-    const currentSession = SubscriptionSessionService.getCurrentSession(userData);
+  ): Promise<EnhancedTransitionCalculation | null> {
+    const currentSession = await SubscriptionSessionService.getCurrentSession(userData);
     if (!currentSession) return null;
 
     const now = new Date();
@@ -643,7 +696,7 @@ export class PackageTransitionService {
     
     // Token handling (existing logic)
     const unusedPackageTokens = Math.max(0, (currentSession.packageResources?.tokensIncluded || 0) - (currentSession.usage?.tokensUsed || 0));
-    const unusedPayAsYouGoTokens = this.getUnusedPayAsYouGoTokens(userData);
+    const unusedPayAsYouGoTokens = await this.getUnusedPayAsYouGoTokens(userData);
     const newPackageTokens = PACKAGE_LIMITS[newPackageType].monthlyTokens;
     const preservedPayAsYouGoTokens = (options.preserveUnusedPayAsYouGo !== false) ? unusedPayAsYouGoTokens : 0;
     
@@ -692,13 +745,13 @@ export class PackageTransitionService {
   /**
    * Get enhanced transition preview for UI
    */
-  static getEnhancedTransitionPreview(
+  static async getEnhancedTransitionPreview(
     userData: User,
     newPackageType: 'free' | 'starter' | 'standard',
     userNeeds: UserNeeds = {},
     options: PackageTransitionOptions = {}
   ) {
-    const calculation = this.calculateEnhancedTransition(userData, newPackageType, userNeeds, options);
+    const calculation = await this.calculateEnhancedTransition(userData, newPackageType, userNeeds, options);
     
     if (!calculation) return null;
 

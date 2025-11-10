@@ -22,15 +22,26 @@ export interface PayAsYouGoResources {
 // Subscription Session Types
 export interface SubscriptionSession {
   id: string; // Unique session ID
-  packageType: 'starter' | 'standard' | 'premium' /* | 'custom' */;
+  userId: string; // Reference to user (director)
+  packageType: 'free' | 'starter' | 'standard' | 'premium' /* | 'custom' */;
+  subscriptionPeriod: '30days' | '6months' | '1year'; // Period selected by user
+  totalPeriodDays: number; // 30 | 180 | 360
+  renewalIntervalDays: number; // Always 30 (renewal every 30 days)
   sessionType: 'subscription' | 'upgrade' | 'downgrade' | 'renewal';
   startDate: Date;
-  endDate: Date;
-  amountPaid: number; // Amount paid for the package in FCFA
-  durationDays: number; // Duration in days
+  endDate: Date; // Total end date based on totalPeriodDays
+  nextRenewalDate: Date; // Next renewal date (every 30 days)
+  amountPaid: number; // Total amount paid for the entire period in FCFA
+  monthlyAmount: number; // Base monthly amount in FCFA
+  discountApplied: number; // 0 | 0.1 | 0.2 (0%, 10%, 20%)
+  paymentId: string; // Reference to payment document in 'payments' collection (not Campay reference)
+  durationDays: number; // Duration in days (legacy, kept for compatibility)
   isActive: boolean; // Whether this session is currently active
-  paymentMethod?: string; // Payment method used
-  paymentReference?: string; // Reference to payment record
+  autoRenew: boolean; // Whether to auto-renew (default: true)
+  renewalCount: number; // Number of renewals performed
+  maxRenewals: number; // Maximum number of renewals based on subscriptionPeriod
+  paymentMethod?: string; // Payment method used (legacy)
+  paymentReference?: string; // Reference to payment record (legacy)
   notes?: string; // Additional notes
   createdAt: Date;
   updatedAt: Date;
@@ -79,9 +90,12 @@ export interface User {
   agencyId: string;
   needsPackageSelection?: boolean; // Flag to indicate if director needs to select a package
   
-  // Subscription sessions system - Single source of truth
-  subscriptionSessions?: SubscriptionSession[]; // Array of all subscription sessions
-  currentSessionId?: string; // ID of the currently active session
+  // Subscription sessions system - Reference to active session in separate collection
+  currentSubscriptionSessionId?: string; // Reference to active session document in 'subscriptionSessions' collection
+  
+  // Legacy: kept for backward compatibility during migration
+  subscriptionSessions?: SubscriptionSession[]; // @deprecated - Use subscriptionSessions collection instead
+  currentSessionId?: string; // @deprecated - Use currentSubscriptionSessionId instead
   
   // Employee specific fields
   isApproved?: boolean; // Status d'approbation pour les employés
@@ -969,6 +983,11 @@ export interface UniversMetadata {
   isDefault?: boolean; // Flag for default Univers (cannot be deleted, always present)
   price?: number; // Price for marketplace Univers (null or 0 = free)
   currency?: string; // Currency code (e.g., "XAF", "USD")
+  packageAccess?: {
+    free: boolean; // Accessible for free tier users
+    starter: boolean; // Accessible for starter package users
+    standard: boolean; // Accessible for standard package users
+  }; // Package access configuration (default: { free: false, starter: false, standard: false })
 }
 
 export interface UniversOwnership {

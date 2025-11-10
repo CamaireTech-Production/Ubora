@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
 // import { usePermissions } from '../hooks/usePermissions'; // Unused for now
@@ -8,7 +8,9 @@ import { Button } from '../components/Button';
 import { DirectorPackageOverview } from '../components/DirectorPackageOverview';
 import { SubscriptionHistoryModal } from '../components/SubscriptionHistoryModal';
 import { SubscriptionSessionService } from '@ubora/shared/services/subscriptionSessionService';
+import { SubscriptionSessionCollectionService } from '@ubora/shared/services/subscriptionSessionCollectionService';
 import { UserSessionService } from '@ubora/shared/services/userSessionService';
+import { SubscriptionSession } from '@ubora/shared/types';
 import { ArrowLeft, Settings, User, Bell, Shield, Calendar } from 'lucide-react';
 
 export const DirectorSettingsPage: React.FC = () => {
@@ -16,9 +18,36 @@ export const DirectorSettingsPage: React.FC = () => {
   const { user } = useAuth();
   // const { hasDirectorDashboardAccess } = usePermissions(); // Unused for now
   const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [currentSession, setCurrentSession] = useState<SubscriptionSession | null>(null);
+  const [subscriptionHistory, setSubscriptionHistory] = useState<any>(null);
 
-  // Get subscription history data
-  const subscriptionHistory = user ? UserSessionService.getSubscriptionHistory(user) : null;
+  // Load active session and subscription history
+  useEffect(() => {
+    const loadSessionData = async () => {
+      if (!user) return;
+      
+      try {
+        // Load active session from new collection
+        const session = await SubscriptionSessionCollectionService.getActiveSession(user.id);
+        setCurrentSession(session);
+        
+        // Load subscription history
+        const history = await UserSessionService.getSubscriptionHistory(user);
+        setSubscriptionHistory(history);
+      } catch (error) {
+        console.error('Error loading session data:', error);
+        // Fallback to legacy
+        if (user.subscriptionSessions) {
+          const legacySession = user.subscriptionSessions.find(s => s.isActive);
+          setCurrentSession(legacySession || null);
+        }
+        const legacyHistory = UserSessionService.getSubscriptionHistorySync(user);
+        setSubscriptionHistory(legacyHistory);
+      }
+    };
+    
+    loadSessionData();
+  }, [user]);
 
   if (!user || user.role !== 'directeur') {
     return (
@@ -173,8 +202,7 @@ export const DirectorSettingsPage: React.FC = () => {
                   </label>
                   <div className="text-sm text-gray-900 bg-gray-50 px-3 py-2 rounded-md">
                     {(() => {
-                      // Get current active session start date
-                      const currentSession = user.subscriptionSessions?.find(session => session.isActive);
+                      // Use current session from state (loaded from new collection)
                       if (!currentSession?.startDate) return 'Non spécifié';
                       
                       // Handle Firestore timestamp conversion

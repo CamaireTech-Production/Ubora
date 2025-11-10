@@ -13,7 +13,7 @@ import {
   PACKAGE_FEATURES,
   PackageType 
 } from '@ubora/shared/config/packageFeatures';
-import { SubscriptionSessionService } from '@ubora/shared/services/subscriptionSessionService';
+import { SubscriptionSessionCollectionService } from '@ubora/shared/services/subscriptionSessionCollectionService';
 import { PackageTransitionService, UserNeeds } from '@ubora/shared/services/packageTransitionService';
 import { UserSessionService } from '@ubora/shared/services/userSessionService';
 import { PackageTransitionPriceExplanation } from '../components/PackageTransitionPriceExplanation';
@@ -151,7 +151,7 @@ export const PackageManagementPage: React.FC = () => {
     setSelectedPackage(pkg);
     
     // Automatically calculate transition based on current usage
-    const currentSession = SubscriptionSessionService.getCurrentSession(user);
+    const currentSession = await SubscriptionSessionCollectionService.getActiveSession(user.id);
     const currentUsage = {
       forms: currentSession?.usage?.formsCreated || 0,
       dashboards: currentSession?.usage?.dashboardsCreated || 0,
@@ -445,14 +445,38 @@ export const PackageManagementPage: React.FC = () => {
   };
 
   // Get current subscription session information
-  // Get package info from active session
-  const packageInfo = user ? UserSessionService.getUserPackageInfo(user) : null;
+  // Get package info from active session (async)
+  const [packageInfo, setPackageInfo] = useState<any>(null);
+  const [isLoadingPackageInfo, setIsLoadingPackageInfo] = useState(true);
+
+  useEffect(() => {
+    const loadPackageInfo = async () => {
+      if (!user) {
+        setPackageInfo(null);
+        setIsLoadingPackageInfo(false);
+        return;
+      }
+
+      try {
+        setIsLoadingPackageInfo(true);
+        const info = await UserSessionService.getUserPackageInfo(user);
+        setPackageInfo(info);
+      } catch (error) {
+        console.error('Erreur lors du chargement des informations du package:', error);
+        setPackageInfo(null);
+      } finally {
+        setIsLoadingPackageInfo(false);
+      }
+    };
+
+    loadPackageInfo();
+  }, [user]);
   
   // Get subscription details from package info
   const daysRemaining = packageInfo?.daysRemaining || 0;
   const isNearRenewal = daysRemaining <= 7 && daysRemaining > 0;
-  const startDate = packageInfo?.subscriptionStartDate || new Date();
-  const nextRenewalDate = packageInfo?.subscriptionEndDate || new Date();
+  const startDate = packageInfo?.subscriptionStartDate ? new Date(packageInfo.subscriptionStartDate) : new Date();
+  const nextRenewalDate = packageInfo?.subscriptionEndDate ? new Date(packageInfo.subscriptionEndDate) : new Date();
 
   return (
     <Layout title="Gestion des Packages">
@@ -578,34 +602,36 @@ export const PackageManagementPage: React.FC = () => {
                       Tokens
                     </div>
                     <div className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900 mb-1 text-center">
-                      {(() => {
-                        const sessionInfo = UserSessionService.getUserPackageInfo(user);
-                        if (sessionInfo.totalTokens === -1) {
-                          return 'Illimité';
-                        }
-                        return sessionInfo.tokensRemaining.toLocaleString();
-                      })()}
+                      {isLoadingPackageInfo ? (
+                        <span className="text-gray-400">Chargement...</span>
+                      ) : packageInfo ? (
+                        packageInfo.totalTokens === -1 ? (
+                          'Illimité'
+                        ) : (
+                          (packageInfo.tokensRemaining || 0).toLocaleString()
+                        )
+                      ) : (
+                        <span className="text-gray-400">N/A</span>
+                      )}
                     </div>
                     <div className="text-xs sm:text-sm text-gray-600 text-center">
-                      {(() => {
-                        const sessionInfo = UserSessionService.getUserPackageInfo(user);
-                        if (sessionInfo.totalTokens === -1) {
-                          return 'Illimité';
-                        }
-                        return `${sessionInfo.tokensUsed.toLocaleString()} / ${sessionInfo.totalTokens.toLocaleString()}`;
-                      })()}
+                      {isLoadingPackageInfo ? (
+                        <span className="text-gray-400">Chargement...</span>
+                      ) : packageInfo ? (
+                        packageInfo.totalTokens === -1 ? (
+                          'Illimité'
+                        ) : (
+                          `${(packageInfo.tokensUsed || 0).toLocaleString()} / ${(packageInfo.totalTokens || 0).toLocaleString()}`
+                        )
+                      ) : (
+                        <span className="text-gray-400">N/A</span>
+                      )}
                     </div>
-                    {(() => {
-                      const sessionInfo = UserSessionService.getUserPackageInfo(user);
-                      if (sessionInfo.payAsYouGoTokens > 0) {
-                        return (
-                          <div className="text-xs text-green-600 text-center mt-1">
-                            Base: {sessionInfo.packageTokens.toLocaleString()} + Pay-as-you-go: {sessionInfo.payAsYouGoTokens.toLocaleString()}
-                          </div>
-                        );
-                      }
-                      return null;
-                    })()}
+                    {packageInfo && packageInfo.payAsYouGoTokens > 0 && (
+                      <div className="text-xs text-green-600 text-center mt-1">
+                        Base: {(packageInfo.packageTokens || 0).toLocaleString()} + Pay-as-you-go: {(packageInfo.payAsYouGoTokens || 0).toLocaleString()}
+                      </div>
+                    )}
                   </div>
 
                   {/* Forms */}
@@ -619,46 +645,49 @@ export const PackageManagementPage: React.FC = () => {
                       Formulaires
                     </div>
                     <div className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900 mb-1 text-center">
-                      {(() => {
-                        const sessionInfo = UserSessionService.getUserPackageInfo(user);
-                        const currentForms = forms.length;
-                        if (sessionInfo.totalForms === -1) {
-                          return 'Illimité';
-                        }
-                        return currentForms.toString();
-                      })()}
+                      {isLoadingPackageInfo ? (
+                        <span className="text-gray-400">Chargement...</span>
+                      ) : packageInfo ? (
+                        (() => {
+                          const currentForms = forms.length;
+                          if (packageInfo.totalForms === -1) {
+                            return 'Illimité';
+                          }
+                          return currentForms.toString();
+                        })()
+                      ) : (
+                        <span className="text-gray-400">N/A</span>
+                      )}
                     </div>
                     <div className="text-xs sm:text-sm text-gray-600 text-center">
-                      {(() => {
-                        const sessionInfo = UserSessionService.getUserPackageInfo(user);
-                        const currentForms = forms.length;
-                        if (sessionInfo.totalForms === -1) {
-                          return `${currentForms} sur Illimité`;
-                        }
-                        return `${currentForms} / ${sessionInfo.totalForms}`;
-                      })()}
+                      {isLoadingPackageInfo ? (
+                        <span className="text-gray-400">Chargement...</span>
+                      ) : packageInfo ? (
+                        (() => {
+                          const currentForms = forms.length;
+                          if (packageInfo.totalForms === -1) {
+                            return `${currentForms} sur Illimité`;
+                          }
+                          return `${currentForms} / ${packageInfo.totalForms || 0}`;
+                        })()
+                      ) : (
+                        <span className="text-gray-400">N/A</span>
+                      )}
                     </div>
                     <div className="text-xs text-gray-500 text-center mt-1">
-                      {(() => {
-                        const sessionInfo = UserSessionService.getUserPackageInfo(user);
+                      {packageInfo && (() => {
                         const currentForms = forms.length;
-                        if (sessionInfo.totalForms === -1) {
+                        if (packageInfo.totalForms === -1) {
                           return '';
                         }
-                        return currentForms > sessionInfo.totalForms ? '0 disponible' : `${Math.max(0, sessionInfo.totalForms - currentForms)} disponible`;
+                        return currentForms > (packageInfo.totalForms || 0) ? '0 disponible' : `${Math.max(0, (packageInfo.totalForms || 0) - currentForms)} disponible`;
                       })()}
                     </div>
-                    {(() => {
-                      const sessionInfo = UserSessionService.getUserPackageInfo(user);
-                      if (sessionInfo.payAsYouGoForms > 0) {
-                        return (
-                          <div className="text-xs text-green-600 text-center mt-1">
-                            Base: {sessionInfo.packageForms} + Pay-as-you-go: {sessionInfo.payAsYouGoForms}
-                          </div>
-                        );
-                      }
-                      return null;
-                    })()}
+                    {packageInfo && packageInfo.payAsYouGoForms > 0 && (
+                      <div className="text-xs text-green-600 text-center mt-1">
+                        Base: {packageInfo.packageForms || 0} + Pay-as-you-go: {packageInfo.payAsYouGoForms || 0}
+                      </div>
+                    )}
                   </div>
 
                   {/* Dashboards */}
@@ -672,46 +701,49 @@ export const PackageManagementPage: React.FC = () => {
                       Tableaux de bord
                     </div>
                     <div className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900 mb-1 text-center">
-                      {(() => {
-                        const sessionInfo = UserSessionService.getUserPackageInfo(user);
-                        const currentDashboards = dashboards.length;
-                        if (sessionInfo.totalDashboards === -1) {
-                          return 'Illimité';
-                        }
-                        return currentDashboards.toString();
-                      })()}
+                      {isLoadingPackageInfo ? (
+                        <span className="text-gray-400">Chargement...</span>
+                      ) : packageInfo ? (
+                        (() => {
+                          const currentDashboards = dashboards.length;
+                          if (packageInfo.totalDashboards === -1) {
+                            return 'Illimité';
+                          }
+                          return currentDashboards.toString();
+                        })()
+                      ) : (
+                        <span className="text-gray-400">N/A</span>
+                      )}
                     </div>
                     <div className="text-xs sm:text-sm text-gray-600 text-center">
-                      {(() => {
-                        const sessionInfo = UserSessionService.getUserPackageInfo(user);
-                        const currentDashboards = dashboards.length;
-                        if (sessionInfo.totalDashboards === -1) {
-                          return `${currentDashboards} sur Illimité`;
-                        }
-                        return `${currentDashboards} / ${sessionInfo.totalDashboards}`;
-                      })()}
+                      {isLoadingPackageInfo ? (
+                        <span className="text-gray-400">Chargement...</span>
+                      ) : packageInfo ? (
+                        (() => {
+                          const currentDashboards = dashboards.length;
+                          if (packageInfo.totalDashboards === -1) {
+                            return `${currentDashboards} sur Illimité`;
+                          }
+                          return `${currentDashboards} / ${packageInfo.totalDashboards || 0}`;
+                        })()
+                      ) : (
+                        <span className="text-gray-400">N/A</span>
+                      )}
                     </div>
                     <div className="text-xs text-gray-500 text-center mt-1">
-                      {(() => {
-                        const sessionInfo = UserSessionService.getUserPackageInfo(user);
+                      {packageInfo && (() => {
                         const currentDashboards = dashboards.length;
-                        if (sessionInfo.totalDashboards === -1) {
+                        if (packageInfo.totalDashboards === -1) {
                           return '';
                         }
-                        return currentDashboards > sessionInfo.totalDashboards ? '0 disponible' : `${Math.max(0, sessionInfo.totalDashboards - currentDashboards)} disponible`;
+                        return currentDashboards > (packageInfo.totalDashboards || 0) ? '0 disponible' : `${Math.max(0, (packageInfo.totalDashboards || 0) - currentDashboards)} disponible`;
                       })()}
                     </div>
-                    {(() => {
-                      const sessionInfo = UserSessionService.getUserPackageInfo(user);
-                      if (sessionInfo.payAsYouGoDashboards > 0) {
-                        return (
-                          <div className="text-xs text-green-600 text-center mt-1">
-                            Base: {sessionInfo.packageDashboards} + Pay-as-you-go: {sessionInfo.payAsYouGoDashboards}
-                          </div>
-                        );
-                      }
-                      return null;
-                    })()}
+                    {packageInfo && packageInfo.payAsYouGoDashboards > 0 && (
+                      <div className="text-xs text-green-600 text-center mt-1">
+                        Base: {packageInfo.packageDashboards || 0} + Pay-as-you-go: {packageInfo.payAsYouGoDashboards || 0}
+                      </div>
+                    )}
                   </div>
 
                   {/* Users */}
@@ -725,46 +757,49 @@ export const PackageManagementPage: React.FC = () => {
                       Utilisateurs
                     </div>
                     <div className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900 mb-1 text-center">
-                      {(() => {
-                        const sessionInfo = UserSessionService.getUserPackageInfo(user);
-                        const currentUsers = employees.filter(emp => emp.isApproved !== false).length;
-                        if (sessionInfo.totalUsers === -1) {
-                          return 'Illimité';
-                        }
-                        return currentUsers.toString();
-                      })()}
+                      {isLoadingPackageInfo ? (
+                        <span className="text-gray-400">Chargement...</span>
+                      ) : packageInfo ? (
+                        (() => {
+                          const currentUsers = employees.filter(emp => emp.isApproved !== false).length;
+                          if (packageInfo.totalUsers === -1) {
+                            return 'Illimité';
+                          }
+                          return currentUsers.toString();
+                        })()
+                      ) : (
+                        <span className="text-gray-400">N/A</span>
+                      )}
                     </div>
                     <div className="text-xs sm:text-sm text-gray-600 text-center">
-                      {(() => {
-                        const sessionInfo = UserSessionService.getUserPackageInfo(user);
-                        const currentUsers = employees.filter(emp => emp.isApproved !== false).length;
-                        if (sessionInfo.totalUsers === -1) {
-                          return `${currentUsers} sur Illimité`;
-                        }
-                        return `${currentUsers} / ${sessionInfo.totalUsers}`;
-                      })()}
+                      {isLoadingPackageInfo ? (
+                        <span className="text-gray-400">Chargement...</span>
+                      ) : packageInfo ? (
+                        (() => {
+                          const currentUsers = employees.filter(emp => emp.isApproved !== false).length;
+                          if (packageInfo.totalUsers === -1) {
+                            return `${currentUsers} sur Illimité`;
+                          }
+                          return `${currentUsers} / ${packageInfo.totalUsers || 0}`;
+                        })()
+                      ) : (
+                        <span className="text-gray-400">N/A</span>
+                      )}
                     </div>
                     <div className="text-xs text-gray-500 text-center mt-1">
-                      {(() => {
-                        const sessionInfo = UserSessionService.getUserPackageInfo(user);
+                      {packageInfo && (() => {
                         const currentUsers = employees.filter(emp => emp.isApproved !== false).length;
-                        if (sessionInfo.totalUsers === -1) {
+                        if (packageInfo.totalUsers === -1) {
                           return '';
                         }
-                        return currentUsers > sessionInfo.totalUsers ? '0 disponible' : `${Math.max(0, sessionInfo.totalUsers - currentUsers)} disponible`;
+                        return currentUsers > (packageInfo.totalUsers || 0) ? '0 disponible' : `${Math.max(0, (packageInfo.totalUsers || 0) - currentUsers)} disponible`;
                       })()}
                     </div>
-                    {(() => {
-                      const sessionInfo = UserSessionService.getUserPackageInfo(user);
-                      if (sessionInfo.payAsYouGoUsers > 0) {
-                        return (
-                          <div className="text-xs text-green-600 text-center mt-1">
-                            Base: {sessionInfo.packageUsers} + Pay-as-you-go: {sessionInfo.payAsYouGoUsers}
-                          </div>
-                        );
-                      }
-                      return null;
-                    })()}
+                    {packageInfo && packageInfo.payAsYouGoUsers > 0 && (
+                      <div className="text-xs text-green-600 text-center mt-1">
+                        Base: {packageInfo.packageUsers || 0} + Pay-as-you-go: {packageInfo.payAsYouGoUsers || 0}
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -812,13 +847,15 @@ export const PackageManagementPage: React.FC = () => {
 
         {/* Current Pay-as-You-Go Resources */}
         {(() => {
-          if (!user) return null;
+          if (!user || isLoadingPackageInfo) return null;
           
-          const sessionInfo = UserSessionService.getUserPackageInfo(user);
-          const hasPayAsYouGoResources = sessionInfo.payAsYouGoTokens > 0 || 
-                                        sessionInfo.payAsYouGoForms > 0 || 
-                                        sessionInfo.payAsYouGoDashboards > 0 || 
-                                        sessionInfo.payAsYouGoUsers > 0;
+          if (!packageInfo) return null;
+          
+          const sessionInfo = packageInfo;
+          const hasPayAsYouGoResources = (sessionInfo.payAsYouGoTokens || 0) > 0 || 
+                                        (sessionInfo.payAsYouGoForms || 0) > 0 || 
+                                        (sessionInfo.payAsYouGoDashboards || 0) > 0 || 
+                                        (sessionInfo.payAsYouGoUsers || 0) > 0;
           
           if (!hasPayAsYouGoResources) return null;
           
@@ -836,14 +873,14 @@ export const PackageManagementPage: React.FC = () => {
 
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 {/* Pay-as-You-Go Tokens */}
-                {sessionInfo.payAsYouGoTokens > 0 && (
+                {(sessionInfo.payAsYouGoTokens || 0) > 0 && (
                   <div className="bg-white rounded-lg p-4 border border-green-200 text-center">
                     <div className="inline-flex p-3 rounded-full bg-blue-100 text-blue-600 mb-3">
                       <Brain className="h-6 w-6" />
                     </div>
                     <h3 className="font-semibold text-gray-900 mb-2">Tokens ARCHA</h3>
                     <div className="text-2xl font-bold text-blue-600 mb-2">
-                      +{sessionInfo.payAsYouGoTokens.toLocaleString()}
+                      +{(sessionInfo.payAsYouGoTokens || 0).toLocaleString()}
                     </div>
                     <div className="text-sm text-gray-500">
                       Tokens supplémentaires

@@ -82,6 +82,11 @@ export const UniversWizardStep7: React.FC<UniversWizardStepProps> = ({
     metadata.price === 0 || metadata.price === null || metadata.price === undefined
   );
   const [currency, setCurrency] = useState<string>(metadata.currency || 'XAF');
+  const [packageAccess, setPackageAccess] = useState<{
+    free: boolean;
+    starter: boolean;
+    standard: boolean;
+  }>(metadata.packageAccess || { free: false, starter: false, standard: false });
 
   // Count items
   const formsCount = (definitions.forms as any[])?.length || 0;
@@ -141,7 +146,8 @@ export const UniversWizardStep7: React.FC<UniversWizardStepProps> = ({
         ...metadata,
         publishOption: selectedPublishOption, // Store temporarily for wizard's handleComplete
         price: isFree ? 0 : (price || null),
-        currency: currency
+        currency: currency,
+        packageAccess: packageAccess
       };
       
       console.log('🔍 UniversWizardStep7 - Updating wizard data:', {
@@ -159,7 +165,7 @@ export const UniversWizardStep7: React.FC<UniversWizardStepProps> = ({
     if (readOnly && metadata.name) {
       markStepCompleted(step);
     }
-  }, [selectedPublishOption, price, isFree, currency, updateWizardData, metadata, readOnly, markStepCompleted, step]);
+    }, [selectedPublishOption, price, isFree, currency, packageAccess, updateWizardData, metadata, readOnly, markStepCompleted, step]);
 
   const handleCreate = async () => {
     if (!user?.id || !user?.agencyId) {
@@ -694,6 +700,50 @@ export const UniversWizardStep7: React.FC<UniversWizardStepProps> = ({
                         <span className="text-sm font-medium text-green-800">Gratuit</span>
                       </div>
                     </div>
+                  )}
+                </div>
+
+                {/* Package Access Configuration */}
+                <div className="mt-4 pt-4 border-t border-gray-200">
+                  <label className="block text-sm font-medium text-gray-700 mb-3">
+                    Accès par package
+                  </label>
+                  <p className="text-xs text-gray-500 mb-3">
+                    Définissez quels packages peuvent accéder à ce Univers gratuitement
+                  </p>
+                  <div className="space-y-2">
+                    <label className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        checked={packageAccess.free}
+                        onChange={(e) => setPackageAccess({ ...packageAccess, free: e.target.checked })}
+                        className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                      />
+                      <span className="text-sm text-gray-700">Package Gratuit</span>
+                    </label>
+                    <label className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        checked={packageAccess.starter}
+                        onChange={(e) => setPackageAccess({ ...packageAccess, starter: e.target.checked })}
+                        className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                      />
+                      <span className="text-sm text-gray-700">Package Starter</span>
+                    </label>
+                    <label className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        checked={packageAccess.standard}
+                        onChange={(e) => setPackageAccess({ ...packageAccess, standard: e.target.checked })}
+                        className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                      />
+                      <span className="text-sm text-gray-700">Package Standard</span>
+                    </label>
+                  </div>
+                  {!packageAccess.free && !packageAccess.starter && !packageAccess.standard && (
+                    <p className="text-xs text-gray-500 mt-2">
+                      Aucun package sélectionné. Ce Univers ne sera accessible que par achat (marketplace payant).
+                    </p>
                   )}
                 </div>
               </div>

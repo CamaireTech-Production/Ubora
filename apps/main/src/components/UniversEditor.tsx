@@ -104,7 +104,7 @@ export const UniversEditor: React.FC<UniversEditorProps> = ({
       tags: metadata.tags || [],
       version: metadata.version || 1,
       createdAt: metadata.createdAt,
-      // Préserver publishOption, price, currency si présents (pour UniversWizardStep7)
+      // Préserver publishOption, price, currency, packageAccess si présents (pour UniversWizardStep7)
       ...(univers.ownership.isMarketplaceTemplate && {
         publishOption: 'marketplace' as const,
         price: univers.metadata.price ?? null,
@@ -112,6 +112,10 @@ export const UniversEditor: React.FC<UniversEditorProps> = ({
       }),
       ...(!univers.ownership.isMarketplaceTemplate && {
         publishOption: 'private' as const
+      }),
+      // Préserver packageAccess si présent
+      ...(univers.metadata.packageAccess && {
+        packageAccess: univers.metadata.packageAccess
       })
     },
     definitions: definitions
@@ -130,6 +134,11 @@ export const UniversEditor: React.FC<UniversEditorProps> = ({
       publishOption?: 'private' | 'marketplace';
       price?: number | null;
       currency?: string;
+      packageAccess?: {
+        free: boolean;
+        starter: boolean;
+        standard: boolean;
+      };
     }>;
     definitions?: Partial<UniversDefinitions>;
   }) => {

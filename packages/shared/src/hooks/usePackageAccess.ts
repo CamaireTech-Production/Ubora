@@ -18,17 +18,37 @@ export const usePackageAccess = () => {
   const [directorPackageInfo, setDirectorPackageInfo] = useState<any>(null);
   const [isLoadingDirectorInfo, setIsLoadingDirectorInfo] = useState(false);
 
-  // Get current package info from active session
-  const getCurrentPackageInfo = () => {
-    if (!user) return null;
-    
-    // For employees with director access, use the director's package info if available
-    if (user.role === 'employe' && user.hasDirectorDashboardAccess && directorPackageInfo) {
-      return directorPackageInfo;
-    }
-    
-    return UserSessionService.getUserPackageInfo(user);
-  };
+  const [userPackageInfo, setUserPackageInfo] = useState<any>(null);
+  const [isLoadingUserPackageInfo, setIsLoadingUserPackageInfo] = useState(false);
+
+  // Get current package info from active session (async)
+  useEffect(() => {
+    const fetchUserPackageInfo = async () => {
+      if (!user) {
+        setUserPackageInfo(null);
+        return;
+      }
+
+      // For employees with director access, use the director's package info if available
+      if (user.role === 'employe' && user.hasDirectorDashboardAccess && directorPackageInfo) {
+        setUserPackageInfo(directorPackageInfo);
+        return;
+      }
+
+      setIsLoadingUserPackageInfo(true);
+      try {
+        const info = await UserSessionService.getUserPackageInfo(user);
+        setUserPackageInfo(info);
+      } catch (error) {
+        console.error('Error fetching user package info:', error);
+        setUserPackageInfo(null);
+      } finally {
+        setIsLoadingUserPackageInfo(false);
+      }
+    };
+
+    fetchUserPackageInfo();
+  }, [user, directorPackageInfo]);
 
   // Fetch director's package info for employees with director access
   useEffect(() => {
@@ -50,8 +70,8 @@ export const usePackageAccess = () => {
         
         if (!directorsSnapshot.empty) {
           const directorData = directorsSnapshot.docs[0].data() as any;
-          const directorPackageInfo = UserSessionService.getUserPackageInfo(directorData);
-          setDirectorPackageInfo(directorPackageInfo);
+          const directorInfo = await UserSessionService.getUserPackageInfo(directorData);
+          setDirectorPackageInfo(directorInfo);
         }
       } catch (error) {
         console.error('Error fetching director package info:', error);
@@ -65,7 +85,7 @@ export const usePackageAccess = () => {
 
   // Merge token stats override into package info so UI reflects live usage without mutating user doc
   const packageInfo = useMemo(() => {
-    const base = getCurrentPackageInfo();
+    const base = userPackageInfo;
     if (!base) return null;
     if (tokenStats && typeof tokenStats.tokensUsedMonthly === 'number' && base.totalTokens > 0) {
       // Combine chat usage from active session (base.tokensUsed)
@@ -79,7 +99,7 @@ export const usePackageAccess = () => {
       };
     }
     return base;
-  }, [JSON.stringify(getCurrentPackageInfo()), tokenStats]);
+  }, [userPackageInfo, tokenStats]);
   const currentPackageType = packageInfo?.packageType || null;
 
   // Vérifier si l'utilisateur a accès à une fonctionnalité spécifique

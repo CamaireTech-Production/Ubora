@@ -29,7 +29,9 @@ import { db } from '@ubora/shared/firebaseConfig';
 import { AnalyticsService } from '@ubora/shared/services/analyticsService';
 import { PaymentService } from '@ubora/shared/services/paymentService';
 import { CampayPayment } from '../components/CampayPayment';
-import { SubscriptionSessionService } from '@ubora/shared/services/subscriptionSessionService';
+import { SubscriptionSessionCollectionService } from '@ubora/shared/services/subscriptionSessionCollectionService';
+import { SubscriptionPriceCalculator, SubscriptionPeriod } from '@ubora/shared/services/subscriptionPriceCalculator';
+import { SubscriptionRenewalService } from '@ubora/shared/services/subscriptionRenewalService';
 import { CampayPaymentData, PaymentRequest } from '../types/payment';
 
 export const PackageSelectionPage: React.FC = () => {
@@ -37,6 +39,7 @@ export const PackageSelectionPage: React.FC = () => {
   const { user } = useAuth();
   const { showSuccess, showError } = useToast();
   const [selectedPackage, setSelectedPackage] = useState<PackageType | null>(null);
+  const [selectedPeriod, setSelectedPeriod] = useState<SubscriptionPeriod>('30days');
   
   // Payment state management
   const [paymentRequest, setPaymentRequest] = useState<PaymentRequest | null>(null);
@@ -82,10 +85,17 @@ export const PackageSelectionPage: React.FC = () => {
     // Handle free package - no payment required
     if (pkg === 'free') {
       try {
-        // Update user package directly for free package
+        // Create free session using SubscriptionSessionCollectionService
+        const sessionId = await SubscriptionSessionCollectionService.createFreeDefaultSession(user.id);
+
+        if (!sessionId) {
+          throw new Error('Failed to create free session');
+        }
+
+        // Update user to clear package selection flag
         const userRef = doc(db, 'users', user.id);
         await updateDoc(userRef, {
-          package: pkg,
+          needsPackageSelection: false,
           updatedAt: serverTimestamp()
         });
 
@@ -102,29 +112,41 @@ export const PackageSelectionPage: React.FC = () => {
       }
     }
 
+    // For paid packages, check if period is selected
+    if (!selectedPeriod) {
+      showError('Veuillez sélectionner une période d\'abonnement');
+      return;
+    }
+
     setIsCreatingPayment(true);
 
     try {
-      // Get numeric price for the package
-      const price = getPackagePriceNumeric(pkg);
+      // Calculate price with discount
+      const priceCalculation = SubscriptionPriceCalculator.calculatePrice(pkg, selectedPeriod);
       
       console.log('Package selection:', { 
         packageType: pkg,
-        price,
+        period: selectedPeriod,
+        priceCalculation,
         packageName: getPackageDisplayName(pkg)
       });
       
       const externalReference = PaymentService.generateExternalReference('PACKAGE');
       const paymentReq: PaymentRequest = {
-        amount: price,
+        amount: priceCalculation.totalAmount,
         currency: 'XAF',
-        description: `TAKWID GROUP (USSD) — Sélection du package ${getPackageDisplayName(pkg)}`,
+        description: `TAKWID GROUP (USSD) — Sélection du package ${getPackageDisplayName(pkg)} (${SubscriptionPriceCalculator.getPeriodDisplayName(selectedPeriod)})`,
         externalReference,
         metadata: {
           type: 'package_selection',
           packageType: pkg,
           packageName: getPackageDisplayName(pkg),
-          packagePrice: price
+          packagePrice: priceCalculation.totalAmount,
+          monthlyAmount: priceCalculation.monthlyAmount,
+          subscriptionPeriod: selectedPeriod,
+          discountApplied: priceCalculation.discountApplied,
+          totalPeriodDays: priceCalculation.totalPeriodDays,
+          maxRenewals: priceCalculation.maxRenewals
         }
       };
 
@@ -133,7 +155,8 @@ export const PackageSelectionPage: React.FC = () => {
       // Create payment record in Firebase
       const paymentId = await PaymentService.createPayment(user.id, paymentReq, {
         type: 'package_selection',
-        packageType: pkg
+        packageType: pkg,
+        subscriptionPeriod: selectedPeriod
       });
 
       console.log('Package selection payment created with ID:', paymentId);
@@ -154,7 +177,10 @@ export const PackageSelectionPage: React.FC = () => {
         setAutoOpenPayment(true);
       }, 1000);
 
-      showSuccess(`Paiement initialisé pour le package ${getPackageDisplayName(pkg)}. Ouverture du modal de paiement...`);
+      const discountText = priceCalculation.discountApplied > 0 
+        ? ` (${(priceCalculation.discountApplied * 100).toFixed(0)}% de réduction)`
+        : '';
+      showSuccess(`Paiement initialisé pour le package ${getPackageDisplayName(pkg)}${discountText}. Ouverture du modal de paiement...`);
 
     } catch (error) {
       console.error('Package selection payment failed:', error);
@@ -224,7 +250,7 @@ export const PackageSelectionPage: React.FC = () => {
 
   // Payment success handler for package selection
   const handlePaymentSuccess = useCallback(async (data: CampayPaymentData) => {
-    if (!currentPaymentId || !user || !selectedPackage) return;
+    if (!currentPaymentId || !user || !selectedPackage || !selectedPeriod) return;
 
     try {
       console.log('PackageSelectionPage: Payment successful, processing...');
@@ -236,24 +262,38 @@ export const PackageSelectionPage: React.FC = () => {
       const payment = await PaymentService.getPayment(currentPaymentId);
       const amountPaid = payment?.amount || 0;
       
-      // Get package resources from configuration
-      const packageLimits = PACKAGE_LIMITS[selectedPackage];
+      // Calculate price details
+      const priceCalculation = SubscriptionPriceCalculator.calculatePrice(selectedPackage, selectedPeriod);
       
-      // Create subscription session using SubscriptionSessionService
-      const sessionCreated = await SubscriptionSessionService.createSession(user.id, {
+      // Calculate dates
+      const now = new Date();
+      const startDate = now;
+      const endDate = new Date(now.getTime() + priceCalculation.totalPeriodDays * 24 * 60 * 60 * 1000);
+      const nextRenewalDate = SubscriptionRenewalService.calculateNextRenewalDate(now);
+      
+      // Create subscription session using SubscriptionSessionCollectionService
+      const sessionId = await SubscriptionSessionCollectionService.createSession(user.id, {
         packageType: selectedPackage as 'starter' | 'standard',
+        subscriptionPeriod: selectedPeriod,
+        totalPeriodDays: priceCalculation.totalPeriodDays,
         sessionType: 'subscription',
-        startDate: new Date(),
-        endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days from now
-        durationDays: 30,
+        startDate: startDate,
+        endDate: endDate,
+        nextRenewalDate: nextRenewalDate,
         amountPaid: amountPaid,
-        paymentReference: currentPaymentId,
+        monthlyAmount: priceCalculation.monthlyAmount,
+        discountApplied: priceCalculation.discountApplied,
+        paymentId: currentPaymentId, // Reference to payment document (not Campay reference)
+        durationDays: priceCalculation.totalPeriodDays,
         isActive: true,
+        autoRenew: true,
+        renewalCount: 0,
+        maxRenewals: priceCalculation.maxRenewals,
         packageResources: {
-          tokensIncluded: packageLimits.monthlyTokens,
-          formsIncluded: packageLimits.maxForms,
-          dashboardsIncluded: packageLimits.maxDashboards,
-          usersIncluded: packageLimits.maxUsers
+          tokensIncluded: PACKAGE_LIMITS[selectedPackage].monthlyTokens,
+          formsIncluded: PACKAGE_LIMITS[selectedPackage].maxForms,
+          dashboardsIncluded: PACKAGE_LIMITS[selectedPackage].maxDashboards,
+          usersIncluded: PACKAGE_LIMITS[selectedPackage].maxUsers
         },
         payAsYouGoResources: {
           tokens: 0,
@@ -261,10 +301,16 @@ export const PackageSelectionPage: React.FC = () => {
           dashboards: 0,
           users: 0,
           purchases: []
+        },
+        usage: {
+          tokensUsed: 0,
+          formsCreated: 0,
+          dashboardsCreated: 0,
+          usersAdded: 0
         }
       });
 
-      if (!sessionCreated) {
+      if (!sessionId) {
         throw new Error('Failed to create subscription session');
       }
 
@@ -298,7 +344,7 @@ export const PackageSelectionPage: React.FC = () => {
       setPaymentRequest(null);
       setAutoOpenPayment(false);
     }
-  }, [currentPaymentId, selectedPackage, user, showSuccess, showError, navigate]);
+  }, [currentPaymentId, selectedPackage, selectedPeriod, user, showSuccess, showError, navigate]);
 
   // Payment failure handler
   const handlePaymentFail = useCallback(async (data: CampayPaymentData) => {
@@ -366,12 +412,73 @@ export const PackageSelectionPage: React.FC = () => {
                 <h3 className="text-3xl font-bold text-gray-900 mb-3">
                   {getPackageDisplayName(pkg)}
                 </h3>
-                <p className="text-4xl font-bold text-blue-600 mb-4">
-                  {getPackagePrice(pkg)}
-                </p>
-                <div className="text-sm text-gray-500">
-                  {typeof getPackagePrice(pkg) === 'string' ? '' : '/mois'}
-                </div>
+                
+                {/* Prix avec sélection de période pour packages payants */}
+                {pkg !== 'free' ? (
+                  <div className="mb-4">
+                    {/* Sélection de période */}
+                    <div className="mb-4">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Période d'abonnement
+                      </label>
+                      <div className="flex flex-col space-y-2">
+                        {(['30days', '6months', '1year'] as SubscriptionPeriod[]).map((period) => {
+                          const priceCalc = SubscriptionPriceCalculator.calculatePrice(pkg, period);
+                          const isSelected = selectedPackage === pkg && selectedPeriod === period;
+                          return (
+                            <button
+                              key={period}
+                              type="button"
+                              onClick={() => {
+                                setSelectedPackage(pkg);
+                                setSelectedPeriod(period);
+                              }}
+                              className={`text-left px-4 py-3 rounded-lg border-2 transition-all ${
+                                isSelected
+                                  ? 'border-blue-500 bg-blue-50'
+                                  : 'border-gray-200 hover:border-gray-300'
+                              }`}
+                            >
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <div className="font-semibold text-gray-900">
+                                    {SubscriptionPriceCalculator.getPeriodDisplayName(period)}
+                                  </div>
+                                  {priceCalc.discountApplied > 0 && (
+                                    <div className="text-xs text-green-600 mt-1">
+                                      {priceCalc.discountApplied * 100}% de réduction
+                                    </div>
+                                  )}
+                                </div>
+                                <div className="text-right">
+                                  <div className="text-lg font-bold text-blue-600">
+                                    {SubscriptionPriceCalculator.formatPrice(priceCalc.totalAmount)}
+                                  </div>
+                                  {priceCalc.discountApplied > 0 && (
+                                    <div className="text-xs text-gray-500 line-through">
+                                      {SubscriptionPriceCalculator.formatPrice(
+                                        priceCalc.monthlyAmount * (priceCalc.totalPeriodDays / 30)
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    <p className="text-4xl font-bold text-blue-600 mb-4">
+                      {getPackagePrice(pkg)}
+                    </p>
+                    <div className="text-sm text-gray-500">
+                      Gratuit
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Liste des fonctionnalités */}
@@ -392,12 +499,12 @@ export const PackageSelectionPage: React.FC = () => {
               {/* Bouton de sélection */}
               <Button
                 onClick={() => handlePackageSelection(pkg)}
-                disabled={isCreatingPayment}
+                disabled={isCreatingPayment || (pkg !== 'free' && !selectedPeriod)}
                 className={`w-full py-4 text-lg font-semibold rounded-lg transition-all duration-200 ${
                   pkg === 'standard' 
                     ? 'bg-green-600 hover:bg-green-700 text-white shadow-lg hover:shadow-xl' 
                     : 'bg-blue-600 hover:bg-blue-700 text-white shadow-lg hover:shadow-xl'
-                }`}
+                } ${(pkg !== 'free' && !selectedPeriod) ? 'opacity-50 cursor-not-allowed' : ''}`}
               >
                 {isCreatingPayment && selectedPackage === pkg ? (
                   <div className="flex items-center justify-center space-x-3">
@@ -405,9 +512,18 @@ export const PackageSelectionPage: React.FC = () => {
                     <span>Initialisation du paiement...</span>
                   </div>
                 ) : (
-                  <div className="flex items-center justify-center space-x-3">
-                    <span>Choisir ce package</span>
-                    <ArrowRight className="h-6 w-6" />
+                  <div className="flex flex-col items-center justify-center space-y-1">
+                    <div className="flex items-center space-x-3">
+                      <span>Choisir ce package</span>
+                      <ArrowRight className="h-6 w-6" />
+                    </div>
+                    {pkg !== 'free' && selectedPackage === pkg && selectedPeriod && (
+                      <div className="text-sm font-normal opacity-90">
+                        {SubscriptionPriceCalculator.formatPrice(
+                          SubscriptionPriceCalculator.calculatePrice(pkg, selectedPeriod).totalAmount
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
               </Button>

@@ -20,6 +20,7 @@ import {
   PurchaseHistory
 } from '@ubora/shared/types';
 import { ActivityLogService } from '@ubora/shared/services/activityLogService';
+import { SubscriptionSessionCollectionService } from '@ubora/shared/services/subscriptionSessionCollectionService';
 import PageTrackingService, { PageViewRecord, SessionRecord } from '@ubora/shared/services/pageTrackingService';
 
 export class EnhancedAdminService {
@@ -299,28 +300,46 @@ export class EnhancedAdminService {
    */
   private static async getUserSubscriptionSessions(userId: string): Promise<SubscriptionSession[]> {
     try {
-      // First try to get from the subscriptionSessions collection
-      const q = query(
-        collection(db, this.SUBSCRIPTION_SESSIONS_COLLECTION),
-        where('userId', '==', userId),
-        orderBy('startDate', 'desc')
-      );
+      // First try to get from the subscriptionSessions collection using the service
+      try {
+        const sessionsFromCollection = await SubscriptionSessionCollectionService.getUserSessions(userId);
+        if (sessionsFromCollection.length > 0) {
+          return sessionsFromCollection;
+        }
+      } catch (serviceError) {
+        console.warn('⚠️ Error using SubscriptionSessionCollectionService, falling back to direct query:', serviceError);
+        
+        // Fallback: Try direct query to collection
+        try {
+          const q = query(
+            collection(db, this.SUBSCRIPTION_SESSIONS_COLLECTION),
+            where('userId', '==', userId),
+            orderBy('startDate', 'desc')
+          );
 
-      const snapshot = await getDocs(q);
-      const sessionsFromCollection = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      } as SubscriptionSession));
+          const snapshot = await getDocs(q);
+          const sessionsFromCollection = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+          } as SubscriptionSession));
 
-      if (sessionsFromCollection.length > 0) {
-        return sessionsFromCollection;
+          if (sessionsFromCollection.length > 0) {
+            return sessionsFromCollection;
+          }
+        } catch (queryError) {
+          console.warn('⚠️ Error querying subscriptionSessions collection directly:', queryError);
+        }
       }
 
-      // If no sessions in collection, try to get from user document
+      // If no sessions in collection, try to get from user document (legacy fallback)
       const userDoc = await getDoc(doc(db, this.USERS_COLLECTION, userId));
       if (userDoc.exists()) {
         const userData = userDoc.data();
-        return userData.subscriptionSessions || [];
+        // Only return legacy sessions if they exist and no sessions were found in collection
+        if (userData.subscriptionSessions && Array.isArray(userData.subscriptionSessions)) {
+          console.log('⚠️ Using legacy subscriptionSessions from user document for user:', userId);
+          return userData.subscriptionSessions;
+        }
       }
 
       return [];

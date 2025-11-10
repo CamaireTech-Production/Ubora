@@ -9,12 +9,13 @@ import {
   sendPasswordResetEmail,
   User as FirebaseUser
 } from 'firebase/auth';
-import { doc, getDoc, setDoc, serverTimestamp, onSnapshot, collection, query, where, getDocs } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, serverTimestamp, onSnapshot, collection, query, where, getDocs } from 'firebase/firestore';
 import { auth, db } from '../firebaseConfig';
 import { User } from '../types';
 import { getPackageLimit, PackageType } from '../config/packageFeatures';
 import { AnalyticsService } from '../services/analyticsService';
 import { SubscriptionSessionService } from '../services/subscriptionSessionService';
+import { SubscriptionSessionCollectionService } from '../services/subscriptionSessionCollectionService';
 import { UserSessionService } from '../services/userSessionService';
 import { withFirebaseErrorHandling, FirebaseErrorHandler } from '../services/firebaseErrorHandler';
 
@@ -65,16 +66,37 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
       
       const director = directorsSnapshot.docs[0].data() as User;
+      const directorId = directorsSnapshot.docs[0].id;
+      
+      // Check if director has active session in new collection
+      let hasActiveSession = false;
+      let currentSessionId = null;
+      try {
+        if (director.currentSubscriptionSessionId) {
+          const activeSession = await SubscriptionSessionCollectionService.getActiveSession(directorId);
+          hasActiveSession = !!activeSession;
+          currentSessionId = director.currentSubscriptionSessionId;
+        }
+      } catch (error) {
+        console.error('Error checking active session:', error);
+      }
+      
+      // Fallback to legacy check
+      if (!hasActiveSession) {
+        hasActiveSession = !!(director.subscriptionSessions && director.subscriptionSessions.length > 0);
+        currentSessionId = director.currentSessionId || null;
+      }
       
       console.log('🔍 Director data:', {
-        id: directorsSnapshot.docs[0].id,
+        id: directorId,
         name: director.name,
         email: director.email,
         agencyId: director.agencyId,
         role: director.role,
         package: director.package,
-        hasSubscriptionSessions: !!director.subscriptionSessions,
-        currentSessionId: director.currentSessionId
+        hasSubscriptionSessions: hasActiveSession,
+        currentSubscriptionSessionId: director.currentSubscriptionSessionId,
+        currentSessionId: currentSessionId
       });
       
       // Use the new subscription session system to get package limits
@@ -292,6 +314,117 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           
           if (userDoc.exists()) {
             const userData = userDoc.data() as Omit<User, 'id'>;
+            
+            // Pour les directeurs, vérifier et corriger currentSubscriptionSessionId si nécessaire
+            if (userData.role === 'directeur') {
+              try {
+                const currentSessionId = userData.currentSubscriptionSessionId;
+                let needsUpdate = false;
+                let newSessionId = currentSessionId;
+
+                // Vérifier si currentSubscriptionSessionId pointe vers une session active valide
+                if (currentSessionId) {
+                  // Vérifier que la session existe et est active
+                  try {
+                    const sessionDoc = await getDoc(doc(db, 'subscriptionSessions', currentSessionId));
+                    if (sessionDoc.exists()) {
+                      const sessionData = sessionDoc.data();
+                      if (sessionData.userId === firebaseUser.uid && sessionData.isActive) {
+                        // La session est valide, pas besoin de mise à jour
+                        newSessionId = currentSessionId;
+                      } else {
+                        // La session n'est pas active ou n'appartient pas à cet utilisateur
+                        needsUpdate = true;
+                      }
+                    } else {
+                      // La session n'existe pas
+                      needsUpdate = true;
+                    }
+                  } catch (error) {
+                    // Erreur lors de la vérification, considérer comme invalide
+                    needsUpdate = true;
+                  }
+
+                  // Si une mise à jour est nécessaire, chercher une session active
+                  if (needsUpdate) {
+                    const activeSession = await SubscriptionSessionCollectionService.getActiveSession(firebaseUser.uid);
+                    if (activeSession && activeSession.id !== currentSessionId) {
+                      newSessionId = activeSession.id;
+                    } else {
+                      // Aucune session active trouvée, vérifier s'il y a des sessions inactives
+                      const allSessions = await SubscriptionSessionCollectionService.getUserSessions(firebaseUser.uid);
+                      if (allSessions.length > 0) {
+                        // Trier par date de création (la plus récente en premier)
+                        allSessions.sort((a, b) => {
+                          const aTime = a.createdAt instanceof Date ? a.createdAt.getTime() : 
+                                       (a.createdAt as any)?.toMillis?.() || (a.createdAt as any)?._seconds * 1000 || 0;
+                          const bTime = b.createdAt instanceof Date ? b.createdAt.getTime() : 
+                                       (b.createdAt as any)?.toMillis?.() || (b.createdAt as any)?._seconds * 1000 || 0;
+                          return bTime - aTime;
+                        });
+
+                        const mostRecentSession = allSessions[0];
+                        const now = new Date();
+                        const endDate = mostRecentSession.endDate instanceof Date ? mostRecentSession.endDate :
+                                       (mostRecentSession.endDate as any)?.toDate?.() || new Date(mostRecentSession.endDate);
+
+                        // Si la session la plus récente n'est pas expirée, la réactiver
+                        if (endDate > now) {
+                          await SubscriptionSessionCollectionService.updateSession(mostRecentSession.id, {
+                            isActive: true
+                          });
+                          newSessionId = mostRecentSession.id;
+                          needsUpdate = true;
+                        } else {
+                          // Toutes les sessions sont expirées, créer une session "free" par défaut
+                          const freeSessionId = await SubscriptionSessionCollectionService.createFreeDefaultSession(firebaseUser.uid);
+                          if (freeSessionId) {
+                            newSessionId = freeSessionId;
+                            needsUpdate = true;
+                          }
+                        }
+                      } else {
+                        // Aucune session trouvée, créer une session "free" par défaut
+                        const freeSessionId = await SubscriptionSessionCollectionService.createFreeDefaultSession(firebaseUser.uid);
+                        if (freeSessionId) {
+                          newSessionId = freeSessionId;
+                          needsUpdate = true;
+                        }
+                      }
+                    }
+                  }
+                } else {
+                  // Pas de currentSubscriptionSessionId, chercher une session active
+                  const activeSession = await SubscriptionSessionCollectionService.getActiveSession(firebaseUser.uid);
+                  if (activeSession) {
+                    newSessionId = activeSession.id;
+                    needsUpdate = true;
+                  } else {
+                    // Aucune session active trouvée, créer une session "free" par défaut
+                    const freeSessionId = await SubscriptionSessionCollectionService.createFreeDefaultSession(firebaseUser.uid);
+                    if (freeSessionId) {
+                      newSessionId = freeSessionId;
+                      needsUpdate = true;
+                    }
+                  }
+                }
+
+                // Mettre à jour le document utilisateur si nécessaire
+                if (needsUpdate && newSessionId) {
+                  await updateDoc(userDocRef, {
+                    currentSubscriptionSessionId: newSessionId,
+                    updatedAt: serverTimestamp()
+                  });
+                  // Mettre à jour userData avec le nouveau sessionId
+                  userData.currentSubscriptionSessionId = newSessionId;
+                  console.log('✅ currentSubscriptionSessionId corrigé pour le directeur:', firebaseUser.uid, '→', newSessionId);
+                }
+              } catch (sessionError) {
+                console.error('Erreur lors de la vérification de la session pour le directeur:', firebaseUser.uid, sessionError);
+                // Continuer même en cas d'erreur
+              }
+            }
+            
             // Cache user locally for offline usage
             try { localStorage.setItem('ubora_cached_user', JSON.stringify({ id: firebaseUser.uid, ...userData })); } catch {}
             
