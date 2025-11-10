@@ -443,9 +443,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       
       // Récupérer l'Univers actif pour associer automatiquement la ressource
       let universIdToAssociate: string | null = null;
+      let universInstanceIdToAssociate: string | null = null;
+      
       if (user.role === 'directeur' && activeUniversId) {
         // Pour les directeurs, utiliser l'Univers actif déjà chargé
         universIdToAssociate = activeUniversId;
+        
+        // Créer l'instance à la demande si elle n'existe pas encore
+        try {
+          const activeUnivers = await universService.getActiveUnivers(user.id, user.agencyId);
+          if (activeUnivers && !activeUnivers.activeInstanceId) {
+            // Créer l'instance à la demande pour la première ressource
+            const instanceId = await universService.ensureInstanceForActiveUnivers(user.id, user.agencyId);
+            if (instanceId) {
+              universInstanceIdToAssociate = instanceId;
+            }
+          } else if (activeUnivers?.activeInstanceId) {
+            universInstanceIdToAssociate = activeUnivers.activeInstanceId;
+          }
+        } catch (error) {
+          console.warn('⚠️ Erreur lors de la création de l\'instance à la demande (non bloquant):', error);
+        }
       } else if (user.role === 'employe') {
         // Pour les employés, récupérer l'Univers actif de l'agence (via le directeur)
         try {
@@ -461,6 +479,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             const activeUnivers = await universService.getActiveUnivers(directorId, user.agencyId);
             if (activeUnivers) {
               universIdToAssociate = activeUnivers.activeUniversId;
+              universInstanceIdToAssociate = activeUnivers.activeInstanceId || null;
             }
           }
         } catch (error) {
@@ -485,6 +504,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (universIdToAssociate) {
         docData.universId = universIdToAssociate;
       }
+      
+      // Associer à l'instance si disponible
+      if (universInstanceIdToAssociate) {
+        docData.universInstanceId = universInstanceIdToAssociate;
+      }
 
       // Only add createdByEmployeeId if the user is an employee
       if (user.role === 'employe') {
@@ -497,6 +521,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
 
       const formRef = await addDoc(collection(db, 'forms'), docData);
+      
+      // Ajouter la ressource à l'instance si elle existe
+      if (universInstanceIdToAssociate && user.role === 'directeur') {
+        try {
+          await universService.addResourceToInstance(user.id, user.agencyId, formRef.id, 'form');
+        } catch (error) {
+          console.warn('⚠️ Erreur lors de l\'ajout de la ressource à l\'instance (non bloquant):', error);
+        }
+      }
       
       // Track form creation in subscription session (only for directors)
       if (user.role === 'directeur' && firebaseUser) {
@@ -1206,9 +1239,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       
       // Récupérer l'Univers actif pour associer automatiquement la ressource
       let universIdToAssociate: string | null = null;
+      let universInstanceIdToAssociate: string | null = null;
+      
       if (user.role === 'directeur' && activeUniversId) {
         // Pour les directeurs, utiliser l'Univers actif déjà chargé
         universIdToAssociate = activeUniversId;
+        
+        // Créer l'instance à la demande si elle n'existe pas encore
+        try {
+          const activeUnivers = await universService.getActiveUnivers(user.id, user.agencyId);
+          if (activeUnivers && !activeUnivers.activeInstanceId) {
+            // Créer l'instance à la demande pour la première ressource
+            const instanceId = await universService.ensureInstanceForActiveUnivers(user.id, user.agencyId);
+            if (instanceId) {
+              universInstanceIdToAssociate = instanceId;
+            }
+          } else if (activeUnivers?.activeInstanceId) {
+            universInstanceIdToAssociate = activeUnivers.activeInstanceId;
+          }
+        } catch (error) {
+          console.warn('⚠️ Erreur lors de la création de l\'instance à la demande (non bloquant):', error);
+        }
       } else if (user.role === 'employe') {
         // Pour les employés, récupérer l'Univers actif de l'agence (via le directeur)
         try {
@@ -1224,6 +1275,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             const activeUnivers = await universService.getActiveUnivers(directorId, user.agencyId);
             if (activeUnivers) {
               universIdToAssociate = activeUnivers.activeUniversId;
+              universInstanceIdToAssociate = activeUnivers.activeInstanceId || null;
             }
           }
         } catch (error) {
@@ -1250,13 +1302,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (universIdToAssociate) {
         docData.universId = universIdToAssociate;
       }
+      
+      // Associer à l'instance si disponible
+      if (universInstanceIdToAssociate) {
+        docData.universInstanceId = universInstanceIdToAssociate;
+      }
 
       // Only add createdByEmployeeId if the user is an employee
       if (user.role === 'employe') {
         docData.createdByEmployeeId = user.id;
       }
 
-      await addDoc(collection(db, 'dashboards'), docData);
+      const dashboardRef = await addDoc(collection(db, 'dashboards'), docData);
+      
+      // Ajouter la ressource à l'instance si elle existe
+      if (universInstanceIdToAssociate && user.role === 'directeur') {
+        try {
+          await universService.addResourceToInstance(user.id, user.agencyId, dashboardRef.id, 'dashboard');
+        } catch (error) {
+          console.warn('⚠️ Erreur lors de l\'ajout de la ressource à l\'instance (non bloquant):', error);
+        }
+      }
       
       // Track dashboard creation in subscription session (only for directors)
       if (user.role === 'directeur' && firebaseUser) {
