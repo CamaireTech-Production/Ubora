@@ -1,5 +1,6 @@
 # Dependencies
 node_modules/
+scripts/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
@@ -8,10 +9,26 @@ lerna-debug.log*
 studio-gpnfx-firebase-adminsdk-fbsvc-eed44532ba.json
 # Build outputs
 dist/
+dist-admin/
 dev-dist/
 build/
 out/oulant
-scripts/
+apps/main/dist/
+apps/admin/dist-admin/
+deploy-package/
+deploy-admin-package/
+# Scripts - ignore test/debug scripts but track production scripts
+scripts/test-*.js
+scripts/debug-*.js
+scripts/diagnose-*.js
+scripts/setup-email-env.*
+scripts/generate-test-*.js
+scripts/copy-icons.js
+scripts/update-package-selection.js
+scripts/auto-assign-forms-to-directors.js
+scripts/get-vapid-key.js
+
+docs/plan.md
 
 # Vite
 .vite/

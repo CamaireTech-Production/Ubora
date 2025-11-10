@@ -8,10 +8,16 @@
 
   // Get current path and hostname
   const pathname = window.location.pathname;
-  const hostname = window.location.hostname;
+  const hostname = window.location.hostname.toLowerCase();
   
-  // Detect environment
-  const isDev = hostname.includes('dev.') || hostname.includes('localhost') || hostname.includes('127.0.0.1');
+  // Detect environment type
+  let envType = 'prod';
+  if (hostname.includes('pre.') || hostname.includes('adminpre.') || hostname.includes('apirelease.')) {
+    envType = 'pre-release';
+  } else if (hostname.includes('dev.') || hostname.includes('admindev.') || hostname.includes('apidev.') || 
+             hostname.includes('localhost') || hostname.includes('127.0.0.1')) {
+    envType = 'dev';
+  }
   
   // Detect admin mode
   const isAdmin = pathname.startsWith('/admin');
@@ -20,9 +26,25 @@
   let manifest;
   
   if (isAdmin) {
+    let adminName, adminShortName;
+    switch (envType) {
+      case 'pre-release':
+        adminName = 'Ubora Admin pre';
+        adminShortName = 'Ubora Admin pre';
+        break;
+      case 'dev':
+        adminName = 'Ubora Admin dev';
+        adminShortName = 'Ubora Admin dev';
+        break;
+      default: // prod
+        adminName = 'Ubora Admin';
+        adminShortName = 'Ubora Admin';
+        break;
+    }
+    
     manifest = {
-      name: isDev ? 'Ubora Admin Dev' : 'Ubora Admin',
-      short_name: isDev ? 'Ubora Admin Dev' : 'Ubora Admin',
+      name: adminName,
+      short_name: adminShortName,
       description: 'Panel d\'administration Ubora pour la gestion des utilisateurs et du système',
       theme_color: '#dc2626',
       background_color: '#ffffff',
@@ -62,9 +84,25 @@
       ]
     };
   } else {
+    let mainName, mainShortName;
+    switch (envType) {
+      case 'pre-release':
+        mainName = 'Ubora pre';
+        mainShortName = 'Ubora pre';
+        break;
+      case 'dev':
+        mainName = 'Ubora dev';
+        mainShortName = 'Ubora dev';
+        break;
+      default: // prod
+        mainName = 'Ubora';
+        mainShortName = 'Ubora';
+        break;
+    }
+    
     manifest = {
-      name: isDev ? 'Ubora Dev' : 'Ubora',
-      short_name: isDev ? 'Ubora Dev' : 'Ubora',
+      name: mainName,
+      short_name: mainShortName,
       description: 'Application de gestion des formulaires pour entreprises multi-agences',
       theme_color: '#3b82f6',
       background_color: '#ffffff',

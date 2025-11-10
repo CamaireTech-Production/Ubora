@@ -77,6 +77,44 @@ class TokenCounter {
       profitMargin: ((userCost - openAICost) / openAICost) * 100
     };
   }
+
+  /**
+   * Estimate tokens for PDF/image extraction based on file size
+   */
+  static estimateExtractionTokens(fileSize, fileType) {
+    const sizeInMB = fileSize / (1024 * 1024);
+    
+    // Base tokens for extraction request
+    const baseTokens = fileType === 'pdf' ? 200 : 150;
+    
+    // Size-based multiplier
+    let sizeMultiplier = 1;
+    if (sizeInMB > 5) sizeMultiplier = 2;
+    else if (sizeInMB > 2) sizeMultiplier = 1.5;
+    else if (sizeInMB > 1) sizeMultiplier = 1.2;
+    
+    // Estimate based on file size (larger files = more content to process)
+    const contentEstimate = Math.ceil(sizeInMB * 50); // ~50 tokens per MB
+    
+    const estimatedTokens = Math.ceil((baseTokens + contentEstimate) * sizeMultiplier);
+    
+    return estimatedTokens;
+  }
+
+  /**
+   * Calculate actual tokens from OpenAI response for extraction
+   */
+  static calculateActualTokens(openaiResponse) {
+    if (!openaiResponse || !openaiResponse.usage) {
+      return 0;
+    }
+    
+    const actualTokens = openaiResponse.usage.total_tokens || 0;
+    // Use same formula as chat system: (actualTokens * 2.5) / 100
+    const userTokensToCharge = Math.ceil((actualTokens * 2.5) / 100);
+    
+    return userTokensToCharge;
+  }
 }
 
-module.exports = { TokenCounter };
+export { TokenCounter };

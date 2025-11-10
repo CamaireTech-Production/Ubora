@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "Ubora API Backend for PDF processing and AI services",
   "main": "index.js",
+  "type": "module",
   "scripts": {
     "start": "node server/production-server.js",
     "dev": "node server/dev-server.js",

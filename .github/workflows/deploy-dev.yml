@@ -30,7 +30,12 @@ jobs:
           ${{ runner.os }}-npm-
           
     - name: Install dependencies
-      run: npm install
+      run: |
+        npm install --include=optional
+        # Ensure Rollup's platform-specific binary is installed
+        npm install @rollup/rollup-linux-x64-gnu --save-optional --workspaces=false || true
+        # Reinstall rollup to ensure optional deps are linked
+        npm install rollup --workspaces=false --force || true
       
     - name: Create environment file for development
       run: |
@@ -68,17 +73,17 @@ jobs:
         VITE_CAMPAY_REDIRECT_URL=
         EOF
         
-    - name: Build application
+    - name: Build main application
       run: |
-        npm run build
+        npm run build:main
         
     - name: Create deployment package
       run: |
         # Create a deployment directory
         mkdir -p deploy-package
         
-        # Copy built files
-        cp -r dist/* deploy-package/
+        # Copy built main app files
+        cp -r apps/main/dist/* deploy-package/
         
         # No static API files needed - using VPS backend
          

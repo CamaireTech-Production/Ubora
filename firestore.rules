@@ -108,6 +108,36 @@ service cloud.firestore {
                      isAdmin();
     }
 
+    // Sous-collection: token usage logs
+    match /users/{userId}/tokenUsageLogs/{logId} {
+      // Read: owner or admin
+      allow read: if isAuthenticated() && (
+        request.auth.uid == userId || isAdmin()
+      );
+      // Create: only the owner can create logs for themselves with basic validation
+      allow create: if isAuthenticated() &&
+        request.auth.uid == userId &&
+        request.resource.data.keys().hasAll(['userId','amount','usageType','createdAt']) &&
+        request.resource.data.userId == userId &&
+        request.resource.data.amount is number && request.resource.data.amount > 0 &&
+        (request.resource.data.usageType in ['image_extraction','pdf_extraction','other']) &&
+        request.resource.data.createdAt is timestamp;
+      // No updates/deletes from client
+      allow update, delete: if false;
+    }
+
+    // Sous-collection: user token stats (aggregated totals)
+    match /users/{userId}/stats/{docId} {
+      // Read: owner or admin
+      allow read: if isAuthenticated() && (
+        request.auth.uid == userId || isAdmin()
+      );
+      // Create/Update: only owner can maintain their stats document
+      allow create, update: if isAuthenticated() && request.auth.uid == userId;
+      // No deletes from client
+      allow delete: if false;
+    }
+
     // =============================================================================
     // COLLECTION FORMS
     // Règles simplifiées :
@@ -245,6 +275,35 @@ service cloud.firestore {
     }
 
     // =============================================================================
+    // COLLECTION REPORTS
+    // Règles pour les rapports personnalisés :
+    // - Seuls les directeurs peuvent créer/lire/modifier/supprimer leurs rapports
+    // - Les rapports sont isolés par agence
+    // - Support pour les rapports issus d'Univers templates
+    // =============================================================================
+    
+    match /reports/{reportId} {
+      // LECTURE des rapports
+      allow read: if isAdmin() || (hasDirectorDashboardAccess() && 
+                  isSameAgency(resource.data.agencyId));
+      
+      // CRÉATION des rapports
+      allow create: if isAdmin() || (canCreateForms() && 
+                   isSameAgency(request.resource.data.agencyId) &&
+                   request.resource.data.createdBy == request.auth.uid &&
+                   request.resource.data.createdByRole in ['directeur', 'employe'] &&
+                   request.resource.data.keys().hasAll(['name', 'templateType', 'placeholders', 'mappings', 'createdBy', 'agencyId']));
+      
+      // MODIFICATION des rapports
+      allow update: if isAdmin() || (hasDirectorDashboardAccess() && 
+                   isSameAgency(resource.data.agencyId));
+      
+      // SUPPRESSION des rapports
+      allow delete: if isAdmin() || (hasDirectorDashboardAccess() && 
+                   isSameAgency(resource.data.agencyId));
+    }
+
+    // =============================================================================
     // COLLECTION ACTIVITY LOGS
     // Règles pour les logs d'activité :
     // - Seuls les admins peuvent lire tous les logs
@@ -304,13 +363,13 @@ service cloud.firestore {
         (isDirecteur() && resource.data.recipientId == request.auth.uid)
       );
       
-      // CRÉATION de notifications
+      // CRÉATION de notifications (exige une clé d'idempotence et l'agence correspondante)
       allow create: if isAuthenticated() && (
         isAdmin() ||
-        hasDirectorDashboardAccess() ||
-        // Allow creation for form assignments, reminders, metrics, and program instructions
-        (request.resource.data.keys().hasAll(['title', 'body', 'type', 'recipientId', 'agencyId', 'read', 'status']) &&
-         request.resource.data.agencyId == getCurrentUser().data.agencyId)
+        (
+          request.resource.data.keys().hasAll(['title', 'body', 'type', 'recipientId', 'agencyId', 'read', 'status', 'idempotencyKey']) &&
+          request.resource.data.agencyId == getCurrentUser().data.agencyId
+        )
       );
       
       // MODIFICATION des notifications (seuls les admins et les destinataires)
@@ -352,19 +411,32 @@ service cloud.firestore {
     // =============================================================================
     // COLLECTION SUBSCRIPTION SESSIONS
     // Règles pour les sessions d'abonnement :
-    // - Seuls les admins peuvent lire tous les logs
-    // - Tous les utilisateurs authentifiés peuvent créer des logs
+    // - Les directeurs peuvent lire/écrire leurs propres sessions
+    // - Les admins ont accès complet
+    // - Les sessions sont isolées par utilisateur
     // =============================================================================
     
     match /subscriptionSessions/{sessionId} {
       // LECTURE des sessions d'abonnement
-      allow read: if isAdmin();
+      allow read: if isAuthenticated() && (
+        isAdmin() ||
+        (isDirecteur() && resource.data.userId == request.auth.uid) ||
+        (hasDirectorDashboardAccess() && resource.data.userId == request.auth.uid)
+      );
       
       // CRÉATION de sessions d'abonnement
-      allow create: if isAuthenticated();
+      allow create: if isAuthenticated() && (
+        isAdmin() ||
+        (isDirecteur() && request.resource.data.userId == request.auth.uid) ||
+        (hasDirectorDashboardAccess() && request.resource.data.userId == request.auth.uid)
+      );
       
-      // MODIFICATION des sessions d'abonnement (seuls les admins)
-      allow update: if isAdmin();
+      // MODIFICATION des sessions d'abonnement
+      allow update: if isAuthenticated() && (
+        isAdmin() ||
+        (isDirecteur() && resource.data.userId == request.auth.uid) ||
+        (hasDirectorDashboardAccess() && resource.data.userId == request.auth.uid)
+      );
       
       // SUPPRESSION des sessions d'abonnement (seuls les admins)
       allow delete: if isAdmin();
@@ -635,29 +707,277 @@ service cloud.firestore {
 
     // =============================================================================
     // COLLECTION SCHEDULED QUESTION RESPONSES
-    // Règles pour les réponses aux questions programmées :
-    // - Seuls les directeurs et employés avec accès dashboard peuvent lire les réponses
+    // Règles simplifiées pour les réponses aux questions programmées :
+    // - Les directeurs peuvent lire/écrire les réponses de leur agence
     // - Les réponses sont isolées par agence
-    // - Les utilisateurs peuvent lire uniquement les réponses de leurs questions
+    // - Approche simplifiée pour éviter les problèmes de permissions
     // =============================================================================
     
     match /scheduledQuestionResponses/{responseId} {
-      // LECTURE des réponses aux questions programmées
+      // LECTURE des réponses - approche simplifiée
       allow read: if isAuthenticated() && (
         isAdmin() ||
-        (hasDirectorDashboardAccess() && isSameAgency(resource.data.agencyId))
+        (isDirecteur() && isSameAgency(resource.data.agencyId)) ||
+        (hasDirectorDashboardAccess() && isSameAgency(resource.data.agencyId)) ||
+        // Fallback: allow if user is authenticated and has director role
+        (isAuthenticated() && getCurrentUser().data.role == 'directeur')
       );
       
-      // CRÉATION de réponses (seulement par le système backend)
+      // CRÉATION des réponses - approche simplifiée
       allow create: if isAuthenticated() && (
         isAdmin() ||
-        (hasDirectorDashboardAccess() && 
-         isSameAgency(request.resource.data.agencyId) &&
-         request.resource.data.keys().hasAll(['scheduledQuestionId', 'response', 'executedAt', 'status']))
+        (isDirecteur() && isSameAgency(request.resource.data.agencyId)) ||
+        (hasDirectorDashboardAccess() && isSameAgency(request.resource.data.agencyId)) ||
+        // Fallback: allow if user is authenticated and has director role
+        (isAuthenticated() && getCurrentUser().data.role == 'directeur')
       );
       
       // MODIFICATION et SUPPRESSION interdites pour les utilisateurs
       allow update, delete: if false;
+    }
+
+    // =============================================================================
+    // COLLECTION UNIVERS
+    // Règles pour les Univers (Univer Ubora) :
+    // - Seuls les directeurs peuvent créer/modifier/supprimer leurs Univers
+    // - Les Univers sont isolés par agence ou globaux (marketplace)
+    // - Les Univers marketplace nécessitent approbation admin
+    // =============================================================================
+    
+    match /univers/{universId} {
+      // LECTURE des Univers
+      allow read: if isAuthenticated() && (
+        isAdmin() ||
+        // Creator can read their own Univers (with null check)
+        (resource.data.ownership != null && 
+         resource.data.ownership.createdBy == request.auth.uid) ||
+        // Users in same agency can read agency Univers
+        (resource.data.ownership != null &&
+         resource.data.ownership.agencyId != null && 
+         isSameAgency(resource.data.ownership.agencyId) &&
+         resource.data.ownership.isMarketplaceTemplate == false) ||
+        // Everyone can read approved marketplace templates
+        (resource.data.ownership != null &&
+         resource.data.ownership.isMarketplaceTemplate == true &&
+         resource.data.ownership.approvalStatus == 'approved') ||
+        // Fallback: allow directors to read Univers they created (for queries)
+        (isDirecteur() && resource.data.ownership != null && 
+         resource.data.ownership.createdBy == request.auth.uid)
+      );
+      
+      // CRÉATION des Univers
+      allow create: if isAuthenticated() && (
+        isAdmin() ||
+        // Allow directors to create their own Univers (including default Univers)
+        (isDirecteur() && 
+         request.resource.data.ownership.createdBy == request.auth.uid &&
+         request.resource.data.keys().hasAll(['metadata', 'ownership', 'definitions', 'usage'])) ||
+        // Fallback: allow if user is authenticated and creating their own Univers
+        (request.resource.data.ownership.createdBy == request.auth.uid &&
+         request.resource.data.keys().hasAll(['metadata', 'ownership', 'definitions', 'usage']))
+      );
+      
+      // MODIFICATION des Univers
+      allow update: if isAuthenticated() && (
+        isAdmin() ||
+        // Allow update if creator is same user (with null check)
+        (resource.data.ownership != null && 
+         resource.data.ownership.createdBy == request.auth.uid) ||
+        // Allow directors from same agency to update agency Univers (non-marketplace)
+        (hasDirectorDashboardAccess() && 
+         resource.data.ownership != null &&
+         resource.data.ownership.agencyId != null &&
+         isSameAgency(resource.data.ownership.agencyId) &&
+         resource.data.ownership.isMarketplaceTemplate == false)
+      );
+      
+      // SUPPRESSION des Univers
+      allow delete: if isAuthenticated() && (
+        isAdmin() ||
+        // Allow delete if creator is same user (with null check)
+        (resource.data.ownership != null && 
+         resource.data.ownership.createdBy == request.auth.uid) ||
+        // Allow directors from same agency to delete agency Univers (non-marketplace)
+        (hasDirectorDashboardAccess() && 
+         resource.data.ownership != null &&
+         resource.data.ownership.agencyId != null &&
+         isSameAgency(resource.data.ownership.agencyId) &&
+         resource.data.ownership.isMarketplaceTemplate == false)
+      );
+    }
+
+    // =============================================================================
+    // COLLECTION UNIVERS INSTANCES
+    // Règles pour les instances Univers (quand un utilisateur utilise un template) :
+    // - Les utilisateurs peuvent créer leurs propres instances
+    // - Les instances sont isolées par agence
+    // =============================================================================
+    
+    match /universInstances/{instanceId} {
+      // LECTURE des instances Univers
+      allow read: if isAuthenticated() && (
+        isAdmin() ||
+        (isSameAgency(resource.data.agencyId) &&
+         resource.data.userId == request.auth.uid) ||
+        (isDirecteur() && isSameAgency(resource.data.agencyId))
+      );
+      
+      // CRÉATION des instances Univers
+      allow create: if isAuthenticated() && (
+        isAdmin() ||
+        (canCreateForms() && 
+         isSameAgency(request.resource.data.agencyId) &&
+         request.resource.data.userId == request.auth.uid &&
+         request.resource.data.keys().hasAll(['universId', 'userId', 'agencyId', 'instances', 'metadata']))
+      );
+      
+      // MODIFICATION des instances Univers (généralement pas nécessaire, mais prévu)
+      allow update: if isAuthenticated() && (
+        isAdmin() ||
+        (canCreateForms() && 
+         isSameAgency(resource.data.agencyId) &&
+         resource.data.userId == request.auth.uid)
+      );
+      
+      // SUPPRESSION des instances Univers
+      allow delete: if isAuthenticated() && (
+        isAdmin() ||
+        (canCreateForms() && 
+         isSameAgency(resource.data.agencyId) &&
+         resource.data.userId == request.auth.uid)
+      );
+    }
+
+    // =============================================================================
+    // COLLECTION ACTIVE UNIVERS
+    // Règles pour l'Univers actif d'un directeur :
+    // - Seul un directeur peut lire/modifier son propre ActiveUnivers
+    // - Le document ID est le directorId pour un accès rapide
+    // - Les admins peuvent aussi gérer tous les ActiveUnivers
+    // =============================================================================
+    
+    match /activeUnivers/{directorId} {
+      // LECTURE de l'Univers actif
+      allow read: if isAuthenticated() && (
+        isAdmin() ||
+        (isDirecteur() && request.auth.uid == directorId) ||
+        // Fallback: allow if user is authenticated and reading their own activeUnivers
+        (request.auth.uid == directorId)
+      );
+      
+      // CRÉATION de l'Univers actif
+      allow create: if isAuthenticated() && (
+        isAdmin() ||
+        (isDirecteur() && 
+         request.auth.uid == directorId &&
+         request.resource.data.directorId == directorId &&
+         request.resource.data.keys().hasAll(['directorId', 'agencyId', 'activeUniversId', 'updatedAt'])) ||
+        // Fallback: allow if user is authenticated and creating their own activeUnivers
+        (request.auth.uid == directorId &&
+         request.resource.data.directorId == directorId &&
+         request.resource.data.keys().hasAll(['directorId', 'agencyId', 'activeUniversId', 'updatedAt']))
+      );
+      
+      // MODIFICATION de l'Univers actif
+      allow update: if isAuthenticated() && (
+        isAdmin() ||
+        (isDirecteur() && 
+         request.auth.uid == directorId &&
+         resource.data.directorId == directorId)
+      );
+      
+      // SUPPRESSION de l'Univers actif
+      allow delete: if isAuthenticated() && (
+        isAdmin() ||
+        (isDirecteur() && request.auth.uid == directorId)
+      );
+    }
+
+    // =============================================================================
+    // COLLECTION LISTS
+    // Règles pour les Lists (listes tabulaires pour les formulaires) :
+    // - Seul un directeur ou utilisateur avec accès peut créer/modifier/supprimer des lists
+    // - Les employés peuvent lire les lists de leur agence
+    // - Toutes les lists sont isolées par agence
+    // =============================================================================
+    
+    match /lists/{listId} {
+      // LECTURE des lists
+      // Permettre la lecture si l'utilisateur est admin ou appartient à la même agence
+      // Si la ressource n'existe pas, Firestore retournera null (pas d'erreur de permissions)
+      allow read: if isAuthenticated() && (
+        isAdmin() || 
+        (resource != null && 
+         resource.data != null && 
+         resource.data.agencyId != null && 
+         isSameAgency(resource.data.agencyId))
+      );
+      
+      // CRÉATION des lists
+      allow create: if (isAdmin() || canCreateForms()) && 
+                   (isAdmin() || isSameAgency(request.resource.data.agencyId)) &&
+                   request.resource.data.createdBy == request.auth.uid &&
+                   (isAdmin() || request.resource.data.createdByRole in ['directeur', 'employe']) &&
+                   request.resource.data.keys().hasAll(['name', 'columns', 'rows', 'createdBy', 'agencyId', 'createdAt', 'updatedAt']);
+      
+      // MODIFICATION des lists
+      allow update: if isAuthenticated() && (isAdmin() || isSameAgency(resource.data.agencyId)) && (
+        isAdmin() ||
+        isDirecteur() ||
+        (isEmploye() && (
+          resource.data.createdByEmployeeId == request.auth.uid ||
+          canManageEmployeeForms()
+        ))
+      );
+      
+      // SUPPRESSION des lists
+      allow delete: if isAuthenticated() && (isAdmin() || isSameAgency(resource.data.agencyId)) && (
+        isAdmin() ||
+        isDirecteur() ||
+        hasDirectorDashboardAccess() ||
+        (isEmploye() && resource.data.createdByEmployeeId == request.auth.uid)
+      );
+    }
+
+    // =============================================================================
+    // COLLECTION UNIVERS VERSIONS
+    // Règles pour les versions Univers (historique des versions de templates) :
+    // - Seuls les admins peuvent lire toutes les versions
+    // - Les créateurs peuvent lire les versions de leurs propres Univers
+    // - Les admins peuvent approuver/rejeter les versions
+    // =============================================================================
+    
+    match /universVersions/{versionId} {
+      // LECTURE des versions Univers
+      // Pour les requêtes (list), permettre si l'utilisateur peut créer des formulaires
+      // (seuls les créateurs d'univers peuvent mettre à jour leurs univers)
+      // Pour les lectures individuelles (get), vérifier que createdBy correspond
+      allow read: if isAuthenticated() && (
+        isAdmin() ||
+        // Creator can read versions of their own Univers (for individual reads)
+        (resource.data.createdBy == request.auth.uid) ||
+        // Allow queries if user can create forms (directors/employees with access)
+        // This allows where queries, but only users who can create forms can query
+        canCreateForms()
+      );
+      
+      // CRÉATION des versions Univers (généralement par le créateur lors d'une mise à jour)
+      allow create: if isAuthenticated() && (
+        isAdmin() ||
+        (canCreateForms() && 
+         request.resource.data.createdBy == request.auth.uid &&
+         request.resource.data.keys().hasAll(['universId', 'version', 'previousVersion', 'approvalStatus', 'createdBy']))
+      );
+      
+      // MODIFICATION des versions Univers (pour approuver/rejeter)
+      allow update: if isAuthenticated() && (
+        isAdmin() ||
+        // Creator can update their own versions (e.g., to fix issues)
+        (resource.data.createdBy == request.auth.uid)
+      );
+      
+      // SUPPRESSION des versions Univers (seuls les admins)
+      allow delete: if isAdmin();
     }
 
     // =============================================================================

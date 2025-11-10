@@ -1,0 +1,39 @@
+{
+  "name": "@ubora/shared",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./contexts": "./src/contexts/index.ts",
+    "./contexts/*": "./src/contexts/*.ts",
+    "./services": "./src/services/index.ts",
+    "./services/*": "./src/services/*.ts",
+    "./utils": "./src/utils/index.ts",
+    "./utils/*": "./src/utils/*.ts",
+    "./types": "./src/types/index.ts",
+    "./types/*": "./src/types/*.ts",
+    "./config": "./src/config/index.ts",
+    "./config/*": "./src/config/*.ts",
+    "./hooks": "./src/hooks/index.ts",
+    "./hooks/*": "./src/hooks/*.ts",
+    "./firebaseConfig": "./src/firebaseConfig.ts"
+  },
+  "scripts": {
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "firebase": "^10.13.2",
+    "react-router-dom": "^7.8.2"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.24",
+    "@types/react-dom": "^18.3.0",
+    "typescript": "^5.5.3"
+  }
+}
+

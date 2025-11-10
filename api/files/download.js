@@ -1,4 +1,4 @@
-const { adminDb, admin } = require('../lib/firebaseAdmin');
+import { adminDb, admin } from '../lib/firebaseAdmin.js';
 
 /**
  * GET /api/files/download
@@ -108,4 +108,4 @@ async function downloadHandler(req, res) {
   }
 }
 
-module.exports = { downloadHandler };
+export { downloadHandler };
