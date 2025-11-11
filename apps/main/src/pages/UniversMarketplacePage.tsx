@@ -9,7 +9,7 @@ import { universService } from '@ubora/shared/services/universService';
 import { useToast } from '@ubora/shared/hooks/useToast';
 import { Toast } from '../components/Toast';
 import { Button } from '../components/Button';
-import { ArrowLeft, Globe, Sparkles } from 'lucide-react';
+import { ArrowLeft, Globe, ChevronLeft, ChevronRight } from 'lucide-react';
 
 export const UniversMarketplacePage: React.FC = () => {
   const navigate = useNavigate();
@@ -17,6 +17,8 @@ export const UniversMarketplacePage: React.FC = () => {
   const { toast, showError } = useToast();
   const [marketplaceUnivers, setMarketplaceUnivers] = useState<Univers[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 12;
   const [filters, setFilters] = useState<MarketplaceFiltersState>({
     searchQuery: '',
     category: 'all',
@@ -134,6 +136,17 @@ export const UniversMarketplacePage: React.FC = () => {
     return filtered;
   }, [marketplaceUnivers, filters]);
 
+  // Pagination logic
+  const totalPages = Math.ceil(filteredUnivers.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedUnivers = filteredUnivers.slice(startIndex, endIndex);
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filters]);
+
   const handleView = (univers: Univers) => {
     navigate(`/univers/${univers.id}`, { state: { from: 'marketplace' } });
   };
@@ -180,12 +193,6 @@ export const UniversMarketplacePage: React.FC = () => {
                     </p>
                   </div>
                 </div>
-                <div className="flex items-center space-x-2 px-4 py-2 bg-white/80 backdrop-blur-sm rounded-xl border border-purple-200 shadow-sm">
-                  <Sparkles className="h-5 w-5 text-purple-600" />
-                  <span className="text-sm font-semibold text-purple-700">
-                    {marketplaceUnivers.length} Univers disponible{marketplaceUnivers.length > 1 ? 's' : ''}
-                  </span>
-                </div>
               </div>
             </div>
             {/* Pattern décoratif */}
@@ -202,32 +209,18 @@ export const UniversMarketplacePage: React.FC = () => {
             />
           </div>
 
-          {/* Results count */}
-          <div className="flex items-center justify-between">
-            <div className="text-sm font-medium text-gray-700">
-              {filteredUnivers.length === 0 ? (
-                <span className="text-gray-500">Aucun résultat</span>
-              ) : (
-                <span>
-                  <span className="text-purple-600 font-semibold">{filteredUnivers.length}</span>{' '}
-                  Univers{filteredUnivers.length > 1 ? 's' : ''} trouvé{filteredUnivers.length > 1 ? 's' : ''}
-                </span>
-              )}
-            </div>
-          </div>
-
           {/* Univers grid */}
           {isLoading ? (
             <div className="space-y-6">
               {/* Skeleton pour les cards */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div className="grid grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-4 lg:gap-6">
                 {[...Array(6)].map((_, i) => (
-                  <div key={i} className="h-80 bg-white rounded-2xl border border-gray-200 animate-pulse">
-                    <div className="h-32 bg-gray-200 rounded-t-2xl"></div>
-                    <div className="p-6 space-y-4">
-                      <div className="h-6 bg-gray-200 rounded w-3/4"></div>
-                      <div className="h-4 bg-gray-200 rounded w-full"></div>
-                      <div className="h-4 bg-gray-200 rounded w-2/3"></div>
+                  <div key={i} className="h-64 sm:h-72 lg:h-80 bg-white rounded-xl sm:rounded-2xl border border-gray-200 animate-pulse">
+                    <div className="h-20 sm:h-24 lg:h-32 bg-gray-200 rounded-t-xl sm:rounded-t-2xl"></div>
+                    <div className="p-3 sm:p-4 lg:p-6 space-y-2 sm:space-y-3 lg:space-y-4">
+                      <div className="h-4 sm:h-5 lg:h-6 bg-gray-200 rounded w-3/4"></div>
+                      <div className="h-3 sm:h-4 bg-gray-200 rounded w-full"></div>
+                      <div className="h-3 sm:h-4 bg-gray-200 rounded w-2/3"></div>
                     </div>
                   </div>
                 ))}
@@ -246,18 +239,79 @@ export const UniversMarketplacePage: React.FC = () => {
               </p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredUnivers.map((univers) => (
-                <UniversCard
-                  key={univers.id}
-                  univers={univers}
-                  onView={handleView}
-                  onPurchase={handlePurchase}
-                  hideApprovalStatus={true}
-                  context="marketplace"
-                />
-              ))}
-            </div>
+            <>
+              <div className="grid grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-4 lg:gap-6">
+                {paginatedUnivers.map((univers) => (
+                  <UniversCard
+                    key={univers.id}
+                    univers={univers}
+                    onView={handleView}
+                    onPurchase={handlePurchase}
+                    hideApprovalStatus={true}
+                    context="marketplace"
+                  />
+                ))}
+              </div>
+
+              {/* Pagination */}
+              {totalPages > 1 && (
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-8 pt-6 border-t border-gray-200">
+                  <div className="text-sm text-gray-600">
+                    Page {currentPage} sur {totalPages} • {filteredUnivers.length} résultat{filteredUnivers.length > 1 ? 's' : ''}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                      disabled={currentPage === 1}
+                      className="flex items-center space-x-1"
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                      <span className="hidden sm:inline">Précédent</span>
+                    </Button>
+                    
+                    <div className="flex items-center gap-1">
+                      {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                        let pageNum;
+                        if (totalPages <= 5) {
+                          pageNum = i + 1;
+                        } else if (currentPage <= 3) {
+                          pageNum = i + 1;
+                        } else if (currentPage >= totalPages - 2) {
+                          pageNum = totalPages - 4 + i;
+                        } else {
+                          pageNum = currentPage - 2 + i;
+                        }
+                        
+                        return (
+                          <Button
+                            key={pageNum}
+                            variant={currentPage === pageNum ? "primary" : "secondary"}
+                            size="sm"
+                            onClick={() => setCurrentPage(pageNum)}
+                            className="min-w-[40px]"
+                          >
+                            {pageNum}
+                          </Button>
+                        );
+                      })}
+                    </div>
+
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                      disabled={currentPage === totalPages}
+                      className="flex items-center space-x-1"
+                    >
+                      <span className="hidden sm:inline">Suivant</span>
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </div>
       </Layout>

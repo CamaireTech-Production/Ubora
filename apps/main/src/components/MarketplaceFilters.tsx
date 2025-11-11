@@ -72,58 +72,61 @@ export const MarketplaceFilters: React.FC<MarketplaceFiltersProps> = ({
         />
       </div>
 
-      {/* Filters row */}
+      {/* Filters row - scrollable on mobile */}
       <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between">
-        <div className="flex flex-wrap gap-3 items-center">
-          {/* Category filter */}
-          <div className="flex items-center space-x-2">
-            <label className="text-sm font-medium text-gray-700 whitespace-nowrap">
-              Catégorie:
-            </label>
-            <Select
-              value={filters.category}
-              onChange={(e) => handleFilterChange('category', e.target.value)}
-              className="min-w-[150px]"
-              options={[
-                { value: 'all', label: 'Toutes' },
-                ...availableCategories.map(cat => ({ value: cat, label: cat }))
-              ]}
-            />
-          </div>
+        {/* Scrollable filters container for mobile */}
+        <div className="w-full lg:w-auto overflow-x-auto lg:overflow-visible -mx-6 px-6 lg:mx-0 lg:px-0">
+          <div className="flex gap-3 items-center min-w-max lg:min-w-0 lg:flex-wrap">
+            {/* Category filter */}
+            <div className="flex items-center space-x-2 flex-shrink-0">
+              <label className="text-sm font-medium text-gray-700 whitespace-nowrap hidden sm:inline">
+                Catégorie:
+              </label>
+              <Select
+                value={filters.category}
+                onChange={(e) => handleFilterChange('category', e.target.value)}
+                className="min-w-[150px]"
+                options={[
+                  { value: 'all', label: 'Toutes' },
+                  ...availableCategories.map(cat => ({ value: cat, label: cat }))
+                ]}
+              />
+            </div>
 
-          {/* Price filter */}
-          <div className="flex items-center space-x-2">
-            <label className="text-sm font-medium text-gray-700 whitespace-nowrap">
-              Prix:
-            </label>
-            <Select
-              value={filters.priceFilter}
-              onChange={(e) => handleFilterChange('priceFilter', e.target.value as any)}
-              className="min-w-[120px]"
-              options={[
-                { value: 'all', label: 'Tous' },
-                { value: 'free', label: 'Gratuit' },
-                { value: 'paid', label: 'Payant' }
-              ]}
-            />
-          </div>
+            {/* Price filter */}
+            <div className="flex items-center space-x-2 flex-shrink-0">
+              <label className="text-sm font-medium text-gray-700 whitespace-nowrap hidden sm:inline">
+                Prix:
+              </label>
+              <Select
+                value={filters.priceFilter}
+                onChange={(e) => handleFilterChange('priceFilter', e.target.value as any)}
+                className="min-w-[120px]"
+                options={[
+                  { value: 'all', label: 'Tous' },
+                  { value: 'free', label: 'Gratuit' },
+                  { value: 'paid', label: 'Payant' }
+                ]}
+              />
+            </div>
 
-          {/* Sort by */}
-          <div className="flex items-center space-x-2">
-            <label className="text-sm font-medium text-gray-700 whitespace-nowrap">
-              Trier par:
-            </label>
-            <Select
-              value={filters.sortBy}
-              onChange={(e) => handleFilterChange('sortBy', e.target.value as any)}
-              className="min-w-[160px]"
-              options={[
-                { value: 'popularity', label: 'Popularité' },
-                { value: 'newest', label: 'Plus récents' },
-                { value: 'price-asc', label: 'Prix croissant' },
-                { value: 'price-desc', label: 'Prix décroissant' }
-              ]}
-            />
+            {/* Sort by */}
+            <div className="flex items-center space-x-2 flex-shrink-0">
+              <label className="text-sm font-medium text-gray-700 whitespace-nowrap hidden sm:inline">
+                Trier par:
+              </label>
+              <Select
+                value={filters.sortBy}
+                onChange={(e) => handleFilterChange('sortBy', e.target.value as any)}
+                className="min-w-[160px]"
+                options={[
+                  { value: 'popularity', label: 'Popularité' },
+                  { value: 'newest', label: 'Plus récents' },
+                  { value: 'price-asc', label: 'Prix croissant' },
+                  { value: 'price-desc', label: 'Prix décroissant' }
+                ]}
+              />
+            </div>
           </div>
         </div>
 
@@ -133,7 +136,7 @@ export const MarketplaceFilters: React.FC<MarketplaceFiltersProps> = ({
             variant="secondary"
             size="sm"
             onClick={clearFilters}
-            className="flex items-center space-x-2"
+            className="flex items-center space-x-2 flex-shrink-0 w-full sm:w-auto justify-center sm:justify-start"
           >
             <X className="h-4 w-4" />
             <span>Réinitialiser</span>
@@ -141,24 +144,26 @@ export const MarketplaceFilters: React.FC<MarketplaceFiltersProps> = ({
         )}
       </div>
 
-      {/* Tags filter */}
+      {/* Tags filter - scrollable row */}
       {availableTags.length > 0 && (
         <div className="space-y-2">
           <label className="text-sm font-medium text-gray-700">Tags:</label>
-          <div className="flex flex-wrap gap-2">
-            {availableTags.map(tag => (
-              <button
-                key={tag}
-                onClick={() => handleTagToggle(tag)}
-                className={`px-3 py-1.5 rounded-full text-sm font-medium transition-all duration-200 ${
-                  filters.tags.includes(tag)
-                    ? 'bg-blue-500 text-white shadow-md ring-2 ring-blue-200'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-              >
-                {tag}
-              </button>
-            ))}
+          <div className="w-full overflow-x-auto -mx-6 px-6 lg:mx-0 lg:px-0 lg:overflow-visible">
+            <div className="flex gap-2 min-w-max lg:min-w-0 lg:flex-wrap">
+              {availableTags.map(tag => (
+                <button
+                  key={tag}
+                  onClick={() => handleTagToggle(tag)}
+                  className={`px-3 py-1.5 rounded-full text-sm font-medium transition-all duration-200 flex-shrink-0 whitespace-nowrap ${
+                    filters.tags.includes(tag)
+                      ? 'bg-blue-500 text-white shadow-md ring-2 ring-blue-200'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  {tag}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       )}
