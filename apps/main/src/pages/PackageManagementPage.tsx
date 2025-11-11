@@ -491,7 +491,6 @@ export const PackageManagementPage: React.FC = () => {
               className="flex items-center space-x-1 self-start"
             >
               <ArrowLeft className="h-4 w-4" />
-              <span>Retour</span>
             </Button>
             <div className="text-center sm:text-left">
               <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900">

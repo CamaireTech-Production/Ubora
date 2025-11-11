@@ -17,7 +17,7 @@ import {
   deleteField
 } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
-import { Univers, UniversInstance, UniversDefinitions, UniversMetadata, UniversOwnership, UniversUsage, ActiveUnivers, UniversVersion } from '../types';
+import { Univers, UniversInstance, UniversDefinitions, UniversMetadata, UniversOwnership, UniversUsage, ActiveUnivers, UniversVersion, UniversDraftData } from '../types';
 import { universInstantiationService, InstantiationResult } from './universInstantiationService';
 import { unifiedNotificationService } from './unifiedNotificationService';
 
@@ -53,12 +53,27 @@ class UniversService {
    * Convertir les données Firestore en Univers
    */
   private convertFirestoreToUnivers(id: string, data: any): Univers {
+    // Convertir draftData si présent
+    let draftData = undefined;
+    if (data.draftData) {
+      draftData = {
+        metadata: data.draftData.metadata ? {
+          ...data.draftData.metadata,
+          createdAt: data.draftData.metadata.createdAt?.toDate() || undefined
+        } : undefined,
+        definitions: data.draftData.definitions || undefined,
+        draftVersion: data.draftData.draftVersion || undefined,
+        updatedAt: data.draftData.updatedAt?.toDate() || undefined
+      };
+    }
+
     return {
       id,
       metadata: {
         ...data.metadata,
         isDefault: data.metadata?.isDefault === true, // S'assurer que isDefault est bien préservé
-        createdAt: data.metadata?.createdAt?.toDate() || new Date()
+        createdAt: data.metadata?.createdAt?.toDate() || new Date(),
+        publishedVersion: data.metadata?.publishedVersion || undefined
       },
       ownership: {
         ...data.ownership,
@@ -74,7 +89,9 @@ class UniversService {
       usage: {
         ...data.usage,
         lastUsedAt: data.usage?.lastUsedAt?.toDate() || undefined
-      }
+      },
+      draftData: draftData,
+      hasUnpublishedChanges: data.hasUnpublishedChanges ?? false
     } as Univers;
   }
 
@@ -151,6 +168,7 @@ class UniversService {
       };
 
       // Préparer les métadonnées avec valeurs par défaut
+      const isMarketplace = univers.ownership.isMarketplaceTemplate || false;
       const metadata: UniversMetadata = {
         name: univers.metadata.name.trim(),
         description: univers.metadata.description?.trim() || '',
@@ -162,7 +180,10 @@ class UniversService {
         // INCLURE TOUS LES CHAMPS IMPORTANTS DE univers.metadata
         isDefault: univers.metadata.isDefault === true,
         isActive: univers.metadata.isActive === true,
-        packageAccess: univers.metadata.packageAccess || undefined
+        packageAccess: univers.metadata.packageAccess || undefined,
+        // Pour les univers marketplace : publishedVersion sera défini après approbation
+        // Pour les univers privés : publishedVersion n'est pas nécessaire
+        publishedVersion: isMarketplace ? undefined : undefined
       };
 
       // Préparer l'ownership avec valeurs par défaut
@@ -301,8 +322,6 @@ class UniversService {
         updateKeys: updates ? Object.keys(updates) : []
       });
 
-      const docRef = doc(db, this.collectionName, id);
-      
       // 1. Récupérer le Univers actuel pour obtenir la version actuelle
       console.log('🔍 universService.update - Fetching current Univers...');
       currentUnivers = await this.getById(id);
@@ -319,8 +338,17 @@ class UniversService {
         updatedBy: updatedBy
       });
 
-      const currentVersion = currentUnivers.metadata.version || 1;
       const wasMarketplace = currentUnivers.ownership.isMarketplaceTemplate;
+      
+      // NOUVEAU: Pour les univers marketplace existants, utiliser saveDraft() au lieu de modifier directement
+      if (wasMarketplace && updatedBy && currentUnivers.ownership.createdBy === updatedBy) {
+        console.log('🔍 universService.update - Marketplace universe detected, using saveDraft() instead');
+        await this.saveDraft(id, updates, updatedBy);
+        return; // Sortir ici, saveDraft() a géré la sauvegarde
+      }
+
+      const docRef = doc(db, this.collectionName, id);
+      const currentVersion = currentUnivers.metadata.version || 1;
 
       // 2. Initialiser updateData avec les updates (sans nettoyer undefined maintenant)
       // On nettoiera undefined après avoir défini les valeurs ownership
@@ -359,13 +387,12 @@ class UniversService {
         updateData.metadata = {};
       }
       updateData.metadata.version = newVersion;
-      const isBecomingMarketplace = !wasMarketplace && isNowMarketplace;
       const isStayingMarketplace = wasMarketplace && isNowMarketplace;
       
       console.log('🔍 universService.update - Marketplace detection:', {
         wasMarketplace,
         isNowMarketplace,
-        isBecomingMarketplace,
+        isBecomingMarketplace: !wasMarketplace && isNowMarketplace,
         isStayingMarketplace,
         updateDataOwnership: updateData.ownership
       });
@@ -393,7 +420,7 @@ class UniversService {
       const fieldsToDelete: Record<string, any> = {};
 
       // Si on passe en marketplace pour la première fois
-      if (isBecomingMarketplace) {
+      if (!wasMarketplace && isNowMarketplace) {
         console.log('🔍 universService.update - Becoming marketplace for first time');
         updateData.ownership.isMarketplaceTemplate = true;
         updateData.ownership.approvalStatus = 'pending';
@@ -863,17 +890,309 @@ class UniversService {
   /**
    * Récupérer un Univers par ID
    */
-  async getById(id: string): Promise<Univers | null> {
+  async getById(id: string, userId?: string): Promise<Univers | null> {
     try {
       const docRef = doc(db, this.collectionName, id);
       const docSnap = await getDoc(docRef);
       
       if (docSnap.exists()) {
-        return this.convertFirestoreToUnivers(docSnap.id, docSnap.data());
+        const univers = this.convertFirestoreToUnivers(docSnap.id, docSnap.data());
+        
+        // Si userId est fourni et que c'est le créateur, fusionner le draft avec les données principales
+        if (userId && univers.ownership.createdBy === userId && univers.draftData) {
+          // Fusionner draftData avec les données principales pour le créateur
+          return this.mergeDraftWithPublished(univers);
+        }
+        
+        return univers;
       }
       return null;
     } catch (error) {
       console.error('Erreur lors de la récupération du Univers:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Fusionner les données draft avec les données publiées pour le créateur
+   * Retourne un Univers avec les données draft appliquées
+   */
+  private mergeDraftWithPublished(univers: Univers): Univers {
+    if (!univers.draftData) {
+      return univers;
+    }
+
+    const draft = univers.draftData;
+    
+    // Fusionner les métadonnées
+    const mergedMetadata: UniversMetadata = {
+      ...univers.metadata,
+      ...(draft.metadata || {}),
+      // Préserver publishedVersion et version
+      publishedVersion: univers.metadata.publishedVersion || univers.metadata.version,
+      version: draft.metadata?.version || univers.metadata.version
+    };
+
+    // Fusionner les définitions
+    const mergedDefinitions: UniversDefinitions = {
+      forms: draft.definitions?.forms || univers.definitions.forms,
+      dashboards: draft.definitions?.dashboards || univers.definitions.dashboards,
+      instructions: draft.definitions?.instructions || univers.definitions.instructions,
+      lists: draft.definitions?.lists || univers.definitions.lists,
+      reports: draft.definitions?.reports || univers.definitions.reports
+    };
+    
+    return {
+      ...univers,
+      metadata: mergedMetadata,
+      definitions: mergedDefinitions
+    };
+  }
+
+  /**
+   * Récupérer la version draft d'un Univers (pour le créateur uniquement)
+   */
+  async getDraftVersion(id: string, userId: string): Promise<Univers | null> {
+    try {
+      const univers = await this.getById(id, userId);
+      if (!univers) {
+        return null;
+      }
+
+      // Vérifier que c'est le créateur
+      if (univers.ownership.createdBy !== userId) {
+        throw new Error('Seul le créateur peut accéder à la version draft');
+      }
+
+      // Si pas de draft, retourner null
+      if (!univers.draftData || !univers.hasUnpublishedChanges) {
+        return null;
+      }
+
+      // Retourner la version fusionnée (draft + published)
+      return this.mergeDraftWithPublished(univers);
+    } catch (error) {
+      console.error('Erreur lors de la récupération de la version draft:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Sauvegarder les modifications dans le draft (pour les univers marketplace uniquement)
+   * Ne modifie pas la version publiée
+   */
+  async saveDraft(id: string, updates: Partial<Univers>, updatedBy: string): Promise<void> {
+    try {
+      console.log('🔍 universService.saveDraft - START', {
+        universId: id,
+        updatedBy,
+        hasUpdates: !!updates
+      });
+
+      // Récupérer le Univers actuel
+      const currentUnivers = await this.getById(id);
+      if (!currentUnivers) {
+        throw new Error(`Univers not found: ${id}`);
+      }
+
+      // Vérifier que c'est le créateur
+      if (currentUnivers.ownership.createdBy !== updatedBy) {
+        throw new Error('Seul le créateur peut sauvegarder un draft');
+      }
+
+      // Vérifier que c'est un univers marketplace
+      if (!currentUnivers.ownership.isMarketplaceTemplate) {
+        throw new Error('saveDraft() ne peut être utilisé que pour les univers marketplace. Utilisez update() pour les univers privés.');
+      }
+
+      const docRef = doc(db, this.collectionName, id);
+      
+      // Calculer la nouvelle version draft
+      const currentDraftVersion = currentUnivers.draftData?.draftVersion || 0;
+      const newDraftVersion = currentDraftVersion + 1;
+
+      // Préparer les données du draft
+      const draftData: UniversDraftData = {
+        metadata: updates.metadata ? {
+          ...updates.metadata,
+          // Ne pas inclure publishedVersion dans le draft
+          publishedVersion: undefined
+        } : currentUnivers.draftData?.metadata,
+        definitions: updates.definitions || currentUnivers.draftData?.definitions,
+        draftVersion: newDraftVersion,
+        updatedAt: new Date()
+      };
+
+      // Convertir les dates en Timestamps Firestore
+      const draftDataForFirestore: any = {
+        ...draftData,
+        updatedAt: Timestamp.fromDate(draftData.updatedAt!)
+      };
+
+      if (draftDataForFirestore.metadata?.createdAt) {
+        draftDataForFirestore.metadata.createdAt = Timestamp.fromDate(draftDataForFirestore.metadata.createdAt);
+      }
+
+      // Nettoyer les valeurs undefined
+      const cleanDraftData = this.removeUndefinedValues(draftDataForFirestore);
+
+      // Mettre à jour le document avec le draft
+      await updateDoc(docRef, {
+        draftData: cleanDraftData,
+        hasUnpublishedChanges: true
+      });
+
+      console.log(`✅ Draft saved: ${id} (draft v${newDraftVersion})`);
+    } catch (error) {
+      console.error('❌ Erreur lors de la sauvegarde du draft:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Publier le draft au marketplace (créer une UniversVersion avec pending)
+   * La version publiée actuelle reste disponible dans le marketplace
+   */
+  async publishDraft(id: string, updatedBy: string): Promise<void> {
+    try {
+      console.log('🔍 universService.publishDraft - START', {
+        universId: id,
+        updatedBy
+      });
+
+      // Récupérer le Univers actuel
+      const currentUnivers = await this.getById(id, updatedBy);
+      if (!currentUnivers) {
+        throw new Error(`Univers not found: ${id}`);
+      }
+
+      // Vérifier que c'est le créateur
+      if (currentUnivers.ownership.createdBy !== updatedBy) {
+        throw new Error('Seul le créateur peut publier un draft');
+      }
+
+      // Vérifier qu'il y a un draft
+      if (!currentUnivers.draftData || !currentUnivers.hasUnpublishedChanges) {
+        throw new Error('Aucun draft à publier');
+      }
+
+      // Validation : vérifier que le draft contient des données valides
+      const draft = currentUnivers.draftData;
+      if (!draft.metadata && !draft.definitions) {
+        throw new Error('Le draft est vide. Veuillez ajouter des modifications avant de publier.');
+      }
+
+      // Validation : vérifier qu'au moins un formulaire est présent (si definitions est modifié)
+      if (draft.definitions) {
+        const forms = draft.definitions.forms || currentUnivers.definitions.forms || [];
+        if (forms.length === 0 && !currentUnivers.metadata.isDefault) {
+          throw new Error('Au moins un formulaire est requis pour publier un Univers');
+        }
+      }
+
+      // Vérifier que c'est un univers marketplace
+      if (!currentUnivers.ownership.isMarketplaceTemplate) {
+        throw new Error('publishDraft() ne peut être utilisé que pour les univers marketplace');
+      }
+      
+      // Calculer la nouvelle version basée sur les versions approuvées
+      const versions = await this.getVersionsByUnivers(id);
+      const approvedVersions = versions.filter(v => v.approvalStatus === 'approved');
+      
+      let newVersion: number;
+      if (approvedVersions.length === 0) {
+        newVersion = 1;
+      } else {
+        const lastApprovedVersion = approvedVersions[0];
+        newVersion = lastApprovedVersion.version + 1;
+      }
+
+      // Créer un document UniversVersion avec approvalStatus: 'pending'
+      // Utiliser draft qui a été déclaré plus haut
+      const versionData: Partial<UniversVersion> = {
+        universId: id,
+        version: newVersion,
+        previousVersion: currentUnivers.metadata.publishedVersion || (newVersion - 1),
+        createdBy: updatedBy,
+        approvalStatus: 'pending',
+        changes: {
+          metadata: !!draft.metadata,
+          definitions: {
+            forms: !!draft.definitions?.forms,
+            dashboards: !!draft.definitions?.dashboards,
+            instructions: !!draft.definitions?.instructions,
+            lists: !!draft.definitions?.lists,
+            reports: !!draft.definitions?.reports
+          }
+        }
+      };
+
+      const versionDocRef = doc(collection(db, this.versionsCollectionName));
+      await setDoc(versionDocRef, {
+        ...versionData,
+        createdAt: serverTimestamp()
+      });
+
+      // Mettre à jour le statut d'approbation du Univers (mais garder la version publiée)
+      const docRef = doc(db, this.collectionName, id);
+      await updateDoc(docRef, {
+        'ownership.approvalStatus': 'pending',
+        'ownership.approvedBy': deleteField(),
+        'ownership.approvedAt': deleteField(),
+        'ownership.rejectionReason': deleteField()
+      });
+
+      console.log(`✅ Draft published to marketplace: ${id} (v${newVersion} pending approval)`);
+      console.log(`   Published version ${currentUnivers.metadata.publishedVersion || currentUnivers.metadata.version} remains available`);
+    } catch (error) {
+      console.error('❌ Erreur lors de la publication du draft:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Annuler le draft (supprimer le draft et revenir à la version publiée)
+   * Permet au créateur de supprimer le draft et revenir à la version publiée
+   */
+  async cancelDraft(id: string, userId: string): Promise<void> {
+    try {
+      console.log('🔍 universService.cancelDraft - START', {
+        universId: id,
+        userId
+      });
+
+      // Récupérer le Univers actuel
+      const currentUnivers = await this.getById(id, userId);
+      if (!currentUnivers) {
+        throw new Error(`Univers not found: ${id}`);
+      }
+
+      // Vérifier que c'est le créateur
+      if (currentUnivers.ownership.createdBy !== userId) {
+        throw new Error('Seul le créateur peut annuler un draft');
+      }
+
+      // Vérifier qu'il y a un draft
+      if (!currentUnivers.draftData || !currentUnivers.hasUnpublishedChanges) {
+        throw new Error('Aucun draft à annuler');
+      }
+
+      // Vérifier que c'est un univers marketplace
+      if (!currentUnivers.ownership.isMarketplaceTemplate) {
+        throw new Error('cancelDraft() ne peut être utilisé que pour les univers marketplace');
+      }
+
+      const docRef = doc(db, this.collectionName, id);
+      
+      // Supprimer le draftData et hasUnpublishedChanges
+      await updateDoc(docRef, {
+        draftData: deleteField(),
+        hasUnpublishedChanges: false
+      });
+
+      console.log(`✅ Draft cancelled: ${id}`);
+    } catch (error) {
+      console.error('❌ Erreur lors de l\'annulation du draft:', error);
       throw error;
     }
   }
@@ -953,6 +1272,7 @@ class UniversService {
 
   /**
    * Récupérer les Univers du marketplace (approved templates)
+   * Retourne uniquement la version publiée (publishedVersion), pas le draft
    */
   async getMarketplaceTemplates(): Promise<Univers[]> {
     try {
@@ -964,9 +1284,35 @@ class UniversService {
       );
       
       const querySnapshot = await getDocs(q);
-      return querySnapshot.docs.map(doc => 
-        this.convertFirestoreToUnivers(doc.id, doc.data())
-      );
+      const universes = querySnapshot.docs.map(doc => {
+        const univers = this.convertFirestoreToUnivers(doc.id, doc.data());
+        
+        // Pour le marketplace : utiliser uniquement la version publiée
+        // Si publishedVersion existe, l'utiliser pour metadata.version
+        if (univers.metadata.publishedVersion && univers.metadata.publishedVersion > 0) {
+          // Créer une copie avec la version publiée
+          return {
+            ...univers,
+            metadata: {
+              ...univers.metadata,
+              version: univers.metadata.publishedVersion // Utiliser publishedVersion au lieu de la version draft
+            },
+            // Ne pas inclure draftData dans le marketplace
+            draftData: undefined,
+            hasUnpublishedChanges: false
+          };
+        }
+        
+        return univers;
+      });
+      
+      // Filtrer pour ne garder que ceux qui ont une publishedVersion (version approuvée disponible)
+      // Les univers avec seulement un draft ne doivent pas apparaître dans le marketplace
+      return universes.filter(univers => {
+        const publishedVersion = univers.metadata.publishedVersion || univers.metadata.version;
+        // S'assurer qu'il y a une version publiée valide
+        return publishedVersion > 0;
+      });
     } catch (error) {
       console.error('Erreur lors de la récupération des Univers du marketplace:', error);
       throw error;
@@ -1001,11 +1347,26 @@ class UniversService {
       });
 
       // 4. Récupérer les Univers templates pour les instances
+      // Pour les univers achetés, utiliser uniquement la version publiée (pas le draft)
       if (purchasedUniversIds.size > 0) {
         const purchasedUniversPromises = Array.from(purchasedUniversIds).map(async (universId) => {
           try {
+            // Ne pas passer userId pour éviter de récupérer le draft
             const univers = await this.getById(universId);
             if (univers) {
+              // Pour les univers achetés : utiliser uniquement la version publiée
+              if (univers.metadata.publishedVersion && univers.metadata.publishedVersion > 0) {
+                return {
+                  ...univers,
+                  metadata: {
+                    ...univers.metadata,
+                    version: univers.metadata.publishedVersion // Utiliser publishedVersion
+                  },
+                  // Ne pas inclure draftData pour les univers achetés
+                  draftData: undefined,
+                  hasUnpublishedChanges: false
+                };
+              }
               return univers;
             }
             return null;
@@ -1170,11 +1531,16 @@ class UniversService {
     universId: string,
     userId: string,
     userRole: 'directeur' | 'employe' | 'admin',
-    agencyId: string
+    agencyId: string,
+    useDraft: boolean = false
   ): Promise<{ instanceId: string; result: InstantiationResult }> {
     try {
       // 1. Fetch the Univers template
-      const univers = await this.getById(universId);
+      // Si useDraft est true et que c'est le créateur, récupérer avec userId pour avoir le draft
+      const univers = useDraft 
+        ? await this.getById(universId, userId)
+        : await this.getById(universId);
+      
       if (!univers) {
         throw new Error(`Univers template not found: ${universId}`);
       }
@@ -1182,6 +1548,24 @@ class UniversService {
       // Validate that the Univers has definitions
       if (!univers.definitions) {
         throw new Error('Univers template has no definitions');
+      }
+
+      // Déterminer la version à utiliser pour l'instance
+      const isOwner = univers.ownership.createdBy === userId;
+      const isMarketplace = univers.ownership.isMarketplaceTemplate || false;
+      
+      // Pour les non-propriétaires : utiliser uniquement publishedVersion
+      // Pour le propriétaire : utiliser la version draft si useDraft=true, sinon publishedVersion
+      let instanceVersion: number;
+      if (isOwner && isMarketplace && useDraft) {
+        // Propriétaire utilisant le draft
+        instanceVersion = univers.metadata.version || 1;
+      } else if (isMarketplace && univers.metadata.publishedVersion) {
+        // Non-propriétaire ou propriétaire sans draft : utiliser publishedVersion
+        instanceVersion = univers.metadata.publishedVersion;
+      } else {
+        // Univers privé ou pas de publishedVersion : utiliser metadata.version
+        instanceVersion = univers.metadata.version || 1;
       }
 
       // 2. Generate a unique instance ID (ce sera l'ID de l'instance Firestore)
@@ -1202,7 +1586,7 @@ class UniversService {
       // Note: Firestore doesn't accept undefined values, so we omit optional fields
       const instanceData: any = {
         universId,
-        universVersion: univers.metadata.version || 1,
+        universVersion: instanceVersion, // Utiliser la version déterminée ci-dessus
         userId,
         agencyId,
         createdAt: new Date(),
@@ -1217,7 +1601,7 @@ class UniversService {
         },
         metadata: {
           universName: univers.metadata.name,
-          universVersion: univers.metadata.version || 1,
+          universVersion: instanceVersion, // Utiliser la version déterminée ci-dessus
           isFromMarketplace: univers.ownership.isMarketplaceTemplate || false
           // paymentId and purchaseDate will be added later if purchased
         },
@@ -1306,11 +1690,13 @@ class UniversService {
       }
 
       // 6. Créer l'instance via instantiate()
+      // Pour les achats : toujours utiliser la version publiée (pas le draft)
       const { instanceId } = await this.instantiate(
         universId,
         directorId,
         'directeur',
-        agencyId
+        agencyId,
+        false // useDraft = false pour les achats
       );
 
       // 7. Mettre à jour l'instance pour ajouter les métadonnées d'achat
@@ -1487,7 +1873,9 @@ class UniversService {
       }
 
       // Si c'est la première version (le Univers lui-même est en attente)
-      const isFirstVersion = univers.ownership.approvalStatus === 'pending' && version === (univers.metadata.version || 1);
+      // Pour la première version, on utilise la version actuelle du Univers
+      const currentUniversVersion = univers.metadata.version || 1;
+      const isFirstVersion = univers.ownership.approvalStatus === 'pending' && version === currentUniversVersion;
       
       if (isFirstVersion) {
         // Pour la première version, créer un document UniversVersion pour l'historique
@@ -1535,14 +1923,53 @@ class UniversService {
         });
       }
 
+      // Récupérer le Univers pour obtenir le draftData si présent
+      const universBeforeApproval = await this.getById(universId);
+      
       // Mettre à jour le document Univers
       const universRef = doc(db, this.collectionName, universId);
-      await updateDoc(universRef, {
+      
+      // Préparer les données de mise à jour
+      const updateData: any = {
         'ownership.approvalStatus': 'approved',
         'ownership.approvedBy': adminId,
         'ownership.approvedAt': serverTimestamp(),
         'ownership.rejectionReason': deleteField()
-      });
+      };
+
+      // Mettre à jour publishedVersion avec la version approuvée
+      // Si c'est la première version, utiliser la version actuelle du Univers
+      // Sinon, utiliser la version approuvée
+      const publishedVersionToSet = isFirstVersion ? currentUniversVersion : version;
+      updateData['metadata.publishedVersion'] = publishedVersionToSet;
+
+      // Si le draftData existe, appliquer les modifications du draft au document principal
+      // et nettoyer le draftData
+      if (universBeforeApproval?.draftData && universBeforeApproval.hasUnpublishedChanges) {
+        console.log('🔍 approveNewVersion - Applying draft changes to published version');
+        
+        const draft = universBeforeApproval.draftData;
+        
+        // Appliquer les métadonnées du draft (sans publishedVersion)
+        if (draft.metadata) {
+          Object.keys(draft.metadata).forEach(key => {
+            if (key !== 'publishedVersion') {
+              updateData[`metadata.${key}`] = draft.metadata![key as keyof UniversMetadata];
+            }
+          });
+        }
+        
+        // Appliquer les définitions du draft
+        if (draft.definitions) {
+          updateData['definitions'] = draft.definitions;
+        }
+        
+        // Nettoyer le draftData après application
+        updateData['draftData'] = deleteField();
+        updateData['hasUnpublishedChanges'] = false;
+      }
+
+      await updateDoc(universRef, updateData);
 
       // Vérifier que la mise à jour a bien été appliquée
       const updatedUnivers = await this.getById(universId);
@@ -1552,7 +1979,8 @@ class UniversService {
         await updateDoc(universRef, {
           'ownership.approvalStatus': 'approved',
           'ownership.approvedBy': adminId,
-          'ownership.approvedAt': serverTimestamp()
+          'ownership.approvedAt': serverTimestamp(),
+          'metadata.publishedVersion': version
         });
       }
 
@@ -2030,16 +2458,29 @@ class UniversService {
       }
 
       // 2. Récupérer le template Univers et vérifier qu'une mise à jour est disponible
+      // Ne pas passer userId pour éviter de récupérer le draft pour les non-propriétaires
       const univers = await this.getById(oldInstance.universId);
       if (!univers) {
         throw new Error(`Univers template not found: ${oldInstance.universId}`);
       }
 
       const currentVersion = oldInstance.universVersion || oldInstance.metadata?.universVersion || 1;
-      const latestVersion = univers.metadata.version || 1;
       
       // Vérifier si l'utilisateur est le propriétaire du template
       const isOwner = univers.ownership.createdBy === userId;
+      const isMarketplace = univers.ownership.isMarketplaceTemplate || false;
+      
+      // Déterminer la version à utiliser pour la mise à jour
+      // Pour les non-propriétaires : utiliser uniquement publishedVersion (version approuvée)
+      // Pour le propriétaire : utiliser la version draft si disponible
+      let latestVersion: number;
+      if (isOwner && isMarketplace) {
+        // Propriétaire : peut utiliser la version draft
+        latestVersion = univers.metadata.version || 1;
+      } else {
+        // Non-propriétaire : utiliser uniquement la version publiée
+        latestVersion = univers.metadata.publishedVersion || univers.metadata.version || 1;
+      }
       
       console.log(`🔍 Upgrade check:`, {
         instanceId: oldInstanceId,
@@ -2047,6 +2488,9 @@ class UniversService {
         currentVersion,
         latestVersion,
         isOwner,
+        isMarketplace,
+        publishedVersion: univers.metadata.publishedVersion,
+        draftVersion: univers.metadata.version,
         updateAvailable: oldInstance.updateAvailable,
         latestAvailableVersion: oldInstance.latestAvailableVersion,
         userId
@@ -2056,8 +2500,8 @@ class UniversService {
       let newVersion: number;
       
       // Pour le propriétaire : toujours utiliser la version du template (ignore latestAvailableVersion)
-      if (isOwner && latestVersion > currentVersion) {
-        // Propriétaire : toujours utiliser la dernière version du template
+      if (isOwner && isMarketplace && latestVersion > currentVersion) {
+        // Propriétaire : toujours utiliser la dernière version du template (draft si disponible)
         newVersion = latestVersion;
         console.log(`📌 Owner: using latest template version: v${newVersion}`);
       } else if (oldInstance.updateAvailable && oldInstance.latestAvailableVersion) {
@@ -2082,16 +2526,26 @@ class UniversService {
       }
 
       // 3. Vérifier que le Univers template a la bonne version
-      if (univers.metadata.version !== newVersion) {
-        throw new Error(`Univers template version ${univers.metadata.version} does not match expected version ${newVersion}`);
+      // Pour les non-propriétaires : vérifier publishedVersion
+      // Pour le propriétaire : vérifier metadata.version (peut être draft)
+      const expectedTemplateVersion = (isOwner && isMarketplace) 
+        ? univers.metadata.version 
+        : (univers.metadata.publishedVersion || univers.metadata.version);
+      
+      if (expectedTemplateVersion !== newVersion) {
+        throw new Error(`Univers template version ${expectedTemplateVersion} does not match expected version ${newVersion}. Owner: ${isOwner}, Marketplace: ${isMarketplace}`);
       }
 
       // 4. Créer une nouvelle instance avec la nouvelle version
+      // Pour le propriétaire : utiliser useDraft=true si la nouvelle version est un draft
+      // Pour les non-propriétaires : toujours utiliser la version publiée (useDraft=false)
+      const useDraft = isOwner && isMarketplace && newVersion === univers.metadata.version && univers.hasUnpublishedChanges;
       const { instanceId: newInstanceId, result: instantiationResult } = await this.instantiate(
         oldInstance.universId,
         userId,
         userRole,
-        agencyId
+        agencyId,
+        useDraft
       );
 
       const newInstance = await this.getInstanceById(newInstanceId);
@@ -2576,9 +3030,10 @@ class UniversService {
   ): Promise<ResourcesCheckResult> {
     try {
       // Si le Univers n'est pas fourni, le récupérer
-      if (!univers) {
-        univers = await this.getById(universId);
-        if (!univers) {
+      let currentUnivers: Univers | undefined = univers;
+      if (!currentUnivers) {
+        const fetchedUnivers = await this.getById(universId);
+        if (!fetchedUnivers) {
           return {
             exists: false,
             isConsistent: false,
@@ -2587,10 +3042,11 @@ class UniversService {
             inconsistencies: ['Univers non trouvé']
           };
         }
+        currentUnivers = fetchedUnivers;
       }
 
       // Utiliser la fonction de vérification de cohérence
-      return await this.checkResourcesConsistency(instanceId, universId, agencyId, univers);
+      return await this.checkResourcesConsistency(instanceId, universId, agencyId, currentUnivers);
     } catch (error) {
       // Si l'index n'existe pas ou erreur, considérer qu'aucune ressource n'existe pour cette instance
       console.warn('⚠️ Erreur lors de la vérification des ressources pour l\'instance:', error);
@@ -2984,13 +3440,29 @@ class UniversService {
   async activateUnivers(
     universId: string,
     directorId: string,
-    agencyId: string
+    agencyId: string,
+    useDraft: boolean = false
   ): Promise<void> {
     try {
       // 1. Vérifier que le Univers appartient au directeur ou est acheté
-      const univers = await this.getById(universId);
+      // Si useDraft est true, récupérer avec userId pour avoir accès au draft
+      const univers = useDraft 
+        ? await this.getById(universId, directorId)
+        : await this.getById(universId);
       if (!univers) {
         throw new Error('Univers non trouvé');
+      }
+
+      // Vérifier que si useDraft est true, c'est bien le créateur et qu'il y a un draft
+      if (useDraft) {
+        const isOwner = univers.ownership.createdBy === directorId;
+        if (!isOwner) {
+          throw new Error('Seul le créateur peut activer la version draft');
+        }
+        if (!univers.draftData || !univers.hasUnpublishedChanges) {
+          throw new Error('Aucun draft disponible pour activation');
+        }
+        console.log('🔍 activateUnivers - Using draft version for testing');
       }
 
       // 2. Validation: au moins un formulaire est requis pour activation (sauf pour les univers par défaut)
@@ -3028,6 +3500,9 @@ class UniversService {
       }
       
       // 3. Vérifier si c'est une instance achetée ou créer/trouver une instance pour le propriétaire
+      // Déterminer si on doit utiliser le draft pour l'instanciation
+      const shouldUseDraft = useDraft && isOwner && univers.ownership.isMarketplaceTemplate && univers.hasUnpublishedChanges;
+      
       let instanceId: string | undefined;
       if (univers.ownership.isMarketplaceTemplate && !isOwner) {
         // Chercher une instance de ce Univers pour ce directeur (non-propriétaire)
@@ -3086,7 +3561,8 @@ class UniversService {
             universId,
             directorId,
             'directeur',
-            agencyId
+            agencyId,
+            shouldUseDraft // Utiliser le draft si demandé
           );
           instanceId = newInstanceId;
           

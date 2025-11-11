@@ -22,7 +22,8 @@ import {
   FileBarChart,
   CheckCircle,
   AlertCircle,
-  Loader2
+  Loader2,
+  Sparkles
 } from 'lucide-react';
 
 // Tab order matching creation wizard steps
@@ -48,16 +49,23 @@ const TAB_CONFIGS: TabConfig[] = [
 
 interface UniversEditorProps {
   univers: Univers;
-  onSave: (updatedUnivers: Partial<Univers>) => void;
+  onSave: (updatedUnivers: Partial<Univers>, saveAsDraft?: boolean, publishToMarketplace?: boolean) => void;
   onCancel: () => void;
+  userId?: string; // Pour vérifier si c'est le créateur
 }
 
 export const UniversEditor: React.FC<UniversEditorProps> = ({
   univers,
   onSave,
-  onCancel
+  onCancel,
+  userId
 }) => {
   const { showSuccess, showError } = useToast();
+  
+  // Vérifier si c'est un univers marketplace et si l'utilisateur est le créateur
+  const isMarketplace = univers.ownership.isMarketplaceTemplate;
+  const isOwner = userId && univers.ownership.createdBy === userId;
+  const hasUnpublishedChanges = univers.hasUnpublishedChanges || false;
 
   // State mirrors univers with all editable data
   const [metadata, setMetadata] = useState(univers.metadata);
@@ -424,8 +432,8 @@ export const UniversEditor: React.FC<UniversEditorProps> = ({
     universInstanceId: null // When editing a Univers (not an instance), instanceId is null
   });
 
-  // Save handler
-  const handleSave = async () => {
+  // Save handler - pour les univers privés ou pour sauvegarder comme draft
+  const handleSave = async (saveAsDraft: boolean = false, publishToMarketplace: boolean = false) => {
     // Basic validation
     if (!metadata.name?.trim()) {
       showError('Le nom du Univers est requis');
@@ -483,49 +491,78 @@ export const UniversEditor: React.FC<UniversEditorProps> = ({
       
       console.log('🔍 UniversEditor - Saving Univers:', {
         publishOption,
+        saveAsDraft,
+        publishToMarketplace,
+        isMarketplace,
+        isOwner,
         metadataPublishOption: (metadata as any).publishOption,
-        metadataKeys: Object.keys(metadata),
         currentIsMarketplace: univers.ownership.isMarketplaceTemplate,
         currentApprovalStatus: univers.ownership.approvalStatus,
         price,
-        currency,
-        fullMetadata: metadata
+        currency
       });
       
+      // Pour les univers marketplace et le créateur : utiliser le système draft
+      if (isMarketplace && isOwner && saveAsDraft) {
+        // Sauvegarder comme draft uniquement
+        const updatedMetadata = {
+          ...metadata,
+          tags: metadata.tags || [],
+          price: publishOption === 'marketplace' ? price : undefined,
+          currency: publishOption === 'marketplace' ? currency : undefined
+        };
+        
+        const updatedUnivers: Partial<Univers> = {
+          metadata: updatedMetadata,
+          definitions: definitions
+        };
+
+        await onSave(updatedUnivers, true, false);
+        setHasChanges(false);
+        showSuccess('Brouillon sauvegardé avec succès. Vous pouvez tester vos modifications avant de les publier.');
+        return;
+      }
+      
+      // Pour publier au marketplace (créer une version en attente d'approbation)
+      if (isMarketplace && isOwner && publishToMarketplace) {
+        // D'abord sauvegarder le draft, puis le publier
+        const updatedMetadata = {
+          ...metadata,
+          tags: metadata.tags || [],
+          price: publishOption === 'marketplace' ? price : undefined,
+          currency: publishOption === 'marketplace' ? currency : undefined
+        };
+        
+        const updatedUnivers: Partial<Univers> = {
+          metadata: updatedMetadata,
+          definitions: definitions
+        };
+
+        await onSave(updatedUnivers, false, true);
+        setHasChanges(false);
+        showSuccess('Modifications soumises au marketplace. En attente d\'approbation par un administrateur.');
+        return;
+      }
+      
+      // Pour les univers privés ou non-marketplace : comportement normal
       // Prepare updated Univers with incremented version
-      // Ensure tags is always an array (never undefined)
       const updatedMetadata = {
         ...metadata,
         version: (metadata.version || 1) + 1, // Increment version
-        tags: metadata.tags || [], // Ensure tags is always an array
-        // Prix et devise pour marketplace
+        tags: metadata.tags || [],
         price: publishOption === 'marketplace' ? price : undefined,
         currency: publishOption === 'marketplace' ? currency : undefined
       };
       
-      // Préparer ownership basé sur publishOption
-      // CRITIQUE: Préserver createdBy et autres champs non modifiés
-      // Pour marketplace: si l'Univers était privé, on garde undefined pour agencyId
-      // (un Univers marketplace peut être créé sans agencyId spécifique)
-      // Pour privé: on retire l'agencyId si présent
       const updatedOwnership: Partial<Univers['ownership']> = {
-        // Préserver createdBy - ne JAMAIS le modifier
         createdBy: univers.ownership.createdBy,
         isMarketplaceTemplate: publishOption === 'marketplace',
         approvalStatus: publishOption === 'marketplace' ? 'pending' as const : 'approved' as const
       };
       
-      // Gérer agencyId selon le publishOption
-      // Si on passe en marketplace, garder l'ancien s'il existe
       if (publishOption === 'marketplace' && univers.ownership.agencyId) {
         updatedOwnership.agencyId = univers.ownership.agencyId;
       }
-      // Si on passe en privé et que l'Univers avait un agencyId, on doit le supprimer
-      // Mais on ne peut pas utiliser deleteField() ici car c'est côté client
-      // On laisse undefined, et dans universService.update on utilisera deleteField() si nécessaire
-      // Si on passe en privé, on ne met pas agencyId du tout (sera undefined et sera supprimé correctement)
-      
-      console.log('🔍 UniversEditor - Updated ownership:', updatedOwnership);
       
       const updatedUnivers: Partial<Univers> = {
         metadata: updatedMetadata,
@@ -533,7 +570,7 @@ export const UniversEditor: React.FC<UniversEditorProps> = ({
         definitions: definitions
       };
 
-      await onSave(updatedUnivers);
+      await onSave(updatedUnivers, false, false);
       setHasChanges(false);
       showSuccess('Univers mis à jour avec succès');
     } catch (error) {
@@ -565,57 +602,163 @@ export const UniversEditor: React.FC<UniversEditorProps> = ({
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div className="flex items-center space-x-4">
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={handleCancel}
-            className="flex items-center space-x-2"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            <span>Retour</span>
-          </Button>
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">
-              Modifier le Univers
-            </h1>
-            <p className="text-sm text-gray-600 mt-1">
-              Version {metadata.version} • Créé le {metadata.createdAt.toLocaleDateString('fr-FR')}
-            </p>
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="flex items-start sm:items-center space-x-3 sm:space-x-4 flex-1 min-w-0">
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={handleCancel}
+              className="flex items-center space-x-2 flex-shrink-0"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              <span className="hidden sm:inline">Retour</span>
+            </Button>
+            <div className="flex-1 min-w-0">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                <h1 className="text-xl sm:text-2xl font-bold text-gray-900 break-words">
+                  Modifier le Univers
+                </h1>
+                {hasUnpublishedChanges && isMarketplace && isOwner && (
+                  <span className="px-2 py-1 text-xs font-medium bg-yellow-100 text-yellow-800 rounded-full flex items-center space-x-1 whitespace-nowrap self-start sm:self-auto">
+                    <AlertCircle className="h-3 w-3" />
+                    <span>Modifications non publiées</span>
+                  </span>
+                )}
+              </div>
+              <p className="text-xs sm:text-sm text-gray-600 mt-1 break-words">
+                {isMarketplace && isOwner && univers.metadata.publishedVersion ? (
+                  <span className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+                    <span>Version publiée: v{univers.metadata.publishedVersion}</span>
+                    <span className="hidden sm:inline">•</span>
+                    <span>Version draft: v{metadata.version}</span>
+                    <span className="hidden sm:inline">•</span>
+                    <span>Créé le {metadata.createdAt.toLocaleDateString('fr-FR')}</span>
+                  </span>
+                ) : (
+                  <span className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+                    <span>Version {metadata.version}</span>
+                    <span className="hidden sm:inline">•</span>
+                    <span>Créé le {metadata.createdAt.toLocaleDateString('fr-FR')}</span>
+                  </span>
+                )}
+              </p>
+            </div>
           </div>
         </div>
-        <div className="flex items-center space-x-3">
-          <Button
-            variant="secondary"
-            onClick={handleCancel}
-            disabled={isSaving}
-          >
-            Annuler
-          </Button>
-          <Button
-            onClick={handleSave}
-            disabled={isSaving || !hasChanges || !metadata.name?.trim()}
-            className="flex items-center space-x-2"
-          >
-            {isSaving ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" />
-                <span>Enregistrement...</span>
-              </>
-            ) : (
-              <>
-                <Save className="h-4 w-4" />
-                <span>Enregistrer les modifications</span>
-              </>
-            )}
-          </Button>
+        {/* Organisation optimisée des boutons : 2 par ligne sur mobile */}
+        <div className="space-y-2 sm:space-y-0">
+          {/* Pour les univers marketplace et le créateur */}
+          {isMarketplace && isOwner ? (
+            <div className="grid grid-cols-2 sm:flex sm:flex-row gap-2 sm:gap-3">
+              {/* Première ligne mobile : Annuler + Annuler le draft (si applicable) */}
+              <Button
+                variant="secondary"
+                onClick={handleCancel}
+                disabled={isSaving}
+                className="w-full sm:w-auto"
+              >
+                <span className="text-xs sm:text-sm">Annuler</span>
+              </Button>
+              {hasUnpublishedChanges ? (
+                <Button
+                  variant="secondary"
+                  onClick={async () => {
+                    if (!univers?.id || !userId) return;
+                    try {
+                      const { universService } = await import('@ubora/shared/services/universService');
+                      await universService.cancelDraft(univers.id, userId);
+                      showSuccess('Draft annulé avec succès. Vous êtes revenu à la version publiée.');
+                      window.location.reload();
+                    } catch (error) {
+                      const errorMessage = error instanceof Error 
+                        ? error.message 
+                        : 'Erreur lors de l\'annulation du draft';
+                      showError(errorMessage);
+                    }
+                  }}
+                  className="flex items-center justify-center space-x-1 sm:space-x-2 w-full sm:w-auto"
+                  disabled={isSaving}
+                >
+                  <AlertCircle className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                  <span className="text-xs sm:text-sm">Annuler draft</span>
+                </Button>
+              ) : (
+                <div className="hidden sm:block"></div>
+              )}
+              {/* Deuxième ligne mobile : Sauvegarder brouillon + Publier */}
+              <Button
+                variant="secondary"
+                onClick={() => handleSave(true, false)}
+                disabled={isSaving || !hasChanges || !metadata.name?.trim()}
+                className="flex items-center justify-center space-x-1 sm:space-x-2 w-full sm:w-auto col-span-2 sm:col-span-1"
+              >
+                {isSaving ? (
+                  <>
+                    <Loader2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 animate-spin" />
+                    <span className="text-xs sm:text-sm">Enregistrement...</span>
+                  </>
+                ) : (
+                  <>
+                    <Save className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                    <span className="text-xs sm:text-sm">Sauvegarder brouillon</span>
+                  </>
+                )}
+              </Button>
+              <Button
+                onClick={() => handleSave(false, true)}
+                disabled={isSaving || !hasChanges || !metadata.name?.trim()}
+                className="flex items-center justify-center space-x-1 sm:space-x-2 w-full sm:w-auto col-span-2 sm:col-span-1 bg-blue-600 hover:bg-blue-700"
+              >
+                {isSaving ? (
+                  <>
+                    <Loader2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 animate-spin" />
+                    <span className="text-xs sm:text-sm">Publication...</span>
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                    <span className="text-xs sm:text-sm">Publier</span>
+                  </>
+                )}
+              </Button>
+            </div>
+          ) : (
+            /* Pour les univers privés : 2 boutons côte à côte sur mobile */
+            <div className="grid grid-cols-2 sm:flex sm:flex-row gap-2 sm:gap-3">
+              <Button
+                variant="secondary"
+                onClick={handleCancel}
+                disabled={isSaving}
+                className="w-full sm:w-auto"
+              >
+                <span className="text-xs sm:text-sm">Annuler</span>
+              </Button>
+              <Button
+                onClick={() => handleSave(false, false)}
+                disabled={isSaving || !hasChanges || !metadata.name?.trim()}
+                className="flex items-center justify-center space-x-1 sm:space-x-2 w-full sm:w-auto"
+              >
+                {isSaving ? (
+                  <>
+                    <Loader2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 animate-spin" />
+                    <span className="text-xs sm:text-sm">Enregistrement...</span>
+                  </>
+                ) : (
+                  <>
+                    <Save className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                    <span className="text-xs sm:text-sm">Enregistrer</span>
+                  </>
+                )}
+              </Button>
+            </div>
+          )}
         </div>
       </div>
 
       {/* Navigation Tabs - Ordered to match creation flow */}
       <div className="border-b border-gray-200">
-        <nav className="flex space-x-2 sm:space-x-8 overflow-x-auto pb-0">
+        <nav className="flex space-x-1 sm:space-x-2 overflow-x-auto pb-0 -mb-px scrollbar-hide">
           {TAB_CONFIGS.map(({ id, label, icon: Icon, step, getCount }) => {
             const count = getCount ? getCount(definitions) : undefined;
             const isCompleted = completedSteps.has(step);
@@ -626,7 +769,7 @@ export const UniversEditor: React.FC<UniversEditorProps> = ({
               key={id}
                 onClick={() => setActiveTab(id)}
               className={`
-                  flex items-center space-x-2 py-4 px-1 sm:px-2 border-b-2 font-medium text-sm whitespace-nowrap transition-colors
+                  flex items-center space-x-1 sm:space-x-2 py-3 sm:py-4 px-2 sm:px-3 border-b-2 font-medium text-xs sm:text-sm whitespace-nowrap transition-colors flex-shrink-0
                 ${
                     isActive
                     ? 'border-blue-500 text-blue-600'
@@ -634,18 +777,18 @@ export const UniversEditor: React.FC<UniversEditorProps> = ({
                 }
               `}
             >
-              <Icon className="h-4 w-4" />
+              <Icon className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
                 <span className="hidden sm:inline">{label}</span>
                 <span className="sm:hidden">{label.split(' ')[0]}</span>
                 {count !== undefined && count > 0 && (
-                  <span className={`px-2 py-0.5 rounded-full text-xs ${
+                  <span className={`px-1.5 sm:px-2 py-0.5 rounded-full text-xs flex-shrink-0 ${
                     isActive ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'
                   }`}>
                   {count}
                 </span>
               )}
                 {isCompleted && (
-                  <CheckCircle className="h-4 w-4 text-green-500" />
+                  <CheckCircle className="h-3 w-3 sm:h-4 sm:w-4 text-green-500 flex-shrink-0" />
               )}
             </button>
             );

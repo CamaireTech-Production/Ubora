@@ -96,7 +96,8 @@ export const UniversViewPage: React.FC = () => {
 
     setIsLoading(true);
     try {
-      const universData = await universService.getById(id);
+      // Récupérer avec userId pour avoir accès au draft si c'est le créateur
+      const universData = await universService.getById(id, user.id);
       
       if (!universData) {
         showError('Univers non trouvé');
@@ -211,28 +212,78 @@ export const UniversViewPage: React.FC = () => {
     setIsActivating(false);
   };
 
-  // Détecter les mises à jour disponibles
-  // Pour le propriétaire : vérifier si le Univers a une version plus récente que l'instance
-  // Pour les non-propriétaires : utiliser updateAvailable de l'instance
+  // Handler pour tester le draft (activer la version draft)
+  const handleTestDraft = async () => {
+    if (!univers || !user?.id || !user?.agencyId) return;
+
+    setIsActivating(true);
+    try {
+      await universService.activateUnivers(univers.id, user.id, user.agencyId, true); // useDraft = true
+      showSuccess(`Version draft de "${univers.metadata.name}" activée avec succès. Vous pouvez maintenant tester vos modifications.`);
+      setShowActivateModal(false);
+      
+      await new Promise(resolve => setTimeout(resolve, 500));
+      refreshData();
+      navigate('/univers');
+    } catch (error) {
+      console.error('Erreur lors de l\'activation de la version draft:', error);
+      const errorMessage = error instanceof Error 
+        ? error.message 
+        : 'Une erreur est survenue lors de l\'activation de la version draft. Veuillez réessayer.';
+      showError(errorMessage);
+      setIsActivating(false);
+    }
+  };
+
+  // Handler pour publier le draft au marketplace
+  const handlePublishDraft = async () => {
+    if (!univers || !user?.id) return;
+
+    setIsActivating(true);
+    try {
+      await universService.publishDraft(univers.id, user.id);
+      showSuccess('Draft publié au marketplace avec succès. En attente d\'approbation par un administrateur.');
+      await loadUnivers(); // Recharger pour mettre à jour l'affichage
+    } catch (error) {
+      console.error('Erreur lors de la publication du draft:', error);
+      const errorMessage = error instanceof Error 
+        ? error.message 
+        : 'Une erreur est survenue lors de la publication du draft. Veuillez réessayer.';
+      showError(errorMessage);
+    } finally {
+      setIsActivating(false);
+    }
+  };
+
+  // Détecter les mises à jour disponibles et déterminer les versions à afficher
   const isOwner = univers?.ownership.createdBy === user?.id;
+  const isMarketplace = univers?.ownership.isMarketplaceTemplate || false;
+  const hasUnpublishedChanges = univers?.hasUnpublishedChanges || false;
   const instanceVersion = userInstance?.universVersion || userInstance?.metadata?.universVersion || 1;
-  const universVersion = univers?.metadata.version || 1;
   
+  // Versions disponibles
+  const publishedVersion = univers?.metadata.publishedVersion || (isMarketplace ? undefined : univers?.metadata.version);
+  const draftVersion = univers?.metadata.version || 1;
+  
+  // Détecter les mises à jour disponibles
   let hasUpdateAvailable = false;
-  if (isOwner && userInstance) {
-    // Pour le propriétaire : vérifier si le Univers template a une version plus récente
-    hasUpdateAvailable = universVersion > instanceVersion;
-  } else if (userInstance) {
+  let latestAvailableVersion = instanceVersion;
+  
+  if (isOwner && userInstance && isMarketplace) {
+    // Pour le propriétaire d'un univers marketplace : vérifier si le draft est plus récent que l'instance
+    hasUpdateAvailable = draftVersion > instanceVersion;
+    latestAvailableVersion = draftVersion;
+  } else if (userInstance && !isOwner && isMarketplace && publishedVersion) {
+    // Pour les non-propriétaires d'univers marketplace : vérifier si une nouvelle version publiée est disponible
+    hasUpdateAvailable = publishedVersion > instanceVersion;
+    latestAvailableVersion = publishedVersion;
+  } else if (userInstance && !isOwner) {
     // Pour les non-propriétaires : utiliser le marqueur updateAvailable
     hasUpdateAvailable = userInstance.updateAvailable === true;
+    latestAvailableVersion = userInstance.latestAvailableVersion || publishedVersion || instanceVersion;
   }
   
   const currentVersion = instanceVersion;
-  // Pour le propriétaire : toujours utiliser la version du template (la plus récente)
-  // Pour les non-propriétaires : utiliser la version approuvée disponible
-  const latestVersion = isOwner && userInstance 
-    ? universVersion 
-    : (userInstance?.latestAvailableVersion || universVersion);
   const isDirecteur = user?.role === 'directeur';
 
   const handleUpgradeClick = () => {
@@ -261,7 +312,7 @@ export const UniversViewPage: React.FC = () => {
       setUpgradeProgress('Finalisation...');
       await new Promise(resolve => setTimeout(resolve, 300));
 
-      showSuccess(`Univers mis à jour avec succès vers la version ${latestVersion}`);
+      showSuccess(`Univers mis à jour avec succès vers la version ${latestAvailableVersion}`);
       setShowUpgradeModal(false);
       setIsUpgrading(false);
       setUpgradeProgress('');
@@ -278,7 +329,7 @@ export const UniversViewPage: React.FC = () => {
         userInstance: userInstance?.id,
         universId: univers?.id,
         currentVersion,
-        latestVersion
+        latestAvailableVersion
       });
       
       let errorMessage = 'Une erreur est survenue lors de la mise à jour du Univers.';
@@ -418,126 +469,121 @@ export const UniversViewPage: React.FC = () => {
       <Layout title={univers.metadata.name}>
         <div className="space-y-6">
           {/* Header */}
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <div className="flex items-center space-x-4">
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => navigate(isFromMarketplace ? '/univers/marketplace' : '/univers')}
-                className="flex items-center space-x-2"
-              >
-                <ArrowLeft className="h-4 w-4" />
-                <span>Retour</span>
-              </Button>
-              <div>
-                <div className="flex items-center space-x-3">
-                  <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">
-                    {univers.metadata.name}
-                  </h1>
-                  {isActive && isDirecteur && (
-                    <span className="flex items-center space-x-1 px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm font-medium">
-                      <CheckCircle className="h-4 w-4" />
-                      <span>Actif</span>
-                    </span>
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div className="flex items-start sm:items-center space-x-3 sm:space-x-4 flex-1 min-w-0">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => navigate(isFromMarketplace ? '/univers/marketplace' : '/univers')}
+                  className="flex items-center space-x-2 flex-shrink-0"
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                </Button>
+                <div className="flex-1 min-w-0">
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
+                    <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 break-words">
+                      {univers.metadata.name}
+                    </h1>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {isActive && isDirecteur && (
+                        <span className="flex items-center space-x-1 px-2 sm:px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-xs sm:text-sm font-medium whitespace-nowrap">
+                          <CheckCircle className="h-3 w-3 sm:h-4 sm:w-4" />
+                          <span>Actif</span>
+                        </span>
+                      )}
+                      {hasUpdateAvailable && isDirecteur && (
+                        <span className="flex items-center space-x-1 px-2 sm:px-3 py-1 bg-orange-100 text-orange-700 rounded-full text-xs sm:text-sm font-medium animate-pulse whitespace-nowrap">
+                          <AlertCircle className="h-3 w-3 sm:h-4 sm:w-4" />
+                          <span>Nouvelle version</span>
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <p className="text-xs sm:text-sm text-gray-600 mt-1 break-words">
+                    {univers.metadata.description || 'Aucune description'}
+                  </p>
+                  {/* Affichage des versions pour le créateur d'univers marketplace */}
+                  {isOwner && isMarketplace && (
+                    <div className="mt-2 text-xs sm:text-sm space-y-1">
+                      {hasUnpublishedChanges ? (
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 flex-wrap">
+                          <span className="text-yellow-600 font-medium">Version publiée: v{publishedVersion}</span>
+                          <span className="hidden sm:inline text-gray-400">•</span>
+                          <span className="text-yellow-600 font-medium">Version draft: v{draftVersion}</span>
+                          <span className="px-2 py-0.5 bg-yellow-100 text-yellow-800 rounded-full text-xs font-medium whitespace-nowrap">
+                            Modifications non publiées
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="text-gray-600">
+                          <span>Version publiée: v{publishedVersion}</span>
+                        </div>
+                      )}
+                    </div>
                   )}
-                  {hasUpdateAvailable && isDirecteur && (
-                    <span className="flex items-center space-x-1 px-3 py-1 bg-orange-100 text-orange-700 rounded-full text-sm font-medium animate-pulse">
-                      <AlertCircle className="h-4 w-4" />
-                      <span>Nouvelle version</span>
-                    </span>
+                  {hasUpdateAvailable && isDirecteur && !isOwner && (
+                    <div className="mt-2 text-xs sm:text-sm text-orange-600 flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+                      <span>Version actuelle: v{currentVersion}</span>
+                      <span className="hidden sm:inline">•</span>
+                      <span className="font-semibold">Version disponible: v{latestAvailableVersion}</span>
+                    </div>
                   )}
                 </div>
-                <p className="text-sm text-gray-600 mt-1">
-                  {univers.metadata.description || 'Aucune description'}
-                </p>
-                {hasUpdateAvailable && isDirecteur && (
-                  <div className="mt-2 text-sm text-orange-600">
-                    <span>Version actuelle: v{currentVersion}</span>
-                    <span className="mx-2">•</span>
-                    <span className="font-semibold">Version disponible: v{latestVersion}</span>
-                  </div>
-                )}
               </div>
             </div>
-            <div className="flex items-center space-x-2 ml-auto sm:ml-0">
-              {hasUpdateAvailable && isDirecteur && (
+            {/* Actions simplifiées pour la vue détail */}
+            <div className="flex flex-wrap gap-2">
+              {/* Activer (si non actif et permissions) */}
+              {isDirecteur && 
+               !isActive && 
+               !hasUpdateAvailable &&
+               (isOwner || (univers.ownership.approvalStatus !== 'pending' && univers.ownership.approvalStatus !== 'rejected')) && (
                 <Button
                   variant="primary"
-                  onClick={handleUpgradeClick}
-                  className="flex items-center space-x-2 bg-orange-500 hover:bg-orange-600"
-                  disabled={isUpgrading}
+                  onClick={handleActivateClick}
+                  className="flex items-center justify-center space-x-2 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white shadow-lg hover:shadow-xl transition-all"
+                  disabled={isActivating}
                 >
-                  <Download className="h-4 w-4" />
-                  <span>Mettre à jour vers v{latestVersion}</span>
+                  <Power className="h-4 w-4" />
+                  <span>Activer</span>
                 </Button>
               )}
-              {/* Boutons selon le contexte */}
-              {isFromMarketplace ? (
-                // Si on vient de la marketplace, seulement "Utiliser ce template"
-                univers.ownership.isMarketplaceTemplate && 
-                univers.ownership.approvalStatus === 'approved' && 
-                isDirecteur && 
-                !hasUpdateAvailable && (
-                  <Button
-                    variant="primary"
-                    onClick={() => navigate(`/univers/create-from-template/${univers.id}`)}
-                    className="flex items-center space-x-2"
-                  >
-                    <Sparkles className="h-4 w-4" />
-                    <span>Utiliser ce template</span>
-                  </Button>
-                )
-              ) : (
-                // Si on vient de Mes Univers, montrer "Activer" si non actif
-                // Pour le propriétaire, permettre l'activation même en attente
-                <>
-                  {isDirecteur && 
-                   !isActive && 
-                   !hasUpdateAvailable &&
-                   // Le propriétaire peut toujours activer, même en attente
-                   (isOwner || (univers.ownership.approvalStatus !== 'pending' && univers.ownership.approvalStatus !== 'rejected')) && (
-                    <Button
-                      variant="primary"
-                      onClick={handleActivateClick}
-                      className="flex items-center space-x-2"
-                      disabled={isActivating}
-                    >
-                      <Power className="h-4 w-4" />
-                      <span>Activer</span>
-                    </Button>
-                  )}
-                  {/* Bouton "Utiliser ce template" pour Univers marketplace possédés */}
-                  {univers.ownership.isMarketplaceTemplate && 
-                   univers.ownership.approvalStatus === 'approved' && 
-                   isDirecteur && 
-                   !hasUpdateAvailable && (
-                    <Button
-                      variant="primary"
-                      onClick={() => navigate(`/univers/create-from-template/${univers.id}`)}
-                      className="flex items-center space-x-2"
-                    >
-                      <Sparkles className="h-4 w-4" />
-                      <span>Utiliser ce template</span>
-                    </Button>
-                  )}
-                </>
+
+              {/* Utiliser ce template (uniquement depuis marketplace si on ne possède pas l'univers) */}
+              {isFromMarketplace && 
+               !userInstance && 
+               !isOwner &&
+               univers.ownership.isMarketplaceTemplate && 
+               univers.ownership.approvalStatus === 'approved' && 
+               isDirecteur && (
+                <Button
+                  variant="primary"
+                  onClick={() => navigate(`/univers/create-from-template/${univers.id}`)}
+                  className="flex items-center justify-center space-x-2 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white shadow-lg hover:shadow-xl transition-all"
+                >
+                  <Sparkles className="h-4 w-4" />
+                  <span>Utiliser ce template</span>
+                </Button>
               )}
+
+              {/* Modifier (redirige vers l'édition) */}
               {canEdit && (
                 <Button
                   variant="secondary"
                   onClick={handleEdit}
-                  className="flex items-center space-x-2"
+                  className="flex items-center justify-center space-x-2 border border-gray-300 hover:border-gray-400 hover:bg-gray-50 transition-all"
                 >
                   <Edit className="h-4 w-4" />
-                  <span className="hidden sm:inline">Modifier</span>
+                  <span>Modifier</span>
                 </Button>
               )}
             </div>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
             {/* Main Content */}
-            <div className="lg:col-span-2 space-y-6">
+            <div className="lg:col-span-2 space-y-4 sm:space-y-6">
               {/* Metadata Card */}
               <Card title="Métadonnées">
                 <div className="space-y-4">
@@ -596,10 +642,10 @@ export const UniversViewPage: React.FC = () => {
               <Card title="Contenu du Univers">
                 {/* Onglets */}
                 <div className="border-b border-gray-200 mb-6">
-                  <nav className="flex space-x-1 overflow-x-auto">
+                  <nav className="flex space-x-1 overflow-x-auto pb-1 -mb-px scrollbar-hide">
                     <button
                       onClick={() => setActiveTab('overview')}
-                      className={`px-4 py-2 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${
+                      className={`px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium whitespace-nowrap border-b-2 transition-colors flex-shrink-0 ${
                         activeTab === 'overview'
                           ? 'border-blue-500 text-blue-600'
                           : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
@@ -610,65 +656,65 @@ export const UniversViewPage: React.FC = () => {
                     {univers.definitions.lists && univers.definitions.lists.length > 0 && (
                       <button
                         onClick={() => setActiveTab('lists')}
-                        className={`px-4 py-2 text-sm font-medium whitespace-nowrap border-b-2 transition-colors flex items-center space-x-1 ${
+                        className={`px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium whitespace-nowrap border-b-2 transition-colors flex items-center space-x-1 flex-shrink-0 ${
                           activeTab === 'lists'
                             ? 'border-orange-500 text-orange-600'
                             : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                         }`}
                       >
-                        <Database className="h-4 w-4" />
+                        <Database className="h-3 w-3 sm:h-4 sm:w-4" />
                         <span>Listes ({univers.definitions.lists.length})</span>
                       </button>
                     )}
                     {univers.definitions.forms && univers.definitions.forms.length > 0 && (
                       <button
                         onClick={() => setActiveTab('forms')}
-                        className={`px-4 py-2 text-sm font-medium whitespace-nowrap border-b-2 transition-colors flex items-center space-x-1 ${
+                        className={`px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium whitespace-nowrap border-b-2 transition-colors flex items-center space-x-1 flex-shrink-0 ${
                           activeTab === 'forms'
                             ? 'border-blue-500 text-blue-600'
                             : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                         }`}
                       >
-                        <FileText className="h-4 w-4" />
+                        <FileText className="h-3 w-3 sm:h-4 sm:w-4" />
                         <span>Formulaires ({univers.definitions.forms.length})</span>
                       </button>
                     )}
                     {univers.definitions.dashboards && univers.definitions.dashboards.length > 0 && (
                       <button
                         onClick={() => setActiveTab('dashboards')}
-                        className={`px-4 py-2 text-sm font-medium whitespace-nowrap border-b-2 transition-colors flex items-center space-x-1 ${
+                        className={`px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium whitespace-nowrap border-b-2 transition-colors flex items-center space-x-1 flex-shrink-0 ${
                           activeTab === 'dashboards'
                             ? 'border-purple-500 text-purple-600'
                             : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                         }`}
                       >
-                        <BarChart3 className="h-4 w-4" />
+                        <BarChart3 className="h-3 w-3 sm:h-4 sm:w-4" />
                         <span>Dashboards ({univers.definitions.dashboards.length})</span>
                       </button>
                     )}
                     {univers.definitions.reports && univers.definitions.reports.length > 0 && (
                       <button
                         onClick={() => setActiveTab('reports')}
-                        className={`px-4 py-2 text-sm font-medium whitespace-nowrap border-b-2 transition-colors flex items-center space-x-1 ${
+                        className={`px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium whitespace-nowrap border-b-2 transition-colors flex items-center space-x-1 flex-shrink-0 ${
                           activeTab === 'reports'
                             ? 'border-indigo-500 text-indigo-600'
                             : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                         }`}
                       >
-                        <FileBarChart className="h-4 w-4" />
+                        <FileBarChart className="h-3 w-3 sm:h-4 sm:w-4" />
                         <span>Rapports ({univers.definitions.reports.length})</span>
                       </button>
                     )}
                     {univers.definitions.instructions && univers.definitions.instructions.length > 0 && (
                       <button
                         onClick={() => setActiveTab('instructions')}
-                        className={`px-4 py-2 text-sm font-medium whitespace-nowrap border-b-2 transition-colors flex items-center space-x-1 ${
+                        className={`px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium whitespace-nowrap border-b-2 transition-colors flex items-center space-x-1 flex-shrink-0 ${
                           activeTab === 'instructions'
                             ? 'border-green-500 text-green-600'
                             : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                         }`}
                       >
-                        <Calendar className="h-4 w-4" />
+                        <Calendar className="h-3 w-3 sm:h-4 sm:w-4" />
                         <span>Instructions ({univers.definitions.instructions.length})</span>
                       </button>
                     )}
@@ -1082,7 +1128,7 @@ export const UniversViewPage: React.FC = () => {
             </div>
 
             {/* Sidebar */}
-            <div className="space-y-6">
+            <div className="space-y-4 sm:space-y-6">
               {/* Ownership Card */}
               <Card title="Propriété">
                 <div className="space-y-4">
@@ -1192,7 +1238,7 @@ export const UniversViewPage: React.FC = () => {
                   Êtes-vous sûr de vouloir mettre à jour le Univers <strong>"{univers.metadata.name}"</strong> ?
                 </p>
                 <p className="text-sm text-gray-600 mt-2">
-                  Version actuelle: <strong>v{currentVersion}</strong> → Version disponible: <strong>v{latestVersion}</strong>
+                  Version actuelle: <strong>v{currentVersion}</strong> → Version disponible: <strong>v{latestAvailableVersion}</strong>
                 </p>
               </div>
               {isUpgrading && (

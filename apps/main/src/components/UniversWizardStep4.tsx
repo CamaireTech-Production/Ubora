@@ -325,7 +325,6 @@ export const UniversWizardStep4: React.FC<UniversWizardStepProps> = ({
               className="flex items-center space-x-2 mb-4"
             >
               <ArrowLeft className="h-4 w-4" />
-              <span>Retour à la liste</span>
             </Button>
             <h2 className="text-2xl font-bold text-gray-900 mb-2">
               Tableaux de bord
@@ -347,7 +346,6 @@ export const UniversWizardStep4: React.FC<UniversWizardStepProps> = ({
                   className="flex items-center space-x-2"
                 >
                   <ArrowLeft className="h-4 w-4" />
-                  <span>Retour à l'étape Formulaires</span>
                 </Button>
               </div>
             </div>
@@ -365,7 +363,6 @@ export const UniversWizardStep4: React.FC<UniversWizardStepProps> = ({
             className="flex items-center space-x-2 mb-4"
           >
             <ArrowLeft className="h-4 w-4" />
-            <span>Retour à la liste</span>
           </Button>
           <h2 className="text-2xl font-bold text-gray-900 mb-2">
             {editingDashboardId ? 'Modifier le tableau de bord' : 'Créer un tableau de bord'}
