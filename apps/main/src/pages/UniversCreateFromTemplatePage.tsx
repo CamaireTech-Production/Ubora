@@ -205,7 +205,6 @@ export const UniversCreateFromTemplatePage: React.FC = () => {
             className="flex items-center space-x-2"
           >
             <ArrowLeft className="h-4 w-4" />
-            <span>Retour</span>
           </Button>
           <div>
             <h1 className="text-2xl font-bold text-gray-900">

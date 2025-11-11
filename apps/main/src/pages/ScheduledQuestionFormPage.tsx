@@ -175,7 +175,6 @@ export const ScheduledQuestionFormPage: React.FC = () => {
                 className="flex items-center space-x-2"
               >
                 <ArrowLeft className="h-4 w-4" />
-                <span>Retour</span>
               </Button>
               <div>
                 <h1 className="text-xl font-semibold text-gray-900">

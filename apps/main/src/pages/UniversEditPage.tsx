@@ -30,7 +30,8 @@ export const UniversEditPage: React.FC = () => {
 
     setIsLoading(true);
     try {
-      const universData = await universService.getById(id);
+      // Récupérer avec userId pour avoir accès au draft si c'est le créateur
+      const universData = await universService.getById(id, user.id);
       
       if (isNavigating) return; // Component unmounted, don't update state
       
@@ -62,18 +63,35 @@ export const UniversEditPage: React.FC = () => {
     }
   };
 
-  const handleSave = async (updatedUnivers: Partial<Univers>) => {
-    if (!id || !univers) return;
+  const handleSave = async (updatedUnivers: Partial<Univers>, saveAsDraft?: boolean, publishToMarketplace?: boolean) => {
+    if (!id || !univers || !user?.id) return;
 
     try {
-      // Use updatedUnivers directly - version is already incremented by UniversEditor
-      // Only need to ensure dates are properly formatted for Firestore
-      // The universService.update will handle Timestamp conversion
-      const updates: Partial<Univers> = {
-        ...updatedUnivers
-      };
+      const isMarketplace = univers.ownership.isMarketplaceTemplate;
+      const isOwner = univers.ownership.createdBy === user.id;
 
-      await universService.update(id, updates, user?.id);
+      // Pour les univers marketplace et le créateur : utiliser saveDraft() ou publishDraft()
+      if (isMarketplace && isOwner) {
+        if (saveAsDraft) {
+          // Sauvegarder comme draft
+          await universService.saveDraft(id, updatedUnivers, user.id);
+          // Ne pas naviguer, permettre à l'utilisateur de continuer à éditer
+          return;
+        } else if (publishToMarketplace) {
+          // D'abord sauvegarder le draft, puis le publier
+          await universService.saveDraft(id, updatedUnivers, user.id);
+          await universService.publishDraft(id, user.id);
+          // Naviguer après publication
+          setIsNavigating(true);
+          setTimeout(() => {
+            navigate('/univers', { replace: true });
+          }, 500);
+          return;
+        }
+      }
+
+      // Pour les univers privés : comportement normal avec update()
+      await universService.update(id, updatedUnivers, user.id);
       showSuccess('Univers mis à jour avec succès');
       
       // Navigate back to Univers listing page after successful update
@@ -147,6 +165,7 @@ export const UniversEditPage: React.FC = () => {
           univers={univers}
           onSave={handleSave}
           onCancel={handleCancel}
+          userId={user?.id}
         />
       </Layout>
 

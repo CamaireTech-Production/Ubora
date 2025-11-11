@@ -44,14 +44,14 @@ export const UniversList: React.FC<UniversListProps> = ({
         {/* Skeleton pour la recherche */}
         <div className="h-12 bg-gray-200 rounded-lg animate-pulse"></div>
         {/* Skeleton pour les cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-4 lg:gap-6">
           {[...Array(6)].map((_, i) => (
-            <div key={i} className="h-80 bg-white rounded-xl border border-gray-200 animate-pulse">
-              <div className="h-32 bg-gray-200 rounded-t-xl"></div>
-              <div className="p-6 space-y-4">
-                <div className="h-6 bg-gray-200 rounded w-3/4"></div>
-                <div className="h-4 bg-gray-200 rounded w-full"></div>
-                <div className="h-4 bg-gray-200 rounded w-2/3"></div>
+            <div key={i} className="h-64 sm:h-72 lg:h-80 bg-white rounded-xl sm:rounded-2xl border border-gray-200 animate-pulse">
+              <div className="h-20 sm:h-24 lg:h-32 bg-gray-200 rounded-t-xl sm:rounded-t-2xl"></div>
+              <div className="p-3 sm:p-4 lg:p-6 space-y-2 sm:space-y-3 lg:space-y-4">
+                <div className="h-4 sm:h-5 lg:h-6 bg-gray-200 rounded w-3/4"></div>
+                <div className="h-3 sm:h-4 bg-gray-200 rounded w-full"></div>
+                <div className="h-3 sm:h-4 bg-gray-200 rounded w-2/3"></div>
               </div>
             </div>
           ))}
@@ -106,7 +106,7 @@ export const UniversList: React.FC<UniversListProps> = ({
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-4 lg:gap-6">
           {filteredUnivers.map((univers) => (
             <UniversCard
               key={univers.id}

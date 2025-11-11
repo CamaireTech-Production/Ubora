@@ -46,7 +46,8 @@ export const ReportBuilder: React.FC<ReportBuilderProps> = ({
   const { showSuccess, showError } = useToast();
 
   // Use provided dashboards if available, otherwise use all dashboards from context
-  const dashboards = providedDashboards || allDashboards;
+  // Cast to local Dashboard type to handle type compatibility between shared and main types
+  const dashboards: Dashboard[] = providedDashboards || (allDashboards as Dashboard[]);
 
   // Basic fields
   const [name, setName] = useState(initialReport?.name || '');
@@ -682,11 +683,12 @@ const PlaceholderMappingModal: React.FC<PlaceholderMappingModalProps> = ({
   const [dashboardId, setDashboardId] = useState(existingMapping?.sourceId || '');
   const [metricId, setMetricId] = useState(() => {
     const existingMetricId = existingMapping?.metricId || (existingMapping as any)?.fieldId;
-    // Ensure we only store IDs, not display text
+    // Only use if it's a valid ID (not a label)
     if (existingMetricId && typeof existingMetricId === 'string') {
-      // Check if it looks like a display label (contains parentheses)
-      if (existingMetricId.includes('(') || existingMetricId.includes(')')) {
-        console.warn('Existing metricId looks like display text, resetting:', existingMetricId);
+      // Check if it looks like a display label (contains parentheses, spaces, or special characters)
+      // Valid IDs are typically alphanumeric with underscores/hyphens, not containing parentheses
+      if (existingMetricId.includes('(') || existingMetricId.includes(')') || existingMetricId.includes(' - ')) {
+        console.warn('Existing metricId looks like a label, resetting:', existingMetricId);
         return '';
       }
       return existingMetricId;
@@ -709,14 +711,61 @@ const PlaceholderMappingModal: React.FC<PlaceholderMappingModalProps> = ({
     console.log('Dashboard names:', dashboards.map(d => d.name));
     console.log('Existing mapping:', existingMapping);
     console.log('Initial dashboardId:', dashboardId);
-  }, []);
+  }, [dashboards, existingMapping, dashboardId]);
 
   const selectedDashboard = sourceType === 'dashboard' ? dashboards.find(d => d.id === dashboardId) : null;
-  const selectedMetric = selectedDashboard?.metrics?.find(m => m.id === metricId);
+  // Find metric by ID, with fallback to index-based lookup for metrics without IDs
+  const selectedMetric = selectedDashboard?.metrics?.find((m, index) => {
+    const mId = m.id || `temp_${index}`;
+    return mId === metricId;
+  });
+  
+  // Debug: Log selectedDashboard metrics structure
+  useEffect(() => {
+    if (sourceType === 'dashboard' && dashboardId) {
+      const dashboard = dashboards.find(d => d.id === dashboardId);
+      if (dashboard) {
+        console.log('SelectedDashboard metrics structure:', {
+          hasMetrics: !!dashboard.metrics,
+          isArray: Array.isArray(dashboard.metrics),
+          length: dashboard.metrics?.length,
+          firstMetric: dashboard.metrics?.[0],
+          allMetricIds: dashboard.metrics?.map(m => m?.id),
+          metricsWithIds: dashboard.metrics?.map(m => ({ 
+            id: m?.id, 
+            name: m?.name, 
+            hasId: !!m?.id,
+            idType: typeof m?.id 
+          }))
+        });
+      }
+    }
+  }, [sourceType, dashboardId, dashboards]);
+  
+  // Validate metricId: ensure it's always a valid ID (not a label from old data)
+  useEffect(() => {
+    if (sourceType === 'dashboard' && dashboardId && metricId) {
+      const dashboard = dashboards.find(d => d.id === dashboardId);
+      if (dashboard?.metrics) {
+        // Vérifier que metricId correspond bien à un ID de métrique valide
+        // Support both ID-based and index-based metric identification
+        const isValidId = dashboard.metrics.some((m, index) => {
+          const mId = m.id || `temp_${index}`;
+          return mId === metricId;
+        });
+        if (!isValidId) {
+          // Si ce n'est pas un ID valide, c'est probablement un label (données anciennes)
+          // On réinitialise pour forcer l'utilisateur à re-sélectionner
+          console.warn('metricId invalide (probablement un label), réinitialisation:', metricId);
+          setMetricId('');
+        }
+      }
+    }
+  }, [sourceType, dashboardId, metricId, dashboards]);
   
   // Debug: Log selected dashboard and metrics
   useEffect(() => {
-    if (dashboardId) {
+    if (dashboardId && dashboards.length > 0) {
       console.log('Dashboard ID selected:', dashboardId);
       console.log('All dashboards:', dashboards);
       const found = dashboards.find(d => d.id === dashboardId);
@@ -730,18 +779,11 @@ const PlaceholderMappingModal: React.FC<PlaceholderMappingModalProps> = ({
     }
   }, [dashboardId, dashboards]);
 
-  // Get metric type label
+  // Helper to get metric type label for display only
   const getMetricTypeLabel = (metricType?: 'value' | 'graph' | 'table'): string => {
-    switch (metricType) {
-      case 'value':
-        return 'Valeur';
-      case 'graph':
-        return 'Graphique';
-      case 'table':
-        return 'Tableau';
-      default:
-        return 'Valeur';
-    }
+    if (metricType === 'graph') return 'Graphique';
+    if (metricType === 'table') return 'Tableau';
+    return 'Valeur';
   };
 
   // Get static value label
@@ -765,59 +807,31 @@ const PlaceholderMappingModal: React.FC<PlaceholderMappingModalProps> = ({
     if (sourceType === 'dashboard') {
       if (!dashboardId || !metricId) {
         console.warn('Cannot save: missing dashboardId or metricId', { dashboardId, metricId });
-      return;
-    }
-
-      // Validate that metricId is a valid ID (not display text)
-      const metric = selectedDashboard?.metrics?.find(m => m.id === metricId);
-      if (!metric) {
-        console.error('Metric not found:', { 
-          metricId, 
-          dashboardId, 
-          availableMetrics: selectedDashboard?.metrics,
-          metricIds: selectedDashboard?.metrics?.map(m => m.id),
-          metricNames: selectedDashboard?.metrics?.map(m => `${m.name} (${getMetricTypeLabel(m.metricType || 'value')})`)
-        });
-        
-        // Try to find by name if somehow the label was selected
-        const metricByName = selectedDashboard?.metrics?.find(m => 
-          `${m.name} (${getMetricTypeLabel(m.metricType || 'value')})` === metricId
-        );
-        
-        if (metricByName) {
-          console.warn('Found metric by name, using its ID instead:', metricByName.id);
-          setMetricId(metricByName.id);
-          // Retry save with correct ID
-          setTimeout(() => {
-            const correctedMetric = selectedDashboard?.metrics?.find(m => m.id === metricByName.id);
-            if (correctedMetric) {
-    const mapping: ReportMapping = {
-      placeholderId: placeholder.id,
-                sourceType: 'dashboard',
-                sourceId: dashboardId,
-                metricId: correctedMetric.id,
-                metricType: (correctedMetric.metricType === 'graph' ? 'graph' : (correctedMetric.metricType === 'table' ? 'table' : 'value')),
-                defaultValue: defaultValue || undefined
-              };
-              onSave(mapping);
-            }
-          }, 0);
-          return;
-        }
-        
         return;
       }
 
+      // Validation simple: vérifier que la métrique existe dans le dashboard sélectionné
+      // Support both ID-based and index-based metric identification
+      const metric = selectedDashboard?.metrics?.find((m, index) => {
+        const mId = m.id || `temp_${index}`;
+        return mId === metricId;
+      });
+      if (!metric) {
+        console.error('Métrique non trouvée avec cet ID:', { metricId, dashboardId });
+        return;
+      }
+
+      // Sauvegarder uniquement dashboardId et metricId
+      // Le metricType et toutes les autres infos viennent de la métrique elle-même lors du rendu
       const mapping: ReportMapping = {
         placeholderId: placeholder.id,
         sourceType: 'dashboard',
         sourceId: dashboardId,
-        metricId: metricId,
-        metricType: (metric.metricType === 'graph' ? 'graph' : (metric.metricType === 'table' ? 'table' : 'value')),
-      defaultValue: defaultValue || undefined
-    };
+        metricId: metricId, // Seulement l'ID, jamais le label
+        defaultValue: defaultValue || undefined
+      };
 
-    onSave(mapping);
+      onSave(mapping);
     } else {
       // Static value mapping
       if (!staticValueType) {
@@ -938,41 +952,41 @@ const PlaceholderMappingModal: React.FC<PlaceholderMappingModalProps> = ({
                           <select
                             value={metricId}
                             onChange={(e) => {
-                              const selectedValue = e.target.value;
-                              console.log('Metric selection changed:', {
-                                selectedValue,
-                                allMetricIds: selectedDashboard.metrics?.map(m => ({ id: m.id, name: m.name })),
-                                currentMetricId: metricId
-                              });
-                              
-                              // Primary: set ID directly
-                              let nextId = selectedValue;
-                              // Safety: if somehow the value is the display label, resolve by name
-                              if (selectedDashboard.metrics && !selectedDashboard.metrics.some(m => m.id === nextId)) {
-                                const foundByLabel = selectedDashboard.metrics.find(m => `${m.name} (${getMetricTypeLabel(m.metricType || 'value')})` === selectedValue);
-                                if (foundByLabel) {
-                                  console.warn('Metric value looked like label; resolved to ID:', { selectedValue, resolvedId: foundByLabel.id });
-                                  nextId = foundByLabel.id;
-                                }
-                              }
-                              setMetricId(nextId);
+                              // Le select utilise value={m.id}, donc e.target.value est toujours l'ID
+                              // On fait confiance au select HTML standard qui retourne toujours la valeur de l'option
+                              setMetricId(e.target.value);
                             }}
-                            disabled={!selectedDashboard.metrics || selectedDashboard.metrics.length === 0}
+                            disabled={(() => {
+                              const isDisabled = !selectedDashboard?.metrics || !Array.isArray(selectedDashboard.metrics) || selectedDashboard.metrics.length === 0;
+                              console.log('Select disabled check:', {
+                                hasSelectedDashboard: !!selectedDashboard,
+                                hasMetrics: !!selectedDashboard?.metrics,
+                                isArray: Array.isArray(selectedDashboard?.metrics),
+                                length: selectedDashboard?.metrics?.length,
+                                isDisabled
+                              });
+                              return isDisabled;
+                            })()}
                             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
                           >
                             <option value="">Sélectionner une métrique...</option>
-                            {selectedDashboard.metrics && selectedDashboard.metrics.length > 0 && selectedDashboard.metrics.map(m => {
-                              const displayLabel = `${m.name} (${getMetricTypeLabel(m.metricType || 'value')})`;
-                              return (
-                                <option key={m.id} value={m.id}>
-                                  {displayLabel}
-                                </option>
-                              );
-                            })}
+                            {selectedDashboard?.metrics && Array.isArray(selectedDashboard.metrics) && selectedDashboard.metrics.length > 0
+                              ? selectedDashboard.metrics.map((m, index) => {
+                                  // Use metric.id if available, otherwise use index as fallback
+                                  // This handles cases where metrics don't have IDs (legacy data or temporary metrics)
+                                  const metricId = m.id || `temp_${index}`;
+                                  const displayLabel = `${m.name} (${getMetricTypeLabel(m.metricType || 'value')})`;
+                                  return (
+                                    <option key={metricId} value={metricId}>
+                                      {displayLabel}
+                                    </option>
+                                  );
+                                })
+                              : null}
                           </select>
-                          {metricId && (
+                          {metricId && selectedMetric && (
                             <p className="text-xs text-blue-500 mt-1">
-                              Metric ID sélectionné: {metricId}
+                              Metric ID sélectionné: {metricId} ({selectedMetric.name})
                             </p>
                           )}
                           {selectedDashboard.metrics && selectedDashboard.metrics.length > 0 && (
