@@ -125,16 +125,123 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   }, [user]);
 
   // Auto-load the most recent conversation when conversations are loaded
+  // Note: loadConversation is defined later, so we use conversations directly
   useEffect(() => {
     const autoLoadRecent = async () => {
       // Only auto-load if we have conversations, no current conversation, not loading, and not adding a message
       if (conversations.length > 0 && !currentConversation && !isLoading && !isAddingMessage) {
         try {
-          console.groupCollapsed('[Chat] Auto-load most recent conversation');
-          console.debug('Conversations ordered by lastMessageAt desc:', conversations.map(c => ({ id: c.id, title: c.title, lastMessageAt: c.lastMessageAt })));
-          console.debug('Selecting conversation:', { id: conversations[0].id, title: conversations[0].title });
-          await loadConversation(conversations[0].id);
-          console.groupEnd();
+          // loadConversation will be available via closure when this effect runs
+          const conversationId = conversations[0].id;
+          if (user && PermissionManager.canLoadConversations(user)) {
+            const conversation = conversations.find(c => c.id === conversationId);
+            if (conversation) {
+              setCurrentConversation(conversation);
+              
+              // Clean up existing listener
+              if (messagesListener) {
+                messagesListener();
+                setMessagesListener(null);
+              }
+              // Clean up and reset state before attaching listener
+              setMessages([]);
+              setHasMoreMessages(true);
+              setLastMessageDoc(null);
+
+              // Single real-time listener (authoritative): initial + updates
+              const messagesListenerQuery = query(
+                collection(db, 'conversations', conversationId, 'messages'),
+                orderBy('timestamp', 'asc')
+              );
+
+              const unsubscribe = onSnapshot(messagesListenerQuery, (snapshot) => {
+                const allMessages = snapshot.docs.map(doc => {
+                  const data = doc.data();
+                  
+                  // Validate and parse timestamp safely
+                  let timestamp: Date;
+                  try {
+                    if (data.timestamp?.toDate) {
+                      timestamp = data.timestamp.toDate();
+                    } else if (data.timestamp?.seconds) {
+                      timestamp = new Date(data.timestamp.seconds * 1000);
+                    } else if (data.timestamp) {
+                      timestamp = new Date(data.timestamp);
+                    } else {
+                      timestamp = new Date();
+                    }
+                    
+                    // Validate timestamp is valid
+                    if (isNaN(timestamp.getTime())) {
+                      console.warn('Invalid timestamp for message:', doc.id, data.timestamp);
+                      timestamp = new Date();
+                    }
+                  } catch (error) {
+                    console.warn('Error parsing timestamp for message:', doc.id, error);
+                    timestamp = new Date();
+                  }
+                  
+                  const message: ChatMessage = {
+                    id: doc.id,
+                    type: data.type,
+                    content: data.content,
+                    timestamp: timestamp,
+                    responseTime: data.responseTime,
+                    contentType: data.contentType,
+                    meta: data.meta,
+                    tableData: data.tableData,
+                    pdfData: data.pdfData,
+                    pdfFiles: data.pdfFiles
+                  };
+
+                  // Validate and clean graph data if present
+                  if (data.graphData) {
+                    if (data.graphData.data && Array.isArray(data.graphData.data) && data.graphData.data.length > 0) {
+                      message.graphData = data.graphData;
+                    } else {
+                      message.contentType = message.contentType === 'graph' ? 'text' : message.contentType;
+                    }
+                  }
+
+                  return message;
+                });
+
+                // Remove duplicates based on ID first, then content and timestamp
+                const uniqueMessages = allMessages.filter((message, index, array) => {
+                  const idDuplicate = array.findIndex(m => m.id === message.id);
+                  if (idDuplicate !== index) return false;
+
+                  const contentDuplicate = array.findIndex(m => 
+                    m.id !== message.id &&
+                    m.content === message.content && 
+                    m.type === message.type && 
+                    Math.abs(m.timestamp.getTime() - message.timestamp.getTime()) < 5000
+                  );
+
+                  return contentDuplicate === -1;
+                });
+
+                // Simple approach: replace the entire messages array with the unique messages from Firebase
+                // This ensures we always have the authoritative state from Firebase
+                // Update messages from Firebase with debouncing to prevent rapid updates
+                if (debounceTimer.current) window.clearTimeout(debounceTimer.current);
+                debounceTimer.current = window.setTimeout(() => {
+                  // Only update if messages actually changed (check IDs and length)
+                  const messagesChanged = !sameMessages(uniqueMessages, lastMessagesRef.current);
+                  if (messagesChanged) {
+                    lastMessagesRef.current = uniqueMessages;
+                    setMessages(uniqueMessages);
+                  }
+                  setHasMoreMessages(false);
+                  setLastMessageDoc(snapshot.docs[snapshot.docs.length - 1] || null);
+                }, 100); // Increased debounce to 100ms to reduce rapid updates
+              }, (err) => {
+                console.error('Error in real-time messages listener:', err);
+              });
+
+              setMessagesListener(() => unsubscribe);
+            }
+          }
         } catch (error) {
           console.error('Error auto-loading recent conversation:', error);
         }
@@ -142,7 +249,7 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     };
     
     autoLoadRecent();
-  }, [conversations.length, currentConversation?.id, isLoading, isAddingMessage]);
+  }, [conversations.length, currentConversation?.id, isLoading, isAddingMessage, user, conversations, messagesListener]);
 
   // Cleanup listener on unmount
   useEffect(() => {
@@ -264,19 +371,26 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
   const addMessageToLocalState = useCallback((message: ChatMessage): void => {
     setMessages(prev => {
-      // Check if message already exists to prevent duplicates (more aggressive for user messages)
-      const exists = prev.some(m => {
-        if (m.type === 'user' && message.type === 'user') {
-          // For user messages, be more aggressive - check content and time
-          return m.content === message.content && 
-                 Math.abs(m.timestamp.getTime() - message.timestamp.getTime()) < 5000; // Within 5 seconds
-        }
-        // For other message types, check by ID
-        return m.id === message.id;
-      });
-      
-      if (exists) {
+      // Check if message already exists to prevent duplicates
+      // Check by ID first (most reliable)
+      const existsById = prev.some(m => m.id === message.id);
+      if (existsById) {
         return prev;
+      }
+      
+      // For user messages, also check content and time to catch optimistic updates
+      if (message.type === 'user') {
+        const existsByContent = prev.some(m => {
+          if (m.type === 'user') {
+            // Check if content matches and timestamp is very close (within 5 seconds)
+            const timeDiff = Math.abs(m.timestamp.getTime() - message.timestamp.getTime());
+            return m.content === message.content && timeDiff < 5000;
+          }
+          return false;
+        });
+        if (existsByContent) {
+          return prev;
+        }
       }
       
       // Add message and sort by timestamp to maintain order
@@ -334,11 +448,35 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       const unsubscribe = onSnapshot(messagesListenerQuery, (snapshot) => {
         const allMessages = snapshot.docs.map(doc => {
           const data = doc.data();
+          
+          // Validate and parse timestamp safely
+          let timestamp: Date;
+          try {
+            if (data.timestamp?.toDate) {
+              timestamp = data.timestamp.toDate();
+            } else if (data.timestamp?.seconds) {
+              timestamp = new Date(data.timestamp.seconds * 1000);
+            } else if (data.timestamp) {
+              timestamp = new Date(data.timestamp);
+            } else {
+              timestamp = new Date();
+            }
+            
+            // Validate timestamp is valid
+            if (isNaN(timestamp.getTime())) {
+              console.warn('Invalid timestamp for message:', doc.id, data.timestamp);
+              timestamp = new Date();
+            }
+          } catch (error) {
+            console.warn('Error parsing timestamp for message:', doc.id, error);
+            timestamp = new Date();
+          }
+          
           const message: ChatMessage = {
             id: doc.id,
             type: data.type,
             content: data.content,
-            timestamp: data.timestamp?.toDate() || new Date(data.timestamp?.seconds * 1000) || new Date(),
+            timestamp: timestamp,
             responseTime: data.responseTime,
             contentType: data.contentType,
             meta: data.meta,
@@ -379,31 +517,15 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         // Update messages from Firebase with debouncing to prevent rapid updates
         if (debounceTimer.current) window.clearTimeout(debounceTimer.current);
         debounceTimer.current = window.setTimeout(() => {
-          // Only update if messages actually changed
-          if (!sameMessages(uniqueMessages, lastMessagesRef.current)) {
+          // Only update if messages actually changed (check IDs and length)
+          const messagesChanged = !sameMessages(uniqueMessages, lastMessagesRef.current);
+          if (messagesChanged) {
             lastMessagesRef.current = uniqueMessages;
             setMessages(uniqueMessages);
           }
           setHasMoreMessages(false);
           setLastMessageDoc(snapshot.docs[snapshot.docs.length - 1] || null);
-        }, 50);
-
-        // Debug: compare expected vs loaded counts, and first/last timestamps
-        try {
-          console.groupCollapsed('[Chat] Messages snapshot');
-          console.debug('Conversation:', {
-            id: conversationId,
-            title: currentConversation?.title,
-            expectedMessageCount: currentConversation?.messageCount
-          });
-          console.debug('Loaded messages:', {
-            snapshotCount: snapshot.size,
-            uniqueAfterCleanup: uniqueMessages.length,
-            firstTimestamp: uniqueMessages[0]?.timestamp,
-            lastTimestamp: uniqueMessages[uniqueMessages.length - 1]?.timestamp
-          });
-          console.groupEnd();
-        } catch {}
+        }, 100); // Increased debounce to 100ms to reduce rapid updates
       }, (err) => {
         console.error('Error in real-time messages listener:', err);
       });
@@ -416,7 +538,7 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       setIsLoading(false);
       throw err;
     }
-  }, [user]);
+  }, [user, conversations]);
 
   const loadMoreMessages = useCallback(async (): Promise<void> => {
     if (!currentConversation || !hasMoreMessages || isLoading) {

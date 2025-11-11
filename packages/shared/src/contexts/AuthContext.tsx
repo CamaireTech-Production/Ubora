@@ -29,6 +29,7 @@ interface AuthContextType {
   resetPassword: (email: string) => Promise<boolean>;
   logout: () => Promise<void>;
   refreshUserData: () => Promise<void>;
+  updateTokensLocally: (tokensUsed: number) => void;
   isLoading: boolean;
   error: string | null;
 }
@@ -852,6 +853,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const updateTokensLocally = (tokensUsed: number): void => {
+    if (!user) {
+      return;
+    }
+
+    // Mettre à jour uniquement les tokens localement sans recharger depuis Firestore
+    // Cela évite un rerender complet de tous les composants dépendants de user
+    setUser(prev => {
+      if (!prev) {
+        return null;
+      }
+      
+      return {
+        ...prev,
+        tokensUsedMonthly: tokensUsed,
+        // Si l'utilisateur a des tokens pay-as-you-go, on peut aussi les mettre à jour
+        // mais pour l'instant on se concentre sur tokensUsedMonthly
+      };
+    });
+  };
+
   const getErrorMessage = (errorCode: string): string => {
     switch (errorCode) {
       case 'auth/invalid-credential':
@@ -894,6 +916,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       resetPassword,
       logout,
       refreshUserData,
+      updateTokensLocally,
       isLoading,
       error
     }}>

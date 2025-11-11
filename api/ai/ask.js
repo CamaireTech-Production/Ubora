@@ -675,9 +675,9 @@ export default async function handler(req, res) {
     // Initialize systemPrompt early to prevent ReferenceError
     let systemPrompt = '';
     
-    // Initialize token tracking variables
-    let updatedTokensUsed = userData.tokensUsedMonthly || 0;
-    let updatedPayAsYouGoTokens = userData.payAsYouGoTokens || 0;
+    // Initialize token tracking variables (managed in subscriptionSessions collection)
+    let updatedTokensUsed = 0;
+    let updatedPayAsYouGoTokens = 0;
     
     if (userData.role !== 'directeur') {
       return res.status(403).json({ 
@@ -1471,52 +1471,14 @@ TOP FORMULAIRES : ${data.formStats.slice(0, 3).map(f => `${f.title} (${f.count} 
       return limits[packageType] || 300000;
     };
 
-    // Check subscription status and reset tokens if subscription has ended
+    // Check subscription status - tokens are managed in subscriptionSessions collection only
+    // This function is kept for compatibility but doesn't modify user document
     const checkSubscriptionAndResetTokens = async (userData, uid) => {
-      const now = new Date();
-      const subscriptionEndDate = userData.subscriptionEndDate ? userData.subscriptionEndDate.toDate() : null;
-      const lastReset = userData.tokensResetDate ? userData.tokensResetDate.toDate() : null;
-      
-      // Check if subscription has ended
-      if (subscriptionEndDate && now > subscriptionEndDate) {
-        try {
-          // Subscription has ended - reset all tokens
-          await adminDb.collection('users').doc(uid).update({
-            tokensUsedMonthly: 0,
-            payAsYouGoTokens: 0, // Clear pay-as-you-go tokens when subscription ends
-            subscriptionStatus: 'expired',
-            updatedAt: admin.firestore.FieldValue.serverTimestamp()
-          });
-          return { tokensUsed: 0, payAsYouGoTokens: 0, subscriptionExpired: true };
-        } catch (resetError) {
-          console.error('Error clearing expired subscription tokens:', resetError);
-        }
-      }
-      
-      // Check if monthly tokens need to be reset (only if subscription is active)
-      if (!subscriptionEndDate || now <= subscriptionEndDate) {
-        if (!lastReset || lastReset.getMonth() !== now.getMonth() || lastReset.getFullYear() !== now.getFullYear()) {
-          try {
-            const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-            await adminDb.collection('users').doc(uid).update({
-              tokensUsedMonthly: 0,
-              tokensResetDate: nextMonth,
-              updatedAt: admin.firestore.FieldValue.serverTimestamp()
-            });
-            return { 
-              tokensUsed: 0, 
-              payAsYouGoTokens: userData.payAsYouGoTokens || 0, 
-              subscriptionExpired: false 
-            };
-          } catch (resetError) {
-            console.error('Error resetting monthly tokens:', resetError);
-          }
-        }
-      }
-      
+      // Tokens are now managed in subscriptionSessions collection
+      // This function returns default values for compatibility
       return { 
-        tokensUsed: userData.tokensUsedMonthly || 0, 
-        payAsYouGoTokens: userData.payAsYouGoTokens || 0, 
+        tokensUsed: 0, 
+        payAsYouGoTokens: 0, 
         subscriptionExpired: false 
       };
     };
@@ -1542,47 +1504,28 @@ TOP FORMULAIRES : ${data.formStats.slice(0, 3).map(f => `${f.title} (${f.count} 
       }
     }
     
-    // Fallback to legacy array if no session in collection
+    // Only use subscriptionSessions collection - no fallback to legacy system
     if (!currentSession) {
-      const currentSessionId = userData.currentSessionId;
-      const subscriptionSessions = userData.subscriptionSessions || [];
-      currentSession = subscriptionSessions.find(session => 
-        session.id === currentSessionId && session.isActive
-      );
-    }
-    
-    let packageLimit, currentTokensUsed, payAsYouGoTokens, subscriptionExpired;
-    
-    if (currentSession) {
-      // Use session-based data
-      packageLimit = currentSession.packageResources?.tokensIncluded || 0;
-      currentTokensUsed = currentSession.usage?.tokensUsed || 0;
-      payAsYouGoTokens = currentSession.payAsYouGoResources?.tokens || 0;
-      subscriptionExpired = new Date() > new Date(currentSession.endDate);
-      
-      console.log('📊 SESSION-BASED TOKEN CHECK:', {
-        sessionId: currentSession.id,
-        packageType: currentSession.packageType,
-        packageLimit,
-        currentTokensUsed,
-        payAsYouGoTokens,
-        subscriptionExpired
-      });
-    } else {
-      // Fallback to user-based data
-      packageLimit = getPackageLimit(userData.package);
-      const tokenStatus = await checkSubscriptionAndResetTokens(userData, uid);
-      currentTokensUsed = tokenStatus.tokensUsed;
-      payAsYouGoTokens = tokenStatus.payAsYouGoTokens;
-      subscriptionExpired = tokenStatus.subscriptionExpired;
-      
-      console.log('📊 USER-BASED TOKEN CHECK (FALLBACK):', {
-        packageLimit,
-        currentTokensUsed,
-        payAsYouGoTokens,
-        subscriptionExpired
+      return res.status(400).json({
+        error: 'Aucune session active trouvée. Veuillez sélectionner un package.',
+        code: 'NO_ACTIVE_SESSION'
       });
     }
+    
+    // Use session-based data
+    const packageLimit = currentSession.packageResources?.tokensIncluded || 0;
+    let currentTokensUsed = currentSession.usage?.tokensUsed || 0;
+    const payAsYouGoTokens = currentSession.payAsYouGoResources?.tokens || 0;
+    const subscriptionExpired = new Date() > new Date(currentSession.endDate);
+    
+    console.log('📊 SESSION-BASED TOKEN CHECK:', {
+      sessionId: currentSession.id,
+      packageType: currentSession.packageType,
+      packageLimit,
+      currentTokensUsed,
+      payAsYouGoTokens,
+      subscriptionExpired
+    });
     
     // If subscription has expired, return error
     if (subscriptionExpired) {
@@ -2479,113 +2422,60 @@ Il serait pertinent de surveiller l'engagement des employés moins actifs et d'a
             }
           }
           
-          // Fallback to legacy array if no session in collection
-          if (!currentSession) {
-            const currentSessionId = freshUserData.currentSessionId;
-            const subscriptionSessions = freshUserData.subscriptionSessions || [];
-            currentSession = subscriptionSessions.find(session => 
-              session.id === currentSessionId && session.isActive
-            );
-          }
-          
           if (!currentSession) {
             console.error('❌ No active session found for user:', uid);
-            // Fallback to user object tracking if no session
-            const freshTokensUsed = freshUserData.tokensUsedMonthly || 0;
-            const freshPayAsYouGoTokens = freshUserData.payAsYouGoTokens || 0;
-            
-            let newTokensUsed = freshTokensUsed;
-            let newPayAsYouGoTokens = freshPayAsYouGoTokens;
-            
-            const packageTokensRemaining = packageLimit - freshTokensUsed;
-            
-            if (finalUserTokens <= packageTokensRemaining) {
-              newTokensUsed = freshTokensUsed + finalUserTokens;
-            } else {
-              const packageTokensToDeduct = Math.max(0, packageTokensRemaining);
-              const payAsYouGoTokensToDeduct = finalUserTokens - packageTokensToDeduct;
-              newTokensUsed = freshTokensUsed + packageTokensToDeduct;
-              newPayAsYouGoTokens = Math.max(0, freshPayAsYouGoTokens - payAsYouGoTokensToDeduct);
-            }
-            
-            await adminDb.collection('users').doc(uid).update({
-              tokensUsedMonthly: newTokensUsed,
-              payAsYouGoTokens: newPayAsYouGoTokens,
-              updatedAt: admin.firestore.FieldValue.serverTimestamp()
-            });
-            
-            updatedTokensUsed = newTokensUsed;
-            updatedPayAsYouGoTokens = newPayAsYouGoTokens;
-            
-            console.log('✅ FALLBACK TOKEN DEDUCTION SUCCESS:', {
-              finalUserTokens,
-              newTokensUsed,
-              newPayAsYouGoTokens
-            });
-          } else {
-            console.log('💰 SESSION TOKEN TRACKING - ACTIVE SESSION FOUND:', {
-              sessionId: currentSession.id,
-              packageType: currentSession.packageType,
-              currentTokensUsed: currentSession.usage?.tokensUsed || 0,
-              isFromCollection: !!sessionDocRef
-            });
-            
-            // Update the current session's token usage
-            const currentUsage = currentSession.usage || {
-              tokensUsed: 0,
-              formsCreated: 0,
-              dashboardsCreated: 0,
-              usersAdded: 0
-            };
-            
-            const newTokensUsed = currentUsage.tokensUsed + finalUserTokens;
-            
-            // Update session in collection if it's from the new collection
-            if (sessionDocRef) {
-              await sessionDocRef.update({
-                'usage.tokensUsed': newTokensUsed,
-                'usage.lastTokenUsed': admin.firestore.FieldValue.serverTimestamp(),
-                updatedAt: admin.firestore.FieldValue.serverTimestamp()
-              });
-            } else {
-              // Fallback: Update legacy array in user document
-              const subscriptionSessions = freshUserData.subscriptionSessions || [];
-              const updatedSessions = subscriptionSessions.map(session => {
-                if (session.id === currentSession.id) {
-                  return {
-                    ...session,
-                    usage: {
-                      ...currentUsage,
-                      tokensUsed: newTokensUsed,
-                      lastTokenUsed: new Date()
-                    },
-                    updatedAt: new Date()
-                  };
-                }
-                return session;
-              });
-              
-              await adminDb.collection('users').doc(uid).update({
-                subscriptionSessions: updatedSessions,
-                updatedAt: admin.firestore.FieldValue.serverTimestamp()
-              });
-            }
-            
-            // Calculate remaining tokens for response
-            const sessionPackageLimit = currentSession.packageResources?.tokensIncluded || 0;
-            const sessionPayAsYouGoTokens = currentSession.payAsYouGoResources?.tokens || 0;
-            
-            updatedTokensUsed = newTokensUsed;
-            updatedPayAsYouGoTokens = sessionPayAsYouGoTokens;
-            
-            console.log('✅ SESSION TOKEN TRACKING SUCCESS:', {
-              finalUserTokens,
-              sessionTokensUsed: newTokensUsed,
-              sessionPackageLimit,
-              sessionPayAsYouGoTokens,
-              remainingTokens: sessionPackageLimit === -1 ? -1 : Math.max(0, (sessionPackageLimit + sessionPayAsYouGoTokens) - newTokensUsed)
+            return res.status(400).json({
+              error: 'Aucune session active trouvée. Veuillez sélectionner un package.',
+              code: 'NO_ACTIVE_SESSION'
             });
           }
+          
+          console.log('💰 SESSION TOKEN TRACKING - ACTIVE SESSION FOUND:', {
+            sessionId: currentSession.id,
+            packageType: currentSession.packageType,
+            currentTokensUsed: currentSession.usage?.tokensUsed || 0,
+            isFromCollection: !!sessionDocRef
+          });
+          
+          // Update the current session's token usage
+          const currentUsage = currentSession.usage || {
+            tokensUsed: 0,
+            formsCreated: 0,
+            dashboardsCreated: 0,
+            usersAdded: 0
+          };
+          
+          const newTokensUsed = currentUsage.tokensUsed + finalUserTokens;
+          
+          // Update session in collection (only subscriptionSessions collection is used)
+          if (!sessionDocRef) {
+            console.error('❌ Session found but no sessionDocRef - session should be in subscriptionSessions collection');
+            return res.status(500).json({
+              error: 'Erreur de session. Veuillez réessayer.',
+              code: 'SESSION_ERROR'
+            });
+          }
+          
+          await sessionDocRef.update({
+            'usage.tokensUsed': newTokensUsed,
+            'usage.lastTokenUsed': admin.firestore.FieldValue.serverTimestamp(),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+          });
+          
+          // Calculate remaining tokens for response
+          const sessionPackageLimit = currentSession.packageResources?.tokensIncluded || 0;
+          const sessionPayAsYouGoTokens = currentSession.payAsYouGoResources?.tokens || 0;
+          
+          updatedTokensUsed = newTokensUsed;
+          updatedPayAsYouGoTokens = sessionPayAsYouGoTokens;
+          
+          console.log('✅ SESSION TOKEN TRACKING SUCCESS:', {
+            finalUserTokens,
+            sessionTokensUsed: newTokensUsed,
+            sessionPackageLimit,
+            sessionPayAsYouGoTokens,
+            remainingTokens: sessionPackageLimit === -1 ? -1 : Math.max(0, (sessionPackageLimit + sessionPayAsYouGoTokens) - newTokensUsed)
+          });
         } catch (tokenError) {
           console.error('❌ SESSION TOKEN TRACKING ERROR:', tokenError);
           // Don't fail the request if token tracking fails

@@ -6,7 +6,7 @@ import {
   PackageLimits,
   PACKAGE_LIMITS
 } from '../config/packageFeatures';
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { db } from '../firebaseConfig';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { useTokenStats } from './useTokenStats';
@@ -45,16 +45,50 @@ export const usePackageAccess = () => {
   }, [user]);
 
   // Get current package info from active session (async)
+  // Only depend on user.id, role, and agencyId - NOT tokensUsedMonthly which changes frequently
+  // This prevents unnecessary recalculations when tokens are updated locally
+  const isFetchingRef = useRef(false);
+  const lastFetchedUserIdRef = useRef<string | null>(null);
+  const directorPackageInfoRef = useRef<any>(null);
+  
+  // Update ref when directorPackageInfo changes
   useEffect(() => {
+    directorPackageInfoRef.current = directorPackageInfo;
+  }, [directorPackageInfo]);
+  
+  useEffect(() => {
+    // Skip if already fetching or if user hasn't changed
+    if (isFetchingRef.current) {
+      return;
+    }
+    
+    // Skip if we already have package info for this user
+    if (user?.id === lastFetchedUserIdRef.current && userPackageInfo !== null) {
+      return;
+    }
+    
     const fetchUserPackageInfo = async () => {
       if (!user) {
         setUserPackageInfo(null);
+        lastFetchedUserIdRef.current = null;
         return;
       }
 
+      // Skip if already fetched for this user
+      if (user.id === lastFetchedUserIdRef.current && userPackageInfo !== null) {
+        return;
+      }
+      
+      // Mark as fetching immediately to prevent concurrent calls
+      isFetchingRef.current = true;
+      lastFetchedUserIdRef.current = user.id;
+
       // For employees with director access, use the director's package info if available
-      if (user.role === 'employe' && user.hasDirectorDashboardAccess && directorPackageInfo) {
-        setUserPackageInfo(directorPackageInfo);
+      // Use ref to get the latest value without causing re-renders
+      const currentDirectorPackageInfo = directorPackageInfoRef.current;
+      if (user.role === 'employe' && user.hasDirectorDashboardAccess && currentDirectorPackageInfo) {
+        setUserPackageInfo(currentDirectorPackageInfo);
+        lastFetchedUserIdRef.current = user.id;
         return;
       }
 
@@ -62,16 +96,19 @@ export const usePackageAccess = () => {
       try {
         const info = await UserSessionService.getUserPackageInfo(user);
         setUserPackageInfo(info);
+        lastFetchedUserIdRef.current = user.id;
       } catch (error) {
         console.error('Error fetching user package info:', error);
         setUserPackageInfo(null);
+        lastFetchedUserIdRef.current = null;
       } finally {
         setIsLoadingUserPackageInfo(false);
+        isFetchingRef.current = false;
       }
     };
 
     fetchUserPackageInfo();
-  }, [user, directorPackageInfo]);
+  }, [user?.id, user?.role, user?.agencyId, user?.hasDirectorDashboardAccess]);
 
   // Fetch director's package info for employees with director access
   useEffect(() => {
@@ -107,20 +144,45 @@ export const usePackageAccess = () => {
   }, [user]);
 
   // Merge token stats override into package info so UI reflects live usage without mutating user doc
+  // Use ref to track previous values and avoid unnecessary recalculations
+  const prevPackageInfoRef = useRef<any>(null);
+  const prevTokenStatsRef = useRef<any>(null);
+  
   const packageInfo = useMemo(() => {
     const base = userPackageInfo;
-    if (!base) return null;
+    if (!base) {
+      if (prevPackageInfoRef.current !== null) {
+        prevPackageInfoRef.current = null;
+      }
+      return null;
+    }
+    
+    // Check if values actually changed
+    const baseChanged = prevPackageInfoRef.current?.tokensUsed !== base.tokensUsed || 
+                        prevPackageInfoRef.current?.totalTokens !== base.totalTokens;
+    const tokenStatsChanged = prevTokenStatsRef.current?.tokensUsedMonthly !== tokenStats?.tokensUsedMonthly;
+    
+    if (!baseChanged && !tokenStatsChanged && prevPackageInfoRef.current !== null) {
+      // Values haven't changed, return previous result
+      return prevPackageInfoRef.current;
+    }
+    
     if (tokenStats && typeof tokenStats.tokensUsedMonthly === 'number' && base.totalTokens > 0) {
       // Combine chat usage from active session (base.tokensUsed)
       // with extraction usage from stats/current (tokenStats.tokensUsedMonthly)
       const combinedUsed = (base.tokensUsed || 0) + (tokenStats.tokensUsedMonthly || 0);
       const tokensUsed = Math.max(0, Math.min(base.totalTokens, combinedUsed));
-      return {
+      const result = {
         ...base,
         tokensUsed,
         tokensRemaining: Math.max(0, base.totalTokens - tokensUsed)
       };
+      prevPackageInfoRef.current = result;
+      prevTokenStatsRef.current = tokenStats;
+      return result;
     }
+    prevPackageInfoRef.current = base;
+    prevTokenStatsRef.current = tokenStats;
     return base;
   }, [userPackageInfo, tokenStats]);
   const currentPackageType = packageInfo?.packageType || null;
@@ -349,18 +411,20 @@ export const usePackageAccess = () => {
   };
 
   // Obtenir le nombre de tokens mensuels disponibles
-  const getMonthlyTokens = (): number => {
+  // Memoize to prevent unnecessary recalculations
+  const getMonthlyTokens = useCallback((): number => {
     if (!user) return 0;
     const limits = UserSessionService.getPackageLimits(user);
     return limits.maxTokens;
-  };
+  }, [user?.id, user?.role, user?.agencyId, user?.hasDirectorDashboardAccess]);
 
   // Vérifier si l'utilisateur a des tokens illimités
-  const hasUnlimitedTokens = (): boolean => {
+  // Memoize to prevent unnecessary recalculations
+  const hasUnlimitedTokens = useCallback((): boolean => {
     if (!user) return false;
     const limits = UserSessionService.getPackageLimits(user);
     return limits.maxTokens === -1;
-  };
+  }, [user?.id, user?.role, user?.agencyId, user?.hasDirectorDashboardAccess]);
 
   // Vérifier si l'utilisateur peut utiliser une fonctionnalité IA avancée
   const canUseAdvancedAI = (): boolean => {

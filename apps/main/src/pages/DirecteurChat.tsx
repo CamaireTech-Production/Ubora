@@ -33,17 +33,9 @@ interface ChatFilters {
 // Import centralized API configuration
 import { getAIEndpoint } from '@ubora/shared/config/api';
 
-// Get AI endpoint from centralized configuration
-const AI_ENDPOINT = getAIEndpoint();
-console.log('🎯 Final AI_ENDPOINT:', AI_ENDPOINT);
-
-if (!AI_ENDPOINT) {
-  console.error("❌ Aucun endpoint ARCHA configuré. ARCHA ne fonctionnera pas.");
-}
-
-export const DirecteurChat: React.FC = () => {
+const DirecteurChatComponent: React.FC = () => {
   const navigate = useNavigate();
-  const { user, firebaseUser, isLoading, logout, refreshUserData } = useAuth();
+  const { user, firebaseUser, isLoading, logout, refreshUserData, updateTokensLocally } = useAuth();
   const { forms, formEntries, employees, isLoading: appLoading } = useApp();
   const { getMonthlyTokens, hasUnlimitedTokens, packageInfo } = usePackageAccess();
   const { 
@@ -69,6 +61,9 @@ export const DirecteurChat: React.FC = () => {
   
   // Ref for direct input access without re-renders
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  
+  // Ref to track last processed message to avoid unnecessary updates
+  const lastProcessedMessageIdRef = useRef<string | null>(null);
   const [selectedFormat, setSelectedFormat] = useState<string | null>(null);
   const [selectedFormats, setSelectedFormats] = useState<string[]>([]);
   const [selectedFormIds, setSelectedFormIds] = useState<string[]>([]);
@@ -155,12 +150,14 @@ export const DirecteurChat: React.FC = () => {
   });
 
 
-  // Memoize package calculations for performance - only recalculate when user changes
+  // Memoize package calculations for performance - only recalculate when user.id changes
+  // Don't depend on tokensUsedMonthly as tokens are managed in subscriptionSessions
+  // getMonthlyTokens and hasUnlimitedTokens are now memoized with useCallback
   const packageCalculations = useMemo(() => {
     const monthlyLimit = getMonthlyTokens();
     const isUnlimited = hasUnlimitedTokens();
     return { monthlyLimit, isUnlimited };
-  }, [user?.id, user?.tokensUsedMonthly]);
+  }, [user?.id, getMonthlyTokens, hasUnlimitedTokens]);
   const handlePurchaseTokens = async (tokens: number) => {
     // This function is now handled by the PayAsYouGoModal with Campay integration
     // The modal will create the payment and handle the success/failure
@@ -181,15 +178,19 @@ export const DirecteurChat: React.FC = () => {
 
   // Watch for new assistant messages to hide loading indicator
   useEffect(() => {
-    if (isTyping && messages.length > lastMessageCount) {
-      // Check if the last message is from assistant
+    if (isTyping && messages.length > 0) {
+      // Check if the last message is from assistant and is new
       const lastMessage = messages[messages.length - 1];
-      if (lastMessage && lastMessage.type === 'assistant') {
+      if (lastMessage && lastMessage.type === 'assistant' && lastMessage.id !== lastProcessedMessageIdRef.current) {
         // New assistant message appeared, hide loading indicator
         setIsTyping(false);
+        lastProcessedMessageIdRef.current = lastMessage.id;
       }
     }
-    setLastMessageCount(messages.length);
+    // Only update lastMessageCount if it actually changed
+    if (messages.length !== lastMessageCount) {
+      setLastMessageCount(messages.length);
+    }
   }, [messages, isTyping, lastMessageCount]);
 
   // Fallback: Auto-load conversations when component mounts and conversations are available
@@ -347,8 +348,11 @@ RÉPONSE :
     // Loading indicator will be shown by MessageList component via isTyping prop
 
     try {
-      // Vérifier que l'endpoint est configuré
-      if (!AI_ENDPOINT) {
+      // Get AI endpoint dynamically from centralized configuration
+      // This ensures the URL is always up-to-date based on the current environment
+      const aiEndpoint = getAIEndpoint();
+      
+      if (!aiEndpoint) {
         throw new Error('ARCHA n\'est pas configuré. Veuillez définir VITE_AI_ENDPOINT dans votre fichier .env.local et redémarrer le serveur.');
       }
 
@@ -380,7 +384,7 @@ RÉPONSE :
       
 
       // Use enhanced fetch with retry logic and better error handling
-      let response = await enhancedFetch.aiRequest(AI_ENDPOINT, {
+      let response = await enhancedFetch.aiRequest(aiEndpoint, {
         method: 'POST',
         headers: makeHeaders(token),
         body: JSON.stringify(requestData),
@@ -393,7 +397,7 @@ RÉPONSE :
         try {
           const freshToken = await firebaseUser?.getIdToken(true);
           if (freshToken) {
-            response = await enhancedFetch.aiRequest(AI_ENDPOINT, {
+            response = await enhancedFetch.aiRequest(aiEndpoint, {
               method: 'POST',
               headers: makeHeaders(freshToken),
               body: JSON.stringify(requestData),
@@ -455,21 +459,9 @@ RÉPONSE :
         console.log('Backend did not return userMessage, keeping optimistic message');
       }
 
-      // Tokens are now deducted on the server side
+      // Tokens are now deducted on the server side in subscriptionSessions collection
+      // No need to update user.tokensUsedMonthly as tokens are managed in sessions
       if (user && data.meta?.userTokensCharged) {
-        // Update user data locally to reflect new token counts
-        // Use a timeout to debounce the refresh and prevent immediate re-renders
-        try {
-          setTimeout(async () => {
-            try {
-              await refreshUserData();
-            } catch (refreshError) {
-              console.error('❌ FRONTEND: Failed to refresh user data after token deduction:', refreshError);
-            }
-          }, 1000); // 1 second delay to allow UI to settle
-        } catch (refreshError) {
-          console.error('❌ FRONTEND: Failed to schedule user data refresh:', refreshError);
-        }
         
         // Track chat activity analytics
         try {
@@ -530,7 +522,8 @@ RÉPONSE :
           errorContent += `\n\n💡 **Solution:**\n• Contactez l'administrateur système\n• Vérifiez la configuration du serveur`;
         }
       } else {
-        errorContent = `❌ **Erreur inattendue**\n\nUne erreur inattendue s'est produite. Veuillez réessayer.\n\nEndpoint: ${AI_ENDPOINT}`;
+        const aiEndpoint = getAIEndpoint();
+        errorContent = `❌ **Erreur inattendue**\n\nUne erreur inattendue s'est produite. Veuillez réessayer.\n\nEndpoint: ${aiEndpoint || 'Non configuré'}`;
       }
       
       const errorMessage: ChatMessage = {
@@ -742,3 +735,6 @@ RÉPONSE :
     </LoadingGuard>
   );
 };
+
+// Memoize the component to prevent unnecessary rerenders
+export const DirecteurChat = React.memo(DirecteurChatComponent);

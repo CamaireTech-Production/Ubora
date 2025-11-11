@@ -40,6 +40,12 @@ export const MessageList: React.FC<MessageListProps> = memo(({
 
   // Helpers: FR labels for date group headers
   const formatDateLabel = (d: Date) => {
+    // Validate date before using it
+    if (!d || isNaN(d.getTime())) {
+      console.warn('Invalid date passed to formatDateLabel:', d);
+      return "Date invalide";
+    }
+    
     const today = new Date();
     const yesterday = new Date();
     yesterday.setDate(today.getDate() - 1);
@@ -49,7 +55,7 @@ export const MessageList: React.FC<MessageListProps> = memo(({
       a.getMonth() === b.getMonth() &&
       a.getDate() === b.getDate();
 
-    if (sameDay(d, today)) return "Aujourd’hui";
+    if (sameDay(d, today)) return "Aujourd'hui";
     if (sameDay(d, yesterday)) return "Hier";
 
     return new Intl.DateTimeFormat('fr-FR', {
