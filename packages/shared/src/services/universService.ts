@@ -1272,7 +1272,7 @@ class UniversService {
 
   /**
    * Récupérer les Univers du marketplace (approved templates)
-   * Utilise publishedVersion pour afficher uniquement les versions approuvées disponibles
+   * Retourne uniquement la version publiée (publishedVersion), pas le draft
    */
   async getMarketplaceTemplates(): Promise<Univers[]> {
     try {
@@ -1284,9 +1284,27 @@ class UniversService {
       );
       
       const querySnapshot = await getDocs(q);
-      const universes = querySnapshot.docs.map(doc => 
-        this.convertFirestoreToUnivers(doc.id, doc.data())
-      );
+      const universes = querySnapshot.docs.map(doc => {
+        const univers = this.convertFirestoreToUnivers(doc.id, doc.data());
+        
+        // Pour le marketplace : utiliser uniquement la version publiée
+        // Si publishedVersion existe, l'utiliser pour metadata.version
+        if (univers.metadata.publishedVersion && univers.metadata.publishedVersion > 0) {
+          // Créer une copie avec la version publiée
+          return {
+            ...univers,
+            metadata: {
+              ...univers.metadata,
+              version: univers.metadata.publishedVersion // Utiliser publishedVersion au lieu de la version draft
+            },
+            // Ne pas inclure draftData dans le marketplace
+            draftData: undefined,
+            hasUnpublishedChanges: false
+          };
+        }
+        
+        return univers;
+      });
       
       // Filtrer pour ne garder que ceux qui ont une publishedVersion (version approuvée disponible)
       // Les univers avec seulement un draft ne doivent pas apparaître dans le marketplace
@@ -1329,11 +1347,26 @@ class UniversService {
       });
 
       // 4. Récupérer les Univers templates pour les instances
+      // Pour les univers achetés, utiliser uniquement la version publiée (pas le draft)
       if (purchasedUniversIds.size > 0) {
         const purchasedUniversPromises = Array.from(purchasedUniversIds).map(async (universId) => {
           try {
+            // Ne pas passer userId pour éviter de récupérer le draft
             const univers = await this.getById(universId);
             if (univers) {
+              // Pour les univers achetés : utiliser uniquement la version publiée
+              if (univers.metadata.publishedVersion && univers.metadata.publishedVersion > 0) {
+                return {
+                  ...univers,
+                  metadata: {
+                    ...univers.metadata,
+                    version: univers.metadata.publishedVersion // Utiliser publishedVersion
+                  },
+                  // Ne pas inclure draftData pour les univers achetés
+                  draftData: undefined,
+                  hasUnpublishedChanges: false
+                };
+              }
               return univers;
             }
             return null;
@@ -1498,11 +1531,16 @@ class UniversService {
     universId: string,
     userId: string,
     userRole: 'directeur' | 'employe' | 'admin',
-    agencyId: string
+    agencyId: string,
+    useDraft: boolean = false
   ): Promise<{ instanceId: string; result: InstantiationResult }> {
     try {
       // 1. Fetch the Univers template
-      const univers = await this.getById(universId);
+      // Si useDraft est true et que c'est le créateur, récupérer avec userId pour avoir le draft
+      const univers = useDraft 
+        ? await this.getById(universId, userId)
+        : await this.getById(universId);
+      
       if (!univers) {
         throw new Error(`Univers template not found: ${universId}`);
       }
@@ -1510,6 +1548,24 @@ class UniversService {
       // Validate that the Univers has definitions
       if (!univers.definitions) {
         throw new Error('Univers template has no definitions');
+      }
+
+      // Déterminer la version à utiliser pour l'instance
+      const isOwner = univers.ownership.createdBy === userId;
+      const isMarketplace = univers.ownership.isMarketplaceTemplate || false;
+      
+      // Pour les non-propriétaires : utiliser uniquement publishedVersion
+      // Pour le propriétaire : utiliser la version draft si useDraft=true, sinon publishedVersion
+      let instanceVersion: number;
+      if (isOwner && isMarketplace && useDraft) {
+        // Propriétaire utilisant le draft
+        instanceVersion = univers.metadata.version || 1;
+      } else if (isMarketplace && univers.metadata.publishedVersion) {
+        // Non-propriétaire ou propriétaire sans draft : utiliser publishedVersion
+        instanceVersion = univers.metadata.publishedVersion;
+      } else {
+        // Univers privé ou pas de publishedVersion : utiliser metadata.version
+        instanceVersion = univers.metadata.version || 1;
       }
 
       // 2. Generate a unique instance ID (ce sera l'ID de l'instance Firestore)
@@ -1530,7 +1586,7 @@ class UniversService {
       // Note: Firestore doesn't accept undefined values, so we omit optional fields
       const instanceData: any = {
         universId,
-        universVersion: univers.metadata.version || 1,
+        universVersion: instanceVersion, // Utiliser la version déterminée ci-dessus
         userId,
         agencyId,
         createdAt: new Date(),
@@ -1545,7 +1601,7 @@ class UniversService {
         },
         metadata: {
           universName: univers.metadata.name,
-          universVersion: univers.metadata.version || 1,
+          universVersion: instanceVersion, // Utiliser la version déterminée ci-dessus
           isFromMarketplace: univers.ownership.isMarketplaceTemplate || false
           // paymentId and purchaseDate will be added later if purchased
         },
@@ -1634,11 +1690,13 @@ class UniversService {
       }
 
       // 6. Créer l'instance via instantiate()
+      // Pour les achats : toujours utiliser la version publiée (pas le draft)
       const { instanceId } = await this.instantiate(
         universId,
         directorId,
         'directeur',
-        agencyId
+        agencyId,
+        false // useDraft = false pour les achats
       );
 
       // 7. Mettre à jour l'instance pour ajouter les métadonnées d'achat
@@ -2400,16 +2458,29 @@ class UniversService {
       }
 
       // 2. Récupérer le template Univers et vérifier qu'une mise à jour est disponible
+      // Ne pas passer userId pour éviter de récupérer le draft pour les non-propriétaires
       const univers = await this.getById(oldInstance.universId);
       if (!univers) {
         throw new Error(`Univers template not found: ${oldInstance.universId}`);
       }
 
       const currentVersion = oldInstance.universVersion || oldInstance.metadata?.universVersion || 1;
-      const latestVersion = univers.metadata.version || 1;
       
       // Vérifier si l'utilisateur est le propriétaire du template
       const isOwner = univers.ownership.createdBy === userId;
+      const isMarketplace = univers.ownership.isMarketplaceTemplate || false;
+      
+      // Déterminer la version à utiliser pour la mise à jour
+      // Pour les non-propriétaires : utiliser uniquement publishedVersion (version approuvée)
+      // Pour le propriétaire : utiliser la version draft si disponible
+      let latestVersion: number;
+      if (isOwner && isMarketplace) {
+        // Propriétaire : peut utiliser la version draft
+        latestVersion = univers.metadata.version || 1;
+      } else {
+        // Non-propriétaire : utiliser uniquement la version publiée
+        latestVersion = univers.metadata.publishedVersion || univers.metadata.version || 1;
+      }
       
       console.log(`🔍 Upgrade check:`, {
         instanceId: oldInstanceId,
@@ -2417,6 +2488,9 @@ class UniversService {
         currentVersion,
         latestVersion,
         isOwner,
+        isMarketplace,
+        publishedVersion: univers.metadata.publishedVersion,
+        draftVersion: univers.metadata.version,
         updateAvailable: oldInstance.updateAvailable,
         latestAvailableVersion: oldInstance.latestAvailableVersion,
         userId
@@ -2426,8 +2500,8 @@ class UniversService {
       let newVersion: number;
       
       // Pour le propriétaire : toujours utiliser la version du template (ignore latestAvailableVersion)
-      if (isOwner && latestVersion > currentVersion) {
-        // Propriétaire : toujours utiliser la dernière version du template
+      if (isOwner && isMarketplace && latestVersion > currentVersion) {
+        // Propriétaire : toujours utiliser la dernière version du template (draft si disponible)
         newVersion = latestVersion;
         console.log(`📌 Owner: using latest template version: v${newVersion}`);
       } else if (oldInstance.updateAvailable && oldInstance.latestAvailableVersion) {
@@ -2452,16 +2526,26 @@ class UniversService {
       }
 
       // 3. Vérifier que le Univers template a la bonne version
-      if (univers.metadata.version !== newVersion) {
-        throw new Error(`Univers template version ${univers.metadata.version} does not match expected version ${newVersion}`);
+      // Pour les non-propriétaires : vérifier publishedVersion
+      // Pour le propriétaire : vérifier metadata.version (peut être draft)
+      const expectedTemplateVersion = (isOwner && isMarketplace) 
+        ? univers.metadata.version 
+        : (univers.metadata.publishedVersion || univers.metadata.version);
+      
+      if (expectedTemplateVersion !== newVersion) {
+        throw new Error(`Univers template version ${expectedTemplateVersion} does not match expected version ${newVersion}. Owner: ${isOwner}, Marketplace: ${isMarketplace}`);
       }
 
       // 4. Créer une nouvelle instance avec la nouvelle version
+      // Pour le propriétaire : utiliser useDraft=true si la nouvelle version est un draft
+      // Pour les non-propriétaires : toujours utiliser la version publiée (useDraft=false)
+      const useDraft = isOwner && isMarketplace && newVersion === univers.metadata.version && univers.hasUnpublishedChanges;
       const { instanceId: newInstanceId, result: instantiationResult } = await this.instantiate(
         oldInstance.universId,
         userId,
         userRole,
-        agencyId
+        agencyId,
+        useDraft
       );
 
       const newInstance = await this.getInstanceById(newInstanceId);
@@ -3416,6 +3500,9 @@ class UniversService {
       }
       
       // 3. Vérifier si c'est une instance achetée ou créer/trouver une instance pour le propriétaire
+      // Déterminer si on doit utiliser le draft pour l'instanciation
+      const shouldUseDraft = useDraft && isOwner && univers.ownership.isMarketplaceTemplate && univers.hasUnpublishedChanges;
+      
       let instanceId: string | undefined;
       if (univers.ownership.isMarketplaceTemplate && !isOwner) {
         // Chercher une instance de ce Univers pour ce directeur (non-propriétaire)
@@ -3474,7 +3561,8 @@ class UniversService {
             universId,
             directorId,
             'directeur',
-            agencyId
+            agencyId,
+            shouldUseDraft // Utiliser le draft si demandé
           );
           instanceId = newInstanceId;
           

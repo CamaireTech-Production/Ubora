@@ -255,37 +255,35 @@ export const UniversViewPage: React.FC = () => {
     }
   };
 
-  // Détecter les mises à jour disponibles
-  // Pour le propriétaire : vérifier si le Univers a une version plus récente que l'instance
-  // Pour les non-propriétaires : utiliser updateAvailable de l'instance
+  // Détecter les mises à jour disponibles et déterminer les versions à afficher
   const isOwner = univers?.ownership.createdBy === user?.id;
   const isMarketplace = univers?.ownership.isMarketplaceTemplate || false;
   const hasUnpublishedChanges = univers?.hasUnpublishedChanges || false;
   const instanceVersion = userInstance?.universVersion || userInstance?.metadata?.universVersion || 1;
   
-  // Pour le créateur d'un univers marketplace : utiliser publishedVersion pour les autres, version draft pour lui
-  // Pour les autres : utiliser publishedVersion
-  const publishedVersion = univers?.metadata.publishedVersion || univers?.metadata.version || 1;
-  const draftVersion = univers?.metadata.version || 1; // Version actuelle (peut être draft si créateur)
+  // Versions disponibles
+  const publishedVersion = univers?.metadata.publishedVersion || (isMarketplace ? undefined : univers?.metadata.version);
+  const draftVersion = univers?.metadata.version || 1;
   
-  // Pour l'affichage : créateur voit draftVersion, autres voient publishedVersion
-  const displayVersion = (isOwner && isMarketplace) ? draftVersion : publishedVersion;
-  
+  // Détecter les mises à jour disponibles
   let hasUpdateAvailable = false;
-  if (isOwner && userInstance) {
-    // Pour le propriétaire : vérifier si le Univers template a une version plus récente
-    hasUpdateAvailable = displayVersion > instanceVersion;
-  } else if (userInstance) {
+  let latestAvailableVersion = instanceVersion;
+  
+  if (isOwner && userInstance && isMarketplace) {
+    // Pour le propriétaire d'un univers marketplace : vérifier si le draft est plus récent que l'instance
+    hasUpdateAvailable = draftVersion > instanceVersion;
+    latestAvailableVersion = draftVersion;
+  } else if (userInstance && !isOwner && isMarketplace && publishedVersion) {
+    // Pour les non-propriétaires d'univers marketplace : vérifier si une nouvelle version publiée est disponible
+    hasUpdateAvailable = publishedVersion > instanceVersion;
+    latestAvailableVersion = publishedVersion;
+  } else if (userInstance && !isOwner) {
     // Pour les non-propriétaires : utiliser le marqueur updateAvailable
     hasUpdateAvailable = userInstance.updateAvailable === true;
+    latestAvailableVersion = userInstance.latestAvailableVersion || publishedVersion || instanceVersion;
   }
   
   const currentVersion = instanceVersion;
-  // Pour le propriétaire : toujours utiliser la version du template (la plus récente)
-  // Pour les non-propriétaires : utiliser la version approuvée disponible
-  const latestVersion = isOwner && userInstance 
-    ? displayVersion 
-    : (userInstance?.latestAvailableVersion || publishedVersion);
   const isDirecteur = user?.role === 'directeur';
 
   const handleUpgradeClick = () => {
@@ -314,7 +312,7 @@ export const UniversViewPage: React.FC = () => {
       setUpgradeProgress('Finalisation...');
       await new Promise(resolve => setTimeout(resolve, 300));
 
-      showSuccess(`Univers mis à jour avec succès vers la version ${latestVersion}`);
+      showSuccess(`Univers mis à jour avec succès vers la version ${latestAvailableVersion}`);
       setShowUpgradeModal(false);
       setIsUpgrading(false);
       setUpgradeProgress('');
@@ -331,7 +329,7 @@ export const UniversViewPage: React.FC = () => {
         userInstance: userInstance?.id,
         universId: univers?.id,
         currentVersion,
-        latestVersion
+        latestAvailableVersion
       });
       
       let errorMessage = 'Une erreur est survenue lors de la mise à jour du Univers.';
@@ -528,7 +526,7 @@ export const UniversViewPage: React.FC = () => {
                     <div className="mt-2 text-xs sm:text-sm text-orange-600 flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
                       <span>Version actuelle: v{currentVersion}</span>
                       <span className="hidden sm:inline">•</span>
-                      <span className="font-semibold">Version disponible: v{latestVersion}</span>
+                      <span className="font-semibold">Version disponible: v{latestAvailableVersion}</span>
                     </div>
                   )}
                 </div>
@@ -1240,7 +1238,7 @@ export const UniversViewPage: React.FC = () => {
                   Êtes-vous sûr de vouloir mettre à jour le Univers <strong>"{univers.metadata.name}"</strong> ?
                 </p>
                 <p className="text-sm text-gray-600 mt-2">
-                  Version actuelle: <strong>v{currentVersion}</strong> → Version disponible: <strong>v{latestVersion}</strong>
+                  Version actuelle: <strong>v{currentVersion}</strong> → Version disponible: <strong>v{latestAvailableVersion}</strong>
                 </p>
               </div>
               {isUpgrading && (
