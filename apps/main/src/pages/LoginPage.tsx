@@ -24,6 +24,7 @@ export const LoginPage: React.FC = () => {
   const [showForgotPasswordModal, setShowForgotPasswordModal] = useState(false);
   const [forgotPasswordEmail, setForgotPasswordEmail] = useState('');
   const [forgotPasswordSuccess, setForgotPasswordSuccess] = useState(false);
+  const [isRegistering, setIsRegistering] = useState(false);
 
   // Gérer les paramètres d'invitation depuis l'URL
   useEffect(() => {
@@ -70,13 +71,19 @@ export const LoginPage: React.FC = () => {
   // Rediriger automatiquement après l'inscription quand l'utilisateur est chargé
   // On attend que isLoading soit false pour s'assurer que l'utilisateur est complètement chargé
   useEffect(() => {
-    if (!isLoading && user && user.role === 'directeur' && user.needsPackageSelection) {
+    if (!isLoading && user && user.role === 'directeur' && user.needsPackageSelection && isRegistering) {
+      // Réinitialiser les états après la redirection
+      setIsRegistering(false);
+      setIsRegisterMode(false);
+      setEmail('');
+      setPassword('');
+      setName('');
       navigate('/packages', { replace: true });
     }
-  }, [user, isLoading, navigate]);
+  }, [user, isLoading, navigate, isRegistering]);
 
-  // Afficher un loader pendant le chargement pour éviter l'affichage de la page de login
-  if (isLoading) {
+  // Afficher un loader pendant le chargement initial (pas pendant l'inscription)
+  if (isLoading && !isRegistering) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
@@ -114,21 +121,26 @@ export const LoginPage: React.FC = () => {
           return;
         }
         
+        // Activer l'état d'inscription pour garder le bouton en loading
+        setIsRegistering(true);
         const success = await register(email, password, name, role, agencyId);
         if (success) {
-          setIsRegisterMode(false);
-          setEmail('');
-          setPassword('');
-          setName('');
+          // Garder isRegistering à true jusqu'à la redirection
+          // Le bouton restera en loading pendant tout le processus
           // La redirection se fera automatiquement via useEffect quand user sera chargé
-        } else if (error === 'ACCOUNT_EXISTS') {
-          setShowAccountExistsModal(true);
+        } else {
+          // En cas d'erreur, réinitialiser l'état d'inscription
+          setIsRegistering(false);
+          if (error === 'ACCOUNT_EXISTS') {
+            setShowAccountExistsModal(true);
+          }
         }
       } else {
         await login(email, password);
       }
     } catch (err) {
       setLocalError('Une erreur est survenue');
+      setIsRegistering(false);
     }
   };
 
@@ -324,10 +336,10 @@ export const LoginPage: React.FC = () => {
 
             <Button
               type="submit"
-              disabled={isLoading}
+              disabled={isLoading || isRegistering}
               className="w-full"
             >
-              {isLoading ? 'Chargement...' : (isRegisterMode ? 'Créer le compte' : 'Se connecter')}
+              {(isLoading || isRegistering) ? 'Chargement...' : (isRegisterMode ? 'Créer le compte' : 'Se connecter')}
             </Button>
           </form>
 
@@ -372,6 +384,7 @@ export const LoginPage: React.FC = () => {
               onClick={() => {
                 setIsRegisterMode(!isRegisterMode);
                 setLocalError('');
+                setIsRegistering(false);
               }}
               className="text-blue-600 hover:text-blue-500 text-sm break-words"
             >
