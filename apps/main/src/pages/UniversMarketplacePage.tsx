@@ -10,6 +10,7 @@ import { useToast } from '@ubora/shared/hooks/useToast';
 import { Toast } from '../components/Toast';
 import { Button } from '../components/Button';
 import { ArrowLeft, Globe, ChevronLeft, ChevronRight } from 'lucide-react';
+import { WireframeLoader } from '../components/loading/WireframeLoader';
 
 export const UniversMarketplacePage: React.FC = () => {
   const navigate = useNavigate();
@@ -159,9 +160,7 @@ export const UniversMarketplacePage: React.FC = () => {
   if (!user?.id || !user?.agencyId) {
     return (
       <Layout title="Marketplace">
-        <div className="text-center py-12">
-          <p className="text-gray-600">Chargement...</p>
-        </div>
+        <WireframeLoader type="univers" />
       </Layout>
     );
   }
@@ -211,20 +210,8 @@ export const UniversMarketplacePage: React.FC = () => {
 
           {/* Univers grid */}
           {isLoading ? (
-            <div className="space-y-6">
-              {/* Skeleton pour les cards */}
-              <div className="grid grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-4 lg:gap-6">
-                {[...Array(6)].map((_, i) => (
-                  <div key={i} className="h-64 sm:h-72 lg:h-80 bg-white rounded-xl sm:rounded-2xl border border-gray-200 animate-pulse">
-                    <div className="h-20 sm:h-24 lg:h-32 bg-gray-200 rounded-t-xl sm:rounded-t-2xl"></div>
-                    <div className="p-3 sm:p-4 lg:p-6 space-y-2 sm:space-y-3 lg:space-y-4">
-                      <div className="h-4 sm:h-5 lg:h-6 bg-gray-200 rounded w-3/4"></div>
-                      <div className="h-3 sm:h-4 bg-gray-200 rounded w-full"></div>
-                      <div className="h-3 sm:h-4 bg-gray-200 rounded w-2/3"></div>
-                    </div>
-                  </div>
-                ))}
-              </div>
+            <div className="grid grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-4 lg:gap-6">
+              <WireframeLoader type="univers-card" count={6} />
             </div>
           ) : filteredUnivers.length === 0 ? (
             <div className="text-center py-16 bg-gradient-to-br from-gray-50 to-white rounded-2xl border border-gray-200 shadow-sm">

@@ -16,7 +16,8 @@ import { UniversWizardStep6 } from '../components/UniversWizardStep6';
 import { UniversWizardStep7 } from '../components/UniversWizardStep7';
 import { Univers } from '../types';
 import { universService } from '@ubora/shared/services/universService';
-import { ArrowLeft, Loader2, AlertCircle } from 'lucide-react';
+import { ArrowLeft, AlertCircle } from 'lucide-react';
+import { WireframeLoader } from '../components/loading/WireframeLoader';
 
 export const UniversCreateFromTemplatePage: React.FC = () => {
   const navigate = useNavigate();
@@ -161,9 +162,7 @@ export const UniversCreateFromTemplatePage: React.FC = () => {
   if (!user?.id || !user?.agencyId) {
     return (
       <Layout title="Créer depuis un template">
-        <div className="text-center py-12">
-          <p className="text-gray-600">Chargement...</p>
-        </div>
+        <WireframeLoader type="univers-detail" />
       </Layout>
     );
   }
@@ -171,10 +170,7 @@ export const UniversCreateFromTemplatePage: React.FC = () => {
   if (isLoading) {
     return (
       <Layout title="Créer depuis un template">
-        <div className="text-center py-12">
-          <Loader2 className="h-8 w-8 animate-spin text-blue-600 mx-auto mb-4" />
-          <p className="text-gray-600">Chargement du template...</p>
-        </div>
+        <WireframeLoader type="univers-detail" />
       </Layout>
     );
   }

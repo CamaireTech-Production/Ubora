@@ -25,7 +25,6 @@ import {
   Database,
   FileBarChart,
   Sparkles,
-  Loader2,
   Power,
   Download,
   AlertCircle,
@@ -36,6 +35,7 @@ import { ConfirmationModal } from '../components/ConfirmationModal';
 import { FormPreview } from '../components/FormPreview';
 import { DashboardPreview } from '../components/DashboardPreview';
 import { ReportPreview } from '../components/ReportPreview';
+import { WireframeLoader } from '../components/loading/WireframeLoader';
 
 export const UniversViewPage: React.FC = () => {
   const navigate = useNavigate();
@@ -426,9 +426,7 @@ export const UniversViewPage: React.FC = () => {
   if (!user?.id || !user?.agencyId) {
     return (
       <Layout title="Détails du Univers">
-        <div className="text-center py-12">
-          <p className="text-gray-600">Chargement...</p>
-        </div>
+        <WireframeLoader type="univers-detail" />
       </Layout>
     );
   }
@@ -436,10 +434,7 @@ export const UniversViewPage: React.FC = () => {
   if (isLoading) {
     return (
       <Layout title="Détails du Univers">
-        <div className="text-center py-12">
-          <Loader2 className="h-8 w-8 animate-spin text-blue-600 mx-auto mb-4" />
-          <p className="text-gray-600">Chargement du Univers...</p>
-        </div>
+        <WireframeLoader type="univers-detail" />
       </Layout>
     );
   }

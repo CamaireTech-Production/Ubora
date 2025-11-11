@@ -121,7 +121,7 @@ export const UniversEditPage: React.FC = () => {
   if (isLoading) {
     return (
       <Layout title="Modifier le Univers">
-        <WireframeLoader type="form" />
+        <WireframeLoader type="univers-detail" />
       </Layout>
     );
   }
