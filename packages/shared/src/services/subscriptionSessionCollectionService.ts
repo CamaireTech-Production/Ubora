@@ -14,8 +14,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 import { SubscriptionSession, User } from '../types';
-import { PACKAGE_LIMITS, PackageType } from '../config/packageFeatures';
-import { SubscriptionPriceCalculator, SubscriptionPeriod } from './subscriptionPriceCalculator';
+import { PACKAGE_LIMITS } from '../config/packageFeatures';
 
 export class SubscriptionSessionCollectionService {
   private static readonly COLLECTION_NAME = 'subscriptionSessions';
@@ -44,7 +43,9 @@ export class SubscriptionSessionCollectionService {
       const now = new Date();
       
       // Get package limits for the selected package
-      const packageLimits = PACKAGE_LIMITS[sessionData.packageType];
+      // Exclude 'premium' as it's not in PACKAGE_LIMITS
+      const packageType = sessionData.packageType === 'premium' ? 'standard' : sessionData.packageType;
+      const packageLimits = PACKAGE_LIMITS[packageType as keyof typeof PACKAGE_LIMITS];
       
       // Calculate dates
       const startDate = sessionData.startDate || now;
@@ -52,7 +53,9 @@ export class SubscriptionSessionCollectionService {
       const nextRenewalDate = sessionData.nextRenewalDate || new Date(startDate.getTime() + this.RENEWAL_INTERVAL_DAYS * 24 * 60 * 60 * 1000);
 
       // Create new session document
-      const newSessionData: Omit<SubscriptionSession, 'id'> = {
+      // Note: We use 'as any' for Firestore Timestamps and FieldValues
+      // as they will be converted to Dates when reading from Firestore
+      const newSessionData: any = {
         userId,
         packageType: sessionData.packageType,
         subscriptionPeriod: sessionData.subscriptionPeriod,
@@ -380,26 +383,43 @@ export class SubscriptionSessionCollectionService {
   /**
    * Create a free default session for a user
    * @param userId - ID de l'utilisateur
+   * @param subscriptionPeriod - Période d'abonnement sélectionnée (par défaut '30days')
    * @returns Promise<string | null> - ID de la session créée
    */
-  static async createFreeDefaultSession(userId: string): Promise<string | null> {
+  static async createFreeDefaultSession(
+    userId: string,
+    subscriptionPeriod: '30days' | '6months' | '1year' = '30days'
+  ): Promise<string | null> {
     try {
       const now = new Date();
       const packageLimits = PACKAGE_LIMITS.free;
 
+      // Calculer les jours selon la période
+      const periodDaysMap = {
+        '30days': 30,
+        '6months': 180,
+        '1year': 360
+      };
+      const totalPeriodDays = periodDaysMap[subscriptionPeriod];
+
+      // Calculer la date de fin basée sur la période
+      const endDate = new Date(now.getTime() + totalPeriodDays * 24 * 60 * 60 * 1000);
+      const nextRenewalDate = new Date(now.getTime() + totalPeriodDays * 24 * 60 * 60 * 1000);
+
       return await this.createSession(userId, {
         packageType: 'free',
-        subscriptionPeriod: '30days',
-        totalPeriodDays: 0, // Unlimited for free
+        subscriptionPeriod: subscriptionPeriod,
+        totalPeriodDays: totalPeriodDays,
+        renewalIntervalDays: this.RENEWAL_INTERVAL_DAYS,
         sessionType: 'downgrade',
         startDate: now,
-        endDate: new Date('2099-12-31'), // Far future date for unlimited
-        nextRenewalDate: new Date('2099-12-31'), // No renewals for free
+        endDate: endDate, // Date calculée selon la période
+        nextRenewalDate: nextRenewalDate,
         amountPaid: 0,
         monthlyAmount: 0,
         discountApplied: 0,
         paymentId: '', // No payment for free
-        durationDays: 0,
+        durationDays: totalPeriodDays,
         isActive: true,
         autoRenew: false, // No auto-renew for free
         renewalCount: 0,
