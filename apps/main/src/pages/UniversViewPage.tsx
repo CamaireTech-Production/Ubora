@@ -481,7 +481,6 @@ export const UniversViewPage: React.FC = () => {
                   className="flex items-center space-x-2 flex-shrink-0"
                 >
                   <ArrowLeft className="h-4 w-4" />
-                  <span className="hidden sm:inline">Retour</span>
                 </Button>
                 <div className="flex-1 min-w-0">
                   <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">

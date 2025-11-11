@@ -266,7 +266,6 @@ export const UniversWizardStep3: React.FC<UniversWizardStepProps> = ({
             className="flex items-center space-x-2 mb-4"
           >
             <ArrowLeft className="h-4 w-4" />
-            <span>Retour à la liste</span>
           </Button>
           <h2 className="text-2xl font-bold text-gray-900 mb-2">
             {editingFormId ? 'Modifier le formulaire' : 'Créer un formulaire'}

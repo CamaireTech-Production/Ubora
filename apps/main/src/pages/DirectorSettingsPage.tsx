@@ -68,14 +68,13 @@ export const DirectorSettingsPage: React.FC = () => {
         {/* Header with back button */}
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-4">
-            <Button
+              <Button
               variant="secondary"
               size="sm"
               onClick={() => navigate('/directeur/dashboard')}
               className="flex items-center space-x-1"
             >
               <ArrowLeft className="h-4 w-4" />
-              <span>Retour</span>
             </Button>
             <div>
               <h1 className="text-2xl font-bold text-gray-900">

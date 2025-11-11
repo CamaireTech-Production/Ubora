@@ -470,7 +470,6 @@ export const FormBuilder: React.FC<FormBuilderProps> = ({
           className="flex items-center space-x-2"
         >
           <ArrowLeft className="h-4 w-4" />
-          <span>Retour</span>
         </Button>
         <h2 className="text-lg sm:text-2xl font-bold text-gray-900">
           {isEditMode ? 'Modifier le formulaire' : 'Créer un nouveau formulaire'}

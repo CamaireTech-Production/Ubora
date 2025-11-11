@@ -169,7 +169,6 @@ export const UniversMarketplacePage: React.FC = () => {
                     className="flex items-center space-x-2 bg-white/80 backdrop-blur-sm hover:bg-white border border-gray-200 shadow-sm"
                   >
                     <ArrowLeft className="h-4 w-4" />
-                    <span>Retour</span>
                   </Button>
                   <div>
                     <h1 className="text-3xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent flex items-center space-x-2">

@@ -898,7 +898,6 @@ export const EmployeDashboard: React.FC = () => {
                   className="flex items-center space-x-2"
                 >
                   <ArrowLeft className="h-4 w-4" />
-                  <span>Retour au dashboard</span>
                 </Button>
               </div>
 
