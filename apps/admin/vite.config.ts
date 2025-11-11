@@ -122,6 +122,8 @@ const getPWAConfig = () => {
 
 export default defineConfig({
   root: __dirname,
+  // Charger les fichiers .env depuis la racine du projet (partagé entre main et admin)
+  envDir: path.resolve(__dirname, '../..'),
   define: {
     __BUILD_TIME__: JSON.stringify(new Date().toISOString()),
     __VERSION__: JSON.stringify(process.env.npm_package_version || '1.0.0')

@@ -62,8 +62,6 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       );
 
       if (result.success) {
-        console.log('PaymentModal: Payment successful, processing...');
-        
         // Get the option name from the quantity and type
         const optionName = `${quantity} ${getUnitName()}${quantity > 1 ? 's' : ''} acheté(s)`;
         showSuccess(`${optionName} avec succès !`);
@@ -73,7 +71,6 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
         const mockOption = { id: `${type}-${quantity}`, name: optionName, price: quantity * getUnitPrice(), description: '', unit: 'FCFA', icon: null };
         await onPurchase(mockOption);
         
-        console.log('PaymentModal: Calling handleClose...');
         // Close modal immediately after success
         handleClose();
       } else {
@@ -109,7 +106,6 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   }, [currentPaymentId, showError]);
 
   const handlePaymentModalClose = useCallback(() => {
-    console.log('PaymentModal: Campay modal closed, closing PaymentModal...');
     setAutoOpenPayment(false);
     // Close the main PaymentModal when Campay modal closes
     setCurrentPaymentId(null);
@@ -118,12 +114,10 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   }, [onClose]);
 
   const handleClose = useCallback(() => {
-    console.log('PaymentModal: Closing modal...');
     setCurrentPaymentId(null);
     setPaymentRequest(null);
     setAutoOpenPayment(false);
     onClose();
-    console.log('PaymentModal: Modal closed');
   }, [onClose]);
 
   if (!isOpen) return null;
@@ -225,8 +219,6 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
         }
       };
 
-      console.log('Creating payment request:', paymentReq);
-
       // Create payment record in Firebase
       const paymentId = await PaymentService.createPayment(user.id, paymentReq, {
         type: 'pay_as_you_go',
@@ -234,12 +226,9 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
         quantity
       });
 
-      console.log('Payment created with ID:', paymentId);
-
       // Verify payment was created
       const createdPayment = await PaymentService.getPayment(paymentId);
       if (!createdPayment) {
-        console.error('Payment verification failed - payment not found in Firebase');
         showError('Erreur lors de la création du paiement. Veuillez réessayer.');
         return;
       }
