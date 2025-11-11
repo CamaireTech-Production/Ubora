@@ -6,7 +6,6 @@ import { Button } from '../components/Button';
 import { 
   getPackageDisplayName, 
   getPackagePrice, 
-  getPackagePriceNumeric,
   PACKAGE_LIMITS, 
   PACKAGE_FEATURES,
   PackageType 
@@ -104,8 +103,10 @@ export const PackageSelectionPage: React.FC = () => {
     // Handle free package - no payment required
     if (pkg === 'free') {
       try {
+        // Utiliser la période sélectionnée (par défaut '30days' si non sélectionnée)
+        const period = selectedPeriod || '30days';
         // Create free session using SubscriptionSessionCollectionService
-        const sessionId = await SubscriptionSessionCollectionService.createFreeDefaultSession(user.id);
+        const sessionId = await SubscriptionSessionCollectionService.createFreeDefaultSession(user.id, period);
 
         if (!sessionId) {
           throw new Error('Failed to create free session');
@@ -295,6 +296,7 @@ export const PackageSelectionPage: React.FC = () => {
         packageType: selectedPackage as 'starter' | 'standard',
         subscriptionPeriod: selectedPeriod,
         totalPeriodDays: priceCalculation.totalPeriodDays,
+        renewalIntervalDays: 30, // Always 30 days for renewal interval
         sessionType: 'subscription',
         startDate: startDate,
         endDate: endDate,
