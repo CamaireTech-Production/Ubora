@@ -1,5 +1,18 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { ConnectionQuality } from '@ubora/shared/utils/errorHandling';
+
+// Debounce utility function
+const debounce = (func: Function, wait: number) => {
+  let timeout: NodeJS.Timeout;
+  return function executedFunction(...args: any[]) {
+    const later = () => {
+      clearTimeout(timeout);
+      func(...args);
+    };
+    clearTimeout(timeout);
+    timeout = setTimeout(later, wait);
+  };
+};
 
 interface ConnectionQualityIndicatorProps {
   quality: ConnectionQuality;
@@ -7,7 +20,7 @@ interface ConnectionQualityIndicatorProps {
   className?: string;
 }
 
-export const ConnectionQualityIndicator: React.FC<ConnectionQualityIndicatorProps> = ({
+const ConnectionQualityIndicator: React.FC<ConnectionQualityIndicatorProps> = ({
   quality,
   showWarning = true,
   className = ''
@@ -15,14 +28,23 @@ export const ConnectionQualityIndicator: React.FC<ConnectionQualityIndicatorProp
   const [isVisible, setIsVisible] = useState(false);
 
   useEffect(() => {
+    console.log('🔍 ConnectionQualityIndicator: Quality changed', { 
+      isSlow: quality.isSlow, 
+      isPoor: quality.isPoor,
+      estimatedSpeed: quality.estimatedSpeed 
+    });
+    
     if (quality.isSlow || quality.isPoor) {
+      console.log('🔍 ConnectionQualityIndicator: Showing indicator');
       setIsVisible(true);
       // Auto-hide after 5 seconds
       const timer = setTimeout(() => {
+        console.log('🔍 ConnectionQualityIndicator: Auto-hiding indicator');
         setIsVisible(false);
       }, 5000);
       return () => clearTimeout(timer);
     } else {
+      console.log('🔍 ConnectionQualityIndicator: Hiding indicator');
       setIsVisible(false);
     }
   }, [quality.isSlow, quality.isPoor]);
@@ -76,6 +98,9 @@ export const ConnectionQualityIndicator: React.FC<ConnectionQualityIndicatorProp
   );
 };
 
+// Memoize the component to prevent unnecessary rerenders
+export const MemoizedConnectionQualityIndicator = React.memo(ConnectionQualityIndicator);
+
 /**
  * Hook to track connection quality
  */
@@ -86,16 +111,25 @@ export const useConnectionQuality = () => {
     estimatedSpeed: 'fast'
   });
 
-  const updateQuality = (responseTime: number) => {
-    const newQuality = {
-      isSlow: responseTime > 3000,
-      isPoor: responseTime > 8000,
-      estimatedSpeed: responseTime < 1000 ? 'fast' as const :
-                     responseTime < 3000 ? 'medium' as const :
-                     responseTime < 8000 ? 'slow' as const : 'poor' as const
-    };
-    setQuality(newQuality);
-  };
+  // Debounced quality update to prevent excessive rerenders
+  const updateQuality = useCallback(
+    debounce((responseTime: number) => {
+      console.log('🔍 useConnectionQuality: updateQuality called', { responseTime });
+      
+      const newQuality = {
+        isSlow: responseTime > 3000,
+        isPoor: responseTime > 8000,
+        estimatedSpeed: responseTime < 1000 ? 'fast' as const :
+                       responseTime < 3000 ? 'medium' as const :
+                       responseTime < 8000 ? 'slow' as const : 'poor' as const
+      };
+      
+      console.log('🔍 useConnectionQuality: Setting new quality', newQuality);
+      setQuality(newQuality);
+      console.log('🔍 useConnectionQuality: Quality state updated');
+    }, 500), // 500ms debounce to prevent rapid updates
+    []
+  );
 
   return { quality, updateQuality };
 };

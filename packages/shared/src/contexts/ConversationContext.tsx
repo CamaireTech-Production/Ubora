@@ -403,13 +403,15 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
   const replaceOptimisticMessage = useCallback((optimisticId: string, realMessage: ChatMessage): void => {
     setMessages(prev => {
-      return prev.map(msg => {
+      const updatedMessages = prev.map(msg => {
         // Replace the optimistic message with the real one
         if (msg.id === optimisticId && msg.type === 'user') {
           return realMessage;
         }
         return msg;
       });
+      
+      return updatedMessages;
     });
   }, []);
 
@@ -446,6 +448,7 @@ export const ConversationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       );
 
       const unsubscribe = onSnapshot(messagesListenerQuery, (snapshot) => {
+        
         const allMessages = snapshot.docs.map(doc => {
           const data = doc.data();
           

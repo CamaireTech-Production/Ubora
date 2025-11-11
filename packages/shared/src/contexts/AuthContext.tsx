@@ -275,6 +275,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     let timeoutId: NodeJS.Timeout;
     
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      console.log('🔥 AuthContext: onAuthStateChanged triggered', { 
+        timestamp: Date.now(),
+        hasFirebaseUser: !!firebaseUser,
+        firebaseUserId: firebaseUser?.uid,
+        currentUserId: user?.id
+      });
+      
       // Clear any pending operations to prevent concurrent calls
       clearTimeout(timeoutId);
       
@@ -307,6 +314,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             await new Promise(resolve => setTimeout(resolve, 200));
             
             // Récupérer ou créer le document utilisateur
+            
             const userDocRef = doc(db, 'users', firebaseUser.uid);
             
             // Use the new error handling system
@@ -821,6 +829,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const refreshUserData = async (): Promise<void> => {
+    
     if (!firebaseUser) {
       return;
     }
@@ -841,10 +850,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           return;
         }
         
-        setUser({
+        // Only update if there are actual changes to prevent unnecessary rerenders
+        const newUser = {
           id: firebaseUser.uid,
           ...userData
-        });
+        };
+        
+        // Check if user data has actually changed
+        if (user && 
+            user.tokensUsedMonthly === userData.tokensUsedMonthly && 
+            user.payAsYouGoTokens === userData.payAsYouGoTokens &&
+            user.role === userData.role) {
+          return;
+        }
+        
+        setUser(newUser);
       } else {
         console.error('❌ AUTH: User document not found');
       }

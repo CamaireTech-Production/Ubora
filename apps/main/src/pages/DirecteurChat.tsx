@@ -3,10 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
 import { useApp } from '@ubora/shared/contexts/AppContext';
 import { useConversation } from '@ubora/shared/contexts/ConversationContext';
+import { useAIResponse } from '@ubora/shared/contexts/AIResponseContext';
 import { LoadingGuard } from '../components/LoadingGuard';
 import { WelcomeScreen } from '../components/WelcomeScreen';
 import { ChatTopBar } from '../components/chat/ChatTopBar';
-import { MessageList } from '../components/chat/MessageList';
+import MessageList from '../components/chat/MessageList';
 import { ChatComposer } from '../components/chat/ChatComposer';
 import { FloatingSidePanel } from '../components/chat/FloatingSidePanel';
 import { Footer } from '../components/Footer';
@@ -19,7 +20,7 @@ import { LimitReachedModal } from '../components/LimitReachedModal';
 import { AnalyticsService } from '@ubora/shared/services/analyticsService';
 import { LogoutConfirmationModal } from '../components/LogoutConfirmationModal';
 import { ImpersonationHeader } from '../components/ImpersonationHeader';
-import { ConnectionQualityIndicator, useConnectionQuality } from '../components/ConnectionQualityIndicator';
+// import { MemoizedConnectionQualityIndicator, useConnectionQuality } from '../components/ConnectionQualityIndicator';
 import { enhancedFetch } from '@ubora/shared/utils/errorHandling'; // Enhanced error handling with retry logic
 
 // Remove the old Message interface since we're using ChatMessage from types
@@ -33,11 +34,29 @@ interface ChatFilters {
 // Import centralized API configuration
 import { getAIEndpoint } from '@ubora/shared/config/api';
 
-const DirecteurChatComponent: React.FC = () => {
+// Get AI endpoint from centralized configuration
+const AI_ENDPOINT = getAIEndpoint();
+console.log('🎯 Final AI_ENDPOINT:', AI_ENDPOINT);
+
+if (!AI_ENDPOINT) {
+  console.error("❌ Aucun endpoint ARCHA configuré. ARCHA ne fonctionnera pas.");
+}
+
+export const DirecteurChat: React.FC = () => {
   const navigate = useNavigate();
   const { user, firebaseUser, isLoading, logout } = useAuth();
   const { forms, formEntries, employees, isLoading: appLoading } = useApp();
+  const { setAIResponseActive } = useAIResponse();
+  
+  
+  // Use ref to track AI state without causing rerenders
+  const isAIActiveRef = useRef(false);
+  
+  // Global flag to prevent AppContext updates during AI responses
+  const aiResponseActiveRef = useRef(false);
   const { getMonthlyTokens, hasUnlimitedTokens, packageInfo } = usePackageAccess();
+  
+  // Debug logs to track rerenders
   const { 
     currentConversation, 
     conversations, 
@@ -50,6 +69,10 @@ const DirecteurChatComponent: React.FC = () => {
     replaceOptimisticMessage,
     triggerAutoLoad
   } = useConversation();
+  
+  
+  
+  // Conversation state debug removed to prevent rerenders
   
   const { showError } = useToast();
   const [inputMessage, setInputMessage] = useState('');
@@ -75,6 +98,7 @@ const DirecteurChatComponent: React.FC = () => {
   
   // Track keyboard height for proper layout adjustment
   const [keyboardHeight, setKeyboardHeight] = useState(0);
+  
   
   // Keyboard detection for proper layout adjustment
   useEffect(() => {
@@ -123,8 +147,8 @@ const DirecteurChatComponent: React.FC = () => {
   const [panelOpen, setPanelOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'history' | 'forms' | 'employees' | 'entries' | null>(null);
   
-  // Connection quality tracking
-  const { quality, updateQuality } = useConnectionQuality();
+  // Connection quality tracking - Disabled to prevent reloads
+  // const { quality, updateQuality } = useConnectionQuality();
   
   // Track the last message count to detect new messages
   const [lastMessageCount, setLastMessageCount] = useState(0);
@@ -157,13 +181,12 @@ const DirecteurChatComponent: React.FC = () => {
     const monthlyLimit = getMonthlyTokens();
     const isUnlimited = hasUnlimitedTokens();
     return { monthlyLimit, isUnlimited };
-  }, [user?.id, getMonthlyTokens, hasUnlimitedTokens]);
+  }, [user?.id, user?.tokensUsedMonthly]);
   const handlePurchaseTokens = async (tokens: number) => {
     // This function is now handled by the PayAsYouGoModal with Campay integration
     // The modal will create the payment and handle the success/failure
     // This callback is kept for backward compatibility but won't be used
     // since the PayAsYouGoModal now handles the payment flow directly
-    console.log('Token purchase requested:', tokens);
   };
 
   const handleLogout = async () => {
@@ -211,6 +234,7 @@ const DirecteurChatComponent: React.FC = () => {
   }, [showWelcome, conversations.length, currentConversation, isLoading, triggerAutoLoad]);
 
   const handleSendMessage = async (message?: string) => {
+    
     // Get message from parameter, state, or direct input access
     let messageToSend = message;
     if (!messageToSend) {
@@ -222,7 +246,9 @@ const DirecteurChatComponent: React.FC = () => {
       }
     }
     
-    if (!messageToSend || isTyping) return;
+    if (!messageToSend || isTyping) {
+      return;
+    }
 
     // Vérifier les tokens avant d'envoyer
     if (user) {
@@ -258,12 +284,7 @@ RÉPONSE :
         const currentTokensUsed = packageInfo?.tokensUsed || 0;
         const totalAvailableTokens = packageInfo?.totalTokens || 0;
         
-        console.log('🔍 FRONTEND TOKEN CHECK:', {
-          currentTokensUsed,
-          totalAvailableTokens,
-          userTokensToCharge,
-          willExceed: (currentTokensUsed + userTokensToCharge) > totalAvailableTokens
-        });
+        // Token check completed
         
         if (currentTokensUsed + userTokensToCharge > totalAvailableTokens) {
           // Show limit reached modal instead of pay-as-you-go modal
@@ -327,11 +348,20 @@ RÉPONSE :
     }
 
     // Clear input after sending
+        // Set AI active to prevent appLoading rerenders
+        isAIActiveRef.current = true;
+        
+        // Mark AI response as active to prevent context updates
+        aiResponseActiveRef.current = true;
+        setAIResponseActive(true);
+    
     setInputMessage('');
     setIsTyping(true);
     setTypingMessage('ARCHA analyse vos données...');
     const reqId = `req_${Date.now()}`;
     activeRequestIdRef.current = reqId;
+    
+    // Request initialized
     if (typingSoftTimerRef.current) { window.clearTimeout(typingSoftTimerRef.current); typingSoftTimerRef.current = null; }
     if (typingHardTimerRef.current) { window.clearTimeout(typingHardTimerRef.current); typingHardTimerRef.current = null; }
     typingSoftTimerRef.current = window.setTimeout(() => {
@@ -437,6 +467,13 @@ RÉPONSE :
 
       const data = await response.json();
 
+      // Clear loading state immediately when response is received
+      setIsTyping(false);
+      setTypingMessage(undefined);
+      if (typingSoftTimerRef.current) { window.clearTimeout(typingSoftTimerRef.current); typingSoftTimerRef.current = null; }
+      if (typingHardTimerRef.current) { window.clearTimeout(typingHardTimerRef.current); typingHardTimerRef.current = null; }
+      activeRequestIdRef.current = null;
+
       // Replace optimistic user message with the real one from backend (if available)
       if (data.userMessage && currentConversation) {
         try {
@@ -454,14 +491,24 @@ RÉPONSE :
         } catch (error) {
           console.error('Error replacing optimistic user message:', error);
         }
-      } else if (!data.userMessage) {
-        // If backend didn't return userMessage, keep the optimistic one
-        console.log('Backend did not return userMessage, keeping optimistic message');
       }
 
       // Tokens are now deducted on the server side in subscriptionSessions collection
       // No need to update user.tokensUsedMonthly as tokens are managed in sessions
       if (user && data.meta?.userTokensCharged) {
+        // Update user data locally to reflect new token counts
+        // Use a timeout to debounce the refresh and prevent immediate re-renders
+        try {
+          setTimeout(async () => {
+            try {
+              await refreshUserData();
+            } catch (refreshError) {
+              console.error('❌ FRONTEND: Failed to refresh user data after token deduction:', refreshError);
+            }
+          }, 1000); // 1 second delay to allow UI to settle
+        } catch (refreshError) {
+          console.error('❌ FRONTEND: Failed to schedule user data refresh:', refreshError);
+        }
         
         // Track chat activity analytics
         try {
@@ -542,6 +589,13 @@ RÉPONSE :
           console.error('Error adding error message to local state:', error);
         }
       }
+      
+          // Clear AI active state on error
+          isAIActiveRef.current = false;
+          
+          // Clear AI response flag on error
+          aiResponseActiveRef.current = false;
+          setAIResponseActive(false);
     } finally {
       // Keep typing bubble until success or explicit error handling
     }
@@ -602,7 +656,7 @@ RÉPONSE :
   if (showWelcome) {
     return (
       <LoadingGuard 
-        isLoading={isLoading || appLoading} 
+        isLoading={isLoading || (appLoading && !isAIActiveRef.current && !isTyping)} 
         user={user} 
         firebaseUser={firebaseUser}
         message="Chargement d'Ubora..."
@@ -617,15 +671,16 @@ RÉPONSE :
     );
   }
 
-  return (
-    <LoadingGuard 
-      isLoading={isLoading || appLoading} 
-      user={user} 
-      firebaseUser={firebaseUser}
-      message="ARCHA loading..."
-    >
-      {/* Connection Quality Indicator */}
-      <ConnectionQualityIndicator quality={quality} />
+    
+    return (
+      <LoadingGuard 
+        isLoading={isLoading || (appLoading && !isAIActiveRef.current && !isTyping)} 
+        user={user} 
+        firebaseUser={firebaseUser}
+        message="ARCHA loading..."
+      >
+      {/* Connection Quality Indicator - Removed to prevent reloads */}
+      {/* <MemoizedConnectionQualityIndicator quality={quality} /> */}
       
       <ImpersonationHeader />
       <div className="min-h-screen bg-gradient-to-b from-blue-50 via-white to-white">
@@ -735,6 +790,3 @@ RÉPONSE :
     </LoadingGuard>
   );
 };
-
-// Memoize the component to prevent unnecessary rerenders
-export const DirecteurChat = React.memo(DirecteurChatComponent);

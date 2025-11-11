@@ -143,7 +143,6 @@ jobs:
             ls -la | head -20 || true
             exit 1
           fi
-          
           echo "📥 Installing dependencies (root)"
           npm ci --production || npm install --production
           echo "📥 Installing dependencies (api)"
@@ -160,7 +159,7 @@ jobs:
           pm2 delete ubora-backend-pre-release || true
           pm2 delete ubora-cron-worker-pre-release || true
           
-          # Start backend server with working directory set to release directory
+          # Start backend server with working directory set to release root
           cd $CURRENT_LINK
           
           # Verify .env.local file is accessible before starting PM2
@@ -172,18 +171,10 @@ jobs:
             exit 1
           fi
           
-          # Load environment variables from .env.local safely (avoid source issues with multiline keys)
-          # Use a safer method that handles quoted values and multiline keys properly
+          # Export environment variables from .env.local so PM2 can inherit them
           echo "📥 Loading environment variables from .env.local"
           set -a
-          # Load variables line by line, handling quoted values properly
-          while IFS= read -r line || [ -n "$line" ]; do
-            # Skip comments and empty lines
-            [[ "$line" =~ ^[[:space:]]*# ]] && continue
-            [[ -z "${line// }" ]] && continue
-            # Export the variable (handles quoted values)
-            export "$line"
-          done < .env.local
+          source .env.local
           set +a
           
           echo "✅ Starting PM2 with .env.local file at $CURRENT_LINK/.env.local"
@@ -195,7 +186,7 @@ jobs:
             
           # Start cron worker (if file exists)
           if [ -f "$CURRENT_LINK/scripts/cron-worker.js" ]; then
-            pm2 start $CURRENT_LINK/scripts/cron-worker.js \
+            pm2 start scripts/cron-worker.js \
               --name ubora-cron-worker-pre-release \
               --update-env \
               --max-memory-restart 512M \
@@ -214,17 +205,36 @@ jobs:
           echo "📊 Checking PM2 processes"
           pm2 status
           
+          # Verify .env.local file exists
+          echo "🔍 Verifying .env.local file location"
+          if [ -f "$CURRENT_LINK/.env.local" ]; then
+            echo "✅ .env.local file found at $CURRENT_LINK/.env.local"
+            echo "📋 First few lines of .env.local:"
+            head -n 5 "$CURRENT_LINK/.env.local" | sed 's/FIREBASE_PRIVATE_KEY=.*/FIREBASE_PRIVATE_KEY=<hidden>/' || true
+          else
+            echo "❌ ERROR: .env.local file not found at $CURRENT_LINK/.env.local"
+            echo "📁 Listing files in $CURRENT_LINK:"
+            ls -la "$CURRENT_LINK" | head -20 || true
+          fi
+          
           # Enhanced health check with retries
           echo "🧪 Health check with retries"
           HEALTH_OK=false
-          for i in {1..5}; do
+          for i in {1..10}; do
             if curl -fsS http://localhost:3002/api/test > /dev/null; then
               echo "✅ Backend health check passed (attempt $i)"
               HEALTH_OK=true
               break
             else
               echo "⏳ Backend health check failed (attempt $i), retrying..."
-              sleep 5
+              if [ $i -le 5 ]; then
+                sleep 5
+              else
+                sleep 10
+              fi
+              # Check PM2 logs for errors
+              echo "📋 PM2 logs (last 10 lines):"
+              pm2 logs ubora-backend-pre-release --lines 10 --nostream || true
             fi
           done
           
@@ -251,13 +261,9 @@ jobs:
               pm2 delete ubora-backend-pre-release || true
               pm2 delete ubora-cron-worker-pre-release || true
               cd $CURRENT_LINK
-              # Load environment variables from .env.local safely
+              # Export environment variables from .env.local
               set -a
-              while IFS= read -r line || [ -n "$line" ]; do
-                [[ "$line" =~ ^[[:space:]]*# ]] && continue
-                [[ -z "${line// }" ]] && continue
-                export "$line"
-              done < .env.local
+              source .env.local
               set +a
               pm2 start server/dev-server.js \
                 --name ubora-backend-pre-release \
@@ -265,7 +271,7 @@ jobs:
                 --max-memory-restart 1G \
                 --env production
               if [ -f "$CURRENT_LINK/scripts/cron-worker.js" ]; then
-                pm2 start $CURRENT_LINK/scripts/cron-worker.js \
+                pm2 start scripts/cron-worker.js \
                   --name ubora-cron-worker-pre-release \
                   --update-env \
                   --max-memory-restart 512M \

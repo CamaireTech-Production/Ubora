@@ -4,7 +4,7 @@ import { ArrowLeft, Calendar, Clock, Repeat, MessageSquare, AlertCircle } from '
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
 import { LoadingGuard } from '../components/LoadingGuard';
 import { Button } from '../components/Button';
-import { MessageList } from '../components/chat/MessageList';
+import MessageList from '../components/chat/MessageList';
 import { MessageBubble } from '../components/chat/MessageBubble';
 import { scheduledQuestionService } from '@ubora/shared/services/scheduledQuestionService';
 import { useToast } from '@ubora/shared/hooks/useToast';

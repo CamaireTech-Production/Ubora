@@ -143,7 +143,44 @@ jobs:
         
         # Handle favicon
         RewriteRule ^favicon\.ico$ /favicon.ico [L]
+        
+        # Force cache refresh for HTML files
+        <FilesMatch "\.(html|htm)$">
+            Header set Cache-Control "no-cache, no-store, must-revalidate"
+            Header set Pragma "no-cache"
+            Header set Expires "0"
+        </FilesMatch>
+        
+        # Cache busting for JS and CSS
+        <FilesMatch "\.(js|css)$">
+            Header set Cache-Control "public, max-age=0"
+        </FilesMatch>
         EOF
+         
+    - name: Clear Frontend Cache
+      run: |
+        echo "🧹 Clearing frontend cache..."
+        
+        # Add cache-busting headers to index.html
+        echo "<!-- Cache cleared: $(date) -->" >> deploy-package/index.html
+        echo "<!-- Build: ${{ github.sha }} -->" >> deploy-package/index.html
+        
+        # Add deployment timestamp to force cache invalidation
+        DEPLOY_TIME=$(date +%s)
+        echo "<!-- Deploy timestamp: $DEPLOY_TIME -->" >> deploy-package/index.html
+        
+        # Create cache-busting meta tags
+        cat >> deploy-package/index.html << EOF
+        <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+        <meta http-equiv="Pragma" content="no-cache">
+        <meta http-equiv="Expires" content="0">
+        EOF
+        
+        # Force refresh of critical assets
+        find deploy-package -name "*.js" -exec echo "// Cache bust: $(date)" >> {} \; 2>/dev/null || true
+        find deploy-package -name "*.css" -exec echo "/* Cache bust: $(date) */" >> {} \; 2>/dev/null || true
+        
+        echo "✅ Frontend cache cleared successfully"
          
     - name: Deploy to Hostinger via FTP
       uses: SamKirkland/FTP-Deploy-Action@v4.3.4

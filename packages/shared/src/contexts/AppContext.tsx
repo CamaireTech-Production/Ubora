@@ -18,6 +18,7 @@ import { db } from '../firebaseConfig';
 import { Form, FormEntry, User, DraftResponse, Dashboard, ActiveUnivers } from '../types';
 import { DraftService } from '../services/draftService';
 import { useAuth } from './AuthContext';
+import { useAIResponse } from './AIResponseContext';
 import { usePackageAccess } from '../hooks/usePackageAccess';
 import { PermissionManager } from '../utils/PermissionManager';
 import { SubscriptionSessionService } from '../services/subscriptionSessionService';
@@ -66,6 +67,7 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // Access auth context from parent provider (always mounted in App.tsx)
   const { user, firebaseUser } = useAuth();
+  const { isAIResponseActive } = useAIResponse();
   const { showSuccess } = useToast();
 
   // Always initialize package access hooks and state hooks in stable order
@@ -164,7 +166,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return;
     }
 
-    setIsLoading(true);
+    // Skip loading state if this is likely a data refresh during AI response
+    const shouldSkipLoading = isAIResponseActive;
+    
+    console.log('🔥 AppContext: Checking AI flag', { 
+      timestamp: Date.now(),
+      isAIResponseActive,
+      shouldSkipLoading,
+      agencyId: user.agencyId
+    });
+    
+    if (!shouldSkipLoading) {
+      console.log('🔥 AppContext: Setting isLoading=true', { 
+        timestamp: Date.now(),
+        agencyId: user.agencyId
+      });
+      setIsLoading(true);
+    } else {
+      console.log('🔥 AppContext: Skipping isLoading=true during AI response', { 
+        timestamp: Date.now(),
+        agencyId: user.agencyId
+      });
+    }
     setError(null);
 
 
@@ -298,6 +321,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     const unsubscribeEntries = onSnapshot(entriesQuery, (snapshot) => {
+      
       const entriesData = snapshot.docs.map(doc => {
         const data = doc.data();
         return {
@@ -307,6 +331,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         };
       }) as FormEntry[];
       
+      
+      console.log('🔥 AppContext: Setting formEntries', { 
+        timestamp: Date.now(),
+        entriesCount: entriesData.length
+      });
       setFormEntries(entriesData);
     }, (err) => {
       console.error('Erreur lors du chargement des entrées:', err);
@@ -321,6 +350,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     );
 
     const unsubscribeEmployees = onSnapshot(employeesQuery, (snapshot) => {
+      
       const employeesData = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
@@ -329,6 +359,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       // Sort employees by name in JavaScript
       employeesData.sort((a, b) => a.name.localeCompare(b.name));
       
+      
+      console.log('🔥 AppContext: Setting employees', { 
+        timestamp: Date.now(),
+        employeesCount: employeesData.length
+      });
       setEmployees(employeesData);
     }, (err) => {
       console.error('Erreur lors du chargement des employés:', err);

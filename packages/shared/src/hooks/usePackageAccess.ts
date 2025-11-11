@@ -112,6 +112,7 @@ export const usePackageAccess = () => {
 
   // Fetch director's package info for employees with director access
   useEffect(() => {
+    
     const fetchDirectorPackageInfo = async () => {
       if (!user || user.role !== 'employe' || !user.hasDirectorDashboardAccess) {
         return;
@@ -137,6 +138,7 @@ export const usePackageAccess = () => {
         console.error('Error fetching director package info:', error);
       } finally {
         setIsLoadingDirectorInfo(false);
+        console.log('📦 [DEBUG] Director package info fetch completed');
       }
     };
 
