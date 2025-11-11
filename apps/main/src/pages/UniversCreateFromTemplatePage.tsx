@@ -218,6 +218,7 @@ export const UniversCreateFromTemplatePage: React.FC = () => {
             universName={templateUnivers.metadata.name}
             price={templateUnivers.metadata.price ?? null}
             currency={templateUnivers.metadata.currency || 'XAF'}
+            universId={templateUnivers.id}
             onPaymentComplete={handlePaymentComplete}
             onSkip={handlePaymentSkip}
             isLoading={isCreating}

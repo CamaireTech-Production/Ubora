@@ -1,12 +1,18 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { Card } from './Card';
 import { Button } from './Button';
-import { CheckCircle, DollarSign, Loader2, CreditCard, Info } from 'lucide-react';
+import { CheckCircle, Info, CreditCard } from 'lucide-react';
+import { CampayPayment } from './CampayPayment';
+import { PaymentService } from '@ubora/shared/services/paymentService';
+import { PaymentRequest, CampayPaymentData } from '../types/payment';
+import { useAuth } from '@ubora/shared/contexts/AuthContext';
+import { useToast } from '@ubora/shared/hooks/useToast';
 
 interface PaymentStepProps {
   universName: string;
   price: number | null;
   currency: string;
+  universId?: string; // ID de l'univers pour les métadonnées
   onPaymentComplete: (paymentId: string) => void;
   onSkip?: () => void;
   isLoading?: boolean;
@@ -16,28 +22,125 @@ export const PaymentStep: React.FC<PaymentStepProps> = ({
   universName,
   price,
   currency,
+  universId,
   onPaymentComplete,
   onSkip,
   isLoading = false
 }) => {
-  const [isSimulating, setIsSimulating] = useState(false);
-  const [paymentId, setPaymentId] = useState<string | null>(null);
+  const { user } = useAuth();
+  const { showSuccess, showError } = useToast();
+  const [paymentRequest, setPaymentRequest] = useState<PaymentRequest | null>(null);
+  const [currentPaymentId, setCurrentPaymentId] = useState<string | null>(null);
+  const [isCreatingPayment, setIsCreatingPayment] = useState(false);
+  const [autoOpenPayment, setAutoOpenPayment] = useState(false);
 
   const isFree = price === 0 || price === null || price === undefined;
   const formattedPrice = price ? price.toLocaleString('fr-FR') : '0';
 
-  const handleSimulatePayment = async () => {
-    setIsSimulating(true);
-    
-    // Simuler un délai de paiement
-    setTimeout(() => {
-      // Générer un ID de paiement simulé
-      const simulatedPaymentId = `payment_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      setPaymentId(simulatedPaymentId);
-      setIsSimulating(false);
-      onPaymentComplete(simulatedPaymentId);
-    }, 2000); // 2 secondes de simulation
-  };
+  // Handler pour créer le paiement et ouvrir Campay
+  const handleInitiatePayment = useCallback(async () => {
+    if (!user?.id || !price || price <= 0) {
+      showError('Impossible d\'initialiser le paiement. Vérifiez vos informations.');
+      return;
+    }
+
+    setIsCreatingPayment(true);
+    try {
+      // Générer une référence externe unique
+      const externalReference = PaymentService.generateExternalReference('UNIVERS');
+      
+      // Créer la requête de paiement
+      const paymentReq: PaymentRequest = {
+        amount: price,
+        currency: currency || 'XAF',
+        description: `TAKWID GROUP (USSD) — Achat de l'univers "${universName}"`,
+        externalReference,
+        metadata: {
+          type: 'univers_purchase',
+          universId: universId || '',
+          universName: universName,
+          price: price,
+          currency: currency || 'XAF'
+        }
+      };
+
+      // Créer le paiement dans Firebase
+      const paymentId = await PaymentService.createPayment(user.id, paymentReq, {
+        type: 'univers_purchase',
+        universId: universId || '',
+        universName: universName
+      });
+
+      // Vérifier que le paiement a été créé
+      const createdPayment = await PaymentService.getPayment(paymentId);
+      if (!createdPayment) {
+        showError('Erreur lors de la création du paiement. Veuillez réessayer.');
+        setIsCreatingPayment(false);
+        return;
+      }
+
+      setCurrentPaymentId(paymentId);
+      setPaymentRequest(paymentReq);
+      
+      // Auto-ouvrir le modal Campay après un court délai
+      setTimeout(() => {
+        setAutoOpenPayment(true);
+      }, 500);
+
+      showSuccess(`Paiement initialisé (montant: ${formattedPrice} ${currency}, démo: 10 FCFA). Ouverture du modal de paiement...`);
+
+    } catch (error) {
+      showError('Erreur lors de l\'initialisation du paiement. Veuillez réessayer.');
+      setIsCreatingPayment(false);
+    }
+  }, [user, price, currency, universName, universId, formattedPrice, showSuccess, showError]);
+
+  // Handler pour le succès du paiement
+  const handlePaymentSuccess = useCallback(async (data: CampayPaymentData) => {
+    if (!currentPaymentId) return;
+
+    try {
+      // Mettre à jour le statut du paiement dans Firebase
+      await PaymentService.updatePaymentStatus(currentPaymentId, data, 'completed');
+      
+      // Appeler le callback avec l'ID du paiement
+      onPaymentComplete(currentPaymentId);
+      
+      showSuccess('Paiement effectué avec succès !');
+    } catch (error) {
+      showError('Erreur lors de la mise à jour du paiement. Veuillez contacter le support.');
+    } finally {
+      setCurrentPaymentId(null);
+      setPaymentRequest(null);
+      setAutoOpenPayment(false);
+    }
+  }, [currentPaymentId, onPaymentComplete, showSuccess, showError]);
+
+  // Handler pour l'échec du paiement
+  const handlePaymentFail = useCallback(async (data: CampayPaymentData) => {
+    if (!currentPaymentId) return;
+
+    try {
+      // Mettre à jour le statut du paiement dans Firebase
+      await PaymentService.updatePaymentStatus(currentPaymentId, data, 'failed');
+      showError('Paiement échoué. Veuillez réessayer.');
+    } catch (error) {
+      // Erreur silencieuse lors de la mise à jour
+    } finally {
+      setCurrentPaymentId(null);
+      setPaymentRequest(null);
+      setAutoOpenPayment(false);
+      setIsCreatingPayment(false);
+    }
+  }, [currentPaymentId, showError]);
+
+  // Handler pour la fermeture du modal
+  const handlePaymentModalClose = useCallback(() => {
+    setAutoOpenPayment(false);
+    setCurrentPaymentId(null);
+    setPaymentRequest(null);
+    setIsCreatingPayment(false);
+  }, []);
 
   // Si gratuit, passer directement à l'étape suivante
   React.useEffect(() => {
@@ -110,86 +213,78 @@ export const PaymentStep: React.FC<PaymentStepProps> = ({
           <Info className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" />
           <div className="flex-1">
             <p className="text-sm text-blue-800">
-              <strong>Mode simulation :</strong> Pour l'instant, le paiement est simulé. 
-              Dans une version future, vous serez redirigé vers une passerelle de paiement sécurisée.
+              <strong>Important :</strong> lors de l'étape USSD sur votre téléphone, le <strong>nom du marchand affiché doit être "TAKWID GROUP"</strong>. Si un autre nom apparaît, annulez la transaction.
             </p>
           </div>
         </div>
       </Card>
 
-      {/* Payment Form (Simulated) */}
-      <Card title="Informations de paiement">
+      {/* Payment Button */}
+      <Card title="Paiement sécurisé">
         <div className="space-y-4">
-          <div className="p-6 bg-gray-50 rounded-lg border border-gray-200">
-            <div className="flex items-center space-x-3 mb-4">
+          <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+            <div className="flex items-center space-x-3 mb-3">
               <CreditCard className="h-5 w-5 text-gray-600" />
-              <span className="text-sm font-medium text-gray-700">Carte de crédit</span>
+              <span className="text-sm font-medium text-gray-700">Paiement par Campay</span>
             </div>
-            
-            <div className="space-y-3">
-              <div className="bg-white p-4 rounded border border-gray-300">
-                <p className="text-sm text-gray-600 mb-1">Numéro de carte</p>
-                <p className="text-lg font-mono text-gray-400">**** **** **** 1234</p>
-              </div>
-              
-              <div className="grid grid-cols-2 gap-3">
-                <div className="bg-white p-4 rounded border border-gray-300">
-                  <p className="text-sm text-gray-600 mb-1">Date d'expiration</p>
-                  <p className="text-lg font-mono text-gray-400">12/25</p>
-                </div>
-                
-                <div className="bg-white p-4 rounded border border-gray-300">
-                  <p className="text-sm text-gray-600 mb-1">CVV</p>
-                  <p className="text-lg font-mono text-gray-400">***</p>
-                </div>
-              </div>
-            </div>
+            <p className="text-sm text-gray-600">
+              Cliquez sur le bouton ci-dessous pour ouvrir le modal de paiement sécurisé. 
+              Vous pourrez effectuer le paiement via USSD, Mobile Money ou Carte bancaire.
+            </p>
           </div>
 
-          {/* Simulate Payment Button */}
-          <div className="pt-4">
-            <Button
-              variant="primary"
-              onClick={handleSimulatePayment}
-              disabled={isSimulating || isLoading || paymentId !== null}
-              className="w-full flex items-center justify-center space-x-2"
-            >
-              {isSimulating ? (
-                <>
-                  <Loader2 className="h-5 w-5 animate-spin" />
-                  <span>Traitement du paiement...</span>
-                </>
-              ) : paymentId ? (
-                <>
-                  <CheckCircle className="h-5 w-5" />
-                  <span>Paiement effectué</span>
-                </>
-              ) : (
-                <>
-                  <DollarSign className="h-5 w-5" />
-                  <span>Simuler le paiement</span>
-                </>
-              )}
-            </Button>
-          </div>
-
-          {paymentId && (
-            <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
-              <div className="flex items-center space-x-2">
-                <CheckCircle className="h-5 w-5 text-green-600" />
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-green-900">
-                    Paiement simulé avec succès
-                  </p>
-                  <p className="text-xs text-green-700 mt-1">
-                    ID de transaction : {paymentId}
-                  </p>
+          {/* Payment Button */}
+          <div className="pt-2">
+            {!paymentRequest ? (
+              <Button
+                variant="primary"
+                onClick={handleInitiatePayment}
+                disabled={isCreatingPayment || isLoading}
+                className="w-full flex items-center justify-center space-x-2"
+              >
+                {isCreatingPayment ? (
+                  <>
+                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                    <span>Initialisation du paiement...</span>
+                  </>
+                ) : (
+                  <>
+                    <CreditCard className="h-5 w-5" />
+                    <span>Payer {formattedPrice} {currency}</span>
+                  </>
+                )}
+              </Button>
+            ) : (
+              <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                <div className="flex items-center space-x-2">
+                  <CheckCircle className="h-5 w-5 text-green-600" />
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-green-900">
+                      Paiement en cours...
+                    </p>
+                    <p className="text-xs text-green-700 mt-1">
+                      Le modal de paiement va s'ouvrir automatiquement.
+                    </p>
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </Card>
+
+      {/* Campay Payment Modal */}
+      {paymentRequest && (
+        <CampayPayment
+          paymentRequest={paymentRequest}
+          onSuccess={handlePaymentSuccess}
+          onFail={handlePaymentFail}
+          onModalClose={handlePaymentModalClose}
+          autoOpen={autoOpenPayment}
+          onAutoOpened={() => setAutoOpenPayment(false)}
+          onModalClosed={handlePaymentModalClose}
+        />
+      )}
     </div>
   );
 };
