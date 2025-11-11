@@ -534,122 +534,50 @@ export const UniversViewPage: React.FC = () => {
                 </div>
               </div>
             </div>
-            {/* Organisation optimisée des boutons : 2 par ligne sur mobile */}
-            <div className="grid grid-cols-2 sm:flex sm:flex-row gap-2 sm:gap-2">
-              {/* Boutons pour le créateur d'univers marketplace avec draft */}
-              {isOwner && isMarketplace && hasUnpublishedChanges && (
-                <>
-                  <Button
-                    variant="secondary"
-                    onClick={handleTestDraft}
-                    className="flex items-center justify-center space-x-1 sm:space-x-2 bg-yellow-500 hover:bg-yellow-600 text-white w-full sm:w-auto"
-                    disabled={isActivating}
-                  >
-                    <Power className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                    <span className="text-xs sm:text-sm">Tester draft</span>
-                  </Button>
-                  <Button
-                    variant="secondary"
-                    onClick={async () => {
-                      if (!univers || !user?.id) return;
-                      try {
-                        await universService.cancelDraft(univers.id, user.id);
-                        showSuccess('Draft annulé avec succès. Vous êtes revenu à la version publiée.');
-                        await loadUnivers();
-                      } catch (error) {
-                        const errorMessage = error instanceof Error 
-                          ? error.message 
-                          : 'Erreur lors de l\'annulation du draft';
-                        showError(errorMessage);
-                      }
-                    }}
-                    className="flex items-center justify-center space-x-1 sm:space-x-2 w-full sm:w-auto"
-                    disabled={isActivating}
-                  >
-                    <XCircle className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                    <span className="text-xs sm:text-sm">Annuler draft</span>
-                  </Button>
-                  <Button
-                    variant="primary"
-                    onClick={handlePublishDraft}
-                    className="flex items-center justify-center space-x-1 sm:space-x-2 w-full sm:w-auto col-span-2 sm:col-span-1"
-                    disabled={isActivating}
-                  >
-                    <Sparkles className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                    <span className="text-xs sm:text-sm">Publier</span>
-                  </Button>
-                </>
-              )}
-              {hasUpdateAvailable && isDirecteur && !isOwner && (
+            {/* Actions simplifiées pour la vue détail */}
+            <div className="flex flex-wrap gap-2">
+              {/* Activer (si non actif et permissions) */}
+              {isDirecteur && 
+               !isActive && 
+               !hasUpdateAvailable &&
+               (isOwner || (univers.ownership.approvalStatus !== 'pending' && univers.ownership.approvalStatus !== 'rejected')) && (
                 <Button
                   variant="primary"
-                  onClick={handleUpgradeClick}
-                  className="flex items-center justify-center space-x-1 sm:space-x-2 bg-orange-500 hover:bg-orange-600 w-full sm:w-auto col-span-2 sm:col-span-1"
-                  disabled={isUpgrading}
+                  onClick={handleActivateClick}
+                  className="flex items-center justify-center space-x-2 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white shadow-lg hover:shadow-xl transition-all"
+                  disabled={isActivating}
                 >
-                  <Download className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                  <span className="text-xs sm:text-sm">Mettre à jour v{latestVersion}</span>
+                  <Power className="h-4 w-4" />
+                  <span>Activer</span>
                 </Button>
               )}
-              {/* Boutons selon le contexte */}
-              {isFromMarketplace ? (
-                // Si on vient de la marketplace, seulement "Utiliser ce template"
-                univers.ownership.isMarketplaceTemplate && 
-                univers.ownership.approvalStatus === 'approved' && 
-                isDirecteur && 
-                !hasUpdateAvailable && (
-                  <Button
-                    variant="primary"
-                    onClick={() => navigate(`/univers/create-from-template/${univers.id}`)}
-                    className="flex items-center justify-center space-x-1 sm:space-x-2 w-full sm:w-auto col-span-2 sm:col-span-1"
-                  >
-                    <Sparkles className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                    <span className="text-xs sm:text-sm">Utiliser template</span>
-                  </Button>
-                )
-              ) : (
-                // Si on vient de Mes Univers, montrer "Activer" si non actif
-                // Pour le propriétaire, permettre l'activation même en attente
-                <>
-                  {isDirecteur && 
-                   !isActive && 
-                   !hasUpdateAvailable &&
-                   // Le propriétaire peut toujours activer, même en attente
-                   (isOwner || (univers.ownership.approvalStatus !== 'pending' && univers.ownership.approvalStatus !== 'rejected')) && (
-                    <Button
-                      variant="primary"
-                      onClick={handleActivateClick}
-                      className="flex items-center justify-center space-x-1 sm:space-x-2 w-full sm:w-auto col-span-2 sm:col-span-1"
-                      disabled={isActivating}
-                    >
-                      <Power className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                      <span className="text-xs sm:text-sm">Activer</span>
-                    </Button>
-                  )}
-                  {/* Bouton "Utiliser ce template" pour Univers marketplace possédés */}
-                  {univers.ownership.isMarketplaceTemplate && 
-                   univers.ownership.approvalStatus === 'approved' && 
-                   isDirecteur && 
-                   !hasUpdateAvailable && (
-                    <Button
-                      variant="primary"
-                      onClick={() => navigate(`/univers/create-from-template/${univers.id}`)}
-                      className="flex items-center justify-center space-x-1 sm:space-x-2 w-full sm:w-auto col-span-2 sm:col-span-1"
-                    >
-                      <Sparkles className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                      <span className="text-xs sm:text-sm">Utiliser template</span>
-                    </Button>
-                  )}
-                </>
+
+              {/* Utiliser ce template (uniquement depuis marketplace si on ne possède pas l'univers) */}
+              {isFromMarketplace && 
+               !userInstance && 
+               !isOwner &&
+               univers.ownership.isMarketplaceTemplate && 
+               univers.ownership.approvalStatus === 'approved' && 
+               isDirecteur && (
+                <Button
+                  variant="primary"
+                  onClick={() => navigate(`/univers/create-from-template/${univers.id}`)}
+                  className="flex items-center justify-center space-x-2 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white shadow-lg hover:shadow-xl transition-all"
+                >
+                  <Sparkles className="h-4 w-4" />
+                  <span>Utiliser ce template</span>
+                </Button>
               )}
+
+              {/* Modifier (redirige vers l'édition) */}
               {canEdit && (
                 <Button
                   variant="secondary"
                   onClick={handleEdit}
-                  className="flex items-center justify-center space-x-1 sm:space-x-2 w-full sm:w-auto col-span-2 sm:col-span-1"
+                  className="flex items-center justify-center space-x-2 border border-gray-300 hover:border-gray-400 hover:bg-gray-50 transition-all"
                 >
-                  <Edit className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                  <span className="text-xs sm:text-sm">Modifier</span>
+                  <Edit className="h-4 w-4" />
+                  <span>Modifier</span>
                 </Button>
               )}
             </div>
