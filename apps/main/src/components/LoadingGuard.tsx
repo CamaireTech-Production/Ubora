@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import { Loader2 } from 'lucide-react';
 
 interface LoadingGuardProps {
@@ -9,7 +9,7 @@ interface LoadingGuardProps {
   message?: string;
 }
 
-export const LoadingGuard: React.FC<LoadingGuardProps> = ({ 
+const LoadingGuardComponent: React.FC<LoadingGuardProps> = ({ 
   isLoading, 
   user, 
   firebaseUser, 
@@ -19,7 +19,13 @@ export const LoadingGuard: React.FC<LoadingGuardProps> = ({
   // Afficher le chargement si :
   // - L'authentification est en cours
   // - L'utilisateur Firebase est connecté mais le profil utilisateur n'est pas encore chargé
+  // Use ref to track if we've already shown the loading screen to prevent multiple renders
+  const hasShownLoadingRef = useRef(false);
+  
   if (isLoading || (firebaseUser && !user)) {
+    if (!hasShownLoadingRef.current) {
+      hasShownLoadingRef.current = true;
+    }
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
@@ -31,6 +37,11 @@ export const LoadingGuard: React.FC<LoadingGuardProps> = ({
         </div>
       </div>
     );
+  }
+  
+  // Reset flag when loading is complete
+  if (hasShownLoadingRef.current && !isLoading && user) {
+    hasShownLoadingRef.current = false;
   }
 
   // Afficher le contenu seulement si tout est chargé
@@ -47,3 +58,5 @@ export const LoadingGuard: React.FC<LoadingGuardProps> = ({
 
   return <>{children}</>;
 };
+
+export const LoadingGuard = React.memo(LoadingGuardComponent);
