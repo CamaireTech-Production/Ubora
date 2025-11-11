@@ -40,6 +40,8 @@ import { PaymentModal } from '../components/PaymentModal';
 import { CampayPayment } from '../components/CampayPayment';
 import { PaymentService } from '@ubora/shared/services/paymentService';
 import { PaymentRequest, CampayPaymentData } from '../types/payment';
+import { SubscriptionPriceCalculator, SubscriptionPeriod } from '@ubora/shared/services/subscriptionPriceCalculator';
+import { CheckCircle } from 'lucide-react';
 
 export const PackageManagementPage: React.FC = () => {
   const navigate = useNavigate();
@@ -49,6 +51,7 @@ export const PackageManagementPage: React.FC = () => {
   const { packageType } = usePackageAccess();
   const { showSuccess, showError } = useToast();
   const [selectedPackage, setSelectedPackage] = useState<PackageType | null>(null);
+  const [selectedPeriod, setSelectedPeriod] = useState<SubscriptionPeriod>('30days');
   const [isProcessing, setIsProcessing] = useState(false);
   const [showTransitionPreview, setShowTransitionPreview] = useState(false);
   const [transitionPreview, setTransitionPreview] = useState<any>(null);
@@ -149,6 +152,7 @@ export const PackageManagementPage: React.FC = () => {
     }
 
     setSelectedPackage(pkg);
+    setSelectedPeriod('30days'); // Reset period selection when selecting a new package
     
     // Automatically calculate transition based on current usage
     const currentSession = await SubscriptionSessionCollectionService.getActiveSession(user.id);
@@ -159,19 +163,24 @@ export const PackageManagementPage: React.FC = () => {
       tokens: currentSession?.usage?.tokensUsed || 0
     };
     
-    // Get enhanced transition preview with current usage
-    const preview = PackageTransitionService.getEnhancedTransitionPreview(
-      user,
-      pkg as 'free' | 'starter' | 'standard',
-      currentUsage
-    );
-    
-    if (preview) {
-      setTransitionPreview(preview);
-      setUserNeeds(currentUsage);
-      setShowTransitionPreview(true);
-    } else {
-      showError('Impossible de calculer la transition. Veuillez réessayer.');
+    // Get enhanced transition preview with current usage (async)
+    try {
+      const preview = await PackageTransitionService.getEnhancedTransitionPreview(
+        user,
+        pkg as 'free' | 'starter' | 'standard',
+        currentUsage
+      );
+      
+      if (preview) {
+        setTransitionPreview(preview);
+        setUserNeeds(currentUsage);
+        setShowTransitionPreview(true);
+      } else {
+        showError('Impossible de calculer la transition. Veuillez réessayer.');
+      }
+    } catch (error) {
+      console.error('Error calculating transition preview:', error);
+      showError('Erreur lors du calcul de la transition. Veuillez réessayer.');
     }
   };
 
@@ -179,19 +188,43 @@ export const PackageManagementPage: React.FC = () => {
   const confirmTransition = async () => {
     if (!selectedPackage || !user || !transitionPreview) return;
 
+    // For paid packages, check if period is selected
+    if (selectedPackage !== 'free' && !selectedPeriod) {
+      showError('Veuillez sélectionner une période d\'abonnement');
+      return;
+    }
+
     setIsCreatingPayment(true);
     try {
-      console.log('Starting package transition for:', selectedPackage);
+      console.log('Starting package transition for:', selectedPackage, 'with period:', selectedPeriod);
       console.log('Transition preview:', transitionPreview);
+      
       // If switching to free or there is nothing to pay, bypass payment flow
       const isFree = selectedPackage === 'free';
-      const payable = transitionPreview.priceBreakdown?.finalAmount ?? 0;
+      
+      // Calculate price with selected period for paid packages
+      let priceCalculation;
+      let payable = 0;
+      
+      if (!isFree) {
+        priceCalculation = SubscriptionPriceCalculator.calculatePrice(selectedPackage, selectedPeriod);
+        // Calculate transition cost: new package price minus credit from remaining days
+        const newPackagePrice = priceCalculation.totalAmount;
+        // Use currentPackageRemainingValue as credit (value of remaining days in current package)
+        const creditFromRemainingDays = transitionPreview.priceBreakdown?.currentPackageRemainingValue || 0;
+        payable = Math.max(0, newPackagePrice - creditFromRemainingDays);
+      } else {
+        payable = transitionPreview.priceBreakdown?.finalAmount ?? 0;
+      }
+      
       if (isFree || payable === 0) {
         const ok = await PackageTransitionService.executeTransition(
           user.id,
           'free',
           { preserveUnusedPayAsYouGo: true },
-          'none'
+          'none',
+          undefined,
+          '30days' // Default period for free
         );
         if (ok) {
           showSuccess('Package gratuit activé avec succès !');
@@ -211,28 +244,33 @@ export const PackageManagementPage: React.FC = () => {
         }
       }
       
-      // Create payment request
+      // Create payment request with period information
       const externalReference = PaymentService.generateExternalReference('PKG');
       // UI may display min 5k, but the requested amount is the computed payable
-      const displayAmount = Math.max(transitionPreview.priceBreakdown.finalAmount, 5000);
-      const paymentAmount = transitionPreview.priceBreakdown.finalAmount;
+      const displayAmount = Math.max(payable, 5000);
+      const paymentAmount = payable;
       
       const paymentReq: PaymentRequest = {
         amount: paymentAmount,
         currency: 'XAF',
-        description: `TAKWID GROUP (USSD) — Transition vers package ${getPackageDisplayName(selectedPackage)}`,
+        description: `TAKWID GROUP (USSD) — Transition vers package ${getPackageDisplayName(selectedPackage)} (${SubscriptionPriceCalculator.getPeriodDisplayName(selectedPeriod)})`,
         externalReference,
         metadata: {
           packageType: selectedPackage,
+          subscriptionPeriod: selectedPeriod,
           sessionType: 'package_transition',
           previousPackageType: transitionPreview.currentPackage,
           daysRemaining: transitionPreview.daysRemaining,
           userId: user.id,
           displayAmount: displayAmount,
           // for PaymentService to record originalAmount accurately
-          originalAmount: transitionPreview.priceBreakdown.newPackagePrice,
-          newPackagePrice: transitionPreview.priceBreakdown.newPackagePrice,
-          payableAmount: transitionPreview.priceBreakdown.finalAmount
+          originalAmount: priceCalculation?.totalAmount || transitionPreview.priceBreakdown.newPackagePrice,
+          newPackagePrice: priceCalculation?.totalAmount || transitionPreview.priceBreakdown.newPackagePrice,
+          payableAmount: payable,
+          monthlyAmount: priceCalculation?.monthlyAmount || 0,
+          discountApplied: priceCalculation?.discountApplied || 0,
+          totalPeriodDays: priceCalculation?.totalPeriodDays || 0,
+          maxRenewals: priceCalculation?.maxRenewals || 0
         }
       };
 
@@ -242,6 +280,7 @@ export const PackageManagementPage: React.FC = () => {
       console.log('Creating payment record in Firebase...');
       const paymentId = await PaymentService.createPayment(user.id, paymentReq, {
         packageType: selectedPackage,
+        subscriptionPeriod: selectedPeriod,
         sessionType: 'package_transition',
         previousPackageType: transitionPreview.currentPackage,
         daysRemaining: transitionPreview.daysRemaining
@@ -288,7 +327,7 @@ export const PackageManagementPage: React.FC = () => {
       // Update payment status in Firebase
       await PaymentService.updatePaymentStatus(currentPaymentId, data, 'completed');
       
-      // Execute package transition
+      // Execute package transition with selected period
       const success = await PackageTransitionService.executeTransition(
         user.id,
         selectedPackage,
@@ -296,7 +335,8 @@ export const PackageManagementPage: React.FC = () => {
           preserveUnusedPayAsYouGo: true
         },
         'campay', // Payment method
-        currentPaymentId // Payment reference
+        currentPaymentId, // Payment reference
+        selectedPackage === 'free' ? '30days' : selectedPeriod // Subscription period
       );
       
       if (success) {
@@ -317,6 +357,7 @@ export const PackageManagementPage: React.FC = () => {
       // Reset states
       setIsProcessing(false);
       setSelectedPackage(null);
+      setSelectedPeriod('30days'); // Reset period selection
       setTransitionPreview(null);
       setUserNeeds({});
       setPaymentRequest(null);
@@ -327,7 +368,7 @@ export const PackageManagementPage: React.FC = () => {
       setShowTransitionPreview(false);
       setActivePayAsYouGoType(null);
     }
-  }, [currentPaymentId, selectedPackage, user, showSuccess, showError, navigate]);
+  }, [currentPaymentId, selectedPackage, selectedPeriod, user, showSuccess, showError, navigate]);
 
   const handlePaymentFail = useCallback(async (data: CampayPaymentData) => {
     if (!currentPaymentId) return;
@@ -1272,8 +1313,8 @@ export const PackageManagementPage: React.FC = () => {
 
 
       {/* Enhanced Package Transition Modal */}
-      {transitionPreview && (
-        <div className={`fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 ${showTransitionPreview ? 'block' : 'hidden'}`}>
+      {transitionPreview && showTransitionPreview && selectedPackage && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg max-w-6xl w-full mx-4 max-h-[90vh] overflow-y-auto">
             <div className="p-6">
               <div className="flex items-center justify-between mb-6">
@@ -1285,6 +1326,7 @@ export const PackageManagementPage: React.FC = () => {
                     setShowTransitionPreview(false);
                     setTransitionPreview(null);
                     setSelectedPackage(null);
+                    setSelectedPeriod('30days'); // Reset period selection
                   }}
                   className="text-gray-400 hover:text-gray-600"
                 >
@@ -1292,14 +1334,97 @@ export const PackageManagementPage: React.FC = () => {
                 </button>
               </div>
               
+              {/* Sélecteur de période pour packages payants */}
+              {selectedPackage && selectedPackage !== 'free' && (
+                <div className="mb-6">
+                  <label className="block text-base font-semibold text-gray-700 mb-3">
+                    Période d'abonnement
+                  </label>
+                  <div className="flex flex-wrap justify-center gap-2 sm:gap-3">
+                    {(['30days', '6months', '1year'] as SubscriptionPeriod[]).map((period) => {
+                      const isSelected = selectedPeriod === period;
+                      const discount = SubscriptionPriceCalculator.calculateDiscount(period);
+                      const priceCalc = SubscriptionPriceCalculator.calculatePrice(selectedPackage, period);
+                      
+                      return (
+                        <button
+                          key={period}
+                          type="button"
+                          onClick={() => setSelectedPeriod(period)}
+                          className={`relative flex-1 min-w-[120px] sm:min-w-[140px] max-w-[180px] px-4 sm:px-5 py-3 sm:py-3.5 rounded-2xl border-2 transition-all duration-300 transform ${
+                            isSelected
+                              ? 'border-blue-500 bg-gradient-to-br from-blue-50 via-blue-50 to-blue-100 shadow-lg scale-105 z-10'
+                              : 'border-gray-200 hover:border-blue-300 bg-white/80 hover:bg-white hover:shadow-md hover:scale-[1.02]'
+                          }`}
+                        >
+                          <div className="text-center">
+                            <div className="flex items-center justify-center gap-2">
+                              <div className={`font-bold text-sm sm:text-base ${
+                                isSelected ? 'text-blue-600' : 'text-gray-700'
+                              }`}>
+                                {SubscriptionPriceCalculator.getPeriodDisplayName(period)}
+                              </div>
+                              {discount > 0 && (
+                                <div className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+                                  isSelected 
+                                    ? 'text-green-700 bg-green-100' 
+                                    : 'text-green-600 bg-green-50'
+                                }`}>
+                                  -{discount * 100}%
+                                </div>
+                              )}
+                            </div>
+                            <div className={`text-xs mt-1 ${
+                              isSelected ? 'text-blue-600 font-semibold' : 'text-gray-600'
+                            }`}>
+                              {SubscriptionPriceCalculator.formatPrice(priceCalc.totalAmount)}
+                            </div>
+                            {isSelected && (
+                              <div className="absolute top-2 right-2">
+                                <div className="w-5 h-5 rounded-full bg-blue-500 flex items-center justify-center shadow-sm">
+                                  <CheckCircle className="h-3 w-3 text-white" />
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-                <PackageTransitionPriceExplanation
-                  calculation={PackageTransitionService.calculateEnhancedTransition(
-                    user!,
-                    selectedPackage! as 'free' | 'starter' | 'standard',
-                    userNeeds
-                  )!}
-                />
+                {transitionPreview && transitionPreview.priceBreakdown ? (
+                  <PackageTransitionPriceExplanation
+                    calculation={{
+                      currentSession: {} as any, // Not needed for display
+                      newPackageType: selectedPackage! as 'free' | 'starter' | 'standard',
+                      daysRemaining: transitionPreview.daysRemaining || 0,
+                      currentPackageRemainingValue: transitionPreview.priceBreakdown.currentPackageRemainingValue || 0,
+                      newPackageFullCost: transitionPreview.priceBreakdown.newPackagePrice || 0,
+                      finalAmountToPay: transitionPreview.priceBreakdown.finalAmount || 0,
+                      unusedPackageTokens: transitionPreview.tokenInfo?.unusedPackageTokens || 0,
+                      unusedPayAsYouGoTokens: transitionPreview.tokenInfo?.unusedPayAsYouGoTokens || 0,
+                      newPackageTokens: transitionPreview.tokenInfo?.newPackageTokens || 0,
+                      preservedPayAsYouGoTokens: transitionPreview.tokenInfo?.preservedPayAsYouGoTokens || 0,
+                      payAsYouGoRequired: (transitionPreview.payAsYouGoItems?.length || 0) > 0,
+                      payAsYouGoItems: transitionPreview.payAsYouGoItems || [],
+                      payAsYouGoTotalCost: transitionPreview.priceBreakdown.payAsYouGoCost || 0,
+                      featureUpgrades: transitionPreview.featureUpgrades || [],
+                      featureDowngrades: transitionPreview.featureDowngrades || [],
+                      priceBreakdown: transitionPreview.priceBreakdown
+                    }}
+                    selectedPackage={selectedPackage || undefined}
+                    selectedPeriod={selectedPeriod}
+                  />
+                ) : (
+                  <div className="bg-white rounded-lg border border-gray-200 p-6">
+                    <div className="text-center text-gray-500">
+                      <p>Calcul en cours...</p>
+                    </div>
+                  </div>
+                )}
                 
                 <div className="bg-white rounded-lg border border-gray-200 p-6">
                   <h3 className="text-lg font-semibold text-gray-900 mb-4">Résumé de la transition</h3>
@@ -1322,25 +1447,47 @@ export const PackageManagementPage: React.FC = () => {
                       </div>
                     )}
                     
+                    {selectedPackage !== 'free' && (
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-600">Période sélectionnée</span>
+                        <span className="font-medium text-blue-600">
+                          {SubscriptionPriceCalculator.getPeriodDisplayName(selectedPeriod)}
+                          {(() => {
+                            try {
+                              const priceCalc = SubscriptionPriceCalculator.calculatePrice(selectedPackage, selectedPeriod);
+                              const creditFromRemainingDays = transitionPreview.priceBreakdown?.currentPackageRemainingValue || 0;
+                              const payable = Math.max(0, priceCalc.totalAmount - creditFromRemainingDays);
+                              return ` (${SubscriptionPriceCalculator.formatPrice(payable)})`;
+                            } catch (error) {
+                              return '';
+                            }
+                          })()}
+                        </span>
+                      </div>
+                    )}
+                    
                     <div className="border-t border-gray-200 pt-4">
                       <div className="flex justify-between items-center text-lg">
                         <span className="font-semibold">Montant à payer</span>
                         <span className="font-bold text-green-600">
-                          {(selectedPackage === 'free' 
-                            ? 0 
-                            : Math.max(transitionPreview.priceBreakdown.finalAmount, 5000)
-                          ).toLocaleString('fr-FR')} FCFA
+                          {(() => {
+                            if (selectedPackage === 'free') return 0;
+                            const priceCalc = SubscriptionPriceCalculator.calculatePrice(selectedPackage, selectedPeriod);
+                            const creditFromRemainingDays = transitionPreview.priceBreakdown?.currentPackageRemainingValue || 0;
+                            const payable = Math.max(0, priceCalc.totalAmount - creditFromRemainingDays);
+                            return Math.max(payable, 5000).toLocaleString('fr-FR') + ' FCFA';
+                          })()}
                         </span>
                       </div>
                       
-                      {transitionPreview.priceBreakdown.savings > 0 && (
+                      {transitionPreview.priceBreakdown?.savings > 0 && (
                         <div className="flex justify-between items-center text-sm text-green-600 mt-2">
                           <span>Économie réalisée</span>
                           <span>-{transitionPreview.priceBreakdown.savings.toLocaleString('fr-FR')} FCFA</span>
                         </div>
                       )}
                       
-                      {selectedPackage !== 'free' && transitionPreview.priceBreakdown.finalAmount === 0 && (
+                      {selectedPackage !== 'free' && transitionPreview.priceBreakdown?.finalAmount === 0 && (
                         <div className="flex justify-between items-center text-sm text-blue-600 mt-2">
                           <span>Montant minimum appliqué</span>
                           <span>5 000 FCFA</span>
@@ -1352,8 +1499,8 @@ export const PackageManagementPage: React.FC = () => {
                   
                   <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
                     <p className="text-sm text-blue-700">
-                      <strong>Note:</strong> {transitionPreview.summary}
-                      {selectedPackage !== 'free' && transitionPreview.priceBreakdown.finalAmount === 0 && (
+                      <strong>Note:</strong> {transitionPreview.summary || 'Transition de package'}
+                      {selectedPackage !== 'free' && transitionPreview.priceBreakdown?.finalAmount === 0 && (
                         <><br/><strong>Montant minimum:</strong> Un montant minimum de 5 000 FCFA est appliqué pour le traitement du paiement.</>
                       )}
                     </p>
@@ -1368,6 +1515,7 @@ export const PackageManagementPage: React.FC = () => {
                       setShowTransitionPreview(false);
                       setTransitionPreview(null);
                       setSelectedPackage(null);
+                      setSelectedPeriod('30days'); // Reset period selection
                       setPaymentRequest(null);
                       setCurrentPaymentId(null);
                       setIsCreatingPayment(false);

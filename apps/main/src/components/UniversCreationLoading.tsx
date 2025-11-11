@@ -143,41 +143,57 @@ export const UniversCreationLoading: React.FC<UniversCreationLoadingProps> = ({
           </p>
         </div>
 
-        {/* Loading Animation - Rotating Squares */}
+        {/* Loading Animation - Modern Wireframe Spinner */}
         <div className="flex justify-center mb-8">
-          <div className="relative w-24 h-24">
-            {[...Array(4)].map((_, i) => (
-              <div
-                key={i}
-                className="absolute w-full h-full rounded-lg loading-square"
-                style={{
-                  backgroundColor: `rgba(59, 130, 246, ${0.3 + i * 0.2})`,
-                  transform: `rotate(${i * 90}deg)`,
-                  animationDelay: `${i * 0.1}s`
-                }}
-              />
-            ))}
+          <div className="relative w-32 h-32">
+            {/* Outer rotating ring */}
+            <div className="absolute inset-0 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
+            {/* Middle pulsing circle */}
+            <div className="absolute inset-4 bg-gradient-to-br from-blue-400 to-indigo-500 rounded-full animate-pulse shadow-lg shadow-blue-500/50"></div>
+            {/* Inner wireframe pattern */}
+            <div className="absolute inset-8 flex items-center justify-center">
+              <div className="grid grid-cols-2 gap-2 w-full h-full p-2">
+                {[...Array(4)].map((_, i) => (
+                  <div
+                    key={i}
+                    className="bg-white/30 rounded-lg shimmer-animation"
+                    style={{
+                      animationDelay: `${i * 0.15}s`
+                    }}
+                  />
+                ))}
+              </div>
+            </div>
           </div>
         </div>
 
-        {/* Progress Bar */}
+        {/* Progress Bar - Modern Wireframe Style */}
         <div className="mb-8">
-          <div className="flex justify-between items-center mb-2">
+          <div className="flex justify-between items-center mb-3">
             <span className="text-sm font-medium text-gray-700">
               Progression
             </span>
-            <span className="text-sm font-bold text-blue-600">
+            <span className="text-sm font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
               {Math.round(progress)}%
             </span>
           </div>
-          <div className="w-full h-3 bg-gray-200 rounded-full overflow-hidden shadow-inner">
+          <div className="w-full h-4 bg-gray-100 rounded-full overflow-hidden shadow-inner border border-gray-200">
             <div
               className="h-full bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500 rounded-full transition-all duration-300 ease-out relative overflow-hidden"
               style={{ width: `${progress}%` }}
             >
-              {/* Shimmer effect */}
-              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-shimmer" />
+              {/* Modern shimmer effect */}
+              <div className="absolute inset-0 shimmer-animation opacity-50"></div>
+              {/* Glow effect */}
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent animate-shimmer"></div>
             </div>
+          </div>
+          {/* Progress steps indicator */}
+          <div className="flex justify-between mt-2 text-xs text-gray-500">
+            <span className={progress > 20 ? 'text-blue-600 font-semibold' : ''}>Initialisation</span>
+            <span className={progress > 50 ? 'text-blue-600 font-semibold' : ''}>Création</span>
+            <span className={progress > 80 ? 'text-blue-600 font-semibold' : ''}>Finalisation</span>
+            <span className={progress >= 100 ? 'text-green-600 font-semibold' : ''}>Terminé</span>
           </div>
         </div>
 

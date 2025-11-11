@@ -3,6 +3,7 @@ import { Univers } from '../types';
 import { UniversCard } from './UniversCard';
 import { Search } from 'lucide-react';
 import { Input } from './Input';
+import { WireframeLoader } from './loading/WireframeLoader';
 
 interface UniversListProps {
   univers: Univers[];
@@ -42,19 +43,10 @@ export const UniversList: React.FC<UniversListProps> = ({
     return (
       <div className="space-y-6">
         {/* Skeleton pour la recherche */}
-        <div className="h-12 bg-gray-200 rounded-lg animate-pulse"></div>
+        <div className="h-12 bg-white rounded-xl border border-gray-200 shimmer-animation"></div>
         {/* Skeleton pour les cards */}
         <div className="grid grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-4 lg:gap-6">
-          {[...Array(6)].map((_, i) => (
-            <div key={i} className="h-64 sm:h-72 lg:h-80 bg-white rounded-xl sm:rounded-2xl border border-gray-200 animate-pulse">
-              <div className="h-20 sm:h-24 lg:h-32 bg-gray-200 rounded-t-xl sm:rounded-t-2xl"></div>
-              <div className="p-3 sm:p-4 lg:p-6 space-y-2 sm:space-y-3 lg:space-y-4">
-                <div className="h-4 sm:h-5 lg:h-6 bg-gray-200 rounded w-3/4"></div>
-                <div className="h-3 sm:h-4 bg-gray-200 rounded w-full"></div>
-                <div className="h-3 sm:h-4 bg-gray-200 rounded w-2/3"></div>
-              </div>
-            </div>
-          ))}
+          <WireframeLoader type="univers-card" count={6} />
         </div>
       </div>
     );

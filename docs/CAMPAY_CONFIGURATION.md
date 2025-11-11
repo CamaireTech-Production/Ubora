@@ -48,14 +48,33 @@ VITE_CAMPAY_REDIRECT_URL=https://yourdomain.com/payment-success
 
 ## How It Works
 
-1. **Environment Detection**: The system always uses the live Campay endpoint:
+1. **Unified Service**: The application uses a unified `CampayService` that:
+   - Dynamically loads the Campay SDK script with the App ID from `VITE_CAMPAY_APP_ID`
+   - Manages script loading and initialization automatically
+   - Provides a simple API for opening payment modals throughout the application
+
+2. **Environment Detection**: The system always uses the live Campay endpoint:
    - Both Demo and Live: `https://www.campay.net/sdk/js`
 
-2. **App ID**: The `app-id` parameter in the script URL identifies your specific Campay account (use your live App ID for both modes)
+3. **App ID**: The `app-id` parameter in the script URL identifies your specific Campay account (use your live App ID for both modes)
 
-3. **Demo Mode**: When in demo mode, the Campay modal shows actual prices but charges only the demo amount (10 FCFA). Firebase still stores the correct actual amounts for proper record keeping.
+4. **Demo Mode**: When in demo mode, the Campay modal shows actual prices but charges only the demo amount (10 FCFA). Firebase still stores the correct actual amounts for proper record keeping.
 
-4. **Account Switching**: To switch between different Campay accounts, simply change the `VITE_CAMPAY_APP_ID` value
+5. **Account Switching**: To switch between different Campay accounts, simply change the `VITE_CAMPAY_APP_ID` value
+
+6. **Usage**: The service is used automatically by the `CampayPayment` component and can also be used directly:
+   ```typescript
+   import { CampayService } from '../services/campayService';
+   
+   await CampayService.openPaymentModal({
+     amount: 10000,
+     description: 'Payment description',
+     externalReference: 'REF_123',
+     onSuccess: (data) => { /* handle success */ },
+     onFail: (data) => { /* handle failure */ },
+     onModalClose: (data) => { /* handle close */ }
+   });
+   ```
 
 ## Getting Your Campay App ID
 

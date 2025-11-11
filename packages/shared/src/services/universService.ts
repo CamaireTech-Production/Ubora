@@ -1419,6 +1419,8 @@ class UniversService {
 
   /**
    * Incrémenter le compteur d'utilisation d'un Univers
+   * Cette fonction ignore silencieusement les erreurs de permissions Firestore
+   * car l'incrémentation du compteur n'est pas critique pour le fonctionnement
    */
   async incrementUsage(universId: string): Promise<void> {
     try {
@@ -1434,9 +1436,18 @@ class UniversService {
           'usage.lastUsedAt': serverTimestamp()
         });
       }
-    } catch (error) {
-      console.error('Erreur lors de l\'incrémentation de l\'utilisation:', error);
-      // Ne pas faire échouer l'opération si cette mise à jour échoue
+    } catch (error: any) {
+      // Ignorer silencieusement les erreurs de permissions Firestore
+      // L'incrémentation du compteur d'utilisation n'est pas critique
+      // et ne doit pas empêcher le fonctionnement normal de l'application
+      if (error?.code === 'permission-denied' || 
+          error?.code === 'missing-or-insufficient-permissions' ||
+          (error?.message && error.message.includes('permission'))) {
+        // Erreur de permissions : ignorer silencieusement
+        return;
+      }
+      // Pour les autres erreurs, logger en mode debug seulement
+      // Ne pas utiliser console.error pour éviter de polluer les logs
     }
   }
 

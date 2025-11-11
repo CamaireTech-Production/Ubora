@@ -62,8 +62,6 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       );
 
       if (result.success) {
-        console.log('PaymentModal: Payment successful, processing...');
-        
         // Get the option name from the quantity and type
         const optionName = `${quantity} ${getUnitName()}${quantity > 1 ? 's' : ''} acheté(s)`;
         showSuccess(`${optionName} avec succès !`);
@@ -73,7 +71,6 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
         const mockOption = { id: `${type}-${quantity}`, name: optionName, price: quantity * getUnitPrice(), description: '', unit: 'FCFA', icon: null };
         await onPurchase(mockOption);
         
-        console.log('PaymentModal: Calling handleClose...');
         // Close modal immediately after success
         handleClose();
       } else {
@@ -109,7 +106,6 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   }, [currentPaymentId, showError]);
 
   const handlePaymentModalClose = useCallback(() => {
-    console.log('PaymentModal: Campay modal closed, closing PaymentModal...');
     setAutoOpenPayment(false);
     // Close the main PaymentModal when Campay modal closes
     setCurrentPaymentId(null);
@@ -118,12 +114,10 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   }, [onClose]);
 
   const handleClose = useCallback(() => {
-    console.log('PaymentModal: Closing modal...');
     setCurrentPaymentId(null);
     setPaymentRequest(null);
     setAutoOpenPayment(false);
     onClose();
-    console.log('PaymentModal: Modal closed');
   }, [onClose]);
 
   if (!isOpen) return null;
@@ -157,6 +151,28 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       default:
         return 'unité';
     }
+  };
+
+  // Format the quantity display for tokens (better calculation display)
+  const getQuantityDisplay = (): string => {
+    if (type === 'tokens') {
+      const totalTokens = quantity * 35000;
+      if (quantity === 1) {
+        return '35 000 tokens';
+      } else {
+        return `${quantity} × 35 000 tokens = ${totalTokens.toLocaleString('fr-FR')} tokens`;
+      }
+    } else {
+      return `${quantity} ${getUnitName()}${quantity > 1 ? 's' : ''}`;
+    }
+  };
+
+  // Get total tokens for display
+  const getTotalTokens = (): number => {
+    if (type === 'tokens') {
+      return quantity * 35000;
+    }
+    return quantity;
   };
 
   const getTypeTitle = () => {
@@ -225,8 +241,6 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
         }
       };
 
-      console.log('Creating payment request:', paymentReq);
-
       // Create payment record in Firebase
       const paymentId = await PaymentService.createPayment(user.id, paymentReq, {
         type: 'pay_as_you_go',
@@ -234,12 +248,9 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
         quantity
       });
 
-      console.log('Payment created with ID:', paymentId);
-
       // Verify payment was created
       const createdPayment = await PaymentService.getPayment(paymentId);
       if (!createdPayment) {
-        console.error('Payment verification failed - payment not found in Firebase');
         showError('Erreur lors de la création du paiement. Veuillez réessayer.');
         return;
       }
@@ -268,62 +279,63 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
 
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" style={{ backdropFilter: 'blur(2px)' }}>
-      <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-2 sm:p-4" style={{ backdropFilter: 'blur(2px)' }}>
+      <div className="bg-white rounded-lg max-w-2xl w-full max-h-[95vh] sm:max-h-[90vh] overflow-y-auto shadow-2xl">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-200">
-          <div>
-            <h2 className="text-xl font-semibold text-gray-900">
+        <div className="flex items-start justify-between p-4 sm:p-6 border-b border-gray-200">
+          <div className="flex-1 pr-2 sm:pr-4">
+            <h2 className="text-lg sm:text-xl font-semibold text-gray-900">
               {getTypeTitle()}
             </h2>
-            <p className="text-sm text-gray-600 mt-1">
+            <p className="text-xs sm:text-sm text-gray-600 mt-1">
               {getTypeDescription()}
             </p>
-            <div className="mt-3 p-3 rounded-md bg-blue-50 border border-blue-200 text-xs text-blue-800">
+            <div className="mt-2 sm:mt-3 p-2 sm:p-3 rounded-md bg-blue-50 border border-blue-200 text-xs text-blue-800">
               <strong>Important:</strong> lors de l'étape USSD sur votre téléphone, le <strong>nom du marchand affiché doit être "TAKWID GROUP"</strong>. Si un autre nom apparaît, annulez la transaction.
             </div>
           </div>
           <button
             onClick={handleClose}
-            className="text-gray-400 hover:text-gray-600 transition-colors"
+            className="text-gray-400 hover:text-gray-600 transition-colors flex-shrink-0 mt-1"
           >
-            <X className="h-6 w-6" />
+            <X className="h-5 w-5 sm:h-6 sm:w-6" />
           </button>
         </div>
 
         {/* Quantity Input */}
-        <div className="p-6">
-          <div className="space-y-6">
+        <div className="p-4 sm:p-6">
+          <div className="space-y-4 sm:space-y-6">
             {/* Unit Price Display */}
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="font-medium text-blue-900">
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 sm:p-4">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-0">
+                <div className="flex-1">
+                  <h3 className="text-sm sm:text-base font-medium text-blue-900">
                     Prix unitaire
                   </h3>
-                  <p className="text-sm text-blue-700 mt-1">
-                    {getUnitName()} à {getUnitPrice().toLocaleString()} FCFA
+                  <p className="text-xs sm:text-sm text-blue-700 mt-1">
+                    {getUnitName()} à {getUnitPrice().toLocaleString('fr-FR')} FCFA
                   </p>
                 </div>
-                <div className="text-2xl font-bold text-blue-900">
-                  {getUnitPrice().toLocaleString()} FCFA
+                <div className="text-xl sm:text-2xl font-bold text-blue-900">
+                  {getUnitPrice().toLocaleString('fr-FR')} FCFA
                 </div>
               </div>
             </div>
 
             {/* Quantity Input */}
-            <div className="space-y-3">
+            <div className="space-y-2 sm:space-y-3">
               <label htmlFor="quantity" className="block text-sm font-medium text-gray-700">
                 Quantité souhaitée
               </label>
-              <div className="flex items-center space-x-4">
+              <div className="flex items-center justify-center sm:justify-start space-x-3 sm:space-x-4">
                 <button
                   type="button"
                   onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                  className="w-10 h-10 rounded-full border border-gray-300 flex items-center justify-center hover:bg-gray-50 transition-colors"
+                  className="w-10 h-10 sm:w-12 sm:h-12 rounded-full border-2 border-gray-300 flex items-center justify-center hover:bg-gray-50 active:bg-gray-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   disabled={quantity <= 1}
+                  aria-label="Diminuer la quantité"
                 >
-                  <span className="text-lg font-medium">-</span>
+                  <span className="text-lg sm:text-xl font-medium">-</span>
                 </button>
                 <input
                   id="quantity"
@@ -332,31 +344,41 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                   max="100"
                   value={quantity}
                   onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value) || 1))}
-                  className="w-20 text-center border border-gray-300 rounded-lg px-3 py-2 font-medium"
+                  className="w-20 sm:w-24 text-center border-2 border-gray-300 rounded-lg px-2 sm:px-3 py-2 sm:py-2.5 font-medium text-base sm:text-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
                 <button
                   type="button"
                   onClick={() => setQuantity(quantity + 1)}
-                  className="w-10 h-10 rounded-full border border-gray-300 flex items-center justify-center hover:bg-gray-50 transition-colors"
+                  className="w-10 h-10 sm:w-12 sm:h-12 rounded-full border-2 border-gray-300 flex items-center justify-center hover:bg-gray-50 active:bg-gray-100 transition-colors"
+                  aria-label="Augmenter la quantité"
                 >
-                  <span className="text-lg font-medium">+</span>
+                  <span className="text-lg sm:text-xl font-medium">+</span>
                 </button>
               </div>
+              {/* Display total quantity for tokens */}
+              {type === 'tokens' && (
+                <div className="text-center sm:text-left mt-2">
+                  <p className="text-sm text-gray-600">
+                    <span className="font-medium text-gray-900">Total: </span>
+                    <span className="font-semibold text-blue-600">{getTotalTokens().toLocaleString('fr-FR')} tokens</span>
+                  </p>
+                </div>
+              )}
             </div>
 
             {/* Total Price Display */}
-            <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="font-medium text-green-900">
+            <div className="bg-green-50 border border-green-200 rounded-lg p-3 sm:p-4">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-0">
+                <div className="flex-1">
+                  <h3 className="text-sm sm:text-base font-medium text-green-900">
                     Total à payer
                   </h3>
-                  <p className="text-sm text-green-700 mt-1">
-                    {quantity} {getUnitName()}{quantity > 1 ? 's' : ''} × {getUnitPrice().toLocaleString()} FCFA
+                  <p className="text-xs sm:text-sm text-green-700 mt-1 break-words">
+                    {getQuantityDisplay()} × {getUnitPrice().toLocaleString('fr-FR')} FCFA
                   </p>
                 </div>
-                <div className="text-2xl font-bold text-green-900">
-                  {(quantity * getUnitPrice()).toLocaleString()} FCFA
+                <div className="text-xl sm:text-2xl font-bold text-green-900 mt-2 sm:mt-0">
+                  {(quantity * getUnitPrice()).toLocaleString('fr-FR')} FCFA
                 </div>
               </div>
             </div>
@@ -364,34 +386,43 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between p-6 border-t border-gray-200 bg-gray-50">
-          <div className="text-sm text-gray-600">
-            <p>💳 Paiement sécurisé par carte bancaire</p>
-            <p>🔄 Ressources ajoutées immédiatement après paiement</p>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 p-4 sm:p-6 border-t border-gray-200 bg-gray-50">
+          <div className="text-xs sm:text-sm text-gray-600 space-y-1">
+            <p className="flex items-center gap-1.5">
+              <span>💳</span>
+              <span>Paiement sécurisé par carte bancaire</span>
+            </p>
+            <p className="flex items-center gap-1.5">
+              <span>🔄</span>
+              <span>Ressources ajoutées immédiatement après paiement</span>
+            </p>
           </div>
           
-          <div className="flex space-x-3">
+          <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 w-full sm:w-auto">
             <Button
               variant="secondary"
               onClick={handleClose}
               disabled={isCreatingPayment}
+              className="w-full sm:w-auto"
             >
               Annuler
             </Button>
             <Button
               onClick={handlePurchase}
               disabled={quantity <= 0 || isCreatingPayment}
-              className="bg-blue-600 hover:bg-blue-700"
+              className="bg-blue-600 hover:bg-blue-700 w-full sm:w-auto"
             >
               {isCreatingPayment ? (
-                <div className="flex items-center space-x-2">
+                <div className="flex items-center justify-center space-x-2">
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
                   <span>Création du paiement...</span>
                 </div>
               ) : (
-                <div className="flex items-center space-x-2">
+                <div className="flex items-center justify-center space-x-2">
                   <CreditCard className="h-4 w-4" />
-                  <span>Acheter ({(quantity * getUnitPrice()).toLocaleString()} FCFA)</span>
+                  <span className="whitespace-nowrap">
+                    Acheter ({(quantity * getUnitPrice()).toLocaleString('fr-FR')} FCFA)
+                  </span>
                 </div>
               )}
             </Button>

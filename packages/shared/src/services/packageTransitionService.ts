@@ -165,7 +165,8 @@ export class PackageTransitionService {
     newPackageType: 'free' | 'starter' | 'standard',
     options: PackageTransitionOptions = {},
     paymentMethod?: string,
-    paymentReference?: string
+    paymentReference?: string,
+    subscriptionPeriod?: '30days' | '6months' | '1year'
   ): Promise<boolean> {
     try {
       const userDocRef = doc(db, 'users', userId);
@@ -190,13 +191,14 @@ export class PackageTransitionService {
         return false;
       }
 
-      // Create transition session
+      // Create transition session with subscription period
       const transitionSession = await this.createTransitionSession(
         userId,
         calculation as any,
         options,
         paymentMethod,
-        paymentReference
+        paymentReference,
+        subscriptionPeriod || '30days' // Default to 30days if not provided
       );
 
       if (!transitionSession) {
@@ -292,24 +294,34 @@ export class PackageTransitionService {
     calculation: EnhancedTransitionCalculation,
     options: PackageTransitionOptions,
     paymentMethod?: string,
-    paymentReference?: string
+    paymentReference?: string,
+    subscriptionPeriod: '30days' | '6months' | '1year' = '30days'
   ): Promise<boolean> {
     const sessionType = calculation.finalAmountToPay >= 0 ? 'upgrade' : 'downgrade';
     
     // Si c'est une transition vers le package gratuit, utiliser createFreeDefaultSession
     if (calculation.newPackageType === 'free') {
-      // Pour le package gratuit, utiliser la période par défaut (30 jours)
+      // Pour le package gratuit, utiliser la période passée en paramètre
       const sessionId = await SubscriptionSessionCollectionService.createFreeDefaultSession(
         userId,
-        '30days'
+        subscriptionPeriod
       );
       return sessionId !== null;
     }
     
+    // Import SubscriptionPriceCalculator dynamically to avoid circular dependency
+    const { SubscriptionPriceCalculator } = await import('./subscriptionPriceCalculator');
+    
+    // Calculate period details based on selected period
+    const priceCalculation = SubscriptionPriceCalculator.calculatePrice(
+      calculation.newPackageType,
+      subscriptionPeriod
+    );
+    
     // Create new session dates starting from today (transition date)
     const transitionDate = new Date();
     const newEndDate = new Date(transitionDate);
-    newEndDate.setDate(newEndDate.getDate() + 30); // 30 days from transition date
+    newEndDate.setDate(newEndDate.getDate() + priceCalculation.totalPeriodDays);
     
     const newPackageLimits = PACKAGE_LIMITS[calculation.newPackageType];
     
@@ -332,25 +344,29 @@ export class PackageTransitionService {
       }
     }
     
+    // Calculate next renewal date (30 days from now for renewal interval)
+    const nextRenewalDate = new Date(transitionDate);
+    nextRenewalDate.setDate(nextRenewalDate.getDate() + 30);
+    
     return SubscriptionSessionService.createSession(userId, {
       userId: userId,
       packageType: calculation.newPackageType as 'starter' | 'standard',
-      subscriptionPeriod: '30days',
-      totalPeriodDays: 30,
-      renewalIntervalDays: 30,
+      subscriptionPeriod: subscriptionPeriod,
+      totalPeriodDays: priceCalculation.totalPeriodDays,
+      renewalIntervalDays: 30, // Always 30 days for renewal interval
       sessionType,
       startDate: transitionDate, // Start from transition date
-      endDate: newEndDate, // End 30 days from transition date
-      nextRenewalDate: new Date(transitionDate.getTime() + 30 * 24 * 60 * 60 * 1000),
+      endDate: newEndDate, // End based on selected period
+      nextRenewalDate: nextRenewalDate,
       amountPaid: amountPaid, // Use actual payment amount
-      monthlyAmount: 0,
-      discountApplied: 0,
+      monthlyAmount: priceCalculation.monthlyAmount,
+      discountApplied: priceCalculation.discountApplied,
       paymentId: paymentReference || '',
-      durationDays: 30, // Always 30 days for new session
+      durationDays: priceCalculation.totalPeriodDays,
       isActive: true,
       autoRenew: true,
       renewalCount: 0,
-      maxRenewals: 0,
+      maxRenewals: priceCalculation.maxRenewals,
       packageResources: {
         tokensIncluded: calculation.newPackageTokens,
         formsIncluded: newPackageLimits.maxForms,
