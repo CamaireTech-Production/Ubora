@@ -368,7 +368,7 @@ export const UniversCard: React.FC<UniversCardProps> = ({
         {/* Approval Status (for marketplace) - Masquer dans la marketplace publique */}
         {univers.ownership.isMarketplaceTemplate && !hideApprovalStatus && (
           <div className="space-y-2">
-            <div className="flex items-center space-x-2 text-sm">
+            <div className="flex items-center space-x-2 text-sm flex-wrap gap-2">
               {getApprovalStatusIcon()}
               <span className={`font-medium ${
                 univers.ownership.approvalStatus === 'approved' ? 'text-green-600' :
@@ -377,6 +377,13 @@ export const UniversCard: React.FC<UniversCardProps> = ({
               }`}>
                 {getApprovalStatusLabel()}
               </span>
+              {/* Badge pour modifications non publiées (uniquement pour le créateur) */}
+              {isOwner && univers.hasUnpublishedChanges && (
+                <span className="inline-flex items-center space-x-1 px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                  <AlertCircle className="h-3 w-3" />
+                  <span>Modifications non publiées</span>
+                </span>
+              )}
               {/* Dropdown pour voir la raison du rejet */}
               {univers.ownership.approvalStatus === 'rejected' && univers.ownership.rejectionReason && (
                 <button

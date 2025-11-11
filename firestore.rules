@@ -789,6 +789,11 @@ service cloud.firestore {
          resource.data.ownership.agencyId != null &&
          isSameAgency(resource.data.ownership.agencyId) &&
          resource.data.ownership.isMarketplaceTemplate == false)
+      ) && (
+        // Pour draftData et hasUnpublishedChanges : uniquement le créateur peut modifier
+        // Si ces champs sont modifiés, vérifier que c'est le créateur
+        (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['draftData', 'hasUnpublishedChanges'])) ||
+        (resource.data.ownership != null && resource.data.ownership.createdBy == request.auth.uid)
       );
       
       // SUPPRESSION des Univers

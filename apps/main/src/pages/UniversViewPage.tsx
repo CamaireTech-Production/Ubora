@@ -96,7 +96,8 @@ export const UniversViewPage: React.FC = () => {
 
     setIsLoading(true);
     try {
-      const universData = await universService.getById(id);
+      // Récupérer avec userId pour avoir accès au draft si c'est le créateur
+      const universData = await universService.getById(id, user.id);
       
       if (!universData) {
         showError('Univers non trouvé');
@@ -211,17 +212,69 @@ export const UniversViewPage: React.FC = () => {
     setIsActivating(false);
   };
 
+  // Handler pour tester le draft (activer la version draft)
+  const handleTestDraft = async () => {
+    if (!univers || !user?.id || !user?.agencyId) return;
+
+    setIsActivating(true);
+    try {
+      await universService.activateUnivers(univers.id, user.id, user.agencyId, true); // useDraft = true
+      showSuccess(`Version draft de "${univers.metadata.name}" activée avec succès. Vous pouvez maintenant tester vos modifications.`);
+      setShowActivateModal(false);
+      
+      await new Promise(resolve => setTimeout(resolve, 500));
+      refreshData();
+      navigate('/univers');
+    } catch (error) {
+      console.error('Erreur lors de l\'activation de la version draft:', error);
+      const errorMessage = error instanceof Error 
+        ? error.message 
+        : 'Une erreur est survenue lors de l\'activation de la version draft. Veuillez réessayer.';
+      showError(errorMessage);
+      setIsActivating(false);
+    }
+  };
+
+  // Handler pour publier le draft au marketplace
+  const handlePublishDraft = async () => {
+    if (!univers || !user?.id) return;
+
+    setIsActivating(true);
+    try {
+      await universService.publishDraft(univers.id, user.id);
+      showSuccess('Draft publié au marketplace avec succès. En attente d\'approbation par un administrateur.');
+      await loadUnivers(); // Recharger pour mettre à jour l'affichage
+    } catch (error) {
+      console.error('Erreur lors de la publication du draft:', error);
+      const errorMessage = error instanceof Error 
+        ? error.message 
+        : 'Une erreur est survenue lors de la publication du draft. Veuillez réessayer.';
+      showError(errorMessage);
+    } finally {
+      setIsActivating(false);
+    }
+  };
+
   // Détecter les mises à jour disponibles
   // Pour le propriétaire : vérifier si le Univers a une version plus récente que l'instance
   // Pour les non-propriétaires : utiliser updateAvailable de l'instance
   const isOwner = univers?.ownership.createdBy === user?.id;
+  const isMarketplace = univers?.ownership.isMarketplaceTemplate || false;
+  const hasUnpublishedChanges = univers?.hasUnpublishedChanges || false;
   const instanceVersion = userInstance?.universVersion || userInstance?.metadata?.universVersion || 1;
-  const universVersion = univers?.metadata.version || 1;
+  
+  // Pour le créateur d'un univers marketplace : utiliser publishedVersion pour les autres, version draft pour lui
+  // Pour les autres : utiliser publishedVersion
+  const publishedVersion = univers?.metadata.publishedVersion || univers?.metadata.version || 1;
+  const draftVersion = univers?.metadata.version || 1; // Version actuelle (peut être draft si créateur)
+  
+  // Pour l'affichage : créateur voit draftVersion, autres voient publishedVersion
+  const displayVersion = (isOwner && isMarketplace) ? draftVersion : publishedVersion;
   
   let hasUpdateAvailable = false;
   if (isOwner && userInstance) {
     // Pour le propriétaire : vérifier si le Univers template a une version plus récente
-    hasUpdateAvailable = universVersion > instanceVersion;
+    hasUpdateAvailable = displayVersion > instanceVersion;
   } else if (userInstance) {
     // Pour les non-propriétaires : utiliser le marqueur updateAvailable
     hasUpdateAvailable = userInstance.updateAvailable === true;
@@ -231,8 +284,8 @@ export const UniversViewPage: React.FC = () => {
   // Pour le propriétaire : toujours utiliser la version du template (la plus récente)
   // Pour les non-propriétaires : utiliser la version approuvée disponible
   const latestVersion = isOwner && userInstance 
-    ? universVersion 
-    : (userInstance?.latestAvailableVersion || universVersion);
+    ? displayVersion 
+    : (userInstance?.latestAvailableVersion || publishedVersion);
   const isDirecteur = user?.role === 'directeur';
 
   const handleUpgradeClick = () => {
@@ -450,7 +503,26 @@ export const UniversViewPage: React.FC = () => {
                 <p className="text-sm text-gray-600 mt-1">
                   {univers.metadata.description || 'Aucune description'}
                 </p>
-                {hasUpdateAvailable && isDirecteur && (
+                {/* Affichage des versions pour le créateur d'univers marketplace */}
+                {isOwner && isMarketplace && (
+                  <div className="mt-2 text-sm space-y-1">
+                    {hasUnpublishedChanges ? (
+                      <div className="flex items-center space-x-2">
+                        <span className="text-yellow-600 font-medium">Version publiée: v{publishedVersion}</span>
+                        <span className="text-gray-400">•</span>
+                        <span className="text-yellow-600 font-medium">Version draft: v{draftVersion}</span>
+                        <span className="px-2 py-0.5 bg-yellow-100 text-yellow-800 rounded-full text-xs font-medium">
+                          Modifications non publiées
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="text-gray-600">
+                        <span>Version publiée: v{publishedVersion}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+                {hasUpdateAvailable && isDirecteur && !isOwner && (
                   <div className="mt-2 text-sm text-orange-600">
                     <span>Version actuelle: v{currentVersion}</span>
                     <span className="mx-2">•</span>
@@ -459,8 +531,52 @@ export const UniversViewPage: React.FC = () => {
                 )}
               </div>
             </div>
-            <div className="flex items-center space-x-2 ml-auto sm:ml-0">
-              {hasUpdateAvailable && isDirecteur && (
+            <div className="flex items-center space-x-2 ml-auto sm:ml-0 flex-wrap gap-2">
+              {/* Boutons pour le créateur d'univers marketplace avec draft */}
+              {isOwner && isMarketplace && hasUnpublishedChanges && (
+                <>
+                  <Button
+                    variant="secondary"
+                    onClick={handleTestDraft}
+                    className="flex items-center space-x-2 bg-yellow-500 hover:bg-yellow-600 text-white"
+                    disabled={isActivating}
+                  >
+                    <Power className="h-4 w-4" />
+                    <span>Tester le draft</span>
+                  </Button>
+                  <Button
+                    variant="primary"
+                    onClick={handlePublishDraft}
+                    className="flex items-center space-x-2"
+                    disabled={isActivating}
+                  >
+                    <Sparkles className="h-4 w-4" />
+                    <span>Publier au marketplace</span>
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    onClick={async () => {
+                      if (!univers || !user?.id) return;
+                      try {
+                        await universService.cancelDraft(univers.id, user.id);
+                        showSuccess('Draft annulé avec succès. Vous êtes revenu à la version publiée.');
+                        await loadUnivers();
+                      } catch (error) {
+                        const errorMessage = error instanceof Error 
+                          ? error.message 
+                          : 'Erreur lors de l\'annulation du draft';
+                        showError(errorMessage);
+                      }
+                    }}
+                    className="flex items-center space-x-2"
+                    disabled={isActivating}
+                  >
+                    <XCircle className="h-4 w-4" />
+                    <span>Annuler le draft</span>
+                  </Button>
+                </>
+              )}
+              {hasUpdateAvailable && isDirecteur && !isOwner && (
                 <Button
                   variant="primary"
                   onClick={handleUpgradeClick}

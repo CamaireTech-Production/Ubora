@@ -820,6 +820,7 @@ export interface UniversMetadata {
     starter: boolean; // Accessible for starter package users
     standard: boolean; // Accessible for standard package users
   }; // Package access configuration (default: { free: false, starter: false, standard: false })
+  publishedVersion?: number; // Last approved version available in marketplace (for marketplace universes)
 }
 
 export interface UniversOwnership {
@@ -931,12 +932,26 @@ export interface UniversDefinitions {
   reports: ReportDefinition[]; // Reports definitions
 }
 
+/**
+ * Draft data structure for Univers
+ * Contains unpublished changes that only the creator can see and test
+ */
+export interface UniversDraftData {
+  metadata?: Partial<UniversMetadata>;
+  definitions?: Partial<UniversDefinitions>;
+  draftVersion?: number; // Version number for the draft (independent from publishedVersion)
+  updatedAt?: Date; // When the draft was last updated
+}
+
 export interface Univers {
   id: string;
   metadata: UniversMetadata;
   ownership: UniversOwnership;
   definitions: UniversDefinitions;
   usage: UniversUsage;
+  // Draft system for marketplace universes
+  draftData?: UniversDraftData; // Unpublished changes (only visible to creator)
+  hasUnpublishedChanges?: boolean; // Flag indicating if there are unpublished draft changes
 }
 
 export interface UniversInstance {
