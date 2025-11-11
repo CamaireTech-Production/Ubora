@@ -41,7 +41,7 @@ export const UniversEditPage: React.FC = () => {
         return;
       }
 
-      setUnivers(universData);
+      setUnivers(universData as any);
 
       // Check edit permissions (only creator can edit)
       const canEdit = universData.ownership.createdBy === user.id || user.role === 'admin';
@@ -74,12 +74,17 @@ export const UniversEditPage: React.FC = () => {
       if (isMarketplace && isOwner) {
         if (saveAsDraft) {
           // Sauvegarder comme draft
-          await universService.saveDraft(id, updatedUnivers, user.id);
+          await universService.saveDraft(id, updatedUnivers as any, user.id);
+          // Recharger l'univers pour mettre à jour hasUnpublishedChanges
+          const updatedUniversData = await universService.getById(id, user.id);
+          if (updatedUniversData) {
+            setUnivers(updatedUniversData as any);
+          }
           // Ne pas naviguer, permettre à l'utilisateur de continuer à éditer
           return;
         } else if (publishToMarketplace) {
           // D'abord sauvegarder le draft, puis le publier
-          await universService.saveDraft(id, updatedUnivers, user.id);
+          await universService.saveDraft(id, updatedUnivers as any, user.id);
           await universService.publishDraft(id, user.id);
           // Naviguer après publication
           setIsNavigating(true);
@@ -91,7 +96,7 @@ export const UniversEditPage: React.FC = () => {
       }
 
       // Pour les univers privés : comportement normal avec update()
-      await universService.update(id, updatedUnivers, user.id);
+      await universService.update(id, updatedUnivers as any, user.id);
       showSuccess('Univers mis à jour avec succès');
       
       // Navigate back to Univers listing page after successful update

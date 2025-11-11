@@ -43,6 +43,13 @@ jobs:
         # OpenAI Configuration
         OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
         
+        # Email Configuration
+        EMAIL_USER=${{ secrets.EMAIL_USER }}
+        EMAIL_PASSWORD=${{ secrets.EMAIL_PASSWORD }}
+        EMAIL_HOST=${{ secrets.EMAIL_HOST }}
+        EMAIL_FROM=${{ secrets.EMAIL_FROM }}
+        EMAIL_FROM_NAME=${{ secrets.EMAIL_FROM_NAME }}
+        
         # Server Configuration
         PORT=3001
         NODE_ENV=development

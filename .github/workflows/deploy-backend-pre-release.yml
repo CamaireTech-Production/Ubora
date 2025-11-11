@@ -43,6 +43,13 @@ jobs:
         # OpenAI Configuration
         OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
         
+        # Email Configuration
+        EMAIL_USER=${{ secrets.EMAIL_USER }}
+        EMAIL_PASSWORD=${{ secrets.EMAIL_PASSWORD }}
+        EMAIL_HOST=${{ secrets.EMAIL_HOST }}
+        EMAIL_FROM=${{ secrets.EMAIL_FROM }}
+        EMAIL_FROM_NAME=${{ secrets.EMAIL_FROM_NAME }}
+        
         # Server Configuration
         PORT=3002
         NODE_ENV=production
@@ -152,26 +159,9 @@ jobs:
           pm2 delete ubora-backend-pre-release || true
           pm2 delete ubora-cron-worker-pre-release || true
           
-          # Start backend server with working directory set to release root
-          cd $CURRENT_LINK
-          
-          # Verify .env.local file is accessible before starting PM2
-          if [ ! -f ".env.local" ]; then
-            echo "❌ ERROR: .env.local file not found at $CURRENT_LINK/.env.local"
-            echo "📁 Current directory: $(pwd)"
-            echo "📁 Listing files:"
-            ls -la | head -20
-            exit 1
-          fi
-          
-          # Export environment variables from .env.local so PM2 can inherit them
-          echo "📥 Loading environment variables from .env.local"
-          set -a
-          source .env.local
-          set +a
-          
-          echo "✅ Starting PM2 with .env.local file at $CURRENT_LINK/.env.local"
-          pm2 start server/dev-server.js \
+          # Start backend server
+          # PM2 will automatically load .env.local via dotenv in dev-server.js
+          pm2 start $CURRENT_LINK/server/dev-server.js \
             --name ubora-backend-pre-release \
             --update-env \
             --max-memory-restart 1G \
@@ -197,18 +187,6 @@ jobs:
           # Check PM2 processes
           echo "📊 Checking PM2 processes"
           pm2 status
-          
-          # Verify .env.local file exists
-          echo "🔍 Verifying .env.local file location"
-          if [ -f "$CURRENT_LINK/.env.local" ]; then
-            echo "✅ .env.local file found at $CURRENT_LINK/.env.local"
-            echo "📋 First few lines of .env.local:"
-            head -n 5 "$CURRENT_LINK/.env.local" | sed 's/FIREBASE_PRIVATE_KEY=.*/FIREBASE_PRIVATE_KEY=<hidden>/' || true
-          else
-            echo "❌ ERROR: .env.local file not found at $CURRENT_LINK/.env.local"
-            echo "📁 Listing files in $CURRENT_LINK:"
-            ls -la "$CURRENT_LINK" | head -20 || true
-          fi
           
           # Enhanced health check with retries
           echo "🧪 Health check with retries"
@@ -253,18 +231,13 @@ jobs:
               pm2 stop ubora-cron-worker-pre-release || true
               pm2 delete ubora-backend-pre-release || true
               pm2 delete ubora-cron-worker-pre-release || true
-              cd $CURRENT_LINK
-              # Export environment variables from .env.local
-              set -a
-              source .env.local
-              set +a
-              pm2 start server/dev-server.js \
+              pm2 start $CURRENT_LINK/server/dev-server.js \
                 --name ubora-backend-pre-release \
                 --update-env \
                 --max-memory-restart 1G \
                 --env production
               if [ -f "$CURRENT_LINK/scripts/cron-worker.js" ]; then
-                pm2 start scripts/cron-worker.js \
+                pm2 start $CURRENT_LINK/scripts/cron-worker.js \
                   --name ubora-cron-worker-pre-release \
                   --update-env \
                   --max-memory-restart 512M \

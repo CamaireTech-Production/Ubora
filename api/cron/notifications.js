@@ -719,6 +719,18 @@ async function processMetricReminders(now, oneMinuteFromNow) {
     const transporter = makeEmailTransporter();
     const processorFunction = async (reminder) => {
       try {
+        // Validate reminder.id exists
+        if (!reminder.id || typeof reminder.id !== 'string' || reminder.id.trim() === '') {
+          console.warn(`⏭️ [Cron] Skip metric reminder (invalid or missing id):`, { reminderId: reminder.id, directorId: reminder.directorId });
+          return { sent: 0 };
+        }
+
+        // Validate directorId exists
+        if (!reminder.directorId || typeof reminder.directorId !== 'string' || reminder.directorId.trim() === '') {
+          console.warn(`⏭️ [Cron] Skip metric reminder (invalid or missing directorId):`, { reminderId: reminder.id, directorId: reminder.directorId });
+          return { sent: 0 };
+        }
+
         // Get user data
         const userDoc = await db.collection('users').doc(reminder.directorId).get();
         const userData = userDoc.data();
