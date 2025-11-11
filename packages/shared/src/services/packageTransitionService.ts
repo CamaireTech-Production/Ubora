@@ -1,4 +1,4 @@
-import { doc, updateDoc, getDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 import { SubscriptionSession, User } from '../types';
 import { SubscriptionSessionService } from './subscriptionSessionService';
@@ -296,6 +296,16 @@ export class PackageTransitionService {
   ): Promise<boolean> {
     const sessionType = calculation.finalAmountToPay >= 0 ? 'upgrade' : 'downgrade';
     
+    // Si c'est une transition vers le package gratuit, utiliser createFreeDefaultSession
+    if (calculation.newPackageType === 'free') {
+      // Pour le package gratuit, utiliser la période par défaut (30 jours)
+      const sessionId = await SubscriptionSessionCollectionService.createFreeDefaultSession(
+        userId,
+        '30days'
+      );
+      return sessionId !== null;
+    }
+    
     // Create new session dates starting from today (transition date)
     const transitionDate = new Date();
     const newEndDate = new Date(transitionDate);
@@ -323,17 +333,36 @@ export class PackageTransitionService {
     }
     
     return SubscriptionSessionService.createSession(userId, {
+      userId: userId,
       packageType: calculation.newPackageType as 'starter' | 'standard',
+      subscriptionPeriod: '30days',
+      totalPeriodDays: 30,
+      renewalIntervalDays: 30,
       sessionType,
       startDate: transitionDate, // Start from transition date
       endDate: newEndDate, // End 30 days from transition date
+      nextRenewalDate: new Date(transitionDate.getTime() + 30 * 24 * 60 * 60 * 1000),
       amountPaid: amountPaid, // Use actual payment amount
+      monthlyAmount: 0,
+      discountApplied: 0,
+      paymentId: paymentReference || '',
       durationDays: 30, // Always 30 days for new session
+      isActive: true,
+      autoRenew: true,
+      renewalCount: 0,
+      maxRenewals: 0,
       packageResources: {
         tokensIncluded: calculation.newPackageTokens,
         formsIncluded: newPackageLimits.maxForms,
         dashboardsIncluded: newPackageLimits.maxDashboards,
         usersIncluded: newPackageLimits.maxUsers
+      },
+      payAsYouGoResources: {
+        tokens: 0,
+        forms: 0,
+        dashboards: 0,
+        users: 0,
+        purchases: []
       },
       usage: {
         tokensUsed: 0,
@@ -341,7 +370,6 @@ export class PackageTransitionService {
         dashboardsCreated: 0,
         usersAdded: 0
       },
-      isActive: true,
       paymentMethod,
       paymentReference,
       notes: this.generateEnhancedTransitionNotes(calculation as any, options)
@@ -404,12 +432,12 @@ export class PackageTransitionService {
   /**
    * Get transition preview for UI
    */
-  static getTransitionPreview(
+  static async getTransitionPreview(
     userData: User,
     newPackageType: 'free' | 'starter' | 'standard',
     options: PackageTransitionOptions = {}
   ) {
-    const calculation = this.calculateTransition(userData, newPackageType, options);
+    const calculation = await this.calculateTransition(userData, newPackageType, options);
     
     if (!calculation) return null;
 
@@ -558,7 +586,8 @@ export class PackageTransitionService {
       const userRequestedAmount = userNeeds[key] || 0;
       
       // Only apply pay-as-you-go if new package doesn't have unlimited access
-      if (newPackageLimit !== -1 && userRequestedAmount > newPackageLimit) {
+      // Ensure newPackageLimit is a number (not -1 for unlimited)
+      if (typeof newPackageLimit === 'number' && newPackageLimit !== -1 && userRequestedAmount > newPackageLimit) {
         const extraNeeded = userRequestedAmount - newPackageLimit;
         const costPerUnit = this.getPayAsYouGoPrice(key);
         
