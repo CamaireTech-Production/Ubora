@@ -44,7 +44,7 @@ if (!AI_ENDPOINT) {
 
 export const DirecteurChat: React.FC = () => {
   const navigate = useNavigate();
-  const { user, firebaseUser, isLoading, logout, refreshUserData, updateTokensLocally } = useAuth();
+  const { user, firebaseUser, isLoading, logout } = useAuth();
   const { forms, formEntries, employees, isLoading: appLoading } = useApp();
   const { setAIResponseActive } = useAIResponse();
   
