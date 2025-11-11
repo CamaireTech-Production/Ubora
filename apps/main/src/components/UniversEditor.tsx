@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Card } from './Card';
 import { Button } from './Button';
-import { Univers, UniversDefinitions } from '../types';
+import { Univers, UniversDefinitions, UniversMetadata } from '../types';
 import { UniversWizardStep1 } from './UniversWizardStep1';
 import { UniversWizardStep2 } from './UniversWizardStep2';
 import { UniversWizardStep3 } from './UniversWizardStep3';
@@ -49,7 +49,7 @@ const TAB_CONFIGS: TabConfig[] = [
 
 interface UniversEditorProps {
   univers: Univers;
-  onSave: (updatedUnivers: Partial<Univers>, saveAsDraft?: boolean, publishToMarketplace?: boolean) => void;
+  onSave: (updatedUnivers: Partial<Univers>, saveAsDraft?: boolean, publishToMarketplace?: boolean) => void | Promise<void>;
   onCancel: () => void;
   userId?: string; // Pour vérifier si c'est le créateur
 }
@@ -73,9 +73,11 @@ export const UniversEditor: React.FC<UniversEditorProps> = ({
 
   // Current active tab
   const [activeTab, setActiveTab] = useState<EditTab>('metadata');
-  const [isSaving, setIsSaving] = useState(false);
+  const [isSavingDraft, setIsSavingDraft] = useState(false);
+  const [isPublishing, setIsPublishing] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
+  const [localHasUnpublishedChanges, setLocalHasUnpublishedChanges] = useState(hasUnpublishedChanges);
 
   // Track completed steps for visual feedback
   const [completedSteps, setCompletedSteps] = useState<Set<number>>(new Set());
@@ -101,6 +103,11 @@ export const UniversEditor: React.FC<UniversEditorProps> = ({
 
     setHasChanges(metadataChanged || definitionsChanged);
   }, [metadata, definitions, univers]);
+
+  // Mettre à jour localHasUnpublishedChanges quand univers change
+  useEffect(() => {
+    setLocalHasUnpublishedChanges(univers.hasUnpublishedChanges || false);
+  }, [univers.hasUnpublishedChanges]);
 
   // Wizard data structure for step components
   const wizardData = useMemo(() => ({
@@ -153,11 +160,15 @@ export const UniversEditor: React.FC<UniversEditorProps> = ({
     if (updates.metadata) {
       setMetadata(prev => {
         // Only update if there are actual changes
-        const newMetadata = {
+        const newMetadata: UniversMetadata = {
           ...prev,
           ...(updates.metadata || {}),
           version: prev.version || 1, // Keep current version, will be incremented on save
-          createdAt: prev.createdAt // Keep original creation date
+          createdAt: prev.createdAt, // Keep original creation date
+          // Handle price: convert null to undefined if needed
+          ...(updates.metadata?.price !== undefined && {
+            price: updates.metadata.price === null ? undefined : updates.metadata.price
+          })
         };
         
         // Check if anything actually changed
@@ -482,7 +493,13 @@ export const UniversEditor: React.FC<UniversEditorProps> = ({
       return;
     }
 
-    setIsSaving(true);
+    // Déterminer quel état de chargement utiliser
+    if (saveAsDraft) {
+      setIsSavingDraft(true);
+    } else if (publishToMarketplace) {
+      setIsPublishing(true);
+    }
+
     try {
       // Récupérer publishOption depuis metadata (stocké par UniversWizardStep7)
       const publishOption = (metadata as any).publishOption || (univers.ownership.isMarketplaceTemplate ? 'marketplace' : 'private');
@@ -519,6 +536,8 @@ export const UniversEditor: React.FC<UniversEditorProps> = ({
 
         await onSave(updatedUnivers, true, false);
         setHasChanges(false);
+        // Mettre à jour localHasUnpublishedChanges après sauvegarde du draft
+        setLocalHasUnpublishedChanges(true);
         showSuccess('Brouillon sauvegardé avec succès. Vous pouvez tester vos modifications avant de les publier.');
         return;
       }
@@ -540,6 +559,7 @@ export const UniversEditor: React.FC<UniversEditorProps> = ({
 
         await onSave(updatedUnivers, false, true);
         setHasChanges(false);
+        setLocalHasUnpublishedChanges(false);
         showSuccess('Modifications soumises au marketplace. En attente d\'approbation par un administrateur.');
         return;
       }
@@ -554,15 +574,12 @@ export const UniversEditor: React.FC<UniversEditorProps> = ({
         currency: publishOption === 'marketplace' ? currency : undefined
       };
       
-      const updatedOwnership: Partial<Univers['ownership']> = {
+      const updatedOwnership: Univers['ownership'] = {
         createdBy: univers.ownership.createdBy,
         isMarketplaceTemplate: publishOption === 'marketplace',
-        approvalStatus: publishOption === 'marketplace' ? 'pending' as const : 'approved' as const
+        approvalStatus: publishOption === 'marketplace' ? 'pending' as const : 'approved' as const,
+        ...(publishOption === 'marketplace' && univers.ownership.agencyId && { agencyId: univers.ownership.agencyId })
       };
-      
-      if (publishOption === 'marketplace' && univers.ownership.agencyId) {
-        updatedOwnership.agencyId = univers.ownership.agencyId;
-      }
       
       const updatedUnivers: Partial<Univers> = {
         metadata: updatedMetadata,
@@ -577,7 +594,8 @@ export const UniversEditor: React.FC<UniversEditorProps> = ({
       console.error('Error saving Univers:', error);
       // Error handling is done in parent component
     } finally {
-      setIsSaving(false);
+      setIsSavingDraft(false);
+      setIsPublishing(false);
     }
   };
 
@@ -619,7 +637,7 @@ export const UniversEditor: React.FC<UniversEditorProps> = ({
                 <h1 className="text-xl sm:text-2xl font-bold text-gray-900 break-words">
                   Modifier le Univers
                 </h1>
-                {hasUnpublishedChanges && isMarketplace && isOwner && (
+                {localHasUnpublishedChanges && isMarketplace && isOwner && (
                   <span className="px-2 py-1 text-xs font-medium bg-yellow-100 text-yellow-800 rounded-full flex items-center space-x-1 whitespace-nowrap self-start sm:self-auto">
                     <AlertCircle className="h-3 w-3" />
                     <span>Modifications non publiées</span>
@@ -655,12 +673,12 @@ export const UniversEditor: React.FC<UniversEditorProps> = ({
               <Button
                 variant="secondary"
                 onClick={handleCancel}
-                disabled={isSaving}
+                disabled={isSavingDraft || isPublishing}
                 className="w-full sm:w-auto"
               >
                 <span className="text-xs sm:text-sm">Annuler</span>
               </Button>
-              {hasUnpublishedChanges ? (
+              {localHasUnpublishedChanges ? (
                 <Button
                   variant="secondary"
                   onClick={async () => {
@@ -678,7 +696,7 @@ export const UniversEditor: React.FC<UniversEditorProps> = ({
                     }
                   }}
                   className="flex items-center justify-center space-x-1 sm:space-x-2 w-full sm:w-auto"
-                  disabled={isSaving}
+                  disabled={isSavingDraft || isPublishing}
                 >
                   <AlertCircle className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                   <span className="text-xs sm:text-sm">Annuler draft</span>
@@ -690,10 +708,10 @@ export const UniversEditor: React.FC<UniversEditorProps> = ({
               <Button
                 variant="secondary"
                 onClick={() => handleSave(true, false)}
-                disabled={isSaving || !hasChanges || !metadata.name?.trim()}
+                disabled={isSavingDraft || isPublishing || !hasChanges || !metadata.name?.trim()}
                 className="flex items-center justify-center space-x-1 sm:space-x-2 w-full sm:w-auto col-span-2 sm:col-span-1"
               >
-                {isSaving ? (
+                {isSavingDraft ? (
                   <>
                     <Loader2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 animate-spin" />
                     <span className="text-xs sm:text-sm">Enregistrement...</span>
@@ -707,10 +725,10 @@ export const UniversEditor: React.FC<UniversEditorProps> = ({
               </Button>
               <Button
                 onClick={() => handleSave(false, true)}
-                disabled={isSaving || !hasChanges || !metadata.name?.trim()}
+                disabled={isSavingDraft || isPublishing || (!localHasUnpublishedChanges && !hasChanges) || !metadata.name?.trim()}
                 className="flex items-center justify-center space-x-1 sm:space-x-2 w-full sm:w-auto col-span-2 sm:col-span-1 bg-blue-600 hover:bg-blue-700"
               >
-                {isSaving ? (
+                {isPublishing ? (
                   <>
                     <Loader2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 animate-spin" />
                     <span className="text-xs sm:text-sm">Publication...</span>
@@ -729,17 +747,17 @@ export const UniversEditor: React.FC<UniversEditorProps> = ({
               <Button
                 variant="secondary"
                 onClick={handleCancel}
-                disabled={isSaving}
+                disabled={isSavingDraft || isPublishing}
                 className="w-full sm:w-auto"
               >
                 <span className="text-xs sm:text-sm">Annuler</span>
               </Button>
               <Button
                 onClick={() => handleSave(false, false)}
-                disabled={isSaving || !hasChanges || !metadata.name?.trim()}
+                disabled={isSavingDraft || isPublishing || !hasChanges || !metadata.name?.trim()}
                 className="flex items-center justify-center space-x-1 sm:space-x-2 w-full sm:w-auto"
               >
-                {isSaving ? (
+                {(isSavingDraft || isPublishing) ? (
                   <>
                     <Loader2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 animate-spin" />
                     <span className="text-xs sm:text-sm">Enregistrement...</span>

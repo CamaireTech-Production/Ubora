@@ -981,8 +981,9 @@ export interface UniversMetadata {
   publishOption?: 'private' | 'marketplace'; // Simplified: only private or marketplace
   isActive?: boolean; // Whether this Univers is currently active for the director
   isDefault?: boolean; // Flag for default Univers (cannot be deleted, always present)
-  price?: number; // Price for marketplace Univers (null or 0 = free)
+  price?: number | null; // Price for marketplace Univers (null or 0 = free)
   currency?: string; // Currency code (e.g., "XAF", "USD")
+  publishedVersion?: number; // Last approved version available in marketplace (for marketplace universes)
   packageAccess?: {
     free: boolean; // Accessible for free tier users
     starter: boolean; // Accessible for starter package users
@@ -1052,6 +1053,14 @@ export interface Univers {
   ownership: UniversOwnership;
   definitions: UniversDefinitions;
   usage: UniversUsage;
+  // Draft system for marketplace universes
+  draftData?: {
+    metadata?: Partial<UniversMetadata>;
+    definitions?: Partial<UniversDefinitions>;
+    draftVersion?: number;
+    updatedAt?: Date;
+  };
+  hasUnpublishedChanges?: boolean; // Flag indicating if there are unpublished draft changes
 }
 
 /**
