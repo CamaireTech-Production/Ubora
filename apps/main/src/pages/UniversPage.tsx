@@ -11,6 +11,7 @@ import { ConfirmationModal } from '../components/ConfirmationModal';
 import { UniversCreateModal } from '../components/UniversCreateModal';
 import { Button } from '../components/Button';
 import { Plus, Globe } from 'lucide-react';
+import { WireframeLoader } from '../components/loading/WireframeLoader';
 
 export const UniversPage: React.FC = () => {
   const navigate = useNavigate();
@@ -94,9 +95,7 @@ export const UniversPage: React.FC = () => {
   if (!user?.id || !user?.agencyId) {
     return (
       <Layout title="Univer Ubora">
-        <div className="text-center py-12">
-          <p className="text-gray-600">Chargement...</p>
-        </div>
+        <WireframeLoader type="univers" />
       </Layout>
     );
   }

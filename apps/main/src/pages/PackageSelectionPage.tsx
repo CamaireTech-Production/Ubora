@@ -385,7 +385,6 @@ export const PackageSelectionPage: React.FC = () => {
 
   // Payment modal close handler
   const handlePaymentModalClose = useCallback(() => {
-    console.log('PackageSelectionPage: Campay modal closed');
     setAutoOpenPayment(false);
     setCurrentPaymentId(null);
     setPaymentRequest(null);

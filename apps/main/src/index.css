@@ -474,6 +474,45 @@
   }
 }
 
+/* Modern Wireframe Shimmer Animation */
+@keyframes shimmer-wave {
+  0% {
+    background-position: -1000px 0;
+  }
+  100% {
+    background-position: 1000px 0;
+  }
+}
+
+.shimmer-animation {
+  background: linear-gradient(
+    90deg,
+    #f0f0f0 0%,
+    #f8f8f8 50%,
+    #f0f0f0 100%
+  );
+  background-size: 2000px 100%;
+  animation: shimmer-wave 2s infinite;
+  position: relative;
+  overflow: hidden;
+}
+
+.shimmer-animation::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.4) 50%,
+    transparent 100%
+  );
+  animation: shimmer-wave 2s infinite;
+}
+
 @keyframes loading-rotate {
   0% {
     transform: rotate(0deg);

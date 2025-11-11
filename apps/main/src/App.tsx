@@ -34,6 +34,7 @@ import { ListsPage } from './pages/ListsPage';
 import { ListEditorPage } from './pages/ListEditorPage';
 import { ReportsPage } from './pages/ReportsPage';
 import PushTestPage from './pages/PushTestPage';
+import { CampayTestPage } from './pages/CampayTestPage';
 import { HybridPWAManager } from './components/HybridPWAManager';
 import { EmployeeManagement } from './components/EmployeeManagement';
 import { Layout } from './components/Layout';
@@ -451,6 +452,16 @@ function App() {
                   element={
                     <ProtectedRoute allowedRoles={['directeur', 'employe']}>
                       <PushTestPage />
+                    </ProtectedRoute>
+                  } 
+                />
+                
+                {/* Dev/Test: Campay Service */}
+                <Route 
+                  path="/dev/campay-test" 
+                  element={
+                    <ProtectedRoute allowedRoles={['directeur', 'employe']}>
+                      <CampayTestPage />
                     </ProtectedRoute>
                   } 
                 />
