@@ -22,7 +22,8 @@ import {
   FileBarChart,
   CheckCircle,
   AlertCircle,
-  Loader2
+  Loader2,
+  Sparkles
 } from 'lucide-react';
 
 // Tab order matching creation wizard steps
@@ -601,50 +602,65 @@ export const UniversEditor: React.FC<UniversEditorProps> = ({
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div className="flex items-center space-x-4">
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={handleCancel}
-            className="flex items-center space-x-2"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            <span>Retour</span>
-          </Button>
-          <div>
-            <div className="flex items-center space-x-2">
-              <h1 className="text-2xl font-bold text-gray-900">
-                Modifier le Univers
-              </h1>
-              {hasUnpublishedChanges && isMarketplace && isOwner && (
-                <span className="px-2 py-1 text-xs font-medium bg-yellow-100 text-yellow-800 rounded-full flex items-center space-x-1">
-                  <AlertCircle className="h-3 w-3" />
-                  <span>Modifications non publiées</span>
-                </span>
-              )}
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="flex items-start sm:items-center space-x-3 sm:space-x-4 flex-1 min-w-0">
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={handleCancel}
+              className="flex items-center space-x-2 flex-shrink-0"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              <span className="hidden sm:inline">Retour</span>
+            </Button>
+            <div className="flex-1 min-w-0">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                <h1 className="text-xl sm:text-2xl font-bold text-gray-900 break-words">
+                  Modifier le Univers
+                </h1>
+                {hasUnpublishedChanges && isMarketplace && isOwner && (
+                  <span className="px-2 py-1 text-xs font-medium bg-yellow-100 text-yellow-800 rounded-full flex items-center space-x-1 whitespace-nowrap self-start sm:self-auto">
+                    <AlertCircle className="h-3 w-3" />
+                    <span>Modifications non publiées</span>
+                  </span>
+                )}
+              </div>
+              <p className="text-xs sm:text-sm text-gray-600 mt-1 break-words">
+                {isMarketplace && isOwner && univers.metadata.publishedVersion ? (
+                  <span className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+                    <span>Version publiée: v{univers.metadata.publishedVersion}</span>
+                    <span className="hidden sm:inline">•</span>
+                    <span>Version draft: v{metadata.version}</span>
+                    <span className="hidden sm:inline">•</span>
+                    <span>Créé le {metadata.createdAt.toLocaleDateString('fr-FR')}</span>
+                  </span>
+                ) : (
+                  <span className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+                    <span>Version {metadata.version}</span>
+                    <span className="hidden sm:inline">•</span>
+                    <span>Créé le {metadata.createdAt.toLocaleDateString('fr-FR')}</span>
+                  </span>
+                )}
+              </p>
             </div>
-            <p className="text-sm text-gray-600 mt-1">
-              {isMarketplace && isOwner && univers.metadata.publishedVersion ? (
-                <>Version publiée: v{univers.metadata.publishedVersion} • Version draft: v{metadata.version} • Créé le {metadata.createdAt.toLocaleDateString('fr-FR')}</>
-              ) : (
-                <>Version {metadata.version} • Créé le {metadata.createdAt.toLocaleDateString('fr-FR')}</>
-              )}
-            </p>
           </div>
         </div>
-        <div className="flex items-center space-x-3">
-          <Button
-            variant="secondary"
-            onClick={handleCancel}
-            disabled={isSaving}
-          >
-            Annuler
-          </Button>
-          {/* Pour les univers marketplace et le créateur : deux boutons + annuler draft */}
+        {/* Organisation optimisée des boutons : 2 par ligne sur mobile */}
+        <div className="space-y-2 sm:space-y-0">
+          {/* Pour les univers marketplace et le créateur */}
           {isMarketplace && isOwner ? (
-            <>
-              {hasUnpublishedChanges && (
+            <div className="grid grid-cols-2 sm:flex sm:flex-row gap-2 sm:gap-3">
+              {/* Première ligne mobile : Annuler + Annuler le draft (si applicable) */}
+              <Button
+                variant="secondary"
+                onClick={handleCancel}
+                disabled={isSaving}
+                className="w-full sm:w-auto"
+              >
+                <span className="text-xs sm:text-sm">Annuler</span>
+              </Button>
+              {hasUnpublishedChanges ? (
                 <Button
                   variant="secondary"
                   onClick={async () => {
@@ -653,7 +669,6 @@ export const UniversEditor: React.FC<UniversEditorProps> = ({
                       const { universService } = await import('@ubora/shared/services/universService');
                       await universService.cancelDraft(univers.id, userId);
                       showSuccess('Draft annulé avec succès. Vous êtes revenu à la version publiée.');
-                      // Recharger la page pour afficher la version publiée
                       window.location.reload();
                     } catch (error) {
                       const errorMessage = error instanceof Error 
@@ -662,75 +677,88 @@ export const UniversEditor: React.FC<UniversEditorProps> = ({
                       showError(errorMessage);
                     }
                   }}
-                  className="flex items-center space-x-2"
+                  className="flex items-center justify-center space-x-1 sm:space-x-2 w-full sm:w-auto"
                   disabled={isSaving}
                 >
-                  <AlertCircle className="h-4 w-4" />
-                  <span>Annuler le draft</span>
+                  <AlertCircle className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                  <span className="text-xs sm:text-sm">Annuler draft</span>
                 </Button>
+              ) : (
+                <div className="hidden sm:block"></div>
               )}
+              {/* Deuxième ligne mobile : Sauvegarder brouillon + Publier */}
               <Button
                 variant="secondary"
                 onClick={() => handleSave(true, false)}
                 disabled={isSaving || !hasChanges || !metadata.name?.trim()}
-                className="flex items-center space-x-2"
+                className="flex items-center justify-center space-x-1 sm:space-x-2 w-full sm:w-auto col-span-2 sm:col-span-1"
               >
                 {isSaving ? (
                   <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    <span>Enregistrement...</span>
+                    <Loader2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 animate-spin" />
+                    <span className="text-xs sm:text-sm">Enregistrement...</span>
                   </>
                 ) : (
                   <>
-                    <Save className="h-4 w-4" />
-                    <span>Sauvegarder comme brouillon</span>
+                    <Save className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                    <span className="text-xs sm:text-sm">Sauvegarder brouillon</span>
                   </>
                 )}
               </Button>
               <Button
                 onClick={() => handleSave(false, true)}
                 disabled={isSaving || !hasChanges || !metadata.name?.trim()}
-                className="flex items-center space-x-2"
+                className="flex items-center justify-center space-x-1 sm:space-x-2 w-full sm:w-auto col-span-2 sm:col-span-1 bg-blue-600 hover:bg-blue-700"
               >
                 {isSaving ? (
                   <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    <span>Publication...</span>
+                    <Loader2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 animate-spin" />
+                    <span className="text-xs sm:text-sm">Publication...</span>
                   </>
                 ) : (
                   <>
-                    <Save className="h-4 w-4" />
-                    <span>Publier au marketplace</span>
+                    <Sparkles className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                    <span className="text-xs sm:text-sm">Publier</span>
                   </>
                 )}
               </Button>
-            </>
+            </div>
           ) : (
-            /* Pour les univers privés : un seul bouton */
-            <Button
-              onClick={() => handleSave(false, false)}
-              disabled={isSaving || !hasChanges || !metadata.name?.trim()}
-              className="flex items-center space-x-2"
-            >
-              {isSaving ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  <span>Enregistrement...</span>
-                </>
-              ) : (
-                <>
-                  <Save className="h-4 w-4" />
-                  <span>Enregistrer les modifications</span>
-                </>
-              )}
-            </Button>
+            /* Pour les univers privés : 2 boutons côte à côte sur mobile */
+            <div className="grid grid-cols-2 sm:flex sm:flex-row gap-2 sm:gap-3">
+              <Button
+                variant="secondary"
+                onClick={handleCancel}
+                disabled={isSaving}
+                className="w-full sm:w-auto"
+              >
+                <span className="text-xs sm:text-sm">Annuler</span>
+              </Button>
+              <Button
+                onClick={() => handleSave(false, false)}
+                disabled={isSaving || !hasChanges || !metadata.name?.trim()}
+                className="flex items-center justify-center space-x-1 sm:space-x-2 w-full sm:w-auto"
+              >
+                {isSaving ? (
+                  <>
+                    <Loader2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 animate-spin" />
+                    <span className="text-xs sm:text-sm">Enregistrement...</span>
+                  </>
+                ) : (
+                  <>
+                    <Save className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                    <span className="text-xs sm:text-sm">Enregistrer</span>
+                  </>
+                )}
+              </Button>
+            </div>
           )}
         </div>
       </div>
 
       {/* Navigation Tabs - Ordered to match creation flow */}
       <div className="border-b border-gray-200">
-        <nav className="flex space-x-2 sm:space-x-8 overflow-x-auto pb-0">
+        <nav className="flex space-x-1 sm:space-x-2 overflow-x-auto pb-0 -mb-px scrollbar-hide">
           {TAB_CONFIGS.map(({ id, label, icon: Icon, step, getCount }) => {
             const count = getCount ? getCount(definitions) : undefined;
             const isCompleted = completedSteps.has(step);
@@ -741,7 +769,7 @@ export const UniversEditor: React.FC<UniversEditorProps> = ({
               key={id}
                 onClick={() => setActiveTab(id)}
               className={`
-                  flex items-center space-x-2 py-4 px-1 sm:px-2 border-b-2 font-medium text-sm whitespace-nowrap transition-colors
+                  flex items-center space-x-1 sm:space-x-2 py-3 sm:py-4 px-2 sm:px-3 border-b-2 font-medium text-xs sm:text-sm whitespace-nowrap transition-colors flex-shrink-0
                 ${
                     isActive
                     ? 'border-blue-500 text-blue-600'
@@ -749,18 +777,18 @@ export const UniversEditor: React.FC<UniversEditorProps> = ({
                 }
               `}
             >
-              <Icon className="h-4 w-4" />
+              <Icon className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
                 <span className="hidden sm:inline">{label}</span>
                 <span className="sm:hidden">{label.split(' ')[0]}</span>
                 {count !== undefined && count > 0 && (
-                  <span className={`px-2 py-0.5 rounded-full text-xs ${
+                  <span className={`px-1.5 sm:px-2 py-0.5 rounded-full text-xs flex-shrink-0 ${
                     isActive ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'
                   }`}>
                   {count}
                 </span>
               )}
                 {isCompleted && (
-                  <CheckCircle className="h-4 w-4 text-green-500" />
+                  <CheckCircle className="h-3 w-3 sm:h-4 sm:w-4 text-green-500 flex-shrink-0" />
               )}
             </button>
             );

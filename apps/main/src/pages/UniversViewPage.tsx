@@ -471,87 +471,83 @@ export const UniversViewPage: React.FC = () => {
       <Layout title={univers.metadata.name}>
         <div className="space-y-6">
           {/* Header */}
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <div className="flex items-center space-x-4">
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => navigate(isFromMarketplace ? '/univers/marketplace' : '/univers')}
-                className="flex items-center space-x-2"
-              >
-                <ArrowLeft className="h-4 w-4" />
-                <span>Retour</span>
-              </Button>
-              <div>
-                <div className="flex items-center space-x-3">
-                  <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">
-                    {univers.metadata.name}
-                  </h1>
-                  {isActive && isDirecteur && (
-                    <span className="flex items-center space-x-1 px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm font-medium">
-                      <CheckCircle className="h-4 w-4" />
-                      <span>Actif</span>
-                    </span>
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div className="flex items-start sm:items-center space-x-3 sm:space-x-4 flex-1 min-w-0">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => navigate(isFromMarketplace ? '/univers/marketplace' : '/univers')}
+                  className="flex items-center space-x-2 flex-shrink-0"
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                  <span className="hidden sm:inline">Retour</span>
+                </Button>
+                <div className="flex-1 min-w-0">
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
+                    <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 break-words">
+                      {univers.metadata.name}
+                    </h1>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {isActive && isDirecteur && (
+                        <span className="flex items-center space-x-1 px-2 sm:px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-xs sm:text-sm font-medium whitespace-nowrap">
+                          <CheckCircle className="h-3 w-3 sm:h-4 sm:w-4" />
+                          <span>Actif</span>
+                        </span>
+                      )}
+                      {hasUpdateAvailable && isDirecteur && (
+                        <span className="flex items-center space-x-1 px-2 sm:px-3 py-1 bg-orange-100 text-orange-700 rounded-full text-xs sm:text-sm font-medium animate-pulse whitespace-nowrap">
+                          <AlertCircle className="h-3 w-3 sm:h-4 sm:w-4" />
+                          <span>Nouvelle version</span>
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <p className="text-xs sm:text-sm text-gray-600 mt-1 break-words">
+                    {univers.metadata.description || 'Aucune description'}
+                  </p>
+                  {/* Affichage des versions pour le créateur d'univers marketplace */}
+                  {isOwner && isMarketplace && (
+                    <div className="mt-2 text-xs sm:text-sm space-y-1">
+                      {hasUnpublishedChanges ? (
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 flex-wrap">
+                          <span className="text-yellow-600 font-medium">Version publiée: v{publishedVersion}</span>
+                          <span className="hidden sm:inline text-gray-400">•</span>
+                          <span className="text-yellow-600 font-medium">Version draft: v{draftVersion}</span>
+                          <span className="px-2 py-0.5 bg-yellow-100 text-yellow-800 rounded-full text-xs font-medium whitespace-nowrap">
+                            Modifications non publiées
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="text-gray-600">
+                          <span>Version publiée: v{publishedVersion}</span>
+                        </div>
+                      )}
+                    </div>
                   )}
-                  {hasUpdateAvailable && isDirecteur && (
-                    <span className="flex items-center space-x-1 px-3 py-1 bg-orange-100 text-orange-700 rounded-full text-sm font-medium animate-pulse">
-                      <AlertCircle className="h-4 w-4" />
-                      <span>Nouvelle version</span>
-                    </span>
+                  {hasUpdateAvailable && isDirecteur && !isOwner && (
+                    <div className="mt-2 text-xs sm:text-sm text-orange-600 flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+                      <span>Version actuelle: v{currentVersion}</span>
+                      <span className="hidden sm:inline">•</span>
+                      <span className="font-semibold">Version disponible: v{latestVersion}</span>
+                    </div>
                   )}
                 </div>
-                <p className="text-sm text-gray-600 mt-1">
-                  {univers.metadata.description || 'Aucune description'}
-                </p>
-                {/* Affichage des versions pour le créateur d'univers marketplace */}
-                {isOwner && isMarketplace && (
-                  <div className="mt-2 text-sm space-y-1">
-                    {hasUnpublishedChanges ? (
-                      <div className="flex items-center space-x-2">
-                        <span className="text-yellow-600 font-medium">Version publiée: v{publishedVersion}</span>
-                        <span className="text-gray-400">•</span>
-                        <span className="text-yellow-600 font-medium">Version draft: v{draftVersion}</span>
-                        <span className="px-2 py-0.5 bg-yellow-100 text-yellow-800 rounded-full text-xs font-medium">
-                          Modifications non publiées
-                        </span>
-                      </div>
-                    ) : (
-                      <div className="text-gray-600">
-                        <span>Version publiée: v{publishedVersion}</span>
-                      </div>
-                    )}
-                  </div>
-                )}
-                {hasUpdateAvailable && isDirecteur && !isOwner && (
-                  <div className="mt-2 text-sm text-orange-600">
-                    <span>Version actuelle: v{currentVersion}</span>
-                    <span className="mx-2">•</span>
-                    <span className="font-semibold">Version disponible: v{latestVersion}</span>
-                  </div>
-                )}
               </div>
             </div>
-            <div className="flex items-center space-x-2 ml-auto sm:ml-0 flex-wrap gap-2">
+            {/* Organisation optimisée des boutons : 2 par ligne sur mobile */}
+            <div className="grid grid-cols-2 sm:flex sm:flex-row gap-2 sm:gap-2">
               {/* Boutons pour le créateur d'univers marketplace avec draft */}
               {isOwner && isMarketplace && hasUnpublishedChanges && (
                 <>
                   <Button
                     variant="secondary"
                     onClick={handleTestDraft}
-                    className="flex items-center space-x-2 bg-yellow-500 hover:bg-yellow-600 text-white"
+                    className="flex items-center justify-center space-x-1 sm:space-x-2 bg-yellow-500 hover:bg-yellow-600 text-white w-full sm:w-auto"
                     disabled={isActivating}
                   >
-                    <Power className="h-4 w-4" />
-                    <span>Tester le draft</span>
-                  </Button>
-                  <Button
-                    variant="primary"
-                    onClick={handlePublishDraft}
-                    className="flex items-center space-x-2"
-                    disabled={isActivating}
-                  >
-                    <Sparkles className="h-4 w-4" />
-                    <span>Publier au marketplace</span>
+                    <Power className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                    <span className="text-xs sm:text-sm">Tester draft</span>
                   </Button>
                   <Button
                     variant="secondary"
@@ -568,11 +564,20 @@ export const UniversViewPage: React.FC = () => {
                         showError(errorMessage);
                       }
                     }}
-                    className="flex items-center space-x-2"
+                    className="flex items-center justify-center space-x-1 sm:space-x-2 w-full sm:w-auto"
                     disabled={isActivating}
                   >
-                    <XCircle className="h-4 w-4" />
-                    <span>Annuler le draft</span>
+                    <XCircle className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                    <span className="text-xs sm:text-sm">Annuler draft</span>
+                  </Button>
+                  <Button
+                    variant="primary"
+                    onClick={handlePublishDraft}
+                    className="flex items-center justify-center space-x-1 sm:space-x-2 w-full sm:w-auto col-span-2 sm:col-span-1"
+                    disabled={isActivating}
+                  >
+                    <Sparkles className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                    <span className="text-xs sm:text-sm">Publier</span>
                   </Button>
                 </>
               )}
@@ -580,11 +585,11 @@ export const UniversViewPage: React.FC = () => {
                 <Button
                   variant="primary"
                   onClick={handleUpgradeClick}
-                  className="flex items-center space-x-2 bg-orange-500 hover:bg-orange-600"
+                  className="flex items-center justify-center space-x-1 sm:space-x-2 bg-orange-500 hover:bg-orange-600 w-full sm:w-auto col-span-2 sm:col-span-1"
                   disabled={isUpgrading}
                 >
-                  <Download className="h-4 w-4" />
-                  <span>Mettre à jour vers v{latestVersion}</span>
+                  <Download className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                  <span className="text-xs sm:text-sm">Mettre à jour v{latestVersion}</span>
                 </Button>
               )}
               {/* Boutons selon le contexte */}
@@ -597,10 +602,10 @@ export const UniversViewPage: React.FC = () => {
                   <Button
                     variant="primary"
                     onClick={() => navigate(`/univers/create-from-template/${univers.id}`)}
-                    className="flex items-center space-x-2"
+                    className="flex items-center justify-center space-x-1 sm:space-x-2 w-full sm:w-auto col-span-2 sm:col-span-1"
                   >
-                    <Sparkles className="h-4 w-4" />
-                    <span>Utiliser ce template</span>
+                    <Sparkles className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                    <span className="text-xs sm:text-sm">Utiliser template</span>
                   </Button>
                 )
               ) : (
@@ -615,11 +620,11 @@ export const UniversViewPage: React.FC = () => {
                     <Button
                       variant="primary"
                       onClick={handleActivateClick}
-                      className="flex items-center space-x-2"
+                      className="flex items-center justify-center space-x-1 sm:space-x-2 w-full sm:w-auto col-span-2 sm:col-span-1"
                       disabled={isActivating}
                     >
-                      <Power className="h-4 w-4" />
-                      <span>Activer</span>
+                      <Power className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                      <span className="text-xs sm:text-sm">Activer</span>
                     </Button>
                   )}
                   {/* Bouton "Utiliser ce template" pour Univers marketplace possédés */}
@@ -630,10 +635,10 @@ export const UniversViewPage: React.FC = () => {
                     <Button
                       variant="primary"
                       onClick={() => navigate(`/univers/create-from-template/${univers.id}`)}
-                      className="flex items-center space-x-2"
+                      className="flex items-center justify-center space-x-1 sm:space-x-2 w-full sm:w-auto col-span-2 sm:col-span-1"
                     >
-                      <Sparkles className="h-4 w-4" />
-                      <span>Utiliser ce template</span>
+                      <Sparkles className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                      <span className="text-xs sm:text-sm">Utiliser template</span>
                     </Button>
                   )}
                 </>
@@ -642,18 +647,18 @@ export const UniversViewPage: React.FC = () => {
                 <Button
                   variant="secondary"
                   onClick={handleEdit}
-                  className="flex items-center space-x-2"
+                  className="flex items-center justify-center space-x-1 sm:space-x-2 w-full sm:w-auto col-span-2 sm:col-span-1"
                 >
-                  <Edit className="h-4 w-4" />
-                  <span className="hidden sm:inline">Modifier</span>
+                  <Edit className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                  <span className="text-xs sm:text-sm">Modifier</span>
                 </Button>
               )}
             </div>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
             {/* Main Content */}
-            <div className="lg:col-span-2 space-y-6">
+            <div className="lg:col-span-2 space-y-4 sm:space-y-6">
               {/* Metadata Card */}
               <Card title="Métadonnées">
                 <div className="space-y-4">
@@ -712,10 +717,10 @@ export const UniversViewPage: React.FC = () => {
               <Card title="Contenu du Univers">
                 {/* Onglets */}
                 <div className="border-b border-gray-200 mb-6">
-                  <nav className="flex space-x-1 overflow-x-auto">
+                  <nav className="flex space-x-1 overflow-x-auto pb-1 -mb-px scrollbar-hide">
                     <button
                       onClick={() => setActiveTab('overview')}
-                      className={`px-4 py-2 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${
+                      className={`px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium whitespace-nowrap border-b-2 transition-colors flex-shrink-0 ${
                         activeTab === 'overview'
                           ? 'border-blue-500 text-blue-600'
                           : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
@@ -726,65 +731,65 @@ export const UniversViewPage: React.FC = () => {
                     {univers.definitions.lists && univers.definitions.lists.length > 0 && (
                       <button
                         onClick={() => setActiveTab('lists')}
-                        className={`px-4 py-2 text-sm font-medium whitespace-nowrap border-b-2 transition-colors flex items-center space-x-1 ${
+                        className={`px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium whitespace-nowrap border-b-2 transition-colors flex items-center space-x-1 flex-shrink-0 ${
                           activeTab === 'lists'
                             ? 'border-orange-500 text-orange-600'
                             : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                         }`}
                       >
-                        <Database className="h-4 w-4" />
+                        <Database className="h-3 w-3 sm:h-4 sm:w-4" />
                         <span>Listes ({univers.definitions.lists.length})</span>
                       </button>
                     )}
                     {univers.definitions.forms && univers.definitions.forms.length > 0 && (
                       <button
                         onClick={() => setActiveTab('forms')}
-                        className={`px-4 py-2 text-sm font-medium whitespace-nowrap border-b-2 transition-colors flex items-center space-x-1 ${
+                        className={`px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium whitespace-nowrap border-b-2 transition-colors flex items-center space-x-1 flex-shrink-0 ${
                           activeTab === 'forms'
                             ? 'border-blue-500 text-blue-600'
                             : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                         }`}
                       >
-                        <FileText className="h-4 w-4" />
+                        <FileText className="h-3 w-3 sm:h-4 sm:w-4" />
                         <span>Formulaires ({univers.definitions.forms.length})</span>
                       </button>
                     )}
                     {univers.definitions.dashboards && univers.definitions.dashboards.length > 0 && (
                       <button
                         onClick={() => setActiveTab('dashboards')}
-                        className={`px-4 py-2 text-sm font-medium whitespace-nowrap border-b-2 transition-colors flex items-center space-x-1 ${
+                        className={`px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium whitespace-nowrap border-b-2 transition-colors flex items-center space-x-1 flex-shrink-0 ${
                           activeTab === 'dashboards'
                             ? 'border-purple-500 text-purple-600'
                             : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                         }`}
                       >
-                        <BarChart3 className="h-4 w-4" />
+                        <BarChart3 className="h-3 w-3 sm:h-4 sm:w-4" />
                         <span>Dashboards ({univers.definitions.dashboards.length})</span>
                       </button>
                     )}
                     {univers.definitions.reports && univers.definitions.reports.length > 0 && (
                       <button
                         onClick={() => setActiveTab('reports')}
-                        className={`px-4 py-2 text-sm font-medium whitespace-nowrap border-b-2 transition-colors flex items-center space-x-1 ${
+                        className={`px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium whitespace-nowrap border-b-2 transition-colors flex items-center space-x-1 flex-shrink-0 ${
                           activeTab === 'reports'
                             ? 'border-indigo-500 text-indigo-600'
                             : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                         }`}
                       >
-                        <FileBarChart className="h-4 w-4" />
+                        <FileBarChart className="h-3 w-3 sm:h-4 sm:w-4" />
                         <span>Rapports ({univers.definitions.reports.length})</span>
                       </button>
                     )}
                     {univers.definitions.instructions && univers.definitions.instructions.length > 0 && (
                       <button
                         onClick={() => setActiveTab('instructions')}
-                        className={`px-4 py-2 text-sm font-medium whitespace-nowrap border-b-2 transition-colors flex items-center space-x-1 ${
+                        className={`px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium whitespace-nowrap border-b-2 transition-colors flex items-center space-x-1 flex-shrink-0 ${
                           activeTab === 'instructions'
                             ? 'border-green-500 text-green-600'
                             : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                         }`}
                       >
-                        <Calendar className="h-4 w-4" />
+                        <Calendar className="h-3 w-3 sm:h-4 sm:w-4" />
                         <span>Instructions ({univers.definitions.instructions.length})</span>
                       </button>
                     )}
@@ -1198,7 +1203,7 @@ export const UniversViewPage: React.FC = () => {
             </div>
 
             {/* Sidebar */}
-            <div className="space-y-6">
+            <div className="space-y-4 sm:space-y-6">
               {/* Ownership Card */}
               <Card title="Propriété">
                 <div className="space-y-4">

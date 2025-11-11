@@ -271,7 +271,7 @@ export const UniversCard: React.FC<UniversCardProps> = ({
       
       <div className="relative p-6">
       {/* Actions buttons - shown on hover avec design moderne */}
-      <div className="absolute top-4 right-4 z-20 opacity-0 group-hover:opacity-100 transition-all duration-300 flex space-x-2 bg-white/90 backdrop-blur-sm rounded-xl p-1 shadow-lg border border-gray-200">
+      <div className="absolute top-2 sm:top-4 right-2 sm:right-4 z-20 opacity-0 group-hover:opacity-100 transition-all duration-300 flex space-x-1 sm:space-x-2 bg-white/90 backdrop-blur-sm rounded-xl p-1 shadow-lg border border-gray-200">
         {onView && (
           <Button
             variant="secondary"
@@ -327,23 +327,26 @@ export const UniversCard: React.FC<UniversCardProps> = ({
       )}
 
       {/* Title and Description */}
-      <div className="mb-4 pr-20">
-        <div className="flex items-center space-x-2 mb-1">
-          <h3 className="text-lg font-semibold text-gray-900 line-clamp-2 flex-1">
+      <div className="mb-4 pr-16 sm:pr-20">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2 mb-1">
+          <h3 className="text-base sm:text-lg font-semibold text-gray-900 line-clamp-2 flex-1">
             {univers.metadata.name}
           </h3>
-          {isActive && isDirecteur && (
-            <span className="flex items-center space-x-1 px-3 py-1.5 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-full text-xs font-semibold flex-shrink-0 shadow-md ring-2 ring-blue-200">
-              <CheckCircle className="h-3.5 w-3.5" />
-              <span>Actif</span>
-            </span>
-          )}
-          {hasUpdateAvailable && isDirecteur && (
-            <span className="flex items-center space-x-1 px-3 py-1.5 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-full text-xs font-semibold flex-shrink-0 shadow-md animate-pulse ring-2 ring-orange-200">
-              <AlertCircle className="h-3.5 w-3.5 animate-bounce" />
-              <span>Nouvelle version</span>
-            </span>
-          )}
+          <div className="flex items-center gap-2 flex-wrap">
+            {isActive && isDirecteur && (
+              <span className="flex items-center space-x-1 px-2 sm:px-3 py-1 sm:py-1.5 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-full text-xs font-semibold flex-shrink-0 shadow-md ring-2 ring-blue-200">
+                <CheckCircle className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+                <span>Actif</span>
+              </span>
+            )}
+            {hasUpdateAvailable && isDirecteur && (
+              <span className="flex items-center space-x-1 px-2 sm:px-3 py-1 sm:py-1.5 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-full text-xs font-semibold flex-shrink-0 shadow-md animate-pulse ring-2 ring-orange-200">
+                <AlertCircle className="h-3 w-3 sm:h-3.5 sm:w-3.5 animate-bounce" />
+                <span className="hidden sm:inline">Nouvelle version</span>
+                <span className="sm:hidden">Nouvelle</span>
+              </span>
+            )}
+          </div>
         </div>
         <p className="text-sm text-gray-600 line-clamp-2">
           {univers.metadata.description || 'Aucune description'}
@@ -368,20 +371,23 @@ export const UniversCard: React.FC<UniversCardProps> = ({
         {/* Approval Status (for marketplace) - Masquer dans la marketplace publique */}
         {univers.ownership.isMarketplaceTemplate && !hideApprovalStatus && (
           <div className="space-y-2">
-            <div className="flex items-center space-x-2 text-sm flex-wrap gap-2">
-              {getApprovalStatusIcon()}
-              <span className={`font-medium ${
-                univers.ownership.approvalStatus === 'approved' ? 'text-green-600' :
-                univers.ownership.approvalStatus === 'pending' ? 'text-yellow-600' :
-                'text-red-600'
-              }`}>
-                {getApprovalStatusLabel()}
-              </span>
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2 text-xs sm:text-sm">
+              <div className="flex items-center space-x-2">
+                {getApprovalStatusIcon()}
+                <span className={`font-medium ${
+                  univers.ownership.approvalStatus === 'approved' ? 'text-green-600' :
+                  univers.ownership.approvalStatus === 'pending' ? 'text-yellow-600' :
+                  'text-red-600'
+                }`}>
+                  {getApprovalStatusLabel()}
+                </span>
+              </div>
               {/* Badge pour modifications non publiées (uniquement pour le créateur) */}
               {isOwner && univers.hasUnpublishedChanges && (
-                <span className="inline-flex items-center space-x-1 px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                <span className="inline-flex items-center space-x-1 px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 whitespace-nowrap">
                   <AlertCircle className="h-3 w-3" />
-                  <span>Modifications non publiées</span>
+                  <span className="hidden sm:inline">Modifications non publiées</span>
+                  <span className="sm:hidden">Non publiées</span>
                 </span>
               )}
               {/* Dropdown pour voir la raison du rejet */}
