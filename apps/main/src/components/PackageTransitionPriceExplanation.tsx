@@ -15,17 +15,40 @@ import {
 } from 'lucide-react';
 import { EnhancedTransitionCalculation, PayAsYouGoItem, FeatureUpgrade, FeatureDowngrade } from '@ubora/shared/services/packageTransitionService';
 import { getPackageDisplayName } from '@ubora/shared/config/packageFeatures';
+import { SubscriptionPriceCalculator, SubscriptionPeriod } from '@ubora/shared/services/subscriptionPriceCalculator';
+import { PackageType } from '@ubora/shared/config/packageFeatures';
 
 interface PackageTransitionPriceExplanationProps {
   calculation: EnhancedTransitionCalculation;
+  selectedPackage?: PackageType;
+  selectedPeriod?: SubscriptionPeriod;
   className?: string;
 }
 
 export const PackageTransitionPriceExplanation: React.FC<PackageTransitionPriceExplanationProps> = ({
   calculation,
+  selectedPackage,
+  selectedPeriod = '30days',
   className = ''
 }) => {
+  // Add safety checks for calculation and priceBreakdown
+  if (!calculation || !calculation.priceBreakdown) {
+    return (
+      <div className={`bg-white rounded-lg border border-gray-200 p-6 ${className}`}>
+        <div className="text-center text-gray-500">
+          <p>Calcul en cours...</p>
+        </div>
+      </div>
+    );
+  }
+
   const { priceBreakdown, daysRemaining, payAsYouGoItems, featureUpgrades, featureDowngrades } = calculation;
+  
+  // Recalculate price based on selected period if package and period are provided
+  let priceCalculation = null;
+  if (selectedPackage && selectedPackage !== 'free') {
+    priceCalculation = SubscriptionPriceCalculator.calculatePrice(selectedPackage, selectedPeriod);
+  }
 
   const formatPrice = (price: number) => {
     return price.toLocaleString('fr-FR') + ' FCFA';
@@ -70,7 +93,7 @@ export const PackageTransitionPriceExplanation: React.FC<PackageTransitionPriceE
             <span className="text-sm font-medium text-blue-900">Jours restants dans votre abonnement actuel</span>
           </div>
           <p className="text-sm text-blue-700">
-            Il vous reste <strong>{daysRemaining} jours</strong> sur votre abonnement {getPackageDisplayName(calculation.currentSession.packageType)}.
+            Il vous reste <strong>{daysRemaining} jours</strong> sur votre abonnement {calculation.currentSession?.packageType ? getPackageDisplayName(calculation.currentSession.packageType) : 'actuel'}.
             La valeur restante sera déduite du coût du nouveau package.
           </p>
         </div>
@@ -88,16 +111,32 @@ export const PackageTransitionPriceExplanation: React.FC<PackageTransitionPriceE
           <div className="flex justify-between items-center">
             <span className="text-sm text-gray-600">Valeur restante du package actuel</span>
             <span className="text-sm font-medium text-gray-900">
-              {formatPrice(priceBreakdown.currentPackageRemainingValue)}
+              {formatPrice(priceBreakdown.currentPackageRemainingValue || 0)}
             </span>
           </div>
           
           {/* New Package Price */}
           <div className="flex justify-between items-center">
             <span className="text-sm text-gray-600">Prix du nouveau package</span>
-            <span className="text-sm font-medium text-gray-900">
-              {formatPrice(priceBreakdown.newPackagePrice)}
-            </span>
+            <div className="flex flex-col items-end">
+              {priceCalculation && priceCalculation.discountApplied > 0 ? (
+                <>
+                  <span className="text-sm text-gray-500 line-through">
+                    {formatPrice(priceCalculation.monthlyAmount * (priceCalculation.totalPeriodDays / 30))}
+                  </span>
+                  <span className="text-sm font-medium text-gray-900">
+                    {formatPrice(priceCalculation.totalAmount)}
+                  </span>
+                  <span className="text-xs text-green-600 font-semibold">
+                    -{priceCalculation.discountApplied * 100}% de réduction
+                  </span>
+                </>
+              ) : (
+                <span className="text-sm font-medium text-gray-900">
+                  {formatPrice(priceCalculation?.totalAmount || priceBreakdown.newPackagePrice || 0)}
+                </span>
+              )}
+            </div>
           </div>
           
           
@@ -108,16 +147,33 @@ export const PackageTransitionPriceExplanation: React.FC<PackageTransitionPriceE
           <div className="flex justify-between items-center">
             <span className="text-sm font-semibold text-gray-900">Montant à payer</span>
             <span className="text-lg font-bold text-green-600">
-              {formatPrice(priceBreakdown.finalAmount)}
+              {(() => {
+                if (priceCalculation && selectedPackage && selectedPackage !== 'free') {
+                  const creditFromRemainingDays = priceBreakdown.currentPackageRemainingValue || 0;
+                  const payable = Math.max(0, priceCalculation.totalAmount - creditFromRemainingDays);
+                  return formatPrice(Math.max(payable, 5000)); // Minimum 5000 FCFA
+                }
+                return formatPrice(priceBreakdown.finalAmount || 0);
+              })()}
             </span>
           </div>
           
-          {/* Savings */}
-          {priceBreakdown.savings > 0 && (
+          {/* Savings from period discount */}
+          {priceCalculation && priceCalculation.discountAmount > 0 && (
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-green-600">Économie (réduction période)</span>
+              <span className="text-sm font-medium text-green-600">
+                -{formatPrice(priceCalculation.discountAmount)}
+              </span>
+            </div>
+          )}
+          
+          {/* Savings from transition */}
+          {(priceBreakdown.savings || 0) > 0 && (!priceCalculation || priceCalculation.discountAmount === 0) && (
             <div className="flex justify-between items-center">
               <span className="text-sm text-green-600">Économie réalisée</span>
               <span className="text-sm font-medium text-green-600">
-                -{formatPrice(priceBreakdown.savings)}
+                -{formatPrice(priceBreakdown.savings || 0)}
               </span>
             </div>
           )}
