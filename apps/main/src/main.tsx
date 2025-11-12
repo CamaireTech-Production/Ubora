@@ -48,16 +48,26 @@ function initializeApp() {
     });
 
     // Enregistrer le service worker de manière asynchrone (non-bloquant)
-    Promise.resolve().then(async () => {
-      try {
-        const { registerServiceWorker } = await import('./utils/pwaRegistration');
-        await registerServiceWorker();
-      } catch (swError) {
-        console.error('🔔 [PWA] Erreur lors de l\'enregistrement du service worker:', swError);
-        if (isIOSSafari) {
-          console.warn('🍎 [iOS] Service worker non enregistré, mais l\'application continue');
+    // Attendre que la page soit complètement chargée
+    window.addEventListener('load', () => {
+      setTimeout(() => {
+        if ('serviceWorker' in navigator) {
+          navigator.serviceWorker.register('/sw.js')
+            .then((registration) => {
+              console.log('🔔 [SW] Service worker enregistré:', registration.scope);
+            })
+            .catch((error) => {
+              console.warn('🔔 [SW] Échec de l\'enregistrement:', error);
+              if (isIOSSafari) {
+                console.warn('🍎 [iOS] Service worker non disponible - normal sur certaines versions iOS');
+              }
+            });
+        } else {
+          if (isIOSSafari) {
+            console.warn('🍎 [iOS] Service Worker non supporté sur cette version');
+          }
         }
-      }
+      }, 1000); // Délai pour ne pas bloquer le chargement
     });
 
     // Rendre l'application React
