@@ -389,23 +389,30 @@ class UniversInstantiationService {
 
           // If mapping references a form, map definition ID to instance ID
           if (mapping.sourceType === 'form') {
-            const instanceId = idMappings.forms.get(mapping.sourceId);
+            const instanceId = idMappings.forms.get(mapping.sourceId || '');
             if (instanceId) {
               updatedMapping.sourceId = instanceId;
               console.log(`✅ Mapped form definition ${mapping.sourceId} → instance ${instanceId}`);
             } else {
               console.warn(`⚠️ Warning: Form definition ID ${mapping.sourceId} not found in instantiated forms. Mapping may be broken.`);
+              // Ne pas supprimer le sourceId, mais laisser un warning - la validation échouera si nécessaire
             }
           }
           // If mapping references a dashboard, map definition ID to instance ID
           else if (mapping.sourceType === 'dashboard') {
-            const instanceId = idMappings.dashboards.get(mapping.sourceId);
+            const instanceId = idMappings.dashboards.get(mapping.sourceId || '');
             if (instanceId) {
               updatedMapping.sourceId = instanceId;
               console.log(`✅ Mapped dashboard definition ${mapping.sourceId} → instance ${instanceId}`);
             } else {
               console.warn(`⚠️ Warning: Dashboard definition ID ${mapping.sourceId} not found in instantiated dashboards. Mapping may be broken.`);
+              // Ne pas supprimer le sourceId, mais laisser un warning - la validation échouera si nécessaire
             }
+          }
+          // For 'static' type mappings, no mapping is needed - they use staticValueType
+          else if (mapping.sourceType === 'static') {
+            // Static mappings don't need sourceId, they're already correct
+            console.log(`✅ Static mapping preserved: ${mapping.staticValueType || 'unknown'}`);
           }
 
           return updatedMapping;
