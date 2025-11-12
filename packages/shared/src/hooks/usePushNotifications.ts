@@ -77,7 +77,7 @@ export const usePushNotifications = () => {
       }
 
       // Get platform info
-      const { isIOS, isAndroid } = detectPlatform();
+      const { isIOS } = detectPlatform();
 
       // iOS specific checks
       if (isIOS) {
@@ -126,6 +126,11 @@ export const usePushNotifications = () => {
       return;
     }
 
+    if (typeof Notification === 'undefined') {
+      setState(prev => ({ ...prev, permission: { granted: false, denied: true, default: false } }));
+      return;
+    }
+    
     const permission = Notification.permission;
     setState(prev => ({
       ...prev,
@@ -187,18 +192,10 @@ export const usePushNotifications = () => {
         throw new Error('Messaging not available');
       }
 
-      const vapidKey = import.meta.env.VITE_FIREBASE_VAPID_KEY;
+      const vapidKey = (import.meta as any).env?.VITE_FIREBASE_VAPID_KEY;
       
       if (!vapidKey || vapidKey === 'YOUR_VAPID_KEY_HERE') {
         throw new Error('VAPID key not configured. Please add VITE_FIREBASE_VAPID_KEY to your .env.local file');
-      }
-
-      // Ensure we pass the active service worker registration used by the app
-      let serviceWorkerRegistration: ServiceWorkerRegistration | undefined;
-      try {
-        serviceWorkerRegistration = await navigator.serviceWorker.getRegistration('/') || undefined;
-      } catch (e) {
-        serviceWorkerRegistration = undefined;
       }
 
       const token = await getToken(messagingInstance, {
@@ -282,7 +279,7 @@ export const usePushNotifications = () => {
         const unsubscribe = onMessage(messagingInstance, (payload) => {
           
           // Show notification manually when app is in foreground
-          if (Notification.permission === 'granted') {
+          if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
             new Notification(payload.notification?.title || 'Ubora', {
               body: payload.notification?.body,
               icon: '/fav-icons/android-icon-192x192.png',
