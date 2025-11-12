@@ -18,13 +18,41 @@
     <meta name="msapplication-tap-highlight" content="no" />
     <meta name="theme-color" content="#3b82f6" />
     
-    <!-- Google Analytics -->
-    <script async src="https://www.googletagmanager.com/gtag/js?id=G-6TWRQHW70W"></script>
+    <!-- Google Analytics - Non-bloquant pour iOS -->
     <script>
-      window.dataLayer = window.dataLayer || [];
-      function gtag(){dataLayer.push(arguments);}
-      gtag('js', new Date());
-      gtag('config', 'G-6TWRQHW70W');
+      // Charger Google Analytics de manière non-bloquante
+      (function() {
+        // Détecter iOS
+        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+        
+        // Sur iOS, charger Analytics après le chargement de la page
+        if (isIOS) {
+          window.addEventListener('load', function() {
+            setTimeout(function() {
+              var script = document.createElement('script');
+              script.async = true;
+              script.src = 'https://www.googletagmanager.com/gtag/js?id=G-6TWRQHW70W';
+              document.head.appendChild(script);
+              
+              window.dataLayer = window.dataLayer || [];
+              function gtag(){dataLayer.push(arguments);}
+              gtag('js', new Date());
+              gtag('config', 'G-6TWRQHW70W');
+            }, 1000);
+          });
+        } else {
+          // Sur les autres navigateurs, charger normalement
+          var script = document.createElement('script');
+          script.async = true;
+          script.src = 'https://www.googletagmanager.com/gtag/js?id=G-6TWRQHW70W';
+          document.head.appendChild(script);
+          
+          window.dataLayer = window.dataLayer || [];
+          function gtag(){dataLayer.push(arguments);}
+          gtag('js', new Date());
+          gtag('config', 'G-6TWRQHW70W');
+        }
+      })();
     </script>
     
     <!-- Apple Touch Icons -->

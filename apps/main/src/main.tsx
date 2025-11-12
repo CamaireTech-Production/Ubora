@@ -47,6 +47,19 @@ function initializeApp() {
       }
     });
 
+    // Enregistrer le service worker de manière asynchrone (non-bloquant)
+    Promise.resolve().then(async () => {
+      try {
+        const { registerServiceWorker } = await import('./utils/pwaRegistration');
+        await registerServiceWorker();
+      } catch (swError) {
+        console.error('🔔 [PWA] Erreur lors de l\'enregistrement du service worker:', swError);
+        if (isIOSSafari) {
+          console.warn('🍎 [iOS] Service worker non enregistré, mais l\'application continue');
+        }
+      }
+    });
+
     // Rendre l'application React
     const root = createRoot(rootElement);
     
