@@ -5,10 +5,7 @@ import {
   DashboardDefinition, 
   InstructionDefinition, 
   ReportDefinition, 
-  Report, 
-  ReportMapping,
-  ScheduledQuestion,
-  List
+  ReportMapping
 } from '../types';
 import { listsService } from './listsService';
 import { reportsService } from './reportsService';
@@ -329,11 +326,29 @@ class UniversInstantiationService {
 
     for (const listDef of listDefinitions) {
       try {
+        // Normaliser la ListDefinition pour s'assurer que rows est présent
+        const normalizedListDef = {
+          id: listDef.id || '',
+          name: listDef.name || '',
+          description: listDef.description || undefined,
+          columns: Array.isArray(listDef.columns) ? listDef.columns : [],
+          // CRITIQUE: S'assurer que rows est toujours un tableau
+          rows: Array.isArray(listDef.rows) ? listDef.rows : []
+        };
+
+        // Log pour débogage
+        const rowsCount = normalizedListDef.rows.length;
+        console.log(`🔄 Instanciation ListDefinition "${normalizedListDef.name}": ${normalizedListDef.columns.length} colonnes, ${rowsCount} rows`);
+        
+        if (rowsCount === 0) {
+          console.warn(`⚠️ ListDefinition "${normalizedListDef.name}" n'a pas de rows - vérifier si c'est normal`);
+        }
+
         // Create a List from ListDefinition
         const listData: any = {
-          name: listDef.name,
-          columns: listDef.columns,
-          rows: listDef.rows,
+          name: normalizedListDef.name,
+          columns: normalizedListDef.columns,
+          rows: normalizedListDef.rows, // Utiliser les rows normalisés
           createdBy: params.userId,
           createdByRole: params.userRole === 'admin' ? 'directeur' : params.userRole as 'directeur' | 'employe',
           agencyId: params.agencyId,
@@ -345,8 +360,8 @@ class UniversInstantiationService {
         };
 
         // Ne pas inclure les champs undefined (Firestore ne permet pas undefined)
-        if (listDef.description) {
-          listData.description = listDef.description;
+        if (normalizedListDef.description) {
+          listData.description = normalizedListDef.description;
         }
         if (params.userRole === 'employe') {
           listData.createdByEmployeeId = params.userId;
@@ -355,7 +370,7 @@ class UniversInstantiationService {
         const listId = await listsService.create(listData);
         createdListIds.push(listId);
         
-        console.log(`✅ List instantiated: ${listDef.name} (ID: ${listId})`);
+        console.log(`✅ List instantiated: ${normalizedListDef.name} (ID: ${listId}) avec ${rowsCount} rows`);
       } catch (error) {
         console.error(`❌ Error instantiating list ${listDef.name}:`, error);
         throw new Error(`Failed to instantiate list "${listDef.name}": ${error instanceof Error ? error.message : 'Unknown error'}`);

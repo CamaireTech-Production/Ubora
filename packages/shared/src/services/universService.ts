@@ -50,21 +50,79 @@ class UniversService {
   private readonly versionsCollectionName = 'universVersions';
 
   /**
+   * Normaliser une ListDefinition pour s'assurer que les rows sont bien présentes
+   */
+  private normalizeListDefinition(listDef: any): any {
+    if (!listDef) return listDef;
+    
+    return {
+      id: listDef.id || '',
+      name: listDef.name || '',
+      description: listDef.description || undefined,
+      columns: Array.isArray(listDef.columns) ? listDef.columns : [],
+      // CRITIQUE: S'assurer que rows est toujours un tableau, même si vide
+      rows: Array.isArray(listDef.rows) ? listDef.rows : []
+    };
+  }
+
+  /**
    * Convertir les données Firestore en Univers
    */
   private convertFirestoreToUnivers(id: string, data: any): Univers {
     // Convertir draftData si présent
     let draftData = undefined;
     if (data.draftData) {
+      // Normaliser les ListDefinition dans le draftData si présent
+      let normalizedDraftDefinitions = data.draftData.definitions;
+      if (data.draftData.definitions?.lists) {
+        const normalizedDraftLists = data.draftData.definitions.lists.map((listDef: any) => 
+          this.normalizeListDefinition(listDef)
+        );
+        normalizedDraftDefinitions = {
+          ...data.draftData.definitions,
+          lists: normalizedDraftLists
+        };
+      }
+      
       draftData = {
         metadata: data.draftData.metadata ? {
           ...data.draftData.metadata,
           createdAt: data.draftData.metadata.createdAt?.toDate() || undefined
         } : undefined,
-        definitions: data.draftData.definitions || undefined,
+        definitions: normalizedDraftDefinitions || undefined,
         draftVersion: data.draftData.draftVersion || undefined,
         updatedAt: data.draftData.updatedAt?.toDate() || undefined
       };
+    }
+
+    // Normaliser les definitions, en particulier les ListDefinition avec leurs rows
+    const rawDefinitions = data.definitions || {
+      forms: [],
+      dashboards: [],
+      instructions: [],
+      lists: [],
+      reports: []
+    };
+
+    // Normaliser explicitement les ListDefinition pour préserver les rows
+    const normalizedLists = Array.isArray(rawDefinitions.lists) 
+      ? rawDefinitions.lists.map((listDef: any) => this.normalizeListDefinition(listDef))
+      : [];
+
+    const definitions = {
+      forms: rawDefinitions.forms || [],
+      dashboards: rawDefinitions.dashboards || [],
+      instructions: rawDefinitions.instructions || [],
+      lists: normalizedLists,
+      reports: rawDefinitions.reports || []
+    };
+
+    // Log pour débogage
+    if (normalizedLists.length > 0) {
+      normalizedLists.forEach((listDef: any) => {
+        const rowsCount = Array.isArray(listDef.rows) ? listDef.rows.length : 0;
+        console.log(`📋 ListDefinition "${listDef.name}" chargée: ${listDef.columns.length} colonnes, ${rowsCount} rows`);
+      });
     }
 
     return {
@@ -79,13 +137,7 @@ class UniversService {
         ...data.ownership,
         approvedAt: data.ownership?.approvedAt?.toDate() || undefined
       },
-      definitions: data.definitions || {
-        forms: [],
-        dashboards: [],
-        instructions: [],
-        lists: [],
-        reports: []
-      },
+      definitions: definitions,
       usage: {
         ...data.usage,
         lastUsedAt: data.usage?.lastUsedAt?.toDate() || undefined
@@ -159,11 +211,30 @@ class UniversService {
       }
 
       // Préparer les définitions avec des tableaux vides pour Lists/Reports si non fournis
+      // Normaliser les ListDefinition pour s'assurer que les rows sont bien présentes
+      const rawLists = univers.definitions?.lists || [];
+      const normalizedLists = rawLists.map((listDef: any) => {
+        const normalized = {
+          id: listDef.id || '',
+          name: listDef.name || '',
+          description: listDef.description || undefined,
+          columns: Array.isArray(listDef.columns) ? listDef.columns : [],
+          // CRITIQUE: S'assurer que rows est toujours un tableau
+          rows: Array.isArray(listDef.rows) ? listDef.rows : []
+        };
+        
+        // Log pour débogage
+        const rowsCount = normalized.rows.length;
+        console.log(`💾 Sauvegarde ListDefinition "${normalized.name}": ${normalized.columns.length} colonnes, ${rowsCount} rows`);
+        
+        return normalized;
+      });
+
       const definitions: UniversDefinitions = {
         forms: forms,
         dashboards: univers.definitions?.dashboards || [],
         instructions: univers.definitions?.instructions || [],
-        lists: univers.definitions?.lists || [], // Peut être vide (Coming Soon)
+        lists: normalizedLists,
         reports: univers.definitions?.reports || [] // Peut être vide (Coming Soon)
       };
 
@@ -205,9 +276,14 @@ class UniversService {
       };
 
       // Helper function to remove undefined values
+      // IMPORTANT: Preserve empty arrays (especially for list rows) and null values
       const removeUndefined = (obj: any): any => {
-        if (obj === null || obj === undefined) return null;
-        if (Array.isArray(obj)) return obj.map(removeUndefined);
+        if (obj === null) return null; // Preserve null
+        if (obj === undefined) return undefined; // Will be filtered out
+        if (Array.isArray(obj)) {
+          // Always preserve arrays, even if empty (important for rows: [])
+          return obj.map(removeUndefined);
+        }
         if (typeof obj === 'object' && obj.constructor === Object) {
           return Object.keys(obj).reduce((acc, key) => {
             const value = obj[key];
@@ -353,6 +429,23 @@ class UniversService {
       // 2. Initialiser updateData avec les updates (sans nettoyer undefined maintenant)
       // On nettoiera undefined après avoir défini les valeurs ownership
       const updateData: any = { ...updates };
+      
+      // Normaliser les ListDefinition dans updateData.definitions si présentes
+      if (updateData.definitions?.lists) {
+        const normalizedLists = updateData.definitions.lists.map((listDef: any) => {
+          return {
+            id: listDef.id || '',
+            name: listDef.name || '',
+            description: listDef.description || undefined,
+            columns: Array.isArray(listDef.columns) ? listDef.columns : [],
+            rows: Array.isArray(listDef.rows) ? listDef.rows : []
+          };
+        });
+        updateData.definitions = {
+          ...updateData.definitions,
+          lists: normalizedLists
+        };
+      }
       
       // 3. Gérer isMarketplaceTemplate et approvalStatus
       // Détecter si on passe en marketplace (via ownership.isMarketplaceTemplate)
@@ -934,11 +1027,19 @@ class UniversService {
     };
 
     // Fusionner les définitions
+    // Normaliser les ListDefinition pour s'assurer que les rows sont préservées
+    const draftLists = draft.definitions?.lists || [];
+    const publishedLists = univers.definitions.lists || [];
+    const mergedLists = draftLists.length > 0 ? draftLists : publishedLists;
+    
+    // Normaliser les ListDefinition fusionnées
+    const normalizedMergedLists = mergedLists.map((listDef: any) => this.normalizeListDefinition(listDef));
+    
     const mergedDefinitions: UniversDefinitions = {
       forms: draft.definitions?.forms || univers.definitions.forms,
       dashboards: draft.definitions?.dashboards || univers.definitions.dashboards,
       instructions: draft.definitions?.instructions || univers.definitions.instructions,
-      lists: draft.definitions?.lists || univers.definitions.lists,
+      lists: normalizedMergedLists,
       reports: draft.definitions?.reports || univers.definitions.reports
     };
     
@@ -1011,6 +1112,24 @@ class UniversService {
       const currentDraftVersion = currentUnivers.draftData?.draftVersion || 0;
       const newDraftVersion = currentDraftVersion + 1;
 
+      // Normaliser les ListDefinition dans les updates si présents
+      let normalizedDefinitions = updates.definitions;
+      if (updates.definitions?.lists) {
+        const normalizedLists = updates.definitions.lists.map((listDef: any) => {
+          return {
+            id: listDef.id || '',
+            name: listDef.name || '',
+            description: listDef.description || undefined,
+            columns: Array.isArray(listDef.columns) ? listDef.columns : [],
+            rows: Array.isArray(listDef.rows) ? listDef.rows : []
+          };
+        });
+        normalizedDefinitions = {
+          ...updates.definitions,
+          lists: normalizedLists
+        };
+      }
+
       // Préparer les données du draft
       const draftData: UniversDraftData = {
         metadata: updates.metadata ? {
@@ -1018,7 +1137,7 @@ class UniversService {
           // Ne pas inclure publishedVersion dans le draft
           publishedVersion: undefined
         } : currentUnivers.draftData?.metadata,
-        definitions: updates.definitions || currentUnivers.draftData?.definitions,
+        definitions: normalizedDefinitions || currentUnivers.draftData?.definitions,
         draftVersion: newDraftVersion,
         updatedAt: new Date()
       };
