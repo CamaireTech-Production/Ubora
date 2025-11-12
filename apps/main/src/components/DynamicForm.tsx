@@ -772,24 +772,111 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
             };
           });
 
-          // Check current answer - if it's a list row, extract the display value
+          // Check current answer - if it's a list row, find the matching option
           const currentValue = answers[field.id];
           let selectedValue = '';
+          
           if (currentValue && typeof currentValue === 'object' && '_listRow' in currentValue) {
-            // It's already a list row object, convert back to option value for display
-            const rowData = (currentValue as any).rowData;
-            if (rowData) {
-              selectedValue = JSON.stringify({ _listRow: true, listId: field.listId, rowData });
+            // It's already a list row object
+            const valueObj = currentValue as any;
+            
+            // First, check if we have the stored select value (most reliable)
+            if (valueObj._selectValue && typeof valueObj._selectValue === 'string') {
+              // Verify this value still exists in options
+              const optionExists = listOptions.some(opt => opt.value === valueObj._selectValue);
+              if (optionExists) {
+                selectedValue = valueObj._selectValue;
+              } else {
+                // Value doesn't exist anymore, try to find matching option
+                const rowData = valueObj.rowData;
+                if (rowData) {
+                  const matchingOption = listOptions.find(option => {
+                    try {
+                      const optionData = JSON.parse(option.value);
+                      if (optionData._listRow && optionData.rowData) {
+                        const optionRow = optionData.rowData;
+                        const keysMatch = Object.keys(rowData).length === Object.keys(optionRow).length &&
+                          Object.keys(rowData).every(key => {
+                            return String(rowData[key]) === String(optionRow[key]);
+                          });
+                        return keysMatch;
+                      }
+                    } catch {
+                      return false;
+                    }
+                    return false;
+                  });
+                  
+                  if (matchingOption) {
+                    selectedValue = matchingOption.value;
+                  }
+                }
+              }
+            } else {
+              // No stored select value, find matching option by rowData
+              const rowData = valueObj.rowData;
+              if (rowData) {
+                const matchingOption = listOptions.find(option => {
+                  try {
+                    const optionData = JSON.parse(option.value);
+                    if (optionData._listRow && optionData.rowData) {
+                      const optionRow = optionData.rowData;
+                      const keysMatch = Object.keys(rowData).length === Object.keys(optionRow).length &&
+                        Object.keys(rowData).every(key => {
+                          return String(rowData[key]) === String(optionRow[key]);
+                        });
+                      return keysMatch;
+                    }
+                  } catch {
+                    return false;
+                  }
+                  return false;
+                });
+                
+                if (matchingOption) {
+                  selectedValue = matchingOption.value;
+                }
+              }
             }
-          } else if (typeof currentValue === 'string' && currentValue.startsWith('{')) {
-            // Try to parse as JSON (might be from draft)
-            try {
-              const parsed = JSON.parse(currentValue);
-              if (parsed._listRow && parsed.rowData) {
+          } else if (typeof currentValue === 'string') {
+            if (currentValue.startsWith('{')) {
+              // Try to parse as JSON (might be from draft)
+              try {
+                const parsed = JSON.parse(currentValue);
+                if (parsed._listRow && parsed.rowData) {
+                  // Find matching option
+                  const matchingOption = listOptions.find(option => {
+                    try {
+                      const optionData = JSON.parse(option.value);
+                      if (optionData._listRow && optionData.rowData) {
+                        const optionRow = optionData.rowData;
+                        const keysMatch = Object.keys(parsed.rowData).length === Object.keys(optionRow).length &&
+                          Object.keys(parsed.rowData).every(key => {
+                            return String(parsed.rowData[key]) === String(optionRow[key]);
+                          });
+                        return keysMatch;
+                      }
+                    } catch {
+                      return false;
+                    }
+                    return false;
+                  });
+                  
+                  if (matchingOption) {
+                    selectedValue = matchingOption.value;
+                  } else {
+                    selectedValue = currentValue;
+                  }
+                } else {
+                  selectedValue = currentValue;
+                }
+              } catch {
+                // Not valid JSON, use as-is
                 selectedValue = currentValue;
               }
-            } catch {
-              // Not valid JSON, ignore
+            } else {
+              // Plain string value
+              selectedValue = currentValue;
             }
           }
 
@@ -808,11 +895,13 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
                   try {
                     const parsed = JSON.parse(selectedValue);
                     if (parsed._listRow && parsed.rowData) {
-                      // Store the full row object in answers
+                      // Store both the JSON string (for Select matching) and the row object (for form submission)
+                      // This ensures the Select value always matches an option
                       handleFieldChange(field.id, {
                         _listRow: true,
                         listId: field.listId,
-                        rowData: parsed.rowData
+                        rowData: parsed.rowData,
+                        _selectValue: selectedValue // Store the exact option value for matching
                       });
                     } else {
                       handleFieldChange(field.id, selectedValue);
