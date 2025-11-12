@@ -20,7 +20,8 @@ import {
   Package,
   Database,
   FileBarChart,
-  Globe
+  Globe,
+  BookOpen
 } from 'lucide-react';
 
 interface ProfileDropdownProps {
@@ -129,6 +130,11 @@ export const ProfileDropdown: React.FC<ProfileDropdownProps> = React.memo(({ cla
     setIsOpen(false);
   };
 
+  const handleGoToUniversInstructions = () => {
+    navigate('/directeur/univers/instructions');
+    setIsOpen(false);
+  };
+
   const hasDirectorAccess = hasDirectorDashboardAccess();
 
   // Determine which menu item is currently active
@@ -148,6 +154,9 @@ export const ProfileDropdown: React.FC<ProfileDropdownProps> = React.memo(({ cla
     if (path === '/reports') {
       // Also highlight for report pages
       return location.pathname === path || location.pathname.startsWith('/reports/');
+    }
+    if (path === '/directeur/univers/instructions') {
+      return location.pathname === path;
     }
     return location.pathname === path;
   };
@@ -322,6 +331,20 @@ export const ProfileDropdown: React.FC<ProfileDropdownProps> = React.memo(({ cla
                   )}
                   <FileBarChart className="h-4 w-4 text-gray-400" />
                   <span>Rapports</span>
+                </button>
+              )}
+
+              {/* Instructions Programmées (pour les directeurs avec univers actif) */}
+              {user.role === 'directeur' && activeUniversId && (
+                <button
+                  onClick={handleGoToUniversInstructions}
+                  className={`w-full px-4 py-2 text-left text-sm flex items-center space-x-2 relative ${getActiveStyles('/directeur/univers/instructions')}`}
+                >
+                  {isActive('/directeur/univers/instructions') && (
+                    <div className="absolute left-0 top-1/2 transform -translate-y-1/2 w-1 h-6 rounded-r-full" style={{ backgroundColor: '#2A6AEE' }}></div>
+                  )}
+                  <BookOpen className="h-4 w-4 text-gray-400" />
+                  <span>Instructions Programmées</span>
                 </button>
               )}
 

@@ -21,6 +21,7 @@ import { TextExtractionReviewModal } from './TextExtractionReviewModal';
 import { UserSessionService } from '@ubora/shared/services/userSessionService';
 import { listsService } from '@ubora/shared/services/listsService';
 import { List, ListRow } from '../types';
+import { useApp } from '@ubora/shared/contexts/AppContext';
 
 // Helper function to convert field IDs back to user-friendly field names in formulas
 const convertFormulaToUserFriendly = (formula: string, fields: FormField[]): string => {
@@ -66,6 +67,7 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
 }: DynamicFormProps) => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { activeUniversId } = useApp();
   const { showError, showSuccess } = useToast();
   const [answers, setAnswers] = useState<Record<string, unknown>>(initialAnswers);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -73,6 +75,7 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
   const [uploadProgress, setUploadProgress] = useState<Record<string, UploadProgress>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [visibleFields, setVisibleFields] = useState<string[]>(form.fields.map((f: FormField) => f.id));
+  const [fileUploadAccess, setFileUploadAccess] = useState<{ canRead: boolean; canWrite: boolean; source: string } | null>(null);
   
   // Lists state for select fields using Lists
   // Use Map for O(1) lookup and Set for O(1) loading state checks
@@ -92,6 +95,32 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
 
   // Draft persistence to avoid data loss on re-mounts
   const { loadDraft, saveDraftDebounced } = useFormDraft<Record<string, unknown>>(form.id, user?.uid);
+
+  // Charger les permissions d'upload de fichiers
+  useEffect(() => {
+    const loadFileUploadAccess = async () => {
+      if (!user) {
+        setFileUploadAccess({ canRead: false, canWrite: false, source: 'none' });
+        return;
+      }
+
+      try {
+        const access = await UserSessionService.canUseFileUploadsAsync(user, activeUniversId);
+        setFileUploadAccess(access);
+      } catch (error) {
+        console.error('Erreur lors du chargement des permissions:', error);
+        // Fallback sur la version synchrone
+        const canUpload = UserSessionService.canUseFileUploads(user);
+        setFileUploadAccess({ 
+          canRead: canUpload, 
+          canWrite: canUpload, 
+          source: canUpload ? 'package' : 'none' 
+        });
+      }
+    };
+
+    loadFileUploadAccess();
+  }, [user, activeUniversId]);
 
   // Load lists for select fields that use Lists (with caching, lazy loading, and error handling)
   useEffect(() => {
@@ -824,9 +853,14 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
         );
       
       case 'file': {
-        // If current user's package doesn't allow file uploads, render info instead of input
-        const canUpload = user ? UserSessionService.canUseFileUploads(user) : false;
-        if (!canUpload) {
+        // Vérifier les permissions d'upload (read/write)
+        const access = fileUploadAccess || { canRead: false, canWrite: false, source: 'none' };
+        const canRead = access.canRead;
+        const canWrite = access.canWrite;
+        const source = access.source;
+
+        // Si pas d'accès en lecture, afficher un message
+        if (!canRead) {
           return (
             <div key={field.id} className="space-y-1">
               <label className="block text-sm font-medium text-gray-700">
@@ -861,6 +895,66 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
             </div>
           );
         }
+
+        // Si accès en lecture mais pas en écriture (read-only via univers)
+        if (canRead && !canWrite) {
+          const fileAnswer = answers[field.id] as {
+            fileName?: string;
+            fileSize?: number;
+            uploaded?: boolean;
+            url?: string;
+          } | null | undefined;
+
+          // Si un fichier existe déjà, l'afficher en lecture seule
+          if (fileAnswer?.uploaded || fileAnswer?.url) {
+            return (
+              <div key={field.id} className="space-y-2">
+                <label className="block text-sm font-medium text-gray-700">
+                  {field.label + (field.required ? ' *' : '')}
+                  <span className="ml-2 text-xs text-gray-500 italic">(Lecture seule - via univers activé)</span>
+                </label>
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                  <div className="flex items-center space-x-2">
+                    <CheckCircle className="h-4 w-4 text-blue-600" />
+                    <span className="text-sm text-gray-700">{fileAnswer.fileName || 'Fichier existant'}</span>
+                    {fileAnswer.fileSize && (
+                      <span className="text-xs text-gray-500">
+                        ({FileUploadService.formatFileSize(fileAnswer.fileSize)})
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-gray-600 mt-2">
+                    💡 Vous pouvez consulter ce fichier mais ne pouvez pas en téléverser de nouveaux. 
+                    Cette fonctionnalité est disponible via votre univers activé.
+                  </p>
+                </div>
+              </div>
+            );
+          }
+
+          // Si pas de fichier existant, afficher un message read-only
+          return (
+            <div key={field.id} className="space-y-2">
+              <label className="block text-sm font-medium text-gray-700">
+                {field.label + (field.required ? ' *' : '')}
+                <span className="ml-2 text-xs text-gray-500 italic">(Lecture seule - via univers activé)</span>
+              </label>
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-gray-600">
+                <p>
+                  💡 Ce champ est disponible en lecture seule via votre univers activé. 
+                  Vous pouvez consulter les fichiers existants mais ne pouvez pas en téléverser de nouveaux.
+                  {source === 'univers' && (
+                    <span className="block mt-1 text-xs">
+                      Pour téléverser des fichiers, mettez à niveau votre package vers Starter.
+                    </span>
+                  )}
+                </p>
+              </div>
+            </div>
+          );
+        }
+
+        // Accès complet (canWrite = true) - afficher le champ normalement
         const fileAnswer = answers[field.id] as {
           fileName?: string;
           fileSize?: number;
