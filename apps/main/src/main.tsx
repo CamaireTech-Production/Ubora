@@ -112,9 +112,31 @@ function initializeApp() {
 }
 
 // Attendre que le DOM soit prêt avant d'initialiser
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', initializeApp);
-} else {
-  // DOM déjà prêt
-  initializeApp();
+// Protection supplémentaire pour iOS
+try {
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initializeApp);
+  } else {
+    // DOM déjà prêt - initialiser immédiatement
+    initializeApp();
+  }
+} catch (initError) {
+  // En cas d'erreur critique, afficher un message
+  console.error('❌ [App] Erreur critique lors de l\'initialisation:', initError);
+  const rootElement = document.getElementById('root');
+  if (rootElement) {
+    rootElement.innerHTML = `
+      <div style="display: flex; align-items: center; justify-content: center; min-height: 100vh; background: #f3f4f6; font-family: system-ui; padding: 2rem;">
+        <div style="text-align: center; max-width: 500px;">
+          <h1 style="color: #ef4444; margin-bottom: 1rem;">Erreur de chargement</h1>
+          <p style="color: #6b7280; margin-bottom: 1rem;">
+            L'application n'a pas pu démarrer. Veuillez recharger la page.
+          </p>
+          <button onclick="window.location.reload()" style="padding: 0.75rem 1.5rem; background: #3b82f6; color: white; border: none; border-radius: 0.5rem; cursor: pointer; font-weight: 500;">
+            Recharger la page
+          </button>
+        </div>
+      </div>
+    `;
+  }
 }

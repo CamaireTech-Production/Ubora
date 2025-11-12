@@ -247,25 +247,24 @@ export default defineConfig({
   },
   plugins: [
     react(),
-    // VitePWA désactivé - on utilise notre service worker custom simple
-    // Cela évite les conflits et garantit la compatibilité iOS
+    // VitePWA - Uniquement pour le manifest, pas de service worker
+    // On utilise injectManifest avec un fichier vide pour éviter la génération
     VitePWA({
       registerType: 'prompt',
       includeAssets: ['fav-icons/favicon.ico', 'fav-icons/apple-icon.png'],
       manifest: getPWAConfig(),
-      strategies: 'generateSW',
-      injectRegister: false, // On enregistre manuellement
+      strategies: 'injectManifest', // Utiliser injectManifest pour contrôler le SW
+      injectRegister: false, // On enregistre manuellement notre service worker custom
       selfDestroying: false,
-      // Désactiver la génération du service worker - on utilise notre fichier custom
+      srcDir: 'public', // Dossier où se trouve notre sw.js
+      filename: 'sw.js', // Notre fichier custom
+      // Configuration minimale
       workbox: {
-        // Configuration minimale - le service worker custom gère tout
-        globPatterns: [],
-        skipWaiting: true,
-        clientsClaim: true
+        globPatterns: [] // Pas de precaching
       },
       devOptions: {
-        enabled: false, // Désactiver en dev pour éviter les conflits
-        type: 'module'
+        enabled: false, // Désactiver en dev
+        type: 'classic'
       }
     })
   ],
