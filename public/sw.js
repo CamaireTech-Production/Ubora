@@ -8,9 +8,6 @@ console.log('🔔 [SW] ===== UNIFIED SERVICE WORKER STARTING =====');
 let firebaseLoaded = false;
 let workboxLoaded = false;
 
-// Détection iOS
-const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent || '');
-
 // Charger les scripts de manière synchrone (importScripts doit être au niveau supérieur)
 // Mais avec gestion d'erreur pour iOS
 try {
@@ -22,10 +19,8 @@ try {
 } catch (error) {
   console.error('🔔 [SW] ❌ Failed to load Firebase scripts:', error);
   firebaseLoaded = false;
-  // Sur iOS, continuer sans Firebase
-  if (isIOS) {
-    console.warn('🍎 [SW] iOS détecté - Continuation sans Firebase');
-  }
+  // Continuer sans Firebase - l'application peut fonctionner sans
+  console.warn('🔔 [SW] Continuation sans Firebase');
 }
 
 try {
@@ -36,10 +31,8 @@ try {
 } catch (error) {
   console.error('🔔 [SW] ❌ Failed to load Workbox:', error);
   workboxLoaded = false;
-  // Sur iOS, continuer sans Workbox
-  if (isIOS) {
-    console.warn('🍎 [SW] iOS détecté - Continuation sans Workbox');
-  }
+  // Continuer sans Workbox - l'application peut fonctionner sans
+  console.warn('🔔 [SW] Continuation sans Workbox');
 }
 
 // Initialiser Firebase si chargé
@@ -98,25 +91,33 @@ if (firebaseLoaded && typeof firebase !== 'undefined') {
         lang: 'fr'
       };
       
-      // Ajouter vibrate seulement si supporté (pas iOS)
-      if (!isIOS && 'vibrate' in navigator) {
-        notificationOptions.vibrate = [200, 100, 200];
+      // Ajouter vibrate seulement si supporté
+      try {
+        if ('vibrate' in navigator) {
+          notificationOptions.vibrate = [200, 100, 200];
+        }
+      } catch (e) {
+        // Ignorer si vibrate n'est pas supporté
       }
       
-      // Ajouter actions seulement si supporté (pas iOS)
-      if (!isIOS && 'actions' in Notification.prototype) {
-        notificationOptions.actions = [
-          {
-            action: 'open',
-            title: 'Ouvrir',
-            icon: '/fav-icons/android-icon-48x48.png'
-          },
-          {
-            action: 'dismiss',
-            title: 'Ignorer',
-            icon: '/fav-icons/android-icon-48x48.png'
-          }
-        ];
+      // Ajouter actions seulement si supporté
+      try {
+        if ('actions' in Notification.prototype) {
+          notificationOptions.actions = [
+            {
+              action: 'open',
+              title: 'Ouvrir',
+              icon: '/fav-icons/android-icon-48x48.png'
+            },
+            {
+              action: 'dismiss',
+              title: 'Ignorer',
+              icon: '/fav-icons/android-icon-48x48.png'
+            }
+          ];
+        }
+      } catch (e) {
+        // Ignorer si actions ne sont pas supportées
       }
       
       console.log('🔔 [SW] Notification options:', notificationOptions);
@@ -136,15 +137,10 @@ if (firebaseLoaded && typeof firebase !== 'undefined') {
   } catch (error) {
     console.error('🔔 [SW] ❌ Firebase initialization failed:', error);
     // Continuer sans Firebase - l'application peut fonctionner sans
-    if (isIOS) {
-      console.warn('🍎 [SW] iOS - Continuation sans Firebase FCM');
-    }
+    console.warn('🔔 [SW] Continuation sans Firebase FCM');
   }
 } else {
   console.warn('🔔 [SW] ⚠️ Firebase not loaded - FCM features will be unavailable');
-  if (isIOS) {
-    console.warn('🍎 [SW] iOS - FCM non disponible (normal sur iOS)');
-  }
 }
 
 // Initialiser Workbox si chargé
@@ -175,15 +171,10 @@ if (workboxLoaded && typeof workbox !== 'undefined') {
     console.log('🔔 [SW] ✅ Workbox PWA features configured');
   } catch (error) {
     console.error('🔔 [SW] ❌ Error configuring Workbox:', error);
-    if (isIOS) {
-      console.warn('🍎 [SW] iOS - Workbox configuration échouée, continuation sans cache avancé');
-    }
+    console.warn('🔔 [SW] Continuation sans cache avancé');
   }
 } else {
   console.warn('🔔 [SW] ⚠️ Workbox not loaded - PWA caching features will be limited');
-  if (isIOS) {
-    console.warn('🍎 [SW] iOS - Workbox non disponible, utilisation du cache de base');
-  }
   
   // Fallback: Basic fetch handler pour le caching
   self.addEventListener('fetch', (event) => {
@@ -252,10 +243,8 @@ self.addEventListener('message', (event) => {
 // Handle service worker updates
 self.addEventListener('install', (event) => {
   console.log('🔔 [SW] Service worker installing...');
-  // Force activation immediately on iOS
-  if (isIOS) {
-    self.skipWaiting();
-  }
+  // Force activation immediately pour éviter les problèmes
+  self.skipWaiting();
 });
 
 self.addEventListener('activate', (event) => {
