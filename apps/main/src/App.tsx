@@ -178,17 +178,31 @@ const SafeConversationProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   }
 };
 
+// Système de débogage visuel pour App.tsx
+function appDebug(message: string) {
+  const overlay = document.getElementById('debug-overlay');
+  if (overlay) {
+    const existing = overlay.innerHTML;
+    overlay.innerHTML = existing + `<div style="margin:0.25rem 0;padding:0.25rem;background:#111;border-left:3px solid #0f0;">[App] ${message}</div>`;
+  }
+  console.log(`[App] ${message}`);
+}
+
 function App() {
-  return (
-    <ErrorBoundary>
-      <SafeAuthProvider>
-        <SafeAIResponseProvider>
-          <SafeAppProvider>
-            <SafeConversationProvider>
-              <Router>
-              <ServiceWorkerMessageHandler />
-              <AuthenticatedServices />
-              <PWAUpdateNotification />
+  try {
+    appDebug('🚀 App() appelé');
+    appDebug('📦 Création des providers');
+    
+    return (
+      <ErrorBoundary>
+        <SafeAuthProvider>
+          <SafeAIResponseProvider>
+            <SafeAppProvider>
+              <SafeConversationProvider>
+                <Router>
+                <ServiceWorkerMessageHandler />
+                <AuthenticatedServices />
+                <PWAUpdateNotification />
               <Routes>
                 {/* Page de connexion */}
                 <Route path="/login" element={<LoginPage />} />
@@ -557,7 +571,20 @@ function App() {
         </SafeAIResponseProvider>
       </SafeAuthProvider>
     </ErrorBoundary>
-  );
+    );
+  } catch (error) {
+    appDebug(`❌ ERREUR dans App(): ${error}`);
+    return (
+      <div style={{ padding: '2rem', textAlign: 'center', background: '#fee', color: '#c00' }}>
+        <h1>Erreur dans App()</h1>
+        <p>{String(error)}</p>
+        <pre style={{ textAlign: 'left', background: '#fdd', padding: '1rem', margin: '1rem 0', overflow: 'auto' }}>
+          {error instanceof Error ? error.stack : String(error)}
+        </pre>
+        <button onClick={() => window.location.reload()}>Recharger</button>
+      </div>
+    );
+  }
 }
 
 // Composant pour rediriger selon le rôle (NO ADMIN REDIRECT - admin app handles that)
