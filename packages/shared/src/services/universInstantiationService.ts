@@ -98,20 +98,40 @@ class UniversInstantiationService {
   }
   /**
    * Instantiate Forms from FormDefinitions
+   * Maps listId in form fields to the new instance list IDs
    */
   async instantiateForms(
     formDefinitions: FormDefinition[],
-    params: InstantiationParams
+    params: InstantiationParams,
+    listIdMappings?: Map<string, string> // Map<definitionListId, instanceListId>
   ): Promise<string[]> {
     const createdFormIds: string[] = [];
 
     for (const formDef of formDefinitions) {
       try {
+        // Map listId in fields to new instance IDs if mappings provided
+        const mappedFields = (formDef.fields || []).map((field: any) => {
+          // If field uses a list and we have mappings, update the listId
+          if (field.type === 'select' && field.listId && listIdMappings) {
+            const newListId = listIdMappings.get(field.listId);
+            if (newListId) {
+              console.log(`🔄 Mapping listId in form "${formDef.title}" field "${field.label}": ${field.listId} → ${newListId}`);
+              return {
+                ...field,
+                listId: newListId
+              };
+            } else {
+              console.warn(`⚠️ No mapping found for listId ${field.listId} in form "${formDef.title}" field "${field.label}"`);
+            }
+          }
+          return field;
+        });
+
         // Create a Form from FormDefinition
         const formData: any = {
           title: formDef.title,
           description: formDef.description || '',
-          fields: formDef.fields || [],
+          fields: mappedFields,
           createdBy: params.userId,
           createdByRole: params.userRole === 'admin' ? 'directeur' : params.userRole as 'directeur' | 'employe',
           assignedTo: [], // Empty by default - user will assign later
@@ -512,10 +532,25 @@ class UniversInstantiationService {
       lists: new Map<string, string>()
     };
 
-    // Instantiate Forms (must be first)
+    // CRITIQUE: Instantiate Lists FIRST (before forms) so we can map listId in form fields
+    if (definitions.lists && definitions.lists.length > 0) {
+      try {
+        result.lists = await this.instantiateLists(definitions.lists, params);
+        // Populate list ID mappings
+        definitions.lists.forEach((listDef, index) => {
+          idMappings.lists.set(listDef.id, result.lists[index]);
+        });
+        console.log(`✅ Instantiated ${result.lists.length} lists (before forms for listId mapping)`);
+      } catch (error) {
+        console.error('❌ Error instantiating lists:', error);
+        throw error;
+      }
+    }
+
+    // Instantiate Forms (after lists so we can map listId in fields)
     if (definitions.forms && definitions.forms.length > 0) {
       try {
-        result.forms = await this.instantiateForms(definitions.forms, params);
+        result.forms = await this.instantiateForms(definitions.forms, params, idMappings.lists);
         // Populate form ID mappings
         definitions.forms.forEach((formDef, index) => {
           idMappings.forms.set(formDef.id, result.forms[index]);
@@ -538,21 +573,6 @@ class UniversInstantiationService {
         console.log(`✅ Instantiated ${result.dashboards.length} dashboards`);
       } catch (error) {
         console.error('❌ Error instantiating dashboards:', error);
-        throw error;
-      }
-    }
-
-    // Instantiate Lists
-    if (definitions.lists && definitions.lists.length > 0) {
-      try {
-        result.lists = await this.instantiateLists(definitions.lists, params);
-        // Populate list ID mappings
-        definitions.lists.forEach((listDef, index) => {
-          idMappings.lists.set(listDef.id, result.lists[index]);
-        });
-        console.log(`✅ Instantiated ${result.lists.length} lists`);
-      } catch (error) {
-        console.error('❌ Error instantiating lists:', error);
         throw error;
       }
     }

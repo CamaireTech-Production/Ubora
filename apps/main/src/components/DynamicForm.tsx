@@ -94,7 +94,7 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
   }>({ isOpen: false, fieldId: null, fileName: undefined, text: '' });
 
   // Draft persistence to avoid data loss on re-mounts
-  const { loadDraft, saveDraftDebounced } = useFormDraft<Record<string, unknown>>(form.id, user?.uid);
+  const { loadDraft, saveDraftDebounced } = useFormDraft<Record<string, unknown>>(form.id, user?.id);
 
   // Charger les permissions d'upload de fichiers
   useEffect(() => {
@@ -154,6 +154,16 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
           try {
             const list = await listsService.getById(listId);
             if (list) {
+              // Vérifier que la liste a des rows
+              const rowsCount = Array.isArray(list.rows) ? list.rows.length : 0;
+              const fieldLabel = form.fields.find(f => f.listId === listId)?.label || 'inconnu';
+              
+              if (rowsCount === 0) {
+                console.warn(`⚠️ List "${list.name}" (${listId}) chargée pour le champ "${fieldLabel}" mais n'a pas de rows`);
+              } else {
+                console.log(`✅ List "${list.name}" (${listId}) chargée pour le champ "${fieldLabel}": ${list.columns.length} colonnes, ${rowsCount} rows`);
+              }
+              
               setLoadedLists(prev => new Map(prev).set(listId, list));
             } else {
               console.warn(`List ${listId} not found`);
@@ -410,7 +420,6 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
       if (!userDoc.exists()) {
         throw new Error('User data not found');
       }
-      const userData = userDoc.data();
 
       // Update progress
       setUploadProgress(prev => ({
@@ -770,7 +779,6 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
             // It's already a list row object, convert back to option value for display
             const rowData = (currentValue as any).rowData;
             if (rowData) {
-              const displayValue = String(rowData[displayColumn.id] || '');
               selectedValue = JSON.stringify({ _listRow: true, listId: field.listId, rowData });
             }
           } else if (typeof currentValue === 'string' && currentValue.startsWith('{')) {
