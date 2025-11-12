@@ -70,7 +70,35 @@ export const FormEditor: React.FC<FormEditorProps> = ({
   const { toast, showSuccess, showError } = useToast();
   const { user } = useAuth();
   const { activeUniversId, activeInstanceId } = useApp();
-  const canUseFileUploads = user ? UserSessionService.canUseFileUploads(user) : false;
+  const [fileUploadAccess, setFileUploadAccess] = useState<{ canRead: boolean; canWrite: boolean; source: string } | null>(null);
+  
+  // Charger les permissions d'upload de fichiers
+  useEffect(() => {
+    const loadFileUploadAccess = async () => {
+      if (!user) {
+        setFileUploadAccess({ canRead: false, canWrite: false, source: 'none' });
+        return;
+      }
+
+      try {
+        const access = await UserSessionService.canUseFileUploadsAsync(user, activeUniversId);
+        setFileUploadAccess(access);
+      } catch (error) {
+        console.error('Erreur lors du chargement des permissions:', error);
+        // Fallback sur la version synchrone
+        const canUpload = UserSessionService.canUseFileUploads(user);
+        setFileUploadAccess({ 
+          canRead: canUpload, 
+          canWrite: canUpload, 
+          source: canUpload ? 'package' : 'none' 
+        });
+      }
+    };
+
+    loadFileUploadAccess();
+  }, [user, activeUniversId]);
+
+  const canUseFileUploads = fileUploadAccess?.canWrite ?? false;
   
   // Lists state for select fields
   const [availableLists, setAvailableLists] = useState<List[]>([]);
@@ -385,17 +413,23 @@ export const FormEditor: React.FC<FormEditorProps> = ({
     // Validation avec messages d'erreur détaillés
     const validationErrors: string[] = [];
     
-    // Package-based restriction: block file fields for packages without uploads
+    // Package-based restriction: block file fields for packages without write access
+    // Si l'utilisateur a read-only (via univers), il ne peut pas créer/modifier des champs file
     if (!canUseFileUploads) {
       const hasFileFields = fields.some(f => f.type === 'file');
       if (hasFileFields) {
-        // Role-specific validation errors
-        if (user?.role === 'directeur') {
-          validationErrors.push('Votre package actuel ne permet pas les champs de type Fichier. Supprimez-les ou mettez à niveau votre package vers Starter.');
-        } else if (user?.role === 'employe' && user?.hasDirectorDashboardAccess) {
-          validationErrors.push('Votre package actuel ne permet pas les champs de type Fichier. Contactez votre directeur pour mettre à niveau le package.');
+        // Vérifier si c'est read-only via univers
+        if (fileUploadAccess?.canRead && !fileUploadAccess?.canWrite && fileUploadAccess?.source === 'univers') {
+          validationErrors.push('Vous ne pouvez pas créer ou modifier des champs de type Fichier. Cette fonctionnalité est disponible en lecture seule via votre univers activé. Pour créer/modifier des champs de fichiers, mettez à niveau votre package vers Starter.');
         } else {
-          validationErrors.push('Les champs de type Fichier ne sont pas disponibles pour votre rôle. Contactez votre directeur.');
+          // Role-specific validation errors
+          if (user?.role === 'directeur') {
+            validationErrors.push('Votre package actuel ne permet pas les champs de type Fichier. Supprimez-les ou mettez à niveau votre package vers Starter.');
+          } else if (user?.role === 'employe' && user?.hasDirectorDashboardAccess) {
+            validationErrors.push('Votre package actuel ne permet pas les champs de type Fichier. Contactez votre directeur pour mettre à niveau le package.');
+          } else {
+            validationErrors.push('Les champs de type Fichier ne sont pas disponibles pour votre rôle. Contactez votre directeur.');
+          }
         }
       }
     }
@@ -810,7 +844,15 @@ export const FormEditor: React.FC<FormEditorProps> = ({
                         <Select
                           label="Type de champ"
                           value={field.type}
-                          onChange={(e) => updateField(field.id, { type: e.target.value as FormField['type'] })}
+                          onChange={(e) => {
+                            const newType = e.target.value as FormField['type'];
+                            // Bloquer le changement vers 'file' si pas de permission write
+                            if (newType === 'file' && !canUseFileUploads) {
+                              showError('Vous ne pouvez pas créer des champs de type Fichier. Cette fonctionnalité nécessite un package Starter ou supérieur.');
+                              return;
+                            }
+                            updateField(field.id, { type: newType });
+                          }}
                           options={[
                             { value: 'text', label: 'Texte' },
                             { value: 'number', label: 'Nombre' },
@@ -819,7 +861,7 @@ export const FormEditor: React.FC<FormEditorProps> = ({
                             { value: 'textarea', label: 'Texte long' },
                             { value: 'select', label: 'Liste déroulante' },
                             { value: 'checkbox', label: 'Case à cocher' },
-                            { value: 'file', label: 'Fichier' },
+                            ...(canUseFileUploads ? [{ value: 'file', label: 'Fichier' }] : []),
                             { value: 'calculated', label: 'Champ calculé' },
                           ]}
                         />

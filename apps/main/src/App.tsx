@@ -26,6 +26,7 @@ import { ScheduledQuestionChatPage } from './pages/ScheduledQuestionChatPage';
 import { ProgrammedInstructionsRoute } from './components/ProgrammedInstructionsRoute';
 import { UniversPage } from './pages/UniversPage';
 import { UniversCreatePage } from './pages/UniversCreatePage';
+import { UniversInstructionsPage } from './pages/UniversInstructionsPage';
 import { UniversCreateFromTemplatePage } from './pages/UniversCreateFromTemplatePage';
 import { UniversEditPage } from './pages/UniversEditPage';
 import { UniversViewPage } from './pages/UniversViewPage';
@@ -442,6 +443,18 @@ function App() {
                       requireDirectorDashboardAccess={true}
                     >
                       <ReportsPage />
+                    </ProtectedRoute>
+                  } 
+                />
+                
+                {/* Instructions Programmées - Main page */}
+                <Route 
+                  path="/directeur/univers/instructions" 
+                  element={
+                    <ProtectedRoute 
+                      allowedRoles={['directeur']}
+                    >
+                      <UniversInstructionsPage />
                     </ProtectedRoute>
                   } 
                 />

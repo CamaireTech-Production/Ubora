@@ -2,6 +2,7 @@ import { User } from '../types';
 import { SubscriptionSessionService } from './subscriptionSessionService';
 import { SubscriptionSessionCollectionService } from './subscriptionSessionCollectionService';
 import { PACKAGE_LIMITS, PACKAGE_FEATURES, PackageType } from '../config/packageFeatures';
+import { FeatureAccessService } from './featureAccessService';
 
 export interface UserPackageInfo {
   packageType: PackageType | null;
@@ -398,61 +399,29 @@ export class UserSessionService {
   /**
    * Check if user/package can use file uploads in forms (images/PDF)
    * Directors and employees with director access inherit director's package
+   * 
+   * NOTE: Cette méthode est synchrone pour compatibilité. Pour avoir les détails
+   * (read/write), utilisez FeatureAccessService.canUseFileUploadsAsync()
    */
   static canUseFileUploads(user: User): boolean {
-    if (user.role !== 'directeur' && !(user.role === 'employe' && user.hasDirectorDashboardAccess)) {
-      return false;
-    }
+    // Utiliser le nouveau service pour la vérification de base
+    return FeatureAccessService.canUseFileUploads(user);
+  }
 
-    // For directors, get their own session
-    if (user.role === 'directeur') {
-      // Try to get session from new collection service first, fallback to legacy
-    let currentSession = null;
-    if (user.currentSubscriptionSessionId) {
-      // For async version, we'll need to make this method async
-      // For now, use sync fallback
-      currentSession = SubscriptionSessionService.getCurrentSessionSync(user);
-    } else {
-      currentSession = SubscriptionSessionService.getCurrentSessionSync(user);
-    }
-      if (!currentSession) {
-        return false;
-      }
-      const features = PACKAGE_FEATURES[currentSession.packageType];
-      return !!features && (features as any).allowFileUploads === true;
-    }
-
-    // For employees with director access, check if they have legacy package info
-    // This indicates they inherit the director's package permissions
-    if (user.role === 'employe' && user.hasDirectorDashboardAccess) {
-      // Check legacy package field first (fallback for employees with director access)
-      if (user.package && ['starter', 'standard', 'premium'].includes(user.package)) {
-        const features = PACKAGE_FEATURES[user.package as PackageType];
-        return !!features && (features as any).allowFileUploads === true;
-      }
-
-      // If no legacy package info, check if they have their own subscription session
-      // Try to get session from new collection service first, fallback to legacy
-    let currentSession = null;
-    if (user.currentSubscriptionSessionId) {
-      // For async version, we'll need to make this method async
-      // For now, use sync fallback
-      currentSession = SubscriptionSessionService.getCurrentSessionSync(user);
-    } else {
-      currentSession = SubscriptionSessionService.getCurrentSessionSync(user);
-    }
-      if (currentSession) {
-        const features = PACKAGE_FEATURES[currentSession.packageType];
-        return !!features && (features as any).allowFileUploads === true;
-      }
-
-      // If no session found, assume they inherit director's permissions
-      // This is a fallback - in practice, employees with director access should have
-      // either legacy package info or their own session
-      return true; // Allow file uploads as they inherit director's permissions
-    }
-
-    return false;
+  /**
+   * Check file upload access with detailed information (async)
+   * Returns FeatureAccess with canRead/canWrite flags
+   */
+  static async canUseFileUploadsAsync(
+    user: User,
+    activeUniversId?: string | null
+  ): Promise<{ canRead: boolean; canWrite: boolean; source: string }> {
+    const access = await FeatureAccessService.canUseFileUploadsAsync(user, activeUniversId);
+    return {
+      canRead: access.canRead,
+      canWrite: access.canWrite,
+      source: access.source
+    };
   }
 
   /**
