@@ -44,7 +44,7 @@ if (!AI_ENDPOINT) {
 
 export const DirecteurChat: React.FC = () => {
   const navigate = useNavigate();
-  const { user, firebaseUser, isLoading, logout } = useAuth();
+  const { user, firebaseUser, isLoading, logout, refreshUserData } = useAuth();
   const { forms, formEntries, employees, isLoading: appLoading } = useApp();
   const { setAIResponseActive } = useAIResponse();
   
@@ -534,8 +534,9 @@ RÉPONSE :
       activeRequestIdRef.current = null;
       
       // Update connection quality based on response time
-      const responseTime = Date.now() - startTime;
-      updateQuality(responseTime);
+      // Connection quality tracking is disabled to prevent reloads
+      // const responseTime = Date.now() - startTime;
+      // updateQuality(responseTime);
       
       // Remove loading message from local state
       if (currentConversation) {

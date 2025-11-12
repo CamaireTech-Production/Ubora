@@ -247,23 +247,26 @@ export default defineConfig({
   },
   plugins: [
     react(),
-    // VitePWA - Uniquement pour le manifest, pas de service worker
-    // On utilise injectManifest avec un fichier vide pour éviter la génération
+    // VitePWA - Uniquement pour le manifest
+    // Le service worker custom (public/sw.js) sera copié automatiquement via publicDir
     VitePWA({
       registerType: 'prompt',
       includeAssets: ['fav-icons/favicon.ico', 'fav-icons/apple-icon.png'],
       manifest: getPWAConfig(),
-      strategies: 'injectManifest', // Utiliser injectManifest pour contrôler le SW
+      strategies: 'generateSW',
       injectRegister: false, // On enregistre manuellement notre service worker custom
       selfDestroying: false,
-      srcDir: 'public', // Dossier où se trouve notre sw.js
-      filename: 'sw.js', // Notre fichier custom
-      // Configuration minimale
+      // Configuration pour générer un service worker minimal (sera ignoré)
+      // Notre fichier /public/sw.js sera copié dans dist/ via publicDir
       workbox: {
-        globPatterns: [] // Pas de precaching
+        globPatterns: [], // Pas de precaching
+        disableDevLogs: true,
+        // Générer un service worker minimal qui sera ignoré
+        // Notre sw.js custom sera utilisé à la place
+        swDest: 'sw-generated.js' // Nom différent pour éviter le conflit
       },
       devOptions: {
-        enabled: false, // Désactiver en dev
+        enabled: false,
         type: 'classic'
       }
     })

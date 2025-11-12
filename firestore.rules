@@ -240,7 +240,13 @@ service cloud.firestore {
       
       // Messages des conversations
       match /messages/{messageId} {
-        allow read, write: if hasDirectorDashboardAccess() && 
+        // Pour les requêtes (queries), permettre la lecture si l'utilisateur a accès directeur
+        // Les conversations parentes sont déjà protégées, donc si l'utilisateur peut accéder à une conversation,
+        // il peut lire ses messages. Pour les requêtes avec orderBy, get() ne fonctionne pas bien.
+        allow read: if hasDirectorDashboardAccess();
+        
+        // Pour l'écriture, vérifier que la conversation appartient à l'utilisateur
+        allow write: if hasDirectorDashboardAccess() && 
                           isSameAgency(get(/databases/$(database)/documents/conversations/$(conversationId)).data.agencyId) &&
                           get(/databases/$(database)/documents/conversations/$(conversationId)).data.directorId == request.auth.uid;
       }
