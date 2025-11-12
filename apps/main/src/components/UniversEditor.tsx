@@ -535,10 +535,11 @@ export const UniversEditor: React.FC<UniversEditorProps> = ({
         };
 
         await onSave(updatedUnivers, true, false);
+        // Mettre à jour les états seulement si la sauvegarde a réussi
         setHasChanges(false);
         // Mettre à jour localHasUnpublishedChanges après sauvegarde du draft
         setLocalHasUnpublishedChanges(true);
-        showSuccess('Brouillon sauvegardé avec succès. Vous pouvez tester vos modifications avant de les publier.');
+        // Le toast de succès est géré dans UniversEditPage
         return;
       }
       

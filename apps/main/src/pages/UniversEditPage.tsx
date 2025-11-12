@@ -80,6 +80,8 @@ export const UniversEditPage: React.FC = () => {
           if (updatedUniversData) {
             setUnivers(updatedUniversData as any);
           }
+          // Afficher le toast de succès
+          showSuccess('Brouillon sauvegardé avec succès. Vous pouvez tester vos modifications avant de les publier.');
           // Ne pas naviguer, permettre à l'utilisateur de continuer à éditer
           return;
         } else if (publishToMarketplace) {
