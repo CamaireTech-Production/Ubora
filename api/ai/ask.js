@@ -9,6 +9,7 @@ import { adminAuth, adminDb } from '../lib/firebaseAdmin.js';
 import admin from 'firebase-admin';
 import OpenAI from 'openai';
 import { TokenCounter } from '../lib/tokenCounter.js';
+import { searchAndFormatForAI } from '../lib/vectorSearch.js';
 
 // Configuration OpenAI
 const openai = new OpenAI({
@@ -709,24 +710,102 @@ export default async function handler(req, res) {
     // Initialize existingConversationContext at function scope
     let existingConversationContext = null;
 
-    // 4. Chargement et agrégation des données
-    let data;
+    // 4. Recherche vectorielle pour données pertinentes (REMPLACEMENT DE loadAndAggregateData)
+    const { start, end, label } = getPeriodDates(filters?.period || 'all');
+    
+    console.log('🔍 [ask.js] Searching vectors for relevant chunks...');
+    let vectorSearchResults;
     try {
-      data = await loadAndAggregateData(
-        userData.agencyId,
-        filters?.period,
-        filters?.formId,
-        filters?.userId,
-        selectedFormats,
-        uid, // directorId
-        userData.role // userRole
-      );
-    } catch (dataError) {
-      return res.status(500).json({ 
-        error: 'Erreur lors du chargement des données',
-        code: 'DATA_LOAD_ERROR',
-        details: dataError.message
+      vectorSearchResults = await searchAndFormatForAI(question, {
+        agencyId: userData.agencyId,
+        directorId: uid, // For active Univers filtering
+        formId: filters?.formId || null,
+        userId: filters?.userId || null,
+        period: { start, end },
+        limit: 15, // Get top 15 most relevant chunks
+        scoreThreshold: 0.5, // Minimum relevance score
       });
+    } catch (vectorError) {
+      console.error('❌ [ask.js] Vector search failed:', vectorError);
+      return res.status(500).json({ 
+        error: 'Erreur lors de la recherche vectorielle',
+        code: 'VECTOR_SEARCH_ERROR',
+        details: vectorError.message
+      });
+    }
+
+    // Créer structure de données compatible avec le reste du code
+    let data;
+    if (!vectorSearchResults.hasResults) {
+      // Pas de résultats - créer structure vide
+      data = {
+        period: { start, end, label },
+        totals: {
+          entries: 0,
+          uniqueUsers: 0,
+          uniqueForms: 0,
+          totalUsers: 0,
+          totalForms: 0
+        },
+        submissions: [],
+        userStats: [],
+        formStats: [],
+        timeline: [],
+        todaySubmissions: [],
+        thisWeekSubmissions: [],
+        formsById: new Map(),
+        usersById: new Map()
+      };
+    } else {
+      // Construire structure de données à partir des résultats vectoriels
+      const uniqueEntries = new Map();
+      vectorSearchResults.chunks.forEach(chunk => {
+        const entryId = chunk.metadata.entryId;
+        if (!uniqueEntries.has(entryId)) {
+          uniqueEntries.set(entryId, {
+            id: entryId,
+            formTitle: chunk.metadata.formTitle,
+            employeeName: chunk.metadata.employeeName,
+            submittedAt: chunk.metadata.submittedAt,
+            formId: chunk.metadata.formId,
+            userId: chunk.metadata.userId,
+            fileAttachments: chunk.metadata.fileName ? [{
+              fileName: chunk.metadata.fileName,
+              fileType: chunk.metadata.fileType,
+              extractedText: chunk.text
+            }] : []
+          });
+        }
+      });
+
+      const submissions = Array.from(uniqueEntries.values());
+      const uniqueUsers = [...new Set(submissions.map(s => s.userId).filter(Boolean))];
+      const uniqueForms = [...new Set(submissions.map(s => s.formId).filter(Boolean))];
+
+      data = {
+        period: { start, end, label },
+        totals: {
+          entries: submissions.length,
+          uniqueUsers: uniqueUsers.length,
+          uniqueForms: uniqueForms.length,
+          totalUsers: uniqueUsers.length,
+          totalForms: uniqueForms.length
+        },
+        submissions: submissions,
+        userStats: [],
+        formStats: [],
+        timeline: [],
+        todaySubmissions: submissions.filter(s => {
+          const date = new Date(s.submittedAt);
+          return date.toDateString() === new Date().toDateString();
+        }),
+        thisWeekSubmissions: submissions.filter(s => {
+          const date = new Date(s.submittedAt);
+          return date >= start && date <= end;
+        }),
+        formsById: new Map(),
+        usersById: new Map()
+      };
     }
 
     // 4.5. Vérification des tokens disponibles
@@ -1643,23 +1722,25 @@ ${fieldSummary}${extractedTextSummary}`;
       }).join('\n\n');
     };
 
-    // Build the complete user message with detailed submissions data
+    // Build the complete user message with vector search results
     const buildUserMessage = () => {
       const questionText = `QUESTION : "${question}"`;
       
+      if (!vectorSearchResults.hasResults) {
+        return `${questionText}
+
+AUCUNE DONNÉE PERTINENTE TROUVÉE :
+Je n'ai pas trouvé de données pertinentes pour répondre à votre question dans la base vectorielle. Veuillez reformuler votre question ou vérifier que les données ont été synchronisées.`;
+      }
+
       const dataOverview = `
-DONNÉES DISPONIBLES :
-- ${data.totals.entries} soumissions au total
-- ${data.totals.uniqueUsers} employés actifs
-- ${data.totals.uniqueForms} formulaires utilisés
-- Période : ${data.period.label}
+DONNÉES PERTINENTES TROUVÉES (${vectorSearchResults.chunks.length} sources) :
+${vectorSearchResults.formattedText}
 
-TOP EMPLOYÉS : ${data.userStats.slice(0, 3).map(u => `${u.name} (${u.count} soumissions)`).join(', ')}
-TOP FORMULAIRES : ${data.formStats.slice(0, 3).map(f => `${f.title} (${f.count} soumissions)`).join(', ')}`;
+CITATIONS DISPONIBLES :
+${vectorSearchResults.citations.map((citation, index) => `[${index + 1}] ${citation}`).join('\n')}`;
 
-      const submissions = data.submissions.length > 0 ? 
-        buildSubmissionsData(data.submissions) : 
-        'AUCUNE SOUMISSION TROUVÉE POUR CETTE PÉRIODE';
+      const submissions = vectorSearchResults.formattedText;
 
       const tableFormatReminder = responseFormat === 'table' ? `
 
@@ -1738,7 +1819,13 @@ INSTRUCTIONS D'ANALYSE SPÉCIFIQUES :
 - OBLIGATOIRE : Calcule des totaux, moyennes, et pourcentages quand pertinent
 - OBLIGATOIRE : Structure ta réponse de manière claire et actionnable`;
 
-      return `${questionText}\n\n${dataOverview}\n\n${submissions}${tableFormatReminder}${pdfContentReminder}${imageContentReminder}${processInstructions}`;
+      return `${questionText}\n\n${dataOverview}\n\n${tableFormatReminder}${pdfContentReminder}${imageContentReminder}${processInstructions}
+
+INSTRUCTIONS :
+- Réponds à la question en utilisant UNIQUEMENT les données ci-dessus
+- Cite tes sources en utilisant les noms de formulaires ou fichiers (ex: "Selon le formulaire [nom] par [employé]...")
+- Si les données ne suffisent pas pour répondre complètement, dis-le clairement
+- Sois précis et cite les chiffres exacts trouvés dans les données`;
     };
 
     // Use the complete user message for the AI call

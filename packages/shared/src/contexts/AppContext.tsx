@@ -24,7 +24,7 @@ import { PermissionManager } from '../utils/PermissionManager';
 import { SubscriptionSessionService } from '../services/subscriptionSessionService';
 import { notificationService } from '../services/notificationService';
 import { useToast } from '../hooks/useToast';
-import { getAIFormatEndpoint, getFilesDownloadEndpoint } from '../config/api';
+import { getAIFormatEndpoint, getFilesDownloadEndpoint, getVectorSyncEndpoint } from '../config/api';
 import { universService } from '../services/universService';
 
 interface AppContextType {
@@ -843,6 +843,40 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       const docRef = await addDoc(collection(db, 'formEntries'), docData);
       console.log('✅ FormEntry created in Firebase with ID:', docRef.id);
+
+      // Step 2.5: Trigger vector sync in background (async, non-blocking)
+      const vectorSyncUrl = getVectorSyncEndpoint();
+      console.log('🔄 [VectorSync] Triggering sync for FormEntry:', docRef.id, 'URL:', vectorSyncUrl);
+      fetch(vectorSyncUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          formEntryId: docRef.id,
+          operation: 'create'
+        })
+      })
+      .then(response => {
+        if (response.ok) {
+          console.log('✅ [VectorSync] Sync request sent successfully for FormEntry:', docRef.id);
+          return response.json();
+        } else {
+          console.warn('⚠️ [VectorSync] Sync request returned error status:', response.status, 'for FormEntry:', docRef.id);
+          return response.json().catch(() => ({ error: 'Unknown error' }));
+        }
+      })
+      .then(data => {
+        if (data?.success) {
+          console.log('✅ [VectorSync] Vector sync confirmed successful for FormEntry:', docRef.id);
+        } else {
+          console.warn('⚠️ [VectorSync] Vector sync failed for FormEntry:', docRef.id, 'Error:', data?.error);
+        }
+      })
+      .catch(error => {
+        console.error('❌ [VectorSync] Vector sync request failed (non-blocking):', error, 'FormEntry:', docRef.id);
+        // Non-blocking - vector sync can be retried later
+      });
       
       // Step 3: Call format endpoint for each PDF file
       if (updatedFileAttachments.length > 0) {
@@ -953,6 +987,40 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (entryData.fileAttachments !== undefined) updateData.fileAttachments = entryData.fileAttachments;
 
       await updateDoc(doc(db, 'formEntries', entryId), updateData);
+
+      // Trigger vector sync in background (async, non-blocking)
+      const vectorSyncUrl = getVectorSyncEndpoint();
+      console.log('🔄 [VectorSync] Triggering sync for FormEntry update:', entryId, 'URL:', vectorSyncUrl);
+      fetch(vectorSyncUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          formEntryId: entryId,
+          operation: 'update'
+        })
+      })
+      .then(response => {
+        if (response.ok) {
+          console.log('✅ [VectorSync] Sync request sent successfully for FormEntry update:', entryId);
+          return response.json();
+        } else {
+          console.warn('⚠️ [VectorSync] Sync request returned error status:', response.status, 'for FormEntry:', entryId);
+          return response.json().catch(() => ({ error: 'Unknown error' }));
+        }
+      })
+      .then(data => {
+        if (data?.success) {
+          console.log('✅ [VectorSync] Vector sync confirmed successful for FormEntry update:', entryId);
+        } else {
+          console.warn('⚠️ [VectorSync] Vector sync failed for FormEntry update:', entryId, 'Error:', data?.error);
+        }
+      })
+      .catch(error => {
+        console.error('❌ [VectorSync] Vector sync request failed (non-blocking):', error, 'FormEntry:', entryId);
+        // Non-blocking - vector sync can be retried later
+      });
     } catch (err) {
       console.error('Erreur lors de la mise à jour de la réponse:', err);
       if (err instanceof Error) {
@@ -1165,6 +1233,40 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
         const docRef = await addDoc(collection(db, 'formEntries'), docData);
         console.log('✅ FormEntry created in Firebase with ID:', docRef.id);
+
+        // Step 2.5: Trigger vector sync in background (async, non-blocking)
+        const vectorSyncUrl = getVectorSyncEndpoint();
+        console.log('🔄 [VectorSync] Triggering sync for FormEntry:', docRef.id, 'URL:', vectorSyncUrl);
+        fetch(vectorSyncUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            formEntryId: docRef.id,
+            operation: 'create'
+          })
+        })
+        .then(response => {
+          if (response.ok) {
+            console.log('✅ [VectorSync] Sync request sent successfully for FormEntry:', docRef.id);
+            return response.json();
+          } else {
+            console.warn('⚠️ [VectorSync] Sync request returned error status:', response.status, 'for FormEntry:', docRef.id);
+            return response.json().catch(() => ({ error: 'Unknown error' }));
+          }
+        })
+        .then(data => {
+          if (data?.success) {
+            console.log('✅ [VectorSync] Vector sync confirmed successful for FormEntry:', docRef.id);
+          } else {
+            console.warn('⚠️ [VectorSync] Vector sync failed for FormEntry:', docRef.id, 'Error:', data?.error);
+          }
+        })
+        .catch(error => {
+          console.error('❌ [VectorSync] Vector sync request failed (non-blocking):', error, 'FormEntry:', docRef.id);
+          // Non-blocking - vector sync can be retried later
+        });
         
         // Step 3: Call format endpoint for each PDF file
         if (updatedFileAttachments.length > 0) {

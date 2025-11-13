@@ -114,18 +114,21 @@ async function processNotificationsConcurrently(notifications, processorFunction
     batches.push(notifications.slice(i, i + BATCH_SIZE));
   }
 
-  console.log(`🔄 [Cron] Processing ${notifications.length} notifications in ${batches.length} batches`);
+  // Processing notifications - detailed logs removed for verbosity
+  // Only log if there are notifications to process
+  if (notifications.length > 0) {
+    console.log(`🔄 [Cron] Processing ${notifications.length} notifications`);
+  }
 
   for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
     const batch = batches[batchIndex];
-    console.log(`📦 [Cron] Processing batch ${batchIndex + 1}/${batches.length} (${batch.length} items)`);
 
     const batchPromises = batch.map(async (notification, itemIndex) => {
       try {
         const result = await processorFunction(notification);
         results.processed++;
         results.sent += result.sent || 0;
-        console.log(`✅ [Cron] Batch ${batchIndex + 1}, Item ${itemIndex + 1}: Processed successfully`);
+        // Success log removed for verbosity
         return result;
       } catch (error) {
         results.errors++;
@@ -135,7 +138,7 @@ async function processNotificationsConcurrently(notifications, processorFunction
           batch: batchIndex + 1,
           item: itemIndex + 1
         });
-        console.error(`❌ [Cron] Batch ${batchIndex + 1}, Item ${itemIndex + 1}: Error -`, error.message);
+        console.error(`❌ [Cron] Error processing notification:`, error.message);
         return { sent: 0, error: error.message };
       }
     });
@@ -149,7 +152,10 @@ async function processNotificationsConcurrently(notifications, processorFunction
     }
   }
 
-  console.log(`📊 [Cron] Batch processing completed: ${results.processed} processed, ${results.sent} sent, ${results.errors} errors`);
+  // Only log if there were errors or notifications sent
+  if (results.errors > 0 || results.sent > 0) {
+    console.log(`📊 [Cron] Batch processing: ${results.processed} processed, ${results.sent} sent, ${results.errors} errors`);
+  }
   return results;
 }
 
@@ -167,65 +173,50 @@ export default async (req, res) => {
   }
 
   try {
-    console.log('🔄 [Cron] Starting unified notification cron job...');
-    
+    // Reduced logging - only log if there's activity
     const now = new Date();
     const oneMinuteAgo = new Date(now.getTime() - 60 * 1000);
     const oneMinuteFromNow = new Date(now.getTime() + 60 * 1000);
-    
-    // Log timezone info for debugging
-    console.log('⏰ [Cron] Timezone Debug Info:', {
-      serverTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-      serverOffset: now.getTimezoneOffset() / -60, // Convert to hours (UTC offset)
-      nowUTC: now.toISOString(),
-      nowLocal: now.toString(),
-      nowUTCString: now.toUTCString(),
-      oneMinuteFromNowUTC: oneMinuteFromNow.toISOString(),
-      oneMinuteFromNowLocal: oneMinuteFromNow.toString()
-    });
     
     let processedCount = 0;
     let sentCount = 0;
     let errorCount = 0;
 
     // 1. Process form reminders (1h, 30min, 15min, 5min before deadline)
-    console.log('📅 [Cron] Processing form reminders...');
     const formReminders = await processFormReminders(now, oneMinuteFromNow);
     processedCount += formReminders.processed;
     sentCount += formReminders.sent;
     errorCount += formReminders.errors;
 
     // 2. Process metric reminders (director-programmed)
-    console.log('📊 [Cron] Processing metric reminders...');
     const metricReminders = await processMetricReminders(now, oneMinuteFromNow);
     processedCount += metricReminders.processed;
     sentCount += metricReminders.sent;
     errorCount += metricReminders.errors;
 
     // 3. Execute due programmed instructions, then notify for ready/completed
-    console.log('🤖 [Cron] Executing due programmed instructions...');
     await executeDueProgrammedInstructions(now, oneMinuteFromNow);
-    console.log('🤖 [Cron] Processing programmed instructions...');
     const instructionReminders = await processProgrammedInstructions(now, oneMinuteFromNow);
     processedCount += instructionReminders.processed;
     sentCount += instructionReminders.sent;
     errorCount += instructionReminders.errors;
 
     // 4. Process subscription renewals
-    console.log('🔄 [Cron] Processing subscription renewals...');
     const renewalResults = await processSubscriptionRenewals(now);
     processedCount += renewalResults.processed;
     sentCount += renewalResults.renewed;
     errorCount += renewalResults.errors;
 
     // 5. Handle expired subscriptions
-    console.log('⏰ [Cron] Handling expired subscriptions...');
     const expirationResults = await handleExpiredSubscriptions(now);
     processedCount += expirationResults.processed;
     sentCount += expirationResults.expired;
     errorCount += expirationResults.errors;
 
-    console.log(`✅ [Cron] Unified notification cron job completed: ${processedCount} processed, ${sentCount} sent, ${errorCount} errors`);
+    // Only log if there's activity or errors
+    if (sentCount > 0 || errorCount > 0) {
+      console.log(`✅ [Cron] Completed: ${processedCount} processed, ${sentCount} sent, ${errorCount} errors`);
+    }
 
     return res.status(200).json({
       success: true,
@@ -257,7 +248,7 @@ async function processFormReminders(now, oneMinuteFromNow) {
 
     const remindersToProcess = [];
 
-    console.log(`📅 [Cron] Found ${formsSnapshot.docs.length} forms with deadlines to check`);
+    // Found forms with deadlines - log removed for verbosity
     if (formsSnapshot.docs.length > 0) {
       // Log a concise preview of raw deadline fields for first few forms
       const preview = formsSnapshot.docs.slice(0, 5).map((d) => {
@@ -269,7 +260,7 @@ async function processFormReminders(now, oneMinuteFromNow) {
           assignedToCount: Array.isArray(data.assignedTo) ? data.assignedTo.length : 0,
         };
       });
-      console.log('🧾 [Cron] Forms deadline preview (first 5):', preview);
+      // Forms deadline preview - log removed for verbosity
     }
 
     for (const formDoc of formsSnapshot.docs) {
@@ -281,11 +272,11 @@ async function processFormReminders(now, oneMinuteFromNow) {
       const endTime = timeRestrictions.endTime;
 
       if (assignedTo.length === 0) {
-        console.log('⏭️ [Cron] Skip form (no assigned users):', { formId: form.id, title: form.title, path: formDoc.ref.path });
+        // Skip form (no assigned users) - log removed for verbosity
         continue;
       }
       if (!endTime) {
-        console.log('⏭️ [Cron] Skip form (missing endTime):', { formId: form.id, title: form.title, path: formDoc.ref.path });
+        // Skip form (missing endTime) - log removed for verbosity
         continue;
       }
 
@@ -293,7 +284,7 @@ async function processFormReminders(now, oneMinuteFromNow) {
       const todayNum = getAfricaDoualaWeekdayNumber(now);
       const isAllowedToday = Array.isArray(allowedDays) && allowedDays.length > 0 && allowedDays.includes(todayNum);
       if (!isAllowedToday) {
-        console.log('⏭️ [Cron] Skip form (today not allowed):', { formId: form.id, title: form.title, path: formDoc.ref.path, todayNum, allowedDays });
+        // Skip form (today not allowed) - log removed for verbosity
         continue;
       }
 
@@ -302,39 +293,7 @@ async function processFormReminders(now, oneMinuteFromNow) {
       if (!deadlineDate) continue;
       const reminderIntervals = [60, 30, 15, 5]; // minutes before deadline
 
-      console.log(`📅 [Cron] Processing form "${form.title || '(no title)'}" (${form.id}):`, {
-        mode: 'timeRestrictions',
-        endTime: endTime,
-        deadlineDateLocal: deadlineDate.toString(),
-        deadlineDateUTC: deadlineDate.toISOString(),
-        deadlineDateUTCString: deadlineDate.toUTCString(),
-        allowedDays,
-        assignedUsers: assignedTo.length,
-        timezoneInfo: {
-          parsedAs: 'Interpreted in server timezone',
-          serverTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone
-        }
-      });
-
-      // Extra: show all expected reminder timestamps for this form
-      const allExpectedReminders = reminderIntervals.map((intervalMinutes) => {
-        const rt = new Date(deadlineDate.getTime() - intervalMinutes * 60 * 1000);
-        return {
-          interval: `${intervalMinutes}min`,
-          reminderTimeUTC: rt.toISOString(),
-          reminderTimeLocal: rt.toString(),
-          // Membership against current strict window used by the cron
-          inCurrentWindow: rt >= now && rt <= oneMinuteFromNow,
-          diffFromNowMin: (rt.getTime() - now.getTime()) / (60 * 1000),
-        };
-      });
-      console.log('🧭 [Cron] Expected reminder times for form:', {
-        formId: form.id,
-        title: form.title,
-        reminders: allExpectedReminders,
-        windowNowUTC: now.toISOString(),
-        windowEndUTC: oneMinuteFromNow.toISOString(),
-      });
+      // Processing form - detailed logs removed for verbosity
 
       // Use widened window for 2-min cadence
       const windowStart = new Date(now.getTime() - 60 * 1000);
@@ -350,24 +309,7 @@ async function processFormReminders(now, oneMinuteFromNow) {
           const ninetySeconds = 90 * 1000;
           const windowStartTolerance = new Date(now.getTime() - ninetySeconds);
           const windowEndTolerance = new Date(oneMinuteFromNow.getTime() + ninetySeconds);
-          if (shouldSend || intervalMinutes === 5) { // Log 5min reminder checks even if not due
-            console.log(`📅 [Cron] Reminder check for form "${form.title}":`, {
-              intervalMinutes: `${intervalMinutes}min`,
-              deadlineUTC: deadlineDate.toISOString(),
-              reminderTimeUTC: reminderTime.toISOString(),
-              reminderTimeLocal: reminderTime.toString(),
-              windowStartUTC: windowStart.toISOString(),
-              windowEndUTC: windowEnd.toISOString(),
-              timeDiffMinutes: (reminderTime.getTime() - now.getTime()) / (60 * 1000),
-              shouldSend: shouldSend,
-              check: `reminderTime (${reminderTime.toISOString()}) ∈ [${windowStart.toISOString()} , ${windowEnd.toISOString()}]`,
-              toleranceWindow: {
-                startUTC: windowStartTolerance.toISOString(),
-                endUTC: windowEndTolerance.toISOString(),
-                inTolerance: reminderTime >= windowStartTolerance && reminderTime <= windowEndTolerance,
-              }
-            });
-          }
+          // Reminder check - detailed logs removed for verbosity (only log if actually sending)
           
           // Check if this reminder should be sent now
           if (shouldSend) {
@@ -383,20 +325,15 @@ async function processFormReminders(now, oneMinuteFromNow) {
       }
     }
 
-    console.log(`📅 [Cron] Reminder collection complete. Total reminders to check: ${remindersToProcess.length}`);
-    
     if (remindersToProcess.length === 0) {
-      console.log('📅 [Cron] No form reminders due at this time. Window checked:', {
-        nowUTC: now.toISOString(),
-        nowLocal: now.toString(),
-        oneMinuteFromNowUTC: oneMinuteFromNow.toISOString(),
-        oneMinuteFromNowLocal: oneMinuteFromNow.toString()
-      });
-      console.log('🧪 [Cron] Hint: If expected reminders are just outside this window, consider widening the check to include a small past tolerance (e.g., now-1min to now+1min) when running every 2 minutes.');
+      // No reminders due - log removed for verbosity
       return { processed: 0, sent: 0, errors: 0 };
     }
 
-    console.log(`📅 [Cron] Found ${remindersToProcess.length} form reminders to process`);
+    // Only log if there are reminders to process
+    if (remindersToProcess.length > 0) {
+      console.log(`📅 [Cron] Processing ${remindersToProcess.length} form reminders`);
+    }
 
     // Step 2: Process reminders concurrently
     const transporter = makeEmailTransporter();
@@ -443,18 +380,7 @@ async function processFormReminders(now, oneMinuteFromNow) {
 
         const docId = `form_reminder:${form.id}:${userId}:${intervalMinutes}:${atIso}`;
         await db.collection('notifications').doc(docId).set(notificationDoc, { merge: true });
-        console.log(`📅 [Cron] Form reminder stored in Firestore:`, {
-          notificationId: docId,
-          formTitle: form.title,
-          formId: form.id,
-          intervalMinutes: `${intervalMinutes}min`,
-          userId: userId,
-          recipientRole: normalizeRole(userData?.role),
-          agencyId: userData?.agencyId || 'unknown',
-          emailAddress: userData?.email || 'none',
-          notificationData: notificationDoc,
-          idempotencyKey
-        });
+        // Form reminder stored - detailed log removed for verbosity
         // Attempt email delivery (non-fatal)
         try {
           if (userData?.email) {
@@ -464,9 +390,9 @@ async function processFormReminders(now, oneMinuteFromNow) {
               intervalMinutes,
               redirectUrl: buildAbsoluteUrl(normalizeRole(userData?.role), redirectPath)
             });
-            console.log('📧 [Cron] Reminder email sent to', userData.email);
+            // Email sent - log removed for verbosity
               } else {
-            console.log('📧 [Cron] Skip email (no recipient) for user', userId);
+            // Skip email (no recipient) - log removed for verbosity
           }
         } catch (emailErr) {
           console.warn('📧 [Cron] Email send failed (non-fatal):', emailErr?.message || emailErr);
@@ -510,12 +436,7 @@ async function executeDueProgrammedInstructions(now, oneMinuteFromNow) {
       .where('scheduledAt', '<=', Timestamp.fromDate(windowEnd))
       .get();
 
-    console.log('🤖 [Cron] execute window', {
-      windowStart: windowStart.toISOString(),
-      windowEnd: windowEnd.toISOString(),
-      nextQueryCount: nextQuerySnap.size,
-      firstQueryCount: firstQuerySnap.size
-    });
+    // Execute window - log removed for verbosity
 
     const docsMap = new Map();
     nextQuerySnap.docs.forEach(d => docsMap.set(d.id, d));
@@ -523,25 +444,14 @@ async function executeDueProgrammedInstructions(now, oneMinuteFromNow) {
     const toExecute = Array.from(docsMap.values());
 
     if (toExecute.length === 0) {
-      console.log('🤖 [Cron] No pending instructions due in window', { windowStart: windowStart.toISOString(), windowEnd: windowEnd.toISOString() });
+      // No pending instructions - log removed for verbosity
       return;
     }
 
-    console.log(`🤖 [Cron] Found ${toExecute.length} pending instructions to execute`, {
-      windowStart: windowStart.toISOString(),
-      windowEnd: windowEnd.toISOString(),
-      candidates: toExecute.map(d => {
-        const q = d.data() || {};
-        return {
-          id: d.id,
-          status: q.status,
-          scheduledAt: q.scheduledAt?.toDate ? q.scheduledAt.toDate().toISOString() : q.scheduledAt,
-          nextExecution: q.nextExecution?.toDate ? q.nextExecution.toDate().toISOString() : q.nextExecution,
-          frequency: q.frequency || 'once',
-          userId: q.userId || '(none)'
-        };
-      })
-    });
+    // Found pending instructions - detailed log removed for verbosity
+    if (toExecute.length > 0) {
+      console.log(`🤖 [Cron] Executing ${toExecute.length} pending instructions`);
+    }
     for (const docRef of toExecute) {
       try {
         const q = docRef.data() || {};
@@ -558,12 +468,7 @@ async function executeDueProgrammedInstructions(now, oneMinuteFromNow) {
           continue;
         }
 
-        console.log('🤖 [Cron] Executing instruction directly (no HTTP call needed)', {
-          instructionId: docRef.id,
-          question: q.question?.substring(0, 50) || '(no question)',
-          userId: q.userId,
-          agencyId: userData.agencyId
-        });
+        // Executing instruction - detailed log removed for verbosity
 
         // Call the shared AI execution function directly
         const start = Date.now();
@@ -985,7 +890,7 @@ async function processSubscriptionRenewals(now) {
       .get();
 
     stats.processed = sessionsSnapshot.size;
-    console.log(`🔄 [Cron] Found ${stats.processed} active sessions to check for renewal`);
+    // Found active sessions to check - log removed for verbosity
 
     for (const docSnapshot of sessionsSnapshot.docs) {
       try {

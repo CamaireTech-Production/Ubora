@@ -5,6 +5,11 @@
 
 import dotenv from 'dotenv';
 import path from 'path';
+import { fileURLToPath } from 'url';
+
+// Get __dirname equivalent for ES modules
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Load environment variables
 const loadedLocalEnv = dotenv.config({ path: path.join(process.cwd(), '.env.local') });
@@ -13,7 +18,16 @@ if (!loadedLocalEnv || !loadedLocalEnv.parsed) {
 }
 
 // Qdrant configuration
-const QDRANT_URL = process.env.QDRANT_URL || 'http://localhost:6333';
+// Default URL logic:
+// - If QDRANT_URL is explicitly set in env, use it
+// - If running on VPS (detected by checking if we're in /var/www/ubora-backend-*), use localhost
+// - Otherwise (local dev), use VPS IP since Qdrant is hosted on VPS
+const isRunningOnVPS = __dirname.includes('/var/www/ubora-backend') || process.cwd().includes('/var/www/ubora-backend');
+const DEFAULT_QDRANT_URL = isRunningOnVPS 
+  ? 'http://localhost:6333'  // On VPS, Qdrant is local
+  : 'http://72.60.94.31:6333'; // Local dev, Qdrant is on VPS
+
+const QDRANT_URL = process.env.QDRANT_URL || DEFAULT_QDRANT_URL;
 const QDRANT_API_KEY = process.env.QDRANT_API_KEY || null;
 const COLLECTION_NAME = process.env.QDRANT_COLLECTION_NAME || 'ubora_vectors';
 
@@ -178,6 +192,8 @@ export async function initializeQdrant(collectionName = COLLECTION_NAME, vectorS
     console.log('🔌 Connecting to Qdrant...');
     console.log(`   URL: ${QDRANT_URL}`);
     console.log(`   Collection: ${collectionName}`);
+    console.log(`   Environment: ${isRunningOnVPS ? 'VPS (localhost)' : 'Local Dev (VPS IP)'}`);
+    console.log(`   QDRANT_URL from env: ${process.env.QDRANT_URL || 'Not set (using default)'}`);
 
     // Check health
     const health = await checkQdrantHealth();

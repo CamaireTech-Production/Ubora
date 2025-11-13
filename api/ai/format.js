@@ -1,5 +1,6 @@
 import { adminDb, admin } from '../lib/firebaseAdmin.js';
 import OpenAI from 'openai';
+import { syncFormEntryToVector } from '../workers/vectorSync.js';
 
 // Initialize OpenAI
 const openai = new OpenAI({
@@ -108,10 +109,22 @@ async function formatTextInBackground(formEntryId, rawText, fileName) {
     
     console.log(`✅ Text formatted successfully for ${fileName}`);
 
-    // Update FormEntry with formatted text
-    await updateFormEntryWithFormattedText(formEntryId, formattedText, fileName);
+    // Update FormEntry with formatted text and get the actual formEntryId
+    const actualFormEntryId = await updateFormEntryWithFormattedText(formEntryId, formattedText, fileName);
 
     console.log(`✅ FormEntry updated with formatted text for ${fileName}`);
+
+    // Sync to vector database after formatting (text has changed, need to update chunks)
+    if (actualFormEntryId) {
+      try {
+        console.log(`🔄 Syncing FormEntry to vector database after formatting: ${actualFormEntryId}`);
+        await syncFormEntryToVector(actualFormEntryId, 'update');
+        console.log(`✅ FormEntry synced to vector database after formatting: ${actualFormEntryId}`);
+      } catch (syncError) {
+        console.error(`❌ Failed to sync FormEntry to vector database after formatting:`, syncError);
+        // Don't throw - formatting succeeded, vector sync can be retried later
+      }
+    }
 
   } catch (error) {
     console.error(`❌ Background formatting failed for ${fileName}:`, error);
@@ -272,6 +285,8 @@ async function updateFormEntryWithFormattedText(submissionId, formattedText, fil
 
     console.log('✅ FormEntry updated successfully with formatted text');
 
+    // Return the formEntryId for vector sync
+    return formEntryRef.id;
   } catch (error) {
     console.error('❌ Error updating FormEntry with formatted text:', error);
     throw error;

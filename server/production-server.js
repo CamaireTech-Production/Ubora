@@ -98,6 +98,18 @@ try {
   process.exit(1);
 }
 
+// Vector database handlers (dynamic import with error handling)
+let vectorSyncHandler;
+let vectorHealthHandler;
+try {
+  vectorSyncHandler = require('../api/vector/sync.js');
+  vectorHealthHandler = require('../api/vector/health.js');
+  console.log('✅ Vector handlers loaded successfully');
+} catch (error) {
+  console.error('❌ Failed to load vector handlers:', error);
+  // Don't exit - vector DB is optional for backward compatibility
+}
+
 // OCR handlers
 const ocrExtractHandler = require('../api/ocr/extractText.js');
 const ocrPdfExtractHandler = require('../api/ocr/extractPdfText.js');
@@ -107,6 +119,15 @@ const ocrHealthHandler = require('../api/ocr/health.js');
 app.post('/api/ai/ask', askHandler);
 app.get('/api/ai/health', healthHandler);
 app.post('/api/ai/format', formatHandler);
+
+// Vector database routes (only if handlers loaded)
+if (vectorSyncHandler && vectorHealthHandler) {
+  app.post('/api/vector/sync', vectorSyncHandler);
+  app.get('/api/vector/health', vectorHealthHandler);
+  console.log('✅ Vector routes registered');
+} else {
+  console.warn('⚠️ Vector routes not registered (handlers not loaded)');
+}
 
 console.log('✅ Format route registered: POST /api/ai/format');
 
@@ -178,6 +199,8 @@ app.get('*', (req, res) => {
       'POST /api/ai/ask',
       'GET /api/ai/health',
       'POST /api/ai/format',
+      'POST /api/vector/sync',
+      'GET /api/vector/health',
       'POST /api/ocr/extract',
       'POST /api/ocr/extractPdfText',
       'GET /api/ocr/health',
@@ -193,6 +216,9 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(`   - POST /api/ai/ask`);
   console.log(`   - GET  /api/ai/health`);
   console.log(`   - POST /api/ai/format`);
+  console.log(`📡 Vector Database endpoints available at:`);
+  console.log(`   - POST /api/vector/sync`);
+  console.log(`   - GET  /api/vector/health`);
   console.log(`📡 OCR endpoints available at:`);
   console.log(`   - POST /api/ocr/extract`);
   console.log(`   - POST /api/ocr/extractPdfText`);

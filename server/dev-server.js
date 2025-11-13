@@ -129,6 +129,10 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
 import askHandler from '../api/ai/ask.js';
 import healthHandler from '../api/ai/health.js';
 
+// Vector database handlers
+import vectorSyncHandler from '../api/vector/sync.js';
+import vectorHealthHandler from '../api/vector/health.js';
+
 console.log('🔄 Loading format handler...');
 let formatHandler;
 try {
@@ -163,6 +167,10 @@ app.post('/api/fcm/send', fcmSendHandler);
 app.post('/api/cron/notifications', cronNotificationsHandler);
 app.post('/api/email/send', emailSendHandler);
 
+// Vector database routes
+app.post('/api/vector/sync', vectorSyncHandler);
+app.get('/api/vector/health', vectorHealthHandler);
+
 // Test endpoint to verify server is running
 app.get('/api/test', (req, res) => {
   res.json({ message: 'Server is running!', timestamp: new Date().toISOString() });
@@ -181,6 +189,8 @@ console.log('✅ Format route registered: POST /api/ai/format');
 console.log('✅ Download route registered: GET /api/files/download');
 console.log('✅ FCM route registered: POST /api/fcm/send');
 console.log('✅ Test route registered: GET /api/test');
+console.log('✅ Vector sync route registered: POST /api/vector/sync');
+console.log('✅ Vector health route registered: GET /api/vector/health');
 
 // OCR routes
 app.post('/api/ocr/extract', ocrExtractHandler);
@@ -235,6 +245,9 @@ app.listen(PORT, () => {
   console.log(`📡 AI endpoints available at:`);
   console.log(`   - POST http://localhost:${PORT}/api/ai/ask`);
   console.log(`   - GET  http://localhost:${PORT}/api/ai/health`);
+  console.log(`📡 Vector Database endpoints available at:`);
+  console.log(`   - POST http://localhost:${PORT}/api/vector/sync`);
+  console.log(`   - GET  http://localhost:${PORT}/api/vector/health`);
   console.log(`📡 FCM endpoints available at:`);
   console.log(`   - POST http://localhost:${PORT}/api/fcm/send`);
   console.log(`📡 OCR endpoints available at:`);
