@@ -27,6 +27,23 @@ export function extractFormAnswersText(formEntry, formData = null) {
         answerText = value ? 'Oui' : 'Non';
       } else if (Array.isArray(value)) {
         answerText = value.join(', ');
+      } else if (typeof value === 'object' && value._listRow && value.rowData) {
+        // Handle list-based dropdown: extract display value or all row data
+        const displayColumnId = field?.displayColumnId;
+        if (displayColumnId && value.rowData[displayColumnId] !== undefined) {
+          answerText = String(value.rowData[displayColumnId]);
+        } else {
+          // Fallback: format all row data
+          answerText = Object.entries(value.rowData)
+            .map(([key, val]) => `${key}: ${val}`)
+            .join(', ');
+        }
+      } else if (typeof value === 'object') {
+        // Handle other objects: format as key-value pairs
+        answerText = Object.entries(value)
+          .filter(([key]) => key !== '_listRow' && key !== 'listId') // Exclude internal fields
+          .map(([key, val]) => `${key}: ${val}`)
+          .join(', ');
       } else {
         answerText = String(value);
       }
