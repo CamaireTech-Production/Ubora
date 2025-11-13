@@ -99,18 +99,41 @@ async function formatHandler(req, res) {
 
 /**
  * Format text in background and update FormEntry
+ * @param {string} formEntryId - The submissionId or formEntryId
+ * @param {string} rawText - The raw extracted text to format
+ * @param {string} fileName - The name of the file being formatted
  */
-async function formatTextInBackground(formEntryId, rawText, fileName) {
+export async function formatTextInBackground(formEntryId, rawText, fileName) {
+  let actualFormEntryId = null;
+  let formEntryRef = null;
+  
   try {
     console.log(`🔄 Starting background formatting for ${fileName}...`);
+
+    // Find FormEntry first to track status
+    const foundEntry = await findFormEntryBySubmissionId(formEntryId);
+    if (foundEntry) {
+      formEntryRef = foundEntry.ref;
+      actualFormEntryId = foundEntry.id;
+      
+      // Update status to processing
+      await formEntryRef.update({
+        formattingStatus: 'processing',
+        formattingStartedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+    }
 
     // Format text with OpenAI
     const formattedText = await formatRawWithOpenAI(rawText);
     
     console.log(`✅ Text formatted successfully for ${fileName}`);
 
-    // Update FormEntry with formatted text and get the actual formEntryId
-    const actualFormEntryId = await updateFormEntryWithFormattedText(formEntryId, formattedText, fileName);
+    // Update FormEntry with formatted text
+    if (!actualFormEntryId) {
+      actualFormEntryId = await updateFormEntryWithFormattedText(formEntryId, formattedText, fileName);
+    } else {
+      await updateFormEntryWithFormattedText(formEntryId, formattedText, fileName);
+    }
 
     console.log(`✅ FormEntry updated with formatted text for ${fileName}`);
 
@@ -129,16 +152,110 @@ async function formatTextInBackground(formEntryId, rawText, fileName) {
   } catch (error) {
     console.error(`❌ Background formatting failed for ${fileName}:`, error);
     
-    // Update FormEntry with error status
+    // Update FormEntry with error status and check retry count
     try {
-      await adminDb.collection('formEntries').doc(formEntryId).update({
-        formattingStatus: 'failed',
-        formattingError: error.message,
-        formattingFailedAt: admin.firestore.FieldValue.serverTimestamp()
-      });
+      if (!formEntryRef) {
+        const foundEntry = await findFormEntryBySubmissionId(formEntryId);
+        if (foundEntry) {
+          formEntryRef = foundEntry.ref;
+          actualFormEntryId = foundEntry.id;
+        }
+      }
+      
+      if (formEntryRef) {
+        const formEntryDoc = await formEntryRef.get();
+        const formEntryData = formEntryDoc.data();
+        const currentRetryCount = formEntryData.formattingRetryCount || 0;
+        const newRetryCount = currentRetryCount + 1;
+        const maxRetries = 3;
+        
+        const updateData = {
+          formattingStatus: 'failed',
+          formattingError: error.message,
+          formattingFailedAt: admin.firestore.FieldValue.serverTimestamp(),
+          formattingRetryCount: newRetryCount,
+        };
+        
+        // Update file attachment status
+        const fileAttachments = Array.isArray(formEntryData.fileAttachments) ? formEntryData.fileAttachments : [];
+        const updatedFileAttachments = fileAttachments.map((attachment) => {
+          if (attachment.submissionId === formEntryId || attachment.fileName === fileName) {
+            return {
+              ...attachment,
+              formattingStatus: 'failed',
+              formattingError: error.message,
+            };
+          }
+          return attachment;
+        });
+        updateData.fileAttachments = updatedFileAttachments;
+        
+        await formEntryRef.update(updateData);
+        
+        // If max retries reached, trigger fallback: sync with raw text
+        if (newRetryCount >= maxRetries) {
+          console.log(`⚠️ Max retries (${maxRetries}) reached for formatting. Triggering fallback: sync with raw text`);
+          try {
+            await syncFormEntryToVector(actualFormEntryId, 'update', true); // true = use raw text
+            await formEntryRef.update({
+              vectorSyncWithRawText: true,
+              vectorSyncStatus: 'completed', // Mark as completed even with raw text
+            });
+            console.log(`✅ Fallback: Vector sync completed with raw text for ${actualFormEntryId}`);
+          } catch (fallbackError) {
+            console.error(`❌ Fallback vector sync also failed:`, fallbackError);
+          }
+        }
+      } else {
+        // Fallback: try to update by formEntryId directly
+        const fallbackRef = adminDb.collection('formEntries').doc(formEntryId);
+        await fallbackRef.update({
+          formattingStatus: 'failed',
+          formattingError: error.message,
+          formattingFailedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+      }
     } catch (updateError) {
       console.error('❌ Failed to update FormEntry with error:', updateError);
     }
+  }
+}
+
+/**
+ * Find FormEntry by submissionId
+ */
+async function findFormEntryBySubmissionId(submissionId) {
+  try {
+    // Try to find FormEntry by searching for the submissionId in fileAttachments
+    const recentEntriesQuery = await adminDb
+      .collection('formEntries')
+      .orderBy('submittedAt', 'desc')
+      .limit(50)
+      .get();
+
+    for (const doc of recentEntriesQuery.docs) {
+      const data = doc.data();
+      if (data.fileAttachments && Array.isArray(data.fileAttachments)) {
+        const hasMatchingSubmissionId = data.fileAttachments.some(att => 
+          att && att.submissionId === submissionId
+        );
+        if (hasMatchingSubmissionId) {
+          return { ref: doc.ref, id: doc.id, data: doc.data() };
+        }
+      }
+    }
+
+    // Fallback: try using submissionId as document ID
+    const fallbackRef = adminDb.collection('formEntries').doc(submissionId);
+    const fallbackDoc = await fallbackRef.get();
+    if (fallbackDoc.exists) {
+      return { ref: fallbackRef, id: fallbackDoc.id, data: fallbackDoc.data() };
+    }
+
+    return null;
+  } catch (error) {
+    console.error('❌ Error finding FormEntry:', error);
+    return null;
   }
 }
 
@@ -280,6 +397,8 @@ async function updateFormEntryWithFormattedText(submissionId, formattedText, fil
     await formEntryRef.update({
       fileAttachments: updatedFileAttachments,
       formattingStatus: 'completed',
+      formattingCompletedAt: admin.firestore.FieldValue.serverTimestamp(),
+      formattingError: admin.firestore.FieldValue.delete(), // Clear any previous errors
       formattedAt: admin.firestore.FieldValue.serverTimestamp()
     });
 

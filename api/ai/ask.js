@@ -1732,7 +1732,7 @@ ${fieldSummary}${extractedTextSummary}`;
 AUCUNE DONNÉE PERTINENTE TROUVÉE :
 Je n'ai pas trouvé de données pertinentes pour répondre à votre question dans la base vectorielle. Veuillez reformuler votre question ou vérifier que les données ont été synchronisées.`;
       }
-
+      
       const dataOverview = `
 DONNÉES PERTINENTES TROUVÉES (${vectorSearchResults.chunks.length} sources) :
 ${vectorSearchResults.formattedText}

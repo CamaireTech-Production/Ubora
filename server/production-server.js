@@ -101,13 +101,33 @@ try {
 // Vector database handlers (dynamic import with error handling)
 let vectorSyncHandler;
 let vectorHealthHandler;
+let vectorSyncRetryHandler;
 try {
   vectorSyncHandler = require('../api/vector/sync.js');
   vectorHealthHandler = require('../api/vector/health.js');
+  vectorSyncRetryHandler = require('../api/vector/sync/retry.js');
   console.log('✅ Vector handlers loaded successfully');
 } catch (error) {
   console.error('❌ Failed to load vector handlers:', error);
   // Don't exit - vector DB is optional for backward compatibility
+}
+
+// Format retry handler
+let formatRetryHandler;
+try {
+  formatRetryHandler = require('../api/ai/format/retry.js');
+  console.log('✅ Format retry handler loaded successfully');
+} catch (error) {
+  console.error('❌ Failed to load format retry handler:', error);
+}
+
+// Form entry status handler
+let formEntryStatusHandler;
+try {
+  formEntryStatusHandler = require('../api/form-entry/status.js');
+  console.log('✅ Form entry status handler loaded successfully');
+} catch (error) {
+  console.error('❌ Failed to load form entry status handler:', error);
 }
 
 // OCR handlers
@@ -124,9 +144,25 @@ app.post('/api/ai/format', formatHandler);
 if (vectorSyncHandler && vectorHealthHandler) {
   app.post('/api/vector/sync', vectorSyncHandler);
   app.get('/api/vector/health', vectorHealthHandler);
+  if (vectorSyncRetryHandler) {
+    app.post('/api/vector/sync/retry', vectorSyncRetryHandler);
+    console.log('✅ Vector sync retry route registered: POST /api/vector/sync/retry');
+  }
   console.log('✅ Vector routes registered');
 } else {
   console.warn('⚠️ Vector routes not registered (handlers not loaded)');
+}
+
+// Format retry route
+if (formatRetryHandler) {
+  app.post('/api/ai/format/retry', formatRetryHandler);
+  console.log('✅ Format retry route registered: POST /api/ai/format/retry');
+}
+
+// Form entry status route
+if (formEntryStatusHandler) {
+  app.get('/api/form-entry/:formEntryId/status', formEntryStatusHandler);
+  console.log('✅ Form entry status route registered: GET /api/form-entry/:formEntryId/status');
 }
 
 console.log('✅ Format route registered: POST /api/ai/format');

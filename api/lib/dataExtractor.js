@@ -46,8 +46,10 @@ export function extractFormAnswersText(formEntry, formData = null) {
 
 /**
  * Extract text from file attachments (PDF/image OCR text)
+ * @param {Array} fileAttachments - Array of file attachments
+ * @param {boolean} useRawText - If true, use rawExtractedText instead of formatted extractedText
  */
-export function extractFileAttachmentsText(fileAttachments = []) {
+export function extractFileAttachmentsText(fileAttachments = [], useRawText = false) {
   if (!fileAttachments || fileAttachments.length === 0) {
     return [];
   }
@@ -58,8 +60,10 @@ export function extractFileAttachmentsText(fileAttachments = []) {
     const fileName = attachment.fileName || `Fichier ${index + 1}`;
     const fileType = attachment.fileType || 'unknown';
 
-    // Prefer formatted text, fallback to raw extracted text
-    const text = attachment.extractedText || attachment.rawExtractedText || '';
+    // Use raw text if requested, otherwise prefer formatted text, fallback to raw
+    const text = useRawText 
+      ? (attachment.rawExtractedText || attachment.extractedText || '')
+      : (attachment.extractedText || attachment.rawExtractedText || '');
     
     if (text && text.trim().length > 0) {
       // Determine file type label
@@ -85,8 +89,11 @@ export function extractFileAttachmentsText(fileAttachments = []) {
 
 /**
  * Combine all text from a form entry into searchable format
+ * @param {Object} formEntry - The form entry document
+ * @param {Object} formData - The form template data
+ * @param {boolean} useRawText - If true, use rawExtractedText for file attachments instead of formatted text
  */
-export function extractFormEntryText(formEntry, formData = null) {
+export function extractFormEntryText(formEntry, formData = null, useRawText = false) {
   const textParts = [];
 
   // Add form title if available
@@ -112,8 +119,8 @@ export function extractFormEntryText(formEntry, formData = null) {
     textParts.push(answersText);
   }
 
-  // Extract file attachments text
-  const fileTexts = extractFileAttachmentsText(formEntry.fileAttachments);
+  // Extract file attachments text (with useRawText flag)
+  const fileTexts = extractFileAttachmentsText(formEntry.fileAttachments, useRawText);
   if (fileTexts.length > 0) {
     textParts.push('\nDocuments joints:');
     fileTexts.forEach((fileText, index) => {

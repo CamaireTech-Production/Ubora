@@ -32,9 +32,15 @@ async function getFormById(formId) {
 /**
  * Sync a single form entry to vector database
  */
-export async function syncFormEntryToVector(formEntryId, operation = 'create') {
+export async function syncFormEntryToVector(formEntryId, operation = 'create', useRawText = false) {
   try {
-    console.log(`🔄 [VectorSync] ${operation.toUpperCase()} sync for formEntry: ${formEntryId}`);
+    console.log(`🔄 [VectorSync] ${operation.toUpperCase()} sync for formEntry: ${formEntryId}${useRawText ? ' (using raw text)' : ''}`);
+
+    // Update status to processing
+    await adminDb.collection('formEntries').doc(formEntryId).update({
+      vectorSyncStatus: 'processing',
+      vectorSyncStartedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
 
     // Get form entry from Firebase
     const formEntryDoc = await adminDb.collection('formEntries').doc(formEntryId).get();
@@ -55,16 +61,18 @@ export async function syncFormEntryToVector(formEntryId, operation = 'create') {
     // Get form data for metadata
     const formData = await getFormById(formEntry.formId);
 
-    // Extract text from form entry
-    const extractedData = extractFormEntryText(formEntry, formData);
+    // Extract text from form entry (use raw text if requested)
+    const extractedData = extractFormEntryText(formEntry, formData, useRawText);
 
     // Check if there's any content to index
     if (!extractedData.fullText || extractedData.fullText.trim().length === 0) {
       console.log(`⏭️ [VectorSync] No content to index for formEntry: ${formEntryId}`);
       await adminDb.collection('formEntries').doc(formEntryId).update({
         vectorSyncStatus: 'skipped',
-        vectorSyncedAt: admin.firestore.FieldValue.serverTimestamp(),
+        vectorSyncCompletedAt: admin.firestore.FieldValue.serverTimestamp(),
         vectorChunksCount: 0,
+        vectorSyncError: admin.firestore.FieldValue.delete(),
+        vectorSyncFailedAt: admin.firestore.FieldValue.delete(),
       });
       return { success: true, operation, skipped: true };
     }
@@ -80,11 +88,12 @@ export async function syncFormEntryToVector(formEntryId, operation = 'create') {
 
     // Update Firebase with sync status
     await adminDb.collection('formEntries').doc(formEntryId).update({
-      vectorSyncStatus: 'synced',
-      vectorSyncedAt: admin.firestore.FieldValue.serverTimestamp(),
+      vectorSyncStatus: 'completed',
+      vectorSyncCompletedAt: admin.firestore.FieldValue.serverTimestamp(),
       vectorChunksCount: saveResult.chunks || 0,
       vectorSyncError: admin.firestore.FieldValue.delete(), // Clear any previous errors
       vectorSyncFailedAt: admin.firestore.FieldValue.delete(),
+      vectorSyncRetryCount: admin.firestore.FieldValue.delete(), // Clear retry count on success
     });
 
     console.log(`✅ [VectorSync] Successfully synced formEntry: ${formEntryId}`);
@@ -108,12 +117,17 @@ export async function syncFormEntryToVector(formEntryId, operation = 'create') {
     };
     console.error(`❌ [VectorSync] Error details:`, JSON.stringify(errorDetails, null, 2));
 
-    // Update sync status with error
+    // Update sync status with error and increment retry count
     try {
+      const formEntryDoc = await adminDb.collection('formEntries').doc(formEntryId).get();
+      const formEntryData = formEntryDoc.exists ? formEntryDoc.data() : {};
+      const currentRetryCount = formEntryData.vectorSyncRetryCount || 0;
+      
       await adminDb.collection('formEntries').doc(formEntryId).update({
         vectorSyncStatus: 'failed',
         vectorSyncError: error.message.substring(0, 500), // Limit error message length
         vectorSyncFailedAt: admin.firestore.FieldValue.serverTimestamp(),
+        vectorSyncRetryCount: currentRetryCount + 1,
       });
     } catch (updateError) {
       console.error(`❌ [VectorSync] Failed to update sync status:`, updateError);

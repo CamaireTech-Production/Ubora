@@ -324,7 +324,7 @@ async function processFormReminders(now, oneMinuteFromNow) {
         }
       }
     }
-
+    
     if (remindersToProcess.length === 0) {
       // No reminders due - log removed for verbosity
       return { processed: 0, sent: 0, errors: 0 };

@@ -132,6 +132,27 @@ import healthHandler from '../api/ai/health.js';
 // Vector database handlers
 import vectorSyncHandler from '../api/vector/sync.js';
 import vectorHealthHandler from '../api/vector/health.js';
+import vectorSyncRetryHandler from '../api/vector/sync/retry.js';
+
+// Format retry handler
+let formatRetryHandler;
+try {
+  formatRetryHandler = await import('../api/ai/format/retry.js');
+  formatRetryHandler = formatRetryHandler.default;
+  console.log('✅ Format retry handler loaded successfully');
+} catch (error) {
+  console.error('❌ Failed to load format retry handler:', error);
+}
+
+// Form entry status handler
+let formEntryStatusHandler;
+try {
+  formEntryStatusHandler = await import('../api/form-entry/status.js');
+  formEntryStatusHandler = formEntryStatusHandler.default;
+  console.log('✅ Form entry status handler loaded successfully');
+} catch (error) {
+  console.error('❌ Failed to load form entry status handler:', error);
+}
 
 console.log('🔄 Loading format handler...');
 let formatHandler;
@@ -162,6 +183,10 @@ import emailSendHandler from '../api/email/send.js';
 app.post('/api/ai/ask', askHandler);
 app.get('/api/ai/health', healthHandler);
 app.post('/api/ai/format', formatHandler);
+if (formatRetryHandler) {
+  app.post('/api/ai/format/retry', formatRetryHandler);
+  console.log('✅ Format retry route registered: POST /api/ai/format/retry');
+}
 app.get('/api/files/download', downloadHandler);
 app.post('/api/fcm/send', fcmSendHandler);
 app.post('/api/cron/notifications', cronNotificationsHandler);
@@ -170,6 +195,16 @@ app.post('/api/email/send', emailSendHandler);
 // Vector database routes
 app.post('/api/vector/sync', vectorSyncHandler);
 app.get('/api/vector/health', vectorHealthHandler);
+if (vectorSyncRetryHandler) {
+  app.post('/api/vector/sync/retry', vectorSyncRetryHandler);
+  console.log('✅ Vector sync retry route registered: POST /api/vector/sync/retry');
+}
+
+// Form entry status route
+if (formEntryStatusHandler) {
+  app.get('/api/form-entry/:formEntryId/status', formEntryStatusHandler);
+  console.log('✅ Form entry status route registered: GET /api/form-entry/:formEntryId/status');
+}
 
 // Test endpoint to verify server is running
 app.get('/api/test', (req, res) => {
