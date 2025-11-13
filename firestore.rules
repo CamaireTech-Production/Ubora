@@ -680,9 +680,13 @@ service cloud.firestore {
     
     match /scheduledQuestions/{questionId} {
       // LECTURE des questions programmées
+      // Permettre la lecture si :
+      // 1. Admin
+      // 2. Directeur de l'agence (peut lire toutes les instructions de son agence, notamment celles des instances Univers)
+      // Cela permet aux directeurs de lire toutes les instructions de leur agence, y compris celles créées par les instances Univers
       allow read: if isAuthenticated() && (
         isAdmin() ||
-        (hasDirectorDashboardAccess() && isSameAgency(resource.data.agencyId) && resource.data.userId == request.auth.uid)
+        (hasDirectorDashboardAccess() && isSameAgency(resource.data.agencyId))
       );
       
       // CRÉATION de questions programmées

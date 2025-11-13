@@ -3074,8 +3074,17 @@ class UniversService {
         );
         const instructionsSnapshot = await getDocs(instructionsQuery);
         result.actualCounts.instructions = instructionsSnapshot.size;
-      } catch (error) {
-        console.warn('⚠️ Erreur lors du comptage des instructions:', error);
+      } catch (error: any) {
+        // Si erreur de permissions, ne pas considérer cela comme une incohérence critique
+        // L'utilisateur peut ne pas avoir les permissions pour lire les instructions
+        if (error?.code === 'permission-denied' || error?.message?.includes('permission')) {
+          console.warn('⚠️ Permissions insuffisantes pour compter les instructions. Considérant 0 instruction.');
+          result.actualCounts.instructions = 0;
+          // Ne pas ajouter d'incohérence si c'est juste un problème de permissions
+          // On considère que les instructions peuvent exister mais ne sont pas accessibles
+        } else {
+          console.warn('⚠️ Erreur lors du comptage des instructions:', error);
+        }
       }
 
       // 4. Compter les listes
@@ -3114,32 +3123,51 @@ class UniversService {
                      result.actualCounts.reports > 0;
 
       // Vérifier la cohérence
-      if (result.actualCounts.forms !== result.expectedCounts.forms) {
+      // Tolérer des différences : considérer cohérent si on a au moins les ressources attendues
+      // (les ressources supplémentaires peuvent être des ajouts utilisateur)
+      if (result.actualCounts.forms < result.expectedCounts.forms) {
         result.inconsistencies.push(
-          `Formulaires: ${result.actualCounts.forms} trouvé(s) au lieu de ${result.expectedCounts.forms}`
+          `Formulaires: ${result.actualCounts.forms} trouvé(s) au lieu de ${result.expectedCounts.forms} (manquant)`
         );
+      } else if (result.actualCounts.forms > result.expectedCounts.forms) {
+        // Plus de formulaires que prévu : peut être normal (ajouts utilisateur)
+        console.log(`ℹ️ Plus de formulaires que prévu (${result.actualCounts.forms} au lieu de ${result.expectedCounts.forms}), probablement des ajouts utilisateur`);
       }
-      if (result.actualCounts.dashboards !== result.expectedCounts.dashboards) {
+      
+      if (result.actualCounts.dashboards < result.expectedCounts.dashboards) {
         result.inconsistencies.push(
-          `Dashboards: ${result.actualCounts.dashboards} trouvé(s) au lieu de ${result.expectedCounts.dashboards}`
+          `Dashboards: ${result.actualCounts.dashboards} trouvé(s) au lieu de ${result.expectedCounts.dashboards} (manquant)`
         );
+      } else if (result.actualCounts.dashboards > result.expectedCounts.dashboards) {
+        console.log(`ℹ️ Plus de dashboards que prévu (${result.actualCounts.dashboards} au lieu de ${result.expectedCounts.dashboards}), probablement des ajouts utilisateur`);
       }
-      if (result.actualCounts.instructions !== result.expectedCounts.instructions) {
+      
+      if (result.actualCounts.instructions < result.expectedCounts.instructions) {
         result.inconsistencies.push(
-          `Instructions: ${result.actualCounts.instructions} trouvée(s) au lieu de ${result.expectedCounts.instructions}`
+          `Instructions: ${result.actualCounts.instructions} trouvée(s) au lieu de ${result.expectedCounts.instructions} (manquant)`
         );
+      } else if (result.actualCounts.instructions > result.expectedCounts.instructions) {
+        console.log(`ℹ️ Plus d'instructions que prévu (${result.actualCounts.instructions} au lieu de ${result.expectedCounts.instructions}), probablement des ajouts utilisateur`);
       }
-      if (result.actualCounts.lists !== result.expectedCounts.lists) {
+      
+      if (result.actualCounts.lists < result.expectedCounts.lists) {
         result.inconsistencies.push(
-          `Listes: ${result.actualCounts.lists} trouvée(s) au lieu de ${result.expectedCounts.lists}`
+          `Listes: ${result.actualCounts.lists} trouvée(s) au lieu de ${result.expectedCounts.lists} (manquant)`
         );
+      } else if (result.actualCounts.lists > result.expectedCounts.lists) {
+        console.log(`ℹ️ Plus de listes que prévu (${result.actualCounts.lists} au lieu de ${result.expectedCounts.lists}), probablement des ajouts utilisateur`);
       }
-      if (result.actualCounts.reports !== result.expectedCounts.reports) {
+      
+      if (result.actualCounts.reports < result.expectedCounts.reports) {
         result.inconsistencies.push(
-          `Rapports: ${result.actualCounts.reports} trouvé(s) au lieu de ${result.expectedCounts.reports}`
+          `Rapports: ${result.actualCounts.reports} trouvé(s) au lieu de ${result.expectedCounts.reports} (manquant)`
         );
+      } else if (result.actualCounts.reports > result.expectedCounts.reports) {
+        console.log(`ℹ️ Plus de rapports que prévu (${result.actualCounts.reports} au lieu de ${result.expectedCounts.reports}), probablement des ajouts utilisateur`);
       }
 
+      // Considérer cohérent si on a au moins toutes les ressources attendues
+      // (les ressources supplémentaires ne sont pas considérées comme incohérentes)
       result.isConsistent = result.inconsistencies.length === 0;
 
       return result;
@@ -3372,18 +3400,126 @@ class UniversService {
   }
 
   /**
+   * Vérifier si une ressource a été modifiée par l'utilisateur (indique des données utilisateur)
+   * Une ressource a des données utilisateur si elle a été modifiée après sa création
+   * avec un délai minimum pour éviter les faux positifs (création immédiate)
+   */
+  private hasBeenModifiedByUser(resource: any): boolean {
+    if (!resource) {
+      return false;
+    }
+
+    try {
+      const createdAt = resource.createdAt?.toDate ? resource.createdAt.toDate() : new Date(resource.createdAt);
+      const updatedAt = resource.updatedAt?.toDate ? resource.updatedAt.toDate() : new Date(resource.updatedAt);
+      
+      // Si pas de dates, considérer qu'il n'y a pas de données utilisateur
+      if (!createdAt || !updatedAt || isNaN(createdAt.getTime()) || isNaN(updatedAt.getTime())) {
+        return false;
+      }
+
+      // Délai minimum de 5 secondes pour considérer qu'une modification est intentionnelle
+      // (évite les faux positifs lors de la création immédiate)
+      const MIN_MODIFICATION_DELAY_MS = 5000;
+      const timeDiff = updatedAt.getTime() - createdAt.getTime();
+      
+      return timeDiff > MIN_MODIFICATION_DELAY_MS;
+    } catch (error) {
+      console.warn('⚠️ Erreur lors de la vérification de modification:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Vérifier si une liste a des données utilisateur (rows ajoutés après l'instanciation)
+   * Une liste a des données utilisateur si elle a plus de rows que la définition correspondante
+   * OU si elle a été modifiée par l'utilisateur
+   */
+  private hasUserAddedData(list: any, listDefinition?: any): boolean {
+    if (!list) {
+      return false;
+    }
+
+    // Vérifier d'abord si la liste a été modifiée par l'utilisateur
+    if (this.hasBeenModifiedByUser(list)) {
+      return true;
+    }
+
+    // Vérifier si la liste a des rows
+    if (!Array.isArray(list.rows)) {
+      return false;
+    }
+
+    const listRowsCount = list.rows.length;
+
+    // Si pas de définition fournie, considérer qu'il y a des données si la liste a des rows
+    if (!listDefinition) {
+      return listRowsCount > 0;
+    }
+
+    // Comparer avec la définition
+    const definitionRowsCount = Array.isArray(listDefinition.rows) ? listDefinition.rows.length : 0;
+    
+    // Si la liste a plus de rows que la définition, elle a des données utilisateur
+    return listRowsCount > definitionRowsCount;
+  }
+
+  /**
+   * Vérifier si un formulaire a des données utilisateur
+   * Un formulaire a des données utilisateur s'il a été modifié par l'utilisateur
+   * (champs ajoutés, structure modifiée, etc.)
+   */
+  private hasFormUserData(form: any): boolean {
+    return this.hasBeenModifiedByUser(form);
+  }
+
+  /**
+   * Vérifier si un dashboard a des données utilisateur
+   * Un dashboard a des données utilisateur s'il a été modifié par l'utilisateur
+   * (métriques ajoutées, configuration modifiée, etc.)
+   */
+  private hasDashboardUserData(dashboard: any): boolean {
+    return this.hasBeenModifiedByUser(dashboard);
+  }
+
+  /**
+   * Vérifier si une instruction a des données utilisateur
+   * Une instruction a des données utilisateur si elle a été modifiée par l'utilisateur
+   */
+  private hasInstructionUserData(instruction: any): boolean {
+    return this.hasBeenModifiedByUser(instruction);
+  }
+
+  /**
+   * Vérifier si un rapport a des données utilisateur
+   * Un rapport a des données utilisateur s'il a été modifié par l'utilisateur
+   */
+  private hasReportUserData(report: any): boolean {
+    return this.hasBeenModifiedByUser(report);
+  }
+
+  /**
    * Supprimer les ressources existantes pour une instance (pour éviter les doublons lors de la recréation)
+   * NE SUPPRIME PAS les ressources qui ont des données utilisateur (modifiées par l'utilisateur)
    */
   private async deleteResourcesForInstance(
     instanceId: string,
     universId: string,
-    agencyId: string
+    agencyId: string,
+    univers?: Univers
   ): Promise<void> {
     try {
       const MAX_BATCH_SIZE = 500;
       let batch = writeBatch(db);
       let batchCount = 0;
       let totalDeleted = 0;
+      const preservedResources = {
+        forms: 0,
+        dashboards: 0,
+        instructions: 0,
+        lists: 0,
+        reports: 0
+      };
 
       const commitBatch = async () => {
         if (batchCount > 0) {
@@ -3393,7 +3529,15 @@ class UniversService {
         }
       };
 
-      // 1. Supprimer les formulaires
+      // Récupérer les définitions de listes si le Univers est fourni
+      const listDefinitionsMap = new Map<string, any>();
+      if (univers?.definitions?.lists) {
+        for (const listDef of univers.definitions.lists) {
+          listDefinitionsMap.set(listDef.name, listDef);
+        }
+      }
+
+      // 1. Supprimer les formulaires (SAUF ceux qui ont des données utilisateur)
       try {
         const formsQuery = query(
           collection(db, 'forms'),
@@ -3403,6 +3547,16 @@ class UniversService {
         );
         const formsSnapshot = await getDocs(formsQuery);
         for (const formDoc of formsSnapshot.docs) {
+          const formData = formDoc.data();
+          
+          // Vérifier si le formulaire a des données utilisateur
+          if (this.hasFormUserData(formData)) {
+            console.log(`🔒 Préservation du formulaire "${formData.name || formDoc.id}" (ID: ${formDoc.id}) car il contient des données utilisateur`);
+            preservedResources.forms++;
+            continue; // Ne pas supprimer ce formulaire
+          }
+          
+          // Supprimer seulement les formulaires sans données utilisateur
           batch.delete(doc(db, 'forms', formDoc.id));
           batchCount++;
           totalDeleted++;
@@ -3414,7 +3568,7 @@ class UniversService {
         console.warn('⚠️ Erreur lors de la suppression des formulaires:', error);
       }
 
-      // 2. Supprimer les dashboards
+      // 2. Supprimer les dashboards (SAUF ceux qui ont des données utilisateur)
       try {
         const dashboardsQuery = query(
           collection(db, 'dashboards'),
@@ -3424,6 +3578,16 @@ class UniversService {
         );
         const dashboardsSnapshot = await getDocs(dashboardsQuery);
         for (const dashboardDoc of dashboardsSnapshot.docs) {
+          const dashboardData = dashboardDoc.data();
+          
+          // Vérifier si le dashboard a des données utilisateur
+          if (this.hasDashboardUserData(dashboardData)) {
+            console.log(`🔒 Préservation du dashboard "${dashboardData.name || dashboardDoc.id}" (ID: ${dashboardDoc.id}) car il contient des données utilisateur`);
+            preservedResources.dashboards++;
+            continue; // Ne pas supprimer ce dashboard
+          }
+          
+          // Supprimer seulement les dashboards sans données utilisateur
           batch.delete(doc(db, 'dashboards', dashboardDoc.id));
           batchCount++;
           totalDeleted++;
@@ -3435,7 +3599,7 @@ class UniversService {
         console.warn('⚠️ Erreur lors de la suppression des dashboards:', error);
       }
 
-      // 3. Supprimer les instructions
+      // 3. Supprimer les instructions (SAUF celles qui ont des données utilisateur)
       try {
         const instructionsQuery = query(
           collection(db, 'scheduledQuestions'),
@@ -3445,6 +3609,16 @@ class UniversService {
         );
         const instructionsSnapshot = await getDocs(instructionsQuery);
         for (const instructionDoc of instructionsSnapshot.docs) {
+          const instructionData = instructionDoc.data();
+          
+          // Vérifier si l'instruction a des données utilisateur
+          if (this.hasInstructionUserData(instructionData)) {
+            console.log(`🔒 Préservation de l'instruction "${instructionData.title || instructionDoc.id}" (ID: ${instructionDoc.id}) car elle contient des données utilisateur`);
+            preservedResources.instructions++;
+            continue; // Ne pas supprimer cette instruction
+          }
+          
+          // Supprimer seulement les instructions sans données utilisateur
           batch.delete(doc(db, 'scheduledQuestions', instructionDoc.id));
           batchCount++;
           totalDeleted++;
@@ -3456,7 +3630,7 @@ class UniversService {
         console.warn('⚠️ Erreur lors de la suppression des instructions:', error);
       }
 
-      // 4. Supprimer les listes
+      // 4. Supprimer les listes (SAUF celles qui ont des données utilisateur)
       try {
         const listsQuery = query(
           collection(db, 'lists'),
@@ -3466,6 +3640,17 @@ class UniversService {
         );
         const listsSnapshot = await getDocs(listsQuery);
         for (const listDoc of listsSnapshot.docs) {
+          const listData = listDoc.data();
+          const listDefinition = listDefinitionsMap.get(listData.name);
+          
+          // Vérifier si la liste a des données utilisateur
+          if (this.hasUserAddedData(listData, listDefinition)) {
+            console.log(`🔒 Préservation de la liste "${listData.name}" (ID: ${listDoc.id}) car elle contient des données utilisateur`);
+            preservedResources.lists++;
+            continue; // Ne pas supprimer cette liste
+          }
+          
+          // Supprimer seulement les listes sans données utilisateur
           batch.delete(doc(db, 'lists', listDoc.id));
           batchCount++;
           totalDeleted++;
@@ -3477,7 +3662,7 @@ class UniversService {
         console.warn('⚠️ Erreur lors de la suppression des listes:', error);
       }
 
-      // 5. Supprimer les rapports
+      // 5. Supprimer les rapports (SAUF ceux qui ont des données utilisateur)
       try {
         const reportsQuery = query(
           collection(db, 'reports'),
@@ -3487,6 +3672,16 @@ class UniversService {
         );
         const reportsSnapshot = await getDocs(reportsQuery);
         for (const reportDoc of reportsSnapshot.docs) {
+          const reportData = reportDoc.data();
+          
+          // Vérifier si le rapport a des données utilisateur
+          if (this.hasReportUserData(reportData)) {
+            console.log(`🔒 Préservation du rapport "${reportData.name || reportDoc.id}" (ID: ${reportDoc.id}) car il contient des données utilisateur`);
+            preservedResources.reports++;
+            continue; // Ne pas supprimer ce rapport
+          }
+          
+          // Supprimer seulement les rapports sans données utilisateur
           batch.delete(doc(db, 'reports', reportDoc.id));
           batchCount++;
           totalDeleted++;
@@ -3502,6 +3697,18 @@ class UniversService {
       if (totalDeleted > 0) {
         console.log(`🗑️ ${totalDeleted} ressource(s) supprimée(s) pour l'instance ${instanceId}`);
       }
+      
+      const totalPreserved = preservedResources.forms + preservedResources.dashboards + 
+                           preservedResources.instructions + preservedResources.lists + 
+                           preservedResources.reports;
+      if (totalPreserved > 0) {
+        console.log(`🔒 ${totalPreserved} ressource(s) préservée(s) car elles contiennent des données utilisateur:`);
+        if (preservedResources.forms > 0) console.log(`   - ${preservedResources.forms} formulaire(s)`);
+        if (preservedResources.dashboards > 0) console.log(`   - ${preservedResources.dashboards} dashboard(s)`);
+        if (preservedResources.instructions > 0) console.log(`   - ${preservedResources.instructions} instruction(s)`);
+        if (preservedResources.lists > 0) console.log(`   - ${preservedResources.lists} liste(s)`);
+        if (preservedResources.reports > 0) console.log(`   - ${preservedResources.reports} rapport(s)`);
+      }
     } catch (error) {
       console.error('❌ Erreur lors de la suppression des ressources:', error);
       throw error;
@@ -3512,6 +3719,7 @@ class UniversService {
    * Instancier les ressources d'un Univers pour une instance existante
    * (pour les Univers créés directement, pas achetés)
    * Supprime les anciennes ressources incohérentes avant de créer les nouvelles pour éviter les doublons
+   * PRÉSERVE toutes les ressources qui ont des données utilisateur
    */
   private async instantiateResourcesOnly(
     univers: Univers,
@@ -3524,15 +3732,176 @@ class UniversService {
         throw new Error('Univers sans définitions');
       }
 
+      // Récupérer toutes les ressources existantes pour vérifier lesquelles ont des données utilisateur
+      // Gérer les erreurs de permissions individuellement pour ne pas bloquer tout le processus
+      const fetchResource = async (collectionName: string, errorMessage: string) => {
+        try {
+          return await getDocs(query(
+            collection(db, collectionName),
+            where('agencyId', '==', agencyId),
+            where('universId', '==', univers.id),
+            where('universInstanceId', '==', instanceId)
+          ));
+        } catch (error: any) {
+          // Si erreur de permissions, logger un avertissement et retourner un snapshot vide
+          if (error?.code === 'permission-denied' || error?.message?.includes('permission')) {
+            console.warn(`⚠️ Permissions insuffisantes pour lire ${collectionName}. Continuation sans ces ressources.`);
+            return { docs: [], empty: true, size: 0 } as any;
+          }
+          // Pour les autres erreurs, logger et continuer
+          console.warn(`⚠️ ${errorMessage}:`, error);
+          return { docs: [], empty: true, size: 0 } as any;
+        }
+      };
+
+      const [existingForms, existingDashboards, existingInstructions, existingLists, existingReports] = await Promise.all([
+        fetchResource('forms', 'Erreur lors de la récupération des formulaires'),
+        fetchResource('dashboards', 'Erreur lors de la récupération des dashboards'),
+        fetchResource('scheduledQuestions', 'Erreur lors de la récupération des instructions'),
+        fetchResource('lists', 'Erreur lors de la récupération des listes'),
+        fetchResource('reports', 'Erreur lors de la récupération des rapports')
+      ]);
+
+      // Créer des maps des ressources existantes par nom/ID
+      const existingFormsMap = new Map<string, { id: string; data: any }>();
+      const existingDashboardsMap = new Map<string, { id: string; data: any }>();
+      const existingInstructionsMap = new Map<string, { id: string; data: any }>();
+      const existingListsMap = new Map<string, { id: string; data: any }>();
+      const existingReportsMap = new Map<string, { id: string; data: any }>();
+
+      existingForms.docs.forEach((doc: any) => {
+        const data = doc.data();
+        existingFormsMap.set(data.name || data.title || doc.id, { id: doc.id, data });
+      });
+      existingDashboards.docs.forEach((doc: any) => {
+        const data = doc.data();
+        existingDashboardsMap.set(data.name || doc.id, { id: doc.id, data });
+      });
+      existingInstructions.docs.forEach((doc: any) => {
+        const data = doc.data();
+        existingInstructionsMap.set(data.title || doc.id, { id: doc.id, data });
+      });
+      existingLists.docs.forEach((doc: any) => {
+        const data = doc.data();
+        existingListsMap.set(data.name || doc.id, { id: doc.id, data });
+      });
+      existingReports.docs.forEach((doc: any) => {
+        const data = doc.data();
+        existingReportsMap.set(data.name || doc.id, { id: doc.id, data });
+      });
+
+      // Créer des maps des définitions par nom/ID
+      const listDefinitionsMap = new Map<string, any>();
+      if (univers.definitions.lists) {
+        for (const listDef of univers.definitions.lists) {
+          listDefinitionsMap.set(listDef.name, listDef);
+        }
+      }
+
+      // Identifier les ressources à préserver et celles à créer
+      const preservedResourceIds = {
+        forms: [] as string[],
+        dashboards: [] as string[],
+        instructions: [] as string[],
+        lists: [] as string[],
+        reports: [] as string[]
+      };
+
+      const resourcesToCreate = {
+        forms: [] as any[],
+        dashboards: [] as any[],
+        instructions: [] as any[],
+        lists: [] as any[],
+        reports: [] as any[]
+      };
+
+      // Filtrer les formulaires
+      if (univers.definitions.forms) {
+        for (const formDef of univers.definitions.forms) {
+          const existing = existingFormsMap.get(formDef.title || formDef.id);
+          if (existing && this.hasFormUserData(existing.data)) {
+            console.log(`🔒 Préservation du formulaire "${formDef.title || formDef.id}" (ID: ${existing.id}) car il contient des données utilisateur`);
+            preservedResourceIds.forms.push(existing.id);
+          } else {
+            resourcesToCreate.forms.push(formDef);
+          }
+        }
+      }
+
+      // Filtrer les dashboards
+      if (univers.definitions.dashboards) {
+        for (const dashboardDef of univers.definitions.dashboards) {
+          const existing = existingDashboardsMap.get(dashboardDef.name || dashboardDef.id);
+          if (existing && this.hasDashboardUserData(existing.data)) {
+            console.log(`🔒 Préservation du dashboard "${dashboardDef.name}" (ID: ${existing.id}) car il contient des données utilisateur`);
+            preservedResourceIds.dashboards.push(existing.id);
+          } else {
+            resourcesToCreate.dashboards.push(dashboardDef);
+          }
+        }
+      }
+
+      // Filtrer les instructions
+      if (univers.definitions.instructions) {
+        for (const instructionDef of univers.definitions.instructions) {
+          const existing = existingInstructionsMap.get(instructionDef.title || instructionDef.id);
+          if (existing && this.hasInstructionUserData(existing.data)) {
+            console.log(`🔒 Préservation de l'instruction "${instructionDef.title}" (ID: ${existing.id}) car elle contient des données utilisateur`);
+            preservedResourceIds.instructions.push(existing.id);
+          } else {
+            resourcesToCreate.instructions.push(instructionDef);
+          }
+        }
+      }
+
+      // Filtrer les listes
+      if (univers.definitions.lists) {
+        for (const listDef of univers.definitions.lists) {
+          const existing = existingListsMap.get(listDef.name);
+          if (existing) {
+            const listDefinition = listDefinitionsMap.get(listDef.name);
+            if (this.hasUserAddedData(existing.data, listDefinition)) {
+              console.log(`🔒 Préservation de la liste "${listDef.name}" (ID: ${existing.id}) car elle contient des données utilisateur`);
+              preservedResourceIds.lists.push(existing.id);
+              continue;
+            }
+          }
+          resourcesToCreate.lists.push(listDef);
+        }
+      }
+
+      // Filtrer les rapports
+      if (univers.definitions.reports) {
+        for (const reportDef of univers.definitions.reports) {
+          const existing = existingReportsMap.get(reportDef.name || reportDef.id);
+          if (existing && this.hasReportUserData(existing.data)) {
+            console.log(`🔒 Préservation du rapport "${reportDef.name}" (ID: ${existing.id}) car il contient des données utilisateur`);
+            preservedResourceIds.reports.push(existing.id);
+          } else {
+            resourcesToCreate.reports.push(reportDef);
+          }
+        }
+      }
+
       // Supprimer les anciennes ressources incohérentes pour cette instance avant de créer les nouvelles
-      // Cela évite les doublons lors de la recréation
+      // Cela évite les doublons lors de la recréation (les ressources avec données utilisateur seront préservées)
       console.log(`🗑️ Suppression des anciennes ressources incohérentes pour l'instance ${instanceId}...`);
-      await this.deleteResourcesForInstance(instanceId, univers.id, agencyId);
+      await this.deleteResourcesForInstance(instanceId, univers.id, agencyId, univers);
+
+      // Créer les ressources avec seulement celles qui doivent être créées
+      const definitionsToInstantiate = {
+        ...univers.definitions,
+        forms: resourcesToCreate.forms,
+        dashboards: resourcesToCreate.dashboards,
+        instructions: resourcesToCreate.instructions,
+        lists: resourcesToCreate.lists,
+        reports: resourcesToCreate.reports
+      };
 
       // Utiliser l'instanceId fourni pour créer les ressources
       // Appeler le service d'instanciation pour créer les ressources réelles
       const instantiationResult = await universInstantiationService.instantiate({
-        definitions: univers.definitions,
+        definitions: definitionsToInstantiate,
         userId: directorId,
         userRole: 'directeur',
         agencyId,
@@ -3540,15 +3909,24 @@ class UniversService {
         universInstanceId: instanceId
       });
 
-      // Mettre à jour l'instance avec les IDs des ressources créées
+      // Combiner les IDs des ressources créées avec ceux des ressources préservées
+      const allResourceIds = {
+        forms: [...preservedResourceIds.forms, ...instantiationResult.forms],
+        dashboards: [...preservedResourceIds.dashboards, ...instantiationResult.dashboards],
+        instructions: [...preservedResourceIds.instructions, ...instantiationResult.instructions],
+        lists: [...preservedResourceIds.lists, ...instantiationResult.lists],
+        reports: [...preservedResourceIds.reports, ...instantiationResult.reports]
+      };
+
+      // Mettre à jour l'instance avec les IDs des ressources créées et préservées
       const instanceRef = doc(db, this.instancesCollectionName, instanceId);
       await updateDoc(instanceRef, {
         instances: {
-          forms: instantiationResult.forms,
-          dashboards: instantiationResult.dashboards,
-          instructions: instantiationResult.instructions,
-          lists: instantiationResult.lists,
-          reports: instantiationResult.reports
+          forms: allResourceIds.forms,
+          dashboards: allResourceIds.dashboards,
+          instructions: allResourceIds.instructions,
+          lists: allResourceIds.lists,
+          reports: allResourceIds.reports
         },
         updatedAt: serverTimestamp()
       });
@@ -3556,7 +3934,14 @@ class UniversService {
       // Incrémenter le compteur d'utilisation (première instanciation des ressources)
       await this.incrementUsage(univers.id);
 
-      console.log(`✅ Ressources instanciées pour Univers ${univers.id} avec instanceId=${instanceId}`);
+      const totalPreserved = preservedResourceIds.forms.length + preservedResourceIds.dashboards.length +
+                           preservedResourceIds.instructions.length + preservedResourceIds.lists.length +
+                           preservedResourceIds.reports.length;
+      if (totalPreserved > 0) {
+        console.log(`✅ Ressources instanciées pour Univers ${univers.id} avec instanceId=${instanceId}. ${totalPreserved} ressource(s) préservée(s) avec données utilisateur.`);
+      } else {
+        console.log(`✅ Ressources instanciées pour Univers ${univers.id} avec instanceId=${instanceId}`);
+      }
     } catch (error) {
       console.error('❌ Erreur lors de l\'instanciation des ressources:', error);
       throw new Error(`Échec de l'instanciation des ressources: ${error instanceof Error ? error.message : 'Erreur inconnue'}`);
@@ -3740,11 +4125,25 @@ class UniversService {
               }
             }
           } else if (!resourcesCheck.isConsistent) {
-            // Les ressources existent mais sont incohérentes : les recréer
-            console.warn(`⚠️ Ressources incohérentes détectées:`, resourcesCheck.inconsistencies);
-            console.log(`🔄 Recréation des ressources pour corriger les incohérences...`);
-            await this.instantiateResourcesOnly(univers, directorId, agencyId, instanceId);
-            console.log(`✅ Ressources recréées avec succès`);
+            // Les ressources existent mais sont incohérentes
+            // Vérifier si les incohérences sont uniquement dues à des problèmes de permissions
+            const hasOnlyPermissionIssues = resourcesCheck.inconsistencies.every(inc => 
+              inc.includes('Instructions') && resourcesCheck.actualCounts.instructions === 0
+            );
+            
+            if (hasOnlyPermissionIssues) {
+              // Si c'est juste un problème de permissions pour les instructions, ne pas recréer
+              // Les instructions peuvent exister mais ne pas être accessibles
+              console.warn(`⚠️ Incohérences détectées mais probablement dues à des permissions:`, resourcesCheck.inconsistencies);
+              console.log(`ℹ️ Les ressources existent. Les instructions peuvent ne pas être accessibles à cause des permissions.`);
+              console.log(`✅ Pas de recréation nécessaire - les ressources sont probablement correctes.`);
+            } else {
+              // Vraies incohérences : recréer les ressources manquantes
+              console.warn(`⚠️ Ressources incohérentes détectées:`, resourcesCheck.inconsistencies);
+              console.log(`🔄 Recréation des ressources pour corriger les incohérences...`);
+              await this.instantiateResourcesOnly(univers, directorId, agencyId, instanceId);
+              console.log(`✅ Ressources recréées avec succès`);
+            }
           } else {
             // Les ressources existent et sont cohérentes : ne rien faire
             console.log(`✅ Ressources déjà existantes et cohérentes pour cette instance, pas de création nécessaire`);
