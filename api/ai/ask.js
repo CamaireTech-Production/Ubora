@@ -730,7 +730,27 @@ export default async function handler(req, res) {
       });
     }
 
-    // 4.5. Vérification des tokens disponibles
+    // 4.5. Analyze content types present in the data (must be before buildSystemMessage)
+    const hasPDFContent = data.submissions.some(s => 
+      s.fileAttachments?.some(att => att.fileType === 'application/pdf' && (att.extractedText || att.rawExtractedText))
+    ) || data.submissions.some(s => 
+      Object.values(s.answers).some(value => 
+        value && typeof value === 'object' && value.uploaded && value.fileName && (value.extractedText || value.rawExtractedText)
+      )
+    );
+
+    const hasImageContent = data.submissions.some(s => 
+      s.fileAttachments?.some(att => 
+        att.fileType && att.fileType.startsWith('image/') && (att.extractedText || att.rawExtractedText)
+      )
+    ) || data.submissions.some(s => 
+      Object.values(s.answers).some(value => 
+        value && typeof value === 'object' && value.uploaded && value.fileName && (value.extractedText || value.rawExtractedText) && 
+        value.fileType && value.fileType.startsWith('image/')
+      )
+    );
+
+    // 4.6. Vérification des tokens disponibles
     
     // Build the actual system prompt first (we'll use this for both estimation and AI call)
     const buildSystemMessage = (conversationContext) => {
@@ -1557,25 +1577,7 @@ TOP FORMULAIRES : ${data.formStats.slice(0, 3).map(f => `${f.title} (${f.count} 
 
     // 5. Context-Aware System Message Construction
 
-    // Analyze content types present in the data
-    const hasPDFContent = data.submissions.some(s => 
-      s.fileAttachments?.some(att => att.fileType === 'application/pdf' && (att.extractedText || att.rawExtractedText))
-    ) || data.submissions.some(s => 
-      Object.values(s.answers).some(value => 
-        value && typeof value === 'object' && value.uploaded && value.fileName && (value.extractedText || value.rawExtractedText)
-      )
-    );
-
-    const hasImageContent = data.submissions.some(s => 
-      s.fileAttachments?.some(att => 
-        att.fileType && att.fileType.startsWith('image/') && (att.extractedText || att.rawExtractedText)
-      )
-    ) || data.submissions.some(s => 
-      Object.values(s.answers).some(value => 
-        value && typeof value === 'object' && value.uploaded && value.fileName && (value.extractedText || value.rawExtractedText) && 
-        value.fileType && value.fileType.startsWith('image/')
-      )
-    );
+    // Note: hasPDFContent and hasImageContent are already defined above (section 4.5)
 
     const hasFileAttachments = data.submissions.some(s => 
       s.fileAttachments && s.fileAttachments.length > 0
@@ -1601,9 +1603,9 @@ TOP FORMULAIRES : ${data.formStats.slice(0, 3).map(f => `${f.title} (${f.count} 
         // Find the form for this submission to get field definitions
         // Try to find form by matching formTitle
         let submissionForm = null;
-        if (formsById && s.formTitle) {
+        if (data.formsById && s.formTitle) {
           // Iterate through formsById to find matching form
-          for (const [formId, form] of formsById.entries()) {
+          for (const [formId, form] of data.formsById.entries()) {
             if (form.title === s.formTitle) {
               submissionForm = form;
               break;
@@ -2130,7 +2132,7 @@ Il serait pertinent de surveiller l'engagement des employés moins actifs et d'a
       } else {
         // If no forms selected, get all available forms for the agency
         if (data.formsById) {
-          for (const [formId, form] of data.formsById) {
+          for (const [formId, form] of data.formsById.entries()) {
             if (form && form.title) {
               formTitles.push(form.title);
             }
