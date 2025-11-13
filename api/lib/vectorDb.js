@@ -60,12 +60,25 @@ async function qdrantRequest(endpoint, options = {}) {
  */
 export async function checkQdrantHealth() {
   try {
-    const response = await qdrantRequest('/health');
-    return {
-      healthy: true,
-      status: response.status || 'ok',
-      version: response.version || 'unknown',
-    };
+    // Try /health endpoint first
+    try {
+      const response = await qdrantRequest('/health');
+      return {
+        healthy: true,
+        status: response.status || 'ok',
+        version: response.version || 'unknown',
+      };
+    } catch (healthError) {
+      // If /health doesn't exist, try /collections endpoint as fallback
+      // This endpoint should always exist and work
+      const collectionsResponse = await qdrantRequest('/collections');
+      return {
+        healthy: true,
+        status: 'ok',
+        version: 'unknown',
+        note: 'Health check via collections endpoint',
+      };
+    }
   } catch (error) {
     return {
       healthy: false,

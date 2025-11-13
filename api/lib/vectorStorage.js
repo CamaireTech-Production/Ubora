@@ -5,15 +5,15 @@
 
 import { qdrantRequest, COLLECTION_NAME } from './vectorDb.js';
 import { generateEmbedding, chunkAndEmbed } from './embeddings.js';
+import crypto from 'crypto';
 
 /**
- * Generate unique point ID from form entry and chunk index
+ * Generate unique UUID point ID for Qdrant
+ * Qdrant requires point IDs to be either unsigned integers or UUIDs
+ * We use UUIDs and store the Firebase entryId in metadata for mapping
  */
-function generatePointId(formEntryId, chunkIndex, fileIndex = null) {
-  if (fileIndex !== null) {
-    return `${formEntryId}_file_${fileIndex}_chunk_${chunkIndex}`;
-  }
-  return `${formEntryId}_chunk_${chunkIndex}`;
+function generatePointId() {
+  return crypto.randomUUID();
 }
 
 /**
@@ -69,7 +69,7 @@ export async function saveFormEntryToVector(
 
     for (let i = 0; i < chunkedData.length; i++) {
       const { text, embedding } = chunkedData[i];
-      const pointId = generatePointId(metadata.entryId, i);
+      const pointId = generatePointId(); // Generate UUID for Qdrant
 
       const chunkMetadata = {
         agencyId: metadata.agencyId,
@@ -139,7 +139,7 @@ export async function saveFileAttachmentToVector(
 
     for (let i = 0; i < chunkedData.length; i++) {
       const { text: chunkText, embedding } = chunkedData[i];
-      const pointId = generatePointId(formEntryId, i, fileIndex);
+      const pointId = generatePointId(); // Generate UUID for Qdrant
 
       const chunkMetadata = {
         agencyId: formMetadata.agencyId,
