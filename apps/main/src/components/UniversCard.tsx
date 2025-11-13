@@ -165,7 +165,7 @@ export const UniversCard: React.FC<UniversCardProps> = ({
       setUpgradeProgress('Finalisation...');
       await new Promise(resolve => setTimeout(resolve, 300));
 
-      showSuccess(`Univers mis à jour avec succès vers la version ${latestVersion}`);
+      showSuccess(`Univers mis à jour avec succès vers la version ${latestAvailableVersion}`);
       setShowUpgradeModal(false);
       setIsUpgrading(false);
       setUpgradeProgress('');
@@ -182,7 +182,7 @@ export const UniversCard: React.FC<UniversCardProps> = ({
         userInstance: userInstance?.id,
         universId: univers?.id,
         currentVersion,
-        latestVersion
+        latestAvailableVersion
       });
       
       let errorMessage = 'Une erreur est survenue lors de la mise à jour du Univers.';
@@ -386,7 +386,7 @@ export const UniversCard: React.FC<UniversCardProps> = ({
           <div className="mt-2 text-xs text-orange-600">
             <span>Version actuelle: v{currentVersion}</span>
             <span className="mx-2">•</span>
-            <span className="font-semibold">Version disponible: v{latestVersion}</span>
+            <span className="font-semibold">Version disponible: v{latestAvailableVersion}</span>
           </div>
         )}
       </div>
@@ -551,7 +551,7 @@ export const UniversCard: React.FC<UniversCardProps> = ({
               disabled={disabled || isUpgrading}
             >
               <Download className="h-3 w-3 sm:h-4 sm:w-4" />
-              <span className="truncate">Mettre à jour v{latestVersion}</span>
+              <span className="truncate">Mettre à jour v{latestAvailableVersion}</span>
             </Button>
           )}
           {!hasUpdateAvailable && (
