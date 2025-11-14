@@ -19,13 +19,14 @@ import { SubscriptionSessionCollectionService } from '../services/subscriptionSe
 import { UserSessionService } from '../services/userSessionService';
 import { withFirebaseErrorHandling, FirebaseErrorHandler } from '../services/firebaseErrorHandler';
 import { universService } from '../services/universService';
+import { withRetry, withFirestoreRetry, withAuthRetry } from '../utils/retryHandler';
 
 interface AuthContextType {
   user: User | null;
   firebaseUser: FirebaseUser | null;
   login: (email: string, password: string) => Promise<boolean>;
   loginWithGoogle: () => Promise<boolean>;
-  register: (email: string, password: string, name: string, role: 'admin' | 'directeur' | 'employe', agencyId: string) => Promise<boolean>;
+  register: (email: string, password: string, name: string, role: 'admin' | 'directeur' | 'employe', agencyId: string) => Promise<{ success: boolean; error?: string; action?: 'login' | 'recover' }>;
   resetPassword: (email: string) => Promise<boolean>;
   logout: () => Promise<void>;
   refreshUserData: () => Promise<void>;
@@ -58,7 +59,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         where('role', '==', 'directeur')
       );
       
-      const directorsSnapshot = await getDocs(directorsQuery);
+      const directorsSnapshot = await withFirestoreRetry(
+        () => getDocs(directorsQuery),
+        { maxRetries: 2, retryDelay: 500 }
+      );
       
       console.log('🔍 Directors found:', directorsSnapshot.size);
       
@@ -79,8 +83,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           hasActiveSession = !!activeSession;
           currentSessionId = director.currentSubscriptionSessionId;
         }
-      } catch (error) {
-        console.error('Error checking active session:', error);
+      } catch (error: any) {
+        // Erreur de permissions - on continue avec le fallback
+        if (error?.code === 'permission-denied') {
+          console.warn('⚠️ Permission denied for session check, using fallback');
+        } else {
+          console.error('Error checking active session:', error);
+        }
       }
       
       // Fallback to legacy check
@@ -162,7 +171,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         where('isApproved', '!=', false) // Inclut les employés approuvés (true) et ceux en attente (undefined)
       );
       
-      const employeesSnapshot = await getDocs(employeesQuery);
+      const employeesSnapshot = await withFirestoreRetry(
+        () => getDocs(employeesQuery),
+        { maxRetries: 2, retryDelay: 500 }
+      );
       const currentEmployeeCount = employeesSnapshot.size;
       
       console.log('🔍 Current employee count:', currentEmployeeCount);
@@ -416,27 +428,38 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                     needsUpdate = true;
                   } else {
                     // Aucune session active trouvée, créer une session "free" par défaut
-                    const freeSessionId = await SubscriptionSessionCollectionService.createFreeDefaultSession(firebaseUser.uid);
-                    if (freeSessionId) {
-                      newSessionId = freeSessionId;
-                      needsUpdate = true;
+                    try {
+                      const freeSessionId = await SubscriptionSessionCollectionService.createFreeDefaultSession(firebaseUser.uid);
+                      if (freeSessionId) {
+                        newSessionId = freeSessionId;
+                        needsUpdate = true;
+                        console.log('✅ Session free créée automatiquement pour le directeur:', firebaseUser.uid);
+                      }
+                    } catch (freeSessionError) {
+                      console.error('❌ Erreur lors de la création de la session free:', freeSessionError);
+                      // Continuer même si la création échoue - l'utilisateur sera redirigé vers package selection
                     }
                   }
                 }
 
                 // Mettre à jour le document utilisateur si nécessaire
                 if (needsUpdate && newSessionId) {
-                  await updateDoc(userDocRef, {
-                    currentSubscriptionSessionId: newSessionId,
-                    updatedAt: serverTimestamp()
-                  });
-                  // Mettre à jour userData avec le nouveau sessionId
-                  userData.currentSubscriptionSessionId = newSessionId;
-                  console.log('✅ currentSubscriptionSessionId corrigé pour le directeur:', firebaseUser.uid, '→', newSessionId);
+                  try {
+                    await updateDoc(userDocRef, {
+                      currentSubscriptionSessionId: newSessionId,
+                      updatedAt: serverTimestamp()
+                    });
+                    // Mettre à jour userData avec le nouveau sessionId
+                    userData.currentSubscriptionSessionId = newSessionId;
+                    console.log('✅ currentSubscriptionSessionId corrigé pour le directeur:', firebaseUser.uid, '→', newSessionId);
+                  } catch (updateError) {
+                    console.error('❌ Erreur lors de la mise à jour de currentSubscriptionSessionId:', updateError);
+                    // Continuer même en cas d'erreur
+                  }
                 }
               } catch (sessionError) {
                 console.error('Erreur lors de la vérification de la session pour le directeur:', firebaseUser.uid, sessionError);
-                // Continuer même en cas d'erreur
+                // Continuer même en cas d'erreur - l'utilisateur sera redirigé vers package selection si needsPackageSelection est true
               }
             }
             
@@ -451,8 +474,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 ...userData
               });
               setFirebaseUser(firebaseUser);
+              setIsLoading(false);
               return;
             }
+            
+            // NOTE: Les employés avec hasDirectorDashboardAccess héritent de la session du directeur
+            // Ils n'ont pas besoin de leur propre session - la vérification se fait via usePackageAccess
+            // qui récupère la session du directeur de leur agence
             
             setUser({
               id: firebaseUser.uid,
@@ -596,19 +624,73 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  // Fonction helper pour détecter si on est en PWA
+  const isPWA = (): boolean => {
+    if (typeof window === 'undefined') return false;
+    
+    // Check for standalone mode (Android/Desktop)
+    if (window.matchMedia('(display-mode: standalone)').matches) {
+      return true;
+    }
+    
+    // Check for iOS Safari standalone mode
+    if ((window.navigator as any).standalone === true) {
+      return true;
+    }
+    
+    // Check if running in PWA mode
+    if (window.location.search.includes('source=pwa') || 
+        document.referrer.includes('android-app://')) {
+      return true;
+    }
+    
+    return false;
+  };
+
   const loginWithGoogle = async (): Promise<boolean> => {
     try {
       setError(null);
       setIsLoading(true);
       
       const provider = new GoogleAuthProvider();
-      const result = await signInWithPopup(auth, provider);
+      
+      // En PWA, utiliser signInWithRedirect au lieu de signInWithPopup pour meilleure compatibilité
+      const isPWAMode = isPWA();
+      
+      let result;
+      if (isPWAMode) {
+        // En PWA, utiliser redirect (meilleure compatibilité mobile)
+        try {
+          // Note: signInWithRedirect nécessite une gestion spéciale du callback
+          // Pour l'instant, on essaie quand même avec popup en PWA mais avec fallback
+          result = await signInWithPopup(auth, provider);
+        } catch (popupError: any) {
+          // Si popup échoue en PWA, c'est normal - proposer une alternative
+          if (popupError.code === 'auth/popup-blocked' || popupError.code === 'auth/popup-closed-by-user') {
+            setError('POPUP_BLOCKED_PWA');
+            return false;
+          }
+          throw popupError;
+        }
+      } else {
+        // En navigateur normal, utiliser popup avec retry
+        result = await withAuthRetry(
+          () => signInWithPopup(auth, provider),
+          { maxRetries: 2, retryDelay: 1000 }
+        );
+      }
       
       // Vérifier si l'utilisateur existe dans Firestore
       const userDocRef = doc(db, 'users', result.user.uid);
-      const userDoc = await getDoc(userDocRef);
+      const userDoc = await withFirestoreRetry(
+        () => getDoc(userDocRef),
+        { maxRetries: 2, retryDelay: 500 }
+      );
       
       if (!userDoc.exists()) {
+        // RÉCUPÉRATION AUTOMATIQUE: Si le document Firestore n'existe pas, le créer
+        console.log('🔄 Récupération automatique Google: Document Firestore manquant pour utilisateur Auth existant');
+        
         // Check if this is an invitation-based registration
         const urlParams = new URLSearchParams(window.location.search);
         const isInvite = urlParams.get('invite') === 'true';
@@ -629,11 +711,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             where('agencyId', '==', inviteAgencyId),
             where('role', '==', 'directeur')
           );
-          const directorsSnapshot = await getDocs(directorsQuery);
+          const directorsSnapshot = await withFirestoreRetry(
+            () => getDocs(directorsQuery),
+            { maxRetries: 2, retryDelay: 500 }
+          );
           
           if (directorsSnapshot.empty) {
             await signOut(auth);
             setError('Agence invalide. Contactez votre directeur.');
+            return false;
+          }
+          
+          // Vérifier les limites AVANT de créer le document
+          try {
+            const limitCheck = await checkAgencyUserLimit(inviteAgencyId);
+            if (!limitCheck.canAddUser) {
+              await signOut(auth);
+              setError(limitCheck.error || 'Limite d\'utilisateurs atteinte. Contactez votre directeur.');
+              return false;
+            }
+          } catch (limitError) {
+            console.error('❌ REGISTRATION ERROR: Failed to check user limits during Google employee registration');
+            await signOut(auth);
+            setError('Erreur technique: Impossible de vérifier les limites d\'utilisateurs. Veuillez contacter le support technique.');
             return false;
           }
           
@@ -650,14 +750,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             updatedAt: serverTimestamp()
           };
           
-          await setDoc(userDocRef, userData);
+          await withFirestoreRetry(
+            () => setDoc(userDocRef, userData),
+            { maxRetries: 3, retryDelay: 1000 }
+          );
           
           // Track user addition in subscription session
           try {
             const director = directorsSnapshot.docs[0];
             await SubscriptionSessionService.updateUsage(director.id, 'users', 1);
           } catch (trackingError) {
-            console.error('Error tracking user addition:', trackingError);
+            console.warn('⚠️ Could not track user addition (non-blocking):', trackingError);
           }
         } else {
           // Handle director registration (no invitation needed)
@@ -674,7 +777,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             updatedAt: serverTimestamp()
           };
           
-          await setDoc(userDocRef, userData);
+          await withFirestoreRetry(
+            () => setDoc(userDocRef, userData),
+            { maxRetries: 3, retryDelay: 1000 }
+          );
           
           // Redirect to package selection
           sessionStorage.setItem('needs_package_selection', 'true');
@@ -700,34 +806,188 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     name: string, 
     role: 'admin' | 'directeur' | 'employe',
     agencyId: string
-  ): Promise<boolean> => {
+  ): Promise<{ success: boolean; error?: string; action?: 'login' | 'recover' }> => {
     try {
       setError(null);
       setIsLoading(true);
       
-      // Vérifier les limites d'utilisateurs pour les employés
-      if (role === 'employe') {
-        try {
-          const limitCheck = await checkAgencyUserLimit(agencyId);
+      const normalizedEmail = email.trim().toLowerCase();
+      
+      // NOTE: On ne fait plus de vérification préalable dans Firestore car elle peut manquer de permissions
+      // Firebase Auth gérera la vérification et retournera 'auth/email-already-in-use' si l'email existe
+      // Cela évite les faux positifs et les problèmes de permissions
+      
+      // ÉTAPE 1: Vérifier les limites d'utilisateurs pour les employés (AVANT création Auth)
+          if (role === 'employe') {
+            try {
+              const limitCheck = await withRetry(
+                () => checkAgencyUserLimit(agencyId),
+                { maxRetries: 2, retryDelay: 500 }
+              );
           if (!limitCheck.canAddUser) {
-            setError('Limite d\'utilisateurs atteinte. Contactez votre directeur pour cette agence.');
-            return false;
+            setError(limitCheck.error || 'Limite d\'utilisateurs atteinte. Contactez votre directeur pour cette agence.');
+            return { 
+              success: false, 
+              error: limitCheck.error || 'Limite d\'utilisateurs atteinte. Contactez votre directeur pour cette agence.'
+            };
           }
         } catch (error) {
-          // Si on ne peut pas vérifier les limites (permissions, etc.), on bloque par sécurité
           console.error('❌ REGISTRATION ERROR: Failed to check user limits during employee registration');
           setError('Erreur technique: Impossible de vérifier les limites d\'utilisateurs. Veuillez contacter le support technique.');
-          return false;
+          return { 
+            success: false, 
+            error: 'Erreur technique: Impossible de vérifier les limites d\'utilisateurs. Veuillez contacter le support technique.'
+          };
         }
       }
       
-      // Créer le compte Firebase Auth
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      // ÉTAPE 2: Créer le compte Firebase Auth
+      // Firebase Auth vérifiera automatiquement si l'email existe déjà
+          let userCredential;
+          try {
+            userCredential = await withAuthRetry(
+              () => createUserWithEmailAndPassword(auth, normalizedEmail, password),
+              { maxRetries: 3, retryDelay: 1000 }
+            );
+      } catch (authError: any) {
+        console.log('🔍 [REGISTER] Firebase Auth error:', {
+          code: authError.code,
+          message: authError.message,
+          email: normalizedEmail
+        });
+        
+        // Gestion spéciale pour email déjà utilisé dans Firebase Auth
+        if (authError.code === 'auth/email-already-in-use') {
+          console.log('🔄 [REGISTER] Email already in use in Firebase Auth, checking Firestore...');
+          // Tentative de récupération : vérifier si le document Firestore existe
+          try {
+            // Essayer de trouver l'utilisateur par email dans Firestore
+            const recoveryQuery = query(
+              collection(db, 'users'),
+              where('email', '==', normalizedEmail)
+            );
+            const recoverySnapshot = await withFirestoreRetry(
+              () => getDocs(recoveryQuery),
+              { maxRetries: 2, retryDelay: 500 }
+            );
+            
+            console.log('🔍 [REGISTER] Recovery check result:', {
+              found: !recoverySnapshot.empty,
+              count: recoverySnapshot.size
+            });
+            
+            if (!recoverySnapshot.empty) {
+              // Le document Firestore existe, vérifier qu'il correspond vraiment à cet email
+              const matchingDocs = recoverySnapshot.docs.filter(doc => {
+                const docEmail = doc.data().email;
+                const normalizedDocEmail = docEmail ? docEmail.trim().toLowerCase() : '';
+                return normalizedDocEmail === normalizedEmail;
+              });
+              
+              if (matchingDocs.length > 0) {
+                // Le document existe vraiment, proposer de se connecter
+                setError('ACCOUNT_EXISTS');
+                return { 
+                  success: false, 
+                  error: 'Un compte existe déjà avec cet email. Voulez-vous vous connecter ?',
+                  action: 'login'
+                };
+              }
+              // Si pas de correspondance exacte, continuer avec la récupération
+            }
+            
+            // Le compte Auth existe mais pas le document Firestore - RÉCUPÉRATION AUTOMATIQUE
+            console.log('🔄 Récupération automatique: Compte Auth existe mais document Firestore manquant');
+            
+            // Essayer de se connecter avec le mot de passe fourni pour récupérer l'UID
+            try {
+              const recoveryCredential = await withAuthRetry(
+                () => signInWithEmailAndPassword(auth, normalizedEmail, password),
+                { maxRetries: 2, retryDelay: 500 }
+              );
+              const recoveryUid = recoveryCredential.user.uid;
+              
+              // Créer le document Firestore manquant avec l'UID récupéré
+              const userData: Omit<User, 'id'> = {
+                name: name.trim(),
+                email: normalizedEmail,
+                role,
+                agencyId: agencyId.trim(),
+                ...(role === 'admin' && {
+                  isSuperAdmin: true,
+                  adminPermissions: [
+                    'user_management',
+                    'system_monitoring',
+                    'analytics_access',
+                    'settings_management',
+                    'backup_restore',
+                    'log_access'
+                  ],
+                  isActive: true
+                }),
+                ...(role === 'directeur' && {
+                  needsPackageSelection: true,
+                  tokensUsedMonthly: 0,
+                  tokensResetDate: new Date()
+                }),
+                ...(role === 'employe' && {
+                  accessLevels: [],
+                  hasDirectorDashboardAccess: false
+                }),
+                isApproved: role === 'directeur' || role === 'admin' ? true : false,
+                createdAt: serverTimestamp(),
+                updatedAt: serverTimestamp()
+              };
+              
+              await setDoc(doc(db, 'users', recoveryUid), userData);
+              
+              // Track registration analytics pour la récupération
+              try {
+                await AnalyticsService.logUserRegistration(recoveryUid, role, agencyId);
+              } catch (analyticsError) {
+                console.warn('⚠️ Could not log recovery analytics (non-blocking):', analyticsError);
+              }
+              
+              setError('ACCOUNT_RECOVERED');
+              return { 
+                success: true, 
+                error: 'Votre compte a été récupéré avec succès. Vous êtes maintenant connecté.',
+                action: 'recover'
+              };
+            } catch (recoveryAuthError: any) {
+              // Le mot de passe est incorrect ou autre erreur
+              console.warn('⚠️ Could not recover account (password may be incorrect):', recoveryAuthError);
+              setError('ACCOUNT_EXISTS');
+              return { 
+                success: false, 
+                error: 'Un compte existe déjà avec cet email. Voulez-vous vous connecter ?',
+                action: 'login'
+              };
+            }
+          } catch (recoveryError) {
+            console.error('❌ Erreur lors de la récupération:', recoveryError);
+            setError('ACCOUNT_EXISTS');
+            return { 
+              success: false, 
+              error: 'Un compte existe déjà avec cet email. Voulez-vous vous connecter ?',
+              action: 'login'
+            };
+          }
+        }
+        
+        // Autre erreur Auth
+        setError(getErrorMessage(authError.code));
+        return { 
+          success: false, 
+          error: getErrorMessage(authError.code)
+        };
+      }
       
-      // Créer le document utilisateur dans Firestore avec tous les champs requis
+      
+      // ÉTAPE 3: Créer le document utilisateur dans Firestore avec tous les champs requis
       const userData: Omit<User, 'id'> = {
         name: name.trim(),
-        email: email.trim().toLowerCase(),
+        email: normalizedEmail,
         role,
         agencyId: agencyId.trim(),
         ...(role === 'admin' && {
@@ -756,16 +1016,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         updatedAt: serverTimestamp()
       };
       
-      await setDoc(doc(db, 'users', userCredential.user.uid), userData);
+            await withFirestoreRetry(
+              () => setDoc(doc(db, 'users', userCredential.user.uid), userData),
+              { maxRetries: 3, retryDelay: 1000 }
+            );
       
-      // Note: L'univers par défaut sera créé automatiquement dans onAuthStateChanged
-      // après que l'utilisateur soit complètement chargé et que les permissions Firestore soient propagées
-      
-      // Forcer le rechargement immédiat de l'utilisateur après l'inscription
-      // Cela déclenchera onAuthStateChanged immédiatement
-      // Pas besoin d'attendre, Firebase Auth est déjà mis à jour
-      
-      // Track user addition in subscription session (only for employees added by directors)
+      // ÉTAPE 4: Track user addition in subscription session (only for employees added by directors)
+      // NOTE: Cette étape peut échouer à cause de permissions, mais ce n'est pas bloquant
       if (role === 'employe') {
         try {
           // Find the director of this agency to track the user addition
@@ -774,30 +1031,53 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             where('agencyId', '==', agencyId),
             where('role', '==', 'directeur')
           );
-          const directorsSnapshot = await getDocs(directorsQuery);
+          const directorsSnapshot = await withFirestoreRetry(
+            () => getDocs(directorsQuery),
+            { maxRetries: 1, retryDelay: 500 }
+          );
           
           if (!directorsSnapshot.empty) {
             const director = directorsSnapshot.docs[0];
-            await SubscriptionSessionService.updateUsage(director.id, 'users', 1);
+            try {
+              await SubscriptionSessionService.updateUsage(director.id, 'users', 1);
+            } catch (updateError: any) {
+              // Erreur de permissions ou autre - non bloquant
+              if (updateError?.code === 'permission-denied') {
+                console.warn('⚠️ Permission denied for usage tracking (non-blocking)');
+              } else {
+                console.warn('⚠️ Could not track user addition (non-blocking):', updateError);
+              }
+            }
           }
-        } catch (trackingError) {
+        } catch (trackingError: any) {
+          // Erreur lors de la recherche du directeur - non bloquant
+          if (trackingError?.code === 'permission-denied') {
+            console.warn('⚠️ Permission denied for director lookup (non-blocking)');
+          } else {
+            console.warn('⚠️ Could not track user addition (non-blocking):', trackingError);
+          }
         }
       }
       
-      // Track registration analytics
+      // ÉTAPE 5: Track registration analytics
       try {
         await AnalyticsService.logUserRegistration(userCredential.user.uid, role, agencyId);
       } catch (analyticsError) {
+        console.warn('⚠️ Could not log registration analytics (non-blocking):', analyticsError);
       }
       
       // Marquer pour afficher l'écran de bienvenue juste après l'inscription
       try { sessionStorage.setItem('show_welcome_after_login', 'true'); } catch {}
 
-      return true;
+      return { success: true };
     } catch (err: any) {
       console.error('Erreur d\'inscription:', err);
-      setError(getErrorMessage(err.code));
-      return false;
+      const errorMessage = getErrorMessage(err.code || err.message);
+      setError(errorMessage);
+      return { 
+        success: false, 
+        error: errorMessage
+      };
     } finally {
       setIsLoading(false);
     }
@@ -907,6 +1187,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return 'Compte désactivé. Contactez le support';
       case 'auth/email-already-in-use':
         return 'ACCOUNT_EXISTS'; // Special flag for existing account
+      case 'POPUP_BLOCKED_PWA':
+        return 'La popup a été bloquée. En mode PWA, veuillez utiliser la connexion par email/mot de passe.';
+      case 'ACCOUNT_RECOVERED':
+        return 'Votre compte a été récupéré avec succès. Vous êtes maintenant connecté.';
       case 'auth/weak-password':
         return 'Le mot de passe doit contenir au moins 6 caractères';
       case 'auth/invalid-email':
