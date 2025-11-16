@@ -5,7 +5,7 @@
     <link rel="icon" type="image/png" href="/fav-icons/favicon-32x32.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
     
-    <!-- PWA Meta Tags - Main App Theme (Blue) -->
+    <!-- PWA Meta Tags -->
     <meta name="application-name" content="Ubora" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
@@ -18,46 +18,22 @@
     <meta name="msapplication-tap-highlight" content="no" />
     <meta name="theme-color" content="#3b82f6" />
     
-    <!-- Google Analytics -->
-    <script async src="https://www.googletagmanager.com/gtag/js?id=G-6TWRQHW70W"></script>
-    <script>
-      window.dataLayer = window.dataLayer || [];
-      function gtag(){dataLayer.push(arguments);}
-      gtag('js', new Date());
-      gtag('config', 'G-6TWRQHW70W');
-    </script>
-    
     <!-- Apple Touch Icons -->
     <link rel="apple-touch-icon" href="/fav-icons/apple-icon.png" />
     <link rel="apple-touch-icon" sizes="152x152" href="/fav-icons/apple-icon-152x152.png" />
     <link rel="apple-touch-icon" sizes="180x180" href="/fav-icons/apple-icon-180x180.png" />
-    <link rel="apple-touch-icon" sizes="167x167" href="/fav-icons/apple-icon-152x152.png" />
     
     <!-- Standard Icons -->
     <link rel="icon" type="image/png" sizes="32x32" href="/fav-icons/favicon-32x32.png" />
     <link rel="icon" type="image/png" sizes="16x16" href="/fav-icons/favicon-16x16.png" />
     <link rel="manifest" href="/manifest.json" />
-    <link rel="mask-icon" href="/fav-icons/apple-icon.png" color="#3b82f6" />
     <link rel="shortcut icon" href="/fav-icons/favicon.ico" />
     
-    <!-- Splash Screens for iOS -->
-    <meta name="apple-mobile-web-app-capable" content="yes" />
-    <link rel="apple-touch-startup-image" href="/fav-icons/apple-icon-180x180.png" media="(device-width: 320px) and (device-height: 568px) and (-webkit-device-pixel-ratio: 2)" />
-    <link rel="apple-touch-startup-image" href="/fav-icons/apple-icon-180x180.png" media="(device-width: 375px) and (device-height: 667px) and (-webkit-device-pixel-ratio: 2)" />
-    <link rel="apple-touch-startup-image" href="/fav-icons/apple-icon-180x180.png" media="(device-width: 414px) and (device-height: 736px) and (-webkit-device-pixel-ratio: 3)" />
-    <link rel="apple-touch-startup-image" href="/fav-icons/apple-icon-180x180.png" media="(device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 3)" />
-    <link rel="apple-touch-startup-image" href="/fav-icons/apple-icon-180x180.png" media="(device-width: 768px) and (device-height: 1024px) and (-webkit-device-pixel-ratio: 2)" />
-    <link rel="apple-touch-startup-image" href="/fav-icons/apple-icon-180x180.png" media="(device-width: 834px) and (device-height: 1112px) and (-webkit-device-pixel-ratio: 2)" />
-    <link rel="apple-touch-startup-image" href="/fav-icons/apple-icon-180x180.png" media="(device-width: 1024px) and (device-height: 1366px) and (-webkit-device-pixel-ratio: 2)" />
-    
     <title>Ubora - Gestion des Formulaires avec ARCHA</title>
-    
-    <!-- Campay SDK is now loaded dynamically by CampayService -->
-    <!-- The service will load the script with the App ID from VITE_CAMPAY_APP_ID environment variable -->
   </head>
   <body>
     <div id="root"></div>
+    <!-- Vite injectera automatiquement le bon chemin vers main.tsx compilé -->
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
-

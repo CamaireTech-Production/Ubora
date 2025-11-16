@@ -15,6 +15,7 @@ import { PDFViewerModal } from '../components/PDFViewerModal';
 import { DynamicForm } from '../components/DynamicForm';
 import { downloadFile } from '@ubora/shared/utils/downloadUtils';
 import { forceDownloadFromFirebase } from '@ubora/shared/utils/firebaseDownloadUtils';
+import { formatFieldValue } from '@ubora/shared/utils/listValueFormatter';
 
 export const ResponseDetailPage: React.FC = () => {
   const { formId } = useParams<{ formId: string }>();
@@ -688,10 +689,7 @@ export const ResponseDetailPage: React.FC = () => {
                                       {fieldLabel}
                                     </div>
                                     <div className="text-gray-900 text-sm">
-                                      {value !== null && value !== undefined ? 
-                                        (typeof value === 'boolean' ? (value ? 'Oui' : 'Non') : String(value)) : 
-                                        '-'
-                                      }
+                                      {formatFieldValue(value, field, false)}
                                     </div>
                                   </div>
                                 </div>

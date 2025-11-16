@@ -5,10 +5,7 @@ import {
   DashboardDefinition, 
   InstructionDefinition, 
   ReportDefinition, 
-  Report, 
-  ReportMapping,
-  ScheduledQuestion,
-  List
+  ReportMapping
 } from '../types';
 import { listsService } from './listsService';
 import { reportsService } from './reportsService';
@@ -101,20 +98,40 @@ class UniversInstantiationService {
   }
   /**
    * Instantiate Forms from FormDefinitions
+   * Maps listId in form fields to the new instance list IDs
    */
   async instantiateForms(
     formDefinitions: FormDefinition[],
-    params: InstantiationParams
+    params: InstantiationParams,
+    listIdMappings?: Map<string, string> // Map<definitionListId, instanceListId>
   ): Promise<string[]> {
     const createdFormIds: string[] = [];
 
     for (const formDef of formDefinitions) {
       try {
+        // Map listId in fields to new instance IDs if mappings provided
+        const mappedFields = (formDef.fields || []).map((field: any) => {
+          // If field uses a list and we have mappings, update the listId
+          if (field.type === 'select' && field.listId && listIdMappings) {
+            const newListId = listIdMappings.get(field.listId);
+            if (newListId) {
+              console.log(`🔄 Mapping listId in form "${formDef.title}" field "${field.label}": ${field.listId} → ${newListId}`);
+              return {
+                ...field,
+                listId: newListId
+              };
+            } else {
+              console.warn(`⚠️ No mapping found for listId ${field.listId} in form "${formDef.title}" field "${field.label}"`);
+            }
+          }
+          return field;
+        });
+
         // Create a Form from FormDefinition
         const formData: any = {
           title: formDef.title,
           description: formDef.description || '',
-          fields: formDef.fields || [],
+          fields: mappedFields,
           createdBy: params.userId,
           createdByRole: params.userRole === 'admin' ? 'directeur' : params.userRole as 'directeur' | 'employe',
           assignedTo: [], // Empty by default - user will assign later
@@ -329,11 +346,29 @@ class UniversInstantiationService {
 
     for (const listDef of listDefinitions) {
       try {
+        // Normaliser la ListDefinition pour s'assurer que rows est présent
+        const normalizedListDef = {
+          id: listDef.id || '',
+          name: listDef.name || '',
+          description: listDef.description || undefined,
+          columns: Array.isArray(listDef.columns) ? listDef.columns : [],
+          // CRITIQUE: S'assurer que rows est toujours un tableau
+          rows: Array.isArray(listDef.rows) ? listDef.rows : []
+        };
+
+        // Log pour débogage
+        const rowsCount = normalizedListDef.rows.length;
+        console.log(`🔄 Instanciation ListDefinition "${normalizedListDef.name}": ${normalizedListDef.columns.length} colonnes, ${rowsCount} rows`);
+        
+        if (rowsCount === 0) {
+          console.warn(`⚠️ ListDefinition "${normalizedListDef.name}" n'a pas de rows - vérifier si c'est normal`);
+        }
+
         // Create a List from ListDefinition
         const listData: any = {
-          name: listDef.name,
-          columns: listDef.columns,
-          rows: listDef.rows,
+          name: normalizedListDef.name,
+          columns: normalizedListDef.columns,
+          rows: normalizedListDef.rows, // Utiliser les rows normalisés
           createdBy: params.userId,
           createdByRole: params.userRole === 'admin' ? 'directeur' : params.userRole as 'directeur' | 'employe',
           agencyId: params.agencyId,
@@ -345,8 +380,8 @@ class UniversInstantiationService {
         };
 
         // Ne pas inclure les champs undefined (Firestore ne permet pas undefined)
-        if (listDef.description) {
-          listData.description = listDef.description;
+        if (normalizedListDef.description) {
+          listData.description = normalizedListDef.description;
         }
         if (params.userRole === 'employe') {
           listData.createdByEmployeeId = params.userId;
@@ -355,7 +390,7 @@ class UniversInstantiationService {
         const listId = await listsService.create(listData);
         createdListIds.push(listId);
         
-        console.log(`✅ List instantiated: ${listDef.name} (ID: ${listId})`);
+        console.log(`✅ List instantiated: ${normalizedListDef.name} (ID: ${listId}) avec ${rowsCount} rows`);
       } catch (error) {
         console.error(`❌ Error instantiating list ${listDef.name}:`, error);
         throw new Error(`Failed to instantiate list "${listDef.name}": ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -389,23 +424,30 @@ class UniversInstantiationService {
 
           // If mapping references a form, map definition ID to instance ID
           if (mapping.sourceType === 'form') {
-            const instanceId = idMappings.forms.get(mapping.sourceId);
+            const instanceId = idMappings.forms.get(mapping.sourceId || '');
             if (instanceId) {
               updatedMapping.sourceId = instanceId;
               console.log(`✅ Mapped form definition ${mapping.sourceId} → instance ${instanceId}`);
             } else {
               console.warn(`⚠️ Warning: Form definition ID ${mapping.sourceId} not found in instantiated forms. Mapping may be broken.`);
+              // Ne pas supprimer le sourceId, mais laisser un warning - la validation échouera si nécessaire
             }
           }
           // If mapping references a dashboard, map definition ID to instance ID
           else if (mapping.sourceType === 'dashboard') {
-            const instanceId = idMappings.dashboards.get(mapping.sourceId);
+            const instanceId = idMappings.dashboards.get(mapping.sourceId || '');
             if (instanceId) {
               updatedMapping.sourceId = instanceId;
               console.log(`✅ Mapped dashboard definition ${mapping.sourceId} → instance ${instanceId}`);
             } else {
               console.warn(`⚠️ Warning: Dashboard definition ID ${mapping.sourceId} not found in instantiated dashboards. Mapping may be broken.`);
+              // Ne pas supprimer le sourceId, mais laisser un warning - la validation échouera si nécessaire
             }
+          }
+          // For 'static' type mappings, no mapping is needed - they use staticValueType
+          else if (mapping.sourceType === 'static') {
+            // Static mappings don't need sourceId, they're already correct
+            console.log(`✅ Static mapping preserved: ${mapping.staticValueType || 'unknown'}`);
           }
 
           return updatedMapping;
@@ -490,10 +532,25 @@ class UniversInstantiationService {
       lists: new Map<string, string>()
     };
 
-    // Instantiate Forms (must be first)
+    // CRITIQUE: Instantiate Lists FIRST (before forms) so we can map listId in form fields
+    if (definitions.lists && definitions.lists.length > 0) {
+      try {
+        result.lists = await this.instantiateLists(definitions.lists, params);
+        // Populate list ID mappings
+        definitions.lists.forEach((listDef, index) => {
+          idMappings.lists.set(listDef.id, result.lists[index]);
+        });
+        console.log(`✅ Instantiated ${result.lists.length} lists (before forms for listId mapping)`);
+      } catch (error) {
+        console.error('❌ Error instantiating lists:', error);
+        throw error;
+      }
+    }
+
+    // Instantiate Forms (after lists so we can map listId in fields)
     if (definitions.forms && definitions.forms.length > 0) {
       try {
-        result.forms = await this.instantiateForms(definitions.forms, params);
+        result.forms = await this.instantiateForms(definitions.forms, params, idMappings.lists);
         // Populate form ID mappings
         definitions.forms.forEach((formDef, index) => {
           idMappings.forms.set(formDef.id, result.forms[index]);
@@ -516,21 +573,6 @@ class UniversInstantiationService {
         console.log(`✅ Instantiated ${result.dashboards.length} dashboards`);
       } catch (error) {
         console.error('❌ Error instantiating dashboards:', error);
-        throw error;
-      }
-    }
-
-    // Instantiate Lists
-    if (definitions.lists && definitions.lists.length > 0) {
-      try {
-        result.lists = await this.instantiateLists(definitions.lists, params);
-        // Populate list ID mappings
-        definitions.lists.forEach((listDef, index) => {
-          idMappings.lists.set(listDef.id, result.lists[index]);
-        });
-        console.log(`✅ Instantiated ${result.lists.length} lists`);
-      } catch (error) {
-        console.error('❌ Error instantiating lists:', error);
         throw error;
       }
     }

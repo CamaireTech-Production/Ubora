@@ -165,7 +165,7 @@ export const UniversCard: React.FC<UniversCardProps> = ({
       setUpgradeProgress('Finalisation...');
       await new Promise(resolve => setTimeout(resolve, 300));
 
-      showSuccess(`Univers mis à jour avec succès vers la version ${latestVersion}`);
+      showSuccess(`Univers mis à jour avec succès vers la version ${latestAvailableVersion}`);
       setShowUpgradeModal(false);
       setIsUpgrading(false);
       setUpgradeProgress('');
@@ -182,7 +182,7 @@ export const UniversCard: React.FC<UniversCardProps> = ({
         userInstance: userInstance?.id,
         universId: univers?.id,
         currentVersion,
-        latestVersion
+        latestAvailableVersion
       });
       
       let errorMessage = 'Une erreur est survenue lors de la mise à jour du Univers.';
@@ -386,7 +386,7 @@ export const UniversCard: React.FC<UniversCardProps> = ({
           <div className="mt-2 text-xs text-orange-600">
             <span>Version actuelle: v{currentVersion}</span>
             <span className="mx-2">•</span>
-            <span className="font-semibold">Version disponible: v{latestVersion}</span>
+            <span className="font-semibold">Version disponible: v{latestAvailableVersion}</span>
           </div>
         )}
       </div>
@@ -541,7 +541,44 @@ export const UniversCard: React.FC<UniversCardProps> = ({
       {/* Actions pour directeurs avec design moderne */}
       {isDirecteur && (
         <div className="mt-2 sm:mt-3 lg:mt-4 pt-2 sm:pt-3 lg:pt-4 border-t border-gray-200/50 space-y-1.5 sm:space-y-2">
-          {/* Boutons selon le contexte et le statut */}
+          {/* Bouton Activer - Afficher si instance existe et n'est pas active, même s'il y a une mise à jour */}
+          {isPurchased && 
+           !isActive && 
+           // Pour les univers achetés (non-propriétaires), bloquer si en attente ou rejeté
+           // Pour le propriétaire, permettre l'activation même en attente
+           (isOwner || (univers.ownership.approvalStatus !== 'pending' && univers.ownership.approvalStatus !== 'rejected')) && (
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={handleActivateClick}
+              className="w-full flex items-center justify-center space-x-1 sm:space-x-2 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 shadow-lg hover:shadow-xl transition-all duration-200 text-xs sm:text-sm py-1.5 sm:py-2"
+              disabled={disabled || isActivating}
+            >
+              <Power className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
+              <span className="truncate">Activer v{currentVersion}</span>
+            </Button>
+          )}
+          
+          {/* Bouton Activer pour mes univers ou detail - Afficher même s'il y a une mise à jour */}
+          {(context === 'my-univers' || context === 'detail') && 
+           isDirecteur &&
+           !isActive && 
+           !isPurchased &&
+           // Le propriétaire peut toujours activer, même en attente
+           (isOwner || (univers.ownership.approvalStatus !== 'pending' && univers.ownership.approvalStatus !== 'rejected')) && (
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={handleActivateClick}
+              className="w-full flex items-center justify-center space-x-2 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 shadow-lg hover:shadow-xl transition-all duration-200"
+              disabled={disabled || isActivating}
+            >
+              <Power className="h-4 w-4" />
+              <span>Activer ce Univers</span>
+            </Button>
+          )}
+          
+          {/* Bouton Mettre à jour - Afficher si mise à jour disponible */}
           {hasUpdateAvailable && (
             <Button
               variant="primary"
@@ -551,70 +588,30 @@ export const UniversCard: React.FC<UniversCardProps> = ({
               disabled={disabled || isUpgrading}
             >
               <Download className="h-3 w-3 sm:h-4 sm:w-4" />
-              <span className="truncate">Mettre à jour v{latestVersion}</span>
+              <span className="truncate">Mettre à jour v{latestAvailableVersion}</span>
             </Button>
           )}
-          {!hasUpdateAvailable && (
-            <>
-              {/* Marketplace : Acheter si non acheté, Activer si acheté */}
-              {context === 'marketplace' && isMarketplace && (
-                <>
-                  {!isPurchased && !isOwned && (
-                    <Button
-                      variant="primary"
-                      size="sm"
-                      onClick={() => onPurchase ? onPurchase(univers) : onView?.(univers)}
-                      className="w-full flex items-center justify-center space-x-1 sm:space-x-2 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 shadow-lg hover:shadow-xl transition-all duration-200 text-xs sm:text-sm py-1.5 sm:py-2"
-                      disabled={disabled}
-                    >
-                      <Globe className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
-                      <span className="truncate">
-                        {univers.metadata.price === 0 || univers.metadata.price === null || univers.metadata.price === undefined
-                          ? 'Utiliser'
-                          : `Acheter ${univers.metadata.price?.toLocaleString('fr-FR')} ${univers.metadata.currency || 'XAF'}`}
-                      </span>
-                    </Button>
-                  )}
-                  {isPurchased && 
-                   !isActive && 
-                   // Pour les univers achetés (non-propriétaires), bloquer si en attente ou rejeté
-                   // Pour le propriétaire, permettre l'activation même en attente
-                   (isOwner || (univers.ownership.approvalStatus !== 'pending' && univers.ownership.approvalStatus !== 'rejected')) && (
-                    <Button
-                      variant="primary"
-                      size="sm"
-                      onClick={handleActivateClick}
-                      className="w-full flex items-center justify-center space-x-1 sm:space-x-2 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 shadow-lg hover:shadow-xl transition-all duration-200 text-xs sm:text-sm py-1.5 sm:py-2"
-                      disabled={disabled}
-                    >
-                      <Power className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
-                      <span className="truncate">Activer</span>
-                    </Button>
-                  )}
-                </>
-              )}
-              
-              {/* Mes Univers ou Detail : Activer si non actif
-                  Pour le propriétaire, permettre l'activation même en attente
-                  Pour les non-propriétaires, bloquer si en attente ou rejeté */}
-              {(context === 'my-univers' || context === 'detail') && 
-               isDirecteur &&
-               !isActive && 
-               !hasUpdateAvailable &&
-               // Le propriétaire peut toujours activer, même en attente
-               (isOwner || (univers.ownership.approvalStatus !== 'pending' && univers.ownership.approvalStatus !== 'rejected')) && (
-                <Button
-                  variant="primary"
-                  size="sm"
-                  onClick={handleActivateClick}
-                  className="w-full flex items-center justify-center space-x-2 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 shadow-lg hover:shadow-xl transition-all duration-200"
-                  disabled={disabled}
-                >
-                  <Power className="h-4 w-4" />
-                  <span>Activer ce Univers</span>
-                </Button>
-              )}
-            </>
+          
+          {/* Marketplace : Acheter si non acheté (seulement si pas de mise à jour et pas d'instance) */}
+          {!hasUpdateAvailable && 
+           context === 'marketplace' && 
+           isMarketplace && 
+           !isPurchased && 
+           !isOwned && (
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => onPurchase ? onPurchase(univers) : onView?.(univers)}
+              className="w-full flex items-center justify-center space-x-1 sm:space-x-2 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 shadow-lg hover:shadow-xl transition-all duration-200 text-xs sm:text-sm py-1.5 sm:py-2"
+              disabled={disabled}
+            >
+              <Globe className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
+              <span className="truncate">
+                {univers.metadata.price === 0 || univers.metadata.price === null || univers.metadata.price === undefined
+                  ? 'Utiliser'
+                  : `Acheter ${univers.metadata.price?.toLocaleString('fr-FR')} ${univers.metadata.currency || 'XAF'}`}
+              </span>
+            </Button>
           )}
         </div>
       )}

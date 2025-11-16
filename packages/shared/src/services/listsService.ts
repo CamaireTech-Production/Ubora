@@ -21,12 +21,20 @@ class ListsService {
    * Convertir les données Firestore en List
    */
   private convertFirestoreToList(id: string, data: any): List {
-    return {
+    // Normaliser les rows pour s'assurer que c'est toujours un tableau
+    const normalizedRows = Array.isArray(data.rows) ? data.rows : [];
+    
+    // Log pour débogage si rows manquants
+    if (!Array.isArray(data.rows) && data.rows !== undefined) {
+      console.warn(`⚠️ List "${data.name}" (${id}): rows n'est pas un tableau, normalisation en cours`);
+    }
+    
+    const list = {
       id,
       name: data.name,
       description: data.description || undefined,
-      columns: data.columns || [],
-      rows: data.rows || [],
+      columns: Array.isArray(data.columns) ? data.columns : [],
+      rows: normalizedRows, // Toujours un tableau
       createdBy: data.createdBy,
       createdByRole: data.createdByRole || 'directeur',
       createdByEmployeeId: data.createdByEmployeeId || undefined,
@@ -37,6 +45,15 @@ class ListsService {
       universInstanceId: data.universInstanceId || undefined,
       fromUnivers: data.fromUnivers || false
     } as List;
+    
+    // Log pour débogage
+    if (normalizedRows.length > 0) {
+      console.log(`📋 List "${list.name}" (${id}) chargée: ${list.columns.length} colonnes, ${normalizedRows.length} rows`);
+    } else if (list.columns.length > 0) {
+      console.warn(`⚠️ List "${list.name}" (${id}): ${list.columns.length} colonnes mais 0 rows`);
+    }
+    
+    return list;
   }
 
   /**

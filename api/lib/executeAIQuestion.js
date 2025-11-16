@@ -14,6 +14,7 @@ if (!loadedLocalEnv || !loadedLocalEnv.parsed) {
 
 import { adminDb } from '../lib/firebaseAdmin.js';
 import OpenAI from 'openai';
+import { formatFieldValue } from './listValueFormatter.js';
 
 // Initialize OpenAI
 const openai = new OpenAI({
@@ -329,10 +330,28 @@ ${hasImageContent ? `
     // Build user prompt
     const buildSubmissionsData = (submissions) => {
       return submissions.map((s, index) => {
+        // Find the form for this submission to get field definitions
+        let submissionForm = null;
+        if (formsById && s.formTitle) {
+          // Iterate through formsById to find matching form
+          for (const [formId, form] of formsById.entries()) {
+            if (form.title === s.formTitle) {
+              submissionForm = form;
+              break;
+            }
+          }
+        }
+        
         const fieldSummary = Object.entries(s.answers).map(([fieldLabel, value]) => {
-          const displayValue = value !== null && value !== undefined ? 
-            (typeof value === 'boolean' ? (value ? 'Oui' : 'Non') : String(value)) : 
-            'Non renseigné';
+          // Try to find the field definition to get displayColumnId
+          let field = null;
+          if (submissionForm && submissionForm.fields) {
+            // Find field by label (since we're using fieldLabel here)
+            field = submissionForm.fields.find(f => f.label === fieldLabel);
+          }
+          
+          // Use formatFieldValue to handle list values and other types
+          const displayValue = formatFieldValue(value, field, true); // true = forAI
           return `${fieldLabel}: ${displayValue}`;
         }).join(' | ');
         
