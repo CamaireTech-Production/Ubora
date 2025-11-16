@@ -2,7 +2,7 @@ name: Deploy Admin to Production (Hostinger)
 
 on:
   push:
-    branches: [ master ]
+    branches: [ prod ]
   workflow_dispatch:
 
 env:
