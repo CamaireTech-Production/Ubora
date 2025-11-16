@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Card } from './Card';
+import { Card } from '../ui/Card';
 import { Play, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Video } from '../data/videoData';
 import { VideoModal } from './VideoModal';

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Univers } from '../types';
+import { Univers } from '../../types';
 import { Button } from '../ui/Button';
 import { ConfirmationModal } from '../modals/ConfirmationModal';
 import { useApp } from '@ubora/shared/contexts/AppContext';

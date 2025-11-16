@@ -2,10 +2,10 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '@ubora/shared/contexts/AppContext';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
 import { useToast } from '@ubora/shared/hooks/useToast';
-import { universService } from '../services/universService';
-import { Univers } from '../types';
-import { Button } from './Button';
-import { ConfirmationModal } from './ConfirmationModal';
+import { universService } from '@ubora/shared/services/universService';
+import { Univers } from '../../types';
+import { Button } from '../ui/Button';
+import { ConfirmationModal } from '../modals/ConfirmationModal';
 import { CheckCircle, ChevronDown, Loader2 } from 'lucide-react';
 
 export const UniversSwitcher: React.FC = () => {

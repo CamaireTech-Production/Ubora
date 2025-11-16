@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Input } from './Input';
-import { Textarea } from './Textarea';
-import { Select } from './Select';
-import { Card } from './Card';
+import { Input } from '../ui/Input';
+import { Textarea } from '../ui/Textarea';
+import { Select } from '../ui/Select';
+import { Card } from '../ui/Card';
 import { X, Plus, Upload } from 'lucide-react';
 import { UniversWizardStepProps } from './UniversWizard';
 import { useToast } from '@ubora/shared/hooks/useToast';

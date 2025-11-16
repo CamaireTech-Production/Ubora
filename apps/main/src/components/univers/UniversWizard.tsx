@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Button } from './Button';
-import { Card } from './Card';
+import { Button } from '../ui/Button';
+import { Card } from '../ui/Card';
 import { ArrowLeft, ArrowRight, Check, ChevronRight, Circle, Loader2 } from 'lucide-react';
 import { useUniversWizardProgress } from '@ubora/shared/hooks/useUniversWizardProgress';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
-import { UniversDefinitions, UniversMetadata, UniversOwnership, Univers } from '../types';
+import { UniversDefinitions, UniversMetadata, UniversOwnership, Univers } from '../../types';
 
 interface UniversWizardProps {
   onComplete: (universData: {

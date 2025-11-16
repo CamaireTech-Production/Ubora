@@ -4,7 +4,7 @@ import { useAuth } from '@ubora/shared/contexts/AuthContext';
 import { usePackageAccess } from '@ubora/shared/hooks/usePackageAccess';
 import { UserSessionService } from '@ubora/shared/services/userSessionService';
 import { Brain, Crown, Star, Zap, ChevronRight } from 'lucide-react';
-import { PackageInfoSkeleton } from './skeletons/PackageInfoSkeleton';
+import { PackageInfoSkeleton } from '../skeletons/PackageInfoSkeleton';
 
 interface UserPackageInfoProps {
   className?: string;

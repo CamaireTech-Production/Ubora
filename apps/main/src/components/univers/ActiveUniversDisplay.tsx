@@ -2,9 +2,9 @@ import React from 'react';
 import { useApp } from '@ubora/shared/contexts/AppContext';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
 import { universService } from '@ubora/shared/services/universService';
-import { Univers } from '../types';
+import { Univers } from '../../types';
 import { Globe } from 'lucide-react';
-import { ActiveUniversSkeleton } from './skeletons/ActiveUniversSkeleton';
+import { ActiveUniversSkeleton } from '../skeletons/ActiveUniversSkeleton';
 
 interface ActiveUniversDisplayProps {
   className?: string;
