@@ -5,7 +5,7 @@ import { useApp } from '@ubora/shared/contexts/AppContext';
 import { Layout } from '../components/Layout';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
-import { LoadingGuard } from '../components/LoadingGuard';
+import { WireframeLoader } from '../components/loading/WireframeLoader';
 import { ArrowLeft, FileText, User, Calendar, Filter, Download, Eye, Edit, ChevronLeft, ChevronRight, RefreshCw, CheckCircle, Clock, XCircle } from 'lucide-react';
 import { FileAttachment } from '../types';
 import { useToast } from '@ubora/shared/hooks/useToast';
@@ -555,35 +555,31 @@ export const ResponseDetailPage: React.FC = () => {
     return pages;
   };
 
+  // Show wireframe loader during loading
+  if (isLoading || appLoading || !user || !firebaseUser) {
+    return (
+      <Layout title="Chargement...">
+        <WireframeLoader type="list" count={5} />
+      </Layout>
+    );
+  }
+
   if (!form) {
     return (
-      <LoadingGuard 
-        isLoading={isLoading || appLoading} 
-        user={user} 
-        firebaseUser={firebaseUser}
-        message="Chargement des détails de la réponse..."
-      >
-        <Layout title="Réponse non trouvée">
-          <div className="text-center py-8">
-            <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-            <h2 className="text-xl font-semibold text-gray-900 mb-2">Formulaire non trouvé</h2>
-            <p className="text-gray-600 mb-4">Le formulaire demandé n'existe pas ou vous n'avez pas l'autorisation de le consulter.</p>
-            <Button onClick={handleBack}>
-              <ArrowLeft className="h-4 w-4 mr-2" />
-            </Button>
-          </div>
-        </Layout>
-      </LoadingGuard>
+      <Layout title="Réponse non trouvée">
+        <div className="text-center py-8">
+          <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">Formulaire non trouvé</h2>
+          <p className="text-gray-600 mb-4">Le formulaire demandé n'existe pas ou vous n'avez pas l'autorisation de le consulter.</p>
+          <Button onClick={handleBack}>
+            <ArrowLeft className="h-4 w-4 mr-2" />
+          </Button>
+        </div>
+      </Layout>
     );
   }
 
   return (
-    <LoadingGuard 
-      isLoading={isLoading || appLoading} 
-      user={user} 
-      firebaseUser={firebaseUser}
-      message="Chargement des détails de la réponse..."
-    >
       <Layout title={`Réponses - ${form.title}`}>
         <div className="space-y-6">
           {/* Header */}
@@ -1106,6 +1102,5 @@ export const ResponseDetailPage: React.FC = () => {
           }}
         />
       </Layout>
-    </LoadingGuard>
   );
 };
