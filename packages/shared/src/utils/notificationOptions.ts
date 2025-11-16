@@ -48,6 +48,12 @@ export const checkIOSSupport = (): boolean => {
  * Enhanced permission request for iOS
  */
 export const requestEnhancedPermission = async (): Promise<boolean> => {
+  // Vérifier que Notification existe
+  if (typeof Notification === 'undefined') {
+    console.warn('Notification API not available');
+    return false;
+  }
+  
   if (isIOS()) {
     // iOS requires user gesture for permission
     try {

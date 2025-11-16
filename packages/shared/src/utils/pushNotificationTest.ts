@@ -46,6 +46,10 @@ export class PushNotificationTester {
   testPermission(): TestResult {
     const test = 'Permission';
     try {
+      if (typeof Notification === 'undefined') {
+        return { test, success: false, message: 'Notification API not available', timestamp: new Date() };
+      }
+      
       const permission = Notification.permission;
       const success = permission === 'granted';
       const message = `Permission status: ${permission}`;

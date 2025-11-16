@@ -32,7 +32,12 @@ export class BrowserNotificationService {
 
   constructor() {
     this.checkSupport();
-    this.permission = Notification.permission;
+    // Vérifier que Notification existe avant d'accéder à permission
+    if (typeof Notification !== 'undefined' && 'permission' in Notification) {
+      this.permission = Notification.permission;
+    } else {
+      this.permission = 'denied'; // Par défaut si Notification n'existe pas
+    }
   }
 
   static getInstance(): BrowserNotificationService {
@@ -77,6 +82,11 @@ export class BrowserNotificationService {
     }
 
     try {
+      if (typeof Notification === 'undefined') {
+        console.error('🔔 [BrowserNotification] Notification API not available');
+        return false;
+      }
+      
       console.log('🔔 [BrowserNotification] Requesting permission...');
       
       const permission = await Notification.requestPermission();
@@ -92,7 +102,7 @@ export class BrowserNotificationService {
         return false;
       }
     } catch (error) {
-      console.error('🔔 [BrowserNotification] ❌ Permission request failed:', error);
+      console.error('🔔 [BrowserNotification] ❌ Permission request failed:', error instanceof Error ? error.message : String(error));
       return false;
     }
   }
@@ -134,7 +144,7 @@ export class BrowserNotificationService {
       };
 
       // Add non-standard properties if supported
-      if (options.vibrate && 'vibrate' in Notification.prototype) {
+      if (options.vibrate && typeof Notification !== 'undefined' && 'vibrate' in Notification.prototype) {
         (notificationOptions as any).vibrate = options.vibrate;
       }
       if (options.timestamp) {
@@ -151,6 +161,11 @@ export class BrowserNotificationService {
       }
 
       console.log('🔔 [BrowserNotification] Notification options:', notificationOptions);
+
+      // Vérifier que Notification est disponible avant de créer
+      if (typeof Notification === 'undefined') {
+        throw new Error('Notification API is not available');
+      }
 
       // Create the notification
       const notification = new Notification(options.title, notificationOptions);
@@ -212,12 +227,14 @@ export class BrowserNotificationService {
       return true;
 
     } catch (error) {
-      console.error('🔔 [BrowserNotification] ❌ Failed to show notification:', error);
-      console.error('🔔 [BrowserNotification] Error details:', {
-        name: error.name,
-        message: error.message,
-        stack: error.stack
-      });
+      console.error('🔔 [BrowserNotification] ❌ Failed to show notification:', error instanceof Error ? error.message : String(error));
+      if (error instanceof Error) {
+        console.error('🔔 [BrowserNotification] Error details:', {
+          name: error.name,
+          message: error.message,
+          stack: error.stack
+        });
+      }
       return false;
     }
   }

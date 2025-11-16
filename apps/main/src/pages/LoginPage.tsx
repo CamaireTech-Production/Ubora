@@ -5,7 +5,7 @@ import { Button } from '../components/Button';
 import { Input } from '../components/Input';
 import { Card } from '../components/Card';
 import { Footer } from '../components/Footer';
-import { Lock, Mail, AlertCircle } from 'lucide-react';
+import { Lock, Mail, AlertCircle, Loader2, CheckCircle } from 'lucide-react';
 
 export const LoginPage: React.FC = () => {
   const { user, login, loginWithGoogle, register, resetPassword, isLoading, error } = useAuth();
@@ -25,6 +25,8 @@ export const LoginPage: React.FC = () => {
   const [forgotPasswordEmail, setForgotPasswordEmail] = useState('');
   const [forgotPasswordSuccess, setForgotPasswordSuccess] = useState(false);
   const [isRegistering, setIsRegistering] = useState(false);
+  const [registrationSteps, setRegistrationSteps] = useState<string[]>([]);
+  const [currentStep, setCurrentStep] = useState<string>('');
 
   // Gérer les paramètres d'invitation depuis l'URL
   useEffect(() => {
@@ -121,18 +123,41 @@ export const LoginPage: React.FC = () => {
           return;
         }
         
+        // Firebase Auth dans register() fera la vérification finale fiable
+        
         // Activer l'état d'inscription pour garder le bouton en loading
         setIsRegistering(true);
-        const success = await register(email, password, name, role, agencyId);
-        if (success) {
+        setRegistrationSteps(['Vérification des informations...', 'Création du compte...', 'Configuration du profil...']);
+        setCurrentStep('Vérification des informations...');
+        
+        setCurrentStep('Création du compte...');
+        const result = await register(email, password, name, role, agencyId);
+        if (result.success) {
+          setCurrentStep('Configuration du profil...');
           // Garder isRegistering à true jusqu'à la redirection
           // Le bouton restera en loading pendant tout le processus
           // La redirection se fera automatiquement via useEffect quand user sera chargé
+          
+          // Si récupération automatique, afficher un message de succès
+          if (result.action === 'recover') {
+            setLocalError(''); // Clear error, success message will be shown via error state
+          }
         } else {
           // En cas d'erreur, réinitialiser l'état d'inscription
           setIsRegistering(false);
-          if (error === 'ACCOUNT_EXISTS') {
+          
+          // Gérer les différents types d'erreurs avec actions
+          if (result.error === 'ACCOUNT_EXISTS' || result.error === 'ACCOUNT_EXISTS_FIRESTORE' || error === 'ACCOUNT_EXISTS') {
             setShowAccountExistsModal(true);
+            setLocalError('');
+          } else if (result.action === 'login') {
+            // Compte existe, proposer de se connecter
+            setLocalError(result.error || 'Un compte existe déjà avec cet email.');
+            setShowAccountExistsModal(true);
+          } else if (result.error) {
+            setLocalError(result.error);
+          } else if (error) {
+            setLocalError(error);
           }
         }
       } else {
@@ -154,13 +179,37 @@ export const LoginPage: React.FC = () => {
     if (isInvite) {
       // For invitations, Google Auth is allowed
       try {
-        await loginWithGoogle();
+        const success = await loginWithGoogle();
+        if (!success) {
+          // Gérer les erreurs spécifiques
+          if (error === 'POPUP_BLOCKED_PWA') {
+            setLocalError('La popup a été bloquée. En mode PWA, veuillez utiliser la connexion par email/mot de passe.');
+          } else if (error) {
+            setLocalError(error);
+          } else {
+            setLocalError('Erreur lors de la connexion Google');
+          }
+        }
       } catch (err) {
         setLocalError('Erreur lors de la connexion Google');
       }
     } else {
-      // For non-invitation contexts, show error
-      setLocalError('Les employés doivent utiliser un lien d\'invitation pour se connecter avec Google. Contactez votre directeur.');
+      // For non-invitation contexts (directors), Google Auth is allowed
+      try {
+        const success = await loginWithGoogle();
+        if (!success) {
+          // Gérer les erreurs spécifiques
+          if (error === 'POPUP_BLOCKED_PWA') {
+            setLocalError('La popup a été bloquée. En mode PWA, veuillez utiliser la connexion par email/mot de passe.');
+          } else if (error) {
+            setLocalError(error);
+          } else {
+            setLocalError('Erreur lors de la connexion Google');
+          }
+        }
+      } catch (err) {
+        setLocalError('Erreur lors de la connexion Google');
+      }
     }
   };
 
@@ -337,10 +386,50 @@ export const LoginPage: React.FC = () => {
             <Button
               type="submit"
               disabled={isLoading || isRegistering}
-              className="w-full"
+              className="w-full relative"
             >
-              {(isLoading || isRegistering) ? 'Chargement...' : (isRegisterMode ? 'Créer le compte' : 'Se connecter')}
+              {isRegistering && currentStep ? (
+                <div className="flex items-center justify-center gap-2">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span>{currentStep}</span>
+                </div>
+              ) : (isLoading || isRegistering) ? (
+                <div className="flex items-center justify-center gap-2">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span>Chargement...</span>
+                </div>
+              ) : isRegisterMode ? (
+                'Créer le compte'
+              ) : (
+                'Se connecter'
+              )}
             </Button>
+            
+            {/* Affichage des étapes de progression pendant l'inscription */}
+            {isRegistering && registrationSteps.length > 0 && (
+              <div className="mt-4 space-y-2 bg-blue-50 p-3 rounded-lg">
+                {registrationSteps.map((step, index) => {
+                  const isActive = step === currentStep;
+                  const currentStepIndex = registrationSteps.indexOf(currentStep);
+                  const isCompleted = currentStepIndex > index;
+                  
+                  return (
+                    <div key={index} className="flex items-center gap-2 text-sm">
+                      {isCompleted ? (
+                        <CheckCircle className="h-4 w-4 text-green-500 flex-shrink-0" />
+                      ) : isActive ? (
+                        <Loader2 className="h-4 w-4 text-blue-500 animate-spin flex-shrink-0" />
+                      ) : (
+                        <div className="h-4 w-4 rounded-full border-2 border-gray-300 flex-shrink-0" />
+                      )}
+                      <span className={isActive ? 'text-blue-600 font-medium' : isCompleted ? 'text-green-600' : 'text-gray-500'}>
+                        {step}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </form>
 
           {!isRegisterMode && (

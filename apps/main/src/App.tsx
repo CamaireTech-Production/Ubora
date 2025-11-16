@@ -127,17 +127,64 @@ const handleProgrammedInstructionHighlighting = (highlightData: any) => {
 
 // Component for authenticated services
 const AuthenticatedServices: React.FC = () => {
-  usePageTracking();
+  try {
+    usePageTracking();
+  } catch (error) {
+    // Ignorer silencieusement les erreurs de tracking
+  }
   return null;
+};
+
+// Wrapper de protection pour chaque contexte
+const SafeAuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }: { children: React.ReactNode }) => {
+  try {
+    return <AuthProvider>{children}</AuthProvider>;
+  } catch (error) {
+    // Si AuthProvider échoue, afficher une version simplifiée
+    return (
+      <div style={{ padding: '2rem', textAlign: 'center' }}>
+        <h1>Erreur d'initialisation</h1>
+        <p>L'application n'a pas pu démarrer. Veuillez recharger.</p>
+        <button onClick={() => window.location.reload()}>Recharger</button>
+      </div>
+    );
+  }
+};
+
+const SafeAIResponseProvider: React.FC<{ children: React.ReactNode }> = ({ children }: { children: React.ReactNode }) => {
+  try {
+    return <AIResponseProvider>{children}</AIResponseProvider>;
+  } catch (error) {
+    // Si AIResponseProvider échoue, continuer sans
+    return <>{children}</>;
+  }
+};
+
+const SafeAppProvider: React.FC<{ children: React.ReactNode }> = ({ children }: { children: React.ReactNode }) => {
+  try {
+    return <AppProvider>{children}</AppProvider>;
+  } catch (error) {
+    // Si AppProvider échoue, continuer sans
+    return <>{children}</>;
+  }
+};
+
+const SafeConversationProvider: React.FC<{ children: React.ReactNode }> = ({ children }: { children: React.ReactNode }) => {
+  try {
+    return <ConversationProvider>{children}</ConversationProvider>;
+  } catch (error) {
+    // Si ConversationProvider échoue, continuer sans
+    return <>{children}</>;
+  }
 };
 
 function App() {
   return (
     <ErrorBoundary>
-      <AuthProvider>
-        <AIResponseProvider>
-          <AppProvider>
-            <ConversationProvider>
+      <SafeAuthProvider>
+        <SafeAIResponseProvider>
+          <SafeAppProvider>
+            <SafeConversationProvider>
               <Router>
               <ServiceWorkerMessageHandler />
               <AuthenticatedServices />
@@ -505,10 +552,10 @@ function App() {
               {/* PWA Components - Inside Router context */}
               <HybridPWAManager />
             </Router>
-          </ConversationProvider>
-        </AppProvider>
-        </AIResponseProvider>
-      </AuthProvider>
+            </SafeConversationProvider>
+          </SafeAppProvider>
+        </SafeAIResponseProvider>
+      </SafeAuthProvider>
     </ErrorBoundary>
   );
 }
@@ -516,7 +563,15 @@ function App() {
 // Composant pour rediriger selon le rôle (NO ADMIN REDIRECT - admin app handles that)
 const RoleBasedRedirect: React.FC = () => {
   try {
-    const { user, isLoading } = useAuth();
+    let user, isLoading;
+    try {
+      const auth = useAuth();
+      user = auth.user;
+      isLoading = auth.isLoading;
+    } catch (authError) {
+      // Si useAuth échoue, rediriger vers login
+      return <Navigate to="/login" replace />;
+    }
 
     // Afficher le loader pendant le chargement
     if (isLoading) {
@@ -555,7 +610,7 @@ const RoleBasedRedirect: React.FC = () => {
 
     // Employé → Vérifier l'approbation
     if (user.role === 'employe') {
-      if (user.isApproved === false && !user.hasDirectorDashboardAccess) {
+      if (user.isApproved === false) {
         return <Navigate to="/pending-approval" replace />;
       }
       return <Navigate to="/employe/dashboard" replace />;
