@@ -9,7 +9,7 @@ import {
   sendPasswordResetEmail,
   User as FirebaseUser
 } from 'firebase/auth';
-import { doc, getDoc, setDoc, updateDoc, serverTimestamp, onSnapshot, collection, query, where, getDocs } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, serverTimestamp, onSnapshot, collection, query, where, getDocs, QuerySnapshot, DocumentSnapshot } from 'firebase/firestore';
 import { auth, db } from '../firebaseConfig';
 import { User } from '../types';
 import { getPackageLimit, PackageType } from '../config/packageFeatures';
@@ -37,15 +37,105 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [firestoreReady, setFirestoreReady] = useState(false);
-  const [firestoreErrorCount, setFirestoreErrorCount] = useState(0);
-  const [firestoreDisabled, setFirestoreDisabled] = useState(false);
+  const [firestoreErrorCount] = useState(0);
+  const [firestoreDisabled] = useState(false);
   const [firestoreCircuitBreaker, setFirestoreCircuitBreaker] = useState(false);
+
+  // Fonction pour vérifier l'existence d'une agence dans Firestore
+  const validateAgencyExists = async (agencyId: string): Promise<{ exists: boolean; error?: string }> => {
+    try {
+      // Vérifier qu'il existe au moins un directeur avec cet agencyId
+      const directorsQuery = query(
+        collection(db, 'users'),
+        where('agencyId', '==', agencyId.trim()),
+        where('role', '==', 'directeur')
+      );
+      
+      const directorsSnapshot = await withFirestoreRetry(
+        () => getDocs(directorsQuery),
+        { maxRetries: 2, retryDelay: 500 }
+      ) as QuerySnapshot;
+      
+      if (directorsSnapshot.empty) {
+        return { 
+          exists: false, 
+          error: 'Aucune agence trouvée avec cet ID. Veuillez vérifier l\'ID d\'agence ou contacter le support.' 
+        };
+      }
+      
+      return { exists: true };
+    } catch (error: any) {
+      console.error('❌ Erreur lors de la vérification de l\'agence:', error);
+      
+      if (error.code === 'permission-denied') {
+        return { 
+          exists: false, 
+          error: 'Erreur de permissions: Impossible de vérifier l\'agence. Veuillez contacter le support technique.' 
+        };
+      }
+      
+      return { 
+        exists: false, 
+        error: 'Erreur technique lors de la vérification de l\'agence. Veuillez réessayer ou contacter le support.' 
+      };
+    }
+  };
+
+  // Fonction utilitaire pour créer les données utilisateur selon le rôle
+  const createUserData = (
+    name: string,
+    email: string,
+    role: 'admin' | 'directeur' | 'employe',
+    agencyId: string
+  ): Omit<User, 'id'> => {
+    const baseData: Omit<User, 'id'> = {
+      name: name.trim(),
+      email: email.trim().toLowerCase(),
+      role,
+      agencyId: agencyId.trim(),
+      isApproved: role === 'directeur' || role === 'admin' ? true : false,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    };
+
+    if (role === 'admin') {
+      return {
+        ...baseData,
+        isSuperAdmin: true,
+        adminPermissions: [
+          'user_management',
+          'system_monitoring',
+          'analytics_access',
+          'settings_management',
+          'backup_restore',
+          'log_access'
+        ],
+        isActive: true
+      };
+    }
+
+    if (role === 'directeur') {
+      return {
+        ...baseData,
+        needsPackageSelection: true
+        // Note: tokensUsedMonthly et tokensResetDate ne sont plus utilisés
+        // Les tokens sont gérés dans subscriptionSessions
+      };
+    }
+
+    // role === 'employe'
+    return {
+      ...baseData,
+      accessLevels: [],
+      hasDirectorDashboardAccess: false
+    };
+  };
 
   // Fonction pour vérifier les limites d'utilisateurs d'une agence
   const checkAgencyUserLimit = async (agencyId: string): Promise<{ canAddUser: boolean; error?: string }> => {
@@ -62,7 +152,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const directorsSnapshot = await withFirestoreRetry(
         () => getDocs(directorsQuery),
         { maxRetries: 2, retryDelay: 500 }
-      );
+      ) as QuerySnapshot;
       
       console.log('🔍 Directors found:', directorsSnapshot.size);
       
@@ -135,7 +225,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             where('isApproved', '!=', false)
           );
           
-          const employeesSnapshot = await getDocs(employeesQuery);
+          const employeesSnapshot = await getDocs(employeesQuery) as QuerySnapshot;
           const currentEmployeeCount = employeesSnapshot.size;
           
           console.log('🔍 Legacy package limits:', legacyLimits);
@@ -174,7 +264,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const employeesSnapshot = await withFirestoreRetry(
         () => getDocs(employeesQuery),
         { maxRetries: 2, retryDelay: 500 }
-      );
+      ) as QuerySnapshot;
       const currentEmployeeCount = employeesSnapshot.size;
       
       console.log('🔍 Current employee count:', currentEmployeeCount);
@@ -284,9 +374,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     if (!firestoreReady) return; // Wait for Firestore to be ready
     
-    let timeoutId: NodeJS.Timeout;
+    let timeoutId: ReturnType<typeof setTimeout>;
     
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser: FirebaseUser | null) => {
       console.log('🔥 AuthContext: onAuthStateChanged triggered', { 
         timestamp: Date.now(),
         hasFirebaseUser: !!firebaseUser,
@@ -333,10 +423,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             const userDoc = await withFirebaseErrorHandling(async () => {
               return await Promise.race([
                 getDoc(userDocRef),
-                new Promise((_, reject) => 
+                new Promise<never>((_, reject) => 
                   setTimeout(() => reject(new Error('Timeout: Impossible de se connecter à Firestore')), 8000)
                 )
-              ]) as any;
+              ]) as DocumentSnapshot;
             }, 3);
           
           if (userDoc.exists()) {
@@ -566,7 +656,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const userDocRef = doc(db, 'users', firebaseUser.uid);
     
-    const unsubscribe = onSnapshot(userDocRef, (userDoc) => {
+    const unsubscribe = onSnapshot(userDocRef, (userDoc: DocumentSnapshot) => {
       if (userDoc.exists()) {
         const userData = userDoc.data() as Omit<User, 'id'>;
         
@@ -585,7 +675,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           ...userData
         });
       }
-    }, (error) => {
+    }, (error: Error) => {
       console.error('Erreur lors de l\'écoute des changements utilisateur:', error);
     });
 
@@ -634,7 +724,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
     
     // Check for iOS Safari standalone mode
-    if ((window.navigator as any).standalone === true) {
+    if ('standalone' in window.navigator && (window.navigator as { standalone?: boolean }).standalone === true) {
       return true;
     }
     
@@ -685,7 +775,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const userDoc = await withFirestoreRetry(
         () => getDoc(userDocRef),
         { maxRetries: 2, retryDelay: 500 }
-      );
+      ) as DocumentSnapshot;
       
       if (!userDoc.exists()) {
         // RÉCUPÉRATION AUTOMATIQUE: Si le document Firestore n'existe pas, le créer
@@ -714,7 +804,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           const directorsSnapshot = await withFirestoreRetry(
             () => getDocs(directorsQuery),
             { maxRetries: 2, retryDelay: 500 }
-          );
+          ) as QuerySnapshot;
           
           if (directorsSnapshot.empty) {
             await signOut(auth);
@@ -764,18 +854,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }
         } else {
           // Handle director registration (no invitation needed)
-          const userData: Omit<User, 'id'> = {
-            name: result.user.displayName || '',
-            email: result.user.email || '',
-            role: 'directeur', // Directors can self-register
-            agencyId: '', // Will be set during onboarding
-            needsPackageSelection: true,
-            tokensUsedMonthly: 0,
-            tokensResetDate: new Date(),
-            isApproved: true, // Directors are auto-approved
-            createdAt: serverTimestamp(),
-            updatedAt: serverTimestamp()
-          };
+          const userData = createUserData(
+            result.user.displayName || '',
+            result.user.email || '',
+            'directeur',
+            '' // Will be set during onboarding
+          );
           
           await withFirestoreRetry(
             () => setDoc(userDocRef, userData),
@@ -843,12 +927,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       // ÉTAPE 2: Créer le compte Firebase Auth
       // Firebase Auth vérifiera automatiquement si l'email existe déjà
-          let userCredential;
-          try {
-            userCredential = await withAuthRetry(
-              () => createUserWithEmailAndPassword(auth, normalizedEmail, password),
-              { maxRetries: 3, retryDelay: 1000 }
-            );
+      let userCredential: { user: { uid: string } } | undefined;
+      try {
+        userCredential = await withAuthRetry(
+          () => createUserWithEmailAndPassword(auth, normalizedEmail, password),
+          { maxRetries: 3, retryDelay: 1000 }
+        );
       } catch (authError: any) {
         console.log('🔍 [REGISTER] Firebase Auth error:', {
           code: authError.code,
@@ -869,7 +953,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             const recoverySnapshot = await withFirestoreRetry(
               () => getDocs(recoveryQuery),
               { maxRetries: 2, retryDelay: 500 }
-            );
+            ) as QuerySnapshot;
             
             console.log('🔍 [REGISTER] Recovery check result:', {
               found: !recoverySnapshot.empty,
@@ -878,8 +962,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             
             if (!recoverySnapshot.empty) {
               // Le document Firestore existe, vérifier qu'il correspond vraiment à cet email
-              const matchingDocs = recoverySnapshot.docs.filter(doc => {
-                const docEmail = doc.data().email;
+              const matchingDocs = recoverySnapshot.docs.filter((docSnapshot: { data: () => { email?: string } }) => {
+                const docData = docSnapshot.data();
+                const docEmail = docData?.email;
                 const normalizedDocEmail = docEmail ? docEmail.trim().toLowerCase() : '';
                 return normalizedDocEmail === normalizedEmail;
               });
@@ -904,40 +989,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               const recoveryCredential = await withAuthRetry(
                 () => signInWithEmailAndPassword(auth, normalizedEmail, password),
                 { maxRetries: 2, retryDelay: 500 }
-              );
+              ) as { user: { uid: string } };
               const recoveryUid = recoveryCredential.user.uid;
               
               // Créer le document Firestore manquant avec l'UID récupéré
-              const userData: Omit<User, 'id'> = {
-                name: name.trim(),
-                email: normalizedEmail,
-                role,
-                agencyId: agencyId.trim(),
-                ...(role === 'admin' && {
-                  isSuperAdmin: true,
-                  adminPermissions: [
-                    'user_management',
-                    'system_monitoring',
-                    'analytics_access',
-                    'settings_management',
-                    'backup_restore',
-                    'log_access'
-                  ],
-                  isActive: true
-                }),
-                ...(role === 'directeur' && {
-                  needsPackageSelection: true,
-                  tokensUsedMonthly: 0,
-                  tokensResetDate: new Date()
-                }),
-                ...(role === 'employe' && {
-                  accessLevels: [],
-                  hasDirectorDashboardAccess: false
-                }),
-                isApproved: role === 'directeur' || role === 'admin' ? true : false,
-                createdAt: serverTimestamp(),
-                updatedAt: serverTimestamp()
-              };
+              const userData = createUserData(name, normalizedEmail, role, agencyId);
               
               await setDoc(doc(db, 'users', recoveryUid), userData);
               
@@ -984,44 +1040,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
       
       
-      // ÉTAPE 3: Créer le document utilisateur dans Firestore avec tous les champs requis
-      const userData: Omit<User, 'id'> = {
-        name: name.trim(),
-        email: normalizedEmail,
-        role,
-        agencyId: agencyId.trim(),
-        ...(role === 'admin' && {
-          isSuperAdmin: true,
-          adminPermissions: [
-            'user_management',
-            'system_monitoring',
-            'analytics_access',
-            'settings_management',
-            'backup_restore',
-            'log_access'
-          ],
-          isActive: true
-        }),
-        ...(role === 'directeur' && {
-          needsPackageSelection: true, // New directors need to select a package
-          tokensUsedMonthly: 0,
-          tokensResetDate: new Date()
-        }),
-        ...(role === 'employe' && {
-          accessLevels: [],
-          hasDirectorDashboardAccess: false
-        }),
-        isApproved: role === 'directeur' || role === 'admin' ? true : false, // Les directeurs et admins sont automatiquement approuvés
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
-      };
+      // ÉTAPE 3: Vérifier l'existence de l'agence pour les directeurs
+      // Note: Si aucun directeur n'existe avec cet agencyId, on permet la création d'une nouvelle agence
+      if (role === 'directeur' && agencyId.trim()) {
+        const agencyValidation = await validateAgencyExists(agencyId);
+        // Si l'agence n'existe pas, on permet quand même la création (nouvelle agence)
+        // Mais on log l'information pour le suivi
+        if (!agencyValidation.exists) {
+          console.log('ℹ️ Nouvelle agence détectée pour le directeur:', agencyId);
+          // On continue la création - c'est une nouvelle agence
+        }
+      }
+
+      // ÉTAPE 4: Créer le document utilisateur dans Firestore avec tous les champs requis
+      const userData = createUserData(name, normalizedEmail, role, agencyId);
       
-            await withFirestoreRetry(
-              () => setDoc(doc(db, 'users', userCredential.user.uid), userData),
-              { maxRetries: 3, retryDelay: 1000 }
-            );
+      if (!userCredential) {
+        throw new Error('userCredential is undefined');
+      }
       
-      // ÉTAPE 4: Track user addition in subscription session (only for employees added by directors)
+      await withFirestoreRetry(
+        () => setDoc(doc(db, 'users', userCredential.user.uid), userData),
+        { maxRetries: 3, retryDelay: 1000 }
+      );
+      
+      // ÉTAPE 5: Track user addition in subscription session (only for employees added by directors)
       // NOTE: Cette étape peut échouer à cause de permissions, mais ce n'est pas bloquant
       if (role === 'employe') {
         try {
@@ -1034,7 +1077,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           const directorsSnapshot = await withFirestoreRetry(
             () => getDocs(directorsQuery),
             { maxRetries: 1, retryDelay: 500 }
-          );
+          ) as QuerySnapshot;
           
           if (!directorsSnapshot.empty) {
             const director = directorsSnapshot.docs[0];
@@ -1059,9 +1102,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       }
       
-      // ÉTAPE 5: Track registration analytics
+      // ÉTAPE 6: Track registration analytics
       try {
-        await AnalyticsService.logUserRegistration(userCredential.user.uid, role, agencyId);
+        if (userCredential) {
+          await AnalyticsService.logUserRegistration(userCredential.user.uid, role, agencyId);
+        }
       } catch (analyticsError) {
         console.warn('⚠️ Could not log registration analytics (non-blocking):', analyticsError);
       }
@@ -1136,9 +1181,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           ...userData
         };
         
-        // Check if user data has actually changed
+        // Check if user data has actually changed (excluding tokensUsedMonthly for directors)
         if (user && 
-            user.tokensUsedMonthly === userData.tokensUsedMonthly && 
             user.payAsYouGoTokens === userData.payAsYouGoTokens &&
             user.role === userData.role) {
           return;
@@ -1154,22 +1198,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const updateTokensLocally = (tokensUsed: number): void => {
+    // Note: Cette fonction n'est plus utilisée pour les directeurs
+    // Les tokens sont maintenant gérés dans subscriptionSessions
+    // Conservée pour compatibilité avec l'ancien système si nécessaire
     if (!user) {
       return;
     }
 
-    // Mettre à jour uniquement les tokens localement sans recharger depuis Firestore
-    // Cela évite un rerender complet de tous les composants dépendants de user
-    setUser(prev => {
+    // Pour les directeurs, les tokens sont gérés dans subscriptionSessions
+    // Cette fonction ne devrait plus être appelée pour les directeurs
+    if (user.role === 'directeur') {
+      console.warn('⚠️ updateTokensLocally called for director - tokens should be managed in subscriptionSessions');
+      return;
+    }
+
+    // Pour les autres rôles (si nécessaire), on peut garder la logique
+    setUser((prev: User | null) => {
       if (!prev) {
         return null;
       }
       
       return {
         ...prev,
-        tokensUsedMonthly: tokensUsed,
-        // Si l'utilisateur a des tokens pay-as-you-go, on peut aussi les mettre à jour
-        // mais pour l'instant on se concentre sur tokensUsedMonthly
+        tokensUsedMonthly: tokensUsed
       };
     });
   };

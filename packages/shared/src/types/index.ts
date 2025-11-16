@@ -111,6 +111,7 @@ export interface User {
   isSuperAdmin?: boolean; // Super admin flag
   adminPermissions?: string[]; // Specific admin permissions
   createdByAdmin?: string; // ID of admin who created this user
+  isActive?: boolean; // Active status for admin users
   
   // Legacy package properties (for backward compatibility)
   package?: 'starter' | 'standard' | 'premium' /* | 'custom' */;

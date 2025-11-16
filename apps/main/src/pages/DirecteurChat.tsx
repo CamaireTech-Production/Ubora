@@ -181,8 +181,8 @@ export const DirecteurChat: React.FC = () => {
     const monthlyLimit = getMonthlyTokens();
     const isUnlimited = hasUnlimitedTokens();
     return { monthlyLimit, isUnlimited };
-  }, [user?.id, user?.tokensUsedMonthly]);
-  const handlePurchaseTokens = async (tokens: number) => {
+  }, [user?.id, packageInfo?.tokensUsed]);
+  const handlePurchaseTokens = async (_tokens: number) => {
     // This function is now handled by the PayAsYouGoModal with Campay integration
     // The modal will create the payment and handle the success/failure
     // This callback is kept for backward compatibility but won't be used
@@ -297,14 +297,14 @@ RÉPONSE :
     const startTime = Date.now();
 
     // Use all forms if none are selected
-    const formsToAnalyze = selectedFormIds.length > 0 ? selectedFormIds : forms.map(form => form.id);
+    const formsToAnalyze = selectedFormIds.length > 0 ? selectedFormIds : forms.map((form: { id: string }) => form.id);
 
     // Determine the actual format(s) to use
     const actualFormats = selectedFormats.length > 0 ? selectedFormats : (selectedFormat ? [selectedFormat] : []);
     const isMultiFormat = actualFormats.length > 1;
     
     // Get form titles for display
-    const formTitles = forms.filter(form => formsToAnalyze.includes(form.id)).map(form => form.title);
+    const formTitles = forms.filter((form: { id: string }) => formsToAnalyze.includes(form.id)).map((form: { title: string }) => form.title);
 
     // Create conversation if none exists
     let conversationId = currentConversation?.id;
@@ -771,9 +771,9 @@ RÉPONSE :
             isOpen={showPayAsYouGoModal}
             onClose={() => setShowPayAsYouGoModal(false)}
             onPurchase={handlePurchaseTokens}
-            currentTokens={user?.tokensUsedMonthly || 0}
+            currentTokens={packageInfo?.tokensUsed || 0}
             packageLimit={getMonthlyTokens()}
-            payAsYouGoTokens={user?.payAsYouGoTokens || 0}
+            payAsYouGoTokens={packageInfo?.payAsYouGoTokens || 0}
             requiredTokens={0}
           />
 

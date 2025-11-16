@@ -136,7 +136,7 @@ const AuthenticatedServices: React.FC = () => {
 };
 
 // Wrapper de protection pour chaque contexte
-const SafeAuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+const SafeAuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }: { children: React.ReactNode }) => {
   try {
     return <AuthProvider>{children}</AuthProvider>;
   } catch (error) {
@@ -151,7 +151,7 @@ const SafeAuthProvider: React.FC<{ children: React.ReactNode }> = ({ children })
   }
 };
 
-const SafeAIResponseProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+const SafeAIResponseProvider: React.FC<{ children: React.ReactNode }> = ({ children }: { children: React.ReactNode }) => {
   try {
     return <AIResponseProvider>{children}</AIResponseProvider>;
   } catch (error) {
@@ -160,7 +160,7 @@ const SafeAIResponseProvider: React.FC<{ children: React.ReactNode }> = ({ child
   }
 };
 
-const SafeAppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+const SafeAppProvider: React.FC<{ children: React.ReactNode }> = ({ children }: { children: React.ReactNode }) => {
   try {
     return <AppProvider>{children}</AppProvider>;
   } catch (error) {
@@ -169,7 +169,7 @@ const SafeAppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) 
   }
 };
 
-const SafeConversationProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+const SafeConversationProvider: React.FC<{ children: React.ReactNode }> = ({ children }: { children: React.ReactNode }) => {
   try {
     return <ConversationProvider>{children}</ConversationProvider>;
   } catch (error) {
@@ -610,7 +610,7 @@ const RoleBasedRedirect: React.FC = () => {
 
     // Employé → Vérifier l'approbation
     if (user.role === 'employe') {
-      if (user.isApproved === false && !user.hasDirectorDashboardAccess) {
+      if (user.isApproved === false) {
         return <Navigate to="/pending-approval" replace />;
       }
       return <Navigate to="/employe/dashboard" replace />;
