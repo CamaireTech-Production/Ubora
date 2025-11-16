@@ -3,13 +3,13 @@ import { useAuth } from '@ubora/shared/contexts/AuthContext';
 import { ActivityLogService } from '@ubora/shared/services/activityLogService';
 import { AdminService as BaseAdminService } from '@ubora/shared/services/adminService';
 import { AdminDashboardStats, AdminActivitySummary, ActivityLog } from '@ubora/shared/types';
-import { AdminService } from '../services/adminService';
-import { NotificationsTab } from '../components/tabs/NotificationsTab';
-import { UsageTab } from '../components/tabs/UsageTab';
-import { UsersTab } from '../components/tabs/UsersTab';
-import { Card } from '../components/Card';
-import { Button } from '../components/Button';
-import { LogoutConfirmationModal } from '../components/LogoutConfirmationModal';
+import { AdminService } from '../services/admin/adminService';
+import { NotificationsTab } from '../components/admin/NotificationsTab';
+import { UsageTab } from '../components/admin/UsageTab';
+import { UsersTab } from '../components/admin/UsersTab';
+import { Card } from '../components/ui/Card';
+import { Button } from '../components/ui/Button';
+import { LogoutConfirmationModal } from '../components/modals/LogoutConfirmationModal';
 import { 
   Users, 
   Building2, 

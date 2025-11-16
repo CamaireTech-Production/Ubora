@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Card } from './Card';
-import { Button } from './Button';
-import { FormBuilder } from './FormBuilder';
-import { FormField } from '../types';
+import { Card } from '../ui/Card';
+import { Button } from '../ui/Button';
+import { FormBuilder } from '../forms/FormBuilder';
+import { FormField } from '../../types';
 import { UniversWizardStepProps } from './UniversWizard';
 import { Plus, Trash2, Edit, FileText, CheckCircle, AlertCircle, ArrowLeft } from 'lucide-react';
 import { useApp } from '@ubora/shared/contexts/AppContext';

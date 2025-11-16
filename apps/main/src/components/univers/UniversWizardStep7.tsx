@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Card } from './Card';
-import { Button } from './Button';
-import { Input } from './Input';
+import { Card } from '../ui/Card';
+import { Button } from '../ui/Button';
+import { Input } from '../ui/Input';
 import { UniversWizardStepProps } from './UniversWizard';
-import { UniversMetadata, UniversOwnership, UniversDefinitions } from '../types';
+import { UniversMetadata, UniversOwnership, UniversDefinitions } from '../../types';
 import {
   FileText,
   BarChart3,

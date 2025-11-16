@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Card } from './Card';
-import { Button } from './Button';
-import { DashboardBuilder } from './DashboardBuilder';
-import { DashboardMetric, Form } from '../types';
+import { Card } from '../ui/Card';
+import { Button } from '../ui/Button';
+import { DashboardBuilder } from '../dashboard/DashboardBuilder';
+import { DashboardMetric, Form } from '../../types';
 import { UniversWizardStepProps } from './UniversWizard';
 import { Plus, Trash2, Edit, BarChart3, CheckCircle, AlertCircle, ArrowLeft, AlertTriangle } from 'lucide-react';
 import { useApp } from '@ubora/shared/contexts/AppContext';

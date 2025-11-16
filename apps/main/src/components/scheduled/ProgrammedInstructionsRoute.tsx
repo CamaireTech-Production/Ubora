@@ -1,7 +1,7 @@
 import React from 'react';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
 import { UserSessionService } from '@ubora/shared/services/userSessionService';
-import { AccessDeniedModal } from './AccessDeniedModal';
+import { AccessDeniedModal } from '../modals/AccessDeniedModal';
 import { useNavigate } from 'react-router-dom';
 
 interface ProgrammedInstructionsRouteProps {

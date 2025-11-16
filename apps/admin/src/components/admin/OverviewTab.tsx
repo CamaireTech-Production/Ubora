@@ -1,7 +1,7 @@
 import React from 'react';
 import { AdminStats } from '@ubora/shared/types';
-import { Card } from '../Card';
-import { Button } from '../Button';
+import { Card } from '../ui/Card';
+import { Button } from '../ui/Button';
 import { 
   Users, 
   FileText, 

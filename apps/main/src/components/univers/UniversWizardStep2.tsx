@@ -1,16 +1,16 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Card } from './Card';
-import { Button } from './Button';
+import { Card } from '../ui/Card';
+import { Button } from '../ui/Button';
 import { UniversWizardStepProps } from './UniversWizard';
-import { ListDefinition, ListColumn, ListRow } from '../types';
+import { ListDefinition, ListColumn, ListRow } from '../../types';
 import { Plus, Trash2, Edit, Database, CheckCircle, AlertCircle, ChevronDown, ChevronUp, ArrowLeft } from 'lucide-react';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
 import { useToast } from '@ubora/shared/hooks/useToast';
-import { ListEditor } from './ListEditor';
-import { ListsCSVImport } from './ListsCSVImport';
-import { Input } from './Input';
-import { Textarea } from './Textarea';
-import { Select } from './Select';
+import { ListEditor } from '../lists/ListEditor';
+import { ListsCSVImport } from '../lists/ListsCSVImport';
+import { Input } from '../ui/Input';
+import { Textarea } from '../ui/Textarea';
+import { Select } from '../ui/Select';
 
 export const UniversWizardStep2: React.FC<UniversWizardStepProps> = ({
   wizardData,

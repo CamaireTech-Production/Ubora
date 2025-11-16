@@ -5,8 +5,8 @@ import { useApp } from '@ubora/shared/contexts/AppContext';
 import { usePermissions } from '@ubora/shared/hooks/usePermissions';
 import { useUnreadNotifications } from '@ubora/shared/hooks/useUnreadNotifications';
 import { universService } from '@ubora/shared/services/universService';
-import { Button } from './Button';
-import { LogoutConfirmationModal } from './LogoutConfirmationModal';
+import { Button } from '../ui/Button';
+import { LogoutConfirmationModal } from '../modals/LogoutConfirmationModal';
 import { 
   User, 
   ChevronDown, 

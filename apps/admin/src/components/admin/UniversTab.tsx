@@ -1,7 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Card } from '../Card';
-import { Button } from '../Button';
+import { Card } from '../ui/Card';
+import { Button } from '../ui/Button';
 import { Globe, ArrowRight, RefreshCw } from 'lucide-react';
 
 interface UniversTabProps {

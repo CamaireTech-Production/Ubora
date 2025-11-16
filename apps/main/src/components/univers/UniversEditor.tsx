@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { Card } from './Card';
-import { Button } from './Button';
-import { Univers, UniversDefinitions, UniversMetadata } from '../types';
+import { Card } from '../ui/Card';
+import { Button } from '../ui/Button';
+import { Univers, UniversDefinitions, UniversMetadata } from '../../types';
 import { UniversWizardStep1 } from './UniversWizardStep1';
 import { UniversWizardStep2 } from './UniversWizardStep2';
 import { UniversWizardStep3 } from './UniversWizardStep3';
@@ -9,7 +9,7 @@ import { UniversWizardStep4 } from './UniversWizardStep4';
 import { UniversWizardStep5 } from './UniversWizardStep5';
 import { UniversWizardStep6 } from './UniversWizardStep6';
 import { UniversWizardStep7 } from './UniversWizardStep7';
-import { ConfirmationModal } from './ConfirmationModal';
+import { ConfirmationModal } from '../modals/ConfirmationModal';
 import { useToast } from '@ubora/shared/hooks/useToast';
 import { UniversWizardStepProps } from './UniversWizard';
 import {

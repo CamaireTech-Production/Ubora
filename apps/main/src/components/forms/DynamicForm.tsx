@@ -17,7 +17,7 @@ import { useToast } from '@ubora/shared/hooks/useToast';
 import { ExpressionCalculator } from '@ubora/shared/utils/ExpressionCalculator';
 import { ConditionalLogicEvaluator } from '@ubora/shared/utils/ConditionalLogicEvaluator';
 import { getFileBlobUrl } from '@ubora/shared/utils/simpleFileDownload';
-import { TextExtractionReviewModal } from './TextExtractionReviewModal';
+import { TextExtractionReviewModal } from '../core/TextExtractionReviewModal';
 import { UserSessionService } from '@ubora/shared/services/userSessionService';
 import { listsService } from '@ubora/shared/services/listsService';
 import { List, ListRow } from '../types';

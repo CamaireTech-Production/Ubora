@@ -2,9 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { UserDetail, FormSubmissionRecord } from '@ubora/shared/types';
 import { PageViewRecord, SessionRecord } from '@ubora/shared/services/pageTrackingService';
-import { EnhancedAdminService } from '../services/enhancedAdminService';
-import { Card } from '../components/Card';
-import { Button } from '../components/Button';
+import { EnhancedAdminService } from '../services/admin/enhancedAdminService';
+import { Card } from '../components/ui/Card';
+import { Button } from '../components/ui/Button';
 import { 
   ArrowLeft,
   User,

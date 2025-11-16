@@ -1,6 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import { X, CreditCard } from 'lucide-react';
-import { Button } from './Button';
+import { Button } from '../ui/Button';
 import { useToast } from '@ubora/shared/hooks/useToast';
 import { CampayPayment } from './CampayPayment';
 import { PayAsYouGoPaymentService } from '@ubora/shared/services/payAsYouGoPaymentService';

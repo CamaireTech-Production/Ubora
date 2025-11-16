@@ -1,11 +1,11 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AdminUser } from '../types';
-import { EnhancedAdminService } from '../admin/services/enhancedAdminService';
+import { EnhancedAdminService } from '../../services/admin/enhancedAdminService';
 import { SubscriptionSessionCollectionService } from '@ubora/shared/services/subscriptionSessionCollectionService';
 import { SubscriptionSession } from '@ubora/shared/types';
-import { Pagination } from './Pagination';
-import { Button } from './Button';
+import { Pagination } from '../ui/Pagination';
+import { Button } from '../ui/Button';
 import { 
   Eye, 
   Edit, 

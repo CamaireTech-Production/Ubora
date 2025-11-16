@@ -1,22 +1,22 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Card } from './Card';
-import { Button } from './Button';
-import { Input } from './Input';
-import { Textarea } from './Textarea';
-import { Select } from './Select';
+import { Card } from '../ui/Card';
+import { Button } from '../ui/Button';
+import { Input } from '../ui/Input';
+import { Textarea } from '../ui/Textarea';
+import { Select } from '../ui/Select';
 import { UniversWizardStepProps } from './UniversWizard';
-import { Form } from '../types';
-import { SimpleInstructionInput } from './scheduled/SimpleInstructionInput';
-import { SimpleFormatSelector } from './scheduled/SimpleFormatSelector';
-import { SimpleFilterSelector } from './scheduled/SimpleFilterSelector';
-import { ScheduledDateTimePicker } from './scheduled/ScheduledDateTimePicker';
+import { Form } from '../../types';
+import { SimpleInstructionInput } from '../scheduled/SimpleInstructionInput';
+import { SimpleFormatSelector } from '../scheduled/SimpleFormatSelector';
+import { SimpleFilterSelector } from '../scheduled/SimpleFilterSelector';
+import { ScheduledDateTimePicker } from '../scheduled/ScheduledDateTimePicker';
 import { Plus, Trash2, Edit, Calendar, CheckCircle, AlertCircle, ArrowLeft } from 'lucide-react';
 import { useApp } from '@ubora/shared/contexts/AppContext';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
 import { useToast } from '@ubora/shared/hooks/useToast';
 import { scheduledQuestionService } from '@ubora/shared/services/scheduledQuestionService';
 import { getCameroonTime } from '@ubora/shared/utils/timezoneUtils';
-import { ConfirmationModal } from './ConfirmationModal';
+import { ConfirmationModal } from '../modals/ConfirmationModal';
 
 // InstructionDefinition interface for Univers
 interface InstructionDefinition {

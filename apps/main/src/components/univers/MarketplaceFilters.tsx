@@ -1,7 +1,7 @@
 import React from 'react';
-import { Button } from './Button';
-import { Select } from './Select';
-import { Input } from './Input';
+import { Button } from '../ui/Button';
+import { Select } from '../ui/Select';
+import { Input } from '../ui/Input';
 import { Filter, Search, X } from 'lucide-react';
 
 export interface MarketplaceFiltersState {

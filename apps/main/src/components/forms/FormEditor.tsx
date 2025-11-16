@@ -1,13 +1,13 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { FormField, Form } from '../types';
-import { Button } from './Button';
-import { Input } from './Input';
-import { Select } from './Select';
-import { Textarea } from './Textarea';
-import { Card } from './Card';
-import { FileTypeSelector } from './FileTypeSelector';
-import { FieldCSVImport } from './FieldCSVImport';
-import { Toast } from './Toast';
+import { Button } from '../ui/Button';
+import { Input } from '../ui/Input';
+import { Select } from '../ui/Select';
+import { Textarea } from '../ui/Textarea';
+import { Card } from '../ui/Card';
+import { FileTypeSelector } from '../core/FileTypeSelector';
+import { FieldCSVImport } from '../csv-import/FieldCSVImport';
+import { Toast } from '../ui/Toast';
 import { useToast } from '@ubora/shared/hooks/useToast';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
 import { useApp } from '@ubora/shared/contexts/AppContext';
@@ -18,7 +18,7 @@ import { Plus, Trash2, ArrowLeft, CheckSquare, Square, Loader2, Calculator, Aler
 import { FormulaInput } from './FormulaInput';
 import { FormulaParser } from '@ubora/shared/utils/FormulaParser';
 import { ConditionalLogicBuilder } from './ConditionalLogicBuilder';
-import { ConfirmationModal } from './ConfirmationModal';
+import { ConfirmationModal } from '../modals/ConfirmationModal';
 
 interface FormEditorProps {
   form?: Form; // If provided, we're editing an existing form

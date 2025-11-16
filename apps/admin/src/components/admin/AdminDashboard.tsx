@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
-import { AdminService } from '../services/adminService';
-import { AdminStats } from '../types';
+import { AdminService } from '../../services/admin/adminService';
+import { AdminStats } from '../../types';
 import { universService } from '@ubora/shared/services/universService';
-import { Card } from './Card';
-import { Button } from './Button';
-import { LogoutConfirmationModal } from './LogoutConfirmationModal';
+import { Card } from '../ui/Card';
+import { Button } from '../ui/Button';
+import { LogoutConfirmationModal } from '../modals/LogoutConfirmationModal';
 import { 
   Users, 
   Building2, 
@@ -32,16 +32,16 @@ import {
 } from 'lucide-react';
 
 // Import tab components
-import { OverviewTab } from './tabs/OverviewTab';
-import { UsersTab } from './tabs/UsersTab';
-import { FormsTab } from './tabs/FormsTab';
-import { DashboardsTab } from './tabs/DashboardsTab';
-import { ActivitiesTab } from './tabs/ActivitiesTab';
-import { NotificationsTab } from './tabs/NotificationsTab';
-import { UsageTab } from './tabs/UsageTab';
-import { SystemTab } from './tabs/SystemTab';
-import { AnalyticsTab } from './tabs/AnalyticsTab';
-import { UniversTab } from './tabs/UniversTab';
+import { OverviewTab } from './OverviewTab';
+import { UsersTab } from './UsersTab';
+import { FormsTab } from './FormsTab';
+import { DashboardsTab } from './DashboardsTab';
+import { ActivitiesTab } from './ActivitiesTab';
+import { NotificationsTab } from './NotificationsTab';
+import { UsageTab } from './UsageTab';
+import { SystemTab } from './SystemTab';
+import { AnalyticsTab } from './AnalyticsTab';
+import { UniversTab } from './UniversTab';
 
 export const AdminDashboard: React.FC = () => {
   const navigate = useNavigate();

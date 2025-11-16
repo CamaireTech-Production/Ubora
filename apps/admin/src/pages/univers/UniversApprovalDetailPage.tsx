@@ -3,8 +3,8 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
 import { universService } from '@ubora/shared/services/universService';
 import { Univers, UniversVersion, FormDefinition, DashboardDefinition, ListDefinition, ReportDefinition, InstructionDefinition } from '@ubora/shared/types';
-import { Card } from '../components/Card';
-import { Button } from '../components/Button';
+import { Card } from '../components/ui/Card';
+import { Button } from '../components/ui/Button';
 import { 
   ArrowLeft,
   CheckCircle,

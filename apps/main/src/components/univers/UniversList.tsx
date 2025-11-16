@@ -1,9 +1,9 @@
 import React, { useState, useMemo } from 'react';
-import { Univers } from '../types';
+import { Univers } from '../../types';
 import { UniversCard } from './UniversCard';
 import { Search } from 'lucide-react';
-import { Input } from './Input';
-import { WireframeLoader } from './loading/WireframeLoader';
+import { Input } from '../ui/Input';
+import { WireframeLoader } from '../loading/WireframeLoader';
 
 interface UniversListProps {
   univers: Univers[];
