@@ -45,12 +45,21 @@ export class SubscriptionSessionService {
   /**
    * Get current active session for a user (async version - uses new collection)
    * @param userData - Données utilisateur
+   * @param userId - ID de l'utilisateur (optionnel, utilisé si userData.id n'existe pas)
    * @returns Promise<SubscriptionSession | null>
    */
-  static async getCurrentSession(userData: User): Promise<SubscriptionSession | null> {
+  static async getCurrentSession(userData: User, userId?: string): Promise<SubscriptionSession | null> {
+    // Use provided userId or userData.id, with validation
+    const actualUserId = userId || userData.id;
+    
+    if (!actualUserId) {
+      console.error('SubscriptionSessionService.getCurrentSession: userId is required but not provided');
+      return null;
+    }
+
     // Try new collection service first
     if (userData.currentSubscriptionSessionId) {
-      const session = await SubscriptionSessionCollectionService.getActiveSession(userData.id);
+      const session = await SubscriptionSessionCollectionService.getActiveSession(actualUserId);
       if (session) {
         return session;
       }
@@ -211,9 +220,17 @@ export class SubscriptionSessionService {
    * @param userData - Données utilisateur
    * @returns Promise<SubscriptionSession[]>
    */
-  static async getAllSessions(userData: User): Promise<SubscriptionSession[]> {
+  static async getAllSessions(userData: User, userId?: string): Promise<SubscriptionSession[]> {
+    // Use provided userId or userData.id, with validation
+    const actualUserId = userId || userData.id;
+    
+    if (!actualUserId) {
+      console.error('SubscriptionSessionService.getAllSessions: userId is required but not provided');
+      return userData.subscriptionSessions || [];
+    }
+
     // Try new collection service first
-    const sessions = await SubscriptionSessionCollectionService.getUserSessions(userData.id);
+    const sessions = await SubscriptionSessionCollectionService.getUserSessions(actualUserId);
     if (sessions.length > 0) {
       return sessions;
     }
@@ -238,17 +255,27 @@ export class SubscriptionSessionService {
    * @param sessionId - ID de la session
    * @returns Promise<SubscriptionSession | null>
    */
-  static async getSessionById(userData: User, sessionId: string): Promise<SubscriptionSession | null> {
+  static async getSessionById(userData: User, sessionId: string, userId?: string): Promise<SubscriptionSession | null> {
+    // Use provided userId or userData.id, with validation
+    const actualUserId = userId || userData.id;
+    
+    if (!actualUserId) {
+      console.error('SubscriptionSessionService.getSessionById: userId is required but not provided');
+      // Fallback to legacy array-based system
+      const legacySessions = userData.subscriptionSessions || [];
+      return legacySessions.find(session => session.id === sessionId) || null;
+    }
+
     // Try new collection service first
     if (userData.currentSubscriptionSessionId === sessionId) {
-      const session = await SubscriptionSessionCollectionService.getActiveSession(userData.id);
+      const session = await SubscriptionSessionCollectionService.getActiveSession(actualUserId);
       if (session && session.id === sessionId) {
         return session;
       }
     }
     
     // Get all sessions and find by ID
-    const sessions = await SubscriptionSessionCollectionService.getUserSessions(userData.id);
+    const sessions = await SubscriptionSessionCollectionService.getUserSessions(actualUserId);
     const foundSession = sessions.find(s => s.id === sessionId);
     if (foundSession) {
       return foundSession;

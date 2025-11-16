@@ -120,9 +120,16 @@ export class PackageTransitionService {
   static async calculateTransition(
     userData: User,
     newPackageType: 'free' | 'starter' | 'standard',
-    options: PackageTransitionOptions = {}
+    options: PackageTransitionOptions = {},
+    userId?: string
   ): Promise<TransitionCalculation | null> {
-    const currentSession = await SubscriptionSessionService.getCurrentSession(userData);
+    const actualUserId = userId || userData.id;
+    if (!actualUserId) {
+      console.error('PackageTransitionService.calculateTransition: userId is required but not provided');
+      return null;
+    }
+
+    const currentSession = await SubscriptionSessionService.getCurrentSession(userData, actualUserId);
     if (!currentSession) return null;
 
     const now = new Date();
@@ -133,7 +140,7 @@ export class PackageTransitionService {
     const unusedPackageTokens = Math.max(0, (currentSession.packageResources?.tokensIncluded || 0) - (currentSession.usage?.tokensUsed || 0));
     
     // Get UNUSED pay-as-you-go tokens from all sessions
-    const unusedPayAsYouGoTokens = await this.getUnusedPayAsYouGoTokens(userData);
+    const unusedPayAsYouGoTokens = await this.getUnusedPayAsYouGoTokens(userData, actualUserId);
     
     // Calculate new package cost (no proration)
     const newPackagePrice = this.getPackagePriceNumeric(newPackageType);
@@ -159,6 +166,7 @@ export class PackageTransitionService {
 
   /**
    * Execute package transition with your business rules
+   * Includes idempotence check and improved error handling
    */
   static async executeTransition(
     userId: string,
@@ -168,27 +176,65 @@ export class PackageTransitionService {
     paymentReference?: string
   ): Promise<boolean> {
     try {
+      // Validate userId
+      if (!userId || typeof userId !== 'string') {
+        console.error('PackageTransitionService.executeTransition: userId invalide:', userId);
+        return false;
+      }
+
+      // Validate package type
+      if (!['free', 'starter', 'standard'].includes(newPackageType)) {
+        console.error('PackageTransitionService.executeTransition: Type de package invalide:', newPackageType);
+        return false;
+      }
+
+      console.log(`[PackageTransition] Début de la transition pour l'utilisateur ${userId} vers le package ${newPackageType}`, {
+        paymentMethod,
+        paymentReference
+      });
+
+      // Check idempotence: if paymentReference is provided, check if session already exists
+      if (paymentReference) {
+        const existingSession = await this.findSessionByPaymentReference(userId, paymentReference);
+        if (existingSession) {
+          console.log(`[PackageTransition] Session déjà existante pour le paiement ${paymentReference}, retour de la session existante`);
+          return true; // Session already exists, return success (idempotent)
+        }
+      }
+
+      // Get user document
       const userDocRef = doc(db, 'users', userId);
       const userDoc = await getDoc(userDocRef);
       
       if (!userDoc.exists()) {
-        console.error('Utilisateur non trouvé:', userId);
+        console.error(`[PackageTransition] Utilisateur non trouvé: ${userId}`);
+        // Mark payment as failed if paymentReference exists
+        if (paymentReference) {
+          await this.markPaymentSessionCreationFailed(paymentReference, 'User not found');
+        }
         return false;
       }
 
       const userData = userDoc.data() as User;
-      // Ensure newPackageType is valid
-      if (!['free', 'starter', 'standard'].includes(newPackageType)) {
-        console.error('Invalid package type:', newPackageType);
-        return false;
-      }
       
-      const calculation = await this.calculateTransition(userData, newPackageType, options);
+      // Calculate transition
+      const calculation = await this.calculateTransition(userData, newPackageType, options, userId);
       
       if (!calculation) {
-        console.error('Impossible de calculer la transition');
+        console.error(`[PackageTransition] Impossible de calculer la transition pour l'utilisateur ${userId}`);
+        // Mark payment as failed if paymentReference exists
+        if (paymentReference) {
+          await this.markPaymentSessionCreationFailed(paymentReference, 'Transition calculation failed');
+        }
         return false;
       }
+
+      console.log(`[PackageTransition] Calcul de transition réussi:`, {
+        currentPackage: calculation.currentSession.packageType,
+        newPackage: newPackageType,
+        daysRemaining: calculation.daysRemaining,
+        totalAmount: calculation.totalAmount
+      });
 
       // Create transition session
       const transitionSession = await this.createTransitionSession(
@@ -200,27 +246,92 @@ export class PackageTransitionService {
       );
 
       if (!transitionSession) {
+        console.error(`[PackageTransition] Échec de la création de la session pour l'utilisateur ${userId}`);
+        // Mark payment as failed if paymentReference exists
+        if (paymentReference) {
+          await this.markPaymentSessionCreationFailed(paymentReference, 'Session creation failed');
+        }
         return false;
       }
 
-      // Handle pay-as-you-go token preservation
+      console.log(`[PackageTransition] Transition réussie pour l'utilisateur ${userId} vers le package ${newPackageType}`);
+
+      // Handle pay-as-you-go token preservation (no-op as per user requirement)
       await this.handlePayAsYouGoPreservation(userId, calculation as any, options);
 
-      
       return true;
 
     } catch (error) {
-      console.error('Erreur lors de la transition de package:', error);
+      console.error(`[PackageTransition] Erreur lors de la transition de package pour l'utilisateur ${userId}:`, error);
+      // Mark payment as failed if paymentReference exists
+      if (paymentReference) {
+        await this.markPaymentSessionCreationFailed(paymentReference, `Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      }
       return false;
+    }
+  }
+
+  /**
+   * Find existing session by payment reference (for idempotence)
+   */
+  private static async findSessionByPaymentReference(
+    userId: string,
+    paymentReference: string
+  ): Promise<SubscriptionSession | null> {
+    try {
+      const sessions = await SubscriptionSessionCollectionService.getUserSessions(userId);
+      // Check both paymentId and paymentReference fields
+      const existingSession = sessions.find(session => 
+        session.paymentId === paymentReference || 
+        session.paymentReference === paymentReference
+      );
+      return existingSession || null;
+    } catch (error) {
+      console.error(`[PackageTransition] Erreur lors de la recherche de session par paymentReference:`, error);
+      return null;
+    }
+  }
+
+  /**
+   * Mark payment as having session creation failed
+   */
+  private static async markPaymentSessionCreationFailed(
+    paymentReference: string,
+    reason: string
+  ): Promise<void> {
+    try {
+      // Update payment document with failure flag
+      const paymentDocRef = doc(db, 'payments', paymentReference);
+      const paymentDoc = await getDoc(paymentDocRef);
+      
+      if (paymentDoc.exists()) {
+        await updateDoc(paymentDocRef, {
+          sessionCreationFailed: true,
+          sessionCreationFailureReason: reason,
+          sessionCreationFailureDate: serverTimestamp(),
+          updatedAt: serverTimestamp()
+        });
+        console.log(`[PackageTransition] Paiement ${paymentReference} marqué comme ayant échoué la création de session:`, reason);
+      } else {
+        console.warn(`[PackageTransition] Paiement ${paymentReference} non trouvé pour marquer l'échec`);
+      }
+    } catch (error) {
+      console.error(`[PackageTransition] Erreur lors du marquage de l'échec de création de session pour le paiement ${paymentReference}:`, error);
     }
   }
 
   /**
    * Get unused pay-as-you-go tokens from all sessions (async version - uses new collection)
    */
-  private static async getUnusedPayAsYouGoTokens(userData: User): Promise<number> {
+  private static async getUnusedPayAsYouGoTokens(userData: User, userId?: string): Promise<number> {
+    const actualUserId = userId || userData.id;
+    if (!actualUserId) {
+      console.error('PackageTransitionService.getUnusedPayAsYouGoTokens: userId is required but not provided');
+      return 0;
+    }
+
     // Try new collection service first
-    const sessions = await SubscriptionSessionCollectionService.getUserSessions(userData.id);
+    const sessions = await SubscriptionSessionCollectionService.getUserSessions(actualUserId);
     
     // Filter active sessions and calculate unused pay-as-you-go tokens
     const activeSessions = sessions.filter(session => session.isActive);

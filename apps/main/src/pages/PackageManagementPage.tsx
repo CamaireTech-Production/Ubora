@@ -221,7 +221,7 @@ export const PackageManagementPage: React.FC = () => {
         const ok = await PackageTransitionService.executeTransition(
           user.id,
           'free',
-          { preserveUnusedPayAsYouGo: true },
+          { preserveUnusedPayAsYouGo: false }, // As per user requirement - no preservation
           'none',
           undefined,
           '30days' // Default period for free
@@ -324,6 +324,8 @@ export const PackageManagementPage: React.FC = () => {
     if (!currentPaymentId || !selectedPackage || !user) return;
 
     try {
+      setIsProcessing(true);
+      
       // Update payment status in Firebase
       await PaymentService.updatePaymentStatus(currentPaymentId, data, 'completed');
       
@@ -332,7 +334,7 @@ export const PackageManagementPage: React.FC = () => {
         user.id,
         selectedPackage,
         {
-          preserveUnusedPayAsYouGo: true
+          preserveUnusedPayAsYouGo: false // As per user requirement - no preservation
         },
         'campay', // Payment method
         currentPaymentId, // Payment reference
@@ -342,17 +344,27 @@ export const PackageManagementPage: React.FC = () => {
       if (success) {
         showSuccess(`Package ${getPackageDisplayName(selectedPackage)} activé avec succès !`);
         
-        // Navigate back to the previous page
+        // Close modal immediately
+        setIsPaymentModalOpen(false);
+        setAutoOpenPayment(false);
+        
+        // Reload page after a short delay to refresh all data
         setTimeout(() => {
-          navigate(-1);
+          window.location.reload();
         }, 1500);
       } else {
-        showError('Erreur lors de l\'activation du package. Veuillez contacter le support.');
+        showError('Erreur lors de l\'activation du package. Le paiement a été enregistré. Veuillez contacter le support si le problème persiste.');
+        // Close modal even on error
+        setIsPaymentModalOpen(false);
+        setAutoOpenPayment(false);
       }
       
     } catch (error) {
       console.error('Erreur lors du traitement du paiement:', error);
-      showError('Erreur lors du traitement du paiement. Veuillez contacter le support.');
+      showError('Erreur lors du traitement du paiement. Le paiement a été enregistré. Veuillez contacter le support si le problème persiste.');
+      // Close modal on error
+      setIsPaymentModalOpen(false);
+      setAutoOpenPayment(false);
     } finally {
       // Reset states
       setIsProcessing(false);
@@ -363,12 +375,10 @@ export const PackageManagementPage: React.FC = () => {
       setPaymentRequest(null);
       setCurrentPaymentId(null);
       setIsCreatingPayment(false);
-      setAutoOpenPayment(false);
-      setIsPaymentModalOpen(false);
       setShowTransitionPreview(false);
       setActivePayAsYouGoType(null);
     }
-  }, [currentPaymentId, selectedPackage, selectedPeriod, user, showSuccess, showError, navigate]);
+  }, [currentPaymentId, selectedPackage, selectedPeriod, user, showSuccess, showError]);
 
   const handlePaymentFail = useCallback(async (data: CampayPaymentData) => {
     if (!currentPaymentId) return;
