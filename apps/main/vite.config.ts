@@ -247,80 +247,27 @@ export default defineConfig({
   },
   plugins: [
     react(),
+    // VitePWA - Uniquement pour le manifest
+    // Le service worker custom (public/sw.js) sera copié automatiquement via publicDir
     VitePWA({
-      registerType: 'autoUpdate',
+      registerType: 'prompt',
       includeAssets: ['fav-icons/favicon.ico', 'fav-icons/apple-icon.png'],
       manifest: getPWAConfig(),
       strategies: 'generateSW',
-      injectRegister: false,
+      injectRegister: false, // On enregistre manuellement notre service worker custom
       selfDestroying: false,
+      // Configuration pour générer un service worker minimal (sera ignoré)
+      // Notre fichier /public/sw.js sera copié dans dist/ via publicDir
       workbox: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
-        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // 5MB limit
-        skipWaiting: true,
-        clientsClaim: true,
-        cacheId: `ubora-main-${Date.now()}`,
-        navigateFallback: '/index.html',
-        navigateFallbackDenylist: [/^\/api\//],
-        runtimeCaching: [
-          {
-            urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'google-fonts-cache',
-              expiration: {
-                maxEntries: 10,
-                maxAgeSeconds: 60 * 60 * 24 * 365 // 1 year
-              },
-              cacheableResponse: {
-                statuses: [0, 200]
-              }
-            }
-          },
-          {
-            urlPattern: /^https:\/\/fonts\.gstatic\.com\/.*/i,
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'gstatic-fonts-cache',
-              expiration: {
-                maxEntries: 10,
-                maxAgeSeconds: 60 * 60 * 24 * 365 // 1 year
-              },
-              cacheableResponse: {
-                statuses: [0, 200]
-              }
-            }
-          },
-          {
-            urlPattern: /\.(?:png|jpg|jpeg|svg|gif|webp)$/,
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'images-cache',
-              expiration: {
-                maxEntries: 100,
-                maxAgeSeconds: 60 * 60 * 24 * 30 // 30 days
-              }
-            }
-          },
-          {
-            urlPattern: /^https:\/\/.*\.firebaseapp\.com\/.*/i,
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'firebase-api-cache',
-              expiration: {
-                maxEntries: 50,
-                maxAgeSeconds: 60 * 60 * 24 // 1 day
-              },
-              cacheableResponse: {
-                statuses: [0, 200]
-              }
-            }
-          }
-        ]
+        globPatterns: [], // Pas de precaching
+        disableDevLogs: true,
+        // Générer un service worker minimal qui sera ignoré
+        // Notre sw.js custom sera utilisé à la place
+        swDest: 'sw-generated.js' // Nom différent pour éviter le conflit
       },
       devOptions: {
-        enabled: true,
-        type: 'module'
+        enabled: false,
+        type: 'classic'
       }
     })
   ],

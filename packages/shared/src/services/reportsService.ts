@@ -87,8 +87,13 @@ class ReportsService {
           if (!placeholderIds.has(mapping.placeholderId)) {
             throw new Error(`Le mapping référence un placeholder inexistant: ${mapping.placeholderId}`);
           }
-          if (!mapping.sourceId) {
-            throw new Error('Le mapping doit avoir un sourceId');
+          // sourceId est requis seulement pour les types 'form' et 'dashboard', pas pour 'static'
+          if (mapping.sourceType !== 'static' && !mapping.sourceId) {
+            throw new Error('Le mapping doit avoir un sourceId pour les types form et dashboard');
+          }
+          // Pour les mappings de type 'static', staticValueType est requis
+          if (mapping.sourceType === 'static' && !mapping.staticValueType) {
+            throw new Error('Le mapping de type static doit avoir un staticValueType');
           }
         }
       }

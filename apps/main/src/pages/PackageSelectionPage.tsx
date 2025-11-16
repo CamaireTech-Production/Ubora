@@ -123,7 +123,7 @@ export const PackageSelectionPage: React.FC = () => {
         await AnalyticsService.logPackageSelection(user.id, pkg, user.agencyId);
 
         showSuccess('Package gratuit activé avec succès !');
-        navigate('/directeur/dashboard');
+        navigate('/directeur/chat');
         return;
       } catch (error) {
         console.error('Error activating free package:', error);
@@ -311,10 +311,10 @@ export const PackageSelectionPage: React.FC = () => {
         renewalCount: 0,
         maxRenewals: priceCalculation.maxRenewals,
         packageResources: {
-          tokensIncluded: PACKAGE_LIMITS[selectedPackage].monthlyTokens,
-          formsIncluded: PACKAGE_LIMITS[selectedPackage].maxForms,
-          dashboardsIncluded: PACKAGE_LIMITS[selectedPackage].maxDashboards,
-          usersIncluded: PACKAGE_LIMITS[selectedPackage].maxUsers
+          tokensIncluded: PACKAGE_LIMITS[selectedPackage as PackageType].monthlyTokens,
+          formsIncluded: PACKAGE_LIMITS[selectedPackage as PackageType].maxForms,
+          dashboardsIncluded: PACKAGE_LIMITS[selectedPackage as PackageType].maxDashboards,
+          usersIncluded: PACKAGE_LIMITS[selectedPackage as PackageType].maxUsers
         },
         payAsYouGoResources: {
           tokens: 0,
@@ -351,9 +351,9 @@ export const PackageSelectionPage: React.FC = () => {
 
       showSuccess(`Package ${getPackageDisplayName(selectedPackage)} activé avec succès !`);
       
-      // Redirect to dashboard after success
+      // Redirect to chat after success to show WelcomeScreen
       setTimeout(() => {
-        navigate('/directeur/dashboard');
+        navigate('/directeur/chat');
       }, 1500);
       
     } catch (error) {
