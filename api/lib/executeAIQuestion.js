@@ -14,7 +14,7 @@ if (!loadedLocalEnv || !loadedLocalEnv.parsed) {
 
 import { adminDb } from '../lib/firebaseAdmin.js';
 import OpenAI from 'openai';
-import { formatFieldValue } from './listValueFormatter.js';
+import { searchAndFormatForAI } from '../lib/vectorSearch.js';
 
 // Initialize OpenAI
 const openai = new OpenAI({
@@ -273,31 +273,74 @@ export async function executeAIQuestion({
   filters = {},
   selectedFormats = [],
   responseFormat = 'text',
-  selectedResponseFormats = []
+  selectedResponseFormats = [],
+  directorId = null, // Director ID for active Univers filtering
+  userRole = null   // User role for context
 }) {
   try {
     console.log('🤖 [executeAIQuestion] Starting execution:', { userId, agencyId, question: question.substring(0, 50) });
 
-    // 1. Load data
-    const data = await loadAndAggregateData(
+    // 1. Search for relevant data using vector search (REPLACEMENT FOR loadAndAggregateData)
+    const { start, end, label } = getPeriodDates(filters?.period || 'all');
+
+    console.log('🔍 [executeAIQuestion] Searching vectors for relevant chunks...');
+    const vectorSearchResults = await searchAndFormatForAI(question, {
       agencyId,
-      filters?.period,
-      filters?.formId,
-      filters?.userId,
-      selectedFormats
+      directorId, // For active Univers filtering
+      formId: filters?.formId || null,
+      userId: filters?.userId || null,
+      period: { start, end },
+      limit: 15, // Get top 15 most relevant chunks
+      scoreThreshold: 0.5, // Minimum relevance score
+    });
+
+    if (!vectorSearchResults.hasResults) {
+      console.log('⚠️ [executeAIQuestion] No relevant data found in vector database');
+      return {
+        answer: 'Désolé, je n\'ai pas trouvé de données pertinentes pour répondre à votre question. Veuillez reformuler votre question ou vérifier que les données ont été synchronisées.',
+        tokensUsed: 0,
+        meta: {
+          period: label,
+          usedEntries: 0,
+          forms: 0,
+          users: 0,
+          model: 'gpt-4.1',
+          selectedFormat: responseFormat,
+          selectedFormats: selectedResponseFormats,
+          selectedFormIds: selectedFormats,
+          selectedFormTitles: [],
+          chunksUsed: 0,
+          citations: []
+        }
+      };
+    }
+
+    console.log(`✅ [executeAIQuestion] Found ${vectorSearchResults.chunks.length} relevant chunks`);
+
+    // Legacy data structure for compatibility (if needed)
+    const data = {
+      period: { start, end, label },
+      totals: {
+        entries: vectorSearchResults.uniqueEntriesCount || 0,
+        uniqueUsers: [...new Set(vectorSearchResults.chunks.map(chunk => chunk.metadata.userId).filter(Boolean))].length,
+        uniqueForms: [...new Set(vectorSearchResults.chunks.map(chunk => chunk.metadata.formId).filter(Boolean))].length,
+      },
+      submissions: vectorSearchResults.chunks.map(chunk => ({
+        formTitle: chunk.metadata.formTitle,
+        employeeName: chunk.metadata.employeeName,
+        submittedAt: chunk.metadata.submittedAt,
+      }))
+    };
+
+    // 2. Build prompts with vector search results (MODIFIED)
+    const hasPDFContent = vectorSearchResults.chunks.some(chunk =>
+      chunk.metadata.fileType === 'application/pdf'
+    );
+    const hasImageContent = vectorSearchResults.chunks.some(chunk =>
+      chunk.metadata.fileType && chunk.metadata.fileType.startsWith('image/')
     );
 
-    // 2. Build prompts (simplified for scheduled questions - no conversation context)
-    const hasPDFContent = data.submissions.some(s => 
-      s.fileAttachments?.some(att => att.fileType === 'application/pdf' && (att.extractedText || att.rawExtractedText))
-    );
-    const hasImageContent = data.submissions.some(s => 
-      s.fileAttachments?.some(att => 
-        att.fileType && att.fileType.startsWith('image/') && (att.extractedText || att.rawExtractedText)
-      )
-    );
-
-    // Build system prompt (simplified version)
+    // Build system prompt (MODIFIED to be leaner and include citation rules)
     const systemPrompt = `Tu es ARCHA, assistant IA expert en analyse de données d'entreprise.
 
 RÈGLES FONDAMENTALES :
@@ -308,81 +351,44 @@ RÈGLES FONDAMENTALES :
 
 CONTEXTE MÉTIER :
 - Agence : ${agencyId}
-- Période d'analyse : ${data.period.label}
-- Nombre total de soumissions : ${data.totals.entries}
-- Employés actifs : ${data.totals.uniqueUsers}/${data.totals.totalUsers}
-- Formulaires utilisés : ${data.totals.uniqueForms}/${data.totals.totalForms}
+- Période d'analyse : ${label}
+- Nombre de sources pertinentes trouvées : ${vectorSearchResults.chunks.length}
 
 ${hasPDFContent ? `
 📄 ANALYSE DE DOCUMENTS PDF :
-- Les soumissions contiennent des documents PDF avec du contenu textuel extrait
+- Les données contiennent des documents PDF avec du contenu textuel extrait
 - OBLIGATOIRE : Analyse le contenu de chaque document en détail
 - OBLIGATOIRE : Extrais les informations pertinentes pour répondre à la question
 - OBLIGATOIRE : MENTIONNE le nom du fichier quand tu fais référence à son contenu
 ` : ''}
 ${hasImageContent ? `
 🖼️ ANALYSE D'IMAGES :
-- Les soumissions peuvent contenir des images avec du contenu textuel extrait par OCR
+- Les données peuvent contenir des images avec du contenu textuel extrait par OCR
 - OBLIGATOIRE : Analyse le contenu textuel de chaque image
 - OBLIGATOIRE : MENTIONNE le nom du fichier image quand tu fais référence à son contenu
-` : ''}`;
+` : ''}
 
-    // Build user prompt
-    const buildSubmissionsData = (submissions) => {
-      return submissions.map((s, index) => {
-        // Find the form for this submission to get field definitions
-        let submissionForm = null;
-        if (formsById && s.formTitle) {
-          // Iterate through formsById to find matching form
-          for (const [formId, form] of formsById.entries()) {
-            if (form.title === s.formTitle) {
-              submissionForm = form;
-              break;
-            }
-          }
-        }
-        
-        const fieldSummary = Object.entries(s.answers).map(([fieldLabel, value]) => {
-          // Try to find the field definition to get displayColumnId
-          let field = null;
-          if (submissionForm && submissionForm.fields) {
-            // Find field by label (since we're using fieldLabel here)
-            field = submissionForm.fields.find(f => f.label === fieldLabel);
-          }
-          
-          // Use formatFieldValue to handle list values and other types
-          const displayValue = formatFieldValue(value, field, true); // true = forAI
-          return `${fieldLabel}: ${displayValue}`;
-        }).join(' | ');
-        
-        let extractedTextSummary = '';
-        if (s.fileAttachments && s.fileAttachments.length > 0) {
-          s.fileAttachments.forEach(file => {
-            const textToUse = file.extractedText || file.rawExtractedText || '';
-            if (textToUse) {
-              const fileType = file.fileType === 'application/pdf' ? 'Document PDF' : 'Image';
-              extractedTextSummary += ` | ${fileType}: ${file.fileName} (${textToUse.substring(0, 500)}...)`;
-            }
-          });
-        }
-        
-        return `SOUMISSION ${index + 1}: ${s.employeeName} | ${s.formTitle} | ${s.submittedAt}
-${fieldSummary}${extractedTextSummary}`;
-      }).join('\n\n');
-    };
+CITATIONS :
+- Tu dois toujours citer tes sources par leur nom (formulaire ou fichier), pas par ID
+- Exemples de citations correctes :
+  * "Selon le formulaire Ventes quotidiennes par Marie..."
+  * "Dans le document Rapport_Mensuel.pdf..."
+  * "D'après les données du formulaire Suivi_Production par Jean..."`;
 
+    // Build user prompt with vector search results (MODIFIED)
     const userPrompt = `QUESTION : "${question}"
 
-DONNÉES DISPONIBLES :
-- ${data.totals.entries} soumissions au total
-- ${data.totals.uniqueUsers} employés actifs
-- ${data.totals.uniqueForms} formulaires utilisés
-- Période : ${data.period.label}
+DONNÉES PERTINENTES TROUVÉES (${vectorSearchResults.chunks.length} sources) :
+${vectorSearchResults.formattedText}
 
-TOP EMPLOYÉS : ${data.userStats.slice(0, 3).map(u => `${u.name} (${u.count} soumissions)`).join(', ')}
-TOP FORMULAIRES : ${data.formStats.slice(0, 3).map(f => `${f.title} (${f.count} soumissions)`).join(', ')}
+CITATIONS DISPONIBLES :
+${vectorSearchResults.citations.map((citation, index) => `[${index + 1}] ${citation}`).join('\n')}
 
-${data.submissions.length > 0 ? buildSubmissionsData(data.submissions) : 'AUCUNE SOUMISSION TROUVÉE POUR CETTE PÉRIODE'}`;
+INSTRUCTIONS :
+- Réponds à la question en utilisant UNIQUEMENT les données ci-dessus
+- Cite tes sources en utilisant les noms de formulaires ou fichiers (ex: "Selon le formulaire [nom] par [employé]...")
+- Si les données ne suffisent pas pour répondre complètement, dis-le clairement
+- Sois précis et cite les chiffres exacts trouvés dans les données`;
 
     // 3. Call OpenAI
     if (!process.env.OPENAI_API_KEY) {
@@ -405,20 +411,24 @@ ${data.submissions.length > 0 ? buildSubmissionsData(data.submissions) : 'AUCUNE
     const answer = completion.choices?.[0]?.message?.content || 'Désolé, je n\'ai pas pu générer une réponse.';
     const tokensUsed = completion.usage?.total_tokens || 0;
 
-    // 4. Return result
+    // 4. Return result (MODIFIED to reflect vector search data)
+    const uniqueFormTitles = [...new Set(vectorSearchResults.chunks.map(chunk => chunk.metadata.formTitle).filter(Boolean))];
+
     return {
       answer,
       tokensUsed,
       meta: {
-        period: data.period.label,
-        usedEntries: data.totals.entries,
-        forms: data.totals.uniqueForms,
-        users: data.totals.uniqueUsers,
+        period: label,
+        usedEntries: vectorSearchResults.chunks.length, // Number of chunks used
+        forms: uniqueFormTitles.length,
+        users: [...new Set(vectorSearchResults.chunks.map(chunk => chunk.metadata.userId).filter(Boolean))].length,
         model: 'gpt-4.1',
         selectedFormat: responseFormat,
         selectedFormats: selectedResponseFormats,
         selectedFormIds: selectedFormats,
-        selectedFormTitles: data.formStats.slice(0, 5).map(f => f.title)
+        selectedFormTitles: uniqueFormTitles.slice(0, 5),
+        chunksUsed: vectorSearchResults.chunks.length,
+        citations: vectorSearchResults.citations
       }
     };
   } catch (error) {

@@ -1,12 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
 import { useApp } from '@ubora/shared/contexts/AppContext';
 import { Layout } from '../components/Layout';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
-import { LoadingGuard } from '../components/LoadingGuard';
-import { ArrowLeft, FileText, User, Calendar, Filter, Download, Eye, Edit, ChevronLeft, ChevronRight } from 'lucide-react';
+import { WireframeLoader } from '../components/loading/WireframeLoader';
+import { ArrowLeft, FileText, User, Calendar, Filter, Download, Eye, Edit, ChevronLeft, ChevronRight, RefreshCw, CheckCircle, Clock, XCircle } from 'lucide-react';
 import { FileAttachment } from '../types';
 import { useToast } from '@ubora/shared/hooks/useToast';
 import { Toast } from '../components/Toast';
@@ -15,7 +15,7 @@ import { PDFViewerModal } from '../components/PDFViewerModal';
 import { DynamicForm } from '../components/DynamicForm';
 import { downloadFile } from '@ubora/shared/utils/downloadUtils';
 import { forceDownloadFromFirebase } from '@ubora/shared/utils/firebaseDownloadUtils';
-import { formatFieldValue } from '@ubora/shared/utils/listValueFormatter';
+import { getFormatRetryEndpoint, getVectorSyncRetryEndpoint, getFormEntryStatusEndpoint } from '@ubora/shared/config/api';
 
 export const ResponseDetailPage: React.FC = () => {
   const { formId } = useParams<{ formId: string }>();
@@ -23,6 +23,7 @@ export const ResponseDetailPage: React.FC = () => {
   const { user, firebaseUser, isLoading } = useAuth();
   const { 
     forms, 
+    formEntries,
     employees, 
     getEntriesForForm,
     getEntriesForEmployee,
@@ -47,18 +48,87 @@ export const ResponseDetailPage: React.FC = () => {
     fileUrl: '',
     fileName: ''
   });
+  
+  // Vector sync and formatting status tracking
+  const [responseStatuses, setResponseStatuses] = useState<Record<string, {
+    formattingStatus?: string;
+    formattingRetryCount?: number;
+    formattingError?: string;
+    vectorSyncStatus?: string;
+    vectorSyncRetryCount?: number;
+    vectorSyncError?: string;
+    vectorSyncWithRawText?: boolean;
+    files?: Array<{
+      fileName: string;
+      formattingStatus?: string;
+      formattingError?: string;
+    }>;
+    canRetry?: {
+      formatting: boolean;
+      vectorSync: boolean;
+    };
+  }>>({});
+  
+  const [retryingStatuses, setRetryingStatuses] = useState<Record<string, {
+    formatting?: boolean;
+    vectorSync?: boolean;
+  }>>({});
 
   // Get the form and responses
   const form = forms.find(f => f.id === formId);
   const isEmployee = user?.role === 'employe';
   const isDirector = user?.role === 'directeur';
 
-  // Get responses based on user role
-  const allResponses = formId ? (
-    isEmployee 
-      ? getEntriesForEmployee(user?.id || '').filter(entry => entry.formId === formId)
-      : getEntriesForForm(formId)
-  ) : [];
+  // Get responses based on user role - memoized to prevent infinite loops
+  const allResponses = useMemo(() => {
+    if (!formId) return [];
+    if (isEmployee) {
+      return getEntriesForEmployee(user?.id || '').filter(entry => entry.formId === formId);
+    }
+    return getEntriesForForm(formId);
+  }, [formId, isEmployee, user?.id, formEntries]); // Use formEntries instead of function references
+
+  // Load statuses for all responses - use stable IDs to prevent infinite loops
+  const responseIds = useMemo(() => allResponses.map(r => r.id).join(','), [allResponses]);
+  
+  useEffect(() => {
+    if (allResponses.length === 0) return;
+    
+    let isCancelled = false;
+    
+    const loadStatuses = async () => {
+      const statusPromises = allResponses.map(async (formEntry) => {
+        if (isCancelled) return null;
+        try {
+          const statusResponse = await fetch(getFormEntryStatusEndpoint(formEntry.id));
+          if (statusResponse.ok) {
+            const data = await statusResponse.json();
+            return { id: formEntry.id, status: data };
+          }
+        } catch (err) {
+          console.error(`Failed to load status for ${formEntry.id}:`, err);
+        }
+        return null;
+      });
+      
+      const results = await Promise.all(statusPromises);
+      if (isCancelled) return;
+      
+      const statusMap: Record<string, any> = {};
+      results.forEach(result => {
+        if (result) {
+          statusMap[result.id] = result.status;
+        }
+      });
+      setResponseStatuses(statusMap);
+    };
+    
+    loadStatuses();
+    
+    return () => {
+      isCancelled = true;
+    };
+  }, [responseIds]); // Use stable string instead of array
 
   // Debug: Log all response data
   React.useEffect(() => {
@@ -183,7 +253,7 @@ export const ResponseDetailPage: React.FC = () => {
           () => {
             showSuccess('Téléchargement démarré');
           },
-          (error) => {
+          () => {
             // Fallback to regular download
             handleDownloadFallback(fileAttachment);
           }
@@ -228,8 +298,20 @@ export const ResponseDetailPage: React.FC = () => {
   };
 
   const getEmployeeName = (employeeId: string): string => {
+    // Check if it's the current user (could be director or employee)
+    if (user?.id === employeeId) {
+      return user.name || 'Utilisateur actuel';
+    }
+    
+    // Check in employees list
     const employee = employees.find(emp => emp?.id === employeeId);
-    return employee?.name || 'Employé inconnu';
+    if (employee) {
+      return employee.name;
+    }
+    
+    // Check if it's a director (they might not be in employees list)
+    // For now, return a generic message - we could fetch from users collection if needed
+    return 'Utilisateur inconnu';
   };
 
   const canEditResponse = (submittedAt: Date | string) => {
@@ -299,8 +381,8 @@ export const ResponseDetailPage: React.FC = () => {
       showSuccess('Réponse mise à jour avec succès');
       setEditingResponse(null);
       
-    } catch (error) {
-      console.error('Error updating response:', error);
+    } catch (err) {
+      console.error('Error updating response:', err);
       showError('Erreur lors de la mise à jour de la réponse');
     } finally {
       setIsSubmittingEdit(false);
@@ -313,6 +395,121 @@ export const ResponseDetailPage: React.FC = () => {
     } else {
       navigate('/directeur/dashboard');
     }
+  };
+
+  // Retry formatting for a specific file or all files
+  const handleRetryFormatting = async (formEntryId: string, fileName?: string) => {
+    const retryKey = `${formEntryId}_formatting`;
+    setRetryingStatuses(prev => ({ ...prev, [retryKey]: { formatting: true } }));
+    
+    try {
+      const response = await fetch(getFormatRetryEndpoint(), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ formEntryId, fileName, forceRetry: false })
+      });
+      
+      if (response.ok) {
+        showSuccess(fileName ? `Formatage relancé pour ${fileName}` : 'Formatage relancé pour tous les fichiers');
+        // Reload status after a delay
+        setTimeout(() => {
+          fetch(getFormEntryStatusEndpoint(formEntryId))
+            .then(res => res.json())
+            .then(data => {
+              setResponseStatuses(prev => ({ ...prev, [formEntryId]: data }));
+            })
+            .catch(console.error);
+        }, 2000);
+      } else {
+        const error = await response.json();
+        showError(error.error || 'Erreur lors de la relance du formatage');
+      }
+    } catch (error) {
+      console.error('Error retrying formatting:', error);
+      showError('Erreur lors de la relance du formatage');
+    } finally {
+      setRetryingStatuses(prev => ({ ...prev, [retryKey]: { formatting: false } }));
+    }
+  };
+
+  // Retry vector sync
+  const handleRetryVectorSync = async (formEntryId: string) => {
+    const retryKey = `${formEntryId}_vectorSync`;
+    setRetryingStatuses(prev => ({ ...prev, [retryKey]: { vectorSync: true } }));
+    
+    try {
+      const status = responseStatuses[formEntryId];
+      const useRawText = status?.formattingStatus === 'failed' && (status?.formattingRetryCount || 0) >= 3;
+      
+      const response = await fetch(getVectorSyncRetryEndpoint(), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ formEntryId, useRawText })
+      });
+      
+      if (response.ok) {
+        showSuccess('Synchronisation vectorielle relancée');
+        // Reload status after a delay
+        setTimeout(() => {
+          fetch(getFormEntryStatusEndpoint(formEntryId))
+            .then(res => res.json())
+            .then(data => {
+              setResponseStatuses(prev => ({ ...prev, [formEntryId]: data }));
+            })
+            .catch(console.error);
+        }, 2000);
+      } else {
+        const error = await response.json();
+        showError(error.error || 'Erreur lors de la relance de la synchronisation');
+      }
+    } catch (error) {
+      console.error('Error retrying vector sync:', error);
+      showError('Erreur lors de la relance de la synchronisation');
+    } finally {
+      setRetryingStatuses(prev => ({ ...prev, [retryKey]: { vectorSync: false } }));
+    }
+  };
+
+  // Get status badge component
+  const getStatusBadge = (status: string | undefined | null, error?: string) => {
+    // Handle null/undefined (old entries without status tracking)
+    if (!status || status === 'null' || status === 'not_applicable') {
+      return null; // Don't show badge for old entries
+    }
+    
+    if (status === 'pending') {
+      return (
+        <span className="inline-flex items-center px-2 py-1 rounded text-xs bg-yellow-100 text-yellow-800">
+          <Clock className="h-3 w-3 mr-1" />
+          En attente
+        </span>
+      );
+    }
+    if (status === 'processing') {
+      return (
+        <span className="inline-flex items-center px-2 py-1 rounded text-xs bg-blue-100 text-blue-800">
+          <RefreshCw className="h-3 w-3 mr-1 animate-spin" />
+          En cours
+        </span>
+      );
+    }
+    if (status === 'completed' || status === 'synced' || status === 'skipped') {
+      return (
+        <span className="inline-flex items-center px-2 py-1 rounded text-xs bg-green-100 text-green-800">
+          <CheckCircle className="h-3 w-3 mr-1" />
+          {status === 'skipped' ? 'Ignoré' : 'Terminé'}
+        </span>
+      );
+    }
+    if (status === 'failed') {
+      return (
+        <span className="inline-flex items-center px-2 py-1 rounded text-xs bg-red-100 text-red-800" title={error}>
+          <XCircle className="h-3 w-3 mr-1" />
+          Échec
+        </span>
+      );
+    }
+    return null;
   };
 
   const filteredResponses = getFilteredAndSortedResponses();
@@ -358,35 +555,31 @@ export const ResponseDetailPage: React.FC = () => {
     return pages;
   };
 
+  // Show wireframe loader during loading
+  if (isLoading || appLoading || !user || !firebaseUser) {
+    return (
+      <Layout title="Chargement...">
+        <WireframeLoader type="list" count={5} />
+      </Layout>
+    );
+  }
+
   if (!form) {
     return (
-      <LoadingGuard 
-        isLoading={isLoading || appLoading} 
-        user={user} 
-        firebaseUser={firebaseUser}
-        message="Chargement des détails de la réponse..."
-      >
-        <Layout title="Réponse non trouvée">
-          <div className="text-center py-8">
-            <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-            <h2 className="text-xl font-semibold text-gray-900 mb-2">Formulaire non trouvé</h2>
-            <p className="text-gray-600 mb-4">Le formulaire demandé n'existe pas ou vous n'avez pas l'autorisation de le consulter.</p>
-            <Button onClick={handleBack}>
-              <ArrowLeft className="h-4 w-4 mr-2" />
-            </Button>
-          </div>
-        </Layout>
-      </LoadingGuard>
+      <Layout title="Réponse non trouvée">
+        <div className="text-center py-8">
+          <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">Formulaire non trouvé</h2>
+          <p className="text-gray-600 mb-4">Le formulaire demandé n'existe pas ou vous n'avez pas l'autorisation de le consulter.</p>
+          <Button onClick={handleBack}>
+            <ArrowLeft className="h-4 w-4 mr-2" />
+          </Button>
+        </div>
+      </Layout>
     );
   }
 
   return (
-    <LoadingGuard 
-      isLoading={isLoading || appLoading} 
-      user={user} 
-      firebaseUser={firebaseUser}
-      message="Chargement des détails de la réponse..."
-    >
       <Layout title={`Réponses - ${form.title}`}>
         <div className="space-y-6">
           {/* Header */}
@@ -592,7 +785,7 @@ export const ResponseDetailPage: React.FC = () => {
                         /* Response Display */
                         <>
                           <div className="flex items-start justify-between mb-4">
-                            <div>
+                            <div className="flex-1">
                               <div className="flex items-center space-x-2 mb-2">
                                 <h3 className="font-semibold text-gray-900">
                                   {isEmployee ? `Ma réponse #${globalIndex + 1}` : `Réponse de ${getEmployeeName(response.userId)}`}
@@ -615,9 +808,48 @@ export const ResponseDetailPage: React.FC = () => {
                                   </div>
                                 )}
                               </div>
+                              
+                              {/* Status badges */}
+                              {(() => {
+                                const status = responseStatuses[response.id];
+                                if (!status) return null;
+                                
+                                return (
+                                  <div className="flex items-center gap-2 mt-2 flex-wrap">
+                                    {/* Formatting status */}
+                                    {status.formattingStatus && (
+                                      <div className="flex items-center gap-1">
+                                        {getStatusBadge(status.formattingStatus, status.formattingError)}
+                                        {(status.formattingRetryCount || 0) > 0 && (
+                                          <span className="text-xs text-gray-500">
+                                            ({status.formattingRetryCount} tentatives)
+                                          </span>
+                                        )}
+                                      </div>
+                                    )}
+                                    
+                                    {/* Vector sync status */}
+                                    {status.vectorSyncStatus && (
+                                      <div className="flex items-center gap-1">
+                                        {getStatusBadge(status.vectorSyncStatus, status.vectorSyncError)}
+                                        {status.vectorSyncWithRawText && (
+                                          <span className="text-xs text-yellow-600" title="Synchronisé avec texte brut (formatage échoué)">
+                                            (texte brut)
+                                          </span>
+                                        )}
+                                        {(status.vectorSyncRetryCount || 0) > 0 && (
+                                          <span className="text-xs text-gray-500">
+                                            ({status.vectorSyncRetryCount} tentatives)
+                                          </span>
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })()}
                             </div>
                             
-                            <div className="flex items-center space-x-2">
+                            <div className="flex items-center space-x-2 flex-wrap gap-2">
                               {isEditable && (
                                 <Button
                                   variant="secondary"
@@ -634,6 +866,45 @@ export const ResponseDetailPage: React.FC = () => {
                                   Non modifiable (3h+)
                                 </span>
                               )}
+                              
+                              {/* Retry buttons */}
+                              {(() => {
+                                const status = responseStatuses[response.id];
+                                const retryState = retryingStatuses[`${response.id}_formatting`] || retryingStatuses[`${response.id}_vectorSync`];
+                                if (!status?.canRetry) return null;
+                                
+                                return (
+                                  <div className="flex items-center gap-2">
+                                    {/* Formatting retry */}
+                                    {status.canRetry.formatting && (
+                                      <Button
+                                        variant="secondary"
+                                        size="sm"
+                                        onClick={() => handleRetryFormatting(response.id)}
+                                        disabled={retryState?.formatting}
+                                        className="flex items-center space-x-1 text-xs"
+                                      >
+                                        <RefreshCw className={`h-3 w-3 ${retryState?.formatting ? 'animate-spin' : ''}`} />
+                                        <span>Relancer formatage</span>
+                                      </Button>
+                                    )}
+                                    
+                                    {/* Vector sync retry */}
+                                    {status.canRetry.vectorSync && (
+                                      <Button
+                                        variant="secondary"
+                                        size="sm"
+                                        onClick={() => handleRetryVectorSync(response.id)}
+                                        disabled={retryState?.vectorSync}
+                                        className="flex items-center space-x-1 text-xs"
+                                      >
+                                        <RefreshCw className={`h-3 w-3 ${retryState?.vectorSync ? 'animate-spin' : ''}`} />
+                                        <span>Relancer sync</span>
+                                      </Button>
+                                    )}
+                                  </div>
+                                );
+                              })()}
                             </div>
                           </div>
 
@@ -646,6 +917,8 @@ export const ResponseDetailPage: React.FC = () => {
                               // Handle file fields specially
                               if (field?.type === 'file' && value && typeof value === 'object' && 'uploaded' in value && value.uploaded) {
                                 const fileAttachment = findFileAttachment(response, fieldId);
+                                const fileStatus = responseStatuses[response.id]?.files?.find(f => f.fileName === fileAttachment?.fileName);
+                                
                                 return (
                                   <div key={fieldId} className="border-b border-gray-100 pb-3 last:border-b-0">
                                     <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
@@ -657,6 +930,11 @@ export const ResponseDetailPage: React.FC = () => {
                                           <span className="text-lg">{getFileIcon((value as any).fileType)}</span>
                                           <span>{getCleanFileName((value as any).fileName)}</span>
                                           <span className="text-xs text-gray-500">({formatFileSize((value as any).fileSize)})</span>
+                                          {fileStatus && (
+                                            <div className="ml-2">
+                                              {getStatusBadge(fileStatus.formattingStatus, fileStatus.formattingError)}
+                                            </div>
+                                          )}
                                         </div>
                                          <div className="flex items-center space-x-2">
                                            <button
@@ -675,6 +953,16 @@ export const ResponseDetailPage: React.FC = () => {
                                              <Download className="h-3 w-3" />
                                              <span>Télécharger</span>
                                            </button>
+                                           {fileStatus?.formattingStatus === 'failed' && (
+                                             <button
+                                               onClick={() => handleRetryFormatting(response.id, fileAttachment?.fileName)}
+                                               disabled={retryingStatuses[`${response.id}_formatting`]?.formatting}
+                                               className="flex items-center space-x-1 px-2 py-1 bg-yellow-500 text-white rounded hover:bg-yellow-600 text-xs"
+                                             >
+                                               <RefreshCw className={`h-3 w-3 ${retryingStatuses[`${response.id}_formatting`]?.formatting ? 'animate-spin' : ''}`} />
+                                               <span>Relancer</span>
+                                             </button>
+                                           )}
                                          </div>
                                       </div>
                                     </div>
@@ -689,7 +977,40 @@ export const ResponseDetailPage: React.FC = () => {
                                       {fieldLabel}
                                     </div>
                                     <div className="text-gray-900 text-sm">
-                                      {formatFieldValue(value, field, false)}
+                                      {value !== null && value !== undefined ? 
+                                        (() => {
+                                          // Handle boolean
+                                          if (typeof value === 'boolean') {
+                                            return value ? 'Oui' : 'Non';
+                                          }
+                                          // Handle list-based dropdown (object with _listRow)
+                                          if (typeof value === 'object' && value._listRow && value.rowData) {
+                                            const displayColumnId = field?.displayColumnId;
+                                            if (displayColumnId && value.rowData[displayColumnId] !== undefined) {
+                                              return String(value.rowData[displayColumnId]);
+                                            }
+                                            // Fallback: show first available value
+                                            const firstValue = Object.values(value.rowData)[0];
+                                            return firstValue !== undefined ? String(firstValue) : 'Valeur sélectionnée';
+                                          }
+                                          // Handle other objects
+                                          if (typeof value === 'object') {
+                                            // Exclude internal fields
+                                            const displayable = Object.entries(value)
+                                              .filter(([key]) => key !== '_listRow' && key !== 'listId')
+                                              .map(([key, val]) => `${key}: ${val}`)
+                                              .join(', ');
+                                            return displayable || 'Objet';
+                                          }
+                                          // Handle arrays
+                                          if (Array.isArray(value)) {
+                                            return value.join(', ');
+                                          }
+                                          // Default: convert to string
+                                          return String(value);
+                                        })() : 
+                                        '-'
+                                      }
                                     </div>
                                   </div>
                                 </div>
@@ -781,6 +1102,5 @@ export const ResponseDetailPage: React.FC = () => {
           }}
         />
       </Layout>
-    </LoadingGuard>
   );
 };

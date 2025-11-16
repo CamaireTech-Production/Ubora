@@ -42,6 +42,7 @@ import { PaymentService } from '@ubora/shared/services/paymentService';
 import { PaymentRequest, CampayPaymentData } from '../types/payment';
 import { SubscriptionPriceCalculator, SubscriptionPeriod } from '@ubora/shared/services/subscriptionPriceCalculator';
 import { CheckCircle } from 'lucide-react';
+import { PackageManagementSkeleton } from '../components/skeletons/PackageManagementSkeleton';
 
 export const PackageManagementPage: React.FC = () => {
   const navigate = useNavigate();
@@ -55,7 +56,7 @@ export const PackageManagementPage: React.FC = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [showTransitionPreview, setShowTransitionPreview] = useState(false);
   const [transitionPreview, setTransitionPreview] = useState<any>(null);
-  const [userNeeds, setUserNeeds] = useState<UserNeeds>({});
+  const [_userNeeds, setUserNeeds] = useState<UserNeeds>({});
   const [paymentModal, setPaymentModal] = useState<{
     isOpen: boolean;
     type: 'tokens' | 'forms' | 'dashboards' | 'users';
@@ -221,7 +222,7 @@ export const PackageManagementPage: React.FC = () => {
         const ok = await PackageTransitionService.executeTransition(
           user.id,
           'free',
-          { preserveUnusedPayAsYouGo: true },
+          { preserveUnusedPayAsYouGo: false }, // As per user requirement - no preservation
           'none',
           undefined,
           '30days' // Default period for free
@@ -324,6 +325,8 @@ export const PackageManagementPage: React.FC = () => {
     if (!currentPaymentId || !selectedPackage || !user) return;
 
     try {
+      setIsProcessing(true);
+      
       // Update payment status in Firebase
       await PaymentService.updatePaymentStatus(currentPaymentId, data, 'completed');
       
@@ -332,7 +335,7 @@ export const PackageManagementPage: React.FC = () => {
         user.id,
         selectedPackage,
         {
-          preserveUnusedPayAsYouGo: true
+          preserveUnusedPayAsYouGo: false // As per user requirement - no preservation
         },
         'campay', // Payment method
         currentPaymentId, // Payment reference
@@ -342,17 +345,27 @@ export const PackageManagementPage: React.FC = () => {
       if (success) {
         showSuccess(`Package ${getPackageDisplayName(selectedPackage)} activé avec succès !`);
         
-        // Navigate back to the previous page
+        // Close modal immediately
+        setIsPaymentModalOpen(false);
+        setAutoOpenPayment(false);
+        
+        // Reload page after a short delay to refresh all data
         setTimeout(() => {
-          navigate(-1);
+          window.location.reload();
         }, 1500);
       } else {
-        showError('Erreur lors de l\'activation du package. Veuillez contacter le support.');
+        showError('Erreur lors de l\'activation du package. Le paiement a été enregistré. Veuillez contacter le support si le problème persiste.');
+        // Close modal even on error
+        setIsPaymentModalOpen(false);
+        setAutoOpenPayment(false);
       }
       
     } catch (error) {
       console.error('Erreur lors du traitement du paiement:', error);
-      showError('Erreur lors du traitement du paiement. Veuillez contacter le support.');
+      showError('Erreur lors du traitement du paiement. Le paiement a été enregistré. Veuillez contacter le support si le problème persiste.');
+      // Close modal on error
+      setIsPaymentModalOpen(false);
+      setAutoOpenPayment(false);
     } finally {
       // Reset states
       setIsProcessing(false);
@@ -363,12 +376,10 @@ export const PackageManagementPage: React.FC = () => {
       setPaymentRequest(null);
       setCurrentPaymentId(null);
       setIsCreatingPayment(false);
-      setAutoOpenPayment(false);
-      setIsPaymentModalOpen(false);
       setShowTransitionPreview(false);
       setActivePayAsYouGoType(null);
     }
-  }, [currentPaymentId, selectedPackage, selectedPeriod, user, showSuccess, showError, navigate]);
+  }, [currentPaymentId, selectedPackage, selectedPeriod, user, showSuccess, showError]);
 
   const handlePaymentFail = useCallback(async (data: CampayPaymentData) => {
     if (!currentPaymentId) return;
@@ -544,8 +555,13 @@ export const PackageManagementPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Current Package Status - Modern Design */}
-        {user && packageInfo && (
+        {/* Show skeleton while loading */}
+        {isLoadingPackageInfo ? (
+          <PackageManagementSkeleton />
+        ) : (
+          <>
+            {/* Current Package Status - Modern Design */}
+            {user && packageInfo && (
           <div className="relative overflow-hidden mx-2 sm:mx-0">
             {/* Background Gradient */}
             <div className="absolute inset-0 bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 rounded-2xl"></div>
@@ -1297,9 +1313,7 @@ export const PackageManagementPage: React.FC = () => {
           </div>
         </div>
 
-      </div>
-
-      {/* Payment Modal */}
+        {/* Payment Modal */}
       <PaymentModal
         isOpen={paymentModal.isOpen}
         onClose={() => setPaymentModal({ isOpen: false, type: 'tokens', currentLimit: 0 })}
@@ -1557,6 +1571,9 @@ export const PackageManagementPage: React.FC = () => {
           </div>
         </div>
       )}
+          </>
+        )}
+      </div>
 
     </Layout>
   );

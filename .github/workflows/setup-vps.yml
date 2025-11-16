@@ -103,5 +103,5 @@ jobs:
           echo "📋 Next steps:"
           echo "1. Add DNS records for api-dev.ubora-app.com and api.ubora-app.com"
           echo "2. Run SSL setup: certbot --nginx -d api-dev.ubora-app.com -d api.ubora-app.com"
-          echo "3. Push to dev/master branches to trigger deployment"
+          echo "3. Push to dev/prod branches to trigger deployment"
 
