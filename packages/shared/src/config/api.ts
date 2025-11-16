@@ -29,6 +29,11 @@ export const API_ENDPOINTS = {
   FILES_DOWNLOAD: '/api/files/download',
   FCM_SEND: '/api/fcm/send',
   CRON_NOTIFICATIONS: '/api/cron/notifications',
+  VECTOR_SYNC: '/api/vector/sync',
+  VECTOR_HEALTH: '/api/vector/health',
+  VECTOR_SYNC_RETRY: '/api/vector/sync/retry',
+  FORMAT_RETRY: '/api/ai/format/retry',
+  FORM_ENTRY_STATUS: '/api/form-entry',
   HEALTH: '/health',
   TEST: '/test'
 };
@@ -121,5 +126,10 @@ export const getOCRPDFEndpoint = (): string => buildApiUrl(API_ENDPOINTS.OCR_PDF
 export const getFilesDownloadEndpoint = (): string => buildApiUrl(API_ENDPOINTS.FILES_DOWNLOAD);
 export const getFCMSendEndpoint = (): string => buildApiUrl(API_ENDPOINTS.FCM_SEND);
 export const getCronNotificationsEndpoint = (): string => buildApiUrl(API_ENDPOINTS.CRON_NOTIFICATIONS);
+export const getVectorSyncEndpoint = (): string => buildApiUrl(API_ENDPOINTS.VECTOR_SYNC);
+export const getVectorHealthEndpoint = (): string => buildApiUrl(API_ENDPOINTS.VECTOR_HEALTH);
+export const getVectorSyncRetryEndpoint = (): string => buildApiUrl(API_ENDPOINTS.VECTOR_SYNC_RETRY);
+export const getFormatRetryEndpoint = (): string => buildApiUrl(API_ENDPOINTS.FORMAT_RETRY);
+export const getFormEntryStatusEndpoint = (formEntryId: string): string => buildApiUrl(`${API_ENDPOINTS.FORM_ENTRY_STATUS}/${formEntryId}/status`);
 export const getHealthEndpoint = (): string => buildApiUrl(API_ENDPOINTS.HEALTH);
 export const getTestEndpoint = (): string => buildApiUrl(API_ENDPOINTS.TEST);

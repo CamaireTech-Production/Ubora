@@ -478,8 +478,9 @@ export const usePackageAccess = () => {
     isLimitUnlimited,
     getPackageType,
     
-    // Loading state for director info
+    // Loading states
     isLoadingDirectorInfo,
+    isLoadingUserPackageInfo,
     
     // Fonctions spécifiques aux formulaires
     canCreateForm,

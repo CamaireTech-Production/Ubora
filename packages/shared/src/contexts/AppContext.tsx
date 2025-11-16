@@ -24,7 +24,7 @@ import { PermissionManager } from '../utils/PermissionManager';
 import { SubscriptionSessionService } from '../services/subscriptionSessionService';
 import { notificationService } from '../services/notificationService';
 import { useToast } from '../hooks/useToast';
-import { getAIFormatEndpoint, getFilesDownloadEndpoint } from '../config/api';
+import { getAIFormatEndpoint, getVectorSyncEndpoint } from '../config/api';
 import { universService } from '../services/universService';
 
 interface AppContextType {
@@ -817,13 +817,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         // Remove base64Data and any other complex objects that can't be stored in Firestore
       }));
 
+      // Determine initial statuses based on whether files need formatting
+      const hasFilesWithExtractionForSubmit = cleanFileAttachments.some(
+        att => att.extractedText && att.extractedText.trim().length > 0
+      );
+
       const docData = {
         formId: entryData.formId,
         userId: firebaseUser.uid,
         agencyId: user.agencyId,
         answers: entryData.answers || {},
         fileAttachments: cleanFileAttachments,
-        submittedAt: serverTimestamp()
+        submittedAt: serverTimestamp(),
+        // Initialize statuses
+        formattingStatus: hasFilesWithExtractionForSubmit ? 'pending' : null,
+        formattingRetryCount: 0,
+        vectorSyncStatus: hasFilesWithExtractionForSubmit ? 'pending' : 'pending',
+        vectorSyncRetryCount: 0,
       };
 
       console.log('💾 Creating FormEntry in Firebase with data:', {
@@ -843,6 +853,51 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       const docRef = await addDoc(collection(db, 'formEntries'), docData);
       console.log('✅ FormEntry created in Firebase with ID:', docRef.id);
+
+      // Step 2.5: Trigger vector sync conditionally
+      // Only sync immediately if NO files with extraction are present
+      // If files with extraction exist, wait for formatting to complete
+      if (!hasFilesWithExtractionForSubmit) {
+        // No files to format - sync immediately
+        const vectorSyncUrl = getVectorSyncEndpoint();
+        console.log('🔄 [VectorSync] Triggering sync for FormEntry (no files to format):', docRef.id, 'URL:', vectorSyncUrl);
+        fetch(vectorSyncUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            formEntryId: docRef.id,
+            operation: 'create'
+          })
+        })
+        .then(response => {
+          if (response.ok) {
+            console.log('✅ [VectorSync] Sync request sent successfully for FormEntry:', docRef.id);
+            return response.json();
+          } else {
+            console.warn('⚠️ [VectorSync] Sync request returned error status:', response.status, 'for FormEntry:', docRef.id);
+            return response.json().catch(() => ({ error: 'Unknown error' }));
+          }
+        })
+        .then(data => {
+          if (data?.success) {
+            console.log('✅ [VectorSync] Vector sync confirmed successful for FormEntry:', docRef.id);
+            // Update status in Firebase to reflect success (optional, backend also does this)
+          } else {
+            console.warn('⚠️ [VectorSync] Vector sync failed for FormEntry:', docRef.id, 'Error:', data?.error);
+            // Status will be updated by backend to 'failed'
+          }
+        })
+        .catch(error => {
+          console.error('❌ [VectorSync] Vector sync request failed (non-blocking):', error, 'FormEntry:', docRef.id);
+          // Non-blocking - vector sync can be retried later
+          // Backend will update status to 'failed' if the request reaches it
+        });
+      } else {
+        // Files with extraction present - defer sync until formatting completes
+        console.log('⏳ [VectorSync] Deferring sync - files need formatting first. FormEntry:', docRef.id);
+      }
       
       // Step 3: Call format endpoint for each PDF file
       if (updatedFileAttachments.length > 0) {
@@ -953,6 +1008,40 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (entryData.fileAttachments !== undefined) updateData.fileAttachments = entryData.fileAttachments;
 
       await updateDoc(doc(db, 'formEntries', entryId), updateData);
+
+      // Trigger vector sync in background (async, non-blocking)
+      const vectorSyncUrl = getVectorSyncEndpoint();
+      console.log('🔄 [VectorSync] Triggering sync for FormEntry update:', entryId, 'URL:', vectorSyncUrl);
+      fetch(vectorSyncUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          formEntryId: entryId,
+          operation: 'update'
+        })
+      })
+      .then(response => {
+        if (response.ok) {
+          console.log('✅ [VectorSync] Sync request sent successfully for FormEntry update:', entryId);
+          return response.json();
+        } else {
+          console.warn('⚠️ [VectorSync] Sync request returned error status:', response.status, 'for FormEntry:', entryId);
+          return response.json().catch(() => ({ error: 'Unknown error' }));
+        }
+      })
+      .then(data => {
+        if (data?.success) {
+          console.log('✅ [VectorSync] Vector sync confirmed successful for FormEntry update:', entryId);
+        } else {
+          console.warn('⚠️ [VectorSync] Vector sync failed for FormEntry update:', entryId, 'Error:', data?.error);
+        }
+      })
+      .catch(error => {
+        console.error('❌ [VectorSync] Vector sync request failed (non-blocking):', error, 'FormEntry:', entryId);
+        // Non-blocking - vector sync can be retried later
+      });
     } catch (err) {
       console.error('Erreur lors de la mise à jour de la réponse:', err);
       if (err instanceof Error) {
@@ -1139,13 +1228,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           // Remove base64Data and any other complex objects that can't be stored in Firestore
         }));
 
+        // Determine initial statuses based on whether files need formatting
+        const hasFilesWithExtraction = cleanFileAttachments.some(
+          att => att.extractedText && att.extractedText.trim().length > 0
+        );
+
         const docData = {
           formId: entry.formId,
           userId: user.id,
           agencyId: user.agencyId,
           answers: entry.answers || {},
           fileAttachments: cleanFileAttachments,
-          submittedAt: serverTimestamp()
+          submittedAt: serverTimestamp(),
+          // Initialize statuses
+          formattingStatus: hasFilesWithExtraction ? 'pending' : null,
+          formattingRetryCount: 0,
+          vectorSyncStatus: hasFilesWithExtraction ? 'pending' : 'pending', // Will be synced after formatting or immediately
+          vectorSyncRetryCount: 0,
         };
         
         console.log('💾 Creating FormEntry in Firebase with data:', {
@@ -1165,6 +1264,50 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
         const docRef = await addDoc(collection(db, 'formEntries'), docData);
         console.log('✅ FormEntry created in Firebase with ID:', docRef.id);
+
+        // Step 2.5: Trigger vector sync conditionally
+        // Only sync immediately if NO files with extraction are present
+        // If files with extraction exist, wait for formatting to complete
+        // (hasFilesWithExtraction already declared above at line 1211)
+
+        if (!hasFilesWithExtraction) {
+          // No files to format - sync immediately
+          const vectorSyncUrl = getVectorSyncEndpoint();
+          console.log('🔄 [VectorSync] Triggering sync for FormEntry (no files to format):', docRef.id, 'URL:', vectorSyncUrl);
+          fetch(vectorSyncUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              formEntryId: docRef.id,
+              operation: 'create'
+            })
+          })
+          .then(response => {
+            if (response.ok) {
+              console.log('✅ [VectorSync] Sync request sent successfully for FormEntry:', docRef.id);
+              return response.json();
+            } else {
+              console.warn('⚠️ [VectorSync] Sync request returned error status:', response.status, 'for FormEntry:', docRef.id);
+              return response.json().catch(() => ({ error: 'Unknown error' }));
+            }
+          })
+          .then(data => {
+            if (data?.success) {
+              console.log('✅ [VectorSync] Vector sync confirmed successful for FormEntry:', docRef.id);
+            } else {
+              console.warn('⚠️ [VectorSync] Vector sync failed for FormEntry:', docRef.id, 'Error:', data?.error);
+            }
+          })
+          .catch(error => {
+            console.error('❌ [VectorSync] Vector sync request failed (non-blocking):', error, 'FormEntry:', docRef.id);
+            // Non-blocking - vector sync can be retried later
+          });
+        } else {
+          // Files with extraction present - defer sync until formatting completes
+          console.log('⏳ [VectorSync] Deferring sync - files need formatting first. FormEntry:', docRef.id);
+        }
         
         // Step 3: Call format endpoint for each PDF file
         if (updatedFileAttachments.length > 0) {
