@@ -73,6 +73,8 @@ export async function syncFormEntryToVector(formEntryId, operation = 'create', u
         vectorChunksCount: 0,
         vectorSyncError: admin.firestore.FieldValue.delete(),
         vectorSyncFailedAt: admin.firestore.FieldValue.delete(),
+        vectorSyncRetryCount: admin.firestore.FieldValue.delete(),
+        vectorSyncStartedAt: admin.firestore.FieldValue.delete(),
       });
       return { success: true, operation, skipped: true };
     }
@@ -94,6 +96,7 @@ export async function syncFormEntryToVector(formEntryId, operation = 'create', u
       vectorSyncError: admin.firestore.FieldValue.delete(), // Clear any previous errors
       vectorSyncFailedAt: admin.firestore.FieldValue.delete(),
       vectorSyncRetryCount: admin.firestore.FieldValue.delete(), // Clear retry count on success
+      vectorSyncStartedAt: admin.firestore.FieldValue.delete(), // Clear started timestamp
     });
 
     console.log(`✅ [VectorSync] Successfully synced formEntry: ${formEntryId}`);

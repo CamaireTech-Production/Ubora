@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
 import { useApp } from '@ubora/shared/contexts/AppContext';
@@ -23,6 +23,7 @@ export const ResponseDetailPage: React.FC = () => {
   const { user, firebaseUser, isLoading } = useAuth();
   const { 
     forms, 
+    formEntries,
     employees, 
     getEntriesForForm,
     getEntriesForEmployee,
@@ -78,17 +79,26 @@ export const ResponseDetailPage: React.FC = () => {
   const isEmployee = user?.role === 'employe';
   const isDirector = user?.role === 'directeur';
 
-  // Get responses based on user role
-  const allResponses = formId ? (
-    isEmployee 
-      ? getEntriesForEmployee(user?.id || '').filter(entry => entry.formId === formId)
-      : getEntriesForForm(formId)
-  ) : [];
+  // Get responses based on user role - memoized to prevent infinite loops
+  const allResponses = useMemo(() => {
+    if (!formId) return [];
+    if (isEmployee) {
+      return getEntriesForEmployee(user?.id || '').filter(entry => entry.formId === formId);
+    }
+    return getEntriesForForm(formId);
+  }, [formId, isEmployee, user?.id, formEntries]); // Use formEntries instead of function references
 
-  // Load statuses for all responses
+  // Load statuses for all responses - use stable IDs to prevent infinite loops
+  const responseIds = useMemo(() => allResponses.map(r => r.id).join(','), [allResponses]);
+  
   useEffect(() => {
+    if (allResponses.length === 0) return;
+    
+    let isCancelled = false;
+    
     const loadStatuses = async () => {
       const statusPromises = allResponses.map(async (formEntry) => {
+        if (isCancelled) return null;
         try {
           const statusResponse = await fetch(getFormEntryStatusEndpoint(formEntry.id));
           if (statusResponse.ok) {
@@ -102,6 +112,8 @@ export const ResponseDetailPage: React.FC = () => {
       });
       
       const results = await Promise.all(statusPromises);
+      if (isCancelled) return;
+      
       const statusMap: Record<string, any> = {};
       results.forEach(result => {
         if (result) {
@@ -111,10 +123,12 @@ export const ResponseDetailPage: React.FC = () => {
       setResponseStatuses(statusMap);
     };
     
-    if (allResponses.length > 0) {
-      loadStatuses();
-    }
-  }, [allResponses]);
+    loadStatuses();
+    
+    return () => {
+      isCancelled = true;
+    };
+  }, [responseIds]); // Use stable string instead of array
 
   // Debug: Log all response data
   React.useEffect(() => {
@@ -457,8 +471,13 @@ export const ResponseDetailPage: React.FC = () => {
   };
 
   // Get status badge component
-  const getStatusBadge = (status: string | undefined, error?: string) => {
-    if (!status || status === 'pending') {
+  const getStatusBadge = (status: string | undefined | null, error?: string) => {
+    // Handle null/undefined (old entries without status tracking)
+    if (!status || status === 'null' || status === 'not_applicable') {
+      return null; // Don't show badge for old entries
+    }
+    
+    if (status === 'pending') {
       return (
         <span className="inline-flex items-center px-2 py-1 rounded text-xs bg-yellow-100 text-yellow-800">
           <Clock className="h-3 w-3 mr-1" />
@@ -474,11 +493,11 @@ export const ResponseDetailPage: React.FC = () => {
         </span>
       );
     }
-    if (status === 'completed' || status === 'synced') {
+    if (status === 'completed' || status === 'synced' || status === 'skipped') {
       return (
         <span className="inline-flex items-center px-2 py-1 rounded text-xs bg-green-100 text-green-800">
           <CheckCircle className="h-3 w-3 mr-1" />
-          Terminé
+          {status === 'skipped' ? 'Ignoré' : 'Terminé'}
         </span>
       );
     }

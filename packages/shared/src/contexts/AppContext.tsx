@@ -883,13 +883,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         .then(data => {
           if (data?.success) {
             console.log('✅ [VectorSync] Vector sync confirmed successful for FormEntry:', docRef.id);
+            // Update status in Firebase to reflect success (optional, backend also does this)
           } else {
             console.warn('⚠️ [VectorSync] Vector sync failed for FormEntry:', docRef.id, 'Error:', data?.error);
+            // Status will be updated by backend to 'failed'
           }
         })
         .catch(error => {
           console.error('❌ [VectorSync] Vector sync request failed (non-blocking):', error, 'FormEntry:', docRef.id);
           // Non-blocking - vector sync can be retried later
+          // Backend will update status to 'failed' if the request reaches it
         });
       } else {
         // Files with extraction present - defer sync until formatting completes

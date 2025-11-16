@@ -74,13 +74,23 @@ export default async function handler(req, res) {
       vectorSync: formEntry.vectorSyncStatus === 'failed' || formEntry.vectorSyncStatus === 'pending',
     };
 
+    // Determine actual status - distinguish between null (old entries) and 'pending' (new entries)
+    // For old entries without status fields, return 'not_applicable' instead of 'pending'
+    const hasStatusFields = 'formattingStatus' in formEntry || 'vectorSyncStatus' in formEntry;
+    const formattingStatus = formEntry.formattingStatus !== undefined 
+      ? formEntry.formattingStatus 
+      : (hasStatusFields ? 'not_applicable' : null);
+    const vectorSyncStatus = formEntry.vectorSyncStatus !== undefined 
+      ? formEntry.vectorSyncStatus 
+      : (hasStatusFields ? 'not_applicable' : null);
+
     return res.status(200).json({
       success: true,
       formEntryId: formEntry.id,
-      formattingStatus: formEntry.formattingStatus || 'pending',
+      formattingStatus: formattingStatus,
       formattingRetryCount: formEntry.formattingRetryCount || 0,
       formattingError: formEntry.formattingError || null,
-      vectorSyncStatus: formEntry.vectorSyncStatus || 'pending',
+      vectorSyncStatus: vectorSyncStatus,
       vectorSyncRetryCount: formEntry.vectorSyncRetryCount || 0,
       vectorSyncError: formEntry.vectorSyncError || null,
       vectorSyncWithRawText: formEntry.vectorSyncWithRawText || false,
