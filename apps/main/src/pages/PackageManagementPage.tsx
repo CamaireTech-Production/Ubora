@@ -42,6 +42,7 @@ import { PaymentService } from '@ubora/shared/services/paymentService';
 import { PaymentRequest, CampayPaymentData } from '../types/payment';
 import { SubscriptionPriceCalculator, SubscriptionPeriod } from '@ubora/shared/services/subscriptionPriceCalculator';
 import { CheckCircle } from 'lucide-react';
+import { PackageManagementSkeleton } from '../components/skeletons/PackageManagementSkeleton';
 
 export const PackageManagementPage: React.FC = () => {
   const navigate = useNavigate();
@@ -55,7 +56,7 @@ export const PackageManagementPage: React.FC = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [showTransitionPreview, setShowTransitionPreview] = useState(false);
   const [transitionPreview, setTransitionPreview] = useState<any>(null);
-  const [userNeeds, setUserNeeds] = useState<UserNeeds>({});
+  const [_userNeeds, setUserNeeds] = useState<UserNeeds>({});
   const [paymentModal, setPaymentModal] = useState<{
     isOpen: boolean;
     type: 'tokens' | 'forms' | 'dashboards' | 'users';
@@ -554,8 +555,13 @@ export const PackageManagementPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Current Package Status - Modern Design */}
-        {user && packageInfo && (
+        {/* Show skeleton while loading */}
+        {isLoadingPackageInfo ? (
+          <PackageManagementSkeleton />
+        ) : (
+          <>
+            {/* Current Package Status - Modern Design */}
+            {user && packageInfo && (
           <div className="relative overflow-hidden mx-2 sm:mx-0">
             {/* Background Gradient */}
             <div className="absolute inset-0 bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 rounded-2xl"></div>
@@ -1307,9 +1313,7 @@ export const PackageManagementPage: React.FC = () => {
           </div>
         </div>
 
-      </div>
-
-      {/* Payment Modal */}
+        {/* Payment Modal */}
       <PaymentModal
         isOpen={paymentModal.isOpen}
         onClose={() => setPaymentModal({ isOpen: false, type: 'tokens', currentLimit: 0 })}
@@ -1567,6 +1571,9 @@ export const PackageManagementPage: React.FC = () => {
           </div>
         </div>
       )}
+          </>
+        )}
+      </div>
 
     </Layout>
   );

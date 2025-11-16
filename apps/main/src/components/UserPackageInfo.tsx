@@ -4,6 +4,7 @@ import { useAuth } from '@ubora/shared/contexts/AuthContext';
 import { usePackageAccess } from '@ubora/shared/hooks/usePackageAccess';
 import { UserSessionService } from '@ubora/shared/services/userSessionService';
 import { Brain, Crown, Star, Zap, ChevronRight } from 'lucide-react';
+import { PackageInfoSkeleton } from './skeletons/PackageInfoSkeleton';
 
 interface UserPackageInfoProps {
   className?: string;
@@ -17,10 +18,15 @@ export const UserPackageInfo: React.FC<UserPackageInfoProps> = ({
   clickable = true 
 }) => {
   const { user } = useAuth();
-  const { packageInfo } = usePackageAccess();
+  const { packageInfo, isLoadingUserPackageInfo } = usePackageAccess();
   const navigate = useNavigate();
 
-  if (!user || !packageInfo?.packageType) return null;
+  // Show skeleton while loading
+  if (!user || isLoadingUserPackageInfo) {
+    return <PackageInfoSkeleton />;
+  }
+
+  if (!packageInfo?.packageType) return null;
 
   const remainingTokens = packageInfo.tokensRemaining;
   const isUnlimited = packageInfo.totalTokens === -1;

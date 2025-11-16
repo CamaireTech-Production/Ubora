@@ -4,6 +4,7 @@ import { useAuth } from '@ubora/shared/contexts/AuthContext';
 import { universService } from '@ubora/shared/services/universService';
 import { Univers } from '../types';
 import { Globe } from 'lucide-react';
+import { ActiveUniversSkeleton } from './skeletons/ActiveUniversSkeleton';
 
 interface ActiveUniversDisplayProps {
   className?: string;
@@ -42,12 +43,7 @@ export const ActiveUniversDisplay: React.FC<ActiveUniversDisplayProps> = ({ clas
   }
 
   if (isLoading) {
-    return (
-      <div className={`flex items-center space-x-2 px-2 py-1 rounded-md border text-xs font-medium text-gray-600 bg-gray-50 border-gray-200 ${className}`}>
-        <Globe className="h-4 w-4 text-gray-400 animate-pulse" />
-        <span>Chargement...</span>
-      </div>
-    );
+    return <ActiveUniversSkeleton className={className} />;
   }
 
   if (!activeUnivers) {
