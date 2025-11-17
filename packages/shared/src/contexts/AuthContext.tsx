@@ -201,7 +201,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
       
       // Use the new subscription session system to get package limits
-      const packageLimits = UserSessionService.getPackageLimits(director);
+      const packageLimits = await UserSessionService.getPackageLimits(director);
       
       console.log('🔍 Package limits from session:', packageLimits);
       console.log('🔍 Max users allowed:', packageLimits.maxUsers);

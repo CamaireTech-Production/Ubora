@@ -6,7 +6,6 @@ import { usePackageAccess } from '@ubora/shared/hooks/usePackageAccess';
 import { useApp } from '@ubora/shared/contexts/AppContext';
 import { useToast } from '@ubora/shared/hooks/useToast';
 import { PackageType } from '@ubora/shared/config/packageFeatures';
-import { UserSessionService } from '@ubora/shared/services/userSessionService';
 import { LimitReachedModal } from '../modals/LimitReachedModal';
 import { PaymentModal } from '../payments/PaymentModal';
 import { AccessDeniedModal } from '../modals/AccessDeniedModal';
@@ -56,7 +55,7 @@ export const FloatingSidePanel: React.FC<FloatingSidePanelProps> = ({
   onGoScheduledQuestions
 }) => {
   const { user } = useAuth();
-  const { canAddUser, getLimit, getPayAsYouGoCapacity, packageType } = usePackageAccess();
+  const { canAddUser, getLimit, getPayAsYouGoCapacity, packageType, packageInfo } = usePackageAccess();
   const { showSuccess, showError } = useToast();
   
   const [showInviteModal, setShowInviteModal] = useState(false);
@@ -98,7 +97,11 @@ export const FloatingSidePanel: React.FC<FloatingSidePanelProps> = ({
   const handleProgrammedInstructionsClick = () => {
     if (!user) return;
     
-    if (UserSessionService.hasProgrammedInstructionsAccess(user)) {
+    // Check if package has programmed instructions feature
+    const hasAccess = packageInfo?.packageType && 
+      (packageInfo.packageType === 'starter' || packageInfo.packageType === 'standard');
+    
+    if (hasAccess) {
       onGoScheduledQuestions?.();
       onOpenChange(false);
     } else {
@@ -131,7 +134,8 @@ export const FloatingSidePanel: React.FC<FloatingSidePanelProps> = ({
       },
       count: null
     },
-    ...(onGoScheduledQuestions && user && UserSessionService.hasProgrammedInstructionsAccess(user) ? [{
+    ...(onGoScheduledQuestions && user && packageInfo?.packageType && 
+        (packageInfo.packageType === 'starter' || packageInfo.packageType === 'standard') ? [{
       id: 'scheduled-questions' as const,
       label: 'Instructions Programmées',
       icon: Calendar,

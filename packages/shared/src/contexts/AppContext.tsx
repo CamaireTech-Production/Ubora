@@ -465,13 +465,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // Vérifier les limites du package (pour les directeurs et employés avec accès directeur)
     // Note: Si un univers actif existe, canCreateForm() retourne true automatiquement
     // car les ressources dans un univers actif peuvent dépasser les limites du package
+    console.log('🔴 [APP CONTEXT CREATE FORM] ========================================');
+    console.log('🔴 [APP CONTEXT CREATE FORM] Final quota check before creating form');
+    console.log('🔴 [APP CONTEXT CREATE FORM] Current forms count:', forms.length);
+    console.log('🔴 [APP CONTEXT CREATE FORM] User role:', user.role);
+    console.log('🔴 [APP CONTEXT CREATE FORM] Has director dashboard access:', user.hasDirectorDashboardAccess);
+    console.log('🔴 [APP CONTEXT CREATE FORM] Active univers ID:', activeUniversId);
+    
     if ((user.role === 'directeur' || (user.role === 'employe' && user.hasDirectorDashboardAccess)) && !canCreateForm(forms.length)) {
+      console.log('🔴 [APP CONTEXT CREATE FORM] ❌ Quota check FAILED - throwing error');
       if (user.role === 'employe') {
         throw new Error('Limite de formulaires atteinte. Contactez votre directeur pour cette agence.');
       } else {
         throw new Error('Limite de formulaires atteinte pour votre package. Veuillez mettre à niveau votre abonnement.');
       }
     }
+    console.log('🔴 [APP CONTEXT CREATE FORM] ✅ Quota check PASSED - proceeding with form creation');
+    console.log('🔴 [APP CONTEXT CREATE FORM] ========================================');
 
     try {
       setError(null);

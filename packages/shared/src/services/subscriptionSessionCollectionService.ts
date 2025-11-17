@@ -301,7 +301,16 @@ export class SubscriptionSessionCollectionService {
   ): Promise<boolean> {
     try {
       const sessionDocRef = doc(db, this.COLLECTION_NAME, sessionId);
+      const sessionDoc = await getDoc(sessionDocRef);
       
+      if (!sessionDoc.exists()) {
+        console.error('Session not found:', sessionId);
+        return false;
+      }
+
+      const sessionData = sessionDoc.data();
+      const userId = sessionData.userId;
+
       // Convert Date fields to Timestamps
       const firestoreUpdates: any = {
         ...updates,
@@ -320,6 +329,62 @@ export class SubscriptionSessionCollectionService {
       }
 
       await updateDoc(sessionDocRef, firestoreUpdates);
+
+      // If session is being activated, update user's currentSubscriptionSessionId
+      if (updates.isActive === true) {
+        // Deactivate all other active sessions for this user (excluding the current one)
+        const activeSessionsQuery = query(
+          collection(db, this.COLLECTION_NAME),
+          where('userId', '==', userId),
+          where('isActive', '==', true)
+        );
+        const activeSessionsSnapshot = await getDocs(activeSessionsQuery);
+        
+        const batch = writeBatch(db);
+        activeSessionsSnapshot.docs.forEach(docSnapshot => {
+          if (docSnapshot.id !== sessionId) {
+            batch.update(docSnapshot.ref, {
+              isActive: false,
+              updatedAt: serverTimestamp()
+            });
+          }
+        });
+        await batch.commit();
+        
+        // Update user document with reference to this active session
+        const userDocRef = doc(db, 'users', userId);
+        await updateDoc(userDocRef, {
+          currentSubscriptionSessionId: sessionId,
+          updatedAt: serverTimestamp()
+        });
+        console.log(`✅ Updated currentSubscriptionSessionId for user ${userId} to ${sessionId}`);
+      } else if (updates.isActive === false) {
+        // If session is being deactivated, check if this was the current session
+        const userDocRef = doc(db, 'users', userId);
+        const userDoc = await getDoc(userDocRef);
+        
+        if (userDoc.exists()) {
+          const userData = userDoc.data();
+          if (userData.currentSubscriptionSessionId === sessionId) {
+            // Find another active session or clear the reference
+            const activeSession = await this.findActiveSessionForUser(userId);
+            if (activeSession) {
+              await updateDoc(userDocRef, {
+                currentSubscriptionSessionId: activeSession.id,
+                updatedAt: serverTimestamp()
+              });
+              console.log(`✅ Updated currentSubscriptionSessionId for user ${userId} to ${activeSession.id}`);
+            } else {
+              await updateDoc(userDocRef, {
+                currentSubscriptionSessionId: null,
+                updatedAt: serverTimestamp()
+              });
+              console.log(`✅ Cleared currentSubscriptionSessionId for user ${userId}`);
+            }
+          }
+        }
+      }
+
       return true;
       
     } catch (error) {

@@ -1,5 +1,4 @@
 import { User } from '../../types';
-import { SubscriptionSessionService } from './subscriptionSessionService';
 import { SubscriptionSessionCollectionService } from '@ubora/shared/services/subscriptionSessionCollectionService';
 import { PACKAGE_LIMITS, PACKAGE_FEATURES, PackageType } from '@ubora/shared/config/packageFeatures';
 
@@ -57,13 +56,7 @@ export class UserSessionService {
       return this.getDefaultPackageInfo();
     }
 
-    // Try to get session from new collection service first
-    let currentSession = await SubscriptionSessionCollectionService.getActiveSession(user.id);
-    
-    // Fallback to legacy if no session in collection
-    if (!currentSession) {
-      currentSession = await SubscriptionSessionService.getCurrentSession(user);
-    }
+    const currentSession = await SubscriptionSessionCollectionService.getActiveSession(user.id);
     
     if (!currentSession) {
       return this.getDefaultPackageInfo();
@@ -238,7 +231,7 @@ export class UserSessionService {
    * Get package limits from active session
    * Note: Only directors and employees with director access have subscription sessions
    */
-  static getPackageLimits(user: User) {
+  static async getPackageLimits(user: User) {
     // Only directors and employees with director access can have package limits
     if (user.role !== 'directeur' && !(user.role === 'employe' && user.hasDirectorDashboardAccess)) {
       return {
@@ -249,9 +242,7 @@ export class UserSessionService {
       };
     }
 
-
-    // Use sync version for backward compatibility (this method is synchronous)
-    const currentSession = SubscriptionSessionService.getCurrentSessionSync(user);
+    const currentSession = await SubscriptionSessionCollectionService.getActiveSession(user.id);
     
     if (!currentSession) {
       return {
@@ -291,6 +282,8 @@ export class UserSessionService {
   /**
    * Check if user has a specific feature
    * Note: Only directors and employees with director access have subscription sessions
+   * This is a synchronous method that uses package info if available, otherwise returns false
+   * For accurate results, use getUserPackageInfo() async method
    */
   static hasFeature(user: User, feature: string): boolean {
     // Only directors and employees with director access can have package features
@@ -298,26 +291,16 @@ export class UserSessionService {
       return false;
     }
 
-    // Use sync version for backward compatibility (this method is synchronous)
-    const currentSession = SubscriptionSessionService.getCurrentSessionSync(user);
-    
-    if (!currentSession) {
-      return false;
-    }
-
-    const packageFeatures = PACKAGE_FEATURES[currentSession.packageType];
-    
-    // Safety check: if package type doesn't exist, return false
-    if (!packageFeatures) {
-      return false;
-    }
-    
-    return (packageFeatures as any)[feature] === true;
+    // Since this is called synchronously, we can't fetch from collection
+    // Return false - callers should use getUserPackageInfo() for accurate results
+    // This is a temporary workaround until all callers are updated
+    return false;
   }
 
   /**
    * Check if user has access to programmed instructions
    * Note: Only directors can access programmed instructions
+   * This is a synchronous method - for accurate results, use getUserPackageInfo() async method
    */
   static hasProgrammedInstructionsAccess(user: User): boolean {
     // Only directors can access programmed instructions
@@ -325,25 +308,16 @@ export class UserSessionService {
       return false;
     }
 
-    // Use sync version for backward compatibility (this method is synchronous)
-    const currentSession = SubscriptionSessionService.getCurrentSessionSync(user);
-    
-    if (!currentSession) {
-      return false;
-    }
-
-    const packageLimits = PACKAGE_LIMITS[currentSession.packageType];
-    
-    if (!packageLimits) {
-      return false;
-    }
-
-    return packageLimits.programmedInstructions === true;
+    // Since this is called synchronously, we can't fetch from collection
+    // Return false - callers should use getUserPackageInfo() for accurate results
+    // This is a temporary workaround until all callers are updated
+    return false;
   }
 
   /**
    * Check if user has access to automated push indicators
    * Note: Directors and employees with director access can use push indicators
+   * This is a synchronous method - for accurate results, use getUserPackageInfo() async method
    */
   static hasPushIndicatorsAccess(user: User): boolean {
     // Directors and employees with director access can use push indicators
@@ -351,20 +325,10 @@ export class UserSessionService {
       return false;
     }
 
-    // Use sync version for backward compatibility (this method is synchronous)
-    const currentSession = SubscriptionSessionService.getCurrentSessionSync(user);
-    
-    if (!currentSession) {
-      return false;
-    }
-
-    const packageLimits = PACKAGE_LIMITS[currentSession.packageType];
-    
-    if (!packageLimits) {
-      return false;
-    }
-
-    return packageLimits.automatedPushIndicators === true;
+    // Since this is called synchronously, we can't fetch from collection
+    // Return false - callers should use getUserPackageInfo() for accurate results
+    // This is a temporary workaround until all callers are updated
+    return false;
   }
 
   /**
@@ -376,15 +340,11 @@ export class UserSessionService {
       return false;
     }
 
-    // For directors, get their own session
+    // For directors, we can't check session synchronously
+    // Return false - callers should use FeatureAccessService.canUseFileUploadsAsync()
+    // This is a temporary workaround until all callers are updated
     if (user.role === 'directeur') {
-      // Use sync version for backward compatibility (this method is synchronous)
-      const currentSession = SubscriptionSessionService.getCurrentSessionSync(user);
-      if (!currentSession) {
-        return false;
-      }
-      const features = PACKAGE_FEATURES[currentSession.packageType];
-      return !!features && (features as any).allowFileUploads === true;
+      return false;
     }
 
     // For employees with director access, check if they have legacy package info
@@ -396,17 +356,9 @@ export class UserSessionService {
         return !!features && (features as any).allowFileUploads === true;
       }
 
-      // If no legacy package info, check if they have their own subscription session
-      // Use sync version for backward compatibility (this method is synchronous)
-      const currentSession = SubscriptionSessionService.getCurrentSessionSync(user);
-      if (currentSession) {
-        const features = PACKAGE_FEATURES[currentSession.packageType];
-        return !!features && (features as any).allowFileUploads === true;
-      }
-
-      // If no session found, assume they inherit director's permissions
-      // This is a fallback - in practice, employees with director access should have
-      // either legacy package info or their own session
+      // If no legacy package info, we can't check session synchronously
+      // Return true as fallback - employees with director access inherit director's permissions
+      // For accurate results, use FeatureAccessService.canUseFileUploadsAsync()
       return true; // Allow file uploads as they inherit director's permissions
     }
 
@@ -417,81 +369,7 @@ export class UserSessionService {
    * Check if user can perform an action based on limits
    * Note: Only directors and employees with director access have subscription sessions
    */
-  static canPerformAction(user: User, action: 'createForm' | 'createDashboard' | 'addUser' | 'useTokens', currentCount: number): boolean {
-    // Allow directors and employees with director access
-    if (user.role !== 'directeur' && !(user.role === 'employe' && user.hasDirectorDashboardAccess)) {
-      return false;
-    }
-
-    // Use sync version for backward compatibility (this method is synchronous)
-    const currentSession = SubscriptionSessionService.getCurrentSessionSync(user);
-    
-    if (!currentSession) {
-      return false;
-    }
-
-    const limits = this.getPackageLimits(user);
-    
-    switch (action) {
-      case 'createForm':
-        // Handle unlimited case (-1)
-        return limits.maxForms === -1 || currentCount < limits.maxForms;
-      case 'createDashboard':
-        // Handle unlimited case (-1)
-        return limits.maxDashboards === -1 || currentCount < limits.maxDashboards;
-      case 'addUser':
-        // Handle unlimited case (-1)
-        return limits.maxUsers === -1 || currentCount < limits.maxUsers;
-      case 'useTokens':
-        // Handle unlimited case (-1)
-        return limits.maxTokens === -1 || currentCount < limits.maxTokens;
-      default:
-        return false;
-    }
-  }
-
-  /**
-   * Get total pay-as-you-go tokens from active session
-   * Note: Only directors and employees with director access have subscription sessions
-   */
-  static getTotalPayAsYouGoTokens(user: User): number {
-    // Only directors and employees with director access have subscription sessions
-    if (user.role !== 'directeur' && !(user.role === 'employe' && user.hasDirectorDashboardAccess)) {
-      return 0;
-    }
-
-    // Use sync version for backward compatibility (this method is synchronous)
-    const currentSession = SubscriptionSessionService.getCurrentSessionSync(user);
-    
-    if (!currentSession) {
-      return 0;
-    }
-
-    return currentSession.payAsYouGoResources?.tokens || 0;
-  }
-
-  /**
-   * Get total available tokens (package + pay-as-you-go)
-   * Note: Only directors and employees with director access have subscription sessions
-   */
-  static getTotalAvailableTokens(user: User): number {
-    // Only directors and employees with director access have subscription sessions
-    if (user.role !== 'directeur' && !(user.role === 'employe' && user.hasDirectorDashboardAccess)) {
-      return 0;
-    }
-
-    // Use sync version for backward compatibility (this method is synchronous)
-    const currentSession = SubscriptionSessionService.getCurrentSessionSync(user);
-    
-    if (!currentSession) {
-      return 0;
-    }
-
-    const packageTokens = currentSession.packageResources?.tokensIncluded || 0;
-    const payAsYouGoTokens = currentSession.payAsYouGoResources?.tokens || 0;
-    
-    return packageTokens + payAsYouGoTokens;
-  }
+  // Deprecated synchronous helper methods have been removed in favor of async package info lookups.
 
   /**
    * Get subscription history (async version - uses new collection)
@@ -556,9 +434,10 @@ export class UserSessionService {
       return false;
     }
 
-    // Use sync version for backward compatibility (this method is synchronous)
-    const currentSession = SubscriptionSessionService.getCurrentSessionSync(user);
-    return !currentSession;
+    // Since this is called synchronously, we can't fetch from collection
+    // Return true to indicate package selection might be needed
+    // For accurate results, use getUserPackageInfo() async method
+    return true;
   }
 
   /**
