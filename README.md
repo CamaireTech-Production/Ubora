@@ -67,12 +67,168 @@ Ubora/
 └── package.json           # Configuration root avec workspaces
 ```
 
+## 🗂️ Organisation du Code (apps/main/src)
+
+L'application principale utilise une **architecture hybride type-based avec isolation par domaine** pour une meilleure maintenabilité et scalabilité.
+
+### Structure détaillée
+
+```
+apps/main/src/
+├── components/
+│   ├── ui/                    # Composants UI de base (très réutilisés)
+│   │   ├── Button.tsx
+│   │   ├── Card.tsx
+│   │   ├── Input.tsx
+│   │   ├── Textarea.tsx
+│   │   ├── Select.tsx
+│   │   ├── Pagination.tsx
+│   │   └── Toast.tsx
+│   │
+│   ├── layout/                # Composants de layout
+│   │   ├── Layout.tsx
+│   │   ├── LayoutWrapper.tsx
+│   │   ├── Footer.tsx
+│   │   └── ImpersonationHeader.tsx
+│   │
+│   ├── modals/                # Modals génériques
+│   │   ├── ConfirmationModal.tsx
+│   │   ├── AccessDeniedModal.tsx
+│   │   ├── ComingSoonModal.tsx
+│   │   └── ...
+│   │
+│   ├── loading/               # États de chargement
+│   │   ├── ProgressiveLoader.tsx
+│   │   ├── WireframeLoader.tsx
+│   │   └── LoadingGuard.tsx
+│   │
+│   ├── skeletons/             # Skeleton loaders
+│   │   └── ...
+│   │
+│   ├── charts/                # Composants de graphiques
+│   │   └── ...
+│   │
+│   ├── core/                   # Composants core de l'app
+│   │   ├── ErrorBoundary.tsx
+│   │   ├── ProtectedRoute.tsx
+│   │   ├── ProfileDropdown.tsx
+│   │   └── ...
+│   │
+│   └── [domains]/             # Composants par domaine fonctionnel
+│       ├── auth/              # Composants d'authentification
+│       ├── dashboard/         # Composants dashboard
+│       ├── forms/              # Composants formulaires
+│       ├── chat/                # Composants chat
+│       ├── univers/             # Composants univers
+│       ├── packages/           # Composants packages
+│       ├── payments/            # Composants paiements
+│       ├── notifications/       # Composants notifications
+│       ├── employees/           # Composants employés
+│       ├── csv-import/         # Composants import CSV
+│       ├── scheduled/          # Composants scheduled
+│       ├── reports/            # Composants rapports
+│       ├── lists/              # Composants listes
+│       └── pwa/                # Composants PWA
+│
+├── pages/
+│   └── [domains]/              # Pages organisées par domaine
+│       ├── auth/              # LoginPage, PasswordResetPage, etc.
+│       ├── dashboard/         # DirecteurDashboard, EmployeDashboard
+│       ├── chat/               # DirecteurChat, ScheduledQuestionChatPage
+│       ├── forms/              # ResponseDetailPage
+│       ├── univers/            # UniversPage, UniversCreatePage, etc.
+│       ├── packages/           # PackageManagementPage, PackageSelectionPage
+│       ├── lists/              # ListsPage, ListEditorPage
+│       ├── reports/            # ReportsPage
+│       ├── notifications/      # NotificationsPage
+│       ├── employees/          # PendingApprovalPage
+│       ├── settings/           # DirectorSettingsPage
+│       ├── scheduled/          # ScheduledQuestionsPage, etc.
+│       └── shared/             # Pages génériques (UnauthorizedPage, etc.)
+│
+├── services/
+│   ├── core/                   # Services core partagés
+│   │   ├── fileUploadService.ts
+│   │   ├── localStorageService.ts
+│   │   ├── analyticsService.ts
+│   │   └── ...
+│   │
+│   └── [domains]/              # Services par domaine
+│       ├── payments/           # paymentService, campayService, etc.
+│       ├── notifications/      # notificationService, etc.
+│       ├── scheduled/          # scheduledQuestionService, etc.
+│       ├── packages/           # packageTransitionService, etc.
+│       ├── reports/            # reportService
+│       └── ...
+│
+├── hooks/
+│   ├── core/                   # Hooks core partagés
+│   │   ├── useToast.ts
+│   │   └── ...
+│   │
+│   └── [domains]/              # Hooks par domaine (si spécifiques)
+│       ├── univers/            # useUniversWizardProgress
+│       ├── packages/           # usePackageAccess
+│       └── notifications/      # usePushNotifications, etc.
+│
+├── utils/
+│   ├── core/                   # Utilitaires core
+│   │   ├── errorHandling.ts
+│   │   ├── downloadUtils.ts
+│   │   └── ...
+│   │
+│   └── [domains]/              # Utilitaires par domaine
+│       ├── forms/              # ConditionalLogicEvaluator, FormulaParser, etc.
+│       └── reports/            # PDFGenerator, RechartsToPNG, etc.
+│
+├── shared/                     # Éléments vraiment partagés
+│   ├── types/                  # Types TypeScript
+│   └── config/                 # Configuration
+│
+├── contexts/                   # Contextes React
+├── data/                       # Données statiques
+├── styles/                     # Styles globaux
+├── test/                       # Configuration de test
+├── __tests__/                  # Tests
+├── App.tsx                     # Point d'entrée de l'application
+└── main.tsx                    # Entry point React
+```
+
+### Principes d'organisation
+
+1. **Type-based avec isolation par domaine** : Organisation par type de fichier (components, pages, services) avec sous-dossiers par domaine fonctionnel
+2. **Composants UI centralisés** : Tous les composants UI très réutilisés (Button, Card, Input, etc.) dans `components/ui/`
+3. **Isolation par domaine** : Chaque domaine fonctionnel (forms, dashboard, univers, etc.) a ses propres composants, pages, services
+4. **Services partagés** : Services utilisés par plusieurs domaines dans `services/core/`
+5. **Imports courts** : Chemins d'imports courts et clairs (`../components/ui/Button` au lieu de chemins longs)
+
+### Règles de placement
+
+- **Composants très réutilisés** → `components/ui/`
+- **Composants spécifiques à un domaine** → `components/[domain]/`
+- **Services partagés** → `services/core/` ou `@ubora/shared`
+- **Services spécifiques** → `services/[domain]/`
+- **Pages** → Toujours dans `pages/[domain]/`
+- **Hooks partagés** → `hooks/core/` ou `@ubora/shared`
+- **Hooks spécifiques** → `hooks/[domain]/`
+
 ### Avantages de cette structure
 
-- **Séparation claire** : L'admin et l'app principale sont des apps distinctes
-- **Code partagé** : Tous les contexts, services et utilitaires sont dans `packages/shared`
-- **Déploiements indépendants** : Chaque app peut être déployée sur son propre sous-domaine
-- **PWA séparées** : Chaque app a son propre manifest PWA (thème bleu pour main, rouge pour admin)
+- ✅ **Simplicité** : Organisation intuitive par type de fichier
+- ✅ **Maintenabilité** : Code lié regroupé par domaine
+- ✅ **Scalabilité** : Facile d'ajouter de nouveaux domaines
+- ✅ **Découvrabilité** : Navigation facile dans le code
+- ✅ **Imports courts** : Chemins d'imports clairs et courts
+- ✅ **Moins de duplication** : Composants UI centralisés
+
+### Migration et maintenance
+
+Cette structure a été mise en place pour améliorer la maintenabilité du code. **Tous les nouveaux développements doivent respecter cette organisation** :
+
+- Nouveaux composants → Placer dans le bon dossier selon leur usage
+- Nouvelles pages → Créer dans `pages/[domain]/`
+- Nouveaux services → Créer dans `services/[domain]/` ou `services/core/`
+- Imports → Utiliser les chemins relatifs corrects selon la nouvelle structure
 
 ### Applications
 

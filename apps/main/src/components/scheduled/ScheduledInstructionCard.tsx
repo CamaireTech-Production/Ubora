@@ -13,7 +13,7 @@ import {
   XCircle,
   Loader2
 } from 'lucide-react';
-import { Button } from '../Button';
+import { Button } from '../ui/Button';
 import { ScheduledQuestion } from '../../types';
 
 interface ScheduledQuestionCardProps {

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { FileText, Download, Maximize2, Eye } from 'lucide-react';
-import { Button } from '../Button';
+import { Button } from '../ui/Button';
 import { PDFData, GraphData } from '@ubora/shared/types';
 import { generatePDF, PDFGenerator } from '@ubora/shared/utils/PDFGenerator';
 import { GraphRenderer } from './GraphRenderer';
@@ -513,8 +513,8 @@ export const TextPDFPreview: React.FC<TextPDFPreviewProps> = ({ content, title =
     try {
       if (message) {
         // Use the proper chart-to-PNG conversion flow
-        const { MultiFormatToPDF } = await import('../../utils/MultiFormatToPDF');
-        const { RechartsToPNG } = await import('../../utils/RechartsToPNG');
+        const { MultiFormatToPDF } = await import('@ubora/shared/utils/MultiFormatToPDF');
+        const { RechartsToPNG } = await import('../../utils/reports/RechartsToPNG');
         
         const pdfData = MultiFormatToPDF.convertToPDFData(message);
         

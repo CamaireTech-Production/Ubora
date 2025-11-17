@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Download, Eye, X, FileImage } from 'lucide-react';
 import { ImageFileReference } from '../../types';
-import { getFileDownloadURL } from '@ubora/shared/utils/firebaseDownloadUtils';
+import { getFileDownloadURL } from '@ubora/shared/utils/firebaseStorageUtils.d';
 import { downloadFile } from '@ubora/shared/utils/downloadUtils';
 import { useToast } from '@ubora/shared/hooks/useToast';
 import { FirestoreUrlConverter } from '@ubora/shared/services/firestoreUrlConverter';

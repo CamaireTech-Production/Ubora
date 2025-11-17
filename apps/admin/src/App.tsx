@@ -1,16 +1,16 @@
 import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from '@ubora/shared/contexts/AuthContext';
-import { ProtectedRoute } from './components/ProtectedRoute';
-import { ErrorBoundary } from './components/ErrorBoundary';
-import { AdminLoginPage } from './pages/AdminLoginPage';
-import { AdminPage } from './pages/AdminPage';
-import { UserDetailPage } from './pages/UserDetailPage';
-import { UniversApprovalsPage } from './pages/UniversApprovalsPage';
-import { UniversApprovalDetailPage } from './pages/UniversApprovalDetailPage';
-import { UniversListPage } from './pages/UniversListPage';
-import { AdminPWAInstallPrompt } from './components/AdminPWAInstallPrompt';
-import { PWAUpdateNotification } from './components/PWAUpdateNotification';
+import { ProtectedRoute } from './components/core/ProtectedRoute';
+import { ErrorBoundary } from './components/core/ErrorBoundary';
+import { AdminLoginPage } from './pages/auth/AdminLoginPage';
+import { AdminPage } from './pages/admin/AdminPage';
+import { UserDetailPage } from './pages/users/UserDetailPage';
+import { UniversApprovalsPage } from './pages/univers/UniversApprovalsPage';
+import { UniversApprovalDetailPage } from './pages/univers/UniversApprovalDetailPage';
+import { UniversListPage } from './pages/univers/UniversListPage';
+import { AdminPWAInstallPrompt } from './components/pwa/AdminPWAInstallPrompt';
+import { PWAUpdateNotification } from './components/pwa/PWAUpdateNotification';
 
 // Component to handle service worker messages
 const ServiceWorkerMessageHandler: React.FC = () => {

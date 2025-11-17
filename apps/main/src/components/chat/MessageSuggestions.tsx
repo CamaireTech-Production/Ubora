@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { BarChart3, FileText, TrendingUp, PieChart, Info } from 'lucide-react';
-import { Button } from '../Button';
+import { Button } from '../ui/Button';
 
 interface MessageSuggestionsProps {
   onSuggestionClick: (suggestion: string) => void;

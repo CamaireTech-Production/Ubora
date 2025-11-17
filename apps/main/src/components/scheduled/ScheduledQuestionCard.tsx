@@ -13,8 +13,8 @@ import {
   XCircle,
   Loader2
 } from 'lucide-react';
-import { Button } from '../Button';
-import { UniversBadge } from '../UniversBadge';
+import { Button } from '../ui/Button';
+import { UniversBadge } from '../univers/UniversBadge';
 import { ScheduledQuestion } from '../../types';
 
 interface ScheduledQuestionCardProps {

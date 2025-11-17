@@ -1,5 +1,5 @@
 import React from 'react';
-import { Button } from '../Button';
+import { Button } from '../ui/Button';
 import { GraphData, PDFData } from '@ubora/shared/types';
 import { generatePDF } from '@ubora/shared/utils/PDFGenerator';
 

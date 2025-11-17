@@ -21,7 +21,7 @@ import {
 } from 'recharts';
 import { useCurrentPng } from 'recharts-to-png';
 import { Maximize2, Download, Loader2 } from 'lucide-react';
-import { Button } from '../Button';
+import { Button } from '../ui/Button';
 import { GraphData } from '@ubora/shared/types';
 
 interface GraphRendererProps {
