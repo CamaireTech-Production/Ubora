@@ -1,6 +1,6 @@
 import React from 'react';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
-import { UserSessionService } from '@ubora/shared/services/userSessionService';
+import { usePackageAccess } from '@ubora/shared/hooks/usePackageAccess';
 import { AccessDeniedModal } from '../modals/AccessDeniedModal';
 import { useNavigate } from 'react-router-dom';
 
@@ -10,14 +10,19 @@ interface ProgrammedInstructionsRouteProps {
 
 export const ProgrammedInstructionsRoute: React.FC<ProgrammedInstructionsRouteProps> = ({ children }) => {
   const { user } = useAuth();
+  const { packageInfo } = usePackageAccess();
   const navigate = useNavigate();
   const [showAccessDeniedModal, setShowAccessDeniedModal] = React.useState(false);
 
+  // Check if package has programmed instructions feature
+  const hasAccess = packageInfo?.packageType && 
+    (packageInfo.packageType === 'starter' || packageInfo.packageType === 'standard');
+
   React.useEffect(() => {
-    if (user && !UserSessionService.hasProgrammedInstructionsAccess(user)) {
+    if (user && !hasAccess) {
       setShowAccessDeniedModal(true);
     }
-  }, [user]);
+  }, [user, hasAccess]);
 
   const handleCloseModal = () => {
     setShowAccessDeniedModal(false);
@@ -28,7 +33,7 @@ export const ProgrammedInstructionsRoute: React.FC<ProgrammedInstructionsRoutePr
     return null; // Let ProtectedRoute handle authentication
   }
 
-  if (!UserSessionService.hasProgrammedInstructionsAccess(user)) {
+  if (!hasAccess) {
     return (
       <AccessDeniedModal
         isOpen={showAccessDeniedModal}
