@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { User, Clock } from 'lucide-react';
 import { GraphRenderer } from './GraphRenderer';
 import { PDFPreview, TextPDFPreview } from './PDFPreview';
@@ -7,6 +7,7 @@ import { ChatMessage } from '../../types';
 import { MultiFormatToPDF } from '@ubora/shared/utils/MultiFormatToPDF';
 import { generatePDF } from '@ubora/shared/utils/PDFGenerator';
 import { MultiFormatPDFGenerator } from '../reports/MultiFormatPDFGenerator';
+import { useApp } from '@ubora/shared/contexts/AppContext';
 
 interface MessageBubbleProps {
   message: ChatMessage;
@@ -295,8 +296,34 @@ const formatMessageContent = (content: string, messageMeta?: any): React.ReactNo
 
 
 const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
+  const { forms } = useApp();
   const isUser = message.type === 'user';
   const [showDocuments, setShowDocuments] = React.useState(false);
+
+  const resolvedFormTitles = useMemo(() => {
+    const explicitTitles = message.meta?.selectedFormTitles;
+    if (Array.isArray(explicitTitles) && explicitTitles.length > 0) {
+      return explicitTitles;
+    }
+
+    const formIds: string[] | undefined = message.meta?.selectedFormIds;
+    if (Array.isArray(formIds) && formIds.length > 0) {
+      if (!forms || forms.length === 0) {
+        return formIds;
+      }
+
+      const formMap = new Map(forms.map(form => [form.id, form.title || `Formulaire ${form.id}`]));
+      return formIds.map(id => formMap.get(id) || `Formulaire ${id}`);
+    }
+
+    if (forms && forms.length > 0) {
+      return forms.map(form => form.title || `Formulaire ${form.id}`);
+    }
+
+    return [];
+  }, [forms, message.meta?.selectedFormIds, message.meta?.selectedFormTitles]);
+
+  const formCount = resolvedFormTitles.length;
   
   return (
     <div className={`mobile-message-container ${isUser ? 'user-message' : 'ai-message'}`}>
@@ -328,7 +355,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
             {isUser ? (
               <div>
                 {/* Display format and form information for user messages */}
-                {(message.meta?.selectedFormat || message.meta?.selectedFormats?.length || message.meta?.selectedFormTitles?.length) && (
+                {(message.meta?.selectedFormat || message.meta?.selectedFormats?.length || formCount) && (
                   <div className="mb-3 p-2 bg-blue-50 rounded-lg border border-blue-200 min-w-0">
                     {/* Row 1: Selected formats with count */}
                     <div className="flex items-center gap-2 text-xs mb-2 min-w-0">
@@ -349,13 +376,13 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
                     </div>
                     
                     {/* Row 2: Horizontally scrollable forms with count */}
-                    {message.meta?.selectedFormTitles?.length && (
+                    {formCount > 0 && (
                       <div className="flex items-center gap-2 text-xs min-w-0">
                         <span className="text-blue-600 font-medium whitespace-nowrap flex-shrink-0">
-                          Formulaires ({message.meta.selectedFormTitles.length}):
+                          Formulaires ({formCount}):
                         </span>
                         <div className="flex gap-1 overflow-x-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent min-w-0 flex-1 form-tags-container" style={{ scrollbarWidth: 'thin' }}>
-                          {message.meta.selectedFormTitles.map((title, index) => (
+                          {resolvedFormTitles.map((title, index) => (
                             <span key={index} className="px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs whitespace-nowrap flex-shrink-0 form-tag">
                               {title}
                             </span>
@@ -370,7 +397,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
             ) : (
               <div className="prose prose-sm max-w-none">
                 {/* Display format and form information */}
-                {(message.meta?.selectedFormat || message.meta?.selectedFormats?.length || message.meta?.selectedFormTitles?.length) && (
+                {(message.meta?.selectedFormat || message.meta?.selectedFormats?.length || formCount) && (
                   <div className="mb-4 p-3 bg-gray-50 rounded-lg border border-gray-200 min-w-0">
                     {/* Row 1: Selected formats with count */}
                     <div className="flex items-center gap-2 text-xs mb-2 min-w-0">
@@ -391,13 +418,13 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
                     </div>
                     
                     {/* Row 2: Horizontally scrollable forms with count */}
-                    {message.meta?.selectedFormTitles?.length && (
+                    {formCount > 0 && (
                       <div className="flex items-center gap-2 text-xs min-w-0">
                         <span className="text-gray-600 font-medium whitespace-nowrap flex-shrink-0">
-                          Formulaires ({message.meta.selectedFormTitles.length}):
+                          Formulaires ({formCount}):
                         </span>
                         <div className="flex gap-1 overflow-x-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent min-w-0 flex-1 form-tags-container" style={{ scrollbarWidth: 'thin' }}>
-                          {message.meta.selectedFormTitles.map((title, index) => (
+                          {resolvedFormTitles.map((title, index) => (
                             <span key={index} className="px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs whitespace-nowrap flex-shrink-0 form-tag">
                               {title}
                             </span>
@@ -774,7 +801,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
               </div>
               
               {/* Additional context information */}
-              {((message.meta?.selectedFormTitles?.length ?? 0) > 0 || (message.meta?.selectedFormats?.length ?? 0) > 0) && (
+              {(formCount > 0 || (message.meta?.selectedFormats?.length ?? 0) > 0) && (
                 <div className="mt-2 pt-2 border-t border-gray-100">
                   <div className="flex flex-wrap items-center gap-2 text-xs">
                     {(message.meta?.selectedFormats?.length ?? 0) > 0 && (
@@ -789,12 +816,12 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
                         ))}
                       </div>
                     )}
-                    {(message.meta?.selectedFormTitles?.length ?? 0) > 0 && (
+                    {formCount > 0 && (
                       <div className="flex items-center space-x-1">
                         <span className="text-gray-400">Formulaires:</span>
                         <span className="text-gray-600">
-                          {message.meta?.selectedFormTitles?.slice(0, 2).join(', ')}
-                          {(message.meta?.selectedFormTitles?.length ?? 0) > 2 && ` +${(message.meta?.selectedFormTitles?.length ?? 0) - 2} autres`}
+                          {resolvedFormTitles.slice(0, 2).join(', ')}
+                          {formCount > 2 && ` +${formCount - 2} autres`}
                         </span>
                       </div>
                     )}
