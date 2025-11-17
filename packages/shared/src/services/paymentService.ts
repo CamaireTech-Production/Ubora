@@ -1,4 +1,17 @@
-import { addDoc, collection, doc, getDoc, serverTimestamp, Timestamp, updateDoc } from 'firebase/firestore';
+import {
+  addDoc,
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  limit as firestoreLimit,
+  orderBy,
+  query,
+  serverTimestamp,
+  Timestamp,
+  updateDoc,
+  where
+} from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 import type { Payment, PaymentRequest, CampayPaymentData } from '../types/payment';
 
@@ -74,6 +87,39 @@ export class PaymentService {
       failedAt: toDate(data.failedAt),
       metadata: data.metadata
     } as Payment;
+  }
+
+  static async getUserPayments(userId: string, limitCount: number = 10): Promise<Payment[]> {
+    const paymentsQuery = query(
+      collection(db, 'payments'),
+      where('userId', '==', userId),
+      orderBy('createdAt', 'desc'),
+      firestoreLimit(limitCount)
+    );
+
+    const snapshot = await getDocs(paymentsQuery);
+    return snapshot.docs.map((docSnap) => {
+      const data = docSnap.data() as any;
+      const toDate = (d: any) => (d instanceof Timestamp ? d.toDate() : d);
+
+      return {
+        id: docSnap.id,
+        userId: data.userId,
+        amount: Number(data.amount) || 0,
+        originalAmount: data.originalAmount,
+        currency: data.currency,
+        description: data.description,
+        status: data.status,
+        paymentMethod: data.paymentMethod,
+        externalReference: data.externalReference,
+        campayReference: data.campayReference,
+        createdAt: toDate(data.createdAt),
+        updatedAt: toDate(data.updatedAt),
+        completedAt: toDate(data.completedAt),
+        failedAt: toDate(data.failedAt),
+        metadata: data.metadata
+      } as Payment;
+    });
   }
 
   static async updatePaymentStatus(

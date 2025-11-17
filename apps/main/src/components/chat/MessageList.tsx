@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import MessageBubble from './MessageBubble';
 import { Bot, Loader2, ChevronUp } from 'lucide-react';
-import { Button } from '../Button';
+import { Button } from '../ui/Button';
 import { ScrollButtons } from './ScrollButtons';
 
 interface Message {

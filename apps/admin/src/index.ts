@@ -1,24 +1,23 @@
 // Admin module exports
-export { AdminPage } from './pages/AdminPage';
-export { AdminDashboard } from './components/AdminDashboard';
-export { AdminLoginPage } from './pages/AdminLoginPage';
-export { UserDetailPage } from './pages/UserDetailPage';
+export { AdminPage } from './pages/admin/AdminPage';
+export { AdminDashboard } from './components/admin/AdminDashboard';
+export { AdminLoginPage } from './pages/auth/AdminLoginPage';
+export { UserDetailPage } from './pages/users/UserDetailPage';
 
 // Services
-export { AdminService } from './services/adminService';
-export { AdminFormService } from './services/adminFormService';
-export { AdminDashboardService } from './services/adminDashboardService';
-export { EnhancedAdminService } from './services/enhancedAdminService';
+export { AdminService } from './services/admin/adminService';
+export { AdminFormService } from './services/admin/adminFormService';
+export { EnhancedAdminService } from './services/admin/enhancedAdminService';
 
 // Types
 export * from './types';
 
 // Tab components
-export { OverviewTab } from './components/tabs/OverviewTab';
-export { UsersTab } from './components/tabs/UsersTab';
-export { FormsTab } from './components/tabs/FormsTab';
-export { DashboardsTab } from './components/tabs/DashboardsTab';
-export { ActivitiesTab } from './components/tabs/ActivitiesTab';
-export { NotificationsTab } from './components/tabs/NotificationsTab';
-export { UsageTab } from './components/tabs/UsageTab';
-export { SystemTab } from './components/tabs/SystemTab';
+export { OverviewTab } from './components/admin/OverviewTab';
+export { UsersTab } from './components/admin/UsersTab';
+export { FormsTab } from './components/admin/FormsTab';
+export { DashboardsTab } from './components/admin/DashboardsTab';
+export { ActivitiesTab } from './components/admin/ActivitiesTab';
+export { NotificationsTab } from './components/admin/NotificationsTab';
+export { UsageTab } from './components/admin/UsageTab';
+export { SystemTab } from './components/admin/SystemTab';

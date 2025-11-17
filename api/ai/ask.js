@@ -810,6 +810,20 @@ export default async function handler(req, res) {
 
     // 4.5. Vérification des tokens disponibles
     
+    // Check if submissions contain PDF files with extracted text
+    const hasPDFContent = data.submissions.some(s => 
+      s.fileAttachments && s.fileAttachments.some(att => 
+        att.fileType === 'application/pdf' && att.extractedText && att.extractedText.trim().length > 0
+      )
+    );
+
+    // Check if submissions contain image files with extracted text
+    const hasImageContent = data.submissions.some(s => 
+      s.fileAttachments && s.fileAttachments.some(att => 
+        att.fileType && att.fileType.startsWith('image/') && att.extractedText && att.extractedText.trim().length > 0
+      )
+    );
+    
     // Build the actual system prompt first (we'll use this for both estimation and AI call)
     const buildSystemMessage = (conversationContext) => {
       const baseRole = `Tu es ARCHA, assistant IA expert en analyse de données d'entreprise.`;

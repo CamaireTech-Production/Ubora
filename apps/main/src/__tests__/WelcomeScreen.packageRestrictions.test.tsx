@@ -1,7 +1,7 @@
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { WelcomeScreen } from '../components/WelcomeScreen';
+import { WelcomeScreen } from '../components/core/WelcomeScreen';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
 import { useApp } from '@ubora/shared/contexts/AppContext';
 import { usePackageAccess } from '@ubora/shared/hooks/usePackageAccess';
