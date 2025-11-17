@@ -1,7 +1,7 @@
 import { unifiedNotificationService } from './unifiedNotificationService';
-import { Form } from '../types';
+import { Form } from '../../types';
 import { doc, getDoc } from 'firebase/firestore';
-import { db } from '../firebaseConfig';
+import { db } from '@ubora/shared/firebaseConfig';
 
 class FormReminderService {
   /**

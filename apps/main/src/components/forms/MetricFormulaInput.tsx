@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { DashboardMetric } from '../types';
-import { Button } from './Button';
-import { Card } from './Card';
-import { MetricFormulaParser } from '../utils/MetricFormulaParser';
+import { DashboardMetric } from '../../types';
+import { Button } from '../ui/Button';
+import { Card } from '../ui/Card';
+import { MetricFormulaParser } from '../../utils/forms/MetricFormulaParser';
+type SharedDashboardMetric = import('@ubora/shared/types').DashboardMetric;
 import { Calculator, Check, AlertCircle, Plus } from 'lucide-react';
 
 interface MetricFormulaInputProps {
@@ -60,7 +61,7 @@ export const MetricFormulaInput: React.FC<MetricFormulaInputProps> = ({
       // Cast to shared type for MetricFormulaParser
       // Ensure metricType is always 'value' or 'graph' (never undefined)
       const metricType: 'value' | 'graph' = metric.metricType || 'value';
-      const sharedMetric = { ...metric, metricType } as Omit<typeof metric, 'metricType'> & { metricType: 'value' | 'graph' };
+      const sharedMetric = { ...metric, metricType } as unknown as SharedDashboardMetric;
       return MetricFormulaParser.isNumericMetric(sharedMetric);
     }), [metrics, currentMetricId]
   );
@@ -460,7 +461,8 @@ export const MetricFormulaInput: React.FC<MetricFormulaInputProps> = ({
       .map(metric => ({
         ...metric,
         metricType: (metric.metricType || 'value') as 'value' | 'graph'
-      })) as Array<Omit<typeof metrics[0], 'metricType'> & { metricType: 'value' | 'graph' }>;
+      }))
+      .map(metric => metric as unknown as SharedDashboardMetric);
     const parseResult = MetricFormulaParser.parseUserFormula(userFormula, sharedMetrics, currentMetricId);
     if (!parseResult.isValid) {
       return { isValid: false, error: parseResult.error };

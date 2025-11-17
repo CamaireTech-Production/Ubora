@@ -1,5 +1,5 @@
 import React from 'react';
-import { PushNotificationTester } from '../components/PushNotificationTester';
+import { PushNotificationTester } from '../../components/notifications/PushNotificationTester';
 
 export const NotificationTestPage: React.FC = () => {
   return (

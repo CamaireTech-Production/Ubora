@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
-import { db } from '../firebaseConfig';
+import { db } from '@ubora/shared/firebaseConfig';
 
 export const useUnreadNotifications = () => {
   const { user } = useAuth();

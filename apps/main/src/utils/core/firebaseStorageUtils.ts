@@ -1,5 +1,5 @@
 import { ref, getDownloadURL } from 'firebase/storage';
-import { storage } from '../firebaseConfig';
+import { storage } from '@ubora/shared/firebaseConfig';
 import { FirestoreUrlConverter } from '../services/firestoreUrlConverter';
 
 /**

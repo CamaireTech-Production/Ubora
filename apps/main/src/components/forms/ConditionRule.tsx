@@ -1,8 +1,8 @@
 import React from 'react';
-import { ConditionalRule, FormField, List } from '../types';
-import { Select } from './Select';
-import { Input } from './Input';
-import { Button } from './Button';
+import { ConditionalRule, FormField, List } from '../../types';
+import { Select } from '../ui/Select';
+import { Input } from '../ui/Input';
+import { Button } from '../ui/Button';
 import { Trash2 } from 'lucide-react';
 
 interface ConditionRuleProps {

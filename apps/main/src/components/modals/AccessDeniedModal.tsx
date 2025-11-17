@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Button } from './Button';
+import { Button } from '../ui/Button';
 import { X, Lock, ArrowRight } from 'lucide-react';
 
 interface AccessDeniedModalProps {

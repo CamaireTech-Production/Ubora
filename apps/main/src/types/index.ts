@@ -592,7 +592,7 @@ export interface TablePeriodConfig {
  * Table configuration for table-type metrics
  */
 export interface TableConfig {
-  rowSource: TableRowSource; // Source of table rows (list or entries)
+  rowSource?: TableRowSource; // Source of table rows (list or entries)
   columns: TableColumnConfig[]; // Array of column configurations
   period?: TablePeriodConfig; // Period configuration (defaults to dashboard period)
   emptyRows?: 'show' | 'hide'; // Whether to show rows with all blanks/zeros (default: 'show')
@@ -925,10 +925,12 @@ export type StaticValueType =
 
 export interface ReportMapping {
   placeholderId: string; // ID du placeholder
-  sourceType: 'dashboard' | 'static'; // Dashboard metrics or static system values
-  sourceId?: string; // ID du dashboard (only if sourceType is 'dashboard')
+  sourceType: 'dashboard' | 'form' | 'static'; // Source de données
+  sourceId?: string; // ID du dashboard ou du formulaire
+  fieldId?: string; // ID du champ (pour form) ou de la métrique (pour dashboard)
   metricId?: string; // ID de la métrique (only if sourceType is 'dashboard')
   metricType?: 'value' | 'graph' | 'table'; // Type de métrique pour le rendu (only if sourceType is 'dashboard')
+  calculationType?: 'sum' | 'average' | 'count' | 'min' | 'max' | 'custom'; // Pour les champs numériques
   staticValueType?: StaticValueType; // Type de valeur statique (only if sourceType is 'static')
   defaultValue?: string; // Valeur par défaut si pas de données
 }
@@ -1034,7 +1036,7 @@ export interface InstructionDefinition {
   selectedFormat: string | null;
   selectedFormats: string[];
   selectedFormIds: string[];
-  scheduledAt: Date;
+  scheduledAt?: Date;
   frequency: 'once' | 'daily' | 'weekly' | 'monthly';
   maxExecutions?: number;
 }

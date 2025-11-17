@@ -1,6 +1,6 @@
 import { collection, addDoc, doc, getDocs, query, where, orderBy, updateDoc, serverTimestamp, getDoc } from 'firebase/firestore';
-import { db } from '../firebaseConfig';
-import { Dashboard, DashboardMetric, FormEntry, MetricReminder } from '../types';
+import { db } from '@ubora/shared/firebaseConfig';
+import { Dashboard, DashboardMetric, FormEntry, MetricReminder } from '../../types';
 import { unifiedNotificationService } from './unifiedNotificationService';
 import { MetricCalculator } from '../utils/forms/MetricCalculator';
 

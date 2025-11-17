@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { 
   Calendar, 
   FileText, 
@@ -9,7 +9,7 @@ import {
   TrendingUp,
   DollarSign
 } from 'lucide-react';
-import { User } from '../types';
+import { User } from '../../types';
 import { SessionConsumptionService } from '@ubora/shared/services/sessionConsumptionService';
 
 interface SessionConsumptionDisplayProps {
@@ -18,13 +18,87 @@ interface SessionConsumptionDisplayProps {
   className?: string;
 }
 
+const createEmptyCurrentConsumption = () => ({
+  formsCreated: 0,
+  dashboardsCreated: 0,
+  usersAdded: 0,
+  tokensConsumed: 0,
+  sessionStartDate: null as Date | null,
+  sessionEndDate: null as Date | null,
+  daysRemaining: 0
+});
+
+const createEmptySessionsConsumption = () => ({
+  totalFormsCreated: 0,
+  totalDashboardsCreated: 0,
+  totalUsersAdded: 0,
+  totalTokensConsumed: 0,
+  totalAmountPaid: 0,
+  sessions: [] as Array<{
+    id: string;
+    packageType: string;
+    sessionType: string;
+    startDate: Date;
+    endDate: Date;
+    consumption: {
+      formsCreated: number;
+      dashboardsCreated: number;
+      usersAdded: number;
+      tokensConsumed: number;
+    };
+    amountPaid: number;
+  }>
+});
+
 const SessionConsumptionDisplayComponent: React.FC<SessionConsumptionDisplayProps> = ({
   user,
   showAllSessions = false,
   className = ''
 }) => {
-  const currentConsumption = SessionConsumptionService.getCurrentSessionConsumption(user);
-  const allSessionsConsumption = SessionConsumptionService.getAllSessionsConsumption(user);
+  const [currentConsumption, setCurrentConsumption] = useState(createEmptyCurrentConsumption);
+  const [allSessionsConsumption, setAllSessionsConsumption] = useState(createEmptySessionsConsumption);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadConsumption = async () => {
+      setIsLoading(true);
+      setError(null);
+
+      try {
+        const currentData = await SessionConsumptionService.getCurrentSessionConsumption(user);
+        if (!isMounted) return;
+        setCurrentConsumption(currentData);
+
+        if (showAllSessions) {
+          const allSessionsData = await SessionConsumptionService.getAllSessionsConsumption(user);
+          if (!isMounted) return;
+          setAllSessionsConsumption(allSessionsData);
+        } else {
+          setAllSessionsConsumption(createEmptySessionsConsumption());
+        }
+      } catch (err) {
+        if (!isMounted) return;
+        setError(
+          err instanceof Error
+            ? err.message
+            : 'Erreur lors du chargement de la consommation.'
+        );
+      } finally {
+        if (isMounted) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    loadConsumption();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [user, showAllSessions]);
 
   const formatDate = (date: Date | null) => {
     if (!date) return 'N/A';
@@ -38,6 +112,22 @@ const SessionConsumptionDisplayComponent: React.FC<SessionConsumptionDisplayProp
   const formatNumber = (num: number) => {
     return num.toLocaleString('fr-FR');
   };
+
+  if (isLoading) {
+    return (
+      <div className={`bg-white rounded-lg border border-gray-200 p-6 ${className}`}>
+        <div className="text-sm text-gray-500">Chargement des données...</div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className={`bg-white rounded-lg border border-red-200 p-6 ${className}`}>
+        <div className="text-sm text-red-600">{error}</div>
+      </div>
+    );
+  }
 
   if (showAllSessions) {
     return (

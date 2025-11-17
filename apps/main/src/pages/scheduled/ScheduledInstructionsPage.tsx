@@ -1,16 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Filter, Search, Calendar, Clock, MessageSquare } from 'lucide-react';
+import { Plus, Search, Calendar, Clock, MessageSquare } from 'lucide-react';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
-import { LoadingGuard } from '../components/loading/LoadingGuard';
-import { Button } from '../components/ui/Button';
-import { ScheduledQuestionCard } from '../components/scheduled/ScheduledQuestionCard';
+import { Button } from '../../components/ui/Button';
+import { ScheduledQuestionCard } from '../../components/scheduled/ScheduledQuestionCard';
 import { scheduledQuestionService } from '@ubora/shared/services/scheduledQuestionService';
-import { scheduledQuestionExecutor } from '@ubora/shared/services/scheduledQuestionExecutor';
 import { useToast } from '@ubora/shared/hooks/useToast';
-import { ScheduledQuestion } from '../types';
-import { Layout } from '../components/layout/Layout';
-import { WireframeLoader } from '../components/loading/WireframeLoader';
+import { ScheduledQuestion } from '../../types';
+import { Layout } from '../../components/layout/Layout';
+import { WireframeLoader } from '../../components/loading/WireframeLoader';
 
 export const ScheduledQuestionsPage: React.FC = () => {
   const { user } = useAuth();
@@ -49,15 +47,6 @@ export const ScheduledQuestionsPage: React.FC = () => {
     
     return matchesSearch && matchesStatus && matchesFrequency;
   });
-
-  // Grouper les questions par statut
-  const groupedQuestions = {
-    pending: filteredQuestions.filter(q => q.status === 'pending'),
-    running: filteredQuestions.filter(q => q.status === 'running'),
-    completed: filteredQuestions.filter(q => q.status === 'completed'),
-    failed: filteredQuestions.filter(q => q.status === 'failed'),
-    cancelled: filteredQuestions.filter(q => q.status === 'cancelled')
-  };
 
   const handleCreateNew = () => {
     navigate('/directeur/scheduled-questions/new');
@@ -117,7 +106,7 @@ export const ScheduledQuestionsPage: React.FC = () => {
   }
 
   return (
-    <Layout>
+    <Layout title="Questions programmées">
       <div className="min-h-screen bg-gray-50">
         {/* En-tête */}
         <div className="bg-white border-b border-gray-200">

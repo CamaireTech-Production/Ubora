@@ -2,18 +2,18 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
 import { useApp } from '@ubora/shared/contexts/AppContext';
-import { Layout } from '../components/layout/Layout';
-import { Report, ReportDefinition } from '../types';
+import { Layout } from '../../components/layout/Layout';
+import { Report, ReportDefinition, DashboardDefinition } from '../../types';
 import { reportsService } from '@ubora/shared/services';
 import { universService } from '@ubora/shared/services/universService';
 import { useToast } from '@ubora/shared/hooks/useToast';
-import { Toast } from '../components/ui/Toast';
-import { Button } from '../components/ui/Button';
-import { Select } from '../components/ui/Select';
-import { ReportPreview } from '../components/ReportPreview';
+import { Toast } from '../../components/ui/Toast';
+import { Button } from '../../components/ui/Button';
+import { Select } from '../../components/ui/Select';
+import { ReportPreview } from '../../components/reports/ReportPreview';
 import { FileBarChart, Calendar, Download, Edit, Trash2, Eye, FileText } from 'lucide-react';
-import { Card } from '../components/ui/Card';
-import { ConfirmationModal } from '../components/modals/ConfirmationModal';
+import { Card } from '../../components/ui/Card';
+import { ConfirmationModal } from '../../components/modals/ConfirmationModal';
 
 export const ReportsPage: React.FC = () => {
   const navigate = useNavigate();
@@ -161,15 +161,12 @@ export const ReportsPage: React.FC = () => {
     }
     
     return formEntries.filter(entry => {
-      // Handle different date formats (Firestore Timestamp or Date)
-      let entryDate: Date;
-      if (entry.submittedAt) {
-        entryDate = entry.submittedAt?.toDate ? entry.submittedAt.toDate() : new Date(entry.submittedAt);
-      } else if (entry.createdAt) {
-        entryDate = entry.createdAt?.toDate ? entry.createdAt.toDate() : new Date(entry.createdAt);
-      } else {
-        return false; // Skip entries without date
+      const submitted = entry.submittedAt as any;
+      if (!submitted) {
+        return false;
       }
+      const entryDate: Date =
+        typeof submitted?.toDate === 'function' ? submitted.toDate() : new Date(submitted);
       
       if (start && end) {
         return entryDate >= start && entryDate <= end;
@@ -243,28 +240,8 @@ export const ReportsPage: React.FC = () => {
   };
 
   // Convert dashboards to DashboardDefinition format
-  const convertDashboards = () => {
-    return dashboards.map(dashboard => ({
-      id: dashboard.id,
-      name: dashboard.name,
-      description: dashboard.description,
-      metrics: dashboard.metrics.map(metric => ({
-        id: metric.id,
-        name: metric.name,
-        description: metric.description,
-        sourceType: metric.sourceType,
-        formId: metric.formId,
-        fieldId: metric.fieldId,
-        fieldType: metric.fieldType,
-        calculationType: metric.calculationType,
-        metricType: metric.metricType,
-        graphConfig: metric.graphConfig,
-        tableConfig: metric.tableConfig,
-        calculationFormula: metric.calculationFormula,
-        userFormula: metric.userFormula,
-        dependsOn: metric.dependsOn
-      }))
-    }));
+  const convertDashboards = (): DashboardDefinition[] => {
+    return dashboards;
   };
 
   if (!user?.id || !user?.agencyId) {

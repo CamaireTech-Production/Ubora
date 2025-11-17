@@ -1,14 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { Dashboard, FormEntry, Form, DashboardMetric, User } from '../types';
+import { Dashboard, FormEntry, Form, DashboardMetric, User } from '../../types';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { MetricCalculator } from '@ubora/shared/utils/MetricCalculator';
 import { GraphPreview } from '../charts/GraphPreview';
 import { GraphModal } from '../charts/GraphModal';
 import { TableMetricDisplay } from './TableMetricDisplay';
-import { tableDataService } from '../services/core/tableDataService';
+import { tableDataService } from '../../services/core/tableDataService';
 import { BarChart3, TrendingUp, TrendingDown, Minus, Hash, Type, Mail, Calendar, CheckSquare, Upload, Eye, Edit, Trash2, Crown, User as UserIcon, FileBarChart, Table } from 'lucide-react';
 import { UniversBadge } from '../univers/UniversBadge';
+import type { Dashboard as SharedDashboard, DashboardMetric as SharedDashboardMetric } from '@ubora/shared/types';
 
 interface DashboardDisplayProps {
   dashboard: Dashboard;
@@ -112,7 +113,7 @@ export const DashboardDisplay: React.FC<DashboardDisplayProps> = ({
   // Function to get dashboard icon based on dashboard metrics
   const getDashboardIcon = (dashboard: Dashboard) => {
     const hasGraphMetrics = dashboard.metrics.some(metric => metric.metricType === 'graph');
-    const hasCalculatedMetrics = dashboard.metrics.some(metric => metric.metricType === 'calculated');
+    const hasCalculatedMetrics = dashboard.metrics.some(metric => metric.sourceType === 'computed');
     const metricCount = dashboard.metrics.length;
     
     // Determine icon based on dashboard characteristics
@@ -134,6 +135,17 @@ export const DashboardDisplay: React.FC<DashboardDisplayProps> = ({
     const field = form?.fields.find(f => f.id === fieldId);
     return field?.label || 'Champ inconnu';
   };
+
+  const toSharedMetric = (metric: DashboardMetric): SharedDashboardMetric => ({
+    ...metric,
+    metricType: metric.metricType || 'value',
+    tableConfig: undefined
+  }) as SharedDashboardMetric;
+
+  const toSharedDashboard = (dashboard: Dashboard): SharedDashboard => ({
+    ...dashboard,
+    metrics: dashboard.metrics.map(toSharedMetric)
+  }) as SharedDashboard;
 
   const handleDelete = () => {
     if (onDelete) {
@@ -341,7 +353,11 @@ export const DashboardDisplay: React.FC<DashboardDisplayProps> = ({
               };
             } else {
               // Use MetricCalculator for non-table metrics
-              result = MetricCalculator.calculateMetric(metric, formEntries, dashboard);
+              result = MetricCalculator.calculateMetric(
+                toSharedMetric(metric),
+                formEntries,
+                toSharedDashboard(dashboard)
+              );
             }
             
             return (
@@ -388,7 +404,7 @@ export const DashboardDisplay: React.FC<DashboardDisplayProps> = ({
                   <div className="mb-2 sm:mb-3">
                     <div className="bg-white rounded-lg border border-gray-200 p-2">
                       <GraphPreview
-                        metric={metric}
+                        metric={toSharedMetric(metric)}
                         formEntries={formEntries}
                         forms={forms}
                         onExpand={() => setExpandedGraph(metric)}
@@ -434,11 +450,11 @@ export const DashboardDisplay: React.FC<DashboardDisplayProps> = ({
                     <>
                       <div className="flex items-center space-x-1 mb-0.5 sm:mb-1">
                         <Eye className="h-2 w-2 sm:h-3 sm:w-3" />
-                        <span className="truncate">{getFormTitle(metric.formId)}</span>
+                        <span className="truncate">{getFormTitle(metric.formId || '')}</span>
                       </div>
                       <div className="flex items-center space-x-1">
                         {getFieldIcon(metric.fieldType)}
-                        <span className="truncate">{getFieldLabel(metric.formId, metric.fieldId)}</span>
+                        <span className="truncate">{getFieldLabel(metric.formId || '', metric.fieldId || '')}</span>
                       </div>
                     </>
                   )}
@@ -454,7 +470,7 @@ export const DashboardDisplay: React.FC<DashboardDisplayProps> = ({
         <GraphModal
           isOpen={!!expandedGraph}
           onClose={() => setExpandedGraph(null)}
-          metric={expandedGraph}
+          metric={toSharedMetric(expandedGraph)}
           formEntries={formEntries}
           forms={forms}
         />

@@ -1,4 +1,4 @@
-import { DraftResponse } from '../types';
+import { DraftResponse } from '../../types';
 
 const DRAFT_STORAGE_KEY = 'form_drafts';
 

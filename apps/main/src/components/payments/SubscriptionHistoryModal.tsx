@@ -1,7 +1,7 @@
 import React from 'react';
 import { X, Calendar, CreditCard, Zap, Package, TrendingUp, TrendingDown, FileText, BarChart3, Users } from 'lucide-react';
-import { SubscriptionSession } from '../types';
-import { getPackageDisplayName } from '@ubora/shared/config/packageFeatures';
+import { SubscriptionSession } from '../../types';
+import { getPackageDisplayName, PackageType } from '@ubora/shared/config/packageFeatures';
 
 interface SubscriptionHistoryModalProps {
   isOpen: boolean;
@@ -52,6 +52,13 @@ export const SubscriptionHistoryModal: React.FC<SubscriptionHistoryModalProps> =
 
   const formatLimit = (limit: number) => {
     return limit === -1 ? 'Illimité' : limit.toLocaleString();
+  };
+
+  const formatPackageName = (packageType: string) => {
+    const supportedPackages: PackageType[] = ['free', 'starter', 'standard'];
+    return supportedPackages.includes(packageType as PackageType)
+      ? getPackageDisplayName(packageType as PackageType)
+      : packageType;
   };
 
   const getSessionTypeIcon = (sessionType: string) => {
@@ -228,7 +235,22 @@ export const SubscriptionHistoryModal: React.FC<SubscriptionHistoryModalProps> =
             <div className="divide-y divide-gray-200">
               {sessions
                 .sort((a, b) => convertToDate(b.startDate).getTime() - convertToDate(a.startDate).getTime())
-                .map((session) => (
+                .map((session) => {
+                  const usage = getUsageData(session);
+                  const payAsYouGoTokens = session.payAsYouGoResources?.tokens ?? 0;
+                  const payAsYouGoForms = session.payAsYouGoResources?.forms ?? 0;
+                  const payAsYouGoDashboards = session.payAsYouGoResources?.dashboards ?? 0;
+                  const payAsYouGoUsers = session.payAsYouGoResources?.users ?? 0;
+                  const packageTokens = session.packageResources?.tokensIncluded ?? 0;
+                  const packageForms = session.packageResources?.formsIncluded ?? 0;
+                  const packageDashboards = session.packageResources?.dashboardsIncluded ?? 0;
+                  const packageUsers = session.packageResources?.usersIncluded ?? 0;
+                  const totalTokensLimit = packageTokens + payAsYouGoTokens;
+                  const totalFormsLimit = packageForms + payAsYouGoForms;
+                  const totalDashboardsLimit = packageDashboards + payAsYouGoDashboards;
+                  const totalUsersLimit = packageUsers + payAsYouGoUsers;
+
+                  return (
                   <div
                     key={session.id}
                     className={`p-6 hover:bg-gray-50 transition-colors ${
@@ -243,7 +265,7 @@ export const SubscriptionHistoryModal: React.FC<SubscriptionHistoryModalProps> =
                         <div className="flex-1">
                           <div className="flex items-center space-x-2 mb-2">
                             <h3 className="text-lg font-semibold text-gray-900">
-                              {getPackageDisplayName(session.packageType)}
+                              {formatPackageName(session.packageType)}
                             </h3>
                             <span
                               className={`px-2 py-1 text-xs font-medium rounded-full border ${getSessionStatusColor(
@@ -280,14 +302,12 @@ export const SubscriptionHistoryModal: React.FC<SubscriptionHistoryModalProps> =
                                 <Zap className="h-4 w-4 text-yellow-500" />
                                 <div>
                                   <div className="font-medium text-gray-900">
-                                    {getUsageData(session).tokensUsed.toLocaleString()} / {
-                                  (session.packageResources?.tokensIncluded || 0) + (session.payAsYouGoResources?.tokens || 0)
-                                    }
+                                    {usage.tokensUsed.toLocaleString()} / {totalTokensLimit}
                                   </div>
                                   <div className="text-xs text-gray-500">Tokens</div>
-                                {(session.payAsYouGoResources?.tokens || 0) > 0 && (
+                                {payAsYouGoTokens > 0 && (
                                     <div className="text-xs text-green-600">
-                                    (+{session.payAsYouGoResources.tokens} pay-as-you-go)
+                                    (+{payAsYouGoTokens} pay-as-you-go)
                                     </div>
                                   )}
                                 </div>
@@ -298,14 +318,12 @@ export const SubscriptionHistoryModal: React.FC<SubscriptionHistoryModalProps> =
                                 <FileText className="h-4 w-4 text-blue-500" />
                                 <div>
                                   <div className="font-medium text-gray-900">
-                                    {getUsageData(session).formsCreated.toLocaleString()} / {
-                                      formatLimit((session.packageResources?.formsIncluded || 0) + (session.payAsYouGoResources?.forms || 0))
-                                    }
+                                    {usage.formsCreated.toLocaleString()} / {formatLimit(totalFormsLimit)}
                                   </div>
                                   <div className="text-xs text-gray-500">Formulaires</div>
-                                  {(session.payAsYouGoResources?.forms || 0) > 0 && (
+                                  {payAsYouGoForms > 0 && (
                                     <div className="text-xs text-green-600">
-                                      (+{session.payAsYouGoResources.forms} pay-as-you-go)
+                                      (+{payAsYouGoForms} pay-as-you-go)
                                     </div>
                                   )}
                                 </div>
@@ -316,14 +334,12 @@ export const SubscriptionHistoryModal: React.FC<SubscriptionHistoryModalProps> =
                                 <BarChart3 className="h-4 w-4 text-green-500" />
                                 <div>
                                   <div className="font-medium text-gray-900">
-                                    {getUsageData(session).dashboardsCreated.toLocaleString()} / {
-                                      formatLimit((session.packageResources?.dashboardsIncluded || 0) + (session.payAsYouGoResources?.dashboards || 0))
-                                    }
+                                    {usage.dashboardsCreated.toLocaleString()} / {formatLimit(totalDashboardsLimit)}
                                   </div>
                                   <div className="text-xs text-gray-500">Tableaux de bord</div>
-                                  {(session.payAsYouGoResources?.dashboards || 0) > 0 && (
+                                  {payAsYouGoDashboards > 0 && (
                                     <div className="text-xs text-green-600">
-                                      (+{session.payAsYouGoResources.dashboards} pay-as-you-go)
+                                      (+{payAsYouGoDashboards} pay-as-you-go)
                                     </div>
                                   )}
                                 </div>
@@ -334,14 +350,12 @@ export const SubscriptionHistoryModal: React.FC<SubscriptionHistoryModalProps> =
                                 <Users className="h-4 w-4 text-purple-500" />
                                 <div>
                                   <div className="font-medium text-gray-900">
-                                    {getUsageData(session).usersAdded.toLocaleString()} / {
-                                      formatLimit((session.packageResources?.usersIncluded || 0) + (session.payAsYouGoResources?.users || 0))
-                                    }
+                                    {usage.usersAdded.toLocaleString()} / {formatLimit(totalUsersLimit)}
                                   </div>
                                   <div className="text-xs text-gray-500">Utilisateurs</div>
-                                  {(session.payAsYouGoResources?.users || 0) > 0 && (
+                                  {payAsYouGoUsers > 0 && (
                                     <div className="text-xs text-green-600">
-                                      (+{session.payAsYouGoResources.users} pay-as-you-go)
+                                      (+{payAsYouGoUsers} pay-as-you-go)
                                     </div>
                                   )}
                                 </div>
@@ -362,7 +376,7 @@ export const SubscriptionHistoryModal: React.FC<SubscriptionHistoryModalProps> =
                       </div>
                     </div>
                   </div>
-                ))}
+                )})}
             </div>
           )}
         </div>
@@ -373,7 +387,7 @@ export const SubscriptionHistoryModal: React.FC<SubscriptionHistoryModalProps> =
             <div className="text-sm text-gray-600">
               {currentSession && (
                 <span>
-                  Session actuelle: <strong>{getPackageDisplayName(currentSession.packageType)}</strong>
+                  Session actuelle: <strong>{formatPackageName(currentSession.packageType)}</strong>
                 </span>
               )}
             </div>

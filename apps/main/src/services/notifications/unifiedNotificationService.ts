@@ -1,5 +1,5 @@
 import { collection, addDoc, updateDoc, doc, serverTimestamp, query, where, orderBy, limit, getDocs } from 'firebase/firestore';
-import { db } from '../firebaseConfig';
+import { db } from '@ubora/shared/firebaseConfig';
 import { browserNotificationService } from './browserNotificationService';
 import { emailNotificationService } from './emailNotificationService';
 

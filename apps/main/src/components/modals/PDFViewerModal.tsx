@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { X, Download, ExternalLink, ZoomIn, ZoomOut, RotateCw, Maximize2, Minimize2 } from 'lucide-react';
-import { Button } from './Button';
+import { Button } from '../ui/Button';
 import { FirestoreUrlConverter } from '@ubora/shared/services/firestoreUrlConverter';
 
 interface PDFViewerModalProps {

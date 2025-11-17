@@ -13,7 +13,7 @@ import {
   BarChart3,
   Zap
 } from 'lucide-react';
-import { EnhancedTransitionCalculation, PayAsYouGoItem, FeatureUpgrade, FeatureDowngrade } from '@ubora/shared/services/packageTransitionService';
+import { EnhancedTransitionCalculation } from '@ubora/shared/services/packageTransitionService';
 import { getPackageDisplayName } from '@ubora/shared/config/packageFeatures';
 import { SubscriptionPriceCalculator, SubscriptionPeriod } from '@ubora/shared/services/subscriptionPriceCalculator';
 import { PackageType } from '@ubora/shared/config/packageFeatures';
@@ -43,6 +43,12 @@ export const PackageTransitionPriceExplanation: React.FC<PackageTransitionPriceE
   }
 
   const { priceBreakdown, daysRemaining, payAsYouGoItems, featureUpgrades, featureDowngrades } = calculation;
+  const sessionPackageType = calculation.currentSession?.packageType;
+  const supportedPackages: PackageType[] = ['free', 'starter', 'standard'];
+  const currentPackageDisplayName =
+    sessionPackageType && supportedPackages.includes(sessionPackageType as PackageType)
+      ? getPackageDisplayName(sessionPackageType as PackageType)
+      : (sessionPackageType || 'actuel');
   
   // Recalculate price based on selected period if package and period are provided
   let priceCalculation = null;
@@ -93,7 +99,7 @@ export const PackageTransitionPriceExplanation: React.FC<PackageTransitionPriceE
             <span className="text-sm font-medium text-blue-900">Jours restants dans votre abonnement actuel</span>
           </div>
           <p className="text-sm text-blue-700">
-            Il vous reste <strong>{daysRemaining} jours</strong> sur votre abonnement {calculation.currentSession?.packageType ? getPackageDisplayName(calculation.currentSession.packageType) : 'actuel'}.
+            Il vous reste <strong>{daysRemaining} jours</strong> sur votre abonnement {currentPackageDisplayName}.
             La valeur restante sera déduite du coût du nouveau package.
           </p>
         </div>

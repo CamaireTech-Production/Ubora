@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
-import { Video } from '../data/videoData';
+import { Video } from '@/data/videoData';
 
 interface VideoModalProps {
   video: Video | null;

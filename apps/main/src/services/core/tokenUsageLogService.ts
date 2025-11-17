@@ -1,5 +1,5 @@
 import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
-import { db } from '../firebaseConfig';
+import { db } from '@ubora/shared/firebaseConfig';
 
 export type TokenUsageType = 'image_extraction' | 'pdf_extraction' | 'other';
 

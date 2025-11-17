@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FormField, Form } from '../types';
+import { FormField, Form } from '../../types';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { Select } from '../ui/Select';
@@ -18,7 +18,7 @@ import { useAuth } from '@ubora/shared/contexts/AuthContext';
 import { useApp } from '@ubora/shared/contexts/AppContext';
 import { UserSessionService } from '@ubora/shared/services/userSessionService';
 import { listsService } from '@ubora/shared/services/listsService';
-import { List, ListDefinition } from '../types';
+import { List, ListDefinition } from '../../types';
 
 interface FormBuilderProps {
   onSave: (form: {
@@ -800,7 +800,7 @@ export const FormBuilder: React.FC<FormBuilderProps> = ({
                                 onChange={() => {
                                   // Switch to List mode - set listId to first available list or null to indicate "use list" mode
                                   updateField(field.id, { 
-                                    listId: availableLists[0]?.id || null, 
+                                    listId: availableLists[0]?.id, 
                                     displayColumnId: availableLists[0]?.columns[0]?.id || undefined,
                                     options: undefined
                                   });
@@ -877,7 +877,7 @@ export const FormBuilder: React.FC<FormBuilderProps> = ({
                               {/* List Selection */}
                               <Select
                                 label="Sélectionner une Liste *"
-                                value={field.listId && field.listId !== null ? field.listId : ''}
+                                value={field.listId ?? ''}
                                 onChange={(e) => {
                                   const selectedListId = e.target.value;
                                   const selectedList = availableLists.find(l => l.id === selectedListId);
@@ -901,7 +901,7 @@ export const FormBuilder: React.FC<FormBuilderProps> = ({
                               />
 
                               {/* Display Column Selection */}
-                              {field.listId && field.listId !== null && (() => {
+                              {field.listId && (() => {
                                 const selectedList = availableLists.find(l => l.id === field.listId);
                                 return selectedList && selectedList.columns.length > 0 ? (
                                   <Select
@@ -925,7 +925,7 @@ export const FormBuilder: React.FC<FormBuilderProps> = ({
                                 );
                               })()}
 
-                              {field.listId && field.listId !== null && field.displayColumnId && (() => {
+                              {field.listId && field.displayColumnId && (() => {
                                 const selectedList = availableLists.find(l => l.id === field.listId);
                                 const displayColumn = selectedList?.columns.find(c => c.id === field.displayColumnId);
                                 

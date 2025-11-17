@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { TableColumnConfig } from '../types';
-import { Button } from './Button';
-import { Card } from './Card';
+import { TableColumnConfig } from '../../types';
+import { Button } from '../ui/Button';
+import { Card } from '../ui/Card';
 import { Calculator, Check, AlertCircle, Plus } from 'lucide-react';
 
 interface ColumnFormulaInputProps {

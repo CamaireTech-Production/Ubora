@@ -1,6 +1,6 @@
 import React from 'react';
 import { X, FileText } from 'lucide-react';
-import { Button } from './Button';
+import { Button } from '../ui/Button';
 
 interface TextExtractionReviewModalProps {
   isOpen: boolean;

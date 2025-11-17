@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
-import { Button } from '../components/ui/Button';
-import { Card } from '../components/ui/Card';
-import { Footer } from '../components/layout/Footer';
-import { LogoutConfirmationModal } from '../components/modals/LogoutConfirmationModal';
+import { Button } from '../../components/ui/Button';
+import { Card } from '../../components/ui/Card';
+import { Footer } from '../../components/layout/Footer';
+import { LogoutConfirmationModal } from '../../components/modals/LogoutConfirmationModal';
 import { AlertTriangle } from 'lucide-react';
 
 export const UnauthorizedPage: React.FC = () => {

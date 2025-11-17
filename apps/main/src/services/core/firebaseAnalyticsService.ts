@@ -4,7 +4,7 @@ import {
   setUserProperties, 
   Analytics
 } from 'firebase/analytics';
-import { analytics } from '../firebaseConfig';
+import { analytics } from '@ubora/shared/firebaseConfig';
 
 // Firebase Analytics Reporting API types
 interface AnalyticsData {

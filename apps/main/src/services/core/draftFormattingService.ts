@@ -1,4 +1,4 @@
-import { db } from '../firebaseConfig';
+import { db } from '@ubora/shared/firebaseConfig';
 import { doc, getDoc, setDoc, deleteDoc, collection, query, where, getDocs } from 'firebase/firestore';
 
 export interface DraftFormattingResult {

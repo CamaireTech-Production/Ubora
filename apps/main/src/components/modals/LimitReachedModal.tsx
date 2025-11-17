@@ -1,10 +1,8 @@
-import React, { useState, useCallback } from 'react';
+import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { X, AlertCircle, ArrowRight, CreditCard } from 'lucide-react';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
-import { Button } from './Button';
-import { useToast } from '@ubora/shared/hooks/useToast';
-import { UserSessionService } from '@ubora/shared/services/userSessionService';
+import { Button } from '../ui/Button';
 import { PackageType } from '@ubora/shared/config/packageFeatures';
 
 interface LimitReachedModalProps {
@@ -28,8 +26,6 @@ export const LimitReachedModal: React.FC<LimitReachedModalProps> = ({
 }) => {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { showSuccess, showError } = useToast();
-  
   if (!isOpen) return null;
 
   const getTypeLabel = () => {
@@ -54,18 +50,22 @@ export const LimitReachedModal: React.FC<LimitReachedModalProps> = ({
 
   const getCurrentPackage = (): PackageType | null => {
     if (!user) return null;
-    const packageInfo = UserSessionService.getUserPackageInfo(user);
-    return packageInfo.packageType as PackageType;
+    const legacyPackage = user.package;
+    const supportedPackages: PackageType[] = ['free', 'starter', 'standard'];
+    if (legacyPackage && supportedPackages.includes(legacyPackage as PackageType)) {
+      return legacyPackage as PackageType;
+    }
+    return null;
   };
 
   const getNextPackage = (): PackageType | null => {
     const currentPackage = getCurrentPackage();
-    if (!currentPackage) return null;
+    if (!currentPackage) return 'starter';
     
     switch (currentPackage) {
+      case 'free': return 'starter';
       case 'starter': return 'standard';
-      case 'standard': return 'premium';
-      case 'premium': return null; // No next package after premium
+      case 'standard': return null;
       default: return null;
     }
   };
@@ -75,8 +75,8 @@ export const LimitReachedModal: React.FC<LimitReachedModalProps> = ({
     if (!nextPackage) return 'Voir les packages';
     
     switch (nextPackage) {
+      case 'starter': return 'Passer au Starter';
       case 'standard': return 'Passer au Standard';
-      case 'premium': return 'Passer au Premium';
       default: return 'Voir les packages';
     }
   };
@@ -91,6 +91,7 @@ export const LimitReachedModal: React.FC<LimitReachedModalProps> = ({
 
   const handleUpgrade = () => {
     onClose();
+    onUpgrade();
     const nextPackage = getNextPackage();
     if (nextPackage) {
       // Navigate to package page with next package highlighted
@@ -103,6 +104,10 @@ export const LimitReachedModal: React.FC<LimitReachedModalProps> = ({
 
   const handlePayAsYouGo = () => {
     onClose();
+    if (onPayAsYouGo) {
+      onPayAsYouGo(type, 1);
+      return;
+    }
     // Navigate to package page with specific pay-as-you-go section highlighted
     navigate(`/packages/manage?section=pay-as-you-go&type=${type}`);
   };

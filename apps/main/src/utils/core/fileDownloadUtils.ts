@@ -2,7 +2,7 @@
  * Convert firestore:// URLs to actual HTTP download URLs
  */
 
-import { getFilesDownloadEndpoint } from '../config/api';
+import { getFilesDownloadEndpoint } from '@ubora/shared/config/api';
 export const convertToDownloadUrl = (firestoreUrl: string): string => {
   if (!firestoreUrl || !firestoreUrl.startsWith('firestore://')) {
     return firestoreUrl; // Return as-is if not a firestore URL

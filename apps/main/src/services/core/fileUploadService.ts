@@ -5,8 +5,8 @@ import {
   deleteObject,
   UploadResult 
 } from 'firebase/storage';
-import { storage } from '../firebaseConfig';
-import { FileAttachment } from '../types';
+import { storage } from '@ubora/shared/firebaseConfig';
+import { FileAttachment } from '../../types';
 import { PDFTextExtractionService } from './pdfTextExtractionService';
 import { ImageTextExtractionService } from './imageTextExtractionService';
 

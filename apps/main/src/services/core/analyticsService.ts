@@ -1,5 +1,5 @@
 import { logEvent, setUserId, setUserProperties, Analytics } from 'firebase/analytics';
-import { analytics } from '../firebaseConfig';
+import { analytics } from '@ubora/shared/firebaseConfig';
 import { FirebaseAnalyticsService } from './firebaseAnalyticsService';
 
 // Real Analytics Data Types

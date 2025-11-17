@@ -6,7 +6,7 @@ import { TableRenderer } from './TableRenderer';
 import { ChatMessage } from '../../types';
 import { MultiFormatToPDF } from '@ubora/shared/utils/MultiFormatToPDF';
 import { generatePDF } from '@ubora/shared/utils/PDFGenerator';
-import { MultiFormatPDFGenerator } from '../PDFGeneration/MultiFormatPDFGenerator';
+import { MultiFormatPDFGenerator } from '../reports/MultiFormatPDFGenerator';
 
 interface MessageBubbleProps {
   message: ChatMessage;
@@ -503,7 +503,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
                             
                             // If there are charts, convert them to PNG using recharts-to-png
                             if (pdfData.charts && pdfData.charts.length > 0) {
-                              const { RechartsToPNG } = await import('../../utils/RechartsToPNG');
+                              const { RechartsToPNG } = await import('../../utils/reports/RechartsToPNG');
                               
                               const updatedPdfData = {
                                 ...pdfData,

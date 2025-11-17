@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { PaymentRequest, CampayPaymentData } from '../types/payment';
-import { CampayService } from '../services/campayService';
+import { PaymentRequest, CampayPaymentData } from '../../types/payment';
+import { CampayService } from '../../services/payments/campayService';
 
 interface CampayPaymentProps {
   paymentRequest: PaymentRequest;
@@ -67,7 +67,7 @@ export const CampayPayment: React.FC<CampayPaymentProps> = ({
           onModalOpen?.();
         }, 100);
       })
-      .catch((error) => {
+      .catch((_error) => {
         setIsOpening(false);
         setHasOpened(false);
       })

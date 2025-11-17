@@ -3,7 +3,7 @@ import { Download, Eye, FileText, File, FileImage, FileSpreadsheet, FileType } f
 import { PDFFileReference } from '../../types';
 import { useToast } from '@ubora/shared/hooks/useToast';
 import { getFileDownloadURL } from '@ubora/shared/utils/firebaseStorageUtils';
-import { PDFViewerModal } from '../PDFViewerModal';
+import { PDFViewerModal } from '../modals/PDFViewerModal';
 import { downloadFile } from '@ubora/shared/utils/downloadUtils';
 import { forceDownloadFromFirebase } from '@ubora/shared/utils/firebaseDownloadUtils';
 
@@ -72,7 +72,7 @@ export const PDFFileDisplay: React.FC<PDFFileDisplayProps> = ({ pdfFiles }) => {
           () => {
             showSuccess('Téléchargement démarré');
           },
-          (error) => {
+          (_error) => {
             // Fallback to regular download
             handleDownloadFallback(pdfFile);
           }

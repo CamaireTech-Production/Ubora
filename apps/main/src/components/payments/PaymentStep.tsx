@@ -4,7 +4,7 @@ import { Button } from '../ui/Button';
 import { CheckCircle, Info, CreditCard } from 'lucide-react';
 import { CampayPayment } from './CampayPayment';
 import { PaymentService } from '@ubora/shared/services/paymentService';
-import { PaymentRequest, CampayPaymentData } from '../types/payment';
+import { PaymentRequest, CampayPaymentData } from '../../types/payment';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
 import { useToast } from '@ubora/shared/hooks/useToast';
 

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Card } from '../ui/Card';
 import { Play, ChevronLeft, ChevronRight } from 'lucide-react';
-import { Video } from '../data/videoData';
+import { Video } from '@/data/videoData';
 import { VideoModal } from './VideoModal';
 
 interface VideoSectionProps {
@@ -41,9 +41,6 @@ export const VideoSection: React.FC<VideoSectionProps> = ({
     }
   };
 
-  const getEmbedUrl = (youtubeId: string) => {
-    return `https://www.youtube.com/embed/${youtubeId}?autoplay=1&rel=0&modestbranding=1`;
-  };
 
   const getThumbnailUrl = (youtubeId: string) => {
     return `https://img.youtube.com/vi/${youtubeId}/maxresdefault.jpg`;

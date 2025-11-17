@@ -4,23 +4,23 @@ import { useAuth } from '@ubora/shared/contexts/AuthContext';
 import { useApp } from '@ubora/shared/contexts/AppContext';
 import { useConversation } from '@ubora/shared/contexts/ConversationContext';
 import { useAIResponse } from '@ubora/shared/contexts/AIResponseContext';
-import { LoadingGuard } from '../components/loading/LoadingGuard';
-import { WelcomeScreen } from '../components/core/WelcomeScreen';
-import { ChatTopBar } from '../components/chat/ChatTopBar';
-import MessageList from '../components/chat/MessageList';
-import { ChatComposer } from '../components/chat/ChatComposer';
-import { FloatingSidePanel } from '../components/chat/FloatingSidePanel';
-import { Footer } from '../components/layout/Footer';
-import { ChatMessage } from '../types';
+import { LoadingGuard } from '../../components/loading/LoadingGuard';
+import { WelcomeScreen } from '../../components/core/WelcomeScreen';
+import { ChatTopBar } from '../../components/chat/ChatTopBar';
+import MessageList from '../../components/chat/MessageList';
+import { ChatComposer } from '../../components/chat/ChatComposer';
+import { FloatingSidePanel } from '../../components/chat/FloatingSidePanel';
+import { Footer } from '../../components/layout/Footer';
+import { ChatMessage } from '../../types';
 import { useToast } from '@ubora/shared/hooks/useToast';
-import { usePackageAccess } from '../hooks/packages/usePackageAccess';
-import { TokenCounter } from '../services/core/tokenCounter';
-import { PayAsYouGoModal } from '../components/payments/PayAsYouGoModal';
-import { LimitReachedModal } from '../components/modals/LimitReachedModal';
+import { usePackageAccess } from '../../hooks/packages/usePackageAccess';
+import { TokenCounter } from '../../services/core/tokenCounter';
+import { PayAsYouGoModal } from '../../components/payments/PayAsYouGoModal';
+import { LimitReachedModal } from '../../components/modals/LimitReachedModal';
 import { AnalyticsService } from '@ubora/shared/services/analyticsService';
-import { LogoutConfirmationModal } from '../components/modals/LogoutConfirmationModal';
-import { ImpersonationHeader } from '../components/layout/ImpersonationHeader';
-// import { MemoizedConnectionQualityIndicator, useConnectionQuality } from '../components/ConnectionQualityIndicator';
+import { LogoutConfirmationModal } from '../../components/modals/LogoutConfirmationModal';
+import { ImpersonationHeader } from '../../components/layout/ImpersonationHeader';
+// import { MemoizedConnectionQualityIndicator, useConnectionQuality } from '../../components/ConnectionQualityIndicator';
 import { enhancedFetch } from '@ubora/shared/utils/errorHandling'; // Enhanced error handling with retry logic
 
 // Remove the old Message interface since we're using ChatMessage from types

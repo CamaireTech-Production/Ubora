@@ -1,6 +1,6 @@
 import React, { useRef, useState } from 'react';
-import { Card } from './Card';
-import { Button } from './Button';
+import { Card } from '../ui/Card';
+import { Button } from '../ui/Button';
 import { Upload, FileText, AlertCircle, CheckCircle, X } from 'lucide-react';
 
 interface CSVRow {

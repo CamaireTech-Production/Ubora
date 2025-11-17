@@ -18,6 +18,22 @@ interface PackageTransitionUserNeedsProps {
   className?: string;
 }
 
+const getPackageLimit = (pkg: PackageType, feature: keyof UserNeeds): number => {
+  const limits = PACKAGE_LIMITS[pkg];
+  switch (feature) {
+    case 'forms':
+      return limits.maxForms;
+    case 'dashboards':
+      return limits.maxDashboards;
+    case 'users':
+      return limits.maxUsers;
+    case 'tokens':
+      return limits.monthlyTokens;
+    default:
+      return 0;
+  }
+};
+
 export const PackageTransitionUserNeeds: React.FC<PackageTransitionUserNeedsProps> = ({
   currentPackage,
   newPackage,
@@ -51,32 +67,32 @@ export const PackageTransitionUserNeeds: React.FC<PackageTransitionUserNeedsProp
         return {
           icon: <FileText className="h-4 w-4" />,
           name: 'Formulaires',
-          currentLimit: PACKAGE_LIMITS[currentPackage].maxForms,
-          newLimit: PACKAGE_LIMITS[newPackage].maxForms,
+          currentLimit: getPackageLimit(currentPackage, feature),
+          newLimit: getPackageLimit(newPackage, feature),
           description: 'Nombre de formulaires que vous souhaitez créer'
         };
       case 'dashboards':
         return {
           icon: <BarChart3 className="h-4 w-4" />,
           name: 'Tableaux de bord',
-          currentLimit: PACKAGE_LIMITS[currentPackage].maxDashboards,
-          newLimit: PACKAGE_LIMITS[newPackage].maxDashboards,
+          currentLimit: getPackageLimit(currentPackage, feature),
+          newLimit: getPackageLimit(newPackage, feature),
           description: 'Nombre de tableaux de bord que vous souhaitez créer'
         };
       case 'users':
         return {
           icon: <Users className="h-4 w-4" />,
           name: 'Utilisateurs',
-          currentLimit: PACKAGE_LIMITS[currentPackage].maxUsers,
-          newLimit: PACKAGE_LIMITS[newPackage].maxUsers,
+          currentLimit: getPackageLimit(currentPackage, feature),
+          newLimit: getPackageLimit(newPackage, feature),
           description: 'Nombre total d\'utilisateurs dans votre équipe'
         };
       case 'tokens':
         return {
           icon: <Zap className="h-4 w-4" />,
           name: 'Tokens ARCHA',
-          currentLimit: PACKAGE_LIMITS[currentPackage].monthlyTokens,
-          newLimit: PACKAGE_LIMITS[newPackage].monthlyTokens,
+          currentLimit: getPackageLimit(currentPackage, feature),
+          newLimit: getPackageLimit(newPackage, feature),
           description: 'Tokens ARCHA supplémentaires nécessaires'
         };
       default:
@@ -95,13 +111,13 @@ export const PackageTransitionUserNeeds: React.FC<PackageTransitionUserNeedsProp
   };
 
   const needsPayAsYouGo = (feature: keyof UserNeeds) => {
-    const newLimit = PACKAGE_LIMITS[newPackage][feature];
+    const newLimit = getPackageLimit(newPackage, feature);
     const requestedAmount = needs[feature] || 0;
     return newLimit !== -1 && requestedAmount > newLimit;
   };
 
   const getPayAsYouGoCost = (feature: keyof UserNeeds) => {
-    const newLimit = PACKAGE_LIMITS[newPackage][feature];
+    const newLimit = getPackageLimit(newPackage, feature);
     const requestedAmount = needs[feature] || 0;
     const extraNeeded = Math.max(0, requestedAmount - newLimit);
     

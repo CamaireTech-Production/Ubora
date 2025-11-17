@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
-import { Layout } from '../components/layout/Layout';
-import { ListEditor } from '../components/ListEditor';
-import { List } from '../types';
+import { Layout } from '../../components/layout/Layout';
+import { ListEditor } from '../../components/lists/ListEditor';
+import { List } from '../../types';
 import { listsService } from '@ubora/shared/services/listsService';
 import { useToast } from '@ubora/shared/hooks/useToast';
-import { Toast } from '../components/ui/Toast';
-import { WireframeLoader } from '../components/loading/WireframeLoader';
+import { Toast } from '../../components/ui/Toast';
+import { WireframeLoader } from '../../components/loading/WireframeLoader';
 
 export const ListEditorPage: React.FC = () => {
   const navigate = useNavigate();

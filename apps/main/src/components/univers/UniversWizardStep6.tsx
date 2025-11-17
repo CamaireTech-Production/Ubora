@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { ReportBuilder } from '../reports/ReportBuilder';
-import { ReportDefinition, Form, Dashboard, ReportPlaceholder, ReportMapping } from '../../types';
+import { ReportDefinition, Dashboard, ReportPlaceholder, ReportMapping } from '../../types';
 import { UniversWizardStepProps } from './UniversWizard';
 import { Plus, Trash2, Edit, FileBarChart, CheckCircle, AlertCircle, ArrowLeft, FileText } from 'lucide-react';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
@@ -47,24 +47,7 @@ export const UniversWizardStep6: React.FC<UniversWizardStepProps> = ({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [wizardData.definitions.reports]);
-
-  // Convert Form definitions to Form objects for ReportBuilder
-  const universForms = useMemo<Form[]>(() => {
-    const formDefinitions = (wizardData.definitions.forms || []) as any[];
-    return formDefinitions.map((formDef): Form => ({
-      id: formDef.id,
-      title: formDef.title,
-      description: formDef.description,
-      createdBy: user?.id || '',
-      createdByRole: 'directeur',
-      assignedTo: [],
-      fields: formDef.fields || [],
-      createdAt: new Date(),
-      agencyId: user?.agencyId || ''
-    }));
-  }, [wizardData.definitions.forms, user]);
-
-  // Convert Dashboard definitions to Dashboard objects for ReportBuilder
+  
   const universDashboards = useMemo<Dashboard[]>(() => {
     const dashboardDefinitions = (wizardData.definitions.dashboards || []) as any[];
     return dashboardDefinitions.map((dashboardDef): Dashboard => ({

@@ -1,5 +1,5 @@
 // import { doc, updateDoc, getDoc, serverTimestamp } from 'firebase/firestore';
-// import { db } from '../firebaseConfig'; // Unused for now
+// import { db } from '@ubora/shared/firebaseConfig'; // Unused for now
 import { SubscriptionSessionService } from './subscriptionSessionService';
 import { getPackagePrice } from '@ubora/shared/config/packageFeatures';
 

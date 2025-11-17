@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { confirmPasswordReset, verifyPasswordResetCode } from 'firebase/auth';
-import { auth } from '../firebaseConfig';
-import { Button } from '../components/ui/Button';
-import { Input } from '../components/ui/Input';
-import { Card } from '../components/ui/Card';
-import { Footer } from '../components/layout/Footer';
+import { auth } from '@ubora/shared/firebaseConfig';
+import { Button } from '../../components/ui/Button';
+import { Input } from '../../components/ui/Input';
+import { Card } from '../../components/ui/Card';
+import { Footer } from '../../components/layout/Footer';
 import { Lock, AlertCircle, CheckCircle } from 'lucide-react';
 
 export const PasswordResetPage: React.FC = () => {

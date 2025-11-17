@@ -3,7 +3,7 @@ import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { UniversWizardStepProps } from './UniversWizard';
-import { UniversMetadata, UniversOwnership, UniversDefinitions } from '../../types';
+import { UniversMetadata, UniversDefinitions } from '../../types';
 import {
   FileText,
   BarChart3,
@@ -14,13 +14,9 @@ import {
   AlertCircle,
   Globe,
   User,
-  Loader2,
-  Info,
-  Sparkles,
-  DollarSign
+  Info
 } from 'lucide-react';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
-import { useToast } from '@ubora/shared/hooks/useToast';
 import { UniversCard } from './UniversCard';
 
 interface PublishOption {
@@ -58,7 +54,6 @@ export const UniversWizardStep7: React.FC<UniversWizardStepProps> = ({
   templateData
 }) => {
   const { user } = useAuth();
-  const { showSuccess, showError, showWarning } = useToast();
 
   // En mode lecture seule, utiliser les données du template
   const displayData = readOnly && templateData ? {
@@ -76,7 +71,6 @@ export const UniversWizardStep7: React.FC<UniversWizardStepProps> = ({
   const [selectedPublishOption, setSelectedPublishOption] = useState<'private' | 'marketplace'>(
     (metadata.publishOption as 'private' | 'marketplace') || 'private'
   );
-  const [isCreating, setIsCreating] = useState(false);
   const [price, setPrice] = useState<number | null>(metadata.price ?? null);
   const [isFree, setIsFree] = useState<boolean>(
     metadata.price === 0 || metadata.price === null || metadata.price === undefined
@@ -97,7 +91,6 @@ export const UniversWizardStep7: React.FC<UniversWizardStepProps> = ({
 
   // Validation
   const isValid = metadata.name && metadata.name.trim() && formsCount > 0;
-  const hasOptionalItems = dashboardsCount > 0 || instructionsCount > 0;
 
   // Mark step as viewable (completed when viewed)
   useEffect(() => {
@@ -135,10 +128,6 @@ export const UniversWizardStep7: React.FC<UniversWizardStepProps> = ({
     goToStep(stepNumber);
   };
 
-  const getPublishOptionDetails = () => {
-    return PUBLISH_OPTIONS.find(opt => opt.id === selectedPublishOption);
-  };
-
   // Store publish option and price in wizard data when changed (seulement si pas en lecture seule)
   useEffect(() => {
     if (!readOnly) {
@@ -166,61 +155,6 @@ export const UniversWizardStep7: React.FC<UniversWizardStepProps> = ({
       markStepCompleted(step);
     }
     }, [selectedPublishOption, price, isFree, currency, packageAccess, updateWizardData, metadata, readOnly, markStepCompleted, step]);
-
-  const handleCreate = async () => {
-    if (!user?.id || !user?.agencyId) {
-      showError('Données utilisateur manquantes');
-      return;
-    }
-
-    if (!isValid) {
-      showError('Le nom du Univers et au moins un formulaire sont requis');
-      return;
-    }
-
-    // Validation: prix valide si marketplace
-    if (selectedPublishOption === 'marketplace' && !isFree) {
-      if (price === null || price === undefined || price < 0) {
-        showError('Le prix doit être supérieur ou égal à 0 pour un Univers marketplace payant');
-        return;
-      }
-      if (!currency) {
-        showError('La devise est requise pour un Univers marketplace payant');
-        return;
-      }
-    }
-
-    setIsCreating(true);
-
-    try {
-      // Prepare Univers metadata
-      const universMetadata: UniversMetadata = {
-        name: metadata.name!,
-        description: metadata.description || '',
-        iconUrl: metadata.iconUrl,
-        category: metadata.category,
-        tags: metadata.tags || [],
-        version: 1,
-        createdAt: new Date()
-      };
-
-      // Store publish option in metadata for wizard to use
-      updateWizardData({
-        metadata: {
-          ...universMetadata,
-          publishOption: selectedPublishOption // Store temporarily in metadata
-        },
-        definitions: universDefinitions
-      });
-
-      showSuccess('Configuration enregistrée ! Le Univers sera créé lorsque vous cliquerez sur "Créer le Univers".');
-    } catch (error) {
-      console.error('Error preparing Univers:', error);
-      showError('Erreur lors de la préparation du Univers');
-    } finally {
-      setIsCreating(false);
-    }
-  };
 
   // En mode lecture seule, afficher uniquement le résumé
   if (readOnly) {
@@ -407,7 +341,6 @@ export const UniversWizardStep7: React.FC<UniversWizardStepProps> = ({
                   usage: { totalUsages: 0 }
                 }}
                 onView={() => {}}
-                showActions={false}
               />
             </div>
           </Card>

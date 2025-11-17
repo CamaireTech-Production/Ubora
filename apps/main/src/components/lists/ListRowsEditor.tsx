@@ -1,9 +1,9 @@
 import React, { useState, useMemo } from 'react';
-import { ListColumn, ListRow } from '../types';
-import { Button } from './Button';
-import { Input } from './Input';
-import { Card } from './Card';
-import { ConfirmationModal } from './ConfirmationModal';
+import { ListColumn, ListRow } from '../../types';
+import { Button } from '../ui/Button';
+import { Input } from '../ui/Input';
+import { Card } from '../ui/Card';
+import { ConfirmationModal } from '../modals/ConfirmationModal';
 import { Plus, Trash2, Edit, Copy, Search, ChevronLeft, ChevronRight } from 'lucide-react';
 import { validateValueAgainstType } from '@ubora/shared/utils/csvTypeDetector';
 
@@ -156,7 +156,7 @@ export const ListRowsEditor: React.FC<ListRowsEditorProps> = ({
     const updatedRows = [...rows];
     // Find the actual index in the original rows array
     const actualRow = filteredRows[editingRowIndex];
-    const originalIndex = rows.findIndex((r, idx) => {
+    const originalIndex = rows.findIndex((r) => {
       // Compare row data to find the original index
       return columns.every(col => r[col.id] === actualRow[col.id]);
     });
@@ -190,7 +190,7 @@ export const ListRowsEditor: React.FC<ListRowsEditorProps> = ({
     if (rowToDelete === null) return;
 
     const actualRow = filteredRows[rowToDelete];
-    const updatedRows = rows.filter((r, idx) => {
+    const updatedRows = rows.filter((r) => {
       // Find and remove the row by comparing data
       return !columns.every(col => r[col.id] === actualRow[col.id]);
     });

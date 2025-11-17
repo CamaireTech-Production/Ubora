@@ -1,6 +1,6 @@
 import React from 'react';
-import { List } from '../types';
-import { Button } from './Button';
+import { List } from '../../types';
+import { Button } from '../ui/Button';
 import { Edit, Trash2, Database, Calendar, Eye } from 'lucide-react';
 
 interface ListCardProps {

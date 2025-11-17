@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Card } from './Card';
-import { Button } from './Button';
+import { Card } from '../ui/Card';
+import { Button } from '../ui/Button';
 import { CheckCircle, AlertCircle, Loader2, X } from 'lucide-react';
-import { FormField } from '../types';
+import { FormField } from '../../types';
 
 interface FieldMapping {
   formFieldId: string;
@@ -38,7 +38,6 @@ export const CSVImportProgress: React.FC<CSVImportProgressProps> = ({
   const [currentField, setCurrentField] = useState<string>('');
   const [results, setResults] = useState<ImportResult[]>([]);
   const [isComplete, setIsComplete] = useState(false);
-  const [error, setError] = useState<string>('');
 
   const totalSteps = mappings.length;
   const stepDuration = 1000; // 1 second per step

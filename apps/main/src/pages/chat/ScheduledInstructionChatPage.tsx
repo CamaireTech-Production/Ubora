@@ -1,15 +1,13 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Calendar, Clock, Repeat, MessageSquare, AlertCircle } from 'lucide-react';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
-import { LoadingGuard } from '../components/loading/LoadingGuard';
-import { Button } from '../components/ui/Button';
-import MessageList from '../components/chat/MessageList';
-import { MessageBubble } from '../components/chat/MessageBubble';
+import { Button } from '../../components/ui/Button';
+import MessageList from '../../components/chat/MessageList';
 import { scheduledQuestionService } from '@ubora/shared/services/scheduledQuestionService';
 import { useToast } from '@ubora/shared/hooks/useToast';
-import { ScheduledQuestion, ScheduledQuestionResponse, ChatMessage } from '../types';
-import { Layout } from '../components/layout/Layout';
+import { ScheduledQuestion, ScheduledQuestionResponse, ChatMessage } from '../../types';
+import { Layout } from '../../components/layout/Layout';
 
 export const ScheduledQuestionChatPage: React.FC = () => {
   const { user } = useAuth();
@@ -64,7 +62,7 @@ export const ScheduledQuestionChatPage: React.FC = () => {
   };
 
   // Convertir les réponses en messages de chat
-  const chatMessages: ChatMessage[] = responses.map((response, index) => ({
+  const chatMessages: ChatMessage[] = responses.map((response) => ({
     id: response.id,
     type: 'assistant',
     content: response.response,
@@ -152,7 +150,14 @@ export const ScheduledQuestionChatPage: React.FC = () => {
   };
 
   if (isLoading) {
-    return <LoadingGuard />;
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <AlertCircle className="mx-auto h-12 w-12 text-blue-500 animate-pulse mb-4" />
+          <p className="text-gray-600">Chargement de la question programmée...</p>
+        </div>
+      </div>
+    );
   }
 
   if (!question) {
@@ -175,7 +180,7 @@ export const ScheduledQuestionChatPage: React.FC = () => {
   }
 
   return (
-    <Layout>
+    <Layout title="Question programmée">
       <div className="min-h-screen bg-gray-50">
       {/* En-tête fixe avec la question originale */}
       <div className="sticky top-0 z-30 bg-white border-b border-gray-200 shadow-sm">

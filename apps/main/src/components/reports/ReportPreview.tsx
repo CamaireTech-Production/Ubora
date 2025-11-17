@@ -1,10 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { ReportDefinition, DashboardDefinition } from '@ubora/shared/types';
+import { ReportDefinition, DashboardDefinition, Dashboard, DashboardMetric } from '../../types';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { TableMetricDisplay } from '../dashboard/TableMetricDisplay';
-import { MetricCalculator } from '@ubora/shared/utils/MetricCalculator';
-import { tableDataService } from '../services/core/tableDataService';
-import { DashboardMetric } from '../types';
+import { MetricCalculator } from '../../utils/forms/MetricCalculator';
+import { tableDataService } from '../../services/core/tableDataService';
 
 interface ReportPreviewProps {
   report: ReportDefinition;
@@ -18,6 +17,22 @@ interface ReportPreviewProps {
  */
 export const ReportPreview: React.FC<ReportPreviewProps> = ({ report, dashboards = [], formEntries = [] }) => {
   // Placeholder chart data (same as dashboard preview)
+  const toDashboard = (definition: DashboardDefinition): Dashboard => {
+    const maybeDashboard = definition as Partial<Dashboard>;
+    return {
+      ...definition,
+      createdAt: maybeDashboard.createdAt ?? new Date(),
+      createdBy: maybeDashboard.createdBy ?? '',
+      createdByRole: maybeDashboard.createdByRole ?? 'directeur',
+      createdByEmployeeId: maybeDashboard.createdByEmployeeId,
+      agencyId: maybeDashboard.agencyId ?? '',
+      isDefault: maybeDashboard.isDefault,
+      universId: (maybeDashboard.universId ?? null) as string | null,
+      universInstanceId: (maybeDashboard.universInstanceId ?? null) as string | null,
+      fromUnivers: maybeDashboard.fromUnivers ?? false
+    };
+  };
+
   const placeholderChartData = [
     { x: 'Jan', y: 0 },
     { x: 'Fév', y: 0 },
@@ -28,7 +43,7 @@ export const ReportPreview: React.FC<ReportPreviewProps> = ({ report, dashboards
   ];
 
   // Get real metric value from mapping if formEntries are provided
-  const getRealMetricValue = (placeholder: string, mapping?: any): string | null => {
+  const getRealMetricValue = (mapping?: any): string | null => {
     if (!formEntries || formEntries.length === 0 || !mapping) {
       return null; // No data or no mapping, use mock value
     }
@@ -38,10 +53,13 @@ export const ReportPreview: React.FC<ReportPreviewProps> = ({ report, dashboards
       const dashboard = dashboards.find(d => d.id === mapping.sourceId);
       if (dashboard && dashboard.metrics) {
         const metric = dashboard.metrics.find(m => m.id === mapping.metricId);
-        if (metric) {
+            if (metric) {
           try {
-            // Use MetricCalculator to calculate the real value
-            const result = MetricCalculator.calculateMetric(metric, formEntries, dashboard);
+            const result = MetricCalculator.calculateMetric(
+              metric,
+              formEntries,
+              dashboard ? toDashboard(dashboard) : undefined
+            );
             if (result && result.displayValue !== undefined) {
               return String(result.displayValue);
             }
@@ -59,7 +77,7 @@ export const ReportPreview: React.FC<ReportPreviewProps> = ({ report, dashboards
   // All numeric/metric values should show 0 since there's no data (like dashboard preview)
   const getMockValue = (placeholder: string, mapping?: any): string => {
     // Try to get real value first if formEntries are available
-    const realValue = getRealMetricValue(placeholder, mapping);
+    const realValue = getRealMetricValue(mapping);
     if (realValue !== null) {
       return realValue;
     }
@@ -349,7 +367,6 @@ export const ReportPreview: React.FC<ReportPreviewProps> = ({ report, dashboards
                     key={index}
                     metric={metricToDisplay}
                     formEntries={formEntries}
-                    dashboard={dashboards.find(d => d.id === mapping?.sourceId)}
                   />
                 );
               }
@@ -422,8 +439,7 @@ export const ReportPreview: React.FC<ReportPreviewProps> = ({ report, dashboards
   const TableMetricWithData: React.FC<{
     metric: DashboardMetric;
     formEntries: any[];
-    dashboard?: DashboardDefinition;
-  }> = ({ metric, formEntries, dashboard }) => {
+  }> = ({ metric, formEntries }) => {
     const [tableRows, setTableRows] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(true);
 

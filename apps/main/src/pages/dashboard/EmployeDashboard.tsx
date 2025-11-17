@@ -2,19 +2,19 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
 import { useApp } from '@ubora/shared/contexts/AppContext';
-import { Layout } from '../components/layout/Layout';
-import { Card } from '../components/ui/Card';
-import { Button } from '../components/ui/Button';
-import { DynamicForm } from '../components/forms/DynamicForm';
-import { WireframeLoader } from '../components/loading/WireframeLoader';
-import { Toast } from '../components/ui/Toast';
+import { Layout } from '../../components/layout/Layout';
+import { Card } from '../../components/ui/Card';
+import { Button } from '../../components/ui/Button';
+import { DynamicForm } from '../../components/forms/DynamicForm';
+import { WireframeLoader } from '../../components/loading/WireframeLoader';
+import { Toast } from '../../components/ui/Toast';
 import { useToast } from '@ubora/shared/hooks/useToast';
 import { FileText, CheckCircle, ArrowLeft, Eye, AlertTriangle, Edit, Trash2, Send, FileEdit, Filter, Calendar, SortAsc, SortDesc, Download, ClipboardList, FileBarChart } from 'lucide-react';
-import { PDFViewerModal } from '../components/PDFViewerModal';
+import { PDFViewerModal } from '../../components/modals/PDFViewerModal';
 import { downloadFile } from '@ubora/shared/utils/downloadUtils';
 import { getFileBlobUrl, downloadFileFromBlob } from '@ubora/shared/utils/simpleFileDownload';
-import { VideoSection } from '../components/VideoSection';
-import { employeeVideos } from '../data/videoData';
+import { VideoSection } from '../../components/core/VideoSection';
+import { employeeVideos } from '../../data/videoData';
 
 interface ResponsesInterfaceProps {
   myEntries: any[];

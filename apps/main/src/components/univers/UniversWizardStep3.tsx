@@ -2,20 +2,15 @@ import React, { useState, useEffect } from 'react';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { FormBuilder } from '../forms/FormBuilder';
-import { FormField } from '../../types';
+import { FormField, FormDefinition as BaseFormDefinition } from '../../types';
 import { UniversWizardStepProps } from './UniversWizard';
 import { Plus, Trash2, Edit, FileText, CheckCircle, AlertCircle, ArrowLeft } from 'lucide-react';
 import { useApp } from '@ubora/shared/contexts/AppContext';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
 import { useToast } from '@ubora/shared/hooks/useToast';
 
-// FormDefinition interface for Univers
-interface FormDefinition {
-  id: string;
-  title: string;
-  description: string;
-  fields: FormField[];
-  assignedTo: string[]; // Empty array - user will set when using template
+type WizardFormDefinition = BaseFormDefinition & {
+  assignedTo: string[];
   timeRestrictions?: {
     startTime?: string;
     endTime?: string;
@@ -30,7 +25,7 @@ interface FormDefinition {
     reminderIntervals: number[];
     enabled: boolean;
   };
-}
+};
 
 export const UniversWizardStep3: React.FC<UniversWizardStepProps> = ({
   wizardData,
@@ -43,21 +38,20 @@ export const UniversWizardStep3: React.FC<UniversWizardStepProps> = ({
 }) => {
   const { employees } = useApp();
   const { user } = useAuth();
-  const { showSuccess, showError } = useToast();
+  const { showSuccess } = useToast();
 
   // En mode lecture seule, utiliser les données du template
   const initialForms = readOnly && templateData 
-    ? (templateData.definitions.forms || [])
-    : ((wizardData.definitions.forms as FormDefinition[]) || []);
+    ? ((templateData.definitions.forms || []) as WizardFormDefinition[])
+    : ((wizardData.definitions.forms as WizardFormDefinition[]) || []);
 
-  const [forms, setForms] = useState<FormDefinition[]>(initialForms);
+  const [forms, setForms] = useState<WizardFormDefinition[]>(initialForms);
   const [showFormBuilder, setShowFormBuilder] = useState(false);
   const [editingFormId, setEditingFormId] = useState<string | null>(null);
-  const [selectedFormId, setSelectedFormId] = useState<string | null>(null);
 
   // Sync local state with wizardData when it changes (e.g., after loading from localStorage)
   useEffect(() => {
-    const savedForms = (wizardData.definitions.forms as FormDefinition[]) || [];
+    const savedForms = (wizardData.definitions.forms as WizardFormDefinition[]) || [];
     // Only update if the saved forms are different from current forms
     // Check by length first, then by deep comparison if needed
     if (savedForms.length !== forms.length) {
@@ -94,13 +88,11 @@ export const UniversWizardStep3: React.FC<UniversWizardStepProps> = ({
 
   const handleAddForm = () => {
     setEditingFormId(null);
-    setSelectedFormId(null);
     setShowFormBuilder(true);
   };
 
   const handleEditForm = (formId: string) => {
     setEditingFormId(formId);
-    setSelectedFormId(formId);
     setShowFormBuilder(true);
   };
 
@@ -138,7 +130,7 @@ export const UniversWizardStep3: React.FC<UniversWizardStepProps> = ({
       showSuccess('Formulaire modifié');
     } else {
       // Create new form
-      const newForm: FormDefinition = {
+      const newForm: WizardFormDefinition = {
         id: `form_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
         title: formData.title,
         description: formData.description,
@@ -152,19 +144,17 @@ export const UniversWizardStep3: React.FC<UniversWizardStepProps> = ({
 
     setShowFormBuilder(false);
     setEditingFormId(null);
-    setSelectedFormId(null);
   };
 
   const handleFormCancel = () => {
     setShowFormBuilder(false);
     setEditingFormId(null);
-    setSelectedFormId(null);
   };
 
-  const getFormIcon = (form: FormDefinition) => {
-    const hasFileFields = form.fields.some(field => field.type === 'file');
-    const hasDateFields = form.fields.some(field => field.type === 'date');
-    const hasNumberFields = form.fields.some(field => field.type === 'number');
+  const getFormIcon = (form: WizardFormDefinition) => {
+    const hasFileFields = form.fields.some((field: FormField) => field.type === 'file');
+    const hasDateFields = form.fields.some((field: FormField) => field.type === 'date');
+    const hasNumberFields = form.fields.some((field: FormField) => field.type === 'number');
     
     if (hasFileFields) return <FileText className="h-5 w-5 text-blue-600" />;
     if (hasDateFields && hasNumberFields) return <FileText className="h-5 w-5 text-green-600" />;

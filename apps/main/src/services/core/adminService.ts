@@ -12,8 +12,8 @@ import {
   limit,
   serverTimestamp 
 } from 'firebase/firestore';
-import { db } from '../firebaseConfig';
-import { User, AdminDashboardStats, AdminUser, AdminActivitySummary } from '../types';
+import { db } from '@ubora/shared/firebaseConfig';
+import { User, AdminDashboardStats, AdminUser, AdminActivitySummary } from '../../types';
 import { ActivityLogService, ActivityLogger } from './activityLogService';
 import { AnalyticsService } from './analyticsService';
 

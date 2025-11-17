@@ -1,7 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { X, Sparkles, FileText } from 'lucide-react';
-import { Button } from './Button';
+import { Button } from '../ui/Button';
 
 interface UniversCreateModalProps {
   isOpen: boolean;

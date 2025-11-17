@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Form, FormField, FileAttachment } from '../types';
+import { Form, FormField, FileAttachment } from '../../types';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { Textarea } from '../ui/Textarea';
@@ -20,7 +20,7 @@ import { getFileBlobUrl } from '@ubora/shared/utils/simpleFileDownload';
 import { TextExtractionReviewModal } from '../core/TextExtractionReviewModal';
 import { UserSessionService } from '@ubora/shared/services/userSessionService';
 import { listsService } from '@ubora/shared/services/listsService';
-import { List, ListRow } from '../types';
+import { List, ListRow } from '../../types';
 import { useApp } from '@ubora/shared/contexts/AppContext';
 
 // Helper function to convert field IDs back to user-friendly field names in formulas

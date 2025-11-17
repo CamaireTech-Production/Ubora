@@ -1,6 +1,6 @@
 import { doc, updateDoc, getDoc, serverTimestamp } from 'firebase/firestore';
-import { db } from '../firebaseConfig';
-import { User, SubscriptionSession } from '../types';
+import { db } from '@ubora/shared/firebaseConfig';
+import { User, SubscriptionSession } from '../../types';
 import { SubscriptionSessionService } from './subscriptionSessionService';
 import { SubscriptionSessionCollectionService } from '@ubora/shared/services/subscriptionSessionCollectionService';
 

@@ -1,5 +1,5 @@
-import { FileAttachment } from '../types';
-import { db } from '../firebaseConfig';
+import { FileAttachment } from '../../types';
+import { db } from '@ubora/shared/firebaseConfig';
 import { collection, query, where, getDocs, limit } from 'firebase/firestore';
 
 /**

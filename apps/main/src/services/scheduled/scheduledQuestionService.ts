@@ -14,9 +14,9 @@ import {
   onSnapshot,
   Timestamp
 } from 'firebase/firestore';
-import { db } from '../firebaseConfig';
-import { ScheduledQuestion, ScheduledQuestionResponse } from '../types';
-import { getCameroonTime, calculateNextExecutionCameroon } from '../utils/timezoneUtils';
+import { db } from '@ubora/shared/firebaseConfig';
+import { ScheduledQuestion, ScheduledQuestionResponse } from '../../types';
+import { getCameroonTime, calculateNextExecutionCameroon } from '../../utils/core/timezoneUtils';
 
 class ScheduledQuestionService {
   private readonly collectionName = 'scheduledQuestions';

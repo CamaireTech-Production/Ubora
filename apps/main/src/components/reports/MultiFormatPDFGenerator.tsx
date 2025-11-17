@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
-import { Button } from '../Button';
+import { Button } from '../ui/Button';
 import { ChatMessage, GraphData } from '../../types';
-import { PDFGenerator } from '../../utils/PDFGenerator';
-import { MultiFormatToPDF } from '../../utils/MultiFormatToPDF';
-import { RechartsToPNG } from '../../utils/RechartsToPNG';
+import { PDFGenerator } from '../../utils/reports/PDFGenerator';
+import { MultiFormatToPDF } from '@ubora/shared/utils/MultiFormatToPDF';
+import { RechartsToPNG } from '../../utils/reports/RechartsToPNG';
 import { Download, FileText, Loader2 } from 'lucide-react';
 
 interface MultiFormatPDFGeneratorProps {

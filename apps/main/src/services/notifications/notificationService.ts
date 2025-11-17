@@ -1,6 +1,6 @@
 import { unifiedNotificationService } from './unifiedNotificationService';
 import { doc, getDoc } from 'firebase/firestore';
-import { db } from '../firebaseConfig';
+import { db } from '@ubora/shared/firebaseConfig';
 
 export interface NotificationData {
   id?: string;
@@ -112,7 +112,7 @@ class NotificationService {
     try {
       // Import the push notification hook to get a fresh token
       const { getToken } = await import('firebase/messaging');
-      const { messaging } = await import('../firebaseConfig');
+      const { messaging } = await import('@ubora/shared/firebaseConfig');
       
       const messagingInstance = await messaging;
       if (!messagingInstance) {

@@ -3,13 +3,13 @@ import { useNavigate } from 'react-router-dom';
 import { Plus, Search, Calendar, Clock, MessageSquare, ArrowLeft, Wrench } from 'lucide-react';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
 import { useApp } from '@ubora/shared/contexts/AppContext';
-import { Button } from '../components/ui/Button';
-import { ScheduledQuestionCard } from '../components/scheduled/ScheduledQuestionCard';
+import { Button } from '../../components/ui/Button';
+import { ScheduledQuestionCard } from '../../components/scheduled/ScheduledQuestionCard';
 import { scheduledQuestionService } from '@ubora/shared/services/scheduledQuestionService';
 import { useToast } from '@ubora/shared/hooks/useToast';
-import { ScheduledQuestion } from '../types';
-import { Layout } from '../components/layout/Layout';
-import { WireframeLoader } from '../components/loading/WireframeLoader';
+import { ScheduledQuestion } from '../../types';
+import { Layout } from '../../components/layout/Layout';
+import { WireframeLoader } from '../../components/loading/WireframeLoader';
 import { universService } from '@ubora/shared/services/universService';
 
 export const ScheduledQuestionsPage: React.FC = () => {
@@ -114,7 +114,7 @@ export const ScheduledQuestionsPage: React.FC = () => {
       showSuccess('Exécution de l\'instruction en cours...');
       
       // Importer le service d'exécution
-      const { scheduledQuestionExecutor } = await import('../services/scheduledQuestionExecutor');
+      const { scheduledQuestionExecutor } = await import('../../services/scheduled/scheduledQuestionExecutor');
       
       // Exécuter l'instruction manuellement
       await scheduledQuestionExecutor.executeQuestionManually(questionId);
@@ -144,7 +144,7 @@ export const ScheduledQuestionsPage: React.FC = () => {
       showSuccess('Réparation des questions bloquées en cours...');
       
       // Importer le service d'exécution
-      const { scheduledQuestionExecutor } = await import('../services/scheduledQuestionExecutor');
+      const { scheduledQuestionExecutor } = await import('../../services/scheduled/scheduledQuestionExecutor');
       
       // Réparer les questions bloquées
       await scheduledQuestionExecutor.fixStuckQuestions();
@@ -319,7 +319,7 @@ export const ScheduledQuestionsPage: React.FC = () => {
             {statusCounts.running > 0 && (
               <div className="flex items-center">
                 <Button
-                  variant="outline"
+                  variant="secondary"
                   size="sm"
                   onClick={handleFixStuckQuestions}
                   className="flex items-center space-x-2 text-orange-600 border-orange-300 hover:bg-orange-50"

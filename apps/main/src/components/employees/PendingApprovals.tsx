@@ -1,11 +1,11 @@
 import React, { useState, useRef } from 'react';
-import { Card } from './Card';
-import { Button } from './Button';
+import { Card } from '../ui/Card';
+import { Button } from '../ui/Button';
 import { User as UserIcon, CheckCircle, XCircle, Clock, Mail, Building2 } from 'lucide-react';
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '@ubora/shared/firebaseConfig';
 import { useToast } from '@ubora/shared/hooks/useToast';
-import { User } from '../types';
+import { User } from '../../types';
 
 interface PendingApprovalsProps {
   pendingEmployees: User[];

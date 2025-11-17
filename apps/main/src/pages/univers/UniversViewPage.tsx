@@ -2,14 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
 import { useApp } from '@ubora/shared/contexts/AppContext';
-import { Layout } from '../components/layout/Layout';
-import { Card } from '../components/ui/Card';
-import { Button } from '../components/ui/Button';
+import { Layout } from '../../components/layout/Layout';
+import { Card } from '../../components/ui/Card';
+import { Button } from '../../components/ui/Button';
 import { Univers, UniversInstance } from '@ubora/shared/types';
 import { universService } from '@ubora/shared/services/universService';
 import { useToast } from '@ubora/shared/hooks/useToast';
-import { Toast } from '../components/ui/Toast';
-import { InstanceVersionHistory } from '../components/InstanceVersionHistory';
+import { Toast } from '../../components/ui/Toast';
+import { InstanceVersionHistory } from '../../components/univers/InstanceVersionHistory';
 import { 
   ArrowLeft, 
   Edit, 
@@ -31,11 +31,11 @@ import {
   ChevronDown,
   ChevronUp
 } from 'lucide-react';
-import { ConfirmationModal } from '../components/modals/ConfirmationModal';
-import { FormPreview } from '../components/FormPreview';
-import { DashboardPreview } from '../components/DashboardPreview';
-import { ReportPreview } from '../components/ReportPreview';
-import { WireframeLoader } from '../components/loading/WireframeLoader';
+import { ConfirmationModal } from '../../components/modals/ConfirmationModal';
+import { FormPreview } from '../../components/forms/FormPreview';
+import { DashboardPreview } from '../../components/dashboard/DashboardPreview';
+import { ReportPreview } from '../../components/reports/ReportPreview';
+import { WireframeLoader } from '../../components/loading/WireframeLoader';
 
 export const UniversViewPage: React.FC = () => {
   const navigate = useNavigate();

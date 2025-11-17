@@ -1,6 +1,6 @@
 import { collection, query, where, getDocs, getDoc, updateDoc, doc, serverTimestamp } from 'firebase/firestore';
-import { db } from '../firebaseConfig';
-import { Payment } from '../types';
+import { db } from '@ubora/shared/firebaseConfig';
+import { Payment } from '../../types';
 import { PackageTransitionService } from './packageTransitionService';
 import { SubscriptionSessionCollectionService } from '@ubora/shared/services/subscriptionSessionCollectionService';
 

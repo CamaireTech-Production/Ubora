@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
-import { FormField, ConditionalRule, List } from '../types';
-import { Button } from './Button';
-import { Select } from './Select';
+import { FormField, ConditionalRule, List } from '../../types';
+import { Button } from '../ui/Button';
+import { Select } from '../ui/Select';
 import { ConditionRule } from './ConditionRule';
-import { Card } from './Card';
+import { Card } from '../ui/Card';
 import { Plus, Eye, EyeOff, AlertCircle } from 'lucide-react';
 
 interface ConditionalLogicBuilderProps {

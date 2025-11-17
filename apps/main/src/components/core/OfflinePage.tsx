@@ -1,8 +1,8 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Card } from './Card';
+import { Card } from '../ui/Card';
 import { WifiOff, RefreshCw, Home } from 'lucide-react';
-import { Button } from './Button';
+import { Button } from '../ui/Button';
 
 export const OfflinePage: React.FC = () => {
   const navigate = useNavigate();

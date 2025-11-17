@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { Button } from './Button';
-import { Upload, FileText, X } from 'lucide-react';
+import { Button } from '../ui/Button';
+import { Upload, FileText } from 'lucide-react';
 import { CSVImportModal } from './CSVImportModal';
 
 interface FieldCSVImportProps {

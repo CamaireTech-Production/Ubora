@@ -5,9 +5,9 @@ import { universService } from '@ubora/shared/services/universService';
 import { Univers, UniversInstance } from '@ubora/shared/types';
 import { collection, query, getDocs, orderBy } from 'firebase/firestore';
 import { db } from '@ubora/shared';
-import { Card } from '../components/Card';
-import { Button } from '../components/Button';
-import { Input } from '../components/Input';
+import { Card } from '../../components/ui/Card';
+import { Button } from '../../components/ui/Button';
+import { Input } from '../../components/ui/Input';
 import { 
   ArrowLeft,
   Globe,

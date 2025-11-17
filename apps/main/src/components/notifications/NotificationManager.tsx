@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Card } from './Card';
-import { Button } from './Button';
+import { Card } from '../ui/Card';
+import { Button } from '../ui/Button';
 import { fcmService, FCMNotification, FCMDeliveryLog } from '@ubora/shared/services/fcmService';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
 import { Bell, Send, Users, User, AlertCircle, CheckCircle, XCircle } from 'lucide-react';

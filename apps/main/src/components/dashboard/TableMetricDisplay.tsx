@@ -1,7 +1,7 @@
 import React from 'react';
-import { DashboardMetric, TableColumnConfig } from '../types';
-import { TableRowData } from '../utils/forms/MetricCalculator';
-import { Table, AlertCircle, Maximize2 } from 'lucide-react';
+import { DashboardMetric, TableColumnConfig } from '../../types';
+import { TableRowData } from '../../utils/forms/MetricCalculator';
+import { Table, Maximize2 } from 'lucide-react';
 import { Button } from '../ui/Button';
 
 interface TableMetricDisplayProps {

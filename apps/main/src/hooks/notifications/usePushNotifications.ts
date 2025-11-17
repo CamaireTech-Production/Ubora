@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { getToken, onMessage } from 'firebase/messaging';
-import { messaging } from '../firebaseConfig';
+import { messaging } from '@ubora/shared/firebaseConfig';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
-import { db } from '../firebaseConfig';
+import { db } from '@ubora/shared/firebaseConfig';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
 
 interface NotificationPermission {
@@ -77,7 +77,7 @@ export const usePushNotifications = () => {
       }
 
       // Get platform info
-      const { isIOS, isAndroid } = detectPlatform();
+      const { isIOS } = detectPlatform();
 
       // iOS specific checks
       if (isIOS) {
@@ -194,13 +194,6 @@ export const usePushNotifications = () => {
       }
 
       // Ensure we pass the active service worker registration used by the app
-      let serviceWorkerRegistration: ServiceWorkerRegistration | undefined;
-      try {
-        serviceWorkerRegistration = await navigator.serviceWorker.getRegistration('/') || undefined;
-      } catch (e) {
-        serviceWorkerRegistration = undefined;
-      }
-
       const token = await getToken(messagingInstance, {
         vapidKey: vapidKey
         // Removed serviceWorkerRegistration to let Firebase use firebase-messaging-sw.js automatically

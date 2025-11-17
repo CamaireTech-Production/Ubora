@@ -1,16 +1,16 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { DashboardMetric, Form, FormField, TableColumnConfig, TableRowSource, AggregateColumn, DerivedColumn, LabelColumn, List, TableFilter } from '../types';
-import { ColumnFormulaInput } from './ColumnFormulaInput';
-import { Button } from './Button';
-import { Input } from './Input';
-import { Textarea } from './Textarea';
-import { Select } from './Select';
-import { Card } from './Card';
+import { DashboardMetric, Form, FormField, TableColumnConfig, TableRowSource, AggregateColumn, DerivedColumn, LabelColumn, List, TableFilter } from '../../types';
+import { ColumnFormulaInput } from '../forms/ColumnFormulaInput';
+import { Button } from '../ui/Button';
+import { Input } from '../ui/Input';
+import { Textarea } from '../ui/Textarea';
+import { Select } from '../ui/Select';
+import { Card } from '../ui/Card';
 import { Plus, Trash2, AlertCircle, FileText, Hash, Type, Mail, Calendar, CheckSquare, Upload, AlertTriangle, ArrowLeft, Calculator, Table, ArrowUp, ArrowDown, Package } from 'lucide-react';
-import { GraphPreview } from './charts/GraphPreview';
+import { GraphPreview } from '../charts/GraphPreview';
 import { getValidYAxisFields, validateYAxisField } from '@ubora/shared/utils/GraphFieldValidator';
-import { MetricFormulaInput } from './MetricFormulaInput';
-import { MetricFormulaParser } from '../utils/MetricFormulaParser';
+import { MetricFormulaInput } from '../forms/MetricFormulaInput';
+import { MetricFormulaParser } from '../../utils/forms/MetricFormulaParser';
 import { listsService } from '@ubora/shared/services';
 import { useApp } from '@ubora/shared/contexts/AppContext';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
@@ -1952,7 +1952,7 @@ export const DashboardBuilder: React.FC<DashboardBuilderProps> = ({
                                       <div>
                                         <ColumnFormulaInput
                                           value={(column as DerivedColumn).formula || ''}
-                                          onChange={(formula: string, columnIds: string[]) => {
+                                          onChange={(formula: string, _columnIds: string[]) => {
                                             const currentTableConfig = ensureTableConfig(metric.tableConfig);
                                             const columns = [...currentTableConfig.columns];
                                             columns[colIndex] = {

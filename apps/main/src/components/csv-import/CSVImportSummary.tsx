@@ -1,8 +1,7 @@
 import React from 'react';
-import { Card } from './Card';
-import { Button } from './Button';
+import { Card } from '../ui/Card';
+import { Button } from '../ui/Button';
 import { CheckCircle, AlertCircle, X, Download, Eye, EyeOff } from 'lucide-react';
-import { FormField } from '../types';
 
 interface ImportResult {
   fieldId: string;
@@ -33,7 +32,6 @@ export const CSVImportSummary: React.FC<CSVImportSummaryProps> = ({
   const successfulResults = results.filter(r => r.success);
   const failedResults = results.filter(r => !r.success);
   const totalNewOptions = results.reduce((sum, r) => sum + r.newOptions.length, 0);
-  const totalExistingOptions = results.reduce((sum, r) => sum + r.existingOptions.length, 0);
 
   const toggleFieldExpansion = (fieldId: string) => {
     const newExpanded = new Set(expandedFields);
@@ -200,7 +198,7 @@ export const CSVImportSummary: React.FC<CSVImportSummaryProps> = ({
         <Card>
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Détail des modifications</h3>
           <div className="space-y-4">
-            {results.map((result, index) => {
+            {results.map((result) => {
               const isExpanded = expandedFields.has(result.fieldId);
               
               return (

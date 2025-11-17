@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { Form, FormField, DashboardMetric, FormEntry } from '../types';
-import { Button } from './Button';
-import { Card } from './Card';
-import { Input } from './Input';
-import { Textarea } from './Textarea';
-import { GraphPreview } from './charts/GraphPreview';
-import { GraphModal } from './charts/GraphModal';
+import { Form, DashboardMetric, FormEntry } from '../../types';
+import { Button } from '../ui/Button';
+import { Input } from '../ui/Input';
+import { Textarea } from '../ui/Textarea';
+import { GraphPreview } from '../charts/GraphPreview';
 import { X, BarChart3, FileText, Hash, Type, Mail, Calendar, CheckSquare, Upload, AlertTriangle } from 'lucide-react';
-import { getValidYAxisFields, validateYAxisField, getFieldValidationErrorMessage } from '@ubora/shared/utils/GraphFieldValidator';
+import { getValidYAxisFields, validateYAxisField } from '@ubora/shared/utils/GraphFieldValidator';
+type SharedDashboardMetric = import('@ubora/shared/types').DashboardMetric;
+type SharedFormEntry = import('@ubora/shared/types').FormEntry;
+type SharedForm = import('@ubora/shared/types').Form;
 
 interface MetricEditModalProps {
   isOpen: boolean;
@@ -29,8 +30,8 @@ export const MetricEditModal: React.FC<MetricEditModalProps> = ({
   metricIndex,
   forms,
   formEntries,
-  currentUserId,
-  agencyId
+  currentUserId: _currentUserId,
+  agencyId: _agencyId
 }) => {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -38,7 +39,7 @@ export const MetricEditModal: React.FC<MetricEditModalProps> = ({
   const [fieldId, setFieldId] = useState('');
   const [fieldType, setFieldType] = useState<'text' | 'number' | 'email' | 'textarea' | 'select' | 'checkbox' | 'date' | 'file' | 'calculated'>('text');
   const [calculationType, setCalculationType] = useState<'count' | 'sum' | 'average' | 'min' | 'max' | 'unique'>('count');
-  const [metricType, setMetricType] = useState<'value' | 'graph'>('value');
+  const [metricType, setMetricType] = useState<DashboardMetric['metricType']>('value');
   const [graphConfig, setGraphConfig] = useState<DashboardMetric['graphConfig']>(undefined);
   const [errors, setErrors] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -47,13 +48,19 @@ export const MetricEditModal: React.FC<MetricEditModalProps> = ({
   // Reset form when modal opens/closes or metric changes
   useEffect(() => {
     if (isOpen && metric) {
-      setName(metric.name);
-      setDescription(metric.description || '');
-      setFormId(metric.formId);
-      setFieldId(metric.fieldId);
-      setFieldType(metric.fieldType);
-      setCalculationType(metric.calculationType);
-      setMetricType(metric.metricType || 'value');
+      setName(metric.name ?? '');
+      setDescription(metric.description ?? '');
+      setFormId(metric.formId ?? '');
+      setFieldId(metric.fieldId ?? '');
+      setFieldType(metric.fieldType ?? 'text');
+      setCalculationType(metric.calculationType ?? 'count');
+      const supportedTypes: DashboardMetric['metricType'][] = ['value', 'graph'];
+      const incomingType = metric.metricType ?? 'value';
+      setMetricType(
+        supportedTypes.includes(incomingType as DashboardMetric['metricType'])
+          ? (incomingType as DashboardMetric['metricType'])
+          : 'value'
+      );
       setGraphConfig(metric.graphConfig);
       setErrors([]);
       setIsLoading(false);
@@ -155,7 +162,7 @@ export const MetricEditModal: React.FC<MetricEditModalProps> = ({
     const selectedField = availableFields.find(f => f.id === newFieldId);
     setFieldId(newFieldId);
     if (selectedField) {
-      setFieldType(selectedField.type as any);
+      setFieldType(selectedField.type);
     }
   };
 
@@ -474,10 +481,11 @@ export const MetricEditModal: React.FC<MetricEditModalProps> = ({
                         metric={{
                           ...metric!,
                           metricType: 'graph',
-                          graphConfig: graphConfig
-                        }}
-                        formEntries={formEntries.filter(entry => entry.formId === formId)}
-                        forms={forms}
+                          graphConfig,
+                          tableConfig: undefined
+                        } as unknown as SharedDashboardMetric}
+                        formEntries={formEntries.filter(entry => entry.formId === formId) as unknown as SharedFormEntry[]}
+                        forms={forms as unknown as SharedForm[]}
                         compact={true}
                       />
                     </div>

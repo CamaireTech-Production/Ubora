@@ -8,7 +8,7 @@ import {
   TableColumnConfig,
   FormEntry,
   List
-} from '../types';
+} from '../../types';
 import { listsService } from '@ubora/shared/services';
 import { TableRowData } from '../utils/forms/MetricCalculator';
 

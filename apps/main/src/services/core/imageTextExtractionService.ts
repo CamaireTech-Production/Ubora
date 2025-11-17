@@ -4,7 +4,7 @@
  */
 
 import { enhancedFetch } from '../utils/errorHandling';
-import { getOCRExtractEndpoint } from '../config/api';
+import { getOCRExtractEndpoint } from '@ubora/shared/config/api';
 import { TokenUsageLogService } from './tokenUsageLogService';
 import { TokenStatsService } from './tokenStatsService';
 import { TokenCounter } from './tokenCounter';

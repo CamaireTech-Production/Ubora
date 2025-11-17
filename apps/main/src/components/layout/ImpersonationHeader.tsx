@@ -4,8 +4,8 @@ import { useAuth } from '@ubora/shared/contexts/AuthContext';
 import { usePermissions } from '@ubora/shared/hooks/usePermissions';
 import { Info, X } from 'lucide-react';
 import { collection, query, where, getDocs } from 'firebase/firestore';
-import { db } from '../firebaseConfig';
-import { User } from '../types';
+import { db } from '@ubora/shared/firebaseConfig';
+import { User } from '../../types';
 
 interface ImpersonationHeaderProps {
   onExit?: () => void;

@@ -1,5 +1,5 @@
 import { enhancedFetch } from '../utils/errorHandling';
-import { getOCRPDFEndpoint } from '../config/api';
+import { getOCRPDFEndpoint } from '@ubora/shared/config/api';
 import { TokenUsageLogService } from './tokenUsageLogService';
 import { TokenStatsService } from './tokenStatsService';
 import { TokenCounter } from './tokenCounter';

@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
-import { Button } from '../components/ui/Button';
-import { Input } from '../components/ui/Input';
-import { Card } from '../components/ui/Card';
+import { Button } from '../../components/ui/Button';
+import { Input } from '../../components/ui/Input';
+import { Card } from '../../components/ui/Card';
 import { Lock, Mail, AlertCircle, Shield } from 'lucide-react';
 import { ActivityLogger } from '@ubora/shared/services/activityLogService';
 import { AnalyticsService } from '@ubora/shared/services/analyticsService';

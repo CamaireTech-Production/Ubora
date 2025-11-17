@@ -2,22 +2,21 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
 import { useToast } from '@ubora/shared/hooks/useToast';
-import { Layout } from '../components/layout/Layout';
-import { Card } from '../components/ui/Card';
-import { Button } from '../components/ui/Button';
-import { PaymentStep } from '../components/PaymentStep';
-import { UniversWizard } from '../components/UniversWizard';
-import { UniversWizardStep1 } from '../components/UniversWizardStep1';
-import { UniversWizardStep2 } from '../components/UniversWizardStep2';
-import { UniversWizardStep3 } from '../components/UniversWizardStep3';
-import { UniversWizardStep4 } from '../components/UniversWizardStep4';
-import { UniversWizardStep5 } from '../components/UniversWizardStep5';
-import { UniversWizardStep6 } from '../components/UniversWizardStep6';
-import { UniversWizardStep7 } from '../components/UniversWizardStep7';
-import { Univers } from '../types';
+import { Layout } from '../../components/layout/Layout';
+import { Button } from '../../components/ui/Button';
+import { PaymentStep } from '../../components/payments/PaymentStep';
+import { UniversWizard } from '../../components/univers/UniversWizard';
+import { UniversWizardStep1 } from '../../components/univers/UniversWizardStep1';
+import { UniversWizardStep2 } from '../../components/univers/UniversWizardStep2';
+import { UniversWizardStep3 } from '../../components/univers/UniversWizardStep3';
+import { UniversWizardStep4 } from '../../components/univers/UniversWizardStep4';
+import { UniversWizardStep5 } from '../../components/univers/UniversWizardStep5';
+import { UniversWizardStep6 } from '../../components/univers/UniversWizardStep6';
+import { UniversWizardStep7 } from '../../components/univers/UniversWizardStep7';
+import { Univers } from '../../types';
 import { universService } from '@ubora/shared/services/universService';
 import { ArrowLeft, AlertCircle } from 'lucide-react';
-import { WireframeLoader } from '../components/loading/WireframeLoader';
+import { WireframeLoader } from '../../components/loading/WireframeLoader';
 
 export const UniversCreateFromTemplatePage: React.FC = () => {
   const navigate = useNavigate();
@@ -82,11 +81,7 @@ export const UniversCreateFromTemplatePage: React.FC = () => {
     setCurrentStep('wizard');
   };
 
-  const handleComplete = async (universData: {
-    metadata: any;
-    ownership: any;
-    definitions: any;
-  }) => {
+  const handleComplete = async () => {
     if (!templateUnivers || !user?.id || !user?.agencyId) return;
 
     // Vérifier que l'utilisateur est un directeur
@@ -106,12 +101,6 @@ export const UniversCreateFromTemplatePage: React.FC = () => {
     setIsCreating(true);
     try {
       // Créer l'instance via purchaseUnivers()
-      const instanceId = await universService.purchaseUnivers(
-        templateUnivers.id,
-        user.id,
-        user.agencyId,
-        paymentId || undefined
-      );
 
       showSuccess(
         `Univers acheté et instancié avec succès ! L'instance est maintenant disponible.`

@@ -1,21 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Layout } from '../components/layout/Layout';
-import { Card } from '../components/ui/Card';
-import { Button } from '../components/ui/Button';
+import { Layout } from '../../components/layout/Layout';
+import { Card } from '../../components/ui/Card';
+import { Button } from '../../components/ui/Button';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
 import { useApp } from '@ubora/shared/contexts/AppContext';
 import { universService } from '@ubora/shared/services/universService';
-import { Univers, InstructionDefinition } from '../types';
+import { Univers } from '../../types';
 import { 
   ArrowLeft, 
   Calendar, 
   ChevronDown, 
   ChevronUp, 
-  Clock, 
   FileText, 
   Filter,
-  CheckCircle,
   AlertCircle,
   Loader2
 } from 'lucide-react';

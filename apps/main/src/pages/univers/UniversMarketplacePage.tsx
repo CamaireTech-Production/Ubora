@@ -1,16 +1,16 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
-import { Layout } from '../components/layout/Layout';
-import { UniversCard } from '../components/univers/UniversCard';
-import { MarketplaceFilters, MarketplaceFiltersState } from '../components/MarketplaceFilters';
-import { Univers } from '../types';
+import { Layout } from '../../components/layout/Layout';
+import { UniversCard } from '../../components/univers/UniversCard';
+import { MarketplaceFilters, MarketplaceFiltersState } from '../../components/univers/MarketplaceFilters';
+import { Univers } from '../../types';
 import { universService } from '@ubora/shared/services/universService';
 import { useToast } from '@ubora/shared/hooks/useToast';
-import { Toast } from '../components/ui/Toast';
-import { Button } from '../components/ui/Button';
+import { Toast } from '../../components/ui/Toast';
+import { Button } from '../../components/ui/Button';
 import { ArrowLeft, Globe, ChevronLeft, ChevronRight } from 'lucide-react';
-import { WireframeLoader } from '../components/loading/WireframeLoader';
+import { WireframeLoader } from '../../components/loading/WireframeLoader';
 
 export const UniversMarketplacePage: React.FC = () => {
   const navigate = useNavigate();

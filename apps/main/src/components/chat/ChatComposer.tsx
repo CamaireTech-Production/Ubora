@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { Send, Brain } from 'lucide-react';
-import { Button } from '../Button';
+import { Button } from '../ui/Button';
 import { FormatSelector } from './FormatSelector';
 import { ComprehensiveFilter } from './ComprehensiveFilter';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';

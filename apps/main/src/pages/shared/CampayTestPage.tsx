@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
-import { Layout } from '../components/layout/Layout';
-import { Button } from '../components/ui/Button';
-import { Card } from '../components/ui/Card';
-import { Input } from '../components/ui/Input';
-import { CampayService } from '../services/campayService';
-import { PaymentRequest, CampayPaymentData } from '../types/payment';
+import { Layout } from '../../components/layout/Layout';
+import { Button } from '../../components/ui/Button';
+import { Card } from '../../components/ui/Card';
+import { Input } from '../../components/ui/Input';
+import { CampayService } from '../../services/payments/campayService';
+import { PaymentRequest, CampayPaymentData } from '../../types/payment';
 import { 
   CreditCard, 
   CheckCircle, 

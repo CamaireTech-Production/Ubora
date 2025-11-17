@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { List, ListColumn, ListRow } from '../types';
-import { Button } from './Button';
-import { Input } from './Input';
+import { List, ListColumn, ListRow } from '../../types';
+import { Button } from '../ui/Button';
+import { Input } from '../ui/Input';
 import { X, Plus, Save, Edit, Trash2 } from 'lucide-react';
 import { listsService } from '@ubora/shared/services/listsService';
 import { useToast } from '@ubora/shared/hooks/useToast';
 import { validateValueAgainstType } from '@ubora/shared/utils/csvTypeDetector';
-import { ConfirmationModal } from './ConfirmationModal';
+import { ConfirmationModal } from '../modals/ConfirmationModal';
 
 interface ListViewModalProps {
   list: List;

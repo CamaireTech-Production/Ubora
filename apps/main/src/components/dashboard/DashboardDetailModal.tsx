@@ -1,10 +1,14 @@
 import React from 'react';
-import { Dashboard, FormEntry, Form } from '../types';
-import { Button } from './Button';
-import { Card } from './Card';
+import { Dashboard, FormEntry, Form } from '../../types';
+import { Button } from '../ui/Button';
+import { Card } from '../ui/Card';
 import { MetricCalculator } from '@ubora/shared/utils/MetricCalculator';
 import { TableMetricDisplay } from './TableMetricDisplay';
 import { X, BarChart3, TrendingUp, TrendingDown, Minus, Hash, Type, Mail, Calendar, CheckSquare, Upload, Eye, Edit, Trash2, Table } from 'lucide-react';
+
+type SharedDashboard = import('@ubora/shared/types').Dashboard;
+type SharedDashboardMetric = import('@ubora/shared/types').DashboardMetric;
+type SharedFormEntry = import('@ubora/shared/types').FormEntry;
 
 interface DashboardDetailModalProps {
   isOpen: boolean;
@@ -192,7 +196,16 @@ export const DashboardDetailModal: React.FC<DashboardDetailModalProps> = ({
               
               <div className="flex gap-3 sm:gap-4 lg:gap-6 overflow-x-auto pb-4 scrollbar-hide horizontal-scroll-metrics scroll-smooth">
               {dashboard.metrics.map((metric, index) => {
-                const result = MetricCalculator.calculateMetric(metric, formEntries, dashboard);
+                const result = MetricCalculator.calculateMetric(
+                  metric as unknown as SharedDashboardMetric,
+                  formEntries as unknown as SharedFormEntry[],
+                  dashboard as unknown as SharedDashboard
+                );
+                const formTitle = metric.formId ? getFormTitle(metric.formId) : 'Formulaire inconnu';
+                const fieldLabel =
+                  metric.formId && metric.fieldId
+                    ? getFieldLabel(metric.formId, metric.fieldId)
+                    : 'Champ inconnu';
                 
                 return (
                   <div key={metric.id || index} className="flex-shrink-0 w-64 sm:w-72 lg:w-80">
@@ -283,11 +296,11 @@ export const DashboardDetailModal: React.FC<DashboardDetailModalProps> = ({
                     <div className="text-xs text-gray-500 border-t border-gray-200 pt-1.5 sm:pt-2">
                       <div className="flex items-center space-x-1 mb-0.5 sm:mb-1">
                         <Eye className="h-2 w-2 sm:h-3 sm:w-3" />
-                        <span className="truncate">{getFormTitle(metric.formId)}</span>
+                        <span className="truncate">{formTitle}</span>
                       </div>
                       <div className="flex items-center space-x-1">
                         {getFieldIcon(metric.fieldType)}
-                        <span className="truncate">{getFieldLabel(metric.formId, metric.fieldId)}</span>
+                        <span className="truncate">{fieldLabel}</span>
                       </div>
                     </div>
                     </Card>

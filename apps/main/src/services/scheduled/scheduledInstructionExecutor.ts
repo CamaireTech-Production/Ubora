@@ -1,7 +1,7 @@
 import { scheduledQuestionService } from './scheduledQuestionService';
 import { notificationService } from './notificationService';
-import { ScheduledQuestion, ScheduledQuestionResponse } from '../types';
-import { getAIEndpoint } from '../config/api';
+import { ScheduledQuestion, ScheduledQuestionResponse } from '../../types';
+import { getAIEndpoint } from '@ubora/shared/config/api';
 
 class ScheduledQuestionExecutor {
   private isRunning = false;

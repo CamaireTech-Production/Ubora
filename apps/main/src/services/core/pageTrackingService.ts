@@ -8,7 +8,7 @@ import {
   limit,
   getDocs
 } from 'firebase/firestore';
-import { db } from '../firebaseConfig';
+import { db } from '@ubora/shared/firebaseConfig';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
 
 export interface PageViewRecord {

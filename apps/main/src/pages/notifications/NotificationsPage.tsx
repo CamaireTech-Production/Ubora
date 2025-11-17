@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Layout } from '../components/layout/Layout';
-import { PushNotificationSettings } from '../components/PushNotificationSettings';
-import { Card } from '../components/ui/Card';
-import { Button } from '../components/ui/Button';
+import { Layout } from '../../components/layout/Layout';
+import { PushNotificationSettings } from '../../components/notifications/PushNotificationSettings';
+import { Card } from '../../components/ui/Card';
+import { Button } from '../../components/ui/Button';
 import { Bell, CheckCircle, XCircle, Clock, Trash2, BarChart3, MessageSquare, AlertCircle, Settings } from 'lucide-react';
-import { WireframeLoader } from '../components/loading/WireframeLoader';
+import { WireframeLoader } from '../../components/loading/WireframeLoader';
 import { unifiedNotificationService, UnifiedNotification } from '@ubora/shared/services/unifiedNotificationService';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
 import { usePushNotifications } from '@ubora/shared/hooks/usePushNotifications';

@@ -1,4 +1,4 @@
-import { User } from '../types';
+import { User } from '../../types';
 import { SubscriptionSessionService } from './subscriptionSessionService';
 import { SubscriptionSessionCollectionService } from '@ubora/shared/services/subscriptionSessionCollectionService';
 import { PACKAGE_LIMITS, PACKAGE_FEATURES, PackageType } from '@ubora/shared/config/packageFeatures';
@@ -207,7 +207,7 @@ export class UserSessionService {
   static async getDirectorPackageInfoForEmployeeAsync(employee: User): Promise<UserPackageInfo> {
     try {
       // Import Firebase functions dynamically to avoid circular dependencies
-      const { db } = await import('../firebaseConfig');
+      const { db } = await import('@ubora/shared/firebaseConfig');
       const { collection, query, where, getDocs } = await import('firebase/firestore');
       
       // Find the director of the employee's agency

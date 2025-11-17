@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import { History, Filter, FileText, Users, X, ChevronDown, ChevronUp } from 'lucide-react';
-import { Button } from '../Button';
-import { Select } from '../Select';
+import { Button } from '../ui/Button';
+import { Select } from '../ui/Select';
 
 type TabId = "history" | "filters" | "forms" | "employees";
 

@@ -1,6 +1,6 @@
 import React from 'react';
 import { FileText, X, Save, Trash2, ArrowLeft } from 'lucide-react';
-import { Button } from './Button';
+import { Button } from '../ui/Button';
 
 interface DraftSaveModalProps {
   isOpen: boolean;

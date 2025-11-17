@@ -1,6 +1,6 @@
 import { addDoc, collection, doc, getDoc, serverTimestamp, Timestamp, updateDoc } from 'firebase/firestore';
-import { db } from '../firebaseConfig';
-import type { Payment, PaymentRequest, CampayPaymentData } from '../types/payment';
+import { db } from '@ubora/shared/firebaseConfig';
+import type { Payment, PaymentRequest, CampayPaymentData } from '../../types/payment';
 
 const MIN_FEE = 5000; // FCFA
 

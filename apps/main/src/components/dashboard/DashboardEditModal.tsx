@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Dashboard } from '../types';
-import { Button } from './Button';
-import { Input } from './Input';
-import { Textarea } from './Textarea';
+import { Dashboard } from '../../types';
+import { Button } from '../ui/Button';
+import { Input } from '../ui/Input';
+import { Textarea } from '../ui/Textarea';
 import { X } from 'lucide-react';
 
 interface DashboardEditModalProps {

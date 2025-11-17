@@ -1,16 +1,13 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { UniversWizardStepProps } from './UniversWizard';
 import { ListDefinition, ListColumn, ListRow } from '../../types';
-import { Plus, Trash2, Edit, Database, CheckCircle, AlertCircle, ChevronDown, ChevronUp, ArrowLeft } from 'lucide-react';
+import { Plus, Trash2, Edit, Database, AlertCircle, ChevronDown, ChevronUp, ArrowLeft } from 'lucide-react';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
 import { useToast } from '@ubora/shared/hooks/useToast';
 import { ListEditor } from '../lists/ListEditor';
 import { ListsCSVImport } from '../lists/ListsCSVImport';
-import { Input } from '../ui/Input';
-import { Textarea } from '../ui/Textarea';
-import { Select } from '../ui/Select';
 
 export const UniversWizardStep2: React.FC<UniversWizardStepProps> = ({
   wizardData,
@@ -22,7 +19,7 @@ export const UniversWizardStep2: React.FC<UniversWizardStepProps> = ({
   templateData
 }) => {
   const { user } = useAuth();
-  const { showSuccess, showError } = useToast();
+  const { showSuccess } = useToast();
 
   // En mode lecture seule, utiliser les données du template
   const initialLists = readOnly && templateData 
@@ -313,6 +310,44 @@ export const UniversWizardStep2: React.FC<UniversWizardStepProps> = ({
     );
   }
 
+  if (showCSVImport && csvImportListId) {
+    const targetList = lists.find(l => l.id === csvImportListId);
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center space-x-4">
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => {
+              setShowCSVImport(false);
+              setCsvImportListId(null);
+            }}
+            className="flex items-center space-x-2"
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+          <div>
+            <h2 className="text-2xl font-bold text-gray-900 mb-1">
+              Importer des données CSV
+            </h2>
+            <p className="text-gray-600">
+              Liste cible : {targetList?.name || 'Sélection inconnue'}
+            </p>
+          </div>
+        </div>
+
+        <ListsCSVImport
+          onImportComplete={handleCSVImportComplete}
+          onCancel={() => {
+            setShowCSVImport(false);
+            setCsvImportListId(null);
+          }}
+          existingColumns={targetList?.columns}
+        />
+      </div>
+    );
+  }
+
   // Show listing view when not creating/editing
   return (
     <div className="space-y-6">
@@ -490,20 +525,6 @@ export const UniversWizardStep2: React.FC<UniversWizardStepProps> = ({
             <span>Ajouter une liste</span>
           </Button>
         </div>
-      )}
-
-      {/* CSV Import Modal */}
-      {showCSVImport && csvImportListId && (
-        <ListsCSVImport
-          isOpen={showCSVImport}
-          onClose={() => {
-            setShowCSVImport(false);
-            setCsvImportListId(null);
-          }}
-          onImportComplete={handleCSVImportComplete}
-          initialColumns={lists.find(l => l.id === csvImportListId)?.columns || []}
-          initialRows={lists.find(l => l.id === csvImportListId)?.rows || []}
-        />
       )}
 
       {/* Info Card */}

@@ -3,14 +3,13 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Save, X } from 'lucide-react';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
 import { useApp } from '@ubora/shared/contexts/AppContext';
-import { WireframeLoader } from '../components/loading/WireframeLoader';
-import { Button } from '../components/ui/Button';
-import { ChatComposer } from '../components/chat/ChatComposer';
-import { ScheduledDateTimePicker } from '../components/scheduled/ScheduledDateTimePicker';
+import { Button } from '../../components/ui/Button';
+import { ChatComposer } from '../../components/chat/ChatComposer';
+import { ScheduledDateTimePicker } from '../../components/scheduled/ScheduledDateTimePicker';
 import { scheduledQuestionService } from '@ubora/shared/services/scheduledQuestionService';
 import { useToast } from '@ubora/shared/hooks/useToast';
-import { ScheduledQuestion } from '../types';
-import { Layout } from '../components/layout/Layout';
+import { ScheduledQuestion } from '../../types';
+import { Layout } from '../../components/layout/Layout';
 
 interface ChatFilters {
   period: string;
@@ -153,7 +152,14 @@ export const ScheduledQuestionFormPage: React.FC = () => {
   };
 
   if (isLoading) {
-    return <LoadingGuard isLoading={true} user={user} firebaseUser={null} children={null} />;
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <ArrowLeft className="h-12 w-12 text-blue-600 animate-pulse mx-auto mb-4" />
+          <p className="text-gray-600">Chargement de la question programmée...</p>
+        </div>
+      </div>
+    );
   }
 
   return (

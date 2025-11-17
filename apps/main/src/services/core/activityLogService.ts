@@ -1,6 +1,6 @@
 import { collection, addDoc, query, orderBy, limit, getDocs, where, serverTimestamp } from 'firebase/firestore';
-import { db } from '../firebaseConfig';
-import { ActivityLog, ActivityType } from '../types';
+import { db } from '@ubora/shared/firebaseConfig';
+import { ActivityLog, ActivityType } from '../../types';
 
 export class ActivityLogService {
   private static readonly COLLECTION_NAME = 'activityLogs';

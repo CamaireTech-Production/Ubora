@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Navigate, useSearchParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
-import { Button } from '../components/ui/Button';
-import { Input } from '../components/ui/Input';
-import { Card } from '../components/ui/Card';
-import { Footer } from '../components/layout/Footer';
+import { Button } from '../../components/ui/Button';
+import { Input } from '../../components/ui/Input';
+import { Card } from '../../components/ui/Card';
+import { Footer } from '../../components/layout/Footer';
 import { Lock, Mail, AlertCircle, Loader2, CheckCircle } from 'lucide-react';
 
 export const LoginPage: React.FC = () => {

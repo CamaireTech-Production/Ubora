@@ -1,6 +1,6 @@
 import { doc, updateDoc, getDoc, serverTimestamp } from 'firebase/firestore';
-import { db } from '../firebaseConfig';
-import { SubscriptionSession, User, PayAsYouGoPurchase } from '../types';
+import { db } from '@ubora/shared/firebaseConfig';
+import { SubscriptionSession, User, PayAsYouGoPurchase } from '../../types';
 import { PACKAGE_LIMITS } from '@ubora/shared/config/packageFeatures';
 import { SubscriptionSessionCollectionService } from '@ubora/shared/services/subscriptionSessionCollectionService';
 

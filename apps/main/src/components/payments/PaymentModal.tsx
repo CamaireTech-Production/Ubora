@@ -5,8 +5,7 @@ import { useToast } from '@ubora/shared/hooks/useToast';
 import { CampayPayment } from './CampayPayment';
 import { PayAsYouGoPaymentService } from '@ubora/shared/services/payAsYouGoPaymentService';
 import { PaymentService } from '@ubora/shared/services/paymentService';
-import { PaymentRequest } from '../types/payment';
-import { CampayPaymentData } from '../types/payment';
+import { PaymentRequest, CampayPaymentData } from '../../types/payment';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
 
 interface PaymentOption {

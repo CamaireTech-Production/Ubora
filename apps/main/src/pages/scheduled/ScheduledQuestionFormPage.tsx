@@ -1,19 +1,19 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Save, X } from 'lucide-react';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
 import { useApp } from '@ubora/shared/contexts/AppContext';
-import { WireframeLoader } from '../components/loading/WireframeLoader';
-import { Button } from '../components/ui/Button';
-import { SimpleInstructionInput } from '../components/scheduled/SimpleInstructionInput';
-import { SimpleFormatSelector } from '../components/scheduled/SimpleFormatSelector';
-import { SimpleFilterSelector } from '../components/scheduled/SimpleFilterSelector';
-import { ScheduledDateTimePicker } from '../components/scheduled/ScheduledDateTimePicker';
+import { WireframeLoader } from '../../components/loading/WireframeLoader';
+import { Button } from '../../components/ui/Button';
+import { SimpleInstructionInput } from '../../components/scheduled/SimpleInstructionInput';
+import { SimpleFormatSelector } from '../../components/scheduled/SimpleFormatSelector';
+import { SimpleFilterSelector } from '../../components/scheduled/SimpleFilterSelector';
+import { ScheduledDateTimePicker } from '../../components/scheduled/ScheduledDateTimePicker';
 import { scheduledQuestionService } from '@ubora/shared/services/scheduledQuestionService';
 import { useToast } from '@ubora/shared/hooks/useToast';
-import { ScheduledQuestion } from '../types';
-import { Layout } from '../components/layout/Layout';
-import { getCameroonTime, createCameroonDateTime, formatCameroonTime, getCameroonTimezoneDisplay } from '@ubora/shared/utils/timezoneUtils';
+import { ScheduledQuestion } from '../../types';
+import { Layout } from '../../components/layout/Layout';
+import { getCameroonTime } from '@ubora/shared/utils/timezoneUtils';
 
 interface ChatFilters {
   period: string;
@@ -107,7 +107,7 @@ export const ScheduledQuestionFormPage: React.FC = () => {
         agencyId: user.agencyId,
         question: question.trim(),
         title: title.trim(),
-        description: description.trim() || null,
+        description: description.trim(),
         scheduledAt,
         frequency,
         nextExecution: scheduledQuestionService.calculateNextExecution(scheduledAt, frequency),

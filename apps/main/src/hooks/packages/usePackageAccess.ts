@@ -1,86 +1,204 @@
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
-import { UserSessionService } from '@ubora/shared/services/userSessionService';
-import { 
-  PackageType, 
-  PackageFeatures, 
+import { UserSessionService, type UserPackageInfo } from '@ubora/shared/services/userSessionService';
+import {
+  PackageType,
+  PackageFeatures,
   PackageLimits,
   PACKAGE_LIMITS
 } from '@ubora/shared/config/packageFeatures';
 import { useState, useEffect, useMemo } from 'react';
 import { db } from '@ubora/shared/firebaseConfig';
 import { collection, query, where, getDocs } from 'firebase/firestore';
-import { useTokenStats } from './useTokenStats';
+import { useTokenStats } from '../../hooks/core/useTokenStats';
+
+type NumericPackageLimit = 'maxForms' | 'maxDashboards' | 'maxUsers' | 'monthlyTokens' | 'additionalUserCost';
+
+type PackageLimitData = {
+  maxForms?: number;
+  maxDashboards?: number;
+  maxUsers?: number;
+  maxTokens?: number;
+};
+
+const SUPPORTED_PACKAGE_TYPES: PackageType[] = ['free', 'starter', 'standard'];
+
+const normalizePackageType = (value?: string | null): PackageType | null => {
+  if (!value) return null;
+  return SUPPORTED_PACKAGE_TYPES.includes(value as PackageType) ? (value as PackageType) : null;
+};
+
+const getPackageLimitsData = (info: UserPackageInfo | null): PackageLimitData =>
+  ((info as any)?.packageLimits || {}) as PackageLimitData;
+
+const getAdditionalUserCostFromInfo = (info: UserPackageInfo | null): number => {
+  const normalizedType = normalizePackageType(info?.packageType ?? null);
+  if (normalizedType && PACKAGE_LIMITS[normalizedType]) {
+    return PACKAGE_LIMITS[normalizedType].additionalUserCost || 0;
+  }
+  return 0;
+};
+
+const resolveLimitValue = (info: UserPackageInfo | null, limit: NumericPackageLimit): number => {
+  const limits = getPackageLimitsData(info);
+  switch (limit) {
+    case 'monthlyTokens':
+      return limits.maxTokens ?? 0;
+    case 'additionalUserCost':
+      return getAdditionalUserCostFromInfo(info);
+    case 'maxForms':
+      return limits.maxForms ?? 0;
+    case 'maxDashboards':
+      return limits.maxDashboards ?? 0;
+    case 'maxUsers':
+      return limits.maxUsers ?? 0;
+    default:
+      return 0;
+  }
+};
 
 // Hook principal pour vérifier l'accès aux fonctionnalités
 export const usePackageAccess = () => {
   const { user } = useAuth();
   const tokenStats = useTokenStats(user?.id);
-  const [directorPackageInfo, setDirectorPackageInfo] = useState<any>(null);
+  const [directorPackageInfo, setDirectorPackageInfo] = useState<UserPackageInfo | null>(null);
   const [isLoadingDirectorInfo, setIsLoadingDirectorInfo] = useState(false);
-
-  // Get current package info from active session
-  const getCurrentPackageInfo = () => {
-    if (!user) return null;
-    
-    // For employees with director access, use the director's package info if available
-    if (user.role === 'employe' && user.hasDirectorDashboardAccess && directorPackageInfo) {
-      return directorPackageInfo;
-    }
-    
-    return UserSessionService.getUserPackageInfo(user);
-  };
+  const [packageInfo, setPackageInfo] = useState<UserPackageInfo | null>(null);
+  const [isLoadingPackageInfo, setIsLoadingPackageInfo] = useState(false);
+  const NUMERIC_LIMIT_KEYS: NumericPackageLimit[] = ['maxForms', 'maxDashboards', 'maxUsers', 'monthlyTokens', 'additionalUserCost'];
+  const isNumericLimit = (limit: keyof PackageLimits): limit is NumericPackageLimit =>
+    NUMERIC_LIMIT_KEYS.includes(limit as NumericPackageLimit);
 
   // Fetch director's package info for employees with director access
   useEffect(() => {
+    let isMounted = true;
     const fetchDirectorPackageInfo = async () => {
       if (!user || user.role !== 'employe' || !user.hasDirectorDashboardAccess) {
+        if (isMounted) {
+          setDirectorPackageInfo(null);
+        }
         return;
       }
 
       setIsLoadingDirectorInfo(true);
       try {
-        // Find the director of the employee's agency
         const directorsQuery = query(
           collection(db, 'users'),
           where('agencyId', '==', user.agencyId),
           where('role', '==', 'directeur')
         );
-        
+
         const directorsSnapshot = await getDocs(directorsQuery);
-        
+
         if (!directorsSnapshot.empty) {
-          const directorData = directorsSnapshot.docs[0].data() as any;
-          const directorPackageInfo = UserSessionService.getUserPackageInfo(directorData);
-          setDirectorPackageInfo(directorPackageInfo);
+          const directorDoc = directorsSnapshot.docs[0];
+          const directorData = { id: directorDoc.id, ...(directorDoc.data() as any) };
+          const directorInfo = await UserSessionService.getUserPackageInfo(directorData as any);
+          if (isMounted) {
+            setDirectorPackageInfo(directorInfo);
+          }
         }
       } catch (error) {
         console.error('Error fetching director package info:', error);
       } finally {
-        setIsLoadingDirectorInfo(false);
+        if (isMounted) {
+          setIsLoadingDirectorInfo(false);
+        }
       }
     };
 
     fetchDirectorPackageInfo();
+
+    return () => {
+      isMounted = false;
+    };
   }, [user]);
 
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadPackageInfo = async () => {
+      if (!user) {
+        if (isMounted) {
+          setPackageInfo(null);
+        }
+        return;
+      }
+
+      setIsLoadingPackageInfo(true);
+      try {
+        if (user.role === 'employe' && user.hasDirectorDashboardAccess && directorPackageInfo) {
+          if (isMounted) {
+            setPackageInfo(directorPackageInfo);
+          }
+          return;
+        }
+
+        const info = await UserSessionService.getUserPackageInfo(user);
+        if (isMounted) {
+          setPackageInfo(info);
+        }
+      } catch (error) {
+        console.error('Error loading package info:', error);
+        if (isMounted) {
+          setPackageInfo(null);
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoadingPackageInfo(false);
+        }
+      }
+    };
+
+    loadPackageInfo();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [user, directorPackageInfo]);
+
   // Merge token stats override into package info so UI reflects live usage without mutating user doc
-  const packageInfo = useMemo(() => {
-    const base = getCurrentPackageInfo();
-    if (!base) return null;
-    if (tokenStats && typeof tokenStats.tokensUsedMonthly === 'number' && base.totalTokens > 0) {
-      // Combine chat usage from active session (base.tokensUsed)
-      // with extraction usage from stats/current (tokenStats.tokensUsedMonthly)
-      const combinedUsed = (base.tokensUsed || 0) + (tokenStats.tokensUsedMonthly || 0);
-      const tokensUsed = Math.max(0, Math.min(base.totalTokens, combinedUsed));
+  const enhancedPackageInfo = useMemo(() => {
+    if (!packageInfo) return null;
+    if (tokenStats && typeof tokenStats.tokensUsedMonthly === 'number' && packageInfo.totalTokens > 0) {
+      const combinedUsed = (packageInfo.tokensUsed || 0) + (tokenStats.tokensUsedMonthly || 0);
+      const tokensUsed = Math.max(0, Math.min(packageInfo.totalTokens, combinedUsed));
       return {
-        ...base,
+        ...packageInfo,
         tokensUsed,
-        tokensRemaining: Math.max(0, base.totalTokens - tokensUsed)
+        tokensRemaining: Math.max(0, packageInfo.totalTokens - tokensUsed)
       };
     }
-    return base;
-  }, [JSON.stringify(getCurrentPackageInfo()), tokenStats]);
-  const currentPackageType = packageInfo?.packageType || null;
+    return packageInfo;
+  }, [packageInfo, tokenStats]);
+  const currentPackageType = enhancedPackageInfo?.packageType || null;
+
+  const getActivePackageInfo = (): UserPackageInfo | null => {
+    if (!user) return null;
+    if (user.role === 'employe' && user.hasDirectorDashboardAccess) {
+      return directorPackageInfo || enhancedPackageInfo;
+    }
+    return enhancedPackageInfo;
+  };
+
+  const resolveLimitValueWithFallback = (limit: NumericPackageLimit): number => {
+    const activeInfo = getActivePackageInfo();
+    if (activeInfo) {
+      return resolveLimitValue(activeInfo, limit);
+    }
+    if (!user) return 0;
+    const fallback = UserSessionService.getPackageLimits(user) as Record<string, number | undefined>;
+    if (limit === 'monthlyTokens') {
+      return fallback.maxTokens || 0;
+    }
+    if (limit === 'additionalUserCost') {
+      const normalized = normalizePackageType((user as any)?.package ?? null);
+      if (normalized && PACKAGE_LIMITS[normalized]) {
+        return PACKAGE_LIMITS[normalized].additionalUserCost || 0;
+      }
+      return 0;
+    }
+    return fallback[limit] || 0;
+  };
 
   // Vérifier si l'utilisateur a accès à une fonctionnalité spécifique
   const hasFeature = (feature: keyof PackageFeatures): boolean => {
@@ -91,127 +209,28 @@ export const usePackageAccess = () => {
   // Vérifier si l'utilisateur respecte une limite spécifique (incluant pay-as-you-go)
   const checkLimit = (limit: keyof PackageLimits, currentValue: number): boolean => {
     if (!user) return false;
-    
-    let limitValue: number;
-    
-    // For employees with director access, use director's package limits if available
-    if (user.role === 'employe' && user.hasDirectorDashboardAccess && directorPackageInfo) {
-      const packageLimits = directorPackageInfo.packageLimits || {};
-      // Handle the mismatch between maxTokens and monthlyTokens
-      if (limit === 'monthlyTokens') {
-        limitValue = packageLimits.maxTokens || 0;
-      } else if (limit === 'additionalUserCost') {
-        // additionalUserCost is not returned by getPackageLimits, get it from package config
-        const packageType = directorPackageInfo.packageType as PackageType;
-        if (packageType && packageType in PACKAGE_LIMITS) {
-          const packageConfig = PACKAGE_LIMITS[packageType];
-          limitValue = packageConfig?.additionalUserCost || 0;
-        } else {
-          limitValue = 0;
-        }
-      } else {
-        limitValue = packageLimits[limit] || 0;
-      }
-    } else {
-      const limits = UserSessionService.getPackageLimits(user);
-      // Handle the mismatch between maxTokens and monthlyTokens
-      if (limit === 'monthlyTokens') {
-        limitValue = limits.maxTokens || 0;
-      } else if (limit === 'additionalUserCost') {
-        // additionalUserCost is not returned by getPackageLimits, get it from package config
-        const packageInfo = UserSessionService.getUserPackageInfo(user);
-        const packageType = packageInfo?.packageType as PackageType;
-        if (packageType && packageType in PACKAGE_LIMITS) {
-          const packageConfig = PACKAGE_LIMITS[packageType];
-          limitValue = packageConfig?.additionalUserCost || 0;
-        } else {
-          limitValue = 0;
-        }
-      } else {
-        limitValue = limits[limit] || 0;
-      }
-    }
-    
-    // Si la limite est illimitée (-1), toujours autoriser
+    if (!isNumericLimit(limit)) return true;
+    const limitValue = resolveLimitValueWithFallback(limit);
     if (limitValue === -1) {
       return true;
     }
-    
+    if (limit === 'additionalUserCost') {
+      return limitValue > 0;
+    }
     return currentValue < limitValue;
   };
 
   // Obtenir la valeur d'une limite
   const getLimit = (limit: keyof PackageLimits): number => {
-    if (!user) return 0;
-    
-    // For employees with director access, use director's package limits if available
-    if (user.role === 'employe' && user.hasDirectorDashboardAccess && directorPackageInfo) {
-      // Get the director's package limits from the package info
-      const packageLimits = directorPackageInfo.packageLimits || {};
-      // Handle the mismatch between maxTokens and monthlyTokens
-      if (limit === 'monthlyTokens') {
-        return packageLimits.maxTokens || 0;
-      } else if (limit === 'additionalUserCost') {
-        // additionalUserCost is not returned by getPackageLimits, get it from package config
-        const packageType = directorPackageInfo.packageType as PackageType;
-        if (packageType && packageType in PACKAGE_LIMITS) {
-          const packageConfig = PACKAGE_LIMITS[packageType];
-          return packageConfig?.additionalUserCost || 0;
-        } else {
-          return 0;
-        }
-      } else {
-        return packageLimits[limit] || 0;
-      }
-    }
-    
-    const limits = UserSessionService.getPackageLimits(user);
-    // Handle the mismatch between maxTokens and monthlyTokens
-    if (limit === 'monthlyTokens') {
-      return limits.maxTokens || 0;
-    } else if (limit === 'additionalUserCost') {
-      // additionalUserCost is not returned by getPackageLimits, get it from package config
-      const packageInfo = UserSessionService.getUserPackageInfo(user);
-      const packageType = packageInfo?.packageType as PackageType;
-      if (packageType && packageType in PACKAGE_LIMITS) {
-        const packageConfig = PACKAGE_LIMITS[packageType];
-        return packageConfig?.additionalUserCost || 0;
-      } else {
-        return 0;
-      }
-    } else {
-      return limits[limit] || 0;
-    }
+    if (!isNumericLimit(limit)) return 0;
+    return resolveLimitValueWithFallback(limit);
   };
 
   // Vérifier si une limite est illimitée
   const isLimitUnlimited = (limit: keyof PackageLimits): boolean => {
-    if (!user) return false;
-    
-    // For employees with director access, use director's package limits if available
-    if (user.role === 'employe' && user.hasDirectorDashboardAccess && directorPackageInfo) {
-      const packageLimits = directorPackageInfo.packageLimits || {};
-      // Handle the mismatch between maxTokens and monthlyTokens
-      if (limit === 'monthlyTokens') {
-        return packageLimits.maxTokens === -1;
-      } else if (limit === 'additionalUserCost') {
-        // additionalUserCost is never unlimited
-        return false;
-      } else {
-        return packageLimits[limit] === -1;
-      }
-    }
-    
-    const limits = UserSessionService.getPackageLimits(user);
-    // Handle the mismatch between maxTokens and monthlyTokens
-    if (limit === 'monthlyTokens') {
-      return limits.maxTokens === -1;
-    } else if (limit === 'additionalUserCost') {
-      // additionalUserCost is never unlimited
-      return false;
-    } else {
-      return limits[limit] === -1;
-    }
+    if (!isNumericLimit(limit) || limit === 'additionalUserCost') return false;
+    const limitValue = resolveLimitValueWithFallback(limit);
+    return limitValue === -1;
   };
 
   // Obtenir le type de package de l'utilisateur
@@ -231,7 +250,7 @@ export const usePackageAccess = () => {
       }
       
       if (directorPackageInfo) {
-        const packageLimits = directorPackageInfo.packageLimits || {};
+        const packageLimits = getPackageLimitsData(directorPackageInfo);
         const maxForms = packageLimits.maxForms || 0;
         return maxForms === -1 || currentFormCount < maxForms;
       }
@@ -256,7 +275,7 @@ export const usePackageAccess = () => {
       }
       
       if (directorPackageInfo) {
-        const packageLimits = directorPackageInfo.packageLimits || {};
+        const packageLimits = getPackageLimitsData(directorPackageInfo);
         const maxDashboards = packageLimits.maxDashboards || 0;
         return maxDashboards === -1 || currentDashboardCount < maxDashboards;
       }
@@ -281,7 +300,7 @@ export const usePackageAccess = () => {
       }
       
       if (directorPackageInfo) {
-        const packageLimits = directorPackageInfo.packageLimits || {};
+        const packageLimits = getPackageLimitsData(directorPackageInfo);
         const maxUsers = packageLimits.maxUsers || 0;
         return maxUsers === -1 || currentUserCount < maxUsers;
       }
@@ -295,18 +314,10 @@ export const usePackageAccess = () => {
   };
 
   // Obtenir le nombre de tokens mensuels disponibles
-  const getMonthlyTokens = (): number => {
-    if (!user) return 0;
-    const limits = UserSessionService.getPackageLimits(user);
-    return limits.maxTokens;
-  };
+  const getMonthlyTokens = (): number => resolveLimitValueWithFallback('monthlyTokens');
 
   // Vérifier si l'utilisateur a des tokens illimités
-  const hasUnlimitedTokens = (): boolean => {
-    if (!user) return false;
-    const limits = UserSessionService.getPackageLimits(user);
-    return limits.maxTokens === -1;
-  };
+  const hasUnlimitedTokens = (): boolean => resolveLimitValueWithFallback('monthlyTokens') === -1;
 
   // Vérifier si l'utilisateur peut utiliser une fonctionnalité IA avancée
   const canUseAdvancedAI = (): boolean => {
@@ -324,30 +335,24 @@ export const usePackageAccess = () => {
   };
 
   // Obtenir le coût d'un utilisateur supplémentaire
-  const getAdditionalUserCost = (): number => {
-    return getLimit('additionalUserCost');
-  };
+  const getAdditionalUserCost = (): number => resolveLimitValueWithFallback('additionalUserCost');
 
   // Obtenir la capacité pay-as-you-go pour un type de limite
   const getPayAsYouGoCapacity = (limit: keyof PackageLimits): number => {
     if (!user) return 0;
-    
-    // For tokens, get from pay-as-you-go sessions
-    if (limit === 'monthlyTokens') {
-      return UserSessionService.getTotalPayAsYouGoTokens(user);
+    if (limit !== 'monthlyTokens') {
+      return 0;
     }
-    
-    // For other limits, we don't have pay-as-you-go capacity in the new system
-    return 0;
+    return UserSessionService.getTotalPayAsYouGoTokens(user);
   };
 
   // Obtenir la limite totale (package + pay-as-you-go)
   const getTotalLimit = (limit: keyof PackageLimits): number => {
+    if (!isNumericLimit(limit)) return 0;
     const packageLimit = getLimit(limit);
-    if (packageLimit === -1) return -1; // Unlimited
-    
-    const payAsYouGoCapacity = getPayAsYouGoCapacity(limit);
-    return packageLimit + payAsYouGoCapacity;
+    if (packageLimit === -1) return -1;
+    const payg = limit === 'monthlyTokens' ? getPayAsYouGoCapacity(limit) : 0;
+    return packageLimit + payg;
   };
 
   return {
@@ -385,7 +390,8 @@ export const usePackageAccess = () => {
     // Informations sur l'utilisateur
     user,
     packageType: currentPackageType,
-    packageInfo: packageInfo
+    packageInfo: enhancedPackageInfo,
+    isLoadingPackageInfo: isLoadingPackageInfo || (user?.role === 'employe' && user.hasDirectorDashboardAccess ? isLoadingDirectorInfo : false)
   };
 };
 

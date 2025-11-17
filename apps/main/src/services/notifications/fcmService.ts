@@ -1,6 +1,6 @@
 import { doc, getDoc, collection, query, where, getDocs, orderBy, limit } from 'firebase/firestore';
-import { db } from '../firebaseConfig';
-import { buildApiUrl } from '../config/api';
+import { db } from '@ubora/shared/firebaseConfig';
+import { buildApiUrl } from '@ubora/shared/config/api';
 
 export interface FCMNotification {
   id?: string;
@@ -294,7 +294,7 @@ class FCMService {
 
       // Import the push notification hook to get a fresh token
       const { getToken } = await import('firebase/messaging');
-      const { messaging } = await import('../firebaseConfig');
+      const { messaging } = await import('@ubora/shared/firebaseConfig');
       
       const messagingInstance = await messaging;
       if (!messagingInstance) {
@@ -340,7 +340,7 @@ class FCMService {
   private async saveFCMTokenToUser(userId: string, fcmToken: string): Promise<void> {
     try {
       const { updateDoc, doc } = await import('firebase/firestore');
-      const { db } = await import('../firebaseConfig');
+      const { db } = await import('@ubora/shared/firebaseConfig');
       
       await updateDoc(doc(db, 'users', userId), {
         fcmToken: fcmToken,
@@ -358,7 +358,7 @@ class FCMService {
   private async clearExpiredFCMToken(userId: string): Promise<void> {
     try {
       const { updateDoc, doc } = await import('firebase/firestore');
-      const { db } = await import('../firebaseConfig');
+      const { db } = await import('@ubora/shared/firebaseConfig');
       
       await updateDoc(doc(db, 'users', userId), {
         fcmToken: null,

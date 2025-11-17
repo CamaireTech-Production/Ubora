@@ -1,11 +1,10 @@
 import React, { useState, useRef } from 'react';
-import { Card } from './Card';
-import { Button } from './Button';
-import { Input } from './Input';
-import { Select } from './Select';
+import { Card } from '../ui/Card';
+import { Button } from '../ui/Button';
+import { Select } from '../ui/Select';
 import { Upload, FileText, AlertCircle, CheckCircle, X, Eye, Edit2, Download } from 'lucide-react';
 import { detectColumnTypes, ColumnType, validateValueAgainstType, convertValueToType } from '@ubora/shared/utils/csvTypeDetector';
-import { ListColumn, ListRow } from '../types';
+import { ListColumn, ListRow } from '../../types';
 
 interface ListsCSVImportProps {
   onImportComplete: (columns: ListColumn[], rows: ListRow[]) => void;
@@ -29,7 +28,6 @@ export const ListsCSVImport: React.FC<ListsCSVImportProps> = ({
   const [error, setError] = useState('');
   const [detectedTypes, setDetectedTypes] = useState<Record<string, ColumnType>>({});
   const [customTypes, setCustomTypes] = useState<Record<string, ColumnType>>({});
-  const [columnMappings, setColumnMappings] = useState<Record<string, string>>({}); // CSV header -> List column ID
   const [previewData, setPreviewData] = useState<{ columns: ListColumn[], rows: ListRow[] } | null>(null);
 
   /**
@@ -276,7 +274,6 @@ export const ListsCSVImport: React.FC<ListsCSVImportProps> = ({
           }
         });
       }
-      setColumnMappings(mappings);
 
       // Move to review step
       setCurrentStep('review');
@@ -401,7 +398,6 @@ export const ListsCSVImport: React.FC<ListsCSVImportProps> = ({
     setError('');
     setDetectedTypes({});
     setCustomTypes({});
-    setColumnMappings({});
     setPreviewData(null);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';

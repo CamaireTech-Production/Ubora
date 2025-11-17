@@ -1,39 +1,21 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { UniversWizard } from '../components/UniversWizard';
-import { UniversWizardStep1 } from '../components/UniversWizardStep1';
-import { UniversWizardStep2 } from '../components/UniversWizardStep2';
-import { UniversWizardStep3 } from '../components/UniversWizardStep3';
-import { UniversWizardStep4 } from '../components/UniversWizardStep4';
-import { UniversWizardStep5 } from '../components/UniversWizardStep5';
-import { UniversWizardStep6 } from '../components/UniversWizardStep6';
-import { UniversWizardStep7 } from '../components/UniversWizardStep7';
-import { UniversCreationLoading } from '../components/UniversCreationLoading';
-import { DraftSaveModal } from '../components/DraftSaveModal';
-import { UniversDefinitions, UniversMetadata, UniversOwnership } from '../types';
+import { UniversWizard } from '../../components/univers/UniversWizard';
+import { UniversWizardStep1 } from '../../components/univers/UniversWizardStep1';
+import { UniversWizardStep2 } from '../../components/univers/UniversWizardStep2';
+import { UniversWizardStep3 } from '../../components/univers/UniversWizardStep3';
+import { UniversWizardStep4 } from '../../components/univers/UniversWizardStep4';
+import { UniversWizardStep5 } from '../../components/univers/UniversWizardStep5';
+import { UniversWizardStep6 } from '../../components/univers/UniversWizardStep6';
+import { UniversWizardStep7 } from '../../components/univers/UniversWizardStep7';
+import { UniversCreationLoading } from '../../components/univers/UniversCreationLoading';
+import { DraftSaveModal } from '../../components/modals/DraftSaveModal';
+import { UniversDefinitions, UniversMetadata, UniversOwnership } from '../../types';
 import { universService } from '@ubora/shared/services/universService';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
 import { useToast } from '@ubora/shared/hooks/useToast';
 import { useUniversWizardProgress } from '@ubora/shared/hooks/useUniversWizardProgress';
-import { UniversWizardStepProps } from '../components/UniversWizard';
-import { Card } from '../components/ui/Card';
-
-// Placeholder components for coming steps (will be implemented later)
-const ComingSoonStep: React.FC<{ title: string; description: string }> = ({ title, description }) => {
-  return (
-    <Card>
-      <div className="text-center py-12">
-        <div className="mx-auto w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mb-4">
-          <span className="text-4xl">🚧</span>
-        </div>
-        <h3 className="text-xl font-semibold text-gray-900 mb-2">{title}</h3>
-        <p className="text-gray-600">{description}</p>
-        <p className="text-sm text-gray-500 mt-4">Cette fonctionnalité sera disponible prochainement</p>
-      </div>
-    </Card>
-  );
-};
-
+import { UniversWizardStepProps } from '../../components/univers/UniversWizard';
 export const UniversCreatePage: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -63,14 +45,17 @@ export const UniversCreatePage: React.FC = () => {
 
       // Create Univers in Firestore
       const universId = await universService.create({
-        metadata: universData.metadata,
+        metadata: {
+          ...universData.metadata,
+          price: universData.metadata.price ?? undefined
+        },
         ownership: universData.ownership,
         definitions: universData.definitions,
         usage: {
           totalUsages: 0,
           lastUsedAt: undefined
         }
-      });
+      } as any);
 
       setCreatedUniversId(universId);
       // The loading component will handle the navigation after animation
@@ -107,12 +92,14 @@ export const UniversCreatePage: React.FC = () => {
   const handleCancel = () => {
     // Check if there's any progress saved
     const saved = loadProgress();
-    const hasProgress = saved && (
+  const hasProgress = Boolean(
+    saved && (
       saved.metadata?.name ||
       (saved.forms && saved.forms.length > 0) ||
       (saved.dashboards && saved.dashboards.length > 0) ||
       (saved.instructions && saved.instructions.length > 0)
-    );
+    )
+  );
 
     if (hasProgress) {
       // Show modal to let user choose
@@ -150,11 +137,12 @@ export const UniversCreatePage: React.FC = () => {
 
   // Check if there's progress saved
   const saved = loadProgress();
-  const hasProgress = saved && (
-    saved.metadata?.name ||
-    (saved.forms && saved.forms.length > 0) ||
-    (saved.dashboards && saved.dashboards.length > 0) ||
-    (saved.instructions && saved.instructions.length > 0)
+  const hasProgress = Boolean(
+    saved &&
+      (saved.metadata?.name ||
+        (saved.forms && saved.forms.length > 0) ||
+        (saved.dashboards && saved.dashboards.length > 0) ||
+        (saved.instructions && saved.instructions.length > 0))
   );
 
   const renderStep = (props: UniversWizardStepProps): React.ReactNode => {

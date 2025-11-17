@@ -2,14 +2,14 @@ import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
 import { useApp } from '@ubora/shared/contexts/AppContext';
-import { Button } from './Button';
-import { Card } from './Card';
+import { Button } from '../ui/Button';
+import { Card } from '../ui/Card';
 import { useToast } from '@ubora/shared/hooks/useToast';
 import { 
   Users, 
   Shield
 } from 'lucide-react';
-import { User } from '../types';
+import { User } from '../../types';
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '@ubora/shared/firebaseConfig';
 

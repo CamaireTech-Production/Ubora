@@ -1,13 +1,13 @@
 import React from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
-import { Button } from './Button';
+import { Button } from '../ui/Button';
 import { Footer } from './Footer';
-import { UserPackageInfo } from './UserPackageInfo';
-import { ProfileDropdown } from './ProfileDropdown';
+import { UserPackageInfo } from '../packages/UserPackageInfo';
+import { ProfileDropdown } from '../core/ProfileDropdown';
 import { BarChart3, MessageSquare, Menu, X, Bell } from 'lucide-react';
-import { ShareCollaboratorButton } from './ShareCollaboratorButton';
-import { ActiveUniversDisplay } from './ActiveUniversDisplay';
+import { ShareCollaboratorButton } from '../employees/ShareCollaboratorButton';
+import { ActiveUniversDisplay } from '../univers/ActiveUniversDisplay';
 import { useUnreadNotifications } from '@ubora/shared/hooks/useUnreadNotifications';
 
 interface LayoutProps {

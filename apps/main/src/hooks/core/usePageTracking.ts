@@ -11,16 +11,16 @@ export const usePageTracking = () => {
 
   useEffect(() => {
     // Only proceed if user is properly authenticated with all required data
-    if (!user || !user.uid || !user.email) {
+    if (!user || !user.id || !user.email) {
       return;
     }
 
     // Initialize session on first load
     if (!isInitialized.current) {
       PageTrackingService.initializeSession(
-        user.uid,
+        user.id,
         user.email,
-        user.displayName || user.email || 'Unknown User'
+        user.name || user.email || 'Unknown User'
       );
       isInitialized.current = true;
     }
@@ -32,9 +32,9 @@ export const usePageTracking = () => {
       PageTrackingService.trackPageView(
         pageName,
         location.pathname,
-        user.uid,
+        user.id,
         user.email,
-        user.displayName || user.email || 'Unknown User',
+        user.name || user.email || 'Unknown User',
         previousPath.current || undefined
       );
 
@@ -45,7 +45,7 @@ export const usePageTracking = () => {
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      if (user && user.uid) {
+      if (user && user.id) {
         PageTrackingService.endSession();
       }
     };

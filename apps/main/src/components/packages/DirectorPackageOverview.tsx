@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
 import { usePackageAccess } from '@ubora/shared/hooks/usePackageAccess';
 import { useApp } from '@ubora/shared/contexts/AppContext';
-import { Button } from './Button';
+import { Button } from '../ui/Button';
 import { 
   getPackageDisplayName, 
   getPackagePrice

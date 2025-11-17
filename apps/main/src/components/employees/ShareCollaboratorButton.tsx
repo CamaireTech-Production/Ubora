@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
 import { UserPlus, Copy, Check } from 'lucide-react';
-import { Button } from './Button';
+import { Button } from '../ui/Button';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
 import { usePackageAccess } from '@ubora/shared/hooks/usePackageAccess';
 import { useApp } from '@ubora/shared/contexts/AppContext';
-import { LimitReachedModal } from './LimitReachedModal';
-import { PaymentModal } from './PaymentModal';
+import { LimitReachedModal } from '../modals/LimitReachedModal';
+import { PaymentModal } from '../payments/PaymentModal';
 import { useToast } from '@ubora/shared/hooks/useToast';
 import { PackageType } from '@ubora/shared/config/packageFeatures';
 

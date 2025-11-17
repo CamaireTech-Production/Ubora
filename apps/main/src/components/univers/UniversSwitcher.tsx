@@ -10,7 +10,7 @@ import { CheckCircle, ChevronDown, Loader2 } from 'lucide-react';
 
 export const UniversSwitcher: React.FC = () => {
   const { user } = useAuth();
-  const { activeUnivers, activeUniversId } = useApp();
+  const { activeUniversId } = useApp();
   const { showSuccess, showError } = useToast();
   
   const [isOpen, setIsOpen] = useState(false);

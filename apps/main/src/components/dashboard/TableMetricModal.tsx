@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
-import { DashboardMetric } from '../types';
-import { TableRowData } from '../utils/forms/MetricCalculator';
+import { DashboardMetric } from '../../types';
+import { TableRowData } from '../../utils/forms/MetricCalculator';
 import { X, ChevronLeft, ChevronRight, Table } from 'lucide-react';
 import { TableMetricDisplay } from './TableMetricDisplay';
 import { Select } from '../ui/Select';
@@ -61,7 +61,6 @@ export const TableMetricModal: React.FC<TableMetricModalProps> = ({
 
   if (!isOpen) return null;
 
-  const columns = metric.tableConfig?.columns || [];
   const totalRows = rows.length;
 
   return (

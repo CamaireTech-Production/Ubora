@@ -1,4 +1,4 @@
-import { ReportPlaceholder } from '../types';
+import { ReportPlaceholder } from '../../types';
 
 /**
  * Service for handling report template operations

@@ -1,8 +1,8 @@
 import React from 'react';
 import { FormDefinition, FormField, ListDefinition } from '@ubora/shared/types';
-import { Input } from './Input';
-import { Textarea } from './Textarea';
-import { Select } from './Select';
+import { Input } from '../ui/Input';
+import { Textarea } from '../ui/Textarea';
+import { Select } from '../ui/Select';
 
 interface FormPreviewProps {
   form: FormDefinition;

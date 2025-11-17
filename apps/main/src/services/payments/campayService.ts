@@ -1,4 +1,4 @@
-import { PaymentRequest, CampayPaymentData } from '../types/payment';
+import { PaymentRequest, CampayPaymentData } from '../../types/payment';
 
 /**
  * Configuration pour ouvrir le modal Campay

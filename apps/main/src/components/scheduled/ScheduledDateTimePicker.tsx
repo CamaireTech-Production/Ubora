@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Calendar, Clock, Repeat } from 'lucide-react';
-import { Select } from '../Select';
+import { Select } from '../ui/Select';
 import { getCameroonTime, createCameroonDateTime, formatCameroonTime, getCameroonTimezoneDisplay } from '@ubora/shared/utils/timezoneUtils';
 
 interface ScheduledDateTimePickerProps {

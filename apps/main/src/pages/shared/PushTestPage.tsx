@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Layout } from '../components/layout/Layout';
-import { Card } from '../components/ui/Card';
-import { Button } from '../components/ui/Button';
+import { Layout } from '../../components/layout/Layout';
+import { Card } from '../../components/ui/Card';
+import { Button } from '../../components/ui/Button';
 import { Bell, ShieldCheck, AlertCircle, Settings, Smartphone, Monitor, Zap, Mail } from 'lucide-react';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
 import { unifiedNotificationService } from '@ubora/shared/services/unifiedNotificationService';
@@ -152,7 +152,6 @@ export const PushTestPage: React.FC = () => {
             user.agencyId || 'test-agency',
             'assigned',
             'Test User',
-            undefined, // fcmToken
             user.email || undefined // emailAddress
           );
           break;
@@ -165,7 +164,6 @@ export const PushTestPage: React.FC = () => {
             user.role === 'admin' || user.role === 'directeur' ? 'directeur' : 'employe',
             user.agencyId || 'test-agency',
             '5min',
-            undefined, // fcmToken
             user.email || undefined // emailAddress
           );
           break;
@@ -178,7 +176,6 @@ export const PushTestPage: React.FC = () => {
             100,
             user.id,
             user.agencyId || 'test-agency',
-            undefined, // fcmToken
             user.email || undefined // emailAddress
           );
           break;
@@ -189,7 +186,6 @@ export const PushTestPage: React.FC = () => {
             'Test Instruction',
             user.id,
             user.agencyId || 'test-agency',
-            undefined, // fcmToken
             user.email || undefined // emailAddress
           );
           break;

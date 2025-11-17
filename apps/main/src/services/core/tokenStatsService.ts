@@ -1,5 +1,5 @@
 import { doc, serverTimestamp, setDoc, updateDoc, increment, getDoc } from 'firebase/firestore';
-import { db } from '../firebaseConfig';
+import { db } from '@ubora/shared/firebaseConfig';
 
 function getCurrentMonthKey(): string {
   const now = new Date();

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { FormField } from '../types';
+import { FormField } from '../../types';
 import { CSVFileUpload } from './CSVFileUpload';
 import { CSVFieldMapper } from './CSVFieldMapper';
 import { CSVImportProgress } from './CSVImportProgress';
@@ -43,7 +43,6 @@ export const CSVImportModal: React.FC<CSVImportModalProps> = ({
   const [currentStep, setCurrentStep] = useState<ImportStep>('upload');
   const [csvData, setCsvData] = useState<CSVRow[]>([]);
   const [csvHeaders, setCsvHeaders] = useState<string[]>([]);
-  const [fileName, setFileName] = useState('');
   const [mappings, setMappings] = useState<FieldMapping[]>([]);
   const [importResults, setImportResults] = useState<ImportResult[]>([]);
   const [error, setError] = useState('');
@@ -52,7 +51,6 @@ export const CSVImportModal: React.FC<CSVImportModalProps> = ({
     setCurrentStep('upload');
     setCsvData([]);
     setCsvHeaders([]);
-    setFileName('');
     setMappings([]);
     setImportResults([]);
     setError('');
@@ -64,10 +62,9 @@ export const CSVImportModal: React.FC<CSVImportModalProps> = ({
   };
 
 
-  const handleFileParsed = (data: CSVRow[], file: string, headers: string[]) => {
+  const handleFileParsed = (data: CSVRow[], _file: string, headers: string[]) => {
     setCsvData(data);
     setCsvHeaders(headers);
-    setFileName(file);
     setError('');
     setCurrentStep('mapping');
   };

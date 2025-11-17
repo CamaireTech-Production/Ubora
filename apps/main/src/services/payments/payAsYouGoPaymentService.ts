@@ -1,6 +1,6 @@
 import { PaymentService, PaymentRequest } from './paymentService';
-import { User } from '../types';
-import { CampayPaymentData } from '../types/payment';
+import { User } from '../../types';
+import { CampayPaymentData } from '../../types/payment';
 import { SubscriptionSessionCollectionService } from '@ubora/shared/services/subscriptionSessionCollectionService';
 
 export interface PayAsYouGoPaymentRequest {

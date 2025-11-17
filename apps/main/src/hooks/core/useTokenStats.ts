@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { onSnapshot, doc } from 'firebase/firestore';
-import { db } from '../firebaseConfig';
+import { db } from '@ubora/shared/firebaseConfig';
 
 export interface TokenStatsCurrent {
   tokensUsedMonthly?: number;

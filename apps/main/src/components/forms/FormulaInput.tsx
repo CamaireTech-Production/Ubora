@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { FormField } from '../types';
-import { Button } from './Button';
-import { Card } from './Card';
+import { FormField } from '../../types';
+import { Button } from '../ui/Button';
+import { Card } from '../ui/Card';
 import { FormulaHelpModal } from './FormulaHelpModal';
 import { Calculator, Check, AlertCircle, Plus, HelpCircle } from 'lucide-react';
 
@@ -30,11 +30,7 @@ export const FormulaInput: React.FC<FormulaInputProps> = ({
   const [userFormula, setUserFormula] = useState('');
   const [fieldMatches, setFieldMatches] = useState<FieldMatch[]>([]);
   const [showFieldSelector, setShowFieldSelector] = useState(false);
-  // Removed unused selectedFieldId state
-  // Keep for potential future caret sync, currently unused
-  const [cursorPosition] = useState(0);
   const [showHelpModal, setShowHelpModal] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
   const editorRef = useRef<HTMLDivElement>(null);
   const [fieldOccurrences, setFieldOccurrences] = useState<Array<{ field: FormField; start: number; end: number }>>([]);
   const isInitialized = useRef(false);

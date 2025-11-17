@@ -1,31 +1,33 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { DashboardMetric, MetricReminder } from '../types';
+import { DashboardMetric, MetricReminder, Dashboard } from '../../types';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
 import { useApp } from '@ubora/shared/contexts/AppContext';
-import { Layout } from '../components/layout/Layout';
-import { Card } from '../components/ui/Card';
-import { Button } from '../components/ui/Button';
-import { ConfirmationModal } from '../components/modals/ConfirmationModal';
-import { Input } from '../components/ui/Input';
-import { Select } from '../components/ui/Select';
+import { Layout } from '../../components/layout/Layout';
+import { Card } from '../../components/ui/Card';
+import { Button } from '../../components/ui/Button';
+import { ConfirmationModal } from '../../components/modals/ConfirmationModal';
+import { Input } from '../../components/ui/Input';
+import { Select } from '../../components/ui/Select';
 import { MetricCalculator } from '@ubora/shared/utils/MetricCalculator';
-import { TableRowData } from '../utils/forms/MetricCalculator';
-import { tableDataService } from '../services/core/tableDataService';
+import { TableRowData } from '../../utils/forms/MetricCalculator';
+import { tableDataService } from '../../services/core/tableDataService';
 import { useToast } from '@ubora/shared/hooks/useToast';
-import { Toast } from '../components/ui/Toast';
-import { ComingSoonModal } from '../components/modals/ComingSoonModal';
-import { DashboardBuilder } from '../components/dashboard/DashboardBuilder';
-import { MetricEditModal } from '../components/MetricEditModal';
-import { GraphPreview } from '../components/charts/GraphPreview';
-import { GraphModal } from '../components/charts/GraphModal';
-import { TableMetricDisplay } from '../components/TableMetricDisplay';
-import { TableMetricModal } from '../components/TableMetricModal';
+import { Toast } from '../../components/ui/Toast';
+import { ComingSoonModal } from '../../components/modals/ComingSoonModal';
+import { DashboardBuilder } from '../../components/dashboard/DashboardBuilder';
+import { MetricEditModal } from '../../components/forms/MetricEditModal';
+import { GraphPreview } from '../../components/charts/GraphPreview';
+import { GraphModal } from '../../components/charts/GraphModal';
+import { TableMetricDisplay } from '../../components/dashboard/TableMetricDisplay';
+import { TableMetricModal } from '../../components/dashboard/TableMetricModal';
 import { getValidYAxisFields, validateYAxisField } from '@ubora/shared/utils/GraphFieldValidator';
 import { metricReminderService } from '@ubora/shared/services/metricReminderService';
-import { ImpersonationHeader } from '../components/layout/ImpersonationHeader';
+import { ImpersonationHeader } from '../../components/layout/ImpersonationHeader';
 import { UserSessionService } from '@ubora/shared/services/userSessionService';
-import { AccessDeniedModal } from '../components/modals/AccessDeniedModal';
+import { AccessDeniedModal } from '../../components/modals/AccessDeniedModal';
+type SharedDashboard = import('@ubora/shared/types').Dashboard;
+type SharedDashboardMetric = import('@ubora/shared/types').DashboardMetric;
 import { 
   ArrowLeft, 
   BarChart3, 
@@ -83,6 +85,7 @@ export const DashboardDetailPage: React.FC = () => {
   const [showDeleteDashboardModal, setShowDeleteDashboardModal] = useState(false);
   const [showAccessDeniedModal, setShowAccessDeniedModal] = useState(false);
   const [expandedTableMetric, setExpandedTableMetric] = useState<{ metric: DashboardMetric; rows: TableRowData[] } | null>(null);
+  const dashboard = (dashboards.find(d => d.id === dashboardId) as Dashboard | undefined) || null;
   
   // Auto-scroll to errors when they appear (mobile-responsive)
   useEffect(() => {
@@ -112,6 +115,23 @@ export const DashboardDetailPage: React.FC = () => {
   const [isAddingMetric, setIsAddingMetric] = useState(false);
   const [showGraphPreview, setShowGraphPreview] = useState(false);
   
+  const toSharedMetric = (metric: DashboardMetric): SharedDashboardMetric => {
+    const { tableConfig, ...rest } = metric;
+    return {
+      ...rest,
+      metricType: metric.metricType || 'value',
+      tableConfig: undefined
+    } as SharedDashboardMetric;
+  };
+
+  const sharedDashboard = useMemo<SharedDashboard | undefined>(() => {
+    if (!dashboard) return undefined;
+    return {
+      ...dashboard,
+      metrics: dashboard.metrics.map(toSharedMetric)
+    } as SharedDashboard;
+  }, [dashboard]);
+
   // Edit modals state
   const [showDashboardBuilder, setShowDashboardBuilder] = useState(false);
   const [showEditMetricModal, setShowEditMetricModal] = useState(false);
@@ -175,8 +195,6 @@ export const DashboardDetailPage: React.FC = () => {
   const [showCustomDatePicker, setShowCustomDatePicker] = useState(false);
 
   // Find the dashboard
-  const dashboard = dashboards.find(d => d.id === dashboardId) || null;
-
   // Fonctions pour le filtrage temporel
   const getDateRange = (filter: string) => {
     const now = new Date();
@@ -388,8 +406,8 @@ export const DashboardDetailPage: React.FC = () => {
     try {
       const updatedMetrics = dashboard.metrics.filter((_, index) => index !== metricToDelete.index);
       await updateDashboard(dashboard.id, {
-        metrics: updatedMetrics
-      });
+        metrics: updatedMetrics as DashboardMetric[]
+      } as any);
       showSuccess('Métrique supprimée avec succès !');
       setShowDeleteMetricModal(false);
       setMetricToDelete(null);
@@ -453,8 +471,8 @@ export const DashboardDetailPage: React.FC = () => {
       await updateDashboard(dashboard.id, {
         name: dashboardData.name,
         description: dashboardData.description,
-        metrics: dashboardData.metrics
-      });
+        metrics: dashboardData.metrics as DashboardMetric[]
+      } as any);
       showSuccess('Tableau de bord modifié avec succès !');
       setShowDashboardBuilder(false);
     } catch (error) {
@@ -480,7 +498,7 @@ export const DashboardDetailPage: React.FC = () => {
       
       await updateDashboard(dashboard.id, {
         metrics: updatedMetrics
-      });
+      } as any);
       
       showSuccess('Métrique modifiée avec succès !');
     } catch (error) {
@@ -525,7 +543,7 @@ export const DashboardDetailPage: React.FC = () => {
       const updatedMetrics = [...dashboard.metrics, metricToAdd];
       await updateDashboard(dashboard.id, {
         metrics: updatedMetrics
-      });
+      } as any);
 
       setShowMetricModal(false);
       showSuccess('Métrique ajoutée avec succès !');
@@ -870,7 +888,11 @@ export const DashboardDetailPage: React.FC = () => {
                 };
               } else {
                 // Use MetricCalculator for non-table metrics
-                result = MetricCalculator.calculateMetric(metric, filteredEntries, dashboard || undefined);
+                result = MetricCalculator.calculateMetric(
+                  toSharedMetric(metric),
+                  filteredEntries,
+                  sharedDashboard
+                );
               }
               
               return (
@@ -949,7 +971,7 @@ export const DashboardDetailPage: React.FC = () => {
                     {metric.metricType === 'graph' ? (
                       <div className="w-full bg-white rounded-lg border border-gray-200 p-2 h-32">
                         <GraphPreview
-                          metric={metric}
+                          metric={toSharedMetric(metric)}
                           formEntries={filteredEntries}
                           forms={forms}
                           onExpand={() => handleExpandGraph(metric)}
@@ -1021,13 +1043,13 @@ export const DashboardDetailPage: React.FC = () => {
                         {metric.formId && (
                           <div className="flex items-center space-x-1 mb-1">
                             <Eye className="h-3 w-3" />
-                            <span className="truncate">{getFormTitle(metric.formId)}</span>
+                            <span className="truncate">{getFormTitle(metric.formId || '')}</span>
                           </div>
                         )}
                         {metric.fieldId && (
                           <div className="flex items-center space-x-1">
                             {getFieldIcon(metric.fieldType)}
-                            <span className="truncate">{getFieldLabel(metric.formId, metric.fieldId)}</span>
+                            <span className="truncate">{getFieldLabel(metric.formId || '', metric.fieldId)}</span>
                           </div>
                         )}
                       </>
@@ -1367,13 +1389,13 @@ export const DashboardDetailPage: React.FC = () => {
                       {showGraphPreview && (
                         <div className="h-32">
                           <GraphPreview
-                            metric={{
+                            metric={toSharedMetric({
                               ...newMetric,
                               id: 'preview-new-metric',
                               createdAt: new Date(),
                               createdBy: user?.id || '',
                               agencyId: user?.agencyId || ''
-                            }}
+                            } as DashboardMetric)}
                             formEntries={formEntries.filter(entry => entry.formId === newMetric.formId)}
                             forms={forms}
                             compact={true}
@@ -1596,7 +1618,7 @@ export const DashboardDetailPage: React.FC = () => {
             setShowGraphModal(false);
             setExpandedGraphMetric(null);
           }}
-          metric={expandedGraphMetric}
+          metric={toSharedMetric(expandedGraphMetric)}
           formEntries={getFilteredFormEntries()}
           forms={forms}
         />

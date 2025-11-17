@@ -3,9 +3,9 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
 import { useApp } from '@ubora/shared/contexts/AppContext';
 import { usePackageAccess } from '@ubora/shared/hooks/usePackageAccess';
-import { Layout } from '../components/layout/Layout';
-import { Card } from '../components/ui/Card';
-import { Button } from '../components/ui/Button';
+import { Layout } from '../../components/layout/Layout';
+import { Card } from '../../components/ui/Card';
+import { Button } from '../../components/ui/Button';
 import { 
   getPackageDisplayName, 
   getPackagePrice, 
@@ -16,7 +16,7 @@ import {
 import { SubscriptionSessionCollectionService } from '@ubora/shared/services/subscriptionSessionCollectionService';
 import { PackageTransitionService, UserNeeds } from '@ubora/shared/services/packageTransitionService';
 import { UserSessionService } from '@ubora/shared/services/userSessionService';
-import { PackageTransitionPriceExplanation } from '../components/PackageTransitionPriceExplanation';
+import { PackageTransitionPriceExplanation } from '../../components/packages/PackageTransitionPriceExplanation';
 import { 
   Check, 
   X, 
@@ -36,13 +36,13 @@ import {
   Plus
 } from 'lucide-react';
 import { useToast } from '@ubora/shared/hooks/useToast';
-import { PaymentModal } from '../components/payments/PaymentModal';
-import { CampayPayment } from '../components/CampayPayment';
+import { PaymentModal } from '../../components/payments/PaymentModal';
+import { CampayPayment } from '../../components/payments/CampayPayment';
 import { PaymentService } from '@ubora/shared/services/paymentService';
-import { PaymentRequest, CampayPaymentData } from '../types/payment';
+import { PaymentRequest, CampayPaymentData } from '../../types/payment';
 import { SubscriptionPriceCalculator, SubscriptionPeriod } from '@ubora/shared/services/subscriptionPriceCalculator';
 import { CheckCircle } from 'lucide-react';
-import { PackageManagementSkeleton } from '../components/skeletons/PackageManagementSkeleton';
+import { PackageManagementSkeleton } from '../../components/skeletons/PackageManagementSkeleton';
 
 export const PackageManagementPage: React.FC = () => {
   const navigate = useNavigate();

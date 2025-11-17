@@ -1,8 +1,8 @@
 import React, { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
-import { Card } from '../components/ui/Card';
-import { Button } from '../components/ui/Button';
+import { Card } from '../../components/ui/Card';
+import { Button } from '../../components/ui/Button';
 import { 
   getPackageDisplayName, 
   getPackagePrice, 
@@ -24,16 +24,16 @@ import {
   Crown
 } from 'lucide-react';
 import { useToast } from '@ubora/shared/hooks/useToast';
-import { Toast } from '../components/ui/Toast';
+import { Toast } from '../../components/ui/Toast';
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '@ubora/shared/firebaseConfig';
 import { AnalyticsService } from '@ubora/shared/services/analyticsService';
 import { PaymentService } from '@ubora/shared/services/paymentService';
-import { CampayPayment } from '../components/CampayPayment';
+import { CampayPayment } from '../../components/payments/CampayPayment';
 import { SubscriptionSessionCollectionService } from '@ubora/shared/services/subscriptionSessionCollectionService';
 import { SubscriptionPriceCalculator, SubscriptionPeriod } from '@ubora/shared/services/subscriptionPriceCalculator';
 import { SubscriptionRenewalService } from '@ubora/shared/services/subscriptionRenewalService';
-import { CampayPaymentData, PaymentRequest } from '../types/payment';
+import { CampayPaymentData, PaymentRequest } from '../../types/payment';
 
 export const PackageSelectionPage: React.FC = () => {
   const navigate = useNavigate();

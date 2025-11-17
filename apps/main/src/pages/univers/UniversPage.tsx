@@ -1,17 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
-import { Layout } from '../components/layout/Layout';
-import { UniversList } from '../components/univers/UniversList';
-import { Univers } from '../types';
+import { Layout } from '../../components/layout/Layout';
+import { UniversList } from '../../components/univers/UniversList';
+import { Univers } from '../../types';
 import { universService } from '@ubora/shared/services/universService';
 import { useToast } from '@ubora/shared/hooks/useToast';
-import { Toast } from '../components/ui/Toast';
-import { ConfirmationModal } from '../components/modals/ConfirmationModal';
-import { UniversCreateModal } from '../components/UniversCreateModal';
-import { Button } from '../components/ui/Button';
+import { Toast } from '../../components/ui/Toast';
+import { ConfirmationModal } from '../../components/modals/ConfirmationModal';
+import { UniversCreateModal } from '../../components/univers/UniversCreateModal';
+import { Button } from '../../components/ui/Button';
 import { Plus, Globe } from 'lucide-react';
-import { WireframeLoader } from '../components/loading/WireframeLoader';
+import { WireframeLoader } from '../../components/loading/WireframeLoader';
 
 export const UniversPage: React.FC = () => {
   const navigate = useNavigate();

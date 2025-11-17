@@ -1,6 +1,6 @@
 import { useCallback, useRef } from 'react';
 import { useCurrentPng } from 'recharts-to-png';
-import { GraphData } from '../types';
+import { GraphData } from '../../types';
 
 /**
  * Custom hook to convert Recharts components to PNG images
@@ -34,7 +34,7 @@ export const useChartToPNG = () => {
   ): Promise<string | null> => {
     try {
       // Import the RechartsToPNG utility
-      const { RechartsToPNG } = await import('../utils/RechartsToPNG');
+      const { RechartsToPNG } = await import('../../utils/reports/RechartsToPNG');
       const png = await RechartsToPNG.convertChartDataToPNG(chartData, width, height);
       return png;
     } catch (error) {

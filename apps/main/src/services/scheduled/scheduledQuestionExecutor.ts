@@ -1,9 +1,9 @@
 import { scheduledQuestionService } from './scheduledQuestionService';
-import { unifiedNotificationService } from './unifiedNotificationService';
-import { ScheduledQuestion, ScheduledQuestionResponse } from '../types';
-import { getCameroonTime } from '../utils/timezoneUtils';
-import { getAIEndpoint } from '../config/api';
-import { auth } from '../firebaseConfig';
+import { unifiedNotificationService } from '@ubora/shared/services/unifiedNotificationService';
+import { ScheduledQuestion, ScheduledQuestionResponse } from '../../types';
+import { getCameroonTime } from '../../utils/core/timezoneUtils';
+import { getAIEndpoint } from '@ubora/shared/config/api';
+import { auth } from '@ubora/shared/firebaseConfig';
 import { ScheduledQuestionTokenChecker } from './scheduledQuestionTokenChecker';
 
 class ScheduledQuestionExecutor {
@@ -512,7 +512,7 @@ class ScheduledQuestionExecutor {
   private async getUserFCMToken(userId: string): Promise<string | null> {
     try {
       const { getDoc, doc } = await import('firebase/firestore');
-      const { db } = await import('../firebaseConfig');
+      const { db } = await import('@ubora/shared/firebaseConfig');
       
       const userDoc = await getDoc(doc(db, 'users', userId));
       if (userDoc.exists()) {
@@ -532,7 +532,7 @@ class ScheduledQuestionExecutor {
   private async getUserEmailAddress(userId: string): Promise<string | null> {
     try {
       const { getDoc, doc } = await import('firebase/firestore');
-      const { db } = await import('../firebaseConfig');
+      const { db } = await import('@ubora/shared/firebaseConfig');
       
       const userDoc = await getDoc(doc(db, 'users', userId));
       if (userDoc.exists()) {

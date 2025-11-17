@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { DashboardMetric, FormEntry, Form } from '@ubora/shared/types';
 import { GraphPreview } from './GraphPreview';
-import { Button } from '../Button';
+import { Button } from '../ui/Button';
 import { X, BarChart3, Maximize2, Minimize2, RotateCcw, RotateCw } from 'lucide-react';
 
 interface GraphModalProps {

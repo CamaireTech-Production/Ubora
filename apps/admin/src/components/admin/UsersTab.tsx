@@ -1,6 +1,6 @@
 import React from 'react';
 // Note: UsersTable component removed - using local implementation
-import { AdminService } from '../../services/adminService';
+import { AdminService } from '../../services/admin/adminService';
 import { AdminUser } from '@ubora/shared/types';
 
 interface UsersTabProps {

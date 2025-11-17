@@ -660,9 +660,7 @@ export class MetricCalculator {
         }
       }
       
-      // Match row key
-      const entryRowKey = entry.answers[column.rowKeyFieldId];
-      return String(entryRowKey) === rowKey;
+      return true;
     });
 
     if (matchingEntries.length === 0) {

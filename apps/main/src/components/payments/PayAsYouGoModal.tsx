@@ -1,8 +1,8 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { X, CreditCard, Zap, AlertCircle } from 'lucide-react';
-import { Button } from './Button';
-import { Card } from './Card';
+import { Button } from '../ui/Button';
+import { Card } from '../ui/Card';
 
 interface PayAsYouGoModalProps {
   isOpen: boolean;

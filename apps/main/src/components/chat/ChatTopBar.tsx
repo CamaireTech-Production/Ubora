@@ -1,6 +1,6 @@
 import React from 'react';
 import { SlidersHorizontal, Loader2, LogOut } from 'lucide-react';
-import { Button } from '../Button';
+import { Button } from '../ui/Button';
 
 interface ChatTopBarProps {
   title?: string;

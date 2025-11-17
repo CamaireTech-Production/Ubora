@@ -1,6 +1,5 @@
 import { doc, getDoc } from 'firebase/firestore';
-import { db } from '../firebaseConfig';
-import { auth } from '../firebaseConfig';
+import { db, auth } from '@ubora/shared/firebaseConfig';
 
 export interface TokenCheckResult {
   canExecute: boolean;

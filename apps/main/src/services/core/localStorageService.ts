@@ -1,4 +1,4 @@
-import { FileAttachment } from '../types';
+import { FileAttachment } from '../../types';
 
 export interface LocalFormResponse {
   id: string;

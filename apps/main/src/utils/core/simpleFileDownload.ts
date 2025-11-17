@@ -2,7 +2,7 @@
  * Simple file download utility that works with firestore:// URLs
  */
 
-import { getFilesDownloadEndpoint } from '../config/api';
+import { getFilesDownloadEndpoint } from '@ubora/shared/config/api';
 
 /**
  * Get file data from Firestore and create a blob URL

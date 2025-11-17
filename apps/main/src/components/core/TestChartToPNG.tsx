@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { Button } from './Button';
+import { Button } from '../ui/Button';
 import { RechartsToPNG } from '@ubora/shared/utils/RechartsToPNG';
-import { GraphData } from '../types';
+import { GraphData } from '../../types';
 
 // Test data for chart conversion
 const testChartData: GraphData = {

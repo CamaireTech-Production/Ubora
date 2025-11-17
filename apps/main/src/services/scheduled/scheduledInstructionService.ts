@@ -14,8 +14,8 @@ import {
   onSnapshot,
   Timestamp
 } from 'firebase/firestore';
-import { db } from '../firebaseConfig';
-import { ScheduledQuestion, ScheduledQuestionResponse } from '../types';
+import { db } from '@ubora/shared/firebaseConfig';
+import { ScheduledQuestion, ScheduledQuestionResponse } from '../../types';
 
 class ScheduledQuestionService {
   private readonly collectionName = 'scheduledQuestions';

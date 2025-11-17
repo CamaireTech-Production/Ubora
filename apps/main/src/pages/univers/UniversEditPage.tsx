@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
-import { Layout } from '../components/layout/Layout';
-import { UniversEditor } from '../components/UniversEditor';
-import { Univers } from '../types';
+import { Layout } from '../../components/layout/Layout';
+import { UniversEditor } from '../../components/univers/UniversEditor';
+import { Univers } from '../../types';
 import { universService } from '@ubora/shared/services/universService';
 import { useToast } from '@ubora/shared/hooks/useToast';
-import { Toast } from '../components/ui/Toast';
-import { WireframeLoader } from '../components/loading/WireframeLoader';
+import { Toast } from '../../components/ui/Toast';
+import { WireframeLoader } from '../../components/loading/WireframeLoader';
 
 export const UniversEditPage: React.FC = () => {
   const navigate = useNavigate();

@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { Card } from '../components/ui/Card';
-import { Button } from '../components/ui/Button';
-import { Footer } from '../components/layout/Footer';
-import { LogoutConfirmationModal } from '../components/modals/LogoutConfirmationModal';
+import { Card } from '../../components/ui/Card';
+import { Button } from '../../components/ui/Button';
+import { Footer } from '../../components/layout/Footer';
+import { LogoutConfirmationModal } from '../../components/modals/LogoutConfirmationModal';
 import { Clock, Mail, Building2, LogOut } from 'lucide-react';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
 

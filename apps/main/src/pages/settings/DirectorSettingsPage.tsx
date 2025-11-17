@@ -1,13 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
-// import { usePermissions } from '../hooks/usePermissions'; // Unused for now
-import { Layout } from '../components/layout/Layout';
-import { Card } from '../components/ui/Card';
-import { Button } from '../components/ui/Button';
-import { DirectorPackageOverview } from '../components/DirectorPackageOverview';
-import { SubscriptionHistoryModal } from '../components/SubscriptionHistoryModal';
-import { SubscriptionSessionService } from '@ubora/shared/services/subscriptionSessionService';
+// import { usePermissions } from '../../hooks/usePermissions'; // Unused for now
+import { Layout } from '../../components/layout/Layout';
+import { Card } from '../../components/ui/Card';
+import { Button } from '../../components/ui/Button';
+import { DirectorPackageOverview } from '../../components/packages/DirectorPackageOverview';
+import { SubscriptionHistoryModal } from '../../components/payments/SubscriptionHistoryModal';
 import { SubscriptionSessionCollectionService } from '@ubora/shared/services/subscriptionSessionCollectionService';
 import { UserSessionService } from '@ubora/shared/services/userSessionService';
 import { SubscriptionSession } from '@ubora/shared/types';
@@ -270,7 +269,7 @@ export const DirectorSettingsPage: React.FC = () => {
         <SubscriptionHistoryModal
           isOpen={showHistoryModal}
           onClose={() => setShowHistoryModal(false)}
-          sessions={subscriptionHistory?.totalSessions ? SubscriptionSessionService.getAllSessions(user) : []}
+          sessions={subscriptionHistory?.allSessions || []}
           currentSession={subscriptionHistory?.currentSession || null}
         />
       )}

@@ -1,26 +1,21 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AdminUser } from '../types';
+import { AdminUser } from '../../types';
 import { EnhancedAdminService } from '../../services/admin/enhancedAdminService';
 import { SubscriptionSessionCollectionService } from '@ubora/shared/services/subscriptionSessionCollectionService';
-import { SubscriptionSession } from '@ubora/shared/types';
 import { Pagination } from '../ui/Pagination';
 import { Button } from '../ui/Button';
 import { 
   Eye, 
   Edit, 
-  Trash2, 
   Mail, 
-  Phone, 
   Calendar,
   Package,
   Clock,
   Bell,
-  TrendingUp,
   AlertTriangle,
   CheckCircle,
   XCircle,
-  Filter,
   Search,
   SortAsc,
   SortDesc,
@@ -48,17 +43,14 @@ const UserPackageCell: React.FC<{ user: AdminUser }> = ({ user }) => {
         return;
       }
 
-      // Try to get active session from new collection
-      if (user.currentSubscriptionSessionId) {
-        try {
-          const session = await SubscriptionSessionCollectionService.getActiveSession(user.id);
-          if (session?.packageType) {
-            setPackageType(session.packageType);
-            return;
-          }
-        } catch (error) {
-          console.error('Error loading session for user:', user.id, error);
+      try {
+        const session = await SubscriptionSessionCollectionService.getActiveSession(user.id);
+        if (session?.packageType) {
+          setPackageType(session.packageType);
+          return;
         }
+      } catch (error) {
+        console.error('Error loading session for user:', user.id, error);
       }
 
       // Fallback to legacy array
@@ -265,7 +257,7 @@ export const UsersTable: React.FC<UsersTableProps> = ({ users, onRefresh }) => {
             <span className="text-sm text-gray-600">
               {filteredUsers.length} utilisateur{filteredUsers.length !== 1 ? 's' : ''}
             </span>
-            <Button onClick={onRefresh} variant="outline" size="sm">
+            <Button onClick={onRefresh} variant="secondary" size="sm">
               <RefreshCw className="h-4 w-4" />
             </Button>
           </div>
@@ -454,7 +446,7 @@ export const UsersTable: React.FC<UsersTableProps> = ({ users, onRefresh }) => {
                   <div className="flex items-center space-x-2">
                     <Button
                       size="sm"
-                      variant="outline"
+                      variant="secondary"
                       onClick={() => navigate(`/admin/users/${user.id}`)}
                       className="flex items-center space-x-1"
                     >
@@ -463,7 +455,7 @@ export const UsersTable: React.FC<UsersTableProps> = ({ users, onRefresh }) => {
                     </Button>
                     <Button
                       size="sm"
-                      variant="outline"
+                      variant="secondary"
                       className="flex items-center space-x-1"
                     >
                       <Edit className="h-4 w-4" />

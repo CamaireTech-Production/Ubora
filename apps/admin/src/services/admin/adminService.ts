@@ -1,5 +1,5 @@
 import { AdminFormService } from './adminFormService';
-import { AdminDashboardService } from './adminDashboardService';
+// import { AdminDashboardService } from './adminDashboardService'; // Service not found - methods commented out
 import { EnhancedAdminService } from './enhancedAdminService';
 import { AdminService as BaseAdminService } from '@ubora/shared/services/adminService';
 import { AdminStats } from '@ubora/shared/types';
@@ -114,32 +114,39 @@ export class AdminService {
     return AdminFormService.getFormsStats();
   }
 
-  // Dashboard management methods
+  // Dashboard management methods - TODO: Implement AdminDashboardService
   static async getAllDashboards() {
-    return AdminDashboardService.getAllDashboards();
+    throw new Error('AdminDashboardService not implemented');
+    // return AdminDashboardService.getAllDashboards();
   }
 
   static async getDashboardById(dashboardId: string) {
-    return AdminDashboardService.getDashboardById(dashboardId);
+    throw new Error('AdminDashboardService not implemented');
+    // return AdminDashboardService.getDashboardById(dashboardId);
   }
 
   static async getDashboardActivities(dashboardId: string, limitCount?: number) {
-    return AdminDashboardService.getDashboardActivities(dashboardId, limitCount);
+    throw new Error('AdminDashboardService not implemented');
+    // return AdminDashboardService.getDashboardActivities(dashboardId, limitCount);
   }
 
   static async createDashboard(adminId: string, adminEmail: string, adminName: string, dashboardData: any) {
-    return AdminDashboardService.createDashboard(adminId, adminEmail, adminName, dashboardData);
+    throw new Error('AdminDashboardService not implemented');
+    // return AdminDashboardService.createDashboard(adminId, adminEmail, adminName, dashboardData);
   }
 
   static async updateDashboard(adminId: string, adminEmail: string, adminName: string, dashboardId: string, updates: any) {
-    return AdminDashboardService.updateDashboard(adminId, adminEmail, adminName, dashboardId, updates);
+    throw new Error('AdminDashboardService not implemented');
+    // return AdminDashboardService.updateDashboard(adminId, adminEmail, adminName, dashboardId, updates);
   }
 
   static async deleteDashboard(adminId: string, adminEmail: string, adminName: string, dashboardId: string) {
-    return AdminDashboardService.deleteDashboard(adminId, adminEmail, adminName, dashboardId);
+    throw new Error('AdminDashboardService not implemented');
+    // return AdminDashboardService.deleteDashboard(adminId, adminEmail, adminName, dashboardId);
   }
 
   static async getDashboardsStats() {
-    return AdminDashboardService.getDashboardsStats();
+    throw new Error('AdminDashboardService not implemented');
+    // return AdminDashboardService.getDashboardsStats();
   }
 }

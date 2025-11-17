@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { Clock, X } from 'lucide-react';
-import { Button } from './Button';
+import { Button } from '../ui/Button';
 
 interface ComingSoonModalProps {
   isOpen: boolean;
