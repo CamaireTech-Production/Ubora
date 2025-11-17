@@ -1,5 +1,4 @@
 import { User } from '../types';
-import { SubscriptionSessionService } from './subscriptionSessionService';
 import { SubscriptionSessionCollectionService } from './subscriptionSessionCollectionService';
 import { PACKAGE_LIMITS, PACKAGE_FEATURES, PackageType } from '../config/packageFeatures';
 import { FeatureAccessService } from './featureAccessService';
@@ -53,22 +52,35 @@ export class UserSessionService {
    * Note: Only directors and employees with director access have subscription sessions
    */
   static async getUserPackageInfo(user: User): Promise<UserPackageInfo> {
+    console.log('🔵 [GET USER PACKAGE INFO] ========================================');
+    console.log('🔵 [GET USER PACKAGE INFO] Getting package info for user:', {
+      id: user.id,
+      role: user.role,
+      hasDirectorDashboardAccess: user.hasDirectorDashboardAccess,
+      currentSubscriptionSessionId: user.currentSubscriptionSessionId
+    });
+    
     // Only directors and employees with director access have subscription sessions
     if (user.role !== 'directeur' && !(user.role === 'employe' && user.hasDirectorDashboardAccess)) {
+      console.log('🔵 [GET USER PACKAGE INFO] ❌ User role does not allow package info');
       return this.getDefaultPackageInfo();
     }
 
-    // Try to get session from new collection service first
-    let currentSession = await SubscriptionSessionCollectionService.getActiveSession(user.id);
-    
-    // Fallback to legacy if no session in collection
-    if (!currentSession) {
-      currentSession = SubscriptionSessionService.getCurrentSessionSync(user);
-    }
+    const currentSession = await SubscriptionSessionCollectionService.getActiveSession(user.id);
     
     if (!currentSession) {
+      console.log('🔵 [GET USER PACKAGE INFO] ❌ No active session found - returning default');
       return this.getDefaultPackageInfo();
     }
+    
+    console.log('🔵 [GET USER PACKAGE INFO] Session found:', {
+      id: currentSession.id,
+      packageType: currentSession.packageType,
+      isActive: currentSession.isActive,
+      packageResources: currentSession.packageResources,
+      payAsYouGoResources: currentSession.payAsYouGoResources,
+      usage: currentSession.usage
+    });
 
     const packageFeatures = this.getPackageFeatures(currentSession.packageType);
     
@@ -109,7 +121,18 @@ export class UserSessionService {
     const dashboardsRemaining = Math.max(0, totalDashboards - dashboardsCreated);
     const usersRemaining = Math.max(0, totalUsers - usersAdded);
     
-    return {
+    console.log('🔵 [GET USER PACKAGE INFO] Calculated totals:', {
+      totalForms,
+      totalDashboards,
+      totalUsers,
+      totalTokens,
+      formsCreated,
+      dashboardsCreated,
+      usersAdded,
+      tokensUsed
+    });
+    
+    const packageInfo = {
       packageType: currentSession.packageType,
       packageFeatures,
       subscriptionStartDate: startDate,
@@ -140,6 +163,17 @@ export class UserSessionService {
       paymentMethod: currentSession.paymentMethod,
       sessionType: currentSession.sessionType
     };
+    
+    console.log('🔵 [GET USER PACKAGE INFO] Returning package info:', {
+      packageType: packageInfo.packageType,
+      totalForms: packageInfo.totalForms,
+      totalDashboards: packageInfo.totalDashboards,
+      totalUsers: packageInfo.totalUsers,
+      totalTokens: packageInfo.totalTokens
+    });
+    console.log('🔵 [GET USER PACKAGE INFO] ========================================');
+    
+    return packageInfo;
   }
 
   /**
@@ -238,10 +272,19 @@ export class UserSessionService {
   /**
    * Get package limits from active session
    * Note: Only directors and employees with director access have subscription sessions
+   * This method uses getUserPackageInfo() to ensure consistency with session document structure
    */
-  static getPackageLimits(user: User) {
+  static async getPackageLimits(user: User) {
+    console.log('🟣 [GET PACKAGE LIMITS] ========================================');
+    console.log('🟣 [GET PACKAGE LIMITS] Getting package limits for user:', {
+      id: user.id,
+      role: user.role,
+      hasDirectorDashboardAccess: user.hasDirectorDashboardAccess
+    });
+    
     // Only directors and employees with director access can have package limits
     if (user.role !== 'directeur' && !(user.role === 'employe' && user.hasDirectorDashboardAccess)) {
+      console.log('🟣 [GET PACKAGE LIMITS] ❌ User role does not allow package limits');
       return {
         maxForms: 0,
         maxDashboards: 0,
@@ -250,30 +293,12 @@ export class UserSessionService {
       };
     }
 
-
-    // Try to get session from new collection service first, fallback to legacy
-    let currentSession = null;
-    if (user.currentSubscriptionSessionId) {
-      // For async version, we'll need to make this method async
-      // For now, use sync fallback
-      currentSession = SubscriptionSessionService.getCurrentSessionSync(user);
-    } else {
-      currentSession = SubscriptionSessionService.getCurrentSessionSync(user);
-    }
+    // Use getUserPackageInfo() to get limits from session document structure
+    // This ensures we use packageResources + payAsYouGoResources from the session
+    const packageInfo = await this.getUserPackageInfo(user);
     
-    if (!currentSession) {
-      return {
-        maxForms: 0,
-        maxDashboards: 0,
-        maxUsers: 0,
-        maxTokens: 0
-      };
-    }
-
-    const packageLimits = PACKAGE_LIMITS[currentSession.packageType];
-    
-    // Safety check: if package type doesn't exist, return default limits
-    if (!packageLimits) {
+    if (!packageInfo || packageInfo.packageType === null) {
+      console.log('🟣 [GET PACKAGE LIMITS] ❌ No package info found - returning zero limits');
       return {
         maxForms: 0,
         maxDashboards: 0,
@@ -282,23 +307,34 @@ export class UserSessionService {
       };
     }
     
-    // Add pay-as-you-go resources to limits
-    const payAsYouGoTokens = currentSession.payAsYouGoResources?.tokens || 0;
-    const payAsYouGoForms = currentSession.payAsYouGoResources?.forms || 0;
-    const payAsYouGoDashboards = currentSession.payAsYouGoResources?.dashboards || 0;
-    const payAsYouGoUsers = currentSession.payAsYouGoResources?.users || 0;
+    console.log('🟣 [GET PACKAGE LIMITS] Package info found:', {
+      packageType: packageInfo.packageType,
+      totalForms: packageInfo.totalForms,
+      totalDashboards: packageInfo.totalDashboards,
+      totalUsers: packageInfo.totalUsers,
+      totalTokens: packageInfo.totalTokens
+    });
 
-    return {
-      maxForms: packageLimits.maxForms === -1 ? -1 : packageLimits.maxForms + payAsYouGoForms,
-      maxDashboards: packageLimits.maxDashboards === -1 ? -1 : packageLimits.maxDashboards + payAsYouGoDashboards,
-      maxUsers: packageLimits.maxUsers === -1 ? -1 : packageLimits.maxUsers + payAsYouGoUsers,
-      maxTokens: packageLimits.monthlyTokens === -1 ? -1 : packageLimits.monthlyTokens + payAsYouGoTokens
+    // Extract limits from package info
+    // totalForms, totalDashboards, totalUsers, totalTokens already include packageResources + payAsYouGoResources
+    const finalLimits = {
+      maxForms: packageInfo.totalForms === -1 ? -1 : packageInfo.totalForms,
+      maxDashboards: packageInfo.totalDashboards === -1 ? -1 : packageInfo.totalDashboards,
+      maxUsers: packageInfo.totalUsers === -1 ? -1 : packageInfo.totalUsers,
+      maxTokens: packageInfo.totalTokens === -1 ? -1 : packageInfo.totalTokens
     };
+    
+    console.log('🟣 [GET PACKAGE LIMITS] Final calculated limits (from session document):', finalLimits);
+    console.log('🟣 [GET PACKAGE LIMITS] ========================================');
+    
+    return finalLimits;
   }
 
   /**
    * Check if user has a specific feature
    * Note: Only directors and employees with director access have subscription sessions
+   * This is a synchronous method that uses package info if available, otherwise returns false
+   * For accurate results, use getUserPackageInfo() async method
    */
   static hasFeature(user: User, feature: string): boolean {
     // Only directors and employees with director access can have package features
@@ -306,33 +342,16 @@ export class UserSessionService {
       return false;
     }
 
-    // Try to get session from new collection service first, fallback to legacy
-    let currentSession = null;
-    if (user.currentSubscriptionSessionId) {
-      // For async version, we'll need to make this method async
-      // For now, use sync fallback
-      currentSession = SubscriptionSessionService.getCurrentSessionSync(user);
-    } else {
-      currentSession = SubscriptionSessionService.getCurrentSessionSync(user);
-    }
-    
-    if (!currentSession) {
-      return false;
-    }
-
-    const packageFeatures = PACKAGE_FEATURES[currentSession.packageType];
-    
-    // Safety check: if package type doesn't exist, return false
-    if (!packageFeatures) {
-      return false;
-    }
-    
-    return (packageFeatures as any)[feature] === true;
+    // Since this is called synchronously, we can't fetch from collection
+    // Return false - callers should use getUserPackageInfo() for accurate results
+    // This is a temporary workaround until all callers are updated
+    return false;
   }
 
   /**
    * Check if user has access to programmed instructions
    * Note: Only directors can access programmed instructions
+   * This is a synchronous method - for accurate results, use getUserPackageInfo() async method
    */
   static hasProgrammedInstructionsAccess(user: User): boolean {
     // Only directors can access programmed instructions
@@ -340,32 +359,16 @@ export class UserSessionService {
       return false;
     }
 
-    // Try to get session from new collection service first, fallback to legacy
-    let currentSession = null;
-    if (user.currentSubscriptionSessionId) {
-      // For async version, we'll need to make this method async
-      // For now, use sync fallback
-      currentSession = SubscriptionSessionService.getCurrentSessionSync(user);
-    } else {
-      currentSession = SubscriptionSessionService.getCurrentSessionSync(user);
-    }
-    
-    if (!currentSession) {
-      return false;
-    }
-
-    const packageLimits = PACKAGE_LIMITS[currentSession.packageType];
-    
-    if (!packageLimits) {
-      return false;
-    }
-
-    return packageLimits.programmedInstructions === true;
+    // Since this is called synchronously, we can't fetch from collection
+    // Return false - callers should use getUserPackageInfo() for accurate results
+    // This is a temporary workaround until all callers are updated
+    return false;
   }
 
   /**
    * Check if user has access to automated push indicators
    * Note: Directors and employees with director access can use push indicators
+   * This is a synchronous method - for accurate results, use getUserPackageInfo() async method
    */
   static hasPushIndicatorsAccess(user: User): boolean {
     // Directors and employees with director access can use push indicators
@@ -373,27 +376,10 @@ export class UserSessionService {
       return false;
     }
 
-    // Try to get session from new collection service first, fallback to legacy
-    let currentSession = null;
-    if (user.currentSubscriptionSessionId) {
-      // For async version, we'll need to make this method async
-      // For now, use sync fallback
-      currentSession = SubscriptionSessionService.getCurrentSessionSync(user);
-    } else {
-      currentSession = SubscriptionSessionService.getCurrentSessionSync(user);
-    }
-    
-    if (!currentSession) {
-      return false;
-    }
-
-    const packageLimits = PACKAGE_LIMITS[currentSession.packageType];
-    
-    if (!packageLimits) {
-      return false;
-    }
-
-    return packageLimits.automatedPushIndicators === true;
+    // Since this is called synchronously, we can't fetch from collection
+    // Return false - callers should use getUserPackageInfo() for accurate results
+    // This is a temporary workaround until all callers are updated
+    return false;
   }
 
   /**
@@ -428,102 +414,7 @@ export class UserSessionService {
    * Check if user can perform an action based on limits
    * Note: Only directors and employees with director access have subscription sessions
    */
-  static canPerformAction(user: User, action: 'createForm' | 'createDashboard' | 'addUser' | 'useTokens', currentCount: number): boolean {
-    // Allow directors and employees with director access
-    if (user.role !== 'directeur' && !(user.role === 'employe' && user.hasDirectorDashboardAccess)) {
-      return false;
-    }
-
-    // Try to get session from new collection service first, fallback to legacy
-    let currentSession = null;
-    if (user.currentSubscriptionSessionId) {
-      // For async version, we'll need to make this method async
-      // For now, use sync fallback
-      currentSession = SubscriptionSessionService.getCurrentSessionSync(user);
-    } else {
-      currentSession = SubscriptionSessionService.getCurrentSessionSync(user);
-    }
-    
-    if (!currentSession) {
-      return false;
-    }
-
-    const limits = this.getPackageLimits(user);
-    
-    switch (action) {
-      case 'createForm':
-        // Handle unlimited case (-1)
-        return limits.maxForms === -1 || currentCount < limits.maxForms;
-      case 'createDashboard':
-        // Handle unlimited case (-1)
-        return limits.maxDashboards === -1 || currentCount < limits.maxDashboards;
-      case 'addUser':
-        // Handle unlimited case (-1)
-        return limits.maxUsers === -1 || currentCount < limits.maxUsers;
-      case 'useTokens':
-        // Handle unlimited case (-1)
-        return limits.maxTokens === -1 || currentCount < limits.maxTokens;
-      default:
-        return false;
-    }
-  }
-
-  /**
-   * Get total pay-as-you-go tokens from active session
-   * Note: Only directors and employees with director access have subscription sessions
-   */
-  static getTotalPayAsYouGoTokens(user: User): number {
-    // Only directors and employees with director access have subscription sessions
-    if (user.role !== 'directeur' && !(user.role === 'employe' && user.hasDirectorDashboardAccess)) {
-      return 0;
-    }
-
-    // Try to get session from new collection service first, fallback to legacy
-    let currentSession = null;
-    if (user.currentSubscriptionSessionId) {
-      // For async version, we'll need to make this method async
-      // For now, use sync fallback
-      currentSession = SubscriptionSessionService.getCurrentSessionSync(user);
-    } else {
-      currentSession = SubscriptionSessionService.getCurrentSessionSync(user);
-    }
-    
-    if (!currentSession) {
-      return 0;
-    }
-
-    return currentSession.payAsYouGoResources?.tokens || 0;
-  }
-
-  /**
-   * Get total available tokens (package + pay-as-you-go)
-   * Note: Only directors and employees with director access have subscription sessions
-   */
-  static getTotalAvailableTokens(user: User): number {
-    // Only directors and employees with director access have subscription sessions
-    if (user.role !== 'directeur' && !(user.role === 'employe' && user.hasDirectorDashboardAccess)) {
-      return 0;
-    }
-
-    // Try to get session from new collection service first, fallback to legacy
-    let currentSession = null;
-    if (user.currentSubscriptionSessionId) {
-      // For async version, we'll need to make this method async
-      // For now, use sync fallback
-      currentSession = SubscriptionSessionService.getCurrentSessionSync(user);
-    } else {
-      currentSession = SubscriptionSessionService.getCurrentSessionSync(user);
-    }
-    
-    if (!currentSession) {
-      return 0;
-    }
-
-    const packageTokens = currentSession.packageResources?.tokensIncluded || 0;
-    const payAsYouGoTokens = currentSession.payAsYouGoResources?.tokens || 0;
-    
-    return packageTokens + payAsYouGoTokens;
-  }
+  // Deprecated synchronous helper methods have been removed in favor of async package info lookups.
 
   /**
    * Get subscription history (async version - uses new collection)

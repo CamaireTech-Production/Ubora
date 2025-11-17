@@ -23,7 +23,6 @@ import { Toast } from '../../components/ui/Toast';
 import { usePackageAccess } from '../../hooks/packages/usePackageAccess';
 import { LimitReachedModal } from '../../components/modals/LimitReachedModal';
 import { ImpersonationHeader } from '../../components/layout/ImpersonationHeader';
-import { UserSessionService } from '@ubora/shared/services/userSessionService';
 import { AccessDeniedModal } from '../../components/modals/AccessDeniedModal';
 import { universService } from '@ubora/shared/services/universService';
 import { UniversBadge } from '../../components/univers/UniversBadge';
@@ -59,7 +58,8 @@ export const DirecteurDashboard: React.FC = () => {
   const { 
     canCreateForm, 
     canCreateDashboard, 
-    getLimit
+    getLimit,
+    packageInfo
   } = usePackageAccess();
   
   const [showFormBuilder, setShowFormBuilder] = useState(false);
@@ -167,6 +167,15 @@ export const DirecteurDashboard: React.FC = () => {
       allowedDays?: number[];
     };
   }) => {
+    console.log('🟢 [FORM CREATION] ========================================');
+    console.log('🟢 [FORM CREATION] Form submission started');
+    console.log('🟢 [FORM CREATION] Form data:', {
+      title: formData.title,
+      fieldsCount: formData.fields.length,
+      assignedToCount: formData.assignedTo.length
+    });
+    console.log('🟢 [FORM CREATION] Current forms count before creation:', forms.length);
+    
     setIsCreatingForm(true);
     try {
       if (!user?.id || !user?.agencyId) {
@@ -179,25 +188,42 @@ export const DirecteurDashboard: React.FC = () => {
         createdByRole: user.role as 'directeur' | 'employe',
         agencyId: user.agencyId,
       });
+      console.log('🟢 [FORM CREATION] ✅ Form created successfully');
       setShowFormBuilder(false);
       setEditingForm(null);
       showSuccess('Formulaire créé avec succès !');
     } catch (error) {
-      console.error('Erreur lors de la création du formulaire:', error);
+      console.error('🟢 [FORM CREATION] ❌ Error creating form:', error);
       showError('Erreur lors de la création du formulaire. Veuillez réessayer.');
     } finally {
       setIsCreatingForm(false);
+      console.log('🟢 [FORM CREATION] ========================================');
     }
   };
 
   const handleFormButtonClick = () => {
+    console.log('🔵 [QUOTA CHECK] ========================================');
+    console.log('🔵 [QUOTA CHECK] Button clicked: "Créer un nouveau formulaire"');
+    console.log('🔵 [QUOTA CHECK] Current form count:', forms.length);
+    console.log('🔵 [QUOTA CHECK] User:', {
+      id: user?.id,
+      role: user?.role,
+      agencyId: user?.agencyId,
+      hasDirectorDashboardAccess: user?.hasDirectorDashboardAccess
+    });
     
-    if (!canCreateForm(forms.length)) {
+    const canCreate = canCreateForm(forms.length);
+    console.log('🔵 [QUOTA CHECK] canCreateForm result:', canCreate);
+    
+    if (!canCreate) {
+      console.log('🔵 [QUOTA CHECK] ❌ Quota check FAILED - Showing limit modal');
       setLimitModalType('forms');
       setShowLimitModal(true);
     } else {
+      console.log('🔵 [QUOTA CHECK] ✅ Quota check PASSED - Opening form builder');
       setShowFormBuilder(true);
     }
+    console.log('🔵 [QUOTA CHECK] ========================================');
   };
 
   const handleDashboardButtonClick = () => {
@@ -391,7 +417,12 @@ export const DirecteurDashboard: React.FC = () => {
   const handleProgrammedInstructionsClick = () => {
     if (!user) return;
     
-    if (UserSessionService.hasProgrammedInstructionsAccess(user)) {
+    // Check if package has programmed instructions feature
+    // programmedInstructions is in PACKAGE_LIMITS, check via package type
+    const hasAccess = packageInfo?.packageType && 
+      (packageInfo.packageType === 'starter' || packageInfo.packageType === 'standard');
+    
+    if (hasAccess) {
       navigate('/directeur/scheduled-questions');
     } else {
       setAccessDeniedFeature('programmed-instructions');
@@ -1001,7 +1032,8 @@ export const DirecteurDashboard: React.FC = () => {
                 <span className="truncate">Créer un nouveau tableau de bord</span>
               </Button>
               
-              {user && UserSessionService.hasProgrammedInstructionsAccess(user) && (
+              {user && packageInfo?.packageType && 
+               (packageInfo.packageType === 'starter' || packageInfo.packageType === 'standard') && (
                 <Button
                   onClick={handleProgrammedInstructionsClick}
                   variant="secondary"
