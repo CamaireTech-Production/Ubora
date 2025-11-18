@@ -69,6 +69,7 @@ export const FormBuilder: React.FC<FormBuilderProps> = ({
   // Lists state for select fields
   const [availableLists, setAvailableLists] = useState<List[]>([]);
   const [loadingLists, setLoadingLists] = useState(false);
+  const loadingListsRef = useRef(false);
   
   // Confirmation modal state
   const [confirmationModal, setConfirmationModal] = useState<{
@@ -86,8 +87,17 @@ export const FormBuilder: React.FC<FormBuilderProps> = ({
   // Load available lists for agency + merge Univers lists
   useEffect(() => {
     const loadLists = async () => {
-      if (!user?.id || !user?.agencyId) return;
+      if (!user?.id || !user?.agencyId) {
+        setAvailableLists([]);
+        setLoadingLists(false);
+        loadingListsRef.current = false;
+        return;
+      }
       
+      // Si on est déjà en train de charger, ne pas relancer
+      if (loadingListsRef.current) return;
+      
+      loadingListsRef.current = true;
       setLoadingLists(true);
       try {
         // Convert ListDefinitions to List format (for Univers context)
@@ -106,15 +116,14 @@ export const FormBuilder: React.FC<FormBuilderProps> = ({
         
         // Si on est dans le contexte d'édition d'un Univers (universLists fourni),
         // utiliser SEULEMENT les listes du Univers, ne pas charger depuis la DB
-        if (universLists.length > 0) {
+        if (universLists && universLists.length > 0) {
           setAvailableLists(universListObjects);
           setLoadingLists(false);
+          loadingListsRef.current = false;
           return;
         }
         
         // Sinon, charger depuis la DB avec filtrage par univers/instance
-        // Si on édite un Univers spécifique (editingUniversId fourni), utiliser cet ID
-        // Sinon, filtrer par univers actif et instance active
         const universIdToUse = editingUniversId ?? activeUniversId;
         const instanceIdToUse = editingUniversInstanceId ?? activeInstanceId;
         
@@ -126,17 +135,21 @@ export const FormBuilder: React.FC<FormBuilderProps> = ({
           instanceIdToUse
         );
         
-        // Utiliser uniquement les listes de la DB (pas de merge avec universLists car on n'est pas dans le contexte Univers)
+        // Utiliser uniquement les listes de la DB
         setAvailableLists(dbLists);
-      } catch (error) {
-        console.error('Erreur lors du chargement des listes:', error);
-      } finally {
         setLoadingLists(false);
+        loadingListsRef.current = false;
+      } catch (error) {
+        console.error('❌ [FormBuilder] Erreur lors du chargement des listes:', error);
+        setAvailableLists([]);
+        setLoadingLists(false);
+        loadingListsRef.current = false;
       }
     };
     
     loadLists();
-  }, [user, universLists, activeUniversId, activeInstanceId, editingUniversId, editingUniversInstanceId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, user?.agencyId, user?.role, activeUniversId, activeInstanceId]);
 
   // Auto-scroll to errors when they appear (mobile-responsive)
   useEffect(() => {
@@ -370,7 +383,7 @@ export const FormBuilder: React.FC<FormBuilderProps> = ({
   };
 
 
-  // Helper function to remove undefined values from objects recursively
+  // Helper function to remove undefined values and empty strings from objects recursively
   const removeUndefinedValues = (obj: any): any => {
     if (obj === null || obj === undefined) {
       return null;
@@ -382,6 +395,10 @@ export const FormBuilder: React.FC<FormBuilderProps> = ({
       const cleaned: any = {};
       for (const [key, value] of Object.entries(obj)) {
         if (value !== undefined) {
+          // Remove empty strings for listId/displayColumnId (they indicate "not selected yet")
+          if ((key === 'listId' || key === 'displayColumnId') && value === '') {
+            continue; // Skip empty string values for these fields
+          }
           const cleanedValue = removeUndefinedValues(value);
           if (cleanedValue !== null && cleanedValue !== undefined) {
             cleaned[key] = cleanedValue;
@@ -436,8 +453,13 @@ export const FormBuilder: React.FC<FormBuilderProps> = ({
     const selectFieldsWithoutOptions = fields.filter(field => {
       if (field.type !== 'select') return false;
       // If using a list, check listId and displayColumnId
-      if (field.listId) {
-        return !field.displayColumnId;
+      // listId can be empty string (mode list but no selection yet) or a valid ID
+      if (field.listId !== undefined) {
+        // Empty string means list mode selected but no list chosen yet - invalid
+        if (field.listId === '') return true;
+        // Valid listId but missing displayColumnId - invalid
+        if (!field.displayColumnId) return true;
+        return false; // Valid list configuration
       }
       // If using manual options, check options array
       return !field.options || field.options.length === 0 || field.options.every(opt => !opt.trim());
@@ -848,33 +870,17 @@ export const FormBuilder: React.FC<FormBuilderProps> = ({
                                 name={`option-type-${field.id}`}
                                 checked={field.listId !== undefined}
                                 onChange={() => {
-                                  // Switch to List mode - only if lists are available
+                                  // Switch to List mode - don't auto-select, let user choose
                                   if (availableLists.length === 0) {
                                     console.warn('Aucune liste disponible pour ce champ');
                                     return;
                                   }
                                   
-                                  const firstList = availableLists[0];
-                                  const firstColumn = firstList.columns[0];
-                                  
-                                  if (!firstList || !firstColumn) {
-                                    console.warn('La première liste n\'a pas de colonnes');
-                                    return;
-                                  }
-                                  
-                                  // Switch to List mode - set listId and displayColumnId, remove options
-                                  const currentField = fields.find(f => f.id === field.id);
-                                  const updates: Partial<FormField> = {
-                                    listId: firstList.id,
-                                    displayColumnId: firstColumn.id
-                                  };
-                                  
-                                  // Supprimer options seulement si on passe d'un mode manuel à un mode liste
-                                  if (currentField?.options && currentField.options.length > 0) {
-                                    updates.options = undefined;
-                                  }
-                                  
-                                  updateField(field.id, updates);
+                                  updateField(field.id, {
+                                    listId: '', // Empty string to indicate list mode but no selection yet
+                                    displayColumnId: undefined,
+                                    options: undefined
+                                  });
                                 }}
                                 className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                                 disabled={availableLists.length === 0}
@@ -947,56 +953,68 @@ export const FormBuilder: React.FC<FormBuilderProps> = ({
                               </div>
 
                               {/* List Selection */}
-                              <Select
-                                label="Sélectionner une Liste *"
-                                value={field.listId ?? ''}
-                                onChange={(e) => {
-                                  const selectedListId = e.target.value;
-                                  const selectedList = availableLists.find(l => l.id === selectedListId);
-                                  
-                                  if (selectedList) {
-                                    const currentField = fields.find(f => f.id === field.id);
-                                    const updates: Partial<FormField> = {
-                                      listId: selectedListId,
-                                      displayColumnId: selectedList.columns[0]?.id || ''
-                                    };
-                                    
-                                    // Supprimer options seulement si on passe d'un mode manuel à un mode liste
-                                    if (currentField?.options && currentField.options.length > 0) {
-                                      updates.options = undefined;
+                              <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                  Sélectionner une Liste *
+                                </label>
+                                <select
+                                  value={field.listId || ''}
+                                  onChange={(e) => {
+                                    const selectedListId = e.target.value;
+                                    if (!selectedListId) {
+                                      updateField(field.id, {
+                                        listId: undefined,
+                                        displayColumnId: undefined
+                                      });
+                                      return;
                                     }
                                     
-                                    updateField(field.id, updates);
-                                  }
-                                }}
-                                options={[
-                                  { value: '', label: loadingLists ? 'Chargement...' : 'Sélectionner une liste' },
-                                  ...availableLists.map(list => ({
-                                    value: list.id,
-                                    label: `${list.name} (${list.columns.length} colonnes, ${list.rows.length} lignes)`
-                                  }))
-                                ]}
-                                disabled={loadingLists}
-                              />
+                                    const selectedList = availableLists.find(l => l.id === selectedListId);
+                                    if (selectedList && selectedList.columns.length > 0) {
+                                      updateField(field.id, {
+                                        listId: selectedListId,
+                                        displayColumnId: selectedList.columns[0].id,
+                                        options: undefined
+                                      });
+                                    }
+                                  }}
+                                  disabled={loadingLists && availableLists.length === 0}
+                                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                                >
+                                  <option value="">
+                                    {loadingLists && availableLists.length === 0 ? 'Chargement...' : availableLists.length === 0 ? 'Aucune liste disponible' : 'Sélectionner une liste'}
+                                  </option>
+                                  {availableLists.map(list => (
+                                    <option key={list.id} value={list.id}>
+                                      {list.name} ({list.columns.length} colonnes, {list.rows.length} lignes)
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
 
                               {/* Display Column Selection */}
-                              {field.listId && (() => {
+                              {field.listId && field.listId !== '' && (() => {
                                 const selectedList = availableLists.find(l => l.id === field.listId);
                                 return selectedList && selectedList.columns.length > 0 ? (
-                                  <Select
-                                    label="Colonne à afficher dans le menu déroulant *"
-                                    value={field.displayColumnId || ''}
-                                    onChange={(e) => {
-                                      updateField(field.id, { displayColumnId: e.target.value });
-                                    }}
-                                    options={[
-                                      { value: '', label: 'Sélectionner une colonne' },
-                                      ...selectedList.columns.map(col => ({
-                                        value: col.id,
-                                        label: `${col.name} (${col.type})`
-                                      }))
-                                    ]}
-                                  />
+                                  <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                      Colonne à afficher dans le menu déroulant *
+                                    </label>
+                                    <select
+                                      value={field.displayColumnId || ''}
+                                      onChange={(e) => {
+                                        updateField(field.id, { displayColumnId: e.target.value });
+                                      }}
+                                      className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900"
+                                    >
+                                      <option value="">Sélectionner une colonne</option>
+                                      {selectedList.columns.map(col => (
+                                        <option key={col.id} value={col.id}>
+                                          {col.name} ({col.type})
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </div>
                                 ) : (
                                   <p className="text-sm text-gray-600">
                                     Aucune liste sélectionnée ou la liste n'a pas de colonnes
