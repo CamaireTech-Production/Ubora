@@ -9,8 +9,9 @@ import { adminDb } from './firebaseAdmin.js';
 
 /**
  * Build filter for Qdrant search based on metadata
+ * @param {boolean} debug - If true, logs detailed filter information
  */
-function buildFilter(agencyId, activeUniversId = null, formId = null, userId = null, period = null) {
+function buildFilter(agencyId, activeUniversId = null, formId = null, userId = null, period = null, selectedFormIds = null, debug = false) {
   const must = [];
 
   // Always filter by agencyId (required for security)
@@ -30,7 +31,14 @@ function buildFilter(agencyId, activeUniversId = null, formId = null, userId = n
   }
 
   // Optional filters
-  if (formId) {
+  // If multiple form IDs provided, use 'match' with 'any' for OR logic
+  if (selectedFormIds && Array.isArray(selectedFormIds) && selectedFormIds.length > 1) {
+    must.push({
+      key: 'formId',
+      match: { any: selectedFormIds },
+    });
+  } else if (formId) {
+    // Single form ID filter
     must.push({
       key: 'formId',
       match: { value: formId },
@@ -45,6 +53,7 @@ function buildFilter(agencyId, activeUniversId = null, formId = null, userId = n
   }
 
   // Date range filter (if period provided)
+  // RE-ENABLED: Date filter is now active after fixing date formats in Qdrant
   if (period && period.start && period.end) {
     must.push({
       key: 'submittedAt',
@@ -52,6 +61,27 @@ function buildFilter(agencyId, activeUniversId = null, formId = null, userId = n
         gte: period.start.toISOString(),
         lte: period.end.toISOString(),
       },
+    });
+  }
+
+  // DEBUG MODE: Log filter details with full JSON
+  if (debug) {
+    const filterObject = must.length > 0 ? { must } : null;
+    console.log('🔍 [DEBUG] Qdrant Filter Built:', {
+      agencyId,
+      activeUniversId: activeUniversId || '(not set)',
+      formId: formId || '(not set)',
+      selectedFormIds: selectedFormIds && selectedFormIds.length > 0 ? selectedFormIds : '(not set)',
+      userId: userId || '(not set)',
+      period: period ? {
+        start: period.start.toISOString(),
+        end: period.end.toISOString()
+      } : '(not set)',
+      filterObject: filterObject ? JSON.stringify(filterObject, null, 2) : null,
+      filterConditions: must.map((condition, index) => ({
+        index: index + 1,
+        condition: JSON.stringify(condition, null, 2)
+      }))
     });
   }
 
@@ -98,8 +128,10 @@ export async function searchVectors(
     formId = null,
     userId = null,
     period = null,
-    limit = 12,
-    scoreThreshold = 0.5,
+    selectedFormIds = null, // Multiple form IDs for filtering
+    limit = 25, // Increased default limit
+    scoreThreshold = 0.3, // Reduced default threshold
+    debug = false, // DEBUG MODE: Enable detailed logging
   } = options;
 
   if (!queryText || queryText.trim().length === 0) {
@@ -115,13 +147,22 @@ export async function searchVectors(
     let finalActiveUniversId = activeUniversId;
     if (directorId && !finalActiveUniversId) {
       finalActiveUniversId = await getActiveUniversId(directorId, agencyId);
+      
+      // DEBUG MODE: Log active Univers lookup
+      if (debug) {
+        console.log('🔍 [DEBUG] Active Univers Lookup:', {
+          directorId,
+          agencyId,
+          found: finalActiveUniversId || '(not found)'
+        });
+      }
     }
 
     // Generate embedding for query
     const queryEmbedding = await generateEmbedding(queryText);
 
     // Build filter (includes activeUniversId if available)
-    const filter = buildFilter(agencyId, finalActiveUniversId, formId, userId, period);
+    const filter = buildFilter(agencyId, finalActiveUniversId, formId, userId, period, selectedFormIds, debug);
 
     // Build search payload
     const searchPayload = {
@@ -163,11 +204,56 @@ export async function searchVectors(
         type: point.payload?.type || 'form_entry',
         chunkIndex: point.payload?.chunkIndex,
         totalChunks: point.payload?.totalChunks,
+        universId: point.payload?.universId, // DEBUG: Include universId in metadata
       },
       rank: index + 1,
     }));
 
     console.log(`🔍 Found ${results.length} relevant chunks for query: "${queryText.substring(0, 50)}..."`);
+
+    // DEBUG MODE: Log detailed results
+    if (debug) {
+      const uniqueFormIds = [...new Set(results.map(r => r.metadata.formId).filter(Boolean))];
+      const uniqueUniversIds = [...new Set(results.map(r => r.metadata.universId).filter(Boolean))];
+      const uniqueUserIds = [...new Set(results.map(r => r.metadata.userId).filter(Boolean))];
+      
+      console.log('🔍 [DEBUG] Vector Search Results:', {
+        query: queryText.substring(0, 100),
+        totalResults: results.length,
+        searchParams: {
+          limit,
+          scoreThreshold,
+          agencyId,
+          activeUniversId: finalActiveUniversId || '(not set)',
+          formId: formId || '(not set)',
+          selectedFormIds: selectedFormIds && selectedFormIds.length > 0 ? selectedFormIds : '(not set)',
+          userId: userId || '(not set)',
+          period: period ? {
+            start: period.start.toISOString(),
+            end: period.end.toISOString()
+          } : '(not set)'
+        },
+        resultsSummary: {
+          uniqueFormIds: uniqueFormIds.length > 0 ? uniqueFormIds : '(none)',
+          uniqueUniversIds: uniqueUniversIds.length > 0 ? uniqueUniversIds : '(none)',
+          uniqueUserIds: uniqueUserIds.length > 0 ? uniqueUserIds : '(none)',
+          averageScore: results.length > 0 ? (results.reduce((sum, r) => sum + r.score, 0) / results.length).toFixed(4) : 0,
+          minScore: results.length > 0 ? Math.min(...results.map(r => r.score)).toFixed(4) : 0,
+          maxScore: results.length > 0 ? Math.max(...results.map(r => r.score)).toFixed(4) : 0
+        },
+        results: results.map(r => ({
+          id: r.id,
+          score: r.score.toFixed(4),
+          formTitle: r.metadata.formTitle,
+          formId: r.metadata.formId,
+          universId: r.metadata.universId || '(not set)',
+          employeeName: r.metadata.employeeName,
+          submittedAt: r.metadata.submittedAt,
+          entryId: r.metadata.entryId,
+          textPreview: r.text.substring(0, 100) + '...'
+        }))
+      });
+    }
 
     return results;
   } catch (error) {
@@ -186,6 +272,7 @@ export async function searchAndFormatForAI(
   collectionName = COLLECTION_NAME
 ) {
   // Ensure directorId is passed to searchVectors for active Univers lookup
+  // DEBUG MODE: Pass debug flag through
   const results = await searchVectors(queryText, options, collectionName);
 
   if (results.length === 0) {

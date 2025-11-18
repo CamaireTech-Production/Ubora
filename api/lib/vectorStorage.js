@@ -71,6 +71,27 @@ export async function saveFormEntryToVector(
       const { text, embedding } = chunkedData[i];
       const pointId = generatePointId(); // Generate UUID for Qdrant
 
+      // Ensure submittedAt is a string ISO format, not an object
+      let submittedAtISO = metadata.submittedAt;
+      if (submittedAtISO) {
+        if (submittedAtISO.toDate && typeof submittedAtISO.toDate === 'function') {
+          // Firestore Timestamp
+          submittedAtISO = submittedAtISO.toDate().toISOString();
+        } else if (submittedAtISO instanceof Date) {
+          // Date object
+          submittedAtISO = submittedAtISO.toISOString();
+        } else if (typeof submittedAtISO === 'string') {
+          // Already a string, verify it's ISO format
+          if (!submittedAtISO.includes('T') || !submittedAtISO.includes('Z')) {
+            // Try to convert if it's not ISO
+            submittedAtISO = new Date(submittedAtISO).toISOString();
+          }
+        } else {
+          // Fallback: convert to ISO
+          submittedAtISO = new Date(submittedAtISO).toISOString();
+        }
+      }
+      
       const chunkMetadata = {
         agencyId: metadata.agencyId,
         universId: metadata.universId || null, // Univers ID for filtering
@@ -78,7 +99,7 @@ export async function saveFormEntryToVector(
         formTitle: metadata.formTitle,
         userId: metadata.userId,
         employeeName: metadata.employeeName,
-        submittedAt: metadata.submittedAt,
+        submittedAt: submittedAtISO, // Always ISO string format
         entryId: metadata.entryId,
         chunkIndex: i,
         totalChunks: chunkedData.length,
@@ -141,6 +162,22 @@ export async function saveFileAttachmentToVector(
       const { text: chunkText, embedding } = chunkedData[i];
       const pointId = generatePointId(); // Generate UUID for Qdrant
 
+      // Ensure submittedAt is a string ISO format, not an object
+      let submittedAtISO = formMetadata.submittedAt;
+      if (submittedAtISO) {
+        if (submittedAtISO.toDate && typeof submittedAtISO.toDate === 'function') {
+          submittedAtISO = submittedAtISO.toDate().toISOString();
+        } else if (submittedAtISO instanceof Date) {
+          submittedAtISO = submittedAtISO.toISOString();
+        } else if (typeof submittedAtISO === 'string') {
+          if (!submittedAtISO.includes('T') || !submittedAtISO.includes('Z')) {
+            submittedAtISO = new Date(submittedAtISO).toISOString();
+          }
+        } else {
+          submittedAtISO = new Date(submittedAtISO).toISOString();
+        }
+      }
+      
       const chunkMetadata = {
         agencyId: formMetadata.agencyId,
         universId: formMetadata.universId || null, // Univers ID for filtering
@@ -148,7 +185,7 @@ export async function saveFileAttachmentToVector(
         formTitle: formMetadata.formTitle,
         userId: formMetadata.userId,
         employeeName: formMetadata.employeeName,
-        submittedAt: formMetadata.submittedAt,
+        submittedAt: submittedAtISO, // Always ISO string format
         entryId: formEntryId,
         fileName,
         fileType,

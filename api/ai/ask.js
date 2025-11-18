@@ -18,6 +18,46 @@ const openai = new OpenAI({
 
 // Note: Removed TypeScript types for JavaScript compatibility
 
+/**
+ * Detect period from question text if not provided in filters
+ */
+function detectPeriodFromQuestion(question) {
+  if (!question || typeof question !== 'string') return null;
+  
+  const q = question.toLowerCase();
+  
+  // Patterns pour détecter la période
+  if (q.includes('cette semaine') || q.includes('semaine en cours')) {
+    return 'this_week';
+  }
+  if (q.includes('semaine dernière') || q.includes('semaine passée')) {
+    return 'last_week';
+  }
+  if (q.includes('aujourd\'hui') || q.includes('aujourd hui') || q.includes('ce jour')) {
+    return 'today';
+  }
+  if (q.includes('hier')) {
+    return 'yesterday';
+  }
+  if (q.includes('ce mois') || q.includes('mois en cours')) {
+    return 'this_month';
+  }
+  if (q.includes('mois dernier') || q.includes('mois passé')) {
+    return 'last_month';
+  }
+  if (q.includes('7 derniers jours') || q.includes('7 jours')) {
+    return 'last_7d';
+  }
+  if (q.includes('30 derniers jours') || q.includes('30 jours')) {
+    return 'last_30d';
+  }
+  if (q.includes('90 derniers jours') || q.includes('90 jours')) {
+    return 'last_90d';
+  }
+  
+  return null;
+}
+
 // Fonction pour calculer les dates de période
 function getPeriodDates(period) {
   const now = new Date();
@@ -696,7 +736,7 @@ export default async function handler(req, res) {
 
 
     // 3. Validation du corps de la requête
-    const { question, filters, selectedFormats, responseFormat, selectedResponseFormats } = req.body;
+    const { question, filters, selectedFormats, responseFormat, selectedResponseFormats, selectedFormIds } = req.body;
     if (!question || typeof question !== 'string' || question.trim().length === 0) {
       return res.status(400).json({ 
         error: 'Question manquante ou invalide',
@@ -710,20 +750,75 @@ export default async function handler(req, res) {
     // Initialize existingConversationContext at function scope
     let existingConversationContext = null;
 
+    // DEBUG MODE: Enable debug logging if requested (via query param or env var)
+    const enableDebug = req.body.debug === true || process.env.ENABLE_ARCHA_DEBUG === 'true';
+
+    // 4. Détecter la période depuis la question si non fournie
+    let finalPeriod = filters?.period || 'all';
+    if (!filters?.period || filters.period === 'all') {
+      const detectedPeriod = detectPeriodFromQuestion(question);
+      if (detectedPeriod) {
+        finalPeriod = detectedPeriod;
+        if (enableDebug) {
+          console.log(`🔍 [DEBUG] Period detected from question: "${detectedPeriod}"`);
+        }
+      }
+    }
+
+    // 5. Séparer selectedFormats (formats de réponse) de selectedFormIds (IDs de formulaires)
+    // Si selectedFormIds n'est pas fourni, vérifier si selectedFormats contient des IDs de formulaires
+    let finalSelectedFormIds = selectedFormIds || [];
+    if (!selectedFormIds && selectedFormats && selectedFormats.length > 0) {
+      // Vérifier si ce sont des IDs de formulaires (format UUID) ou des formats de réponse
+      const formatKeywords = ['table', 'stats', 'pdf', 'text', 'rapport'];
+      const areFormIds = selectedFormats.every(id => 
+        typeof id === 'string' && id.length > 10 && !formatKeywords.includes(id.toLowerCase())
+      );
+      if (areFormIds) {
+        // Ce sont probablement des IDs de formulaires
+        finalSelectedFormIds = selectedFormats;
+      }
+    }
+
     // 4. Recherche vectorielle pour données pertinentes (REMPLACEMENT DE loadAndAggregateData)
-    const { start, end, label } = getPeriodDates(filters?.period || 'all');
+    const { start, end, label } = getPeriodDates(finalPeriod);
     
     console.log('🔍 [ask.js] Searching vectors for relevant chunks...');
+    
+    // DEBUG MODE: Log input parameters
+    if (enableDebug) {
+      console.log('🔍 [DEBUG] ask.js Input Parameters:', {
+        userId: uid,
+        agencyId: userData.agencyId,
+        directorId: uid,
+        question: question.substring(0, 200),
+        filters: {
+          period: filters?.period || '(not set)',
+          finalPeriod: finalPeriod,
+          formId: filters?.formId || '(not set)',
+          userId: filters?.userId || '(not set)'
+        },
+        selectedFormats: selectedResponseFormats?.length > 0 ? selectedResponseFormats : '(not set)',
+        selectedFormIds: finalSelectedFormIds?.length > 0 ? finalSelectedFormIds : '(not set)',
+        periodDates: { start: start.toISOString(), end: end.toISOString(), label }
+      });
+    }
+    
     let vectorSearchResults;
     try {
+      // Si selectedFormIds est fourni et qu'un seul formulaire est sélectionné, l'utiliser comme filtre
+      const formIdFilter = filters?.formId || (finalSelectedFormIds?.length === 1 ? finalSelectedFormIds[0] : null);
+      
       vectorSearchResults = await searchAndFormatForAI(question, {
         agencyId: userData.agencyId,
         directorId: uid, // For active Univers filtering
-        formId: filters?.formId || null,
+        formId: formIdFilter,
         userId: filters?.userId || null,
         period: { start, end },
-        limit: 15, // Get top 15 most relevant chunks
-        scoreThreshold: 0.5, // Minimum relevance score
+        limit: 25, // Increased from 15 to 25 for better results
+        scoreThreshold: 0.3, // Reduced from 0.5 to 0.3 for more results
+        selectedFormIds: finalSelectedFormIds.length > 1 ? finalSelectedFormIds : null, // Multiple form IDs filter
+        debug: enableDebug, // Pass debug flag to vector search
       });
     } catch (vectorError) {
       console.error('❌ [ask.js] Vector search failed:', vectorError);

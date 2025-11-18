@@ -309,7 +309,8 @@ let cronIntervalId = null;
 
 // Start automatic cron job scheduler
 function startCronScheduler() {
-  console.log('🔄 [CronScheduler] Starting automatic cron job scheduler...');
+  // DEBUG: Cron logs disabled - uncomment to enable
+  // console.log('🔄 [CronScheduler] Starting automatic cron job scheduler...');
   
   // Run immediately on startup (with a small delay to ensure server is ready)
   setTimeout(() => {
@@ -321,7 +322,8 @@ function startCronScheduler() {
     runCronJob();
   }, 2 * 60 * 1000); // 2 minutes
   
-  console.log('✅ [CronScheduler] Automatic cron job scheduler started (every 2 minutes)');
+  // DEBUG: Cron logs disabled - uncomment to enable
+  // console.log('✅ [CronScheduler] Automatic cron job scheduler started (every 2 minutes)');
 }
 
 // Stop automatic cron job scheduler
@@ -336,7 +338,8 @@ function stopCronScheduler() {
 // Run the cron job
 async function runCronJob() {
   try {
-    console.log('🔄 [CronScheduler] Running cron job...');
+    // DEBUG: Cron logs disabled - uncomment to enable
+    // console.log('🔄 [CronScheduler] Running cron job...');
     
     // Create a mock request/response for the cron handler
     const mockReq = {
@@ -348,7 +351,8 @@ async function runCronJob() {
     const mockRes = {
       status: (code) => ({
         json: (data) => {
-          console.log(`📊 [CronScheduler] Cron job result:`, data);
+          // DEBUG: Cron logs disabled - uncomment to enable
+          // console.log(`📊 [CronScheduler] Cron job result:`, data);
           return mockRes;
         }
       }),
@@ -360,6 +364,7 @@ async function runCronJob() {
     await cronNotificationsHandler(mockReq, mockRes);
     
   } catch (error) {
+    // Keep error logs for debugging
     console.error('❌ [CronScheduler] Error running cron job:', error);
   }
 }
