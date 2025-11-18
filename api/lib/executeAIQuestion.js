@@ -275,7 +275,8 @@ export async function executeAIQuestion({
   responseFormat = 'text',
   selectedResponseFormats = [],
   directorId = null, // Director ID for active Univers filtering
-  userRole = null   // User role for context
+  userRole = null,   // User role for context
+  debug = false      // DEBUG MODE: Enable detailed logging and dry-run
 }) {
   try {
     console.log('🤖 [executeAIQuestion] Starting execution:', { userId, agencyId, question: question.substring(0, 50) });
@@ -283,15 +284,39 @@ export async function executeAIQuestion({
     // 1. Search for relevant data using vector search (REPLACEMENT FOR loadAndAggregateData)
     const { start, end, label } = getPeriodDates(filters?.period || 'all');
 
+    // DEBUG MODE: Log input parameters
+    if (debug) {
+      console.log('🔍 [DEBUG] executeAIQuestion Input Parameters:', {
+        userId,
+        agencyId,
+        directorId: directorId || '(not set)',
+        question: question.substring(0, 200),
+        filters: {
+          period: filters?.period || '(not set)',
+          formId: filters?.formId || '(not set)',
+          userId: filters?.userId || '(not set)'
+        },
+        selectedFormats: selectedFormats.length > 0 ? selectedFormats : '(not set)',
+        periodDates: { start: start.toISOString(), end: end.toISOString(), label }
+      });
+    }
+
     console.log('🔍 [executeAIQuestion] Searching vectors for relevant chunks...');
+    
+    // Handle selectedFormats as form IDs if provided
+    const formIdFilter = filters?.formId || (selectedFormats?.length === 1 ? selectedFormats[0] : null);
+    const multipleFormIds = selectedFormats && selectedFormats.length > 1 ? selectedFormats : null;
+    
     const vectorSearchResults = await searchAndFormatForAI(question, {
       agencyId,
       directorId, // For active Univers filtering
-      formId: filters?.formId || null,
+      formId: formIdFilter,
       userId: filters?.userId || null,
       period: { start, end },
-      limit: 15, // Get top 15 most relevant chunks
-      scoreThreshold: 0.5, // Minimum relevance score
+      selectedFormIds: multipleFormIds,
+      limit: 25, // Increased from 15 to 25 for better results
+      scoreThreshold: 0.3, // Reduced from 0.5 to 0.3 for more results
+      debug, // Pass debug flag to vector search
     });
 
     if (!vectorSearchResults.hasResults) {
@@ -316,6 +341,63 @@ export async function executeAIQuestion({
     }
 
     console.log(`✅ [executeAIQuestion] Found ${vectorSearchResults.chunks.length} relevant chunks`);
+
+    // DEBUG MODE: Log detailed search results
+    if (debug) {
+      const uniqueFormIds = [...new Set(vectorSearchResults.chunks.map(chunk => chunk.metadata.formId).filter(Boolean))];
+      const uniqueUniversIds = [...new Set(vectorSearchResults.chunks.map(chunk => chunk.metadata.universId).filter(Boolean))];
+      const uniqueUserIds = [...new Set(vectorSearchResults.chunks.map(chunk => chunk.metadata.userId).filter(Boolean))];
+      
+      console.log('🔍 [DEBUG] Vector Search Results Summary:', {
+        totalChunks: vectorSearchResults.chunks.length,
+        uniqueEntries: vectorSearchResults.uniqueEntriesCount,
+        uniqueFormIds: uniqueFormIds.length > 0 ? uniqueFormIds : '(none)',
+        uniqueUniversIds: uniqueUniversIds.length > 0 ? uniqueUniversIds : '(none)',
+        uniqueUserIds: uniqueUserIds.length > 0 ? uniqueUserIds : '(none)',
+        citations: vectorSearchResults.citations.length,
+        citationsList: vectorSearchResults.citations
+      });
+    }
+
+    // DEBUG MODE: DRY-RUN - Return debug info without calling OpenAI
+    if (debug && process.env.DEBUG_DRY_RUN === 'true') {
+      console.log('🔍 [DEBUG] DRY-RUN MODE: Skipping OpenAI call');
+      return {
+        answer: '[DEBUG DRY-RUN] OpenAI call skipped. Check logs for filter and search results.',
+        tokensUsed: 0,
+        meta: {
+          period: label,
+          usedEntries: vectorSearchResults.chunks.length,
+          forms: [...new Set(vectorSearchResults.chunks.map(chunk => chunk.metadata.formId).filter(Boolean))].length,
+          users: [...new Set(vectorSearchResults.chunks.map(chunk => chunk.metadata.userId).filter(Boolean))].length,
+          model: 'gpt-4.1',
+          selectedFormat: responseFormat,
+          selectedFormats: selectedResponseFormats,
+          selectedFormIds: selectedFormats,
+          selectedFormTitles: [...new Set(vectorSearchResults.chunks.map(chunk => chunk.metadata.formTitle).filter(Boolean))].slice(0, 5),
+          chunksUsed: vectorSearchResults.chunks.length,
+          citations: vectorSearchResults.citations,
+          debug: {
+            filterApplied: {
+              agencyId,
+              directorId: directorId || null,
+              formId: filters?.formId || null,
+              userId: filters?.userId || null,
+              period: { start: start.toISOString(), end: end.toISOString() }
+            },
+            chunksFound: vectorSearchResults.chunks.map(chunk => ({
+              id: chunk.id,
+              score: chunk.score,
+              formId: chunk.metadata.formId,
+              formTitle: chunk.metadata.formTitle,
+              universId: chunk.metadata.universId || null,
+              entryId: chunk.metadata.entryId,
+              textPreview: chunk.text.substring(0, 150)
+            }))
+          }
+        }
+      };
+    }
 
     // Legacy data structure for compatibility (if needed)
     const data = {
