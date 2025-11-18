@@ -98,30 +98,49 @@ class ListsService {
         }
       }
 
-      // Récupérer l'Univers actif pour associer automatiquement si universId n'est pas fourni
+      // Récupérer automatiquement l'Univers actif et son instance si aucune information n'est fournie
       let universIdToAssociate: string | null = list.universId || null;
-      if (!universIdToAssociate && list.agencyId) {
+      let universInstanceIdToAssociate: string | null = list.universInstanceId || null;
+      
+      if (list.agencyId && (!universIdToAssociate || !universInstanceIdToAssociate)) {
         try {
-          // Trouver le directeur de l'agence
-          const directorsSnapshot = await getDocs(
-            query(
-              collection(db, 'users'),
-              where('agencyId', '==', list.agencyId),
-              where('role', '==', 'directeur')
-            )
-          );
-          if (!directorsSnapshot.empty) {
-            const directorId = directorsSnapshot.docs[0].id;
-            // Récupérer l'Univers actif du directeur
-            const { universService } = await import('./universService');
-            const activeUnivers = await universService.getActiveUnivers(directorId, list.agencyId);
+          const { universService } = await import('./universService');
+
+          const resolveUniversForDirector = async (directorId: string) => {
+            const activeUnivers = await universService.getActiveUnivers(directorId, list.agencyId!);
             if (activeUnivers) {
-              universIdToAssociate = activeUnivers.activeUniversId;
+              if (!universIdToAssociate) {
+                universIdToAssociate = activeUnivers.activeUniversId;
+              }
+              if (!universInstanceIdToAssociate) {
+                let instanceId = activeUnivers.activeInstanceId || null;
+                if (!instanceId) {
+                  instanceId = await universService.ensureInstanceForActiveUnivers(directorId, list.agencyId!) || null;
+                }
+                universInstanceIdToAssociate = instanceId;
+              }
+            }
+          };
+
+          if (list.createdByRole === 'directeur') {
+            await resolveUniversForDirector(list.createdBy);
+          } else {
+            // Trouver le directeur de l'agence pour récupérer l'univers actif partagé
+            const directorsSnapshot = await getDocs(
+              query(
+                collection(db, 'users'),
+                where('agencyId', '==', list.agencyId),
+                where('role', '==', 'directeur')
+              )
+            );
+            if (!directorsSnapshot.empty) {
+              const directorId = directorsSnapshot.docs[0].id;
+              await resolveUniversForDirector(directorId);
             }
           }
         } catch (error) {
-          console.error('Erreur lors de la récupération de l\'Univers actif pour la List:', error);
-          // Continue sans associer au Univers si erreur
+          console.error('Erreur lors de la récupération ou de la création de l\'instance de l\'Univers pour la List:', error);
+          // Continuer même si nous ne pouvons pas associer l'univers (non bloquant)
         }
       }
 
@@ -139,7 +158,7 @@ class ListsService {
         createdAt: Timestamp.fromDate(list.createdAt || now),
         updatedAt: Timestamp.fromDate(list.updatedAt || now),
         universId: universIdToAssociate,
-        universInstanceId: list.universInstanceId || null,
+        universInstanceId: universInstanceIdToAssociate,
         fromUnivers: list.fromUnivers || false
       };
 
