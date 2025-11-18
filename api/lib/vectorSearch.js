@@ -5,6 +5,9 @@
 
 import { qdrantRequest, COLLECTION_NAME } from './vectorDb.js';
 import { generateEmbedding } from './embeddings.js';
+
+// Import adminDb - used for enriching user metadata (names/emails) in search results
+// If Firebase Admin fails to initialize, adminDb will be undefined and enrichment will be skipped
 import { adminDb } from './firebaseAdmin.js';
 
 /**
@@ -263,6 +266,113 @@ export async function searchVectors(
 }
 
 /**
+ * Enrich metadata with user information (name, email) from Firebase
+ */
+async function enrichUserMetadata(results) {
+  console.log('🔍 [DEBUG] enrichUserMetadata: Starting enrichment...');
+  console.log('🔍 [DEBUG] enrichUserMetadata: Results count:', results.length);
+  
+  // Collect unique user IDs
+  const userIds = [...new Set(results.map(r => r.metadata?.userId).filter(Boolean))];
+  console.log('🔍 [DEBUG] enrichUserMetadata: Unique user IDs found:', userIds.length, userIds);
+  
+  if (userIds.length === 0) {
+    console.log('🔍 [DEBUG] enrichUserMetadata: No user IDs found, returning original results');
+    return results;
+  }
+
+  // Check adminDb availability
+  if (!adminDb) {
+    console.error('❌ [DEBUG] enrichUserMetadata: adminDb is not available!');
+    return results;
+  }
+  console.log('🔍 [DEBUG] enrichUserMetadata: adminDb is available');
+
+  // Fetch user data from Firebase in batch
+  const usersMap = new Map();
+  try {
+    console.log('🔍 [DEBUG] enrichUserMetadata: Starting Firebase queries for', userIds.length, 'users');
+    const userPromises = userIds.map(async (userId) => {
+      try {
+        console.log('🔍 [DEBUG] enrichUserMetadata: Fetching user:', userId);
+        const userDoc = await adminDb.collection('users').doc(userId).get();
+        if (userDoc.exists) {
+          const userData = userDoc.data();
+          console.log('🔍 [DEBUG] enrichUserMetadata: User found:', userId, { name: userData?.name, email: userData?.email });
+          return {
+            userId,
+            name: userData?.name || null,
+            email: userData?.email || null,
+          };
+        }
+        console.log('🔍 [DEBUG] enrichUserMetadata: User not found:', userId);
+        return { userId, name: null, email: null };
+      } catch (error) {
+        console.error(`❌ [DEBUG] enrichUserMetadata: Error fetching user ${userId}:`, error.message);
+        console.error(`❌ [DEBUG] enrichUserMetadata: Error stack:`, error.stack);
+        return { userId, name: null, email: null };
+      }
+    });
+
+    const users = await Promise.all(userPromises);
+    console.log('🔍 [DEBUG] enrichUserMetadata: Firebase queries completed, processing results...');
+    users.forEach(user => {
+      if (user && (user.name || user.email)) {
+        usersMap.set(user.userId, user);
+      }
+    });
+    console.log('🔍 [DEBUG] enrichUserMetadata: Users map size:', usersMap.size);
+  } catch (error) {
+    console.error('❌ [DEBUG] enrichUserMetadata: Fatal error in enrichment process:', error.message);
+    console.error('❌ [DEBUG] enrichUserMetadata: Error stack:', error.stack);
+    // Return original results if enrichment fails
+    return results;
+  }
+
+  // Enrich results with user information
+  console.log('🔍 [DEBUG] enrichUserMetadata: Enriching', results.length, 'results with user data...');
+  try {
+    const enriched = results.map((result, index) => {
+      if (!result || !result.metadata) {
+        console.warn(`⚠️ [DEBUG] enrichUserMetadata: Result ${index} has no metadata`);
+        return result;
+      }
+      
+      const userId = result.metadata.userId;
+      const user = userId ? usersMap.get(userId) : null;
+      const employeeName = result.metadata.employeeName;
+
+      // If employeeName is an ID or missing, replace with name/email
+      let displayName = employeeName;
+      if (user) {
+        if (!employeeName || employeeName.startsWith('Utilisateur ') || employeeName === userId) {
+          // Use name if available, otherwise email, otherwise keep original
+          displayName = user.name || user.email || employeeName;
+          console.log(`🔍 [DEBUG] enrichUserMetadata: Replaced "${employeeName}" with "${displayName}" for user ${userId}`);
+        }
+      }
+
+      // Update metadata
+      return {
+        ...result,
+        metadata: {
+          ...result.metadata,
+          employeeName: displayName,
+          userEmail: user?.email || null,
+          userName: user?.name || null,
+        },
+      };
+    });
+    console.log('🔍 [DEBUG] enrichUserMetadata: Enrichment completed, returning', enriched.length, 'results');
+    return enriched;
+  } catch (error) {
+    console.error('❌ [DEBUG] enrichUserMetadata: Error in map function:', error.message);
+    console.error('❌ [DEBUG] enrichUserMetadata: Error stack:', error.stack);
+    return results;
+  }
+}
+
+/**
  * Search and format results for AI prompt
  * Automatically gets active Univers if directorId is provided
  */
@@ -284,15 +394,35 @@ export async function searchAndFormatForAI(
     };
   }
 
+  // Enrich metadata with user information (name, email) from Firebase
+  let enrichedResults = results;
+  
+  // Check if adminDb is available before attempting enrichment
+  if (!adminDb) {
+    console.warn('⚠️ [DEBUG] searchAndFormatForAI: adminDb not available, skipping enrichment');
+    enrichedResults = results;
+  } else {
+    try {
+      enrichedResults = await enrichUserMetadata(results);
+      console.log('✅ [DEBUG] searchAndFormatForAI: Enrichment completed successfully');
+    } catch (error) {
+      console.error('❌ [DEBUG] searchAndFormatForAI: Error enriching user metadata, using original results');
+      console.error('❌ [DEBUG] searchAndFormatForAI: Error message:', error.message);
+      console.error('❌ [DEBUG] searchAndFormatForAI: Error stack:', error.stack);
+      // Continue with original results if enrichment fails
+      enrichedResults = results;
+    }
+  }
+
   // Group by entry/document to avoid duplicates
   const uniqueEntries = new Map();
   const citations = [];
 
-  results.forEach((result) => {
+  enrichedResults.forEach((result) => {
     const entryId = result.metadata.entryId;
     const fileName = result.metadata.fileName;
 
-    // Create citation key
+    // Create citation key with enriched user info
     let citationKey = '';
     if (fileName) {
       citationKey = `${result.metadata.fileTypeLabel || 'Document'}: ${fileName}`;
@@ -327,6 +457,7 @@ export async function searchAndFormatForAI(
         submittedAt: result.metadata.submittedAt,
         fileName: result.metadata.fileName,
         fileTypeLabel: result.metadata.fileTypeLabel,
+        userId: result.metadata.userId, // Store userId for text cleaning
         chunks: [],
       });
     }
@@ -335,6 +466,8 @@ export async function searchAndFormatForAI(
       text: result.text,
       score: result.score,
       chunkIndex: result.metadata.chunkIndex,
+      userId: result.metadata.userId, // Store userId for text cleaning
+      displayName: result.metadata.employeeName, // Store display name for text cleaning
     });
   });
 
@@ -359,10 +492,22 @@ export async function searchAndFormatForAI(
     }
 
     // Add chunks (sorted by score, highest first)
+    // Clean text to replace user IDs with display names
     entry.chunks
       .sort((a, b) => b.score - a.score)
       .forEach((chunk) => {
-        formattedParts.push(`\n   ${chunk.text}`);
+        let cleanedText = chunk.text;
+        
+        // Replace "Utilisateur {userId}" patterns with display name if available
+        if (chunk.userId && chunk.displayName) {
+          const userId = chunk.userId;
+          const displayName = chunk.displayName;
+          // Replace patterns like "Utilisateur NmeqMvHwQLZvJRU4oDs5Skz0Q0Q2" with display name
+          const pattern = new RegExp(`Utilisateur\\s+${userId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, 'gi');
+          cleanedText = cleanedText.replace(pattern, displayName);
+        }
+        
+        formattedParts.push(`\n   ${cleanedText}`);
       });
   });
 
