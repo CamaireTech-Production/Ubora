@@ -22,36 +22,30 @@ class ListsService {
    */
   private convertFirestoreToList(id: string, data: any): List {
     // Normaliser les rows pour s'assurer que c'est toujours un tableau
-    const normalizedRows = Array.isArray(data.rows) ? data.rows : [];
+    const normalizedRows: ListRow[] = Array.isArray(data.rows) ? data.rows : [];
+    const normalizedColumns: ListColumn[] = Array.isArray(data.columns) ? data.columns : [];
     
     // Log pour débogage si rows manquants
     if (!Array.isArray(data.rows) && data.rows !== undefined) {
       console.warn(`⚠️ List "${data.name}" (${id}): rows n'est pas un tableau, normalisation en cours`);
     }
     
-    const list = {
+    const list: List = {
       id,
       name: data.name,
       description: data.description || undefined,
-      columns: Array.isArray(data.columns) ? data.columns : [],
+      columns: normalizedColumns,
       rows: normalizedRows, // Toujours un tableau
       createdBy: data.createdBy,
       createdByRole: data.createdByRole || 'directeur',
       createdByEmployeeId: data.createdByEmployeeId || undefined,
       agencyId: data.agencyId,
-      createdAt: data.createdAt?.toDate() || new Date(),
-      updatedAt: data.updatedAt?.toDate() || new Date(),
+      createdAt: data.createdAt?.toDate?.() || new Date(),
+      updatedAt: data.updatedAt?.toDate?.() || new Date(),
       universId: data.universId || undefined,
       universInstanceId: data.universInstanceId || undefined,
       fromUnivers: data.fromUnivers || false
-    } as List;
-    
-    // Log pour débogage
-    if (normalizedRows.length > 0) {
-      console.log(`📋 List "${list.name}" (${id}) chargée: ${list.columns.length} colonnes, ${normalizedRows.length} rows`);
-    } else if (list.columns.length > 0) {
-      console.warn(`⚠️ List "${list.name}" (${id}): ${list.columns.length} colonnes mais 0 rows`);
-    }
+    };
     
     return list;
   }

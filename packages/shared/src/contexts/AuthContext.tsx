@@ -7,16 +7,17 @@ import {
   signInWithPopup,
   GoogleAuthProvider,
   sendPasswordResetEmail,
-  User as FirebaseUser
+  fetchSignInMethodsForEmail,
+  deleteUser,
+  User as FirebaseUser,
+  UserCredential
 } from 'firebase/auth';
 import { doc, getDoc, setDoc, updateDoc, serverTimestamp, onSnapshot, collection, query, where, getDocs, QuerySnapshot, DocumentSnapshot } from 'firebase/firestore';
 import { auth, db } from '../firebaseConfig';
 import { User } from '../types';
-import { getPackageLimit, PackageType } from '../config/packageFeatures';
 import { AnalyticsService } from '../services/analyticsService';
 import { SubscriptionSessionService } from '../services/subscriptionSessionService';
 import { SubscriptionSessionCollectionService } from '../services/subscriptionSessionCollectionService';
-import { UserSessionService } from '../services/userSessionService';
 import { withFirebaseErrorHandling, FirebaseErrorHandler } from '../services/firebaseErrorHandler';
 import { universService } from '../services/universService';
 import { withRetry, withFirestoreRetry, withAuthRetry } from '../utils/retryHandler';
@@ -26,7 +27,7 @@ interface AuthContextType {
   firebaseUser: FirebaseUser | null;
   login: (email: string, password: string) => Promise<boolean>;
   loginWithGoogle: () => Promise<boolean>;
-  register: (email: string, password: string, name: string, role: 'admin' | 'directeur' | 'employe', agencyId: string) => Promise<{ success: boolean; error?: string; action?: 'login' | 'recover' }>;
+  register: (email: string, password: string, name: string, role: 'admin' | 'directeur' | 'employe', agencyId: string) => Promise<{ success: boolean; error?: string; action?: 'login' | 'recover'; universCreated?: boolean; directorInfo?: { id: string; name: string; email: string } }>;
   resetPassword: (email: string) => Promise<boolean>;
   logout: () => Promise<void>;
   refreshUserData: () => Promise<void>;
@@ -47,13 +48,87 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [firestoreDisabled] = useState(false);
   const [firestoreCircuitBreaker, setFirestoreCircuitBreaker] = useState(false);
 
-  // Fonction pour vérifier l'existence d'une agence dans Firestore
-  const validateAgencyExists = async (agencyId: string): Promise<{ exists: boolean; error?: string }> => {
+  // Fonction pour vérifier si un email existe dans Firebase Auth
+  const checkEmailExistsInAuth = async (email: string): Promise<{ exists: boolean; error?: string }> => {
     try {
+      const normalizedEmail = email.trim().toLowerCase();
+      const signInMethods = await fetchSignInMethodsForEmail(auth, normalizedEmail);
+      
+      if (signInMethods.length > 0) {
+        return { 
+          exists: true, 
+          error: 'Email déjà utilisé. Essayez de vous connecter.' 
+        };
+      }
+      
+      return { exists: false };
+    } catch (error: any) {
+      console.error('❌ Erreur lors de la vérification de l\'email dans Auth:', error);
+      // Si l'erreur est "user-not-found", l'email n'existe pas (c'est OK)
+      if (error.code === 'auth/user-not-found') {
+        return { exists: false };
+      }
+      // Pour les autres erreurs, on considère que l'email existe pour éviter les doublons
+      return { 
+        exists: true, 
+        error: 'Erreur lors de la vérification de l\'email. Veuillez réessayer.' 
+      };
+    }
+  };
+
+  // Fonction pour vérifier si un email existe dans Firestore
+  const checkEmailExistsInFirestore = async (email: string): Promise<{ exists: boolean; error?: string }> => {
+    try {
+      const normalizedEmail = email.trim().toLowerCase();
+      const emailQuery = query(
+        collection(db, 'users'),
+        where('email', '==', normalizedEmail)
+      );
+      
+      const emailSnapshot = await withFirestoreRetry(
+        () => getDocs(emailQuery),
+        { maxRetries: 2, retryDelay: 500 }
+      ) as QuerySnapshot;
+      
+      if (!emailSnapshot.empty) {
+        return { 
+          exists: true, 
+          error: 'Email déjà utilisé. Essayez de vous connecter.' 
+        };
+      }
+      
+      return { exists: false };
+    } catch (error: any) {
+      console.error('❌ Erreur lors de la vérification de l\'email dans Firestore:', error);
+      
+      if (error.code === 'permission-denied') {
+        // Si permission denied, on ne peut pas vérifier, mais on continue (Auth vérifiera)
+        return { exists: false };
+      }
+      
+      return { 
+        exists: false,
+        error: 'Erreur lors de la vérification de l\'email. Veuillez réessayer.' 
+      };
+    }
+  };
+
+  // Fonction pour vérifier si un agencyId existe déjà dans Firestore
+  const checkAgencyIdExists = async (agencyId: string): Promise<{ exists: boolean; error?: string }> => {
+    try {
+      const trimmedAgencyId = agencyId.trim();
+      
+      if (!trimmedAgencyId) {
+        return { 
+          exists: false, 
+          error: 'L\'ID d\'agence est obligatoire.' 
+        };
+      }
+      
       // Vérifier qu'il existe au moins un directeur avec cet agencyId
       const directorsQuery = query(
         collection(db, 'users'),
-        where('agencyId', '==', agencyId.trim()),
+        where('agencyId', '==', trimmedAgencyId),
         where('role', '==', 'directeur')
       );
       
@@ -62,14 +137,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         { maxRetries: 2, retryDelay: 500 }
       ) as QuerySnapshot;
       
-      if (directorsSnapshot.empty) {
+      if (!directorsSnapshot.empty) {
         return { 
-          exists: false, 
-          error: 'Aucune agence trouvée avec cet ID. Veuillez vérifier l\'ID d\'agence ou contacter le support.' 
+          exists: true, 
+          error: 'ID agence existe déjà. Veuillez utiliser un autre ID.' 
         };
       }
       
-      return { exists: true };
+      return { exists: false };
     } catch (error: any) {
       console.error('❌ Erreur lors de la vérification de l\'agence:', error);
       
@@ -123,7 +198,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (role === 'directeur') {
       return {
         ...baseData,
-        needsPackageSelection: true
+        needsPackageSelection: true,
+        currentSubscriptionSessionId: undefined // Will be set after package selection
         // Note: tokensUsedMonthly et tokensResetDate ne sont plus utilisés
         // Les tokens sont gérés dans subscriptionSessions
       };
@@ -132,17 +208,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // role === 'employe'
     return {
       ...baseData,
+      isApproved: false, // Pending director approval
+      approvedBy: undefined,
+      approvedAt: undefined,
       accessLevels: [],
       hasDirectorDashboardAccess: false
     };
   };
 
-  // Fonction pour vérifier les limites d'utilisateurs d'une agence
-  const checkAgencyUserLimit = async (agencyId: string): Promise<{ canAddUser: boolean; error?: string }> => {
+  // Fonction pour vérifier les limites d'utilisateurs d'une agence (optimisée avec currentSubscriptionSessionId)
+  const checkAgencyUserLimit = async (agencyId: string): Promise<{ canAddUser: boolean; error?: string; directorInfo?: { id: string; name: string; email: string } }> => {
     try {
       console.log('🔍 Checking agency user limit for agencyId:', agencyId);
       
-      // Récupérer le directeur de l'agence pour connaître son package
+      // Récupérer le directeur de l'agence
       const directorsQuery = query(
         collection(db, 'users'),
         where('agencyId', '==', agencyId),
@@ -154,134 +233,104 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         { maxRetries: 2, retryDelay: 500 }
       ) as QuerySnapshot;
       
-      console.log('🔍 Directors found:', directorsSnapshot.size);
-      
       if (directorsSnapshot.empty) {
         console.error('❌ NO DIRECTOR FOUND: No director exists for agency:', agencyId);
-        return { canAddUser: false, error: 'Aucun directeur trouvé pour cette agence. Veuillez vérifier l\'ID d\'agence ou contacter le support.' };
-      }
-      
-      const director = directorsSnapshot.docs[0].data() as User;
-      const directorId = directorsSnapshot.docs[0].id;
-      
-      // Check if director has active session in new collection
-      let hasActiveSession = false;
-      let currentSessionId = null;
-      try {
-        if (director.currentSubscriptionSessionId) {
-          const activeSession = await SubscriptionSessionCollectionService.getActiveSession(directorId);
-          hasActiveSession = !!activeSession;
-          currentSessionId = director.currentSubscriptionSessionId;
-        }
-      } catch (error: any) {
-        // Erreur de permissions - on continue avec le fallback
-        if (error?.code === 'permission-denied') {
-          console.warn('⚠️ Permission denied for session check, using fallback');
-        } else {
-          console.error('Error checking active session:', error);
-        }
-      }
-      
-      // Fallback to legacy check
-      if (!hasActiveSession) {
-        hasActiveSession = !!(director.subscriptionSessions && director.subscriptionSessions.length > 0);
-        currentSessionId = director.currentSessionId || null;
-      }
-      
-      console.log('🔍 Director data:', {
-        id: directorId,
-        name: director.name,
-        email: director.email,
-        agencyId: director.agencyId,
-        role: director.role,
-        package: director.package,
-        hasSubscriptionSessions: hasActiveSession,
-        currentSubscriptionSessionId: director.currentSubscriptionSessionId,
-        currentSessionId: currentSessionId
-      });
-      
-      // Use the new subscription session system to get package limits
-      const packageLimits = await UserSessionService.getPackageLimits(director);
-      
-      console.log('🔍 Package limits from session:', packageLimits);
-      console.log('🔍 Max users allowed:', packageLimits.maxUsers);
-      console.log('🔍 Is unlimited users:', packageLimits.maxUsers === -1);
-      
-      // If no session found, check if director needs to select a package
-      if (packageLimits.maxUsers === 0) {
-        // Check if director has legacy package field as fallback
-        const legacyPackage = director.package as PackageType;
-        if (legacyPackage) {
-          const legacyLimits = getPackageLimit(legacyPackage, 'maxUsers');
-          if (legacyLimits === -1) {
-            return { canAddUser: true };
-          }
-          
-          // Check legacy limits
-          const employeesQuery = query(
-            collection(db, 'users'),
-            where('agencyId', '==', agencyId),
-            where('role', '==', 'employe'),
-            where('isApproved', '!=', false)
-          );
-          
-          const employeesSnapshot = await getDocs(employeesQuery) as QuerySnapshot;
-          const currentEmployeeCount = employeesSnapshot.size;
-          
-          console.log('🔍 Legacy package limits:', legacyLimits);
-          console.log('🔍 Current employee count (legacy):', currentEmployeeCount);
-          console.log('🔍 Employees query result (legacy):', employeesSnapshot.size);
-          
-          if (currentEmployeeCount >= legacyLimits) {
-            return { 
-              canAddUser: false, 
-              error: 'Limite d\'utilisateurs atteinte. Contactez votre directeur pour mettre à niveau le package ou acheter des utilisateurs supplémentaires.' 
-            };
-          }
-          
-          return { canAddUser: true };
-        } else {
-          // Allow employee creation even if director hasn't set up package yet
-          // This is a temporary fallback to prevent blocking employee registration
-          console.warn('⚠️ Director has no package configured, allowing employee creation as fallback');
-          return { canAddUser: true };
-        }
-      }
-      
-      // Check if the director has unlimited users
-      if (packageLimits.maxUsers === -1) {
-        return { canAddUser: true };
-      }
-      
-      // Récupérer le nombre d'employés actuels (approuvés)
-      const employeesQuery = query(
-        collection(db, 'users'),
-        where('agencyId', '==', agencyId),
-        where('role', '==', 'employe'),
-        where('isApproved', '!=', false) // Inclut les employés approuvés (true) et ceux en attente (undefined)
-      );
-      
-      const employeesSnapshot = await withFirestoreRetry(
-        () => getDocs(employeesQuery),
-        { maxRetries: 2, retryDelay: 500 }
-      ) as QuerySnapshot;
-      const currentEmployeeCount = employeesSnapshot.size;
-      
-      console.log('🔍 Current employee count:', currentEmployeeCount);
-      console.log('🔍 Employees query result:', employeesSnapshot.size);
-      console.log('🔍 Can add user:', currentEmployeeCount < packageLimits.maxUsers);
-      console.log('🔍 Remaining capacity:', packageLimits.maxUsers === -1 ? 'Unlimited' : packageLimits.maxUsers - currentEmployeeCount);
-      
-      // Check if current employee count is within limits
-      if (currentEmployeeCount >= packageLimits.maxUsers) {
         return { 
           canAddUser: false, 
-          error: 'Limite d\'utilisateurs atteinte. Contactez votre directeur pour mettre à niveau le package ou acheter des utilisateurs supplémentaires.' 
+          error: 'Aucun directeur trouvé pour cette agence. Veuillez vérifier l\'ID d\'agence ou contacter le support.' 
         };
       }
       
-      console.log('🔍 Final decision: Allowing user creation');
-      return { canAddUser: true };
+      const directorDoc = directorsSnapshot.docs[0];
+      const director = directorDoc.data() as User;
+      const directorId = directorDoc.id;
+      
+      // Extraire les informations du directeur pour les messages d'erreur
+      const directorInfo = {
+        id: directorId,
+        name: director.name || 'Directeur',
+        email: director.email || ''
+      };
+      
+      console.log('🔍 Director found:', directorInfo);
+      
+      // OPTIMISATION: Utiliser currentSubscriptionSessionId directement
+      if (!director.currentSubscriptionSessionId) {
+        console.error('❌ NO ACTIVE SESSION: Director has no active subscription session');
+        return { 
+          canAddUser: false, 
+          error: 'Directeur n\'a pas de package actif. Contactez votre directeur pour activer un package.',
+          directorInfo
+        };
+      }
+      
+      // Récupérer la session directement via l'ID
+      const sessionDocRef = doc(db, 'subscriptionSessions', director.currentSubscriptionSessionId);
+      const sessionDoc = await withFirestoreRetry(
+        () => getDoc(sessionDocRef),
+        { maxRetries: 2, retryDelay: 500 }
+      ) as DocumentSnapshot;
+      
+      if (!sessionDoc.exists()) {
+        console.error('❌ SESSION NOT FOUND: Session document does not exist:', director.currentSubscriptionSessionId);
+        return { 
+          canAddUser: false, 
+          error: 'Directeur n\'a pas de package actif. Contactez votre directeur pour activer un package.',
+          directorInfo
+        };
+      }
+      
+      const sessionData = sessionDoc.data();
+      
+      // Vérifier que la session est active et appartient au directeur
+      if (sessionData.userId !== directorId || !sessionData.isActive) {
+        console.error('❌ INVALID SESSION: Session is not active or does not belong to director');
+            return { 
+              canAddUser: false, 
+          error: 'Directeur n\'a pas de package actif. Contactez votre directeur pour activer un package.',
+          directorInfo
+        };
+      }
+      
+      // Extraire les limites du package
+      const packageResources = sessionData.packageResources || {};
+      const payAsYouGoResources = sessionData.payAsYouGoResources || {};
+      const usage = sessionData.usage || {};
+      
+      const usersIncluded = packageResources.usersIncluded || 0;
+      const payAsYouGoUsers = payAsYouGoResources.users || 0;
+      const usersAdded = usage.usersAdded || 0;
+      
+      // Calculer la limite totale (package + pay-as-you-go)
+      const maxUsers = usersIncluded === -1 ? -1 : usersIncluded + payAsYouGoUsers;
+      
+      console.log('🔍 Session quota check:', {
+        sessionId: director.currentSubscriptionSessionId,
+        usersIncluded,
+        payAsYouGoUsers,
+        maxUsers,
+        usersAdded,
+        remaining: maxUsers === -1 ? 'Unlimited' : maxUsers - usersAdded
+      });
+      
+      // Vérifier si le quota est illimité
+      if (maxUsers === -1) {
+        console.log('✅ Unlimited users - allowing creation');
+        return { canAddUser: true, directorInfo };
+      }
+      
+      // Vérifier si le quota est atteint
+      if (usersAdded >= maxUsers) {
+        console.error('❌ QUOTA EXCEEDED:', { usersAdded, maxUsers });
+        return { 
+          canAddUser: false, 
+          error: 'Quota atteint. Contactez votre directeur pour mettre à niveau le package ou acheter des utilisateurs supplémentaires.',
+          directorInfo
+        };
+      }
+      
+      console.log('✅ Quota available - allowing creation');
+      return { canAddUser: true, directorInfo };
     } catch (error: any) {
       console.error('❌ Erreur lors de la vérification des limites:', error);
       console.error('❌ Error details:', {
@@ -320,9 +369,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         try {
           const testDoc = doc(db, '_test', 'connection');
           await getDoc(testDoc);
-        } catch (testError) {
+        } catch {
           // Even if test fails, we can still proceed
-          console.warn('Firestore test failed but continuing:', testError);
         }
         
         setFirestoreReady(true);
@@ -377,13 +425,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     let timeoutId: ReturnType<typeof setTimeout>;
     
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser: FirebaseUser | null) => {
-      console.log('🔥 AuthContext: onAuthStateChanged triggered', { 
-        timestamp: Date.now(),
-        hasFirebaseUser: !!firebaseUser,
-        firebaseUserId: firebaseUser?.uid,
-        currentUserId: user?.id
-      });
-      
       // Clear any pending operations to prevent concurrent calls
       clearTimeout(timeoutId);
       
@@ -581,22 +622,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             // Marquer le chargement comme terminé seulement après avoir défini l'utilisateur
             setIsLoading(false);
             
-            // Créer l'univers par défaut pour les directeurs si nécessaire
-            // (après que l'utilisateur soit complètement chargé et que les permissions Firestore soient propagées)
-            if (userData.role === 'directeur' && userData.agencyId) {
-              // Utiliser setTimeout pour permettre à Firestore de propager les permissions
-              setTimeout(async () => {
-                try {
-                  // Créer l'univers par défaut (sans l'activer si cela échoue, ce n'est pas bloquant)
-                  await universService.ensureDefaultUnivers(firebaseUser.uid, userData.agencyId);
-                  console.log('✅ Univers par défaut créé/vérifié pour le directeur:', firebaseUser.uid);
-                } catch (universError) {
-                  console.warn('⚠️ Erreur lors de la création/vérification de l\'univers par défaut (non bloquant):', universError);
-                  // Ne pas bloquer la connexion si l'univers par défaut ne peut pas être créé
-                  // L'utilisateur pourra continuer et l'univers sera créé plus tard si nécessaire
-                }
-              }, 500); // Attendre 500ms pour que les permissions Firestore soient propagées
-            }
+            // Note: L'univers par défaut est maintenant créé de manière synchrone pendant l'inscription
+            // Il n'est plus nécessaire de le créer ici lors de la connexion
+            // Si l'univers n'existe pas, il sera créé à la demande lors de la première utilisation
           } else {
             // Document utilisateur manquant, déconnecter
             await signOut(auth);
@@ -662,14 +690,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         
 
         // Vérifier l'approbation pour les employés
-        if (userData.role === 'employe' && userData.isApproved === false) {
-          setUser({
-            id: firebaseUser.uid,
-            ...userData
-          });
-          return;
-        }
-        
+        // Si isApproved est false ou undefined, l'employé est en attente
+        // Le RoleBasedRedirect gérera la redirection vers /pending-approval
+        // Si isApproved est true, l'employé peut accéder au dashboard
         setUser({
           id: firebaseUser.uid,
           ...userData
@@ -890,29 +913,90 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     name: string, 
     role: 'admin' | 'directeur' | 'employe',
     agencyId: string
-  ): Promise<{ success: boolean; error?: string; action?: 'login' | 'recover' }> => {
+  ): Promise<{ success: boolean; error?: string; action?: 'login' | 'recover'; universCreated?: boolean; directorInfo?: { id: string; name: string; email: string } }> => {
     try {
       setError(null);
       setIsLoading(true);
       
       const normalizedEmail = email.trim().toLowerCase();
+      let userCredential: UserCredential | null = null;
       
-      // NOTE: On ne fait plus de vérification préalable dans Firestore car elle peut manquer de permissions
-      // Firebase Auth gérera la vérification et retournera 'auth/email-already-in-use' si l'email existe
-      // Cela évite les faux positifs et les problèmes de permissions
+      // ============================================
+      // PRÉ-VALIDATION POUR DIRECTEURS
+      // ============================================
+      if (role === 'directeur') {
+        // 1. Vérifier l'email dans Firebase Auth
+        const emailAuthCheck = await checkEmailExistsInAuth(normalizedEmail);
+        if (emailAuthCheck.exists) {
+          setError(emailAuthCheck.error || 'Email déjà utilisé. Essayez de vous connecter.');
+          return { 
+            success: false, 
+            error: emailAuthCheck.error || 'Email déjà utilisé. Essayez de vous connecter.',
+            action: 'login'
+          };
+        }
+        
+        // 2. Vérifier l'email dans Firestore
+        const emailFirestoreCheck = await checkEmailExistsInFirestore(normalizedEmail);
+        if (emailFirestoreCheck.exists) {
+          setError(emailFirestoreCheck.error || 'Email déjà utilisé. Essayez de vous connecter.');
+          return { 
+            success: false, 
+            error: emailFirestoreCheck.error || 'Email déjà utilisé. Essayez de vous connecter.',
+            action: 'login'
+          };
+        }
+        
+        // 3. Vérifier l'agencyId (doit être unique pour les directeurs)
+        const agencyIdCheck = await checkAgencyIdExists(agencyId);
+        if (agencyIdCheck.exists) {
+          setError(agencyIdCheck.error || 'ID agence existe déjà. Veuillez utiliser un autre ID.');
+          return { 
+            success: false, 
+            error: agencyIdCheck.error || 'ID agence existe déjà. Veuillez utiliser un autre ID.'
+          };
+        }
+      }
       
-      // ÉTAPE 1: Vérifier les limites d'utilisateurs pour les employés (AVANT création Auth)
+      // ============================================
+      // PRÉ-VALIDATION ET VÉRIFICATION DES LIMITES POUR EMPLOYÉS
+      // ============================================
           if (role === 'employe') {
+        // 1. Vérifier l'email dans Firebase Auth
+        const emailAuthCheck = await checkEmailExistsInAuth(normalizedEmail);
+        if (emailAuthCheck.exists) {
+          setError(emailAuthCheck.error || 'Email déjà utilisé. Essayez de vous connecter.');
+          return { 
+            success: false, 
+            error: emailAuthCheck.error || 'Email déjà utilisé. Essayez de vous connecter.',
+            action: 'login'
+          };
+        }
+        
+        // 2. Vérifier l'email dans Firestore
+        const emailFirestoreCheck = await checkEmailExistsInFirestore(normalizedEmail);
+        if (emailFirestoreCheck.exists) {
+          setError(emailFirestoreCheck.error || 'Email déjà utilisé. Essayez de vous connecter.');
+          return { 
+            success: false, 
+            error: emailFirestoreCheck.error || 'Email déjà utilisé. Essayez de vous connecter.',
+            action: 'login'
+          };
+        }
+        
+        // 3. Vérifier les limites d'utilisateurs (avec optimisation currentSubscriptionSessionId)
             try {
               const limitCheck = await withRetry(
                 () => checkAgencyUserLimit(agencyId),
                 { maxRetries: 2, retryDelay: 500 }
               );
           if (!limitCheck.canAddUser) {
+            // Retourner l'erreur avec les infos du directeur pour affichage dans le modal
             setError(limitCheck.error || 'Limite d\'utilisateurs atteinte. Contactez votre directeur pour cette agence.');
             return { 
               success: false, 
-              error: limitCheck.error || 'Limite d\'utilisateurs atteinte. Contactez votre directeur pour cette agence.'
+              error: limitCheck.error || 'Limite d\'utilisateurs atteinte. Contactez votre directeur pour cette agence.',
+              directorInfo: limitCheck.directorInfo
             };
           }
         } catch (error) {
@@ -925,113 +1009,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       }
       
-      // ÉTAPE 2: Créer le compte Firebase Auth
-      // Firebase Auth vérifiera automatiquement si l'email existe déjà
-      let userCredential: { user: { uid: string } } | undefined;
+      // ============================================
+      // CRÉATION DU COMPTE FIREBASE AUTH
+      // ============================================
       try {
         userCredential = await withAuthRetry(
           () => createUserWithEmailAndPassword(auth, normalizedEmail, password),
           { maxRetries: 3, retryDelay: 1000 }
-        );
+        ) as UserCredential;
       } catch (authError: any) {
-        console.log('🔍 [REGISTER] Firebase Auth error:', {
+        console.error('❌ [REGISTER] Firebase Auth error:', {
           code: authError.code,
           message: authError.message,
           email: normalizedEmail
         });
         
-        // Gestion spéciale pour email déjà utilisé dans Firebase Auth
+        // Gestion des erreurs Auth
         if (authError.code === 'auth/email-already-in-use') {
-          console.log('🔄 [REGISTER] Email already in use in Firebase Auth, checking Firestore...');
-          // Tentative de récupération : vérifier si le document Firestore existe
-          try {
-            // Essayer de trouver l'utilisateur par email dans Firestore
-            const recoveryQuery = query(
-              collection(db, 'users'),
-              where('email', '==', normalizedEmail)
-            );
-            const recoverySnapshot = await withFirestoreRetry(
-              () => getDocs(recoveryQuery),
-              { maxRetries: 2, retryDelay: 500 }
-            ) as QuerySnapshot;
-            
-            console.log('🔍 [REGISTER] Recovery check result:', {
-              found: !recoverySnapshot.empty,
-              count: recoverySnapshot.size
-            });
-            
-            if (!recoverySnapshot.empty) {
-              // Le document Firestore existe, vérifier qu'il correspond vraiment à cet email
-              const matchingDocs = recoverySnapshot.docs.filter((docSnapshot: { data: () => { email?: string } }) => {
-                const docData = docSnapshot.data();
-                const docEmail = docData?.email;
-                const normalizedDocEmail = docEmail ? docEmail.trim().toLowerCase() : '';
-                return normalizedDocEmail === normalizedEmail;
-              });
-              
-              if (matchingDocs.length > 0) {
-                // Le document existe vraiment, proposer de se connecter
-                setError('ACCOUNT_EXISTS');
+          setError('Email déjà utilisé. Essayez de vous connecter.');
                 return { 
                   success: false, 
-                  error: 'Un compte existe déjà avec cet email. Voulez-vous vous connecter ?',
+            error: 'Email déjà utilisé. Essayez de vous connecter.',
                   action: 'login'
                 };
               }
-              // Si pas de correspondance exacte, continuer avec la récupération
-            }
-            
-            // Le compte Auth existe mais pas le document Firestore - RÉCUPÉRATION AUTOMATIQUE
-            console.log('🔄 Récupération automatique: Compte Auth existe mais document Firestore manquant');
-            
-            // Essayer de se connecter avec le mot de passe fourni pour récupérer l'UID
-            try {
-              const recoveryCredential = await withAuthRetry(
-                () => signInWithEmailAndPassword(auth, normalizedEmail, password),
-                { maxRetries: 2, retryDelay: 500 }
-              ) as { user: { uid: string } };
-              const recoveryUid = recoveryCredential.user.uid;
-              
-              // Créer le document Firestore manquant avec l'UID récupéré
-              const userData = createUserData(name, normalizedEmail, role, agencyId);
-              
-              await setDoc(doc(db, 'users', recoveryUid), userData);
-              
-              // Track registration analytics pour la récupération
-              try {
-                await AnalyticsService.logUserRegistration(recoveryUid, role, agencyId);
-              } catch (analyticsError) {
-                console.warn('⚠️ Could not log recovery analytics (non-blocking):', analyticsError);
-              }
-              
-              setError('ACCOUNT_RECOVERED');
-              return { 
-                success: true, 
-                error: 'Votre compte a été récupéré avec succès. Vous êtes maintenant connecté.',
-                action: 'recover'
-              };
-            } catch (recoveryAuthError: any) {
-              // Le mot de passe est incorrect ou autre erreur
-              console.warn('⚠️ Could not recover account (password may be incorrect):', recoveryAuthError);
-              setError('ACCOUNT_EXISTS');
-              return { 
-                success: false, 
-                error: 'Un compte existe déjà avec cet email. Voulez-vous vous connecter ?',
-                action: 'login'
-              };
-            }
-          } catch (recoveryError) {
-            console.error('❌ Erreur lors de la récupération:', recoveryError);
-            setError('ACCOUNT_EXISTS');
-            return { 
-              success: false, 
-              error: 'Un compte existe déjà avec cet email. Voulez-vous vous connecter ?',
-              action: 'login'
-            };
-          }
-        }
         
-        // Autre erreur Auth
         setError(getErrorMessage(authError.code));
         return { 
           success: false, 
@@ -1039,36 +1041,63 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         };
       }
       
+      if (!userCredential) {
+        throw new Error('userCredential is undefined after Auth creation');
+      }
       
-      // ÉTAPE 3: Vérifier l'existence de l'agence pour les directeurs
-      // Note: Si aucun directeur n'existe avec cet agencyId, on permet la création d'une nouvelle agence
+      // ============================================
+      // CRÉATION DU DOCUMENT FIRESTORE
+      // ============================================
+              const userData = createUserData(name, normalizedEmail, role, agencyId);
+              
+      try {
+        await withFirestoreRetry(
+          () => setDoc(doc(db, 'users', userCredential!.user.uid), userData),
+          { maxRetries: 3, retryDelay: 1000 }
+        );
+      } catch (firestoreError: any) {
+        console.error('❌ [REGISTER] Firestore creation error:', firestoreError);
+        
+        // Rollback: Supprimer le compte Auth si la création Firestore échoue
+        try {
+          if (userCredential?.user) {
+            await deleteUser(userCredential.user);
+            console.log('✅ Auth user deleted due to Firestore creation failure');
+          }
+        } catch (deleteError) {
+          console.error('❌ Failed to delete Auth user during rollback:', deleteError);
+        }
+        
+        setError('Erreur lors de la création du profil. Veuillez réessayer.');
+        return { 
+          success: false, 
+          error: 'Erreur lors de la création du profil. Veuillez réessayer.'
+        };
+      }
+      
+      // ============================================
+      // CRÉATION DE L'UNIVERS PAR DÉFAUT (DIRECTEURS UNIQUEMENT)
+      // ============================================
+      let universCreated = false;
       if (role === 'directeur' && agencyId.trim()) {
-        const agencyValidation = await validateAgencyExists(agencyId);
-        // Si l'agence n'existe pas, on permet quand même la création (nouvelle agence)
-        // Mais on log l'information pour le suivi
-        if (!agencyValidation.exists) {
-          console.log('ℹ️ Nouvelle agence détectée pour le directeur:', agencyId);
-          // On continue la création - c'est une nouvelle agence
+        try {
+          await universService.ensureDefaultUnivers(userCredential.user.uid, agencyId);
+          universCreated = true;
+          console.log('✅ Univers par défaut créé pour le directeur:', userCredential.user.uid);
+        } catch (universError: any) {
+          console.error('⚠️ Erreur lors de la création de l\'univers par défaut (non bloquant):', universError);
+          // Ne pas bloquer la registration si l'univers ne peut pas être créé
+          // L'utilisateur pourra continuer et l'univers sera créé plus tard si nécessaire
+          universCreated = false;
         }
       }
-
-      // ÉTAPE 4: Créer le document utilisateur dans Firestore avec tous les champs requis
-      const userData = createUserData(name, normalizedEmail, role, agencyId);
       
-      if (!userCredential) {
-        throw new Error('userCredential is undefined');
-      }
-      
-      await withFirestoreRetry(
-        () => setDoc(doc(db, 'users', userCredential.user.uid), userData),
-        { maxRetries: 3, retryDelay: 1000 }
-      );
-      
-      // ÉTAPE 5: Track user addition in subscription session (only for employees added by directors)
-      // NOTE: Cette étape peut échouer à cause de permissions, mais ce n'est pas bloquant
+      // ============================================
+      // TRACKING ET ANALYTICS (NON BLOQUANT)
+      // ============================================
+      // Track user addition in subscription session (only for employees)
       if (role === 'employe') {
         try {
-          // Find the director of this agency to track the user addition
           const directorsQuery = query(
             collection(db, 'users'),
             where('agencyId', '==', agencyId),
@@ -1081,32 +1110,38 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           
           if (!directorsSnapshot.empty) {
             const director = directorsSnapshot.docs[0];
-            try {
-              await SubscriptionSessionService.updateUsage(director.id, 'users', 1);
+            const directorData = director.data() as User;
+            
+            // Utiliser currentSubscriptionSessionId pour incrémenter l'usage
+            if (directorData.currentSubscriptionSessionId) {
+              try {
+                const sessionDocRef = doc(db, 'subscriptionSessions', directorData.currentSubscriptionSessionId);
+                const sessionDoc = await getDoc(sessionDocRef);
+                
+                if (sessionDoc.exists()) {
+                  const sessionData = sessionDoc.data();
+                  const currentUsage = sessionData.usage || {};
+                  const newUsersAdded = (currentUsage.usersAdded || 0) + 1;
+                  
+                  await updateDoc(sessionDocRef, {
+                    'usage.usersAdded': newUsersAdded,
+                    updatedAt: serverTimestamp()
+                  });
+                  console.log('✅ User usage incremented in subscription session');
+                }
             } catch (updateError: any) {
-              // Erreur de permissions ou autre - non bloquant
-              if (updateError?.code === 'permission-denied') {
-                console.warn('⚠️ Permission denied for usage tracking (non-blocking)');
-              } else {
-                console.warn('⚠️ Could not track user addition (non-blocking):', updateError);
+                console.warn('⚠️ Could not track user addition in session (non-blocking):', updateError);
               }
             }
           }
         } catch (trackingError: any) {
-          // Erreur lors de la recherche du directeur - non bloquant
-          if (trackingError?.code === 'permission-denied') {
-            console.warn('⚠️ Permission denied for director lookup (non-blocking)');
-          } else {
             console.warn('⚠️ Could not track user addition (non-blocking):', trackingError);
-          }
         }
       }
       
-      // ÉTAPE 6: Track registration analytics
+      // Track registration analytics
       try {
-        if (userCredential) {
           await AnalyticsService.logUserRegistration(userCredential.user.uid, role, agencyId);
-        }
       } catch (analyticsError) {
         console.warn('⚠️ Could not log registration analytics (non-blocking):', analyticsError);
       }
@@ -1114,9 +1149,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Marquer pour afficher l'écran de bienvenue juste après l'inscription
       try { sessionStorage.setItem('show_welcome_after_login', 'true'); } catch {}
 
-      return { success: true };
+      return { 
+        success: true, 
+        universCreated 
+      };
     } catch (err: any) {
-      console.error('Erreur d\'inscription:', err);
+      console.error('❌ Erreur d\'inscription:', err);
+      
+      // Rollback: Supprimer le compte Auth si une erreur inattendue se produit
+      try {
+        if (auth.currentUser) {
+          await deleteUser(auth.currentUser);
+          console.log('✅ Auth user deleted due to unexpected error');
+        }
+      } catch (deleteError) {
+        console.error('❌ Failed to delete Auth user during rollback:', deleteError);
+      }
+      
       const errorMessage = getErrorMessage(err.code || err.message);
       setError(errorMessage);
       return { 
@@ -1256,8 +1305,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return 'Configuration Firebase invalide (apiKey)';
       case 'auth/unauthorized-domain':
         return 'Domaine non autorisé pour cette application';
+      case 'auth/quota-exceeded':
+        return 'Quota dépassé. Contactez le support';
+      case 'auth/requires-recent-login':
+        return 'Cette opération nécessite une connexion récente. Veuillez vous reconnecter';
+      case 'permission-denied':
+        return 'Permission refusée. Vérifiez vos droits d\'accès';
+      case 'unavailable':
+        return 'Service temporairement indisponible. Veuillez réessayer plus tard';
       default:
-        return 'Une erreur est survenue';
+        // Pour les erreurs inconnues, retourner un message générique en français
+        if (errorCode && errorCode.startsWith('auth/')) {
+          return 'Erreur d\'authentification. Veuillez réessayer ou contacter le support';
+        }
+        return 'Une erreur est survenue. Veuillez réessayer';
     }
   };
 

@@ -1,15 +1,72 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Footer } from '../../components/layout/Footer';
 import { LogoutConfirmationModal } from '../../components/modals/LogoutConfirmationModal';
-import { Clock, Mail, Building2, LogOut } from 'lucide-react';
+import { Clock, Mail, Building2, LogOut, User } from 'lucide-react';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
+import { collection, query, where, getDocs } from 'firebase/firestore';
+import { db } from '@ubora/shared/firebaseConfig';
+
+interface DirectorInfo {
+  name: string;
+  email: string;
+}
 
 export const PendingApprovalPage: React.FC = () => {
-  const { user, logout } = useAuth();
+  const { user, logout, isLoading } = useAuth();
+  const navigate = useNavigate();
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [directorInfo, setDirectorInfo] = useState<DirectorInfo | null>(null);
+  const [isLoadingDirector, setIsLoadingDirector] = useState(true);
+
+  // Auto-redirect if employee is approved
+  useEffect(() => {
+    if (!isLoading && user) {
+      if (user.role === 'employe' && user.isApproved === true) {
+        navigate('/employe/dashboard', { replace: true });
+      } else if (user.role !== 'employe') {
+        // Redirect non-employees away from this page
+        navigate('/login', { replace: true });
+      }
+    }
+  }, [user, isLoading, navigate]);
+
+  // Fetch director information
+  useEffect(() => {
+    const fetchDirectorInfo = async () => {
+      if (!user || !user.agencyId) {
+        setIsLoadingDirector(false);
+        return;
+      }
+
+      try {
+        const directorsQuery = query(
+          collection(db, 'users'),
+          where('agencyId', '==', user.agencyId),
+          where('role', '==', 'directeur')
+        );
+        
+        const directorsSnapshot = await getDocs(directorsQuery);
+        
+        if (!directorsSnapshot.empty) {
+          const director = directorsSnapshot.docs[0].data();
+          setDirectorInfo({
+            name: director.name || 'Directeur',
+            email: director.email || ''
+          });
+        }
+      } catch (error) {
+        console.error('Erreur lors de la récupération des informations du directeur:', error);
+      } finally {
+        setIsLoadingDirector(false);
+      }
+    };
+
+    fetchDirectorInfo();
+  }, [user]);
 
   const handleLogout = async () => {
     setIsLoggingOut(true);
@@ -34,7 +91,7 @@ export const PendingApprovalPage: React.FC = () => {
                 Compte en attente d'approbation
               </h1>
               <p className="text-gray-600 mb-6">
-                Votre compte a été créé avec succès, mais il doit être approuvé par votre directeur avant de pouvoir accéder à Ubora.
+                Votre compte est en attente de validation par votre directeur. Vous recevrez une notification une fois votre compte approuvé.
               </p>
             </div>
 
@@ -50,6 +107,32 @@ export const PendingApprovalPage: React.FC = () => {
                   <Building2 className="h-4 w-4 text-gray-400" />
                   <span className="text-gray-600">Agence: {user.agencyId || 'Non spécifiée'}</span>
                 </div>
+              </div>
+            </div>
+          )}
+
+          {directorInfo && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6 text-left">
+              <h3 className="font-semibold text-blue-900 mb-3 flex items-center space-x-2">
+                <User className="h-4 w-4" />
+                <span>Votre directeur</span>
+              </h3>
+              <div className="space-y-2 text-sm">
+                <div className="flex items-center space-x-2">
+                  <span className="text-blue-800 font-medium">Nom:</span>
+                  <span className="text-blue-700">{directorInfo.name}</span>
+                </div>
+                {directorInfo.email && (
+                  <div className="flex items-center space-x-2">
+                    <span className="text-blue-800 font-medium">Email:</span>
+                    <a 
+                      href={`mailto:${directorInfo.email}`}
+                      className="text-blue-600 hover:text-blue-800 underline"
+                    >
+                      {directorInfo.email}
+                    </a>
+                  </div>
+                )}
               </div>
             </div>
           )}

@@ -249,9 +249,31 @@ export const FormBuilder: React.FC<FormBuilderProps> = ({
   };
 
   const updateField = (id: string, updates: Partial<FormField>) => {
-    setFields(fields.map(field => 
-      field.id === id ? { ...field, ...updates } : field
-    ));
+    setFields(fields.map(field => {
+      if (field.id !== id) return field;
+      
+      // Créer un nouvel objet sans les propriétés undefined
+      const cleanedUpdates: Partial<FormField> = {};
+      for (const [key, value] of Object.entries(updates)) {
+        if (value !== undefined) {
+          (cleanedUpdates as any)[key] = value;
+        }
+      }
+      
+      // Si on supprime listId, supprimer aussi displayColumnId et options
+      if (updates.listId === undefined && field.listId !== undefined) {
+        const { listId, displayColumnId, options, ...rest } = { ...field, ...cleanedUpdates };
+        return rest;
+      }
+      
+      // Si on supprime options, ne pas l'inclure dans l'objet
+      if (updates.options === undefined && field.options !== undefined && updates.listId !== undefined) {
+        const { options, ...rest } = { ...field, ...cleanedUpdates };
+        return rest;
+      }
+      
+      return { ...field, ...cleanedUpdates };
+    }));
   };
 
   const addOption = (fieldId: string) => {
@@ -347,6 +369,29 @@ export const FormBuilder: React.FC<FormBuilderProps> = ({
     });
   };
 
+
+  // Helper function to remove undefined values from objects recursively
+  const removeUndefinedValues = (obj: any): any => {
+    if (obj === null || obj === undefined) {
+      return null;
+    }
+    if (Array.isArray(obj)) {
+      return obj.map(removeUndefinedValues).filter(item => item !== null && item !== undefined);
+    }
+    if (typeof obj === 'object') {
+      const cleaned: any = {};
+      for (const [key, value] of Object.entries(obj)) {
+        if (value !== undefined) {
+          const cleanedValue = removeUndefinedValues(value);
+          if (cleanedValue !== null && cleanedValue !== undefined) {
+            cleaned[key] = cleanedValue;
+          }
+        }
+      }
+      return cleaned;
+    }
+    return obj;
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -457,7 +502,9 @@ export const FormBuilder: React.FC<FormBuilderProps> = ({
       })())
     };
 
-    onSave(formData);
+    // Nettoyer les valeurs undefined avant l'envoi à Firebase
+    const cleanedFormData = removeUndefinedValues(formData);
+    onSave(cleanedFormData);
   };
 
   return (
@@ -781,11 +828,14 @@ export const FormBuilder: React.FC<FormBuilderProps> = ({
                                 name={`option-type-${field.id}`}
                                 checked={field.listId === undefined}
                                 onChange={() => {
-                                  // Switch to manual options - clear listId
+                                  // Switch to manual options - clear listId and displayColumnId
+                                  const currentField = fields.find(f => f.id === field.id);
                                   updateField(field.id, { 
                                     listId: undefined, 
                                     displayColumnId: undefined,
-                                    options: field.options || ['']
+                                    options: currentField?.options && currentField.options.length > 0 
+                                      ? currentField.options 
+                                      : ['']
                                   });
                                 }}
                                 className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
@@ -798,14 +848,36 @@ export const FormBuilder: React.FC<FormBuilderProps> = ({
                                 name={`option-type-${field.id}`}
                                 checked={field.listId !== undefined}
                                 onChange={() => {
-                                  // Switch to List mode - set listId to first available list or null to indicate "use list" mode
-                                  updateField(field.id, { 
-                                    listId: availableLists[0]?.id, 
-                                    displayColumnId: availableLists[0]?.columns[0]?.id || undefined,
-                                    options: undefined
-                                  });
+                                  // Switch to List mode - only if lists are available
+                                  if (availableLists.length === 0) {
+                                    console.warn('Aucune liste disponible pour ce champ');
+                                    return;
+                                  }
+                                  
+                                  const firstList = availableLists[0];
+                                  const firstColumn = firstList.columns[0];
+                                  
+                                  if (!firstList || !firstColumn) {
+                                    console.warn('La première liste n\'a pas de colonnes');
+                                    return;
+                                  }
+                                  
+                                  // Switch to List mode - set listId and displayColumnId, remove options
+                                  const currentField = fields.find(f => f.id === field.id);
+                                  const updates: Partial<FormField> = {
+                                    listId: firstList.id,
+                                    displayColumnId: firstColumn.id
+                                  };
+                                  
+                                  // Supprimer options seulement si on passe d'un mode manuel à un mode liste
+                                  if (currentField?.options && currentField.options.length > 0) {
+                                    updates.options = undefined;
+                                  }
+                                  
+                                  updateField(field.id, updates);
                                 }}
                                 className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                disabled={availableLists.length === 0}
                               />
                               <span className="text-sm font-medium text-gray-700 flex items-center space-x-1">
                                 <Database className="h-4 w-4" />
@@ -883,11 +955,18 @@ export const FormBuilder: React.FC<FormBuilderProps> = ({
                                   const selectedList = availableLists.find(l => l.id === selectedListId);
                                   
                                   if (selectedList) {
-                                    updateField(field.id, {
+                                    const currentField = fields.find(f => f.id === field.id);
+                                    const updates: Partial<FormField> = {
                                       listId: selectedListId,
-                                      displayColumnId: selectedList.columns[0]?.id || '',
-                                      options: undefined
-                                    });
+                                      displayColumnId: selectedList.columns[0]?.id || ''
+                                    };
+                                    
+                                    // Supprimer options seulement si on passe d'un mode manuel à un mode liste
+                                    if (currentField?.options && currentField.options.length > 0) {
+                                      updates.options = undefined;
+                                    }
+                                    
+                                    updateField(field.id, updates);
                                   }
                                 }}
                                 options={[

@@ -36,7 +36,6 @@ import { getAIEndpoint } from '@ubora/shared/config/api';
 
 // Get AI endpoint from centralized configuration
 const AI_ENDPOINT = getAIEndpoint();
-console.log('🎯 Final AI_ENDPOINT:', AI_ENDPOINT);
 
 if (!AI_ENDPOINT) {
   console.error("❌ Aucun endpoint ARCHA configuré. ARCHA ne fonctionnera pas.");
@@ -166,7 +165,10 @@ export const DirecteurChat: React.FC = () => {
   // État pour l'écran de bienvenue (uniquement juste après login)
   const [showWelcome, setShowWelcome] = useState(() => {
     try {
-      const shouldShow = sessionStorage.getItem('show_welcome_after_login') === 'true';
+      // Check both flags: after login and after package selection
+      const shouldShowAfterLogin = sessionStorage.getItem('show_welcome_after_login') === 'true';
+      const shouldShowAfterPackage = sessionStorage.getItem('show_welcome_after_package_selection') === 'true';
+      const shouldShow = shouldShowAfterLogin || shouldShowAfterPackage;
       return shouldShow;
     } catch {
       return false;
@@ -640,7 +642,10 @@ RÉPONSE :
   // Gérer la fermeture de l'écran de bienvenue
   const handleWelcomeContinue = async () => {
     setShowWelcome(false);
-    try { sessionStorage.removeItem('show_welcome_after_login'); } catch {}
+    try { 
+      sessionStorage.removeItem('show_welcome_after_login');
+      sessionStorage.removeItem('show_welcome_after_package_selection');
+    } catch {}
     
     // Trigger auto-load of conversations after welcome screen is dismissed
     // This ensures chats are loaded when the user actually sees the chat interface

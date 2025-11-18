@@ -6,7 +6,7 @@ import { Textarea } from '../ui/Textarea';
 import { Select } from '../ui/Select';
 import { Card } from '../ui/Card';
 import { List, ListColumn, ListRow } from '../../types';
-import { Plus, Save, X, Upload, Minus } from 'lucide-react';
+import { Plus, Save, X, Upload, Minus, ArrowLeft, Loader2 } from 'lucide-react';
 import { ListsCSVImport } from './ListsCSVImport';
 import { ListRowsEditor } from './ListRowsEditor';
 import { useToast } from '@ubora/shared/hooks/useToast';
@@ -21,12 +21,14 @@ interface ListEditorProps {
     rows: ListRow[];
   }) => void;
   onCancel: () => void;
+  isSaving?: boolean; // Loading state for save button
 }
 
 export const ListEditor: React.FC<ListEditorProps> = ({
   list,
   onSave,
-  onCancel
+  onCancel,
+  isSaving = false
 }) => {
   const { showSuccess, showError } = useToast();
   const [name, setName] = useState(list?.name || '');
@@ -227,6 +229,20 @@ export const ListEditor: React.FC<ListEditorProps> = ({
 
   return (
     <div className="space-y-6">
+      {/* Back button */}
+      <div className="flex items-center space-x-2">
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={onCancel}
+          className="flex items-center space-x-2"
+          disabled={isSaving}
+        >
+          <ArrowLeft className="h-4 w-4" />
+          <span>Retour</span>
+        </Button>
+      </div>
+
       {/* Errors */}
       {errors.length > 0 && (
         <div className="bg-red-50 border border-red-200 rounded-lg p-4">
@@ -460,16 +476,30 @@ export const ListEditor: React.FC<ListEditorProps> = ({
 
       {/* Save/Cancel buttons at bottom */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-3 pt-4 border-t border-gray-200">
-        <Button variant="secondary" onClick={onCancel} className="w-full sm:w-auto">
+        <Button 
+          variant="secondary" 
+          onClick={onCancel} 
+          className="w-full sm:w-auto"
+          disabled={isSaving}
+        >
           Annuler
         </Button>
         <Button 
           onClick={handleSave} 
           className="flex items-center justify-center space-x-2 w-full sm:w-auto"
-          disabled={isSaveDisabled()}
+          disabled={isSaveDisabled() || isSaving}
         >
-          <Save className="h-4 w-4" />
-          <span>Enregistrer</span>
+          {isSaving ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" />
+              <span>Enregistrement...</span>
+            </>
+          ) : (
+            <>
+              <Save className="h-4 w-4" />
+              <span>Enregistrer</span>
+            </>
+          )}
         </Button>
       </div>
     </div>
