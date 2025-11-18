@@ -599,9 +599,17 @@ async function loadAndAggregateData(
 }
 
 export default async function handler(req, res) {
+  console.log('🔵 [/api/ai/ask] Request received');
+  console.log('🔵 [/api/ai/ask] Method:', req.method);
+  console.log('🔵 [/api/ai/ask] Headers:', { 
+    authorization: req.headers.authorization ? 'Bearer ***' : 'missing',
+    origin: req.headers.origin,
+    'content-type': req.headers['content-type']
+  });
   
   try {
     const startTime = Date.now(); // Track response time
+    console.log('🔵 [/api/ai/ask] Starting request processing...');
     
     // Headers CORS complets
     const corsOrigins = process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',') : ['*'];
@@ -631,42 +639,53 @@ export default async function handler(req, res) {
     }
     
     // 1. Authentification - support internal server-to-server and Firebase token
+    console.log('🔵 [/api/ai/ask] Starting authentication...');
     let uid;
     const internalToken = req.headers['x-internal-token'];
     if (internalToken && process.env.INTERNAL_API_KEY && internalToken === process.env.INTERNAL_API_KEY) {
+      console.log('🔵 [/api/ai/ask] Using internal token authentication');
       // Server-to-server call: trust provided userId for execution context
       uid = req.body.userId;
       if (!uid) {
         return res.status(400).json({ error: 'userId requis pour une exécution interne', code: 'MISSING_USER_ID' });
       }
     } else {
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json({ 
-        error: 'Token d\'authentification manquant',
-        code: 'MISSING_TOKEN'
-      });
-    }
-    const idToken = authHeader.split('Bearer ')[1];
-    try {
+      console.log('🔵 [/api/ai/ask] Using Firebase token authentication');
+      const authHeader = req.headers.authorization;
+      if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        console.error('❌ [/api/ai/ask] Missing authorization header');
+        return res.status(401).json({ 
+          error: 'Token d\'authentification manquant',
+          code: 'MISSING_TOKEN'
+        });
+      }
+      const idToken = authHeader.split('Bearer ')[1];
+      try {
+        console.log('🔵 [/api/ai/ask] Verifying Firebase token...');
         const decodedToken = await adminAuth.verifyIdToken(idToken);
-      uid = decodedToken.uid;
-    } catch (authError) {
-      return res.status(401).json({ 
-        error: 'Token invalide ou expiré',
-        code: 'INVALID_TOKEN',
-        details: authError.message
-      });
+        uid = decodedToken.uid;
+        console.log('🔵 [/api/ai/ask] Token verified, uid:', uid);
+      } catch (authError) {
+        console.error('❌ [/api/ai/ask] Token verification failed:', authError.message);
+        return res.status(401).json({ 
+          error: 'Token invalide ou expiré',
+          code: 'INVALID_TOKEN',
+          details: authError.message
+        });
       }
     }
 
     // 2. Vérification du profil utilisateur
+    console.log('🔵 [/api/ai/ask] Fetching user profile for uid:', uid);
     let userDoc;
     let userData;
     
     try {
       userDoc = await adminDb.collection('users').doc(uid).get();
+      console.log('🔵 [/api/ai/ask] User doc fetched, exists:', userDoc.exists);
     } catch (firestoreError) {
+      console.error('❌ [/api/ai/ask] Firestore error:', firestoreError.message);
+      console.error('❌ [/api/ai/ask] Firestore error stack:', firestoreError.stack);
       return res.status(500).json({ 
         error: 'Erreur de connexion à la base de données',
         code: 'FIRESTORE_ERROR',
@@ -736,8 +755,12 @@ export default async function handler(req, res) {
 
 
     // 3. Validation du corps de la requête
+    console.log('🔵 [/api/ai/ask] Parsing request body...');
+    console.log('🔵 [/api/ai/ask] Request body keys:', req.body ? Object.keys(req.body) : 'no body');
     const { question, filters, selectedFormats, responseFormat, selectedResponseFormats, selectedFormIds } = req.body;
+    console.log('🔵 [/api/ai/ask] Parsed question:', question ? question.substring(0, 100) : 'missing');
     if (!question || typeof question !== 'string' || question.trim().length === 0) {
+      console.error('❌ [/api/ai/ask] Invalid question');
       return res.status(400).json({ 
         error: 'Question manquante ou invalide',
         code: 'INVALID_QUESTION'
@@ -806,8 +829,17 @@ export default async function handler(req, res) {
     
     let vectorSearchResults;
     try {
+      console.log('🔵 [/api/ai/ask] About to call searchAndFormatForAI...');
       // Si selectedFormIds est fourni et qu'un seul formulaire est sélectionné, l'utiliser comme filtre
       const formIdFilter = filters?.formId || (finalSelectedFormIds?.length === 1 ? finalSelectedFormIds[0] : null);
+      
+      console.log('🔵 [/api/ai/ask] Calling searchAndFormatForAI with params:', {
+        agencyId: userData.agencyId,
+        directorId: uid,
+        formId: formIdFilter,
+        hasPeriod: !!{ start, end },
+        selectedFormIds: finalSelectedFormIds.length > 1 ? finalSelectedFormIds : null
+      });
       
       vectorSearchResults = await searchAndFormatForAI(question, {
         agencyId: userData.agencyId,
@@ -820,8 +852,17 @@ export default async function handler(req, res) {
         selectedFormIds: finalSelectedFormIds.length > 1 ? finalSelectedFormIds : null, // Multiple form IDs filter
         debug: enableDebug, // Pass debug flag to vector search
       });
+      
+      console.log('🔵 [/api/ai/ask] searchAndFormatForAI completed successfully');
+      console.log('🔵 [/api/ai/ask] Results:', {
+        hasResults: vectorSearchResults.hasResults,
+        chunksCount: vectorSearchResults.chunks?.length || 0,
+        uniqueEntriesCount: vectorSearchResults.uniqueEntriesCount || 0
+      });
     } catch (vectorError) {
-      console.error('❌ [ask.js] Vector search failed:', vectorError);
+      console.error('❌ [/api/ai/ask] Vector search failed:', vectorError);
+      console.error('❌ [/api/ai/ask] Vector search error message:', vectorError.message);
+      console.error('❌ [/api/ai/ask] Vector search error stack:', vectorError.stack);
       return res.status(500).json({ 
         error: 'Erreur lors de la recherche vectorielle',
         code: 'VECTOR_SEARCH_ERROR',
@@ -2783,7 +2824,12 @@ Il serait pertinent de surveiller l'engagement des employés moins actifs et d'a
                    typeof err === 'string' ? err : 
                    JSON.stringify(err);
     
-    console.error('[/api/ai/ask] error:', err);
+    console.error('❌ [/api/ai/ask] ERROR:', err);
+    console.error('❌ [/api/ai/ask] Error message:', message);
+    if (err instanceof Error) {
+      console.error('❌ [/api/ai/ask] Error stack:', err.stack);
+      console.error('❌ [/api/ai/ask] Error name:', err.name);
+    }
     
     if (err instanceof Error) {
       if (err.message.includes('id-token-expired')) {

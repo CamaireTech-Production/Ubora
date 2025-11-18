@@ -450,12 +450,16 @@ ${hasImageContent ? `
 - OBLIGATOIRE : MENTIONNE le nom du fichier image quand tu fais référence à son contenu
 ` : ''}
 
-CITATIONS :
+CITATIONS ET RÉFÉRENCES :
 - Tu dois toujours citer tes sources par leur nom (formulaire ou fichier), pas par ID
+- JAMAIS utiliser d'IDs utilisateur dans tes réponses - utilise toujours les noms ou emails
 - Exemples de citations correctes :
   * "Selon le formulaire Ventes quotidiennes par Marie..."
   * "Dans le document Rapport_Mensuel.pdf..."
-  * "D'après les données du formulaire Suivi_Production par Jean..."`;
+  * "D'après les données du formulaire Suivi_Production par Jean..."
+- Quand tu mentionnes un utilisateur, utilise son nom ou email, JAMAIS son ID
+- Exemples CORRECTS : "par Marie", "par agent1@gmail.com", "par Ambassira Ryan"
+- Exemples INCORRECTS : "par Utilisateur NmeqMvHwQLZvJRU4oDs5Skz0Q0Q2", "par userId123"`;
 
     // Build user prompt with vector search results (MODIFIED)
     const userPrompt = `QUESTION : "${question}"
