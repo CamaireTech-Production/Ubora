@@ -273,10 +273,21 @@ export const FormBuilder: React.FC<FormBuilderProps> = ({
         }
       }
       
-      // Si on supprime listId, supprimer aussi displayColumnId et options
-      if (updates.listId === undefined && field.listId !== undefined) {
+      // Si on supprime listId explicitement (undefined), supprimer aussi displayColumnId et options
+      if (updates.listId === undefined && field.listId !== undefined && !('listId' in cleanedUpdates && cleanedUpdates.listId !== undefined)) {
         const { listId, displayColumnId, options, ...rest } = { ...field, ...cleanedUpdates };
         return rest;
+      }
+      
+      // Si on met à jour displayColumnId mais que listId est présent dans les updates, préserver listId
+      if ('displayColumnId' in cleanedUpdates && 'listId' in cleanedUpdates && cleanedUpdates.listId !== undefined) {
+        // Les deux sont dans les updates, les utiliser tous les deux
+        return { ...field, ...cleanedUpdates };
+      }
+      
+      // Si on met à jour displayColumnId seul, préserver listId existant
+      if ('displayColumnId' in cleanedUpdates && field.listId !== undefined) {
+        return { ...field, ...cleanedUpdates, listId: field.listId };
       }
       
       // Si on supprime options, ne pas l'inclure dans l'objet
@@ -1003,7 +1014,12 @@ export const FormBuilder: React.FC<FormBuilderProps> = ({
                                     <select
                                       value={field.displayColumnId || ''}
                                       onChange={(e) => {
-                                        updateField(field.id, { displayColumnId: e.target.value });
+                                        const newDisplayColumnId = e.target.value;
+                                        // S'assurer que listId est préservé lors du changement de colonne
+                                        updateField(field.id, { 
+                                          displayColumnId: newDisplayColumnId || undefined,
+                                          listId: field.listId // Préserver listId
+                                        });
                                       }}
                                       className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900"
                                     >
