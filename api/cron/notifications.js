@@ -941,7 +941,8 @@ async function processSubscriptionRenewals(now) {
       }
     }
 
-    console.log(`✅ [Cron] Subscription renewals completed: ${stats.renewed} renewed, ${stats.errors} errors`);
+    // DEBUG: Cron logs disabled - uncomment to enable
+    // console.log(`✅ [Cron] Subscription renewals completed: ${stats.renewed} renewed, ${stats.errors} errors`);
     return stats;
 
   } catch (error) {
@@ -969,7 +970,8 @@ async function handleExpiredSubscriptions(now) {
       .get();
 
     stats.processed = sessionsSnapshot.size;
-    console.log(`⏰ [Cron] Checking ${stats.processed} active sessions for expiration`);
+    // DEBUG: Cron logs disabled - uncomment to enable
+    // console.log(`⏰ [Cron] Checking ${stats.processed} active sessions for expiration`);
 
     for (const docSnapshot of sessionsSnapshot.docs) {
       try {
@@ -1113,7 +1115,8 @@ async function handleExpiredSubscriptions(now) {
       }
     }
 
-    console.log(`✅ [Cron] Expired subscriptions handled: ${stats.expired} expired, ${stats.errors} errors`);
+    // DEBUG: Cron logs disabled - uncomment to enable
+    // console.log(`✅ [Cron] Expired subscriptions handled: ${stats.expired} expired, ${stats.errors} errors`);
     return stats;
 
   } catch (error) {
