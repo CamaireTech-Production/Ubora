@@ -129,6 +129,12 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
 import askHandler from '../api/ai/ask.js';
 import healthHandler from '../api/ai/health.js';
 
+// Verify handler is loaded
+console.log('✅ askHandler loaded:', typeof askHandler);
+if (typeof askHandler !== 'function') {
+  console.error('❌ CRITICAL: askHandler is not a function!', typeof askHandler);
+}
+
 // Vector database handlers
 import vectorSyncHandler from '../api/vector/sync.js';
 import vectorHealthHandler from '../api/vector/health.js';
@@ -180,7 +186,30 @@ import cronNotificationsHandler from '../api/cron/notifications.js';
 import emailSendHandler from '../api/email/send.js';
 
 // Routes
-app.post('/api/ai/ask', askHandler);
+// Wrap askHandler with error handling to catch any startup errors
+app.post('/api/ai/ask', async (req, res) => {
+  console.log('🔵 [SERVER] Route /api/ai/ask called');
+  console.log('🔵 [SERVER] Request method:', req.method);
+  console.log('🔵 [SERVER] Request headers:', {
+    'content-type': req.headers['content-type'],
+    'authorization': req.headers.authorization ? 'Bearer ***' : 'missing'
+  });
+  try {
+    console.log('🔵 [SERVER] Calling askHandler...');
+    await askHandler(req, res);
+    console.log('🔵 [SERVER] askHandler completed');
+  } catch (error) {
+    console.error('❌ [SERVER] Error in askHandler wrapper:', error);
+    console.error('❌ [SERVER] Error message:', error.message);
+    console.error('❌ [SERVER] Error stack:', error.stack);
+    if (!res.headersSent) {
+      res.status(500).json({ 
+        error: 'Erreur interne du serveur',
+        details: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
+    }
+  }
+});
 app.get('/api/ai/health', healthHandler);
 app.post('/api/ai/format', formatHandler);
 if (formatRetryHandler) {
