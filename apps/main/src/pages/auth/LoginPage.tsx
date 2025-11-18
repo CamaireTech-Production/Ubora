@@ -5,7 +5,7 @@ import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Card } from '../../components/ui/Card';
 import { Footer } from '../../components/layout/Footer';
-import { Lock, Mail, AlertCircle, Loader2, CheckCircle } from 'lucide-react';
+import { Lock, Mail, AlertCircle, Loader2 } from 'lucide-react';
 
 export const LoginPage: React.FC = () => {
   const { user, login, loginWithGoogle, register, resetPassword, isLoading, error } = useAuth();
@@ -24,9 +24,9 @@ export const LoginPage: React.FC = () => {
   const [showForgotPasswordModal, setShowForgotPasswordModal] = useState(false);
   const [forgotPasswordEmail, setForgotPasswordEmail] = useState('');
   const [forgotPasswordSuccess, setForgotPasswordSuccess] = useState(false);
-  const [isRegistering, setIsRegistering] = useState(false);
-  const [registrationSteps, setRegistrationSteps] = useState<string[]>([]);
-  const [currentStep, setCurrentStep] = useState<string>('');
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [showQuotaExceededModal, setShowQuotaExceededModal] = useState(false);
+  const [quotaExceededDirectorInfo, setQuotaExceededDirectorInfo] = useState<{ id: string; name: string; email: string } | null>(null);
 
   // Gérer les paramètres d'invitation depuis l'URL
   useEffect(() => {
@@ -73,19 +73,29 @@ export const LoginPage: React.FC = () => {
   // Rediriger automatiquement après l'inscription quand l'utilisateur est chargé
   // On attend que isLoading soit false pour s'assurer que l'utilisateur est complètement chargé
   useEffect(() => {
-    if (!isLoading && user && user.role === 'directeur' && user.needsPackageSelection && isRegistering) {
-      // Réinitialiser les états après la redirection
-      setIsRegistering(false);
-      setIsRegisterMode(false);
-      setEmail('');
-      setPassword('');
-      setName('');
-      navigate('/packages', { replace: true });
+    if (!isLoading && user && isProcessing) {
+      if (user.role === 'directeur' && user.needsPackageSelection) {
+        // Directeur: rediriger vers la sélection de package
+        setIsProcessing(false);
+        setIsRegisterMode(false);
+        setEmail('');
+        setPassword('');
+        setName('');
+        navigate('/packages', { replace: true });
+      } else if (user.role === 'employe') {
+        // Employé: rediriger vers la page d'attente d'approbation
+        setIsProcessing(false);
+        setIsRegisterMode(false);
+        setEmail('');
+        setPassword('');
+        setName('');
+        navigate('/pending-approval', { replace: true });
+      }
     }
-  }, [user, isLoading, navigate, isRegistering]);
+  }, [user, isLoading, navigate, isProcessing]);
 
   // Afficher un loader pendant le chargement initial (pas pendant l'inscription)
-  if (isLoading && !isRegistering) {
+  if (isLoading && !isProcessing) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
@@ -107,6 +117,7 @@ export const LoginPage: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    // Consolider les erreurs : effacer toutes les erreurs précédentes
     setLocalError('');
     
     try {
@@ -123,37 +134,29 @@ export const LoginPage: React.FC = () => {
           return;
         }
         
-        // Firebase Auth dans register() fera la vérification finale fiable
+        // Activer l'état de traitement unifié
+        setIsProcessing(true);
         
-        // Activer l'état d'inscription pour garder le bouton en loading
-        setIsRegistering(true);
-        setRegistrationSteps(['Vérification des informations...', 'Création du compte...', 'Configuration du profil...']);
-        setCurrentStep('Vérification des informations...');
-        
-        setCurrentStep('Création du compte...');
+        // L'inscription fait maintenant toutes les vérifications et la création de manière synchrone
         const result = await register(email, password, name, role, agencyId);
+        
         if (result.success) {
-          setCurrentStep('Configuration du profil...');
-          // Garder isRegistering à true jusqu'à la redirection
-          // Le bouton restera en loading pendant tout le processus
-          // La redirection se fera automatiquement via useEffect quand user sera chargé
-          
-          // Si récupération automatique, afficher un message de succès
-          if (result.action === 'recover') {
-            setLocalError(''); // Clear error, success message will be shown via error state
-          }
+          // Pour les directeurs et employés, la redirection se fera automatiquement via useEffect quand user sera chargé
+          // On garde isProcessing à true pour maintenir le loading jusqu'à la redirection
         } else {
-          // En cas d'erreur, réinitialiser l'état d'inscription
-          setIsRegistering(false);
+          // En cas d'erreur, réinitialiser l'état de traitement
+          setIsProcessing(false);
           
-          // Gérer les différents types d'erreurs avec actions
-          if (result.error === 'ACCOUNT_EXISTS' || result.error === 'ACCOUNT_EXISTS_FIRESTORE' || error === 'ACCOUNT_EXISTS') {
-            setShowAccountExistsModal(true);
-            setLocalError('');
-          } else if (result.action === 'login') {
+          // Gérer les différents types d'erreurs
+          if (result.action === 'login') {
             // Compte existe, proposer de se connecter
             setLocalError(result.error || 'Un compte existe déjà avec cet email.');
             setShowAccountExistsModal(true);
+          } else if (result.error && result.error.includes('Quota atteint')) {
+            // Quota atteint - afficher le modal avec les infos du directeur
+            setQuotaExceededDirectorInfo(result.directorInfo || null);
+            setShowQuotaExceededModal(true);
+            setLocalError(''); // Ne pas afficher l'erreur deux fois
           } else if (result.error) {
             setLocalError(result.error);
           } else if (error) {
@@ -165,7 +168,7 @@ export const LoginPage: React.FC = () => {
       }
     } catch (err) {
       setLocalError('Une erreur est survenue');
-      setIsRegistering(false);
+      setIsProcessing(false);
     }
   };
 
@@ -385,15 +388,15 @@ export const LoginPage: React.FC = () => {
 
             <Button
               type="submit"
-              disabled={isLoading || isRegistering}
+              disabled={isLoading || isProcessing}
               className="w-full relative"
             >
-              {isRegistering && currentStep ? (
+              {isProcessing && isRegisterMode ? (
                 <div className="flex items-center justify-center gap-2">
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  <span>{currentStep}</span>
+                  <span>Création en cours...</span>
                 </div>
-              ) : (isLoading || isRegistering) ? (
+              ) : (isLoading || isProcessing) ? (
                 <div className="flex items-center justify-center gap-2">
                   <Loader2 className="h-4 w-4 animate-spin" />
                   <span>Chargement...</span>
@@ -404,32 +407,6 @@ export const LoginPage: React.FC = () => {
                 'Se connecter'
               )}
             </Button>
-            
-            {/* Affichage des étapes de progression pendant l'inscription */}
-            {isRegistering && registrationSteps.length > 0 && (
-              <div className="mt-4 space-y-2 bg-blue-50 p-3 rounded-lg">
-                {registrationSteps.map((step, index) => {
-                  const isActive = step === currentStep;
-                  const currentStepIndex = registrationSteps.indexOf(currentStep);
-                  const isCompleted = currentStepIndex > index;
-                  
-                  return (
-                    <div key={index} className="flex items-center gap-2 text-sm">
-                      {isCompleted ? (
-                        <CheckCircle className="h-4 w-4 text-green-500 flex-shrink-0" />
-                      ) : isActive ? (
-                        <Loader2 className="h-4 w-4 text-blue-500 animate-spin flex-shrink-0" />
-                      ) : (
-                        <div className="h-4 w-4 rounded-full border-2 border-gray-300 flex-shrink-0" />
-                      )}
-                      <span className={isActive ? 'text-blue-600 font-medium' : isCompleted ? 'text-green-600' : 'text-gray-500'}>
-                        {step}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
           </form>
 
           {!isRegisterMode && (
@@ -473,7 +450,7 @@ export const LoginPage: React.FC = () => {
               onClick={() => {
                 setIsRegisterMode(!isRegisterMode);
                 setLocalError('');
-                setIsRegistering(false);
+                setIsProcessing(false);
               }}
               className="text-blue-600 hover:text-blue-500 text-sm break-words"
             >
@@ -529,6 +506,61 @@ export const LoginPage: React.FC = () => {
                   Annuler
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Modal pour quota atteint */}
+      {showQuotaExceededModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
+            <div className="text-center">
+              <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-red-100 mb-4">
+                <AlertCircle className="h-8 w-8 text-red-600" />
+              </div>
+              
+              <h3 className="text-xl font-semibold text-gray-900 mb-3">
+                Quota atteint
+              </h3>
+              
+              <p className="text-gray-600 mb-4">
+                Le nombre maximum d'utilisateurs autorisés pour cette agence a été atteint. 
+                Contactez votre directeur pour mettre à niveau le package ou acheter des utilisateurs supplémentaires.
+              </p>
+              
+              {quotaExceededDirectorInfo && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4 text-left">
+                  <h4 className="font-semibold text-blue-900 mb-2">Informations du directeur</h4>
+                  <div className="space-y-1 text-sm">
+                    <div>
+                      <span className="text-blue-800 font-medium">Nom: </span>
+                      <span className="text-blue-700">{quotaExceededDirectorInfo.name}</span>
+                    </div>
+                    {quotaExceededDirectorInfo.email && (
+                      <div>
+                        <span className="text-blue-800 font-medium">Email: </span>
+                        <a 
+                          href={`mailto:${quotaExceededDirectorInfo.email}`}
+                          className="text-blue-600 hover:text-blue-800 underline"
+                        >
+                          {quotaExceededDirectorInfo.email}
+                        </a>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+              
+              <Button
+                onClick={() => {
+                  setShowQuotaExceededModal(false);
+                  setQuotaExceededDirectorInfo(null);
+                }}
+                className="w-full"
+              >
+                Fermer
+              </Button>
             </div>
           </div>
         </div>

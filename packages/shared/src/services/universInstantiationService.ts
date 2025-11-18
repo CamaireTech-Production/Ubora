@@ -356,14 +356,6 @@ class UniversInstantiationService {
           rows: Array.isArray(listDef.rows) ? listDef.rows : []
         };
 
-        // Log pour débogage
-        const rowsCount = normalizedListDef.rows.length;
-        console.log(`🔄 Instanciation ListDefinition "${normalizedListDef.name}": ${normalizedListDef.columns.length} colonnes, ${rowsCount} rows`);
-        
-        if (rowsCount === 0) {
-          console.warn(`⚠️ ListDefinition "${normalizedListDef.name}" n'a pas de rows - vérifier si c'est normal`);
-        }
-
         // Create a List from ListDefinition
         const listData: any = {
           name: normalizedListDef.name,
@@ -388,6 +380,7 @@ class UniversInstantiationService {
         }
 
         const listId = await listsService.create(listData);
+        const rowsCount = normalizedListDef.rows.length;
         createdListIds.push(listId);
         
         console.log(`✅ List instantiated: ${normalizedListDef.name} (ID: ${listId}) avec ${rowsCount} rows`);

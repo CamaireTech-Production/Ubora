@@ -610,10 +610,21 @@ const RoleBasedRedirect: React.FC = () => {
 
     // Employé → Vérifier l'approbation
     if (user.role === 'employe') {
-      if (user.isApproved === false) {
-        return <Navigate to="/pending-approval" replace />;
+      // Rediriger vers pending-approval si isApproved est false ou undefined
+      if (user.isApproved === false || user.isApproved === undefined) {
+        const currentPath = window.location.pathname;
+        // Ne pas rediriger si on est déjà sur /pending-approval
+        if (currentPath !== '/pending-approval') {
+          return <Navigate to="/pending-approval" replace />;
+        }
+        return null;
       }
-      return <Navigate to="/employe/dashboard" replace />;
+      // Si approuvé, rediriger vers le dashboard
+      const currentPath = window.location.pathname;
+      if (currentPath !== '/employe/dashboard' && currentPath !== '/pending-approval') {
+        return <Navigate to="/employe/dashboard" replace />;
+      }
+      return null;
     }
 
     // Fallback vers login si rôle inconnu

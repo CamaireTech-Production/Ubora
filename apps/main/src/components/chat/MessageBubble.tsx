@@ -8,6 +8,7 @@ import { MultiFormatToPDF } from '@ubora/shared/utils/MultiFormatToPDF';
 import { generatePDF } from '@ubora/shared/utils/PDFGenerator';
 import { MultiFormatPDFGenerator } from '../reports/MultiFormatPDFGenerator';
 import { useApp } from '@ubora/shared/contexts/AppContext';
+import type { Form } from '@ubora/shared/types';
 
 interface MessageBubbleProps {
   message: ChatMessage;
@@ -295,6 +296,27 @@ const formatMessageContent = (content: string, messageMeta?: any): React.ReactNo
 };
 
 
+const resolveFormDisplayName = (form: Form): string => {
+  const extended = form as Form & {
+    name?: string;
+    displayName?: string;
+    metadata?: { title?: string };
+  };
+
+  const candidates = [
+    extended.title,
+    extended.name,
+    extended.displayName,
+    extended.metadata?.title,
+  ];
+
+  const resolved = candidates.find(
+    (value) => typeof value === 'string' && value.trim().length > 0,
+  );
+
+  return resolved?.trim() ?? `Formulaire ${form.id}`;
+};
+
 const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
   const { forms } = useApp();
   const isUser = message.type === 'user';
@@ -312,12 +334,12 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
         return formIds;
       }
 
-      const formMap = new Map(forms.map(form => [form.id, form.title || `Formulaire ${form.id}`]));
-      return formIds.map(id => formMap.get(id) || `Formulaire ${id}`);
+      const formMap = new Map(forms.map((form) => [form.id, resolveFormDisplayName(form)]));
+      return formIds.map((id) => formMap.get(id) || `Formulaire ${id}`);
     }
 
     if (forms && forms.length > 0) {
-      return forms.map(form => form.title || `Formulaire ${form.id}`);
+      return forms.map((form) => resolveFormDisplayName(form));
     }
 
     return [];

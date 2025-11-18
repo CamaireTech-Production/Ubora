@@ -769,6 +769,7 @@ export default async function handler(req, res) {
             submittedAt: chunk.metadata.submittedAt,
             formId: chunk.metadata.formId,
             userId: chunk.metadata.userId,
+            answers: {}, // Ajout de answers pour éviter les erreurs Object.values
             fileAttachments: chunk.metadata.fileName ? [{
               fileName: chunk.metadata.fileName,
               fileType: chunk.metadata.fileType,
@@ -1654,13 +1655,13 @@ TOP FORMULAIRES : ${data.formStats.slice(0, 3).map(f => `${f.title} (${f.count} 
     const hasFileAttachments = data.submissions.some(s => 
       s.fileAttachments && s.fileAttachments.length > 0
     ) || data.submissions.some(s => 
-      Object.values(s.answers).some(value => 
+      s.answers && Object.values(s.answers).some(value => 
         value && typeof value === 'object' && value.uploaded && value.fileName
       )
     );
 
     const hasComplexData = data.submissions.some(s => 
-      Object.values(s.answers).some(value => 
+      s.answers && Object.values(s.answers).some(value => 
         typeof value === 'object' && value !== null
       )
     );
@@ -1685,7 +1686,7 @@ TOP FORMULAIRES : ${data.formStats.slice(0, 3).map(f => `${f.title} (${f.count} 
           }
         }
         
-        const fieldSummary = Object.entries(s.answers).map(([fieldLabel, value]) => {
+        const fieldSummary = Object.entries(s.answers || {}).map(([fieldLabel, value]) => {
           // Try to find the field definition to get displayColumnId
           let field = null;
           if (submissionForm && submissionForm.fields) {
