@@ -112,18 +112,25 @@ export const PackageSelectionPage: React.FC = () => {
           throw new Error('Failed to create free session');
         }
 
-        // Update user to clear package selection flag
-        const userRef = doc(db, 'users', user.id);
-        await updateDoc(userRef, {
-          needsPackageSelection: false,
-          updatedAt: serverTimestamp()
-        });
+      // Update user to clear package selection flag
+      const userRef = doc(db, 'users', user.id);
+      await updateDoc(userRef, {
+        needsPackageSelection: false,
+        updatedAt: serverTimestamp()
+      });
 
-        // Track analytics
-        await AnalyticsService.logPackageSelection(user.id, pkg, user.agencyId);
+      // Track analytics
+      await AnalyticsService.logPackageSelection(user.id, pkg, user.agencyId);
 
-        showSuccess('Package gratuit activé avec succès !');
-        navigate('/directeur/chat');
+      // Set flag to show welcome screen after package selection
+      try {
+        sessionStorage.setItem('show_welcome_after_package_selection', 'true');
+      } catch (e) {
+        console.warn('Could not set welcome screen flag:', e);
+      }
+
+      showSuccess('Package gratuit activé avec succès !');
+      navigate('/directeur/chat');
         return;
       } catch (error) {
         console.error('Error activating free package:', error);
@@ -347,6 +354,13 @@ export const PackageSelectionPage: React.FC = () => {
         await AnalyticsService.logPackageSelection(user.id, selectedPackage, user.agencyId);
       } catch (analyticsError) {
         console.error('Analytics error:', analyticsError);
+      }
+
+      // Set flag to show welcome screen after package selection
+      try {
+        sessionStorage.setItem('show_welcome_after_package_selection', 'true');
+      } catch (e) {
+        console.warn('Could not set welcome screen flag:', e);
       }
 
       showSuccess(`Package ${getPackageDisplayName(selectedPackage)} activé avec succès !`);

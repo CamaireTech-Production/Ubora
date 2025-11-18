@@ -117,14 +117,6 @@ class UniversService {
       reports: rawDefinitions.reports || []
     };
 
-    // Log pour débogage
-    if (normalizedLists.length > 0) {
-      normalizedLists.forEach((listDef: any) => {
-        const rowsCount = Array.isArray(listDef.rows) ? listDef.rows.length : 0;
-        console.log(`📋 ListDefinition "${listDef.name}" chargée: ${listDef.columns.length} colonnes, ${rowsCount} rows`);
-      });
-    }
-
     return {
       id,
       metadata: {
@@ -222,10 +214,6 @@ class UniversService {
           // CRITIQUE: S'assurer que rows est toujours un tableau
           rows: Array.isArray(listDef.rows) ? listDef.rows : []
         };
-        
-        // Log pour débogage
-        const rowsCount = normalized.rows.length;
-        console.log(`💾 Sauvegarde ListDefinition "${normalized.name}": ${normalized.columns.length} colonnes, ${rowsCount} rows`);
         
         return normalized;
       });
@@ -2841,8 +2829,8 @@ class UniversService {
 
   /**
    * Créer ou activer le Univers par défaut pour un directeur
-   * Version simplifiée : active directement sans créer d'instance
-   * L'instance sera créée à la demande lors de la première création de ressource
+   * S'assure désormais qu'une instance est immédiatement disponible
+   * pour éviter les écarts entre univers et ressources
    */
   async ensureDefaultUnivers(directorId: string, agencyId: string): Promise<string> {
     try {
@@ -2890,12 +2878,26 @@ class UniversService {
 
       // 3. Vérifier si un Univers actif existe déjà
       const activeUnivers = await this.getActiveUnivers(directorId, agencyId);
+      let shouldEnsureInstance = false;
       
       if (!activeUnivers) {
-        // 4. Activer directement sans instance (pour univers par défaut vide)
-        // L'instance sera créée à la demande lors de la première création de ressource
+        // 4. Activer directement (sans instance pour l'instant)
         await this.setActiveUnivers(directorId, agencyId, defaultUnivers.id);
-        console.log(`✅ Univers par défaut activé directement (sans instance) pour directeur ${directorId}`);
+        console.log(`✅ Univers par défaut activé pour directeur ${directorId}`);
+        shouldEnsureInstance = true;
+      } else if (!activeUnivers.activeInstanceId && activeUnivers.activeUniversId === defaultUnivers.id) {
+        // Univers actif déjà défini mais sans instance : il faut la créer
+        shouldEnsureInstance = true;
+      }
+
+      // 5. Créer ou réutiliser une instance immédiatement si nécessaire
+      if (shouldEnsureInstance) {
+        const instanceId = await this.ensureInstanceForActiveUnivers(directorId, agencyId);
+        if (instanceId) {
+          console.log(`✅ Instance pour univers par défaut prête: ${instanceId}`);
+        } else {
+          console.warn('⚠️ Impossible de créer immédiatement une instance pour l’univers par défaut');
+        }
       }
 
       return defaultUnivers.id;

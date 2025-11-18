@@ -132,10 +132,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
 
         if (activeUnivers) {
-          setActiveUnivers(activeUnivers);
-          setActiveUniversId(activeUnivers.activeUniversId);
-          setActiveInstanceId(activeUnivers.activeInstanceId || null);
-          console.log('✅ Univers actif chargé:', activeUnivers.activeUniversId, activeUnivers.activeInstanceId ? `(Instance: ${activeUnivers.activeInstanceId})` : '(Pas d\'instance)');
+          let ensuredActiveUnivers: ActiveUnivers | null = activeUnivers;
+
+          // S'assurer qu'une instance est disponible : si absente, en créer/récupérer une immédiatement
+          try {
+            if (!ensuredActiveUnivers.activeInstanceId) {
+              console.log('ℹ️ Aucun activeInstanceId détecté, tentative de création/retrouve de l\'instance...');
+              const ensuredInstanceId = await universService.ensureInstanceForActiveUnivers(user.id, user.agencyId);
+              if (ensuredInstanceId) {
+                // Recharger l'univers actif pour récupérer les nouvelles valeurs
+                const refreshedUnivers = await universService.getActiveUnivers(user.id, user.agencyId);
+                ensuredActiveUnivers = refreshedUnivers || ensuredActiveUnivers;
+              }
+            }
+          } catch (ensureError) {
+            console.warn('⚠️ Impossible d\'assurer l\'instance de l\'univers actif (non bloquant):', ensureError);
+          }
+
+          setActiveUnivers(ensuredActiveUnivers);
+          setActiveUniversId(ensuredActiveUnivers.activeUniversId);
+          setActiveInstanceId(ensuredActiveUnivers.activeInstanceId || null);
         } else {
           setActiveUnivers(null);
           setActiveUniversId(null);
@@ -169,24 +185,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // Skip loading state if this is likely a data refresh during AI response
     const shouldSkipLoading = isAIResponseActive;
     
-    console.log('🔥 AppContext: Checking AI flag', { 
-      timestamp: Date.now(),
-      isAIResponseActive,
-      shouldSkipLoading,
-      agencyId: user.agencyId
-    });
-    
     if (!shouldSkipLoading) {
-      console.log('🔥 AppContext: Setting isLoading=true', { 
-        timestamp: Date.now(),
-        agencyId: user.agencyId
-      });
       setIsLoading(true);
-    } else {
-      console.log('🔥 AppContext: Skipping isLoading=true during AI response', { 
-        timestamp: Date.now(),
-        agencyId: user.agencyId
-      });
     }
     setError(null);
 
@@ -255,11 +255,45 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     const unsubscribeForms = onSnapshot(formsQuery, (snapshot) => {
-      const allFormsData = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-        createdAt: doc.data().createdAt?.toDate() || new Date()
-      })) as Form[];
+      console.log('📋 [AppContext] Forms snapshot received:', {
+        size: snapshot.size,
+        activeUniversId,
+        activeInstanceId,
+        queryFilters: {
+          agencyId: user.agencyId,
+          universInstanceId: activeInstanceId || 'N/A',
+          universId: activeInstanceId ? 'N/A (using instanceId)' : activeUniversId || 'N/A'
+        }
+      });
+      
+      const allFormsData = snapshot.docs.map(doc => {
+        const data = doc.data();
+        // Handle createdAt: could be Timestamp, Date, or already converted
+        let createdAt: Date;
+        if (data.createdAt) {
+          if (data.createdAt.toDate && typeof data.createdAt.toDate === 'function') {
+            createdAt = data.createdAt.toDate();
+          } else if (data.createdAt instanceof Date) {
+            createdAt = data.createdAt;
+          } else {
+            createdAt = new Date(data.createdAt);
+          }
+        } else {
+          createdAt = new Date();
+        }
+        
+        return {
+          id: doc.id,
+          ...data,
+          createdAt
+        };
+      }) as Form[];
+      
+      console.log('📋 [AppContext] Processed forms:', {
+        count: allFormsData.length,
+        formIds: allFormsData.map(f => f.id),
+        formTitles: allFormsData.map(f => f.title)
+      });
       
       // Filtrer les formulaires selon le rôle de l'utilisateur
       let filteredForms = allFormsData;
@@ -272,6 +306,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         );
       }
       // Employees with director dashboard access see ALL forms (same as directors)
+      
+      console.log('📋 [AppContext] Filtered forms:', {
+        count: filteredForms.length,
+        formIds: filteredForms.map(f => f.id),
+        formTitles: filteredForms.map(f => f.title)
+      });
       
       setForms(filteredForms);
     }, (err) => {
@@ -332,10 +372,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }) as FormEntry[];
       
       
-      console.log('🔥 AppContext: Setting formEntries', { 
-        timestamp: Date.now(),
-        entriesCount: entriesData.length
-      });
       setFormEntries(entriesData);
     }, (err) => {
       console.error('Erreur lors du chargement des entrées:', err);
@@ -360,10 +396,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       employeesData.sort((a, b) => a.name.localeCompare(b.name));
       
       
-      console.log('🔥 AppContext: Setting employees', { 
-        timestamp: Date.now(),
-        employeesCount: employeesData.length
-      });
       setEmployees(employeesData);
     }, (err) => {
       console.error('Erreur lors du chargement des employés:', err);
@@ -533,6 +565,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
       }
 
+      // Helper function to remove undefined values from objects recursively
+      const removeUndefinedValues = (obj: any): any => {
+        if (obj === null || obj === undefined) {
+          return null;
+        }
+        if (Array.isArray(obj)) {
+          return obj.map(removeUndefinedValues).filter(item => item !== null && item !== undefined);
+        }
+        if (typeof obj === 'object') {
+          const cleaned: any = {};
+          for (const [key, value] of Object.entries(obj)) {
+            if (value !== undefined) {
+              const cleanedValue = removeUndefinedValues(value);
+              if (cleanedValue !== null && cleanedValue !== undefined) {
+                cleaned[key] = cleanedValue;
+              }
+            }
+          }
+          return cleaned;
+        }
+        return obj;
+      };
+
       // Garantir que tous les champs requis sont présents
       const docData: any = {
         title: formData.title.trim(),
@@ -565,7 +620,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         docData.timeRestrictions = formData.timeRestrictions;
       }
 
-      const formRef = await addDoc(collection(db, 'forms'), docData);
+      // Nettoyer les valeurs undefined avant l'envoi à Firebase
+      const cleanedDocData = removeUndefinedValues(docData);
+      const formRef = await addDoc(collection(db, 'forms'), cleanedDocData);
       
       // Ajouter la ressource à l'instance si elle existe
       if (universInstanceIdToAssociate && user.role === 'directeur') {

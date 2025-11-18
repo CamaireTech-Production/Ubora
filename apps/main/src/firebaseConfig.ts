@@ -1,7 +1,7 @@
 // src/firebaseConfig.ts
 import { initializeApp, getApp, getApps } from "firebase/app";
 import { getAuth } from "firebase/auth";
-import { getFirestore, connectFirestoreEmulator, Firestore } from "firebase/firestore";
+import { getFirestore, Firestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 import { getMessaging, isSupported } from "firebase/messaging";
 import { getAnalytics, isSupported as isAnalyticsSupported } from "firebase/analytics";

@@ -1,20 +1,28 @@
 // src/firebaseConfig.ts
 import { initializeApp, getApp, getApps } from "firebase/app";
 import { getAuth } from "firebase/auth";
-import { getFirestore, connectFirestoreEmulator, Firestore } from "firebase/firestore";
+import { getFirestore, Firestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 import { getMessaging, isSupported } from "firebase/messaging";
 import { getAnalytics, isSupported as isAnalyticsSupported } from "firebase/analytics";
 
 // Configuration Firebase avec vos vraies clés
+const measurementId = (import.meta as ImportMeta & {
+  env?: Record<string, string>;
+}).env?.VITE_FIREBASE_MEASUREMENT_ID || undefined;
+
+const env = (import.meta as ImportMeta & {
+  env?: Record<string, string>;
+}).env || {};
+
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyDjk-Y3jeoPy3nW_9MniNs8heBv17briMU",
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "studio-gpnfx.firebaseapp.com",
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "studio-gpnfx",
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "studio-gpnfx.firebasestorage.app",
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "848246677738",
-  appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:848246677738:web:7612dab5f030c52b227793",
-  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || "G-6TWRQHW70W",
+  apiKey: env.VITE_FIREBASE_API_KEY || "AIzaSyDjk-Y3jeoPy3nW_9MniNs8heBv17briMU",
+  authDomain: env.VITE_FIREBASE_AUTH_DOMAIN || "studio-gpnfx.firebaseapp.com",
+  projectId: env.VITE_FIREBASE_PROJECT_ID || "studio-gpnfx",
+  storageBucket: env.VITE_FIREBASE_STORAGE_BUCKET || "studio-gpnfx.firebasestorage.app",
+  messagingSenderId: env.VITE_FIREBASE_MESSAGING_SENDER_ID || "848246677738",
+  appId: env.VITE_FIREBASE_APP_ID || "1:848246677738:web:7612dab5f030c52b227793",
+  ...(measurementId ? { measurementId } : {})
 };
 
 // Validation complète de la configuration
@@ -60,10 +68,6 @@ export const db = ((): Firestore => {
   try {
     const instance = getFirestore(app);
     globalForFirebase.__UBORA_FIRESTORE__ = instance;
-    
-    // Firebase v10.13.2 has offline persistence enabled by default
-    // No need to manually enable it
-    console.log('🔥 [Firebase] Firestore initialized successfully');
     
     return instance;
   } catch (error) {

@@ -1,6 +1,6 @@
 import { User } from '../types';
 import { SubscriptionSessionCollectionService } from './subscriptionSessionCollectionService';
-import { PACKAGE_LIMITS, PACKAGE_FEATURES, PackageType } from '../config/packageFeatures';
+import { PACKAGE_FEATURES, PackageType } from '../config/packageFeatures';
 import { FeatureAccessService } from './featureAccessService';
 
 export interface UserPackageInfo {
@@ -52,44 +52,27 @@ export class UserSessionService {
    * Note: Only directors and employees with director access have subscription sessions
    */
   static async getUserPackageInfo(user: User): Promise<UserPackageInfo> {
-    console.log('🔵 [GET USER PACKAGE INFO] ========================================');
-    console.log('🔵 [GET USER PACKAGE INFO] Getting package info for user:', {
-      id: user.id,
-      role: user.role,
-      hasDirectorDashboardAccess: user.hasDirectorDashboardAccess,
-      currentSubscriptionSessionId: user.currentSubscriptionSessionId
-    });
-    
     // Only directors and employees with director access have subscription sessions
     if (user.role !== 'directeur' && !(user.role === 'employe' && user.hasDirectorDashboardAccess)) {
-      console.log('🔵 [GET USER PACKAGE INFO] ❌ User role does not allow package info');
       return this.getDefaultPackageInfo();
     }
 
     const currentSession = await SubscriptionSessionCollectionService.getActiveSession(user.id);
     
     if (!currentSession) {
-      console.log('🔵 [GET USER PACKAGE INFO] ❌ No active session found - returning default');
       return this.getDefaultPackageInfo();
     }
-    
-    console.log('🔵 [GET USER PACKAGE INFO] Session found:', {
-      id: currentSession.id,
-      packageType: currentSession.packageType,
-      isActive: currentSession.isActive,
-      packageResources: currentSession.packageResources,
-      payAsYouGoResources: currentSession.payAsYouGoResources,
-      usage: currentSession.usage
-    });
 
-    const packageFeatures = this.getPackageFeatures(currentSession.packageType);
+    const sessionPackageType = this.normalizePackageType(currentSession.packageType);
+    const packageFeatures = sessionPackageType ? this.getPackageFeatures(sessionPackageType) : [];
     
     const startDate = this.convertToDate(currentSession.startDate);
     const endDate = this.convertToDate(currentSession.endDate);
     const now = new Date();
     const daysRemaining = Math.max(0, Math.ceil((endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
     
-    const subscriptionStatus = currentSession.isActive && daysRemaining > 0 ? 'active' : 'expired';
+    const subscriptionStatus: 'active' | 'expired' | 'cancelled' =
+      currentSession.isActive && daysRemaining > 0 ? 'active' : 'expired';
     
     // Package resources (from the selected package)
     const packageTokens = currentSession.packageResources?.tokensIncluded || 0;
@@ -120,20 +103,8 @@ export class UserSessionService {
     const formsRemaining = Math.max(0, totalForms - formsCreated);
     const dashboardsRemaining = Math.max(0, totalDashboards - dashboardsCreated);
     const usersRemaining = Math.max(0, totalUsers - usersAdded);
-    
-    console.log('🔵 [GET USER PACKAGE INFO] Calculated totals:', {
-      totalForms,
-      totalDashboards,
-      totalUsers,
-      totalTokens,
-      formsCreated,
-      dashboardsCreated,
-      usersAdded,
-      tokensUsed
-    });
-    
     const packageInfo = {
-      packageType: currentSession.packageType,
+      packageType: sessionPackageType,
       packageFeatures,
       subscriptionStartDate: startDate,
       subscriptionEndDate: endDate,
@@ -163,16 +134,6 @@ export class UserSessionService {
       paymentMethod: currentSession.paymentMethod,
       sessionType: currentSession.sessionType
     };
-    
-    console.log('🔵 [GET USER PACKAGE INFO] Returning package info:', {
-      packageType: packageInfo.packageType,
-      totalForms: packageInfo.totalForms,
-      totalDashboards: packageInfo.totalDashboards,
-      totalUsers: packageInfo.totalUsers,
-      totalTokens: packageInfo.totalTokens
-    });
-    console.log('🔵 [GET USER PACKAGE INFO] ========================================');
-    
     return packageInfo;
   }
 
@@ -336,7 +297,7 @@ export class UserSessionService {
    * This is a synchronous method that uses package info if available, otherwise returns false
    * For accurate results, use getUserPackageInfo() async method
    */
-  static hasFeature(user: User, feature: string): boolean {
+  static hasFeature(user: User, _feature: string): boolean {
     // Only directors and employees with director access can have package features
     if (user.role !== 'directeur' && !(user.role === 'employe' && user.hasDirectorDashboardAccess)) {
       return false;
@@ -478,17 +439,21 @@ export class UserSessionService {
     if (user.role !== 'directeur' && !(user.role === 'employe' && user.hasDirectorDashboardAccess)) {
       return false;
     }
+    return !user.currentSubscriptionSessionId;
+  }
 
-    // Try to get session from new collection service first, fallback to legacy
-    let currentSession = null;
-    if (user.currentSubscriptionSessionId) {
-      // For async version, we'll need to make this method async
-      // For now, use sync fallback
-      currentSession = SubscriptionSessionService.getCurrentSessionSync(user);
-    } else {
-      currentSession = SubscriptionSessionService.getCurrentSessionSync(user);
+  private static normalizePackageType(packageType?: string | null): PackageType | null {
+    if (!packageType) {
+      return null;
     }
-    return !currentSession;
+    if (packageType === 'free' || packageType === 'starter' || packageType === 'standard') {
+      return packageType;
+    }
+    if (packageType === 'premium') {
+      // Legacy premium maps to standard limits/features
+      return 'standard';
+    }
+    return null;
   }
 
   /**

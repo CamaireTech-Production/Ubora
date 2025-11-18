@@ -52,10 +52,6 @@ export class BrowserNotificationService {
    */
   private checkSupport(): void {
     this.isSupported = 'Notification' in window;
-    console.log('🔔 [BrowserNotification] Support check:', {
-      supported: this.isSupported,
-      permission: this.permission
-    });
   }
 
   /**

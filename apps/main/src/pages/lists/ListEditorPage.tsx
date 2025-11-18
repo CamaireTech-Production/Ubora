@@ -103,8 +103,8 @@ export const ListEditorPage: React.FC = () => {
           updatedAt: new Date()
         });
         showSuccess('Liste créée avec succès');
-        // Navigate to edit page for the newly created list
-        navigate(`/lists/${listId}/edit`);
+        // Navigate back to lists page
+        navigate('/lists');
         return;
       }
       
@@ -171,6 +171,7 @@ export const ListEditorPage: React.FC = () => {
           list={list || undefined}
           onSave={handleSave}
           onCancel={handleCancel}
+          isSaving={isSaving}
         />
       </Layout>
 

@@ -89,10 +89,17 @@ service cloud.firestore {
       allow list: if !isAuthenticated() && resource.data.role == 'directeur';
       
       // CRÉATION d'un utilisateur
+      // Permettre la création immédiate après Auth creation avec validation des champs requis
       allow create: if isAuthenticated() && 
                    request.auth.uid == userId &&
                    request.resource.data.keys().hasAll(['name', 'email', 'role', 'agencyId']) &&
-                   (request.resource.data.role in ['directeur', 'employe', 'admin']);
+                   (request.resource.data.role in ['directeur', 'employe', 'admin']) &&
+                   // Validation des champs requis selon le rôle
+                   (request.resource.data.role != 'employe' || 
+                    // Pour les employés, isApproved peut être false (pending approval)
+                    request.resource.data.isApproved == false ||
+                    request.resource.data.isApproved == null ||
+                    request.resource.data.isApproved == true);
       
       // MODIFICATION d'un utilisateur
       allow update: if isAuthenticated() && (
