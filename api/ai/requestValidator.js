@@ -72,3 +72,4 @@ export function getValidationErrorResponse(error) {
   return errorMessages[error] || { status: 400, error: 'Erreur de validation', code: 'VALIDATION_ERROR' };
 }
 
+

@@ -98,3 +98,4 @@ export function getAuthErrorResponse(error) {
   return errorMessages[error] || { status: 500, error: 'Erreur d\'authentification', code: 'AUTH_ERROR' };
 }
 
+
