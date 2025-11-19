@@ -41,7 +41,7 @@ const UniversCardComponent: React.FC<UniversCardProps> = ({
   const [isUpgrading, setIsUpgrading] = useState(false);
   const [upgradeProgress, setUpgradeProgress] = useState<string>('');
   const [userInstance, setUserInstance] = useState<UniversInstance | null>(null);
-  const [isLoadingInstance, setIsLoadingInstance] = useState(false);
+  const [, setIsLoadingInstance] = useState(false);
   const [showRejectionReason, setShowRejectionReason] = useState(false);
 
   const isActive = univers.id === activeUniversId;
@@ -153,12 +153,6 @@ const UniversCardComponent: React.FC<UniversCardProps> = ({
     
     try {
       setUpgradeProgress('Création de la nouvelle instance...');
-      const newInstanceId = await universService.upgradeInstance(
-        userInstance.id,
-        user.id,
-        user.role as 'directeur' | 'employe' | 'admin',
-        user.agencyId
-      );
 
       setUpgradeProgress('Migration des données...');
       // La migration est déjà faite dans upgradeInstance, mais on peut afficher un message
@@ -176,16 +170,17 @@ const UniversCardComponent: React.FC<UniversCardProps> = ({
       window.location.reload();
     } catch (error) {
       // Error logged via showError toast
-      // Error details: {
-        error,
-        errorType: typeof error,
-        errorMessage: error instanceof Error ? error.message : String(error),
-        // errorStack: error instanceof Error ? error.stack : undefined,
-        // userInstance: userInstance?.id,
-        // universId: univers?.id,
-        // currentVersion,
-        // latestAvailableVersion
-      // };
+      // Error details (commented out for production):
+      // {
+      //   error,
+      //   errorType: typeof error,
+      //   errorMessage: error instanceof Error ? error.message : String(error),
+      //   errorStack: error instanceof Error ? error.stack : undefined,
+      //   userInstance: userInstance?.id,
+      //   universId: univers?.id,
+      //   currentVersion,
+      //   latestAvailableVersion
+      // }
       
       let errorMessage = 'Une erreur est survenue lors de la mise à jour du Univers.';
       if (error instanceof Error) {
