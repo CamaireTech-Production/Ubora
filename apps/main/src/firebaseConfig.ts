@@ -86,14 +86,14 @@ export const messaging = isSupported().then((supported) => {
 });
 
 // Initialisation de Firebase Analytics (seulement si supporté)
-// Suppression du measurementId du config local pour éviter le warning de mismatch
-// Firebase Analytics utilisera automatiquement le measurementId du serveur
+// Note: Le warning de mismatch du measurementId est normal et peut être ignoré.
+// Firebase récupère automatiquement le bon measurementId depuis le serveur,
+// mais compare avec celui qui pourrait être dans les variables d'environnement.
+// Ce warning n'affecte pas le fonctionnement d'Analytics.
+// Pour supprimer complètement le warning, supprimez la variable d'environnement
+// VITE_FIREBASE_MEASUREMENT_ID de votre fichier .env.local
 export const analytics = isAnalyticsSupported().then((supported) => {
   if (supported) {
-    // Remove measurementId from config to avoid mismatch warning
-    const analyticsConfig = { ...firebaseConfig };
-    delete (analyticsConfig as any).measurementId;
-    
     return getAnalytics(app);
   } else {
     return null;
