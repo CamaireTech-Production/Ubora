@@ -9,6 +9,7 @@ import { generatePDF } from '@ubora/shared/utils/PDFGenerator';
 import { MultiFormatPDFGenerator } from '../reports/MultiFormatPDFGenerator';
 import { useForms } from '@ubora/shared/contexts/FormsContext';
 import type { Form } from '@ubora/shared/types';
+import { logger } from '@ubora/shared/utils/logger';
 
 interface MessageBubbleProps {
   message: ChatMessage;
@@ -565,7 +566,7 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({ message }) => {
                                         imageData: chartImage
                                       };
                                     } catch (error) {
-                                      console.error('Error converting chart to PNG:', error);
+                                      logger.error('Error converting chart to PNG', error, 'MessageBubble');
                                       return chart;
                                     }
                                   })
@@ -577,7 +578,7 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({ message }) => {
                               await generatePDF(pdfData);
                             }
                           } catch (error) {
-                            console.error('Error generating PDF:', error);
+                            logger.error('Error generating PDF', error, 'MessageBubble');
                           }
                         }}
                         className="inline-flex items-center px-3 py-1.5 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors duration-200"

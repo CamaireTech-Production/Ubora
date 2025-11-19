@@ -236,7 +236,7 @@ export const ResponseDetailPage: React.FC = () => {
         fileName: fileAttachment.fileName
       });
     } catch (error) {
-      console.error('❌ Error viewing file:', error);
+      logger.error('Error viewing file', error, 'ResponseDetailPage');
       showError('Erreur lors de l\'ouverture du fichier');
     }
   };
@@ -417,14 +417,14 @@ export const ResponseDetailPage: React.FC = () => {
             .then(data => {
               setResponseStatuses(prev => ({ ...prev, [formEntryId]: data }));
             })
-            .catch(console.error);
+            .catch((error) => logger.error('Error fetching response status', error, 'ResponseDetailPage'));
         }, 2000);
       } else {
         const error = await response.json();
         showError(error.error || 'Erreur lors de la relance du formatage');
       }
     } catch (error) {
-      console.error('Error retrying formatting:', error);
+      logger.error('Error retrying formatting', error, 'ResponseDetailPage');
       showError('Erreur lors de la relance du formatage');
     } finally {
       setRetryingStatuses(prev => ({ ...prev, [retryKey]: { formatting: false } }));
@@ -455,14 +455,14 @@ export const ResponseDetailPage: React.FC = () => {
             .then(data => {
               setResponseStatuses(prev => ({ ...prev, [formEntryId]: data }));
             })
-            .catch(console.error);
+            .catch((error) => logger.error('Error fetching response status', error, 'ResponseDetailPage'));
         }, 2000);
       } else {
         const error = await response.json();
         showError(error.error || 'Erreur lors de la relance de la synchronisation');
       }
     } catch (error) {
-      console.error('Error retrying vector sync:', error);
+      logger.error('Error retrying vector sync', error, 'ResponseDetailPage');
       showError('Erreur lors de la relance de la synchronisation');
     } finally {
       setRetryingStatuses(prev => ({ ...prev, [retryKey]: { vectorSync: false } }));

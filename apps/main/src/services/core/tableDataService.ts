@@ -133,22 +133,14 @@ class TableDataService {
   ): Promise<TableRowData[]> {
     const rowSource = tableConfig.rowSource as Extract<TableRowSource, { type: 'list' }>;
     
-    // Load the list
-    let list: List | null = null;
-    try {
-      list = await listsService.getById(rowSource.listId);
-    } catch (error: any) {
-      // Gérer les erreurs de permissions ou de liste inexistante
-      if (error?.code === 'permission-denied' || error?.code === 'missing-or-insufficient-permissions') {
-        logger.warn(`Permission denied or list not found for listId`, { listId: rowSource.listId }, 'TableDataService');
-      } else {
-        logger.error('Error loading list', error, 'TableDataService');
-      }
-      return [];
-    }
+    // Load the list (getById now returns null instead of throwing for permission errors)
+    const list = await listsService.getById(rowSource.listId);
 
     if (!list || !list.rows || list.rows.length === 0) {
-      logger.warn('List not found or empty', undefined, 'TableDataService');
+      // Ne logger qu'en développement pour éviter le spam en production
+      if (import.meta.env.DEV) {
+        logger.debug('List not found or empty', { listId: rowSource.listId }, 'TableDataService');
+      }
       return [];
     }
 

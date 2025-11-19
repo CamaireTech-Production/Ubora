@@ -10,12 +10,14 @@ import { useUnivers } from '@ubora/shared/contexts/UniversContext';
 import { UserSessionService } from '@ubora/shared/services/userSessionService';
 import { listsService } from '@ubora/shared/services/listsService';
 import { List, ListDefinition } from '../../types';
-import { ArrowLeft, AlertCircle, Loader2, CheckSquare, Square } from 'lucide-react';
+import { ArrowLeft, AlertCircle, Loader2 } from 'lucide-react';
 import { ConfirmationModal } from '../modals/ConfirmationModal';
 import { FormMetadataEditor } from './FormMetadataEditor';
 import { FormFieldsManager } from './FormFieldsManager/FormFieldsManager';
 import { FormAssignment } from './FormAssignment/FormAssignment';
 import { ValidationRules } from './FormValidation/ValidationRules';
+import { logger } from '@ubora/shared/utils/logger';
+import { TimeRestrictionsEditor } from './TimeRestrictionsEditor';
 
 interface FormEditorProps {
   form?: Form; // If provided, we're editing an existing form
@@ -60,7 +62,6 @@ export const FormEditor: React.FC<FormEditorProps> = ({
   const [useTimeRange, setUseTimeRange] = useState(
     !!(form?.timeRestrictions?.startTime && form?.timeRestrictions?.endTime)
   );
-  const [employeeSearchTerm, setEmployeeSearchTerm] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
   const errorRef = useRef<HTMLDivElement>(null);
@@ -81,7 +82,7 @@ export const FormEditor: React.FC<FormEditorProps> = ({
         const access = await UserSessionService.canUseFileUploadsAsync(user, activeUniversId);
         setFileUploadAccess(access);
       } catch (error) {
-        console.error('Erreur lors du chargement des permissions:', error);
+        logger.error('Erreur lors du chargement des permissions', error, 'FormEditor');
         // Fallback sur la version synchrone
         const canUpload = UserSessionService.canUseFileUploads(user);
         setFileUploadAccess({ 
@@ -171,7 +172,7 @@ export const FormEditor: React.FC<FormEditorProps> = ({
         setLoadingLists(false);
         loadingListsRef.current = false;
       } catch (error) {
-        console.error('❌ [FormEditor] Erreur lors du chargement des listes:', error);
+        logger.error('Erreur lors du chargement des listes', error, 'FormEditor');
         setAvailableLists([]);
         setLoadingLists(false);
         loadingListsRef.current = false;
@@ -338,57 +339,6 @@ export const FormEditor: React.FC<FormEditorProps> = ({
     );
   };
 
-  const toggleDaySelection = (day: number) => {
-    setTimeRestrictions(prev => {
-      const currentDays = prev.allowedDays || [];
-      const newDays = currentDays.includes(day)
-        ? currentDays.filter(d => d !== day)
-        : [...currentDays, day];
-      return { ...prev, allowedDays: newDays };
-    });
-  };
-
-  const updateTimeRestriction = (field: 'startTime' | 'endTime', value: string) => {
-    setTimeRestrictions(prev => ({ ...prev, [field]: value }));
-  };
-
-  const handleTimeRangeToggle = (checked: boolean) => {
-    setUseTimeRange(checked);
-    setTimeRestrictions(prev => {
-      // If switching to single-time mode, treat the existing single value as end time
-      if (!checked) {
-        const singleTime = prev.endTime || prev.startTime;
-        return { ...prev, startTime: undefined, endTime: singleTime };
-      }
-      // If switching to range mode and only an end time exists, initialize a start time
-      if (checked && !prev.startTime && prev.endTime) {
-        return { ...prev, startTime: '00:00' };
-      }
-      return prev;
-    });
-  };
-
-  const handleSelectAllEmployees = () => {
-    const filteredEmployees = getFilteredEmployees();
-    const allEmployeeIds = filteredEmployees.map(emp => emp.id);
-    setAssignedTo(allEmployeeIds);
-  };
-
-  const handleDeselectAllEmployees = () => {
-    setAssignedTo([]);
-  };
-
-  const getFilteredEmployees = () => {
-    if (!employeeSearchTerm.trim()) {
-      return employees;
-    }
-    
-    const searchLower = employeeSearchTerm.toLowerCase();
-    return employees.filter(employee => 
-      employee.name.toLowerCase().includes(searchLower) ||
-      employee.email.toLowerCase().includes(searchLower)
-    );
-  };
 
 
 
@@ -495,7 +445,7 @@ export const FormEditor: React.FC<FormEditorProps> = ({
       const successMessage = isEditing ? 'Formulaire mis à jour avec succès' : 'Formulaire créé avec succès';
       showSuccess(successMessage);
     } catch (error) {
-      console.error('Error saving form:', error);
+      logger.error('Error saving form', error, 'FormEditor');
       const errorMessage = isEditing ? 'Erreur lors de la mise à jour du formulaire' : 'Erreur lors de la création du formulaire';
       showError(errorMessage);
     } finally {
@@ -554,218 +504,21 @@ export const FormEditor: React.FC<FormEditorProps> = ({
             descriptionError={errors.find(e => e.includes('description'))}
           />
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-3">
-              Assigner aux utilisateurs *
-            </label>
-            
-            {/* Search and Select All Controls */}
-            <div className="space-y-3 mb-3">
-              <div className="flex flex-col sm:flex-row gap-2">
-                <div className="flex-1">
-                  <input
-                    type="text"
-                    placeholder="Rechercher un employé..."
-                    value={employeeSearchTerm}
-                    onChange={(e) => setEmployeeSearchTerm(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-                  />
-                </div>
-                <div className="flex gap-2">
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    size="sm"
-                    onClick={handleSelectAllEmployees}
-                    className="flex items-center space-x-1"
-                    title="Tout sélectionner"
-                  >
-                    <CheckSquare className="h-4 w-4" />
-                    <span className="hidden sm:inline">Tout sélectionner</span>
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    size="sm"
-                    onClick={handleDeselectAllEmployees}
-                    className="flex items-center space-x-1"
-                    title="Tout désélectionner"
-                  >
-                    <Square className="h-4 w-4" />
-                    <span className="hidden sm:inline">Tout désélectionner</span>
-                  </Button>
-                </div>
-              </div>
-            </div>
+          <FormAssignment
+            assignedTo={assignedTo}
+            employees={employees}
+            currentUser={currentUser}
+            onToggleAssignment={toggleEmployeeAssignment}
+            isEditMode={isEditing}
+            error={errors.find(e => e.includes('employé'))}
+          />
 
-            {/* Employee List */}
-            <div className="space-y-2 max-h-40 overflow-y-auto border border-gray-200 rounded-lg p-3">
-              {(() => {
-                const filteredEmployees = getFilteredEmployees();
-                
-                // Show director option first if current user is a director and matches search
-                const showDirectorOption = currentUser?.role === 'directeur' && 
-                  (!employeeSearchTerm || 
-                   currentUser.name.toLowerCase().includes(employeeSearchTerm.toLowerCase()) ||
-                   currentUser.email.toLowerCase().includes(employeeSearchTerm.toLowerCase()) ||
-                   'moi'.includes(employeeSearchTerm.toLowerCase()));
-                
-                if (employees.length === 0 && !showDirectorOption) {
-                  return <p className="text-gray-500 text-sm">Aucun employé disponible</p>;
-                }
-                
-                if (filteredEmployees.length === 0 && !showDirectorOption) {
-                  return <p className="text-gray-500 text-sm">Aucun employé trouvé pour "{employeeSearchTerm}"</p>;
-                }
-                
-                return (
-                  <>
-                    {/* Show director option first */}
-                    {showDirectorOption && (
-                      <label className="flex items-center space-x-3 cursor-pointer hover:bg-gray-50 p-2 rounded bg-blue-50 border border-blue-200">
-                        <input
-                          type="checkbox"
-                          checked={assignedTo.includes(currentUser.id)}
-                          onChange={() => toggleEmployeeAssignment(currentUser.id)}
-                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                        />
-                        <div className="flex-1">
-                          <span className="text-sm font-medium text-blue-900">Moi ({currentUser.name})</span>
-                          <span className="text-xs text-blue-600 ml-2">({currentUser.email})</span>
-                        </div>
-                      </label>
-                    )}
-                    
-                    {/* Show employees */}
-                    {filteredEmployees.map(employee => (
-                      <label key={employee.id} className="flex items-center space-x-3 cursor-pointer hover:bg-gray-50 p-2 rounded">
-                        <input
-                          type="checkbox"
-                          checked={assignedTo.includes(employee.id)}
-                          onChange={() => toggleEmployeeAssignment(employee.id)}
-                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                        />
-                        <div className="flex-1">
-                          <span className="text-sm font-medium text-gray-900">{employee.name}</span>
-                          <span className="text-xs text-gray-500 ml-2">({employee.email})</span>
-                        </div>
-                      </label>
-                    ))}
-                  </>
-                );
-              })()}
-            </div>
-            
-            {/* Selection Summary */}
-            <div className="mt-2 flex items-center justify-between text-sm">
-              <span className="text-gray-600">
-                {assignedTo.length} employé(s) sélectionné(s)
-              </span>
-              {employeeSearchTerm && (
-                <span className="text-blue-600">
-                  {getFilteredEmployees().length} résultat(s) pour "{employeeSearchTerm}"
-                </span>
-              )}
-            </div>
-            
-            {assignedTo.length === 0 && (
-              <p className="text-sm text-red-600 mt-1">Veuillez sélectionner au moins un employé</p>
-            )}
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-3">
-              Restrictions horaires (optionnel)
-            </label>
-            <div className="space-y-4 p-4 border border-gray-200 rounded-lg bg-gray-50">
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-600 mb-1">
-                    {useTimeRange ? 'Heure de début' : 'Heure limite'}
-                  </label>
-                  <input
-                    type="time"
-                    value={useTimeRange ? (timeRestrictions.startTime || '') : (timeRestrictions.endTime || '')}
-                    onChange={(e) => useTimeRange
-                      ? updateTimeRestriction('startTime', e.target.value)
-                      : updateTimeRestriction('endTime', e.target.value)
-                    }
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                  {!useTimeRange && (
-                    <p className="text-xs text-gray-500 mt-1">
-                      Les employés peuvent remplir ce formulaire de 00:00 jusqu'à cette heure
-                    </p>
-                  )}
-                </div>
-                
-                <div className="flex items-center space-x-2">
-                  <input
-                    type="checkbox"
-                    id="useTimeRange"
-                    checked={useTimeRange}
-                    onChange={(e) => handleTimeRangeToggle(e.target.checked)}
-                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                  />
-                  <label htmlFor="useTimeRange" className="text-sm text-gray-700">
-                    Définir une plage horaire
-                  </label>
-                </div>
-                
-                {useTimeRange && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-600 mb-1">
-                      Heure de fin
-                    </label>
-                    <input
-                      type="time"
-                      value={timeRestrictions.endTime || ''}
-                      onChange={(e) => updateTimeRestriction('endTime', e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    />
-                    <p className="text-xs text-gray-500 mt-1">
-                      Les employés peuvent remplir ce formulaire entre ces deux heures
-                    </p>
-                  </div>
-                )}
-              </div>
-              
-              {(timeRestrictions.startTime || timeRestrictions.endTime) && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-600 mb-2">
-                    Jours autorisés
-                  </label>
-                  <div className="flex flex-wrap gap-2">
-                    {[
-                      { value: 1, label: 'Lun' },
-                      { value: 2, label: 'Mar' },
-                      { value: 3, label: 'Mer' },
-                      { value: 4, label: 'Jeu' },
-                      { value: 5, label: 'Ven' },
-                      { value: 6, label: 'Sam' },
-                      { value: 0, label: 'Dim' }
-                    ].map(day => (
-                      <button
-                        key={day.value}
-                        type="button"
-                        onClick={() => toggleDaySelection(day.value)}
-                        className={`px-3 py-1 text-sm rounded-full border transition-colors ${
-                          timeRestrictions.allowedDays?.includes(day.value)
-                            ? 'bg-blue-600 text-white border-blue-600'
-                            : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-                        }`}
-                      >
-                        {day.label}
-                      </button>
-                    ))}
-                  </div>
-                  <p className="text-xs text-gray-500 mt-2">
-                    Laissez vide pour permettre tous les jours
-                  </p>
-                </div>
-              )}
-            </div>
-          </div>
+          <TimeRestrictionsEditor
+            timeRestrictions={timeRestrictions}
+            useTimeRange={useTimeRange}
+            onTimeRestrictionsChange={setTimeRestrictions}
+            onTimeRangeToggle={setUseTimeRange}
+          />
 
           <FormFieldsManager
             fields={fields}

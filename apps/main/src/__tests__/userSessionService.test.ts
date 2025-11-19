@@ -2,11 +2,12 @@ import { describe, test, expect, vi, beforeEach } from 'vitest'
 import { UserSessionService } from '../services/core/userSessionService'
 import { User } from '../types'
 
+// Create mock function before vi.mock
 const mockGetActiveSession = vi.fn()
 
 vi.mock('@ubora/shared/services/subscriptionSessionCollectionService', () => ({
   SubscriptionSessionCollectionService: {
-    getActiveSession: mockGetActiveSession
+    getActiveSession: (...args: unknown[]) => mockGetActiveSession(...args)
   }
 }))
 
@@ -51,11 +52,11 @@ describe('UserSessionService - getPackageLimits', () => {
     const limits = await UserSessionService.getPackageLimits(mockDirector)
     
     // Assert: Verify the results match expected values from PACKAGE_LIMITS
-    // Standard package: unlimited forms/dashboards, 7 users, 600k tokens
-    expect(limits.maxTokens).toBe(600000) // From PACKAGE_LIMITS.standard.monthlyTokens
+    // Standard package: unlimited forms/dashboards, unlimited users, 300k tokens
+    expect(limits.maxTokens).toBe(300000) // From PACKAGE_LIMITS.standard.monthlyTokens
     expect(limits.maxForms).toBe(-1)      // Unlimited from PACKAGE_LIMITS.standard.maxForms
     expect(limits.maxDashboards).toBe(-1) // Unlimited from PACKAGE_LIMITS.standard.maxDashboards
-    expect(limits.maxUsers).toBe(7)       // From PACKAGE_LIMITS.standard.maxUsers
+    expect(limits.maxUsers).toBe(-1)       // Unlimited from PACKAGE_LIMITS.standard.maxUsers (not 7, that's payAsYouGo)
   })
 
   test('should return zero limits for employee without director access', async () => {
@@ -142,10 +143,10 @@ describe('UserSessionService - getPackageLimits', () => {
     const limits = await UserSessionService.getPackageLimits(mockDirectorWithPayAsYouGo)
     
     // Assert: Verify pay-as-you-go resources are added to package limits
-    // Starter package: 4 forms, 1 dashboard, 3 users, 300k tokens + pay-as-you-go
-    expect(limits.maxTokens).toBe(300200) // 300000 + 200
+    // Starter package: 4 forms, 1 dashboard, unlimited users, 100k tokens + pay-as-you-go
+    expect(limits.maxTokens).toBe(100200) // 100000 + 200 (starter is 100k, not 300k)
     expect(limits.maxForms).toBe(7)       // 4 + 3
     expect(limits.maxDashboards).toBe(2)  // 1 + 1
-    expect(limits.maxUsers).toBe(5)       // 3 + 2
+    expect(limits.maxUsers).toBe(-1)       // Unlimited (starter has unlimited users, not 3)
   })
 })

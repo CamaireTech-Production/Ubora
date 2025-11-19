@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
+import { logger } from '@ubora/shared/utils/logger';
 import { Layout } from '../../components/layout/Layout';
 import { UniversList } from '../../components/univers/UniversList';
 import { Univers } from '../../types';
@@ -39,7 +40,7 @@ export const UniversPage: React.FC = () => {
       const userUnivers = await universService.getUserUnivers(user.id, user.agencyId);
       setUnivers(userUnivers);
     } catch (error) {
-      console.error('Erreur lors du chargement des Univers:', error);
+      logger.error('Erreur lors du chargement des Univers', error, 'UniversPage');
       showError('Erreur lors du chargement des Univers');
     } finally {
       setIsLoading(false);
@@ -85,7 +86,7 @@ export const UniversPage: React.FC = () => {
       setUniversToDelete(null);
       await loadUnivers();
     } catch (error) {
-      console.error('Erreur lors de la suppression du Univers:', error);
+      logger.error('Erreur lors de la suppression du Univers', error, 'UniversPage');
       showError('Erreur lors de la suppression du Univers');
     } finally {
       setIsDeleting(false);

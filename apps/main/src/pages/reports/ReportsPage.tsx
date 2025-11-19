@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
 import { useApp } from '@ubora/shared/contexts/AppContext';
+import { logger } from '@ubora/shared/utils/logger';
 import { useEntries } from '@ubora/shared/contexts/EntriesContext';
 import { useUnivers } from '@ubora/shared/contexts/UniversContext';
 import { useDashboards } from '@ubora/shared/contexts/DashboardsContext';
@@ -64,7 +65,7 @@ export const ReportsPage: React.FC = () => {
         );
         allReports.push(...userReports);
       } catch (error) {
-        console.error('Erreur lors du chargement des rapports Firestore:', error);
+        logger.error('Erreur lors du chargement des rapports Firestore', error, 'ReportsPage');
       }
 
       // 2. Load reports from active Univers definitions (like UniversViewPage does)
@@ -97,7 +98,7 @@ export const ReportsPage: React.FC = () => {
             allReports.push(...universReports);
           }
         } catch (error) {
-          console.error('Erreur lors du chargement des rapports du Univers:', error);
+          logger.error('Erreur lors du chargement des rapports du Univers', error, 'ReportsPage');
         }
       }
 
@@ -108,7 +109,7 @@ export const ReportsPage: React.FC = () => {
 
       setReports(uniqueReports);
     } catch (error) {
-      console.error('Erreur lors du chargement des rapports:', error);
+      logger.error('Erreur lors du chargement des rapports', error, 'ReportsPage');
       const errorMessage = error instanceof Error 
         ? `Erreur lors du chargement: ${error.message}`
         : 'Erreur lors du chargement des rapports. Veuillez réessayer.';
@@ -210,7 +211,7 @@ export const ReportsPage: React.FC = () => {
       setShowDeleteModal(false);
       setReportToDelete(null);
     } catch (error) {
-      console.error('Erreur lors de la suppression du rapport:', error);
+      logger.error('Erreur lors de la suppression du rapport', error, 'ReportsPage');
       showError('Erreur lors de la suppression du rapport. Veuillez réessayer.');
     } finally {
       setIsDeleting(false);

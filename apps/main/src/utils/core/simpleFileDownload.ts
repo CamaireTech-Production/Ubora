@@ -3,13 +3,14 @@
  */
 
 import { getFilesDownloadEndpoint } from '@ubora/shared/config/api';
+import { logger } from '@ubora/shared/utils/logger';
 
 /**
  * Get file data from Firestore and create a blob URL
  */
 export const getFileBlobUrl = async (attachment: any): Promise<string> => {
   try {
-    console.log('🔄 Getting file blob URL for:', attachment.fileName);
+    logger.debug('Getting file blob URL', { fileName: attachment.fileName }, 'simpleFileDownload');
     
     if (!attachment.downloadUrl) {
       throw new Error('No download URL available');
@@ -17,18 +18,18 @@ export const getFileBlobUrl = async (attachment: any): Promise<string> => {
 
     // If it's already a regular HTTP URL, use it directly
     if (!attachment.downloadUrl.startsWith('firestore://')) {
-      console.log('✅ Using direct HTTP URL:', attachment.downloadUrl);
+      logger.debug('Using direct HTTP URL', { downloadUrl: attachment.downloadUrl }, 'simpleFileDownload');
       return attachment.downloadUrl;
     }
 
     // For firestore:// URLs, we need to get the file data from Firestore
     if (attachment.base64Data) {
-      console.log('✅ Using base64 data from attachment');
+      logger.debug('Using base64 data from attachment', null, 'simpleFileDownload');
       return createBlobFromBase64(attachment.base64Data, attachment.fileType);
     }
 
     // If no base64 data, try to fetch from the download endpoint
-    console.log('🔄 Fetching file from download endpoint...');
+    logger.debug('Fetching file from download endpoint', null, 'simpleFileDownload');
     const downloadUrl = `${getFilesDownloadEndpoint()}?downloadUrl=${encodeURIComponent(attachment.downloadUrl)}`;
     
     const response = await fetch(downloadUrl);
@@ -39,11 +40,11 @@ export const getFileBlobUrl = async (attachment: any): Promise<string> => {
     const blob = await response.blob();
     const blobUrl = URL.createObjectURL(blob);
     
-    console.log('✅ Created blob URL from download endpoint');
+    logger.debug('Created blob URL from download endpoint', null, 'simpleFileDownload');
     return blobUrl;
 
   } catch (error) {
-    console.error('❌ Error getting file blob URL:', error);
+    logger.error('Error getting file blob URL', error, 'simpleFileDownload');
     throw error;
   }
 };
@@ -68,11 +69,11 @@ const createBlobFromBase64 = (base64Data: string, mimeType: string): string => {
     const blob = new Blob([bytes], { type: mimeType });
     const blobUrl = URL.createObjectURL(blob);
     
-    console.log('✅ Created blob URL from base64 data');
+    logger.debug('Created blob URL from base64 data', null, 'simpleFileDownload');
     return blobUrl;
     
   } catch (error) {
-    console.error('❌ Error creating blob from base64:', error);
+    logger.error('Error creating blob from base64', error, 'simpleFileDownload');
     throw error;
   }
 };
@@ -100,10 +101,10 @@ export const downloadFileFromBlob = async (attachment: any): Promise<void> => {
       URL.revokeObjectURL(blobUrl);
     }, 1000);
     
-    console.log('✅ File download initiated');
+    logger.debug('File download initiated', { fileName: attachment.fileName }, 'simpleFileDownload');
     
   } catch (error) {
-    console.error('❌ Error downloading file:', error);
+    logger.error('Error downloading file', error, 'simpleFileDownload');
     throw error;
   }
 };

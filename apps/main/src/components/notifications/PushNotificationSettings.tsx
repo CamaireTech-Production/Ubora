@@ -3,6 +3,7 @@ import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
 import { Bell, BellOff, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
 import { usePushNotifications } from '@ubora/shared/hooks/usePushNotifications';
+import { logger } from '@ubora/shared/utils/logger';
 
 export const PushNotificationSettings: React.FC = () => {
   const {
@@ -26,7 +27,7 @@ export const PushNotificationSettings: React.FC = () => {
         await subscribe();
       }
     } catch (error) {
-      console.error('Error toggling notifications:', error);
+      logger.error('Error toggling notifications', error, 'PushNotificationSettings');
     } finally {
       setIsLoading(false);
     }
@@ -37,7 +38,7 @@ export const PushNotificationSettings: React.FC = () => {
     try {
       await requestPermission();
     } catch (error) {
-      console.error('🔔 [Push] Error requesting permission:', error);
+      logger.error('Push: Error requesting permission', error, 'PushNotificationSettings');
     } finally {
       setIsLoading(false);
     }

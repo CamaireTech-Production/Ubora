@@ -7,6 +7,7 @@ import { Univers } from '../../types';
 import { Button } from '../ui/Button';
 import { ConfirmationModal } from '../modals/ConfirmationModal';
 import { CheckCircle, ChevronDown, Loader2 } from 'lucide-react';
+import { logger } from '@ubora/shared/utils/logger';
 
 export const UniversSwitcher: React.FC = () => {
   const { user } = useAuth();
@@ -42,7 +43,7 @@ export const UniversSwitcher: React.FC = () => {
 
         setAvailableUnivers(Array.from(allUnivers.values()));
       } catch (error) {
-        console.error('Erreur lors du chargement des Univers:', error);
+        logger.error('Erreur lors du chargement des Univers', error, 'UniversSwitcher');
         showError('Erreur lors du chargement des Univers');
       } finally {
         setIsLoading(false);
@@ -91,7 +92,7 @@ export const UniversSwitcher: React.FC = () => {
       // Recharger la page pour mettre à jour les données filtrées
       window.location.reload();
     } catch (error) {
-      console.error('Erreur lors de l\'activation du Univers:', error);
+      logger.error('Erreur lors de l\'activation du Univers', error, 'UniversSwitcher');
       const errorMessage = error instanceof Error 
         ? error.message 
         : 'Une erreur est survenue lors de l\'activation du Univers. Veuillez réessayer.';

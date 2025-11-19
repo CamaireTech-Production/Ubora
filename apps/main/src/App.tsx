@@ -23,6 +23,7 @@ import { EmployeeManagement } from './components/employees/EmployeeManagement';
 import { Layout } from './components/layout/Layout';
 import { PWAUpdateNotification } from './components/pwa/PWAUpdateNotification';
 import { usePageTracking } from '@ubora/shared/hooks/usePageTracking';
+import { logger } from '@ubora/shared/utils/logger';
 
 // Lazy load all routes except auth pages
 const DirecteurDashboard = lazy(() => import('./pages/dashboard/DirecteurDashboard').then(module => ({ default: module.DirecteurDashboard })));
@@ -69,7 +70,7 @@ const ServiceWorkerMessageHandler: React.FC = () => {
       if (event.data && event.data.type === 'NOTIFICATION_CLICK') {
         const { url, notificationType, highlightData, data } = event.data;
         
-        console.log('🔔 [App] Handling notification click:', {
+        logger.debug('Handling notification click', {
           url,
           notificationType,
           highlightData,

@@ -1,4 +1,5 @@
 import { ChatMessage, GraphData, GraphDataPoint, PDFData, PDFSection, PDFFileReference, ImageFileReference } from '../types';
+import { logger } from '@ubora/shared/utils/logger';
 
 export interface ParsedResponse {
   contentType: 'text' | 'graph' | 'pdf' | 'text-pdf' | 'table' | 'mixed' | 'multi-format';
@@ -172,7 +173,7 @@ export class ResponseParser {
           };
         }
       } catch (error) {
-        console.error('Error parsing stats JSON:', error);
+        logger.error('Error parsing stats JSON', error, 'ResponseParser');
         // Try to find and parse JSON more aggressively with multiple patterns
         const jsonPatterns = [
           /\{\s*"type"\s*:\s*"[^"]*"\s*,[\s\S]*?\}/g,
@@ -195,7 +196,7 @@ export class ResponseParser {
                 };
               }
             } catch (parseError) {
-              console.error('Error parsing JSON pattern:', parseError);
+              logger.error('Error parsing JSON pattern', parseError, 'ResponseParser');
             }
           }
         }

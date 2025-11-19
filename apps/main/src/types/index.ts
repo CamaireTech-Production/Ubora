@@ -223,12 +223,15 @@ export interface FileAttachment {
   base64Data?: string; // Store file as base64 for draft storage
 }
 
+// Type pour les valeurs de réponses de formulaire
+export type FormFieldValue = string | number | boolean | Date | string[] | null | undefined;
+
 export interface FormEntry {
   id: string;
   formId: string; // référence vers un formulaire
   userId: string; // employé qui a soumis (auth.uid)
   agencyId: string; // hérité du user
-  answers: Record<string, any>; // map { fieldId: valeur }
+  answers: Record<string, FormFieldValue>; // map { fieldId: valeur }
   fileAttachments?: FileAttachment[]; // fichiers uploadés
   submittedAt: Date; // serverTimestamp
 }
@@ -238,12 +241,39 @@ export interface DraftResponse {
   formId: string;
   userId: string;
   agencyId: string;
-  answers: Record<string, any>;
+  answers: Record<string, FormFieldValue>;
   fileAttachments?: FileAttachment[];
   createdAt: Date;
   updatedAt: Date;
   isDraft: true;
 }
+
+// Types pour les données de notification selon le type
+export interface FormReminderNotificationData {
+  formId: string;
+  formTitle: string;
+  deadline?: string;
+  reminderType?: 'before_deadline' | 'after_deadline';
+}
+
+export interface FormAssignmentNotificationData {
+  formId: string;
+  formTitle: string;
+  action: 'assigned' | 'removed';
+  directorName?: string;
+}
+
+export interface DailyReportNotificationData {
+  reportDate: string;
+  metricsCount?: number;
+  formsSubmitted?: number;
+}
+
+export type ScheduledNotificationData = 
+  | FormReminderNotificationData 
+  | FormAssignmentNotificationData 
+  | DailyReportNotificationData
+  | Record<string, unknown>; // Fallback pour données inconnues
 
 export interface ScheduledNotification {
   id: string;
@@ -253,7 +283,7 @@ export interface ScheduledNotification {
   scheduledFor: Date;
   title: string;
   body: string;
-  data?: Record<string, any>;
+  data?: ScheduledNotificationData;
   status: 'pending' | 'sent' | 'failed' | 'cancelled';
   attempts: number;
   createdAt: Date;

@@ -19,7 +19,7 @@ import { BrowserRouter } from 'react-router-dom';
 import { AuthProvider } from '@ubora/shared/contexts/AuthContext';
 import { AppProvider } from '@ubora/shared/contexts/AppContext';
 
-// Mock Firebase Auth
+// Mock Firebase Auth - Create mocks before vi.mock
 const mockSignInWithEmailAndPassword = vi.fn();
 const mockSignOut = vi.fn();
 const mockOnAuthStateChanged = vi.fn();
@@ -30,8 +30,8 @@ const mockUser = {
 };
 
 vi.mock('firebase/auth', () => ({
-  signInWithEmailAndPassword: mockSignInWithEmailAndPassword,
-  signOut: mockSignOut,
+  signInWithEmailAndPassword: (...args: unknown[]) => mockSignInWithEmailAndPassword(...args),
+  signOut: (...args: unknown[]) => mockSignOut(...args),
   onAuthStateChanged: (auth: unknown, callback: (user: unknown) => void) => {
     // Simulate auth state change
     callback(mockUser);
@@ -41,7 +41,7 @@ vi.mock('firebase/auth', () => ({
   GoogleAuthProvider: vi.fn(),
 }));
 
-// Mock Firebase Firestore
+// Mock Firebase Firestore - Use factory function to avoid hoisting issues
 const mockGetDoc = vi.fn();
 const mockGetDocs = vi.fn();
 const mockCollection = vi.fn();
@@ -52,13 +52,13 @@ const mockLimit = vi.fn();
 
 vi.mock('firebase/firestore', () => ({
   doc: vi.fn(),
-  getDoc: mockGetDoc,
-  getDocs: mockGetDocs,
-  collection: mockCollection,
-  query: mockQuery,
-  where: mockWhere,
-  orderBy: mockOrderBy,
-  limit: mockLimit,
+  getDoc: (...args: unknown[]) => mockGetDoc(...args),
+  getDocs: (...args: unknown[]) => mockGetDocs(...args),
+  collection: (...args: unknown[]) => mockCollection(...args),
+  query: (...args: unknown[]) => mockQuery(...args),
+  where: (...args: unknown[]) => mockWhere(...args),
+  orderBy: (...args: unknown[]) => mockOrderBy(...args),
+  limit: (...args: unknown[]) => mockLimit(...args),
   serverTimestamp: vi.fn(() => new Date()),
   onSnapshot: vi.fn(),
   addDoc: vi.fn(),

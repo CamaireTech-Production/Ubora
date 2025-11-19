@@ -14,6 +14,7 @@ import { useUnivers } from '@ubora/shared/contexts/UniversContext';
 import { UserSessionService } from '@ubora/shared/services/userSessionService';
 import { listsService } from '@ubora/shared/services/listsService';
 import { List, ListDefinition } from '../../types';
+import { logger } from '@ubora/shared/utils/logger';
 
 interface FormBuilderProps {
   onSave: (form: {
@@ -130,7 +131,7 @@ export const FormBuilder: React.FC<FormBuilderProps> = ({
         setAvailableLists(dbLists);
         loadingListsRef.current = false;
       } catch (error) {
-        console.error('❌ [FormBuilder] Erreur lors du chargement des listes:', error);
+        logger.error('Erreur lors du chargement des listes', error, 'FormBuilder');
         setAvailableLists([]);
         loadingListsRef.current = false;
       }

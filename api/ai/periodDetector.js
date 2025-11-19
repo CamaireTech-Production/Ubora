@@ -124,7 +124,7 @@ function getPeriodDates(period) {
   return { start, end, label };
 }
 
-module.exports = {
+export {
   detectPeriodFromQuestion,
   getPeriodDates
 };

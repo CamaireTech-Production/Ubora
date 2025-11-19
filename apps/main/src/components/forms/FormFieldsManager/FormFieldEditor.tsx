@@ -9,6 +9,7 @@ import { ConditionalLogicBuilder } from '../ConditionalLogicBuilder';
 import { FileTypeSelector } from '../../core/FileTypeSelector';
 import { FieldCSVImport } from '../../csv-import/FieldCSVImport';
 import { FormulaParser } from '@ubora/shared/utils/FormulaParser';
+import { logger } from '@ubora/shared/utils/logger';
 
 interface FormFieldEditorProps {
   field: FormField;
@@ -69,13 +70,13 @@ export const FormFieldEditor: React.FC<FormFieldEditorProps> = ({
     );
     
     if (invalidDeps.length > 0) {
-      console.warn(`Invalid dependencies detected: ${invalidDeps.join(', ')}`);
+      logger.warn('Invalid dependencies detected', { invalidDeps }, 'FormFieldEditor');
       return;
     }
     
     // Check for circular dependencies
     if (FormulaParser.hasCircularDependency(field.id, fieldIds, allFields)) {
-      console.warn('Circular dependency detected');
+      logger.warn('Circular dependency detected', null, 'FormFieldEditor');
       return;
     }
     
@@ -197,7 +198,7 @@ export const FormFieldEditor: React.FC<FormFieldEditorProps> = ({
                 checked={field.listId !== undefined}
                 onChange={() => {
                   if (availableLists.length === 0) {
-                    console.warn('Aucune liste disponible pour ce champ');
+                    logger.warn('Aucune liste disponible pour ce champ', null, 'FormFieldEditor');
                     return;
                   }
                   

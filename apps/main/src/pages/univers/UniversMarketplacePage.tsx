@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
+import { logger } from '@ubora/shared/utils/logger';
 import { Layout } from '../../components/layout/Layout';
 import { UniversCard } from '../../components/univers/UniversCard';
 import { MarketplaceFilters, MarketplaceFiltersState } from '../../components/univers/MarketplaceFilters';
@@ -42,7 +43,7 @@ export const UniversMarketplacePage: React.FC = () => {
       const templates = await universService.getMarketplaceTemplates();
       setMarketplaceUnivers(templates);
     } catch (error) {
-      console.error('Erreur lors du chargement du marketplace:', error);
+      logger.error('Erreur lors du chargement du marketplace', error, 'UniversMarketplacePage');
       showError('Erreur lors du chargement du marketplace');
     } finally {
       setIsLoading(false);

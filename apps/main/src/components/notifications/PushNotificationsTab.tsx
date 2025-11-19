@@ -15,6 +15,7 @@ import {
   CheckCircle,
   Clock
 } from 'lucide-react';
+import { logger } from '@ubora/shared/utils/logger';
 
 interface PushNotificationsTabProps {
   onRefresh?: () => void;
@@ -42,7 +43,7 @@ export const PushNotificationsTab: React.FC<PushNotificationsTabProps> = ({ onRe
       setNotifications(notificationsData);
       setStats(statsData);
     } catch (error) {
-      console.error('Error loading notifications:', error);
+      logger.error('Error loading notifications', error, 'PushNotificationsTab');
     } finally {
       setIsLoading(false);
     }

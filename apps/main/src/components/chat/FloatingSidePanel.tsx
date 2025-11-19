@@ -9,6 +9,7 @@ import { PackageType } from '@ubora/shared/config/packageFeatures';
 import { LimitReachedModal } from '../modals/LimitReachedModal';
 import { PaymentModal } from '../payments/PaymentModal';
 import { AccessDeniedModal } from '../modals/AccessDeniedModal';
+import { logger } from '@ubora/shared/utils/logger';
 
 type TabId = "history" | "forms" | "employees" | "entries";
 
@@ -206,7 +207,7 @@ export const FloatingSidePanel: React.FC<FloatingSidePanelProps> = ({
       setLinkCopied(true);
       setTimeout(() => setLinkCopied(false), 2000);
     } catch (err) {
-      console.error('Erreur lors de la copie:', err);
+      logger.error('Erreur lors de la copie', err, 'FloatingSidePanel');
     }
   };
 
@@ -220,7 +221,7 @@ export const FloatingSidePanel: React.FC<FloatingSidePanelProps> = ({
           url: link
         });
       } catch (err) {
-        console.error('Erreur lors du partage:', err);
+        logger.error('Erreur lors du partage', err, 'FloatingSidePanel');
         handleCopyLink();
       }
     } else {

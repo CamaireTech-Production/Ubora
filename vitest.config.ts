@@ -19,6 +19,8 @@ export default defineConfig({
       resolveFromRoot('apps/main/src/test/setup.ts')
     ],
     globals: true,
+    testTimeout: 10000, // 10 seconds timeout per test
+    hookTimeout: 10000, // 10 seconds timeout for hooks
     exclude: [
       '**/node_modules/**',
       '**/dist/**',

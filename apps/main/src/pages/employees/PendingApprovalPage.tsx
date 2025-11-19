@@ -6,6 +6,7 @@ import { Footer } from '../../components/layout/Footer';
 import { LogoutConfirmationModal } from '../../components/modals/LogoutConfirmationModal';
 import { Clock, Mail, Building2, LogOut, User } from 'lucide-react';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
+import { logger } from '@ubora/shared/utils/logger';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '@ubora/shared/firebaseConfig';
 
@@ -59,7 +60,7 @@ export const PendingApprovalPage: React.FC = () => {
           });
         }
       } catch (error) {
-        console.error('Erreur lors de la récupération des informations du directeur:', error);
+        logger.error('Erreur lors de la récupération des informations du directeur', error, 'PendingApprovalPage');
       } finally {
         setIsLoadingDirector(false);
       }
@@ -73,7 +74,7 @@ export const PendingApprovalPage: React.FC = () => {
     try {
       await logout();
     } catch (error) {
-      console.error('Erreur lors de la déconnexion:', error);
+      logger.error('Erreur lors de la déconnexion', error, 'PendingApprovalPage');
     } finally {
       setIsLoggingOut(false);
       setShowLogoutModal(false);

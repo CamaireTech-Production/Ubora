@@ -5,6 +5,7 @@ import { EnhancedAdminService } from '../../services/admin/enhancedAdminService'
 import { SubscriptionSessionCollectionService } from '@ubora/shared/services/subscriptionSessionCollectionService';
 import { Pagination } from '../ui/Pagination';
 import { Button } from '../ui/Button';
+import { logger } from '@ubora/shared/utils/logger';
 import { 
   Eye, 
   Edit, 
@@ -50,7 +51,7 @@ const UserPackageCell: React.FC<{ user: AdminUser }> = ({ user }) => {
           return;
         }
       } catch (error) {
-        console.error('Error loading session for user:', user.id, error);
+        logger.error('Error loading session for user', { userId: user.id, error }, 'UsersTable');
       }
 
       // Fallback to legacy array

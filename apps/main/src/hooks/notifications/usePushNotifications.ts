@@ -4,6 +4,7 @@ import { messaging } from '@ubora/shared/firebaseConfig';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { db } from '@ubora/shared/firebaseConfig';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
+import { logger } from '@ubora/shared/utils/logger';
 
 interface NotificationPermission {
   granted: boolean;
@@ -113,7 +114,7 @@ export const usePushNotifications = () => {
       setState(prev => ({ ...prev, isSupported: true }));
       return true;
     } catch (error) {
-      console.error('🔔 [Push] Support check failed:', error);
+      logger.error('Push notifications support check failed', error, 'usePushNotifications');
       setState(prev => ({ ...prev, isSupported: false, error: 'Push notifications not supported' }));
       return false;
     }
@@ -149,7 +150,7 @@ export const usePushNotifications = () => {
 
       return permission === 'granted';
     } catch (error) {
-      console.error('🔔 [Push] Permission request failed:', error);
+      logger.error('Push notification permission request failed', error, 'usePushNotifications');
       setState(prev => ({ ...prev, error: 'Failed to request permission' }));
       return false;
     }
@@ -158,7 +159,7 @@ export const usePushNotifications = () => {
   // Save token to Firestore
   const saveTokenToFirestore = useCallback(async (token: string) => {
     if (!user || !user.id) {
-      console.error('🔔 [Push] User or user.id is undefined:', { user });
+      logger.error('User or user.id is undefined when saving push token', { user }, 'usePushNotifications');
       return;
     }
 
@@ -174,7 +175,7 @@ export const usePushNotifications = () => {
       }, { merge: true });
       
     } catch (error) {
-      console.error('🔔 [Push] Failed to save token:', error);
+      logger.error('Failed to save push notification token', error, 'usePushNotifications');
     }
   }, [user, state.platform]);
 
@@ -213,7 +214,7 @@ export const usePushNotifications = () => {
         return null;
       }
     } catch (error) {
-      console.error('🔔 [Push] Token generation failed:', error);
+      logger.error('Push notification token generation failed', error, 'usePushNotifications');
       setState(prev => ({ ...prev, error: 'Failed to get token' }));
       return null;
     }
@@ -261,7 +262,7 @@ export const usePushNotifications = () => {
       }));
 
     } catch (error) {
-      console.error('🔔 [Push] Unsubscribe failed:', error);
+      logger.error('Push notification unsubscribe failed', error, 'usePushNotifications');
     }
   }, [user]);
 
@@ -286,7 +287,7 @@ export const usePushNotifications = () => {
 
         return unsubscribe;
       } catch (error) {
-        console.error('🔔 [Push] Foreground listener setup failed:', error);
+        logger.error('Push notification foreground listener setup failed', error, 'usePushNotifications');
       }
     };
 
@@ -317,7 +318,7 @@ export const usePushNotifications = () => {
         }
       }
     } catch (error) {
-      console.error('🔔 [Push] Error checking user notification state:', error);
+      logger.error('Error checking user push notification state', error, 'usePushNotifications');
     }
   }, [user]);
 

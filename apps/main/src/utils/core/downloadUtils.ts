@@ -2,6 +2,8 @@
  * Utility functions for downloading files from Firebase Storage
  */
 
+import { logger } from '@ubora/shared/utils/logger';
+
 export interface DownloadOptions {
   fileName: string;
   url: string;
@@ -131,7 +133,7 @@ export const downloadFile = async (options: DownloadOptions): Promise<void> => {
         throw new Error('Popup blocked');
       }
     } catch (tabError) {
-      console.error('New tab method failed:', tabError);
+      logger.error('New tab method failed', tabError, 'downloadUtils');
     }
 
     // All methods failed
@@ -139,7 +141,7 @@ export const downloadFile = async (options: DownloadOptions): Promise<void> => {
 
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown download error';
-    console.error('❌ Download failed:', errorMessage);
+    logger.error('Download failed', { errorMessage }, 'downloadUtils');
     onError?.(errorMessage);
     throw error;
   }

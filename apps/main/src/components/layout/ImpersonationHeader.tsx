@@ -6,6 +6,7 @@ import { Info, X } from 'lucide-react';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '@ubora/shared/firebaseConfig';
 import { User } from '../../types';
+import { logger } from '@ubora/shared/utils/logger';
 
 interface ImpersonationHeaderProps {
   onExit?: () => void;
@@ -43,7 +44,7 @@ export const ImpersonationHeader: React.FC<ImpersonationHeaderProps> = ({ onExit
           setDirectorEmail(directorData.email);
         }
       } catch (error) {
-        console.error('Error fetching director email:', error);
+        logger.error('Error fetching director email', error, 'ImpersonationHeader');
       } finally {
         setIsLoadingDirector(false);
       }

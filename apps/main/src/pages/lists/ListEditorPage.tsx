@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
+import { logger } from '@ubora/shared/utils/logger';
 import { Layout } from '../../components/layout/Layout';
 import { ListEditor } from '../../components/lists/ListEditor';
 import { List } from '../../types';
@@ -57,7 +58,7 @@ export const ListEditorPage: React.FC = () => {
         setTimeout(() => navigate('/lists'), 2000);
       }
     } catch (error) {
-      console.error('Erreur lors du chargement de la liste:', error);
+      logger.error('Erreur lors du chargement de la liste', error, 'ListEditorPage');
       showError('Erreur lors du chargement de la liste');
       navigate('/lists');
     } finally {
@@ -113,7 +114,7 @@ export const ListEditorPage: React.FC = () => {
         await loadList();
       }
     } catch (error) {
-      console.error('Erreur lors de la sauvegarde de la liste:', error);
+      logger.error('Erreur lors de la sauvegarde de la liste', error, 'ListEditorPage');
       showError(error instanceof Error ? error.message : 'Erreur lors de la sauvegarde de la liste');
     } finally {
       setIsSaving(false);

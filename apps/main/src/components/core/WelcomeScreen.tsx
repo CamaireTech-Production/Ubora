@@ -7,6 +7,7 @@ import { useEmployees } from '@ubora/shared/contexts/EmployeesContext';
 import { LimitReachedModal } from '../modals/LimitReachedModal';
 import { PaymentModal } from '../payments/PaymentModal';
 import { PackageType } from '@ubora/shared/config/packageFeatures';
+import { logger } from '@ubora/shared/utils/logger';
 
 interface WelcomeScreenProps {
   userName?: string;
@@ -89,7 +90,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
       setLinkCopied(true);
       setTimeout(() => setLinkCopied(false), 2000);
     } catch (err) {
-      console.error('Erreur lors de la copie:', err);
+      logger.error('Erreur lors de la copie', err, 'WelcomeScreen');
     }
   };
 
@@ -103,7 +104,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
           url: link
         });
       } catch (err) {
-        console.error('Erreur lors du partage:', err);
+        logger.error('Erreur lors du partage', err, 'WelcomeScreen');
         handleCopyLink();
       }
     } else {
@@ -132,7 +133,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
 
   const handlePurchaseResource = async (option: any) => {
     // This would be handled by the PaymentModal
-    console.log('Purchase resource:', option);
+    logger.debug('Purchase resource', { option }, 'WelcomeScreen');
     setShowPaymentModal(false);
   };
 

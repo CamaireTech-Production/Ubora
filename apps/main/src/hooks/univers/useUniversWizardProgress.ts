@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { FormDefinition, DashboardDefinition, InstructionDefinition, ListDefinition, ReportDefinition } from '../../types';
+import { logger } from '@ubora/shared/utils/logger';
 
 const UNIVERS_WIZARD_PROGRESS_KEY = 'ubora_univers_wizard_progress';
 
@@ -58,7 +59,7 @@ export function useUniversWizardProgress(userId?: string | null) {
       } as UniversWizardProgress;
       localStorage.setItem(storageKey, JSON.stringify(updated));
     } catch (error) {
-      console.error('Error saving Univers wizard progress:', error);
+      logger.error('Error saving Univers wizard progress', error, 'useUniversWizardProgress');
     }
   }, [storageKey, loadProgress]);
 
@@ -71,7 +72,7 @@ export function useUniversWizardProgress(userId?: string | null) {
     try {
       localStorage.removeItem(storageKey);
     } catch (error) {
-      console.error('Error clearing Univers wizard progress:', error);
+      logger.error('Error clearing Univers wizard progress', error, 'useUniversWizardProgress');
     }
   }, [storageKey]);
 

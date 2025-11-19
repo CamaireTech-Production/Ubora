@@ -34,7 +34,8 @@ export class BrowserNotificationService {
 
   constructor() {
     this.checkSupport();
-    this.permission = Notification.permission;
+    // Safely access Notification.permission (may not exist in test environment)
+    this.permission = typeof Notification !== 'undefined' ? Notification.permission : 'default';
   }
 
   static getInstance(): BrowserNotificationService {

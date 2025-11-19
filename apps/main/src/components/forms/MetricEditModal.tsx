@@ -6,6 +6,7 @@ import { Textarea } from '../ui/Textarea';
 import { GraphPreview } from '../charts/GraphPreview';
 import { X, BarChart3, FileText, Hash, Type, Mail, Calendar, CheckSquare, Upload, AlertTriangle } from 'lucide-react';
 import { getValidYAxisFields, validateYAxisField } from '@ubora/shared/utils/GraphFieldValidator';
+import { logger } from '@ubora/shared/utils/logger';
 type SharedDashboardMetric = import('@ubora/shared/types').DashboardMetric;
 type SharedFormEntry = import('@ubora/shared/types').FormEntry;
 type SharedForm = import('@ubora/shared/types').Form;
@@ -146,7 +147,7 @@ export const MetricEditModal: React.FC<MetricEditModalProps> = ({
       await new Promise(resolve => setTimeout(resolve, 500));
       onClose();
     } catch (error) {
-      console.error('Erreur lors de la mise à jour de la métrique:', error);
+      logger.error('Erreur lors de la mise à jour de la métrique', error, 'MetricEditModal');
       setErrors(['Erreur lors de la mise à jour de la métrique. Veuillez réessayer.']);
     } finally {
       setIsLoading(false);

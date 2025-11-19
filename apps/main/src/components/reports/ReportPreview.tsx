@@ -4,6 +4,7 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { TableMetricDisplay } from '../dashboard/TableMetricDisplay';
 import { MetricCalculator } from '../../utils/forms/MetricCalculator';
 import { tableDataService } from '../../services/core/tableDataService';
+import { logger } from '@ubora/shared/utils/logger';
 
 interface ReportPreviewProps {
   report: ReportDefinition;
@@ -64,7 +65,7 @@ export const ReportPreview: React.FC<ReportPreviewProps> = ({ report, dashboards
               return String(result.displayValue);
             }
           } catch (error) {
-            console.error('Error calculating metric value:', error);
+            logger.error('Error calculating metric value', error, 'ReportPreview');
           }
         }
       }
@@ -215,7 +216,7 @@ export const ReportPreview: React.FC<ReportPreviewProps> = ({ report, dashboards
           : undefined;
         const mockValue = getMockValue(match, mapping);
         if (!mapping) {
-          console.log('ReportPreview: no mapping for placeholder (regex pass)', {
+          logger.debug('ReportPreview: no mapping for placeholder (regex pass)', {
             placeholderText: match,
             normalizedMatch,
             availablePlaceholders: report.placeholders?.map(p => p.placeholder),
@@ -458,7 +459,7 @@ export const ReportPreview: React.FC<ReportPreviewProps> = ({ report, dashboards
           const rows = await tableDataService.getRowsForTableMetric(metric, formEntries, period);
           setTableRows(rows);
         } catch (error) {
-          console.error('Error loading table data for report:', error);
+          logger.error('Error loading table data for report', error, 'ReportPreview');
           setTableRows([]);
         } finally {
           setIsLoading(false);

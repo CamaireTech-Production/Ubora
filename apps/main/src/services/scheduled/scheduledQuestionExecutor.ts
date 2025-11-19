@@ -516,9 +516,9 @@ class ScheduledQuestionExecutor {
         emailAddress || undefined
       );
       
-      console.log('🔔 [ScheduledQuestionExecutor] Notification envoyée pour:', question.title);
+      logger.info('Notification envoyée pour', { questionTitle: question.title }, 'ScheduledQuestionExecutor');
     } catch (error) {
-      console.error('❌ [ScheduledQuestionExecutor] Erreur lors de l\'envoi de la notification:', error);
+      logger.error('Erreur lors de l\'envoi de la notification', error, 'ScheduledQuestionExecutor');
       // Ne pas faire échouer l'exécution pour une erreur de notification
     }
   }
@@ -538,7 +538,7 @@ class ScheduledQuestionExecutor {
       }
       return null;
     } catch (error) {
-      console.error(`🔔 [ScheduledQuestionExecutor] Error getting email address for ${userId}:`, error);
+      logger.error('Error getting email address', { userId, error }, 'ScheduledQuestionExecutor');
       return null;
     }
   }
@@ -547,24 +547,23 @@ class ScheduledQuestionExecutor {
    * Exécuter une question manuellement (pour les tests)
    */
   async executeQuestionManually(questionId: string): Promise<void> {
-    console.log(`🔧 [ScheduledQuestionExecutor] Exécution manuelle demandée pour la question: ${questionId}`);
+    logger.debug('Exécution manuelle demandée pour la question', { questionId }, 'ScheduledQuestionExecutor');
     
     const question = await scheduledQuestionService.getById(questionId);
     if (!question) {
-      console.error(`❌ [ScheduledQuestionExecutor] Question programmée non trouvée: ${questionId}`);
+      logger.error('Question programmée non trouvée', { questionId }, 'ScheduledQuestionExecutor');
       throw new Error('Question programmée non trouvée');
     }
     
-    console.log(`🔧 [ScheduledQuestionExecutor] Question trouvée: ${question.title}`);
-    console.log(`📊 [ScheduledQuestionExecutor] Statut actuel: ${question.status}`);
+    logger.debug('Question trouvée', { questionTitle: question.title, status: question.status }, 'ScheduledQuestionExecutor');
     
     // If the question is failed, reset it to pending before execution
     if (question.status === 'failed') {
-      console.log(`🔄 [ScheduledQuestionExecutor] Réinitialisation de la question échouée vers 'pending'`);
+      logger.debug('Réinitialisation de la question échouée vers pending', { questionId }, 'ScheduledQuestionExecutor');
       await scheduledQuestionService.update(questionId, {
         status: 'pending'
       });
-      console.log(`✅ [ScheduledQuestionExecutor] Question réinitialisée vers 'pending'`);
+      logger.info('Question réinitialisée vers pending', { questionId }, 'ScheduledQuestionExecutor');
     }
     
     await this.executeQuestion(question);
@@ -575,25 +574,25 @@ class ScheduledQuestionExecutor {
    */
   async forceExecuteAllPending(): Promise<void> {
     if (!this.currentUserId || !this.currentAgencyId) {
-      console.error('❌ [ScheduledQuestionExecutor] Aucun utilisateur connecté pour l\'exécution forcée');
+      logger.error('Aucun utilisateur connecté pour l\'exécution forcée', null, 'ScheduledQuestionExecutor');
       return;
     }
 
-    console.log(`🔧 [ScheduledQuestionExecutor] Exécution forcée de toutes les questions en attente pour l'utilisateur ${this.currentUserId}`);
+    logger.debug('Exécution forcée de toutes les questions en attente', { userId: this.currentUserId }, 'ScheduledQuestionExecutor');
     
     try {
       // Récupérer toutes les questions en attente, même celles qui ne sont pas encore dues
       const allQuestions = await scheduledQuestionService.getByUser(this.currentUserId, this.currentAgencyId);
       const pendingQuestions = allQuestions.filter(q => q.status === 'pending');
       
-      console.log(`🔧 [ScheduledQuestionExecutor] ${pendingQuestions.length} question(s) en attente trouvée(s)`);
+      logger.debug('Questions en attente trouvées', { count: pendingQuestions.length }, 'ScheduledQuestionExecutor');
       
       for (const question of pendingQuestions) {
-        console.log(`🔧 [ScheduledQuestionExecutor] Exécution forcée de: ${question.title}`);
+        logger.debug('Exécution forcée de question', { questionTitle: question.title }, 'ScheduledQuestionExecutor');
         await this.executeQuestion(question);
       }
     } catch (error) {
-      console.error('❌ [ScheduledQuestionExecutor] Erreur lors de l\'exécution forcée:', error);
+      logger.error('Erreur lors de l\'exécution forcée', error, 'ScheduledQuestionExecutor');
       throw error;
     }
   }
@@ -603,31 +602,31 @@ class ScheduledQuestionExecutor {
    */
   async fixStuckQuestions(): Promise<void> {
     if (!this.currentUserId || !this.currentAgencyId) {
-      console.error('❌ [ScheduledQuestionExecutor] Aucun utilisateur connecté pour la réparation');
+      logger.error('Aucun utilisateur connecté pour la réparation', null, 'ScheduledQuestionExecutor');
       return;
     }
 
-    console.log(`🔧 [ScheduledQuestionExecutor] Réparation des questions bloquées pour l'utilisateur ${this.currentUserId}`);
+    logger.debug('Réparation des questions bloquées', { userId: this.currentUserId }, 'ScheduledQuestionExecutor');
     
     try {
       // Récupérer toutes les questions de l'utilisateur
       const allQuestions = await scheduledQuestionService.getByUser(this.currentUserId, this.currentAgencyId);
       const stuckQuestions = allQuestions.filter(q => q.status === 'running');
       
-      console.log(`🔧 [ScheduledQuestionExecutor] ${stuckQuestions.length} question(s) bloquée(s) trouvée(s)`);
+      logger.debug('Questions bloquées trouvées', { count: stuckQuestions.length }, 'ScheduledQuestionExecutor');
       
       for (const question of stuckQuestions) {
-        console.log(`🔧 [ScheduledQuestionExecutor] Réparation de: ${question.title}`);
+        logger.debug('Réparation de question', { questionTitle: question.title }, 'ScheduledQuestionExecutor');
         
         // Remettre en "pending" pour permettre une nouvelle exécution
         await scheduledQuestionService.update(question.id, {
           status: 'pending'
         });
         
-        console.log(`✅ [ScheduledQuestionExecutor] Question réparée: ${question.title}`);
+        logger.info('Question réparée', { questionTitle: question.title }, 'ScheduledQuestionExecutor');
       }
     } catch (error) {
-      console.error('❌ [ScheduledQuestionExecutor] Erreur lors de la réparation:', error);
+      logger.error('Erreur lors de la réparation', error, 'ScheduledQuestionExecutor');
       throw error;
     }
   }

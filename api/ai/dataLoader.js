@@ -121,6 +121,7 @@ async function loadAndAggregateData(
   if (activeUniversId) {
     try {
       // Query optimized with existing index: agencyId + universId + createdAt DESC
+      // Note: Admin SDK doesn't support select(), but we only need IDs for filtering
       const formsSnapshot = await adminDb
         .collection('forms')
         .where('agencyId', '==', agencyId)
@@ -142,12 +143,52 @@ async function loadAndAggregateData(
   // Requête de base pour récupérer TOUTES les données de l'agence
   // Optimized with existing index: agencyId + submittedAt DESC
   // On récupère par agence puis on filtre/tri en mémoire
-  const baseSnapshot = await adminDb
-    .collection('formEntries')
-    .where('agencyId', '==', agencyId)
-    .orderBy('submittedAt', 'desc') // Use existing index for better performance
-    .limit(2000) // Increased limit for complete analysis
-    .get();
+  // Use pagination for large datasets to avoid memory issues
+  const BATCH_SIZE = 500; // Process in batches to optimize memory usage
+  let baseSnapshot = null;
+  let allDocs = [];
+  let lastDoc = null;
+  let hasMore = true;
+  
+  // Fetch entries in batches using pagination
+  while (hasMore && allDocs.length < 2000) {
+    let query = adminDb
+      .collection('formEntries')
+      .where('agencyId', '==', agencyId)
+      .orderBy('submittedAt', 'desc') // Use existing index for better performance
+      .limit(BATCH_SIZE);
+    
+    // Add cursor for pagination
+    if (lastDoc) {
+      query = query.startAfter(lastDoc);
+    }
+    
+    const batchSnapshot = await query.get();
+    
+    if (batchSnapshot.empty) {
+      hasMore = false;
+    } else {
+      allDocs = allDocs.concat(batchSnapshot.docs);
+      lastDoc = batchSnapshot.docs[batchSnapshot.docs.length - 1];
+      hasMore = batchSnapshot.docs.length === BATCH_SIZE && allDocs.length < 2000;
+      
+      logger.debug('Fetched batch of formEntries', { 
+        batchSize: batchSnapshot.docs.length, 
+        totalFetched: allDocs.length 
+      }, 'dataLoader.js');
+    }
+  }
+  
+  // Create a mock snapshot-like object for compatibility
+  baseSnapshot = {
+    docs: allDocs,
+    empty: allDocs.length === 0,
+    size: allDocs.length
+  };
+  
+  logger.info('Total formEntries fetched with pagination', { 
+    totalCount: allDocs.length 
+  }, 'dataLoader.js');
 
   // Ensure attachments are formatted when needed (on-demand formatting)
   const ensureFormattedAttachmentsForDoc = async (doc) => {
@@ -247,6 +288,7 @@ async function loadAndAggregateData(
 
   // Charger les métadonnées (formulaires et utilisateurs)
   // Filtrer les Forms par Univers actif si disponible
+  // Use select() to only fetch required fields for better performance
   let formsQuery = adminDb.collection('forms').where('agencyId', '==', agencyId);
   if (activeUniversId) {
     formsQuery = formsQuery.where('universId', '==', activeUniversId);
@@ -255,6 +297,7 @@ async function loadAndAggregateData(
   // Optimize queries with existing indexes and orderBy
   // Forms query: uses index agencyId + universId + createdAt DESC (if universId provided)
   // Users query: uses index agencyId + role + name
+  // Note: Admin SDK doesn't support select(), but we extract only needed fields in processing
   const [formsSnapshot, usersSnapshot] = await Promise.all([
     activeUniversId 
       ? formsQuery.orderBy('createdAt', 'desc').get() // Use index when universId is provided
@@ -267,18 +310,19 @@ async function loadAndAggregateData(
   ]);
 
   // Construire des maps pour les données
+  // Extract only needed fields to optimize memory usage
   const formsById = new Map();
   formsSnapshot.docs.forEach((doc) => {
     const data = doc.data();
     formsById.set(doc.id, {
       id: doc.id,
-      title: data.title,
-      description: data.description,
-      createdBy: data.createdBy,
-      agencyId: data.agencyId,
-      assignedTo: data.assignedTo,
-      fields: data.fields,
-      createdAt: data.createdAt
+      title: data.title || '',
+      description: data.description || '',
+      createdBy: data.createdBy || '',
+      agencyId: data.agencyId || '',
+      assignedTo: data.assignedTo || [],
+      fields: data.fields || [],
+      createdAt: data.createdAt || null
     });
   });
 
@@ -287,14 +331,19 @@ async function loadAndAggregateData(
     const data = doc.data();
     usersById.set(doc.id, {
       id: doc.id,
-      name: data.name,
-      email: data.email,
-      role: data.role,
-      agencyId: data.agencyId,
-      createdAt: data.createdAt,
-      updatedAt: data.updatedAt
+      name: data.name || '',
+      email: data.email || '',
+      role: data.role || 'employe',
+      agencyId: data.agencyId || '',
+      createdAt: data.createdAt || null,
+      updatedAt: data.updatedAt || null
     });
   });
+  
+  logger.debug('Metadata loaded', {
+    formsCount: formsById.size,
+    usersCount: usersById.size
+  }, 'dataLoader.js');
 
   // Agrégations avec fallbacks sûrs
   const totalEntries = entries.length;

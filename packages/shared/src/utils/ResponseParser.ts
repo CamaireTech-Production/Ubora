@@ -1,4 +1,5 @@
-import { ChatMessage, GraphData, PDFData, PDFFileReference, ImageFileReference } from '../types';
+import { ChatMessage, GraphData, PDFData, PDFFileReference, ImageFileReference, PDFSection, GraphDataPoint } from '../types';
+import { logger } from './logger';
 
 export interface ParsedResponse {
   contentType: 'text' | 'graph' | 'pdf' | 'text-pdf' | 'table' | 'mixed' | 'multi-format';
@@ -73,7 +74,12 @@ export class ResponseParser {
   }
   
   private static parseMultiFormatResponse(response: string, selectedFormats: string[]): ParsedResponse {
-    const multiFormatData: any = {};
+    interface MultiFormatData {
+      graphData?: GraphData;
+      tableData?: string;
+      pdfContent?: string;
+    }
+    const multiFormatData: MultiFormatData = {};
     let hasAnyFormat = false;
 
     // Parse each selected format
@@ -167,7 +173,7 @@ export class ResponseParser {
           };
         }
       } catch (error) {
-        console.error('Error parsing stats JSON:', error);
+        logger.error('Error parsing stats JSON', error, 'ResponseParser');
         // Try to find and parse JSON more aggressively with multiple patterns
         const jsonPatterns = [
           /\{\s*"type"\s*:\s*"[^"]*"\s*,[\s\S]*?\}/g,
@@ -190,7 +196,7 @@ export class ResponseParser {
                 };
               }
             } catch (parseError) {
-              console.error('Error parsing JSON pattern:', parseError);
+              logger.error('Error parsing JSON pattern', parseError, 'ResponseParser');
             }
           }
         }
@@ -204,45 +210,51 @@ export class ResponseParser {
     };
   }
 
-  private static enhanceGraphData(data: any): GraphData {
+  private static enhanceGraphData(data: unknown): GraphData {
+    if (!data || typeof data !== 'object') {
+      throw new Error('Invalid graph data: must be an object');
+    }
+    
+    const graphData = data as Record<string, unknown>;
     
     // Ensure data.data is always an array
-    const dataArray = Array.isArray(data.data) ? data.data : [];
+    const dataArray = Array.isArray(graphData.data) ? graphData.data as GraphDataPoint[] : [];
     
     // Enhanced graph data with new properties and better defaults
     const enhancedData: GraphData = {
-      type: data.type || 'bar',
-      title: data.title || 'Graphique des données',
-      subtitle: data.subtitle || undefined,
+      type: (graphData.type as GraphData['type']) || 'bar',
+      title: (graphData.title as string) || 'Graphique des données',
+      subtitle: (graphData.subtitle as string) || undefined,
       data: dataArray,
-      xAxisKey: data.xAxisKey || 'label',
-      yAxisKey: data.yAxisKey || 'value',
-      dataKey: data.dataKey || 'value',
-      colors: data.colors || ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6'],
+      xAxisKey: (graphData.xAxisKey as string) || 'label',
+      yAxisKey: (graphData.yAxisKey as string) || 'value',
+      dataKey: (graphData.dataKey as string) || 'value',
+      colors: (Array.isArray(graphData.colors) ? graphData.colors as string[] : undefined) || ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6'],
       options: {
-        showLegend: data.options?.showLegend !== false,
-        showGrid: data.options?.showGrid !== false,
-        showTooltip: data.options?.showTooltip !== false,
-        animation: data.options?.animation !== false,
-        ...data.options
+        showLegend: (graphData.options as Record<string, unknown>)?.showLegend !== false,
+        showGrid: (graphData.options as Record<string, unknown>)?.showGrid !== false,
+        showTooltip: (graphData.options as Record<string, unknown>)?.showTooltip !== false,
+        animation: (graphData.options as Record<string, unknown>)?.animation !== false,
+        ...(graphData.options as GraphData['options'])
       }
     };
 
     // Add insights and recommendations if available
-    if (data.insights && Array.isArray(data.insights)) {
-      enhancedData.insights = data.insights;
+    if (Array.isArray(graphData.insights)) {
+      enhancedData.insights = graphData.insights as string[];
     }
-    if (data.recommendations && Array.isArray(data.recommendations)) {
-      enhancedData.recommendations = data.recommendations;
+    if (Array.isArray(graphData.recommendations)) {
+      enhancedData.recommendations = graphData.recommendations as string[];
     }
     
     // Add metadata if available
-    if (data.metadata && typeof data.metadata === 'object') {
+    if (graphData.metadata && typeof graphData.metadata === 'object') {
+      const metadata = graphData.metadata as Record<string, unknown>;
       enhancedData.metadata = {
-        totalEntries: data.metadata.totalEntries,
-        chartType: data.metadata.chartType,
-        dataSource: data.metadata.dataSource,
-        generatedAt: data.metadata.generatedAt ? new Date(data.metadata.generatedAt) : new Date()
+        totalEntries: metadata.totalEntries as number | undefined,
+        chartType: metadata.chartType as string | undefined,
+        dataSource: metadata.dataSource as string | undefined,
+        generatedAt: metadata.generatedAt ? new Date(metadata.generatedAt as string | number) : new Date()
       };
     }
 
@@ -337,31 +349,33 @@ export class ResponseParser {
   }
 
 
-  private static isGraphData(data: any): boolean {
+  private static isGraphData(data: unknown): boolean {
     // Basic validation
     if (!data || typeof data !== 'object') {
       return false;
     }
     
+    const graphData = data as Record<string, unknown>;
+    
     // Check if it has a valid chart type
     const validTypes = ['line', 'bar', 'pie', 'area', 'scatter'];
-    if (!data.type || !validTypes.includes(data.type)) {
+    if (!graphData.type || !validTypes.includes(graphData.type as string)) {
       return false;
     }
     
     // Check if it has a title (required)
-    if (!data.title || typeof data.title !== 'string') {
+    if (!graphData.title || typeof graphData.title !== 'string') {
       return false;
     }
     
     // Check if it has data array (required)
-    if (!Array.isArray(data.data) || data.data.length === 0) {
+    if (!Array.isArray(graphData.data) || graphData.data.length === 0) {
       return false;
     }
     
     // Additional validation for data structure
     // At least one data point should have a value or be a valid data structure
-    const hasValidData = data.data.some((item: any) => {
+    const hasValidData = (graphData.data as unknown[]).some((item: unknown) => {
       if (typeof item === 'object' && item !== null) {
         // Check for common data keys
         return item.value !== undefined || 
@@ -446,7 +460,7 @@ export class ResponseParser {
     parsedResponse: ParsedResponse,
     messageId: string,
     responseTime?: number,
-    meta?: any
+    meta?: ChatMessage['meta']
   ): ChatMessage {
     const baseMessage: ChatMessage = {
       id: messageId,
@@ -480,12 +494,12 @@ export class ResponseParser {
    * Parse PDF content for multi-format responses, properly structuring sections and charts
    */
   private static parsePDFContentForMultiFormat(pdfContent: string, graphData?: GraphData, tableData?: string): PDFData {
-    const sections: any[] = [];
+    const sections: PDFSection[] = [];
     const charts: GraphData[] = [];
 
     // Split content into sections based on markdown headers
     const lines = pdfContent.split('\n');
-    let currentSection: any = null;
+    let currentSection: PDFSection | null = null;
     let currentContent: string[] = [];
 
     for (const line of lines) {

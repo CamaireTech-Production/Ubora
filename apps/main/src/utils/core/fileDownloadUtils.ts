@@ -3,6 +3,7 @@
  */
 
 import { getFilesDownloadEndpoint } from '@ubora/shared/config/api';
+import { logger } from '@ubora/shared/utils/logger';
 export const convertToDownloadUrl = (firestoreUrl: string): string => {
   if (!firestoreUrl || !firestoreUrl.startsWith('firestore://')) {
     return firestoreUrl; // Return as-is if not a firestore URL
@@ -26,18 +27,18 @@ export const isFirestoreUrl = (url: string): boolean => {
  */
 export const getFileDownloadUrl = (attachment: any): string => {
   if (!attachment.downloadUrl) {
-    console.log('❌ No downloadUrl in attachment:', attachment);
+    logger.warn('No downloadUrl in attachment', { attachment }, 'fileDownloadUtils');
     return '';
   }
 
-  console.log('🔍 Processing downloadUrl:', attachment.downloadUrl);
+  logger.debug('Processing downloadUrl', { downloadUrl: attachment.downloadUrl }, 'fileDownloadUtils');
 
   if (isFirestoreUrl(attachment.downloadUrl)) {
     const convertedUrl = convertToDownloadUrl(attachment.downloadUrl);
-    console.log('✅ Converted firestore URL to HTTP:', convertedUrl);
+    logger.debug('Converted firestore URL to HTTP', { convertedUrl }, 'fileDownloadUtils');
     return convertedUrl;
   }
 
-  console.log('✅ Using original URL (not firestore):', attachment.downloadUrl);
+  logger.debug('Using original URL (not firestore)', { downloadUrl: attachment.downloadUrl }, 'fileDownloadUtils');
   return attachment.downloadUrl;
 };

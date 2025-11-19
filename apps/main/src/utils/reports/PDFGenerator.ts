@@ -1,6 +1,7 @@
 import jsPDF from 'jspdf';
 import { PDFData, GraphData } from '../types';
 import { RechartsToPNG } from './RechartsToPNG';
+import { logger } from '@ubora/shared/utils/logger';
 
 export class PDFGenerator {
   private doc: jsPDF;
@@ -760,8 +761,8 @@ export class PDFGenerator {
         this.doc.setTextColor(0, 0, 0);
         
       } catch (error) {
-        console.error('PDFGenerator: Error rendering chart to image:', error);
-        console.error('PDFGenerator: Error details:', {
+        logger.error('PDFGenerator: Error rendering chart to image', error, 'PDFGenerator');
+        logger.error('PDFGenerator: Error details', {
           message: error instanceof Error ? error.message : String(error),
           stack: error instanceof Error ? error.stack : undefined,
           chartTitle: chart.title,

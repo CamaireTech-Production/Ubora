@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
+import { logger } from '@ubora/shared/utils/logger';
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '@ubora/shared/firebaseConfig';
 import { Button } from '../../components/ui/Button';
@@ -77,7 +78,7 @@ export const ProfileCompletionPage: React.FC = () => {
         navigate('/employe/dashboard');
       }
     } catch (err: any) {
-      console.error('Erreur lors de la mise à jour du profil:', err);
+      logger.error('Erreur lors de la mise à jour du profil', err, 'ProfileCompletionPage');
       setError('Une erreur est survenue lors de la mise à jour du profil');
     } finally {
       setIsLoading(false);

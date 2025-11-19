@@ -15,6 +15,7 @@ import { reportService } from '../../services/reports/reportService';
 import { DocumentExtractionService } from '@ubora/shared/services';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
+import { logger } from '@ubora/shared/utils/logger';
 
 interface ReportBuilderProps {
   onSave: (report: {
@@ -221,7 +222,7 @@ export const ReportBuilder: React.FC<ReportBuilderProps> = ({
 
         showSuccess('Fichier téléchargé avec succès');
       } catch (error) {
-        console.error('Erreur lors du téléchargement du fichier:', error);
+        logger.error('Erreur lors du téléchargement du fichier', error, 'ReportBuilder');
         showError(error instanceof Error ? error.message : 'Erreur lors du téléchargement du fichier');
         setUploadProgress({
           fieldId: 'template',
@@ -688,7 +689,7 @@ const PlaceholderMappingModal: React.FC<PlaceholderMappingModalProps> = ({
       // Check if it looks like a display label (contains parentheses, spaces, or special characters)
       // Valid IDs are typically alphanumeric with underscores/hyphens, not containing parentheses
       if (existingMetricId.includes('(') || existingMetricId.includes(')') || existingMetricId.includes(' - ')) {
-        console.warn('Existing metricId looks like a label, resetting:', existingMetricId);
+        logger.warn('Existing metricId looks like a label, resetting', { existingMetricId }, 'ReportBuilder');
         return '';
       }
       return existingMetricId;
@@ -705,12 +706,13 @@ const PlaceholderMappingModal: React.FC<PlaceholderMappingModalProps> = ({
 
   // Debug: Log dashboards on mount
   useEffect(() => {
-    console.log('PlaceholderMappingModal mounted');
-    console.log('Dashboards received:', dashboards);
-    console.log('Dashboard IDs:', dashboards.map(d => d.id));
-    console.log('Dashboard names:', dashboards.map(d => d.name));
-    console.log('Existing mapping:', existingMapping);
-    console.log('Initial dashboardId:', dashboardId);
+    logger.debug('PlaceholderMappingModal mounted', {
+      dashboardsCount: dashboards.length,
+      dashboardIds: dashboards.map(d => d.id),
+      dashboardNames: dashboards.map(d => d.name),
+      existingMapping,
+      initialDashboardId: dashboardId
+    }, 'ReportBuilder');
   }, [dashboards, existingMapping, dashboardId]);
 
   const selectedDashboard = sourceType === 'dashboard' ? dashboards.find(d => d.id === dashboardId) : null;
@@ -725,7 +727,7 @@ const PlaceholderMappingModal: React.FC<PlaceholderMappingModalProps> = ({
     if (sourceType === 'dashboard' && dashboardId) {
       const dashboard = dashboards.find(d => d.id === dashboardId);
       if (dashboard) {
-        console.log('SelectedDashboard metrics structure:', {
+        logger.debug('SelectedDashboard metrics structure', {
           hasMetrics: !!dashboard.metrics,
           isArray: Array.isArray(dashboard.metrics),
           length: dashboard.metrics?.length,
@@ -756,7 +758,7 @@ const PlaceholderMappingModal: React.FC<PlaceholderMappingModalProps> = ({
         if (!isValidId) {
           // Si ce n'est pas un ID valide, c'est probablement un label (données anciennes)
           // On réinitialise pour forcer l'utilisateur à re-sélectionner
-          console.warn('metricId invalide (probablement un label), réinitialisation:', metricId);
+          logger.warn('metricId invalide (probablement un label), réinitialisation', { metricId }, 'ReportBuilder');
           setMetricId('');
         }
       }
@@ -766,15 +768,15 @@ const PlaceholderMappingModal: React.FC<PlaceholderMappingModalProps> = ({
   // Debug: Log selected dashboard and metrics
   useEffect(() => {
     if (dashboardId && dashboards.length > 0) {
-      console.log('Dashboard ID selected:', dashboardId);
-      console.log('All dashboards:', dashboards);
+      logger.debug('Dashboard ID selected', { dashboardId, dashboardsCount: dashboards.length }, 'ReportBuilder');
       const found = dashboards.find(d => d.id === dashboardId);
-      console.log('Selected Dashboard:', found);
       if (found) {
-        console.log('Dashboard Metrics:', found.metrics);
-        console.log('Metrics Count:', found.metrics?.length || 0);
+        logger.debug('Selected Dashboard found', {
+          dashboardId: found.id,
+          metricsCount: found.metrics?.length || 0
+        }, 'ReportBuilder');
       } else {
-        console.warn('Dashboard not found with ID:', dashboardId);
+        logger.warn('Dashboard not found with ID', { dashboardId }, 'ReportBuilder');
       }
     }
   }, [dashboardId, dashboards]);
@@ -806,7 +808,7 @@ const PlaceholderMappingModal: React.FC<PlaceholderMappingModalProps> = ({
   const handleSave = () => {
     if (sourceType === 'dashboard') {
       if (!dashboardId || !metricId) {
-        console.warn('Cannot save: missing dashboardId or metricId', { dashboardId, metricId });
+        logger.warn('Cannot save: missing dashboardId or metricId', { dashboardId, metricId }, 'ReportBuilder');
         return;
       }
 
@@ -817,7 +819,7 @@ const PlaceholderMappingModal: React.FC<PlaceholderMappingModalProps> = ({
         return mId === metricId;
       });
       if (!metric) {
-        console.error('Métrique non trouvée avec cet ID:', { metricId, dashboardId });
+        logger.error('Métrique non trouvée avec cet ID', { metricId, dashboardId }, 'ReportBuilder');
         return;
       }
 
@@ -835,7 +837,7 @@ const PlaceholderMappingModal: React.FC<PlaceholderMappingModalProps> = ({
     } else {
       // Static value mapping
       if (!staticValueType) {
-        console.warn('Cannot save: missing staticValueType', { staticValueType });
+        logger.warn('Cannot save: missing staticValueType', { staticValueType }, 'ReportBuilder');
         return;
       }
 
@@ -922,8 +924,10 @@ const PlaceholderMappingModal: React.FC<PlaceholderMappingModalProps> = ({
                     value={dashboardId}
               onChange={(e) => {
                       const newDashboardId = e.target.value;
-                      console.log('Dashboard selection changed:', newDashboardId);
-                      console.log('Previous dashboardId:', dashboardId);
+                      logger.debug('Dashboard selection changed', {
+                        newDashboardId,
+                        previousDashboardId: dashboardId
+                      }, 'ReportBuilder');
                       setDashboardId(newDashboardId);
                       setMetricId(''); // Reset metric when dashboard changes
                     }}
@@ -958,13 +962,13 @@ const PlaceholderMappingModal: React.FC<PlaceholderMappingModalProps> = ({
                             }}
                             disabled={(() => {
                               const isDisabled = !selectedDashboard?.metrics || !Array.isArray(selectedDashboard.metrics) || selectedDashboard.metrics.length === 0;
-                              console.log('Select disabled check:', {
+                              logger.debug('Select disabled check', {
                                 hasSelectedDashboard: !!selectedDashboard,
                                 hasMetrics: !!selectedDashboard?.metrics,
                                 isArray: Array.isArray(selectedDashboard?.metrics),
                                 length: selectedDashboard?.metrics?.length,
                                 isDisabled
-                              });
+                              }, 'ReportBuilder');
                               return isDisabled;
                             })()}
                             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"

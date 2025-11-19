@@ -56,13 +56,13 @@ export class SubscriptionService {
       });
       
       if (success) {
-        console.log(`✅ Abonnement renouvelé avec succès: ${packageType} pour ${durationMonths} mois`);
+        logger.info('Abonnement renouvelé avec succès', { packageType, durationMonths }, 'subscriptionService');
       }
       
       return success;
       
     } catch (error) {
-      console.error('Erreur lors du renouvellement de l\'abonnement:', error);
+      logger.error('Erreur lors du renouvellement de l\'abonnement', error, 'subscriptionService');
       return false;
     }
   }

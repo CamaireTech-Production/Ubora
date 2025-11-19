@@ -22,6 +22,7 @@ import { TextExtractionReviewModal } from '../core/TextExtractionReviewModal';
 import { UserSessionService } from '@ubora/shared/services/userSessionService';
 import { listsService } from '@ubora/shared/services/listsService';
 import { List, ListRow } from '../../types';
+import { logger } from '@ubora/shared/utils/logger';
 
 // Helper function to convert field IDs back to user-friendly field names in formulas
 const convertFormulaToUserFriendly = (formula: string, fields: FormField[]): string => {
@@ -108,7 +109,7 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
         const access = await UserSessionService.canUseFileUploadsAsync(user, activeUniversId);
         setFileUploadAccess(access);
       } catch (error) {
-        console.error('Erreur lors du chargement des permissions:', error);
+        logger.error('Erreur lors du chargement des permissions', error, 'DynamicForm');
         // Fallback sur la version synchrone
         const canUpload = UserSessionService.canUseFileUploads(user);
         setFileUploadAccess({ 
@@ -159,18 +160,18 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
               const fieldLabel = form.fields.find(f => f.listId === listId)?.label || 'inconnu';
               
               if (rowsCount === 0) {
-                console.warn(`⚠️ List "${list.name}" (${listId}) chargée pour le champ "${fieldLabel}" mais n'a pas de rows`);
+                logger.warn(`List "${list.name}" (${listId}) chargée pour le champ "${fieldLabel}" mais n'a pas de rows`, { listId, listName: list.name, fieldLabel }, 'DynamicForm');
               } else {
-                console.log(`✅ List "${list.name}" (${listId}) chargée pour le champ "${fieldLabel}": ${list.columns.length} colonnes, ${rowsCount} rows`);
+                logger.debug(`List "${list.name}" (${listId}) chargée pour le champ "${fieldLabel}"`, { listId, listName: list.name, fieldLabel, columnsCount: list.columns.length, rowsCount }, 'DynamicForm');
               }
               
               setLoadedLists(prev => new Map(prev).set(listId, list));
             } else {
-              console.warn(`List ${listId} not found`);
+              logger.warn(`List ${listId} not found`, { listId }, 'DynamicForm');
             }
             return list;
           } catch (error) {
-            console.error(`Error loading list ${listId}:`, error);
+            logger.error(`Error loading list ${listId}`, error, 'DynamicForm');
             // Show user-friendly error (only once per list, avoid spam)
             const fieldLabel = form.fields.find(f => f.listId === listId)?.label || 'inconnu';
             // Debounce error messages to avoid too many toasts
@@ -197,12 +198,12 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
       });
 
       // Wait for all lists to load (with timeout for hanging requests)
-      await Promise.allSettled(loadPromises.map(p => 
+      await Promise.allSettled(loadPromises.map((p, index) => 
         Promise.race([
           p,
           new Promise<null>((resolve) => 
             setTimeout(() => {
-              console.warn('List loading timeout (continuing anyway)');
+              logger.warn('List loading timeout (continuing anyway)', { listId: listsToLoad[index] }, 'DynamicForm');
               resolve(null);
             }, 30000) // 30s timeout - resolve instead of reject to not block other lists
           )
@@ -350,7 +351,7 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
           const calculatedValue = ExpressionCalculator.evaluate(field.calculationFormula, updatedAnswers, form.fields);
           updatedAnswers[field.id] = calculatedValue;
         } catch (error) {
-          console.error(`❌ Error in initial calculation ${field.label}:`, error);
+          logger.error(`Error in initial calculation ${field.label}`, error, 'DynamicForm');
           updatedAnswers[field.id] = 0;
         }
       }
@@ -376,7 +377,7 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
             const calculatedValue = ExpressionCalculator.evaluate(field.calculationFormula, updatedAnswers, form.fields);
             updatedAnswers[field.id] = calculatedValue;
           } catch (error) {
-            console.error(`❌ Error calculating ${field.label}:`, error);
+            logger.error(`Error calculating ${field.label}`, error, 'DynamicForm');
             updatedAnswers[field.id] = 0;
           }
         }
@@ -447,12 +448,11 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
           (pdfResult) => {
             // Document (PDF/Word) extraction result (success or failure)
             if (pdfResult.extractionStatus === 'completed') {
-              console.log(`✅ Document ${pdfResult.fileName} processed successfully`);
-              console.log(`📝 Extracted text length: ${pdfResult.extractedText?.length || 0} characters`);
+              logger.debug(`Document ${pdfResult.fileName} processed successfully`, { fileName: pdfResult.fileName, extractedTextLength: pdfResult.extractedText?.length || 0 }, 'DynamicForm');
               // Show success toast without disrupting form
               showSuccess(`Document ${pdfResult.fileName} traité avec succès`);
             } else if (pdfResult.extractionStatus === 'failed') {
-              console.error(`❌ Document ${pdfResult.fileName} extraction failed:`, pdfResult.error);
+              logger.error(`Document ${pdfResult.fileName} extraction failed`, pdfResult.error, 'DynamicForm');
               // Show user-friendly error message without disrupting form
               showError(`Erreur d'extraction: ${pdfResult.error || 'Impossible d\'extraire le texte du document'}`);
             }
@@ -504,7 +504,7 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
       });
 
     } catch (error) {
-      console.error('File upload error:', error);
+      logger.error('File upload error', error, 'DynamicForm');
       
       // Show user-friendly error message without disrupting form
       const errorMessage = error instanceof Error ? error.message : 'Erreur lors du traitement du fichier';
@@ -523,7 +523,7 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
       });
       
       // Don't throw the error to prevent UI disruption
-      console.warn('File upload failed but continuing form operation');
+      logger.warn('File upload failed but continuing form operation', { fieldId }, 'DynamicForm');
     }
   };
 
@@ -647,7 +647,7 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
         onSubmit(answers, fileAttachments);
 
       } catch (error) {
-        console.error('❌ Error storing form response:', error);
+        logger.error('Error storing form response', error, 'DynamicForm');
         showError('Erreur lors de la sauvegarde de la réponse. Veuillez réessayer.');
       } finally {
         setIsSubmitting(false);
@@ -1282,7 +1282,7 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
                               link.click();
                               URL.revokeObjectURL(blobUrl);
                             } catch (error) {
-                              console.error('Download failed:', error);
+                              logger.error('Download failed', error, 'DynamicForm');
                             }
                           }}
                           className="px-3 py-1 text-xs bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors"

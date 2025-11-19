@@ -13,6 +13,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 import { List, ListColumn, ListRow } from '../types';
+import { logger } from '../utils/logger';
 
 class ListsService {
   private readonly collectionName = 'lists';
@@ -27,7 +28,7 @@ class ListsService {
     
     // Log pour débogage si rows manquants
     if (!Array.isArray(data.rows) && data.rows !== undefined) {
-      console.warn(`⚠️ List "${data.name}" (${id}): rows n'est pas un tableau, normalisation en cours`);
+      logger.warn('List rows is not an array, normalizing', { listId: id, listName: data.name }, 'listsService');
     }
     
     const list: List = {
@@ -242,6 +243,7 @@ class ListsService {
 
   /**
    * Récupérer une List par ID
+   * Retourne null si la liste n'existe pas ou si l'utilisateur n'a pas les permissions
    */
   async getById(id: string): Promise<List | null> {
     try {
@@ -252,9 +254,21 @@ class ListsService {
         return this.convertFirestoreToList(docSnap.id, docSnap.data());
       }
       return null;
-    } catch (error) {
-      console.error('Erreur lors de la récupération de la List:', error);
-      throw error;
+    } catch (error: any) {
+      // Gérer les erreurs de permissions silencieusement (retourner null)
+      // Les erreurs de permissions sont normales si l'utilisateur n'a pas accès à la liste
+      if (error?.code === 'permission-denied' || error?.code === 'missing-or-insufficient-permissions') {
+        // Ne pas logger en production pour éviter le spam
+        if (import.meta.env.DEV) {
+          logger.debug('Permission denied for list', { listId: id }, 'listsService');
+        }
+        return null;
+      }
+      
+      // Logger les autres erreurs (réseau, etc.)
+      logger.error('Erreur lors de la récupération de la List', error, 'listsService');
+      // Ne pas lancer l'erreur, retourner null pour éviter de casser l'UI
+      return null;
     }
   }
 
@@ -293,8 +307,9 @@ class ListsService {
       
       return lists;
     } catch (error) {
-      console.error('Erreur lors de la récupération des Lists de l\'agence:', error);
-      throw error;
+      logger.error('Erreur lors de la récupération des Lists de l\'agence', error, 'listsService');
+      // Retourner un tableau vide au lieu de lancer l'erreur pour éviter de casser l'UI
+      return [];
     }
   }
 
@@ -343,8 +358,9 @@ class ListsService {
       
       return lists;
     } catch (error) {
-      console.error('Erreur lors de la récupération des Lists de l\'utilisateur:', error);
-      throw error;
+      logger.error('Erreur lors de la récupération des Lists de l\'utilisateur', error, 'listsService');
+      // Retourner un tableau vide au lieu de lancer l'erreur pour éviter de casser l'UI
+      return [];
     }
   }
 }

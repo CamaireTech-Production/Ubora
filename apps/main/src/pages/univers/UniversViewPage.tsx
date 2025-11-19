@@ -10,6 +10,7 @@ import { universService } from '@ubora/shared/services/universService';
 import { useToast } from '@ubora/shared/hooks/useToast';
 import { Toast } from '../../components/ui/Toast';
 import { InstanceVersionHistory } from '../../components/univers/InstanceVersionHistory';
+import { logger } from '@ubora/shared/utils/logger';
 import { 
   ArrowLeft, 
   Edit, 
@@ -84,7 +85,7 @@ export const UniversViewPage: React.FC = () => {
           setUserInstance(instance);
         }
       } catch (error) {
-        console.error('Erreur lors du chargement de l\'instance:', error);
+        logger.error('Erreur lors du chargement de l\'instance', error, 'UniversViewPage');
       }
     };
 
@@ -122,7 +123,7 @@ export const UniversViewPage: React.FC = () => {
         setFormNamesMap(formMap);
       }
     } catch (error) {
-      console.error('Erreur lors du chargement du Univers:', error);
+      logger.error('Erreur lors du chargement du Univers', error, 'UniversViewPage');
       showError('Erreur lors du chargement du Univers');
       navigate(isFromMarketplace ? '/univers/marketplace' : '/univers');
     } finally {
@@ -166,7 +167,7 @@ export const UniversViewPage: React.FC = () => {
       // Optionally navigate to a results page or back to list
       // navigate(`/univers/${univers.id}/instances/${instanceId}`);
     } catch (error) {
-      console.error('Erreur lors de l\'instanciation du Univers:', error);
+      logger.error('Erreur lors de l\'instanciation du Univers', error, 'UniversViewPage');
       showError(
         error instanceof Error 
           ? error.message 
@@ -198,7 +199,7 @@ export const UniversViewPage: React.FC = () => {
       // Rediriger vers la liste des univers au lieu de recharger la page
       navigate('/univers');
     } catch (error) {
-      console.error('Erreur lors de l\'activation du Univers:', error);
+      logger.error('Erreur lors de l\'activation du Univers', error, 'UniversViewPage');
       const errorMessage = error instanceof Error 
         ? error.message 
         : 'Une erreur est survenue lors de l\'activation du Univers. Veuillez réessayer.';
@@ -226,7 +227,7 @@ export const UniversViewPage: React.FC = () => {
       refreshData();
       navigate('/univers');
     } catch (error) {
-      console.error('Erreur lors de l\'activation de la version draft:', error);
+      logger.error('Erreur lors de l\'activation de la version draft', error, 'UniversViewPage');
       const errorMessage = error instanceof Error 
         ? error.message 
         : 'Une erreur est survenue lors de l\'activation de la version draft. Veuillez réessayer.';
@@ -245,7 +246,7 @@ export const UniversViewPage: React.FC = () => {
       showSuccess('Draft publié au marketplace avec succès. En attente d\'approbation par un administrateur.');
       await loadUnivers(); // Recharger pour mettre à jour l'affichage
     } catch (error) {
-      console.error('Erreur lors de la publication du draft:', error);
+      logger.error('Erreur lors de la publication du draft', error, 'UniversViewPage');
       const errorMessage = error instanceof Error 
         ? error.message 
         : 'Une erreur est survenue lors de la publication du draft. Veuillez réessayer.';
@@ -320,8 +321,8 @@ export const UniversViewPage: React.FC = () => {
       // Recharger la page pour mettre à jour les données
       window.location.reload();
     } catch (error) {
-      console.error('Erreur lors de la mise à jour du Univers:', error);
-      console.error('Détails de l\'erreur:', {
+      logger.error('Erreur lors de la mise à jour du Univers', error, 'UniversViewPage');
+      logger.error('Détails de l\'erreur', {
         error,
         errorType: typeof error,
         errorMessage: error instanceof Error ? error.message : String(error),

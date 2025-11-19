@@ -1,4 +1,5 @@
 import { FormField } from '../types';
+import { logger } from '@ubora/shared/utils/logger';
 
 export class ExpressionCalculator {
   /**
@@ -30,7 +31,7 @@ export class ExpressionCalculator {
       // Evaluate the expression safely
       return this.safeEvaluate(processedFormula);
     } catch (error) {
-      console.error('Error evaluating expression:', error);
+      logger.error('Error evaluating expression', error, 'ExpressionCalculator');
       return 0;
     }
   }
@@ -163,7 +164,7 @@ export class ExpressionCalculator {
       
       return typeof result === 'number' && !isNaN(result) ? result : 0;
     } catch (error) {
-      console.error('Error in safe evaluation:', error);
+      logger.error('Error in safe evaluation', error, 'ExpressionCalculator');
       return 0;
     }
   }

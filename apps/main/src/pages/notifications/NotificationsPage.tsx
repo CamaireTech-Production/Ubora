@@ -11,6 +11,7 @@ import { useAuth } from '@ubora/shared/contexts/AuthContext';
 import { usePushNotifications } from '@ubora/shared/hooks/usePushNotifications';
 import { doc, collection, query, where, orderBy, limit, onSnapshot, writeBatch } from 'firebase/firestore';
 import { db } from '@ubora/shared/firebaseConfig';
+import { logger } from '@ubora/shared/utils/logger';
 
 export const NotificationsPage: React.FC = () => {
   const navigate = useNavigate();
@@ -30,11 +31,11 @@ export const NotificationsPage: React.FC = () => {
     let notificationsQuery;
     if (user.role === 'directeur') {
       // For directors, get notifications for their role
-      console.log('🔍 [NotificationsPage] Setting up query for directeur:', {
+      logger.debug('Setting up query for directeur', {
         role: user.role,
         userId: user.id,
         agencyId: user.agencyId
-      });
+      }, 'NotificationsPage');
       notificationsQuery = query(
         collection(db, 'notifications'),
         where('recipientRole', '==', 'directeur'),
@@ -44,11 +45,11 @@ export const NotificationsPage: React.FC = () => {
       );
     } else {
       // For employees, get notifications for their user ID
-      console.log('🔍 [NotificationsPage] Setting up query for employe:', {
+      logger.debug('Setting up query for employe', {
         role: user.role,
         userId: user.id,
         recipientId: user.id
-      });
+      }, 'NotificationsPage');
       notificationsQuery = query(
         collection(db, 'notifications'),
         where('recipientId', '==', user.id),
@@ -59,7 +60,7 @@ export const NotificationsPage: React.FC = () => {
 
     // Set up real-time listener
     const unsubscribe = onSnapshot(notificationsQuery, async (snapshot) => {
-      console.log('🔍 [NotificationsPage] Firestore snapshot received:', {
+      logger.debug('Firestore snapshot received', {
         totalDocs: snapshot.docs.length,
         userRole: user.role,
         userId: user.id,
@@ -68,7 +69,7 @@ export const NotificationsPage: React.FC = () => {
       
       const userNotifications: UnifiedNotification[] = snapshot.docs.map(doc => {
         const data = doc.data();
-        console.log('🔍 [NotificationsPage] Notification document:', {
+        logger.debug('Notification document', {
           id: doc.id,
           recipientId: data.recipientId,
           recipientRole: data.recipientRole,
@@ -86,12 +87,12 @@ export const NotificationsPage: React.FC = () => {
         } as UnifiedNotification;
       });
       
-      console.log('🔍 [NotificationsPage] Mapped notifications:', userNotifications.length, 'notifications found');
+      logger.debug('Mapped notifications', { count: userNotifications.length }, 'NotificationsPage');
 
       setNotifications(userNotifications);
       setIsLoading(false);
     }, (error) => {
-      console.error('🔔 [NotificationsPage] Error listening to notifications:', error);
+      logger.error('Error listening to notifications', error, 'NotificationsPage');
       setIsLoading(false);
     });
 
@@ -106,7 +107,7 @@ export const NotificationsPage: React.FC = () => {
       await unifiedNotificationService.markAsRead(notificationId);
       // Real-time listener will automatically update the UI
     } catch (error) {
-      console.error('Error marking notification as read:', error);
+      logger.error('Error marking notification as read', error, 'NotificationsPage');
     }
   };
 
@@ -120,7 +121,7 @@ export const NotificationsPage: React.FC = () => {
       );
       // Real-time listener will automatically update the UI
     } catch (error) {
-      console.error('Error marking all notifications as read:', error);
+      logger.error('Error marking all notifications as read', error, 'NotificationsPage');
     }
   };
 
@@ -146,7 +147,7 @@ export const NotificationsPage: React.FC = () => {
       
       await batch.commit();
     } catch (error) {
-      console.error('Error deleting all notifications:', error);
+      logger.error('Error deleting all notifications', error, 'NotificationsPage');
       alert('Erreur lors de la suppression des notifications');
     }
   };

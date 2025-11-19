@@ -63,10 +63,10 @@ class FCMService {
         tokenStart: fcmToken.substring(0, 10),
         tokenEnd: fcmToken.substring(fcmToken.length - 10)
       });
-      console.log('🔔 [FCM] API endpoint:', buildApiUrl('/api/fcm/send'));
+      logger.debug('FCM API endpoint', { endpoint: buildApiUrl('/api/fcm/send') }, 'FCMService');
 
       // Call backend API to send FCM
-      console.log('🔔 [FCM] Making API call to backend...');
+      logger.debug('Making FCM API call to backend', null, 'FCMService');
       const requestBody = {
         notification,
         fcmToken,
@@ -213,7 +213,7 @@ class FCMService {
    */
   async sendToRole(notification: FCMNotification, role: string): Promise<FCMDeliveryLog[]> {
     try {
-      console.log('🔔 [FCM] Sending notification to role:', role);
+      logger.debug('Sending notification to role', { role }, 'FCMService');
 
       // Get all users with the specified role
       const usersQuery = query(
@@ -237,11 +237,11 @@ class FCMService {
         }
       }
 
-      console.log('🔔 [FCM] Sent to', deliveryLogs.length, 'users with role:', role);
+      logger.info('Sent notification to role', { role, count: deliveryLogs.length }, 'FCMService');
       return deliveryLogs;
 
     } catch (error) {
-      console.error('🔔 [FCM] Error sending to role:', error);
+      logger.error('Error sending notification to role', error, 'FCMService');
       return [];
     }
   }
@@ -251,7 +251,7 @@ class FCMService {
    */
   async sendBroadcast(notification: FCMNotification): Promise<FCMDeliveryLog[]> {
     try {
-      console.log('🔔 [FCM] Sending broadcast notification');
+      logger.debug('Sending broadcast notification', null, 'FCMService');
 
       // Get all users with FCM tokens
       const usersQuery = query(
@@ -274,11 +274,11 @@ class FCMService {
         }
       }
 
-      console.log('🔔 [FCM] Broadcast sent to', deliveryLogs.length, 'users');
+      logger.info('Broadcast notification sent', { count: deliveryLogs.length }, 'FCMService');
       return deliveryLogs;
 
     } catch (error) {
-      console.error('🔔 [FCM] Error sending broadcast:', error);
+      logger.error('Error sending broadcast notification', error, 'FCMService');
       return [];
     }
   }
@@ -289,7 +289,7 @@ class FCMService {
   private async regenerateFCMToken(userId?: string): Promise<string | null> {
     try {
       if (!userId) {
-        console.warn('🔔 [FCM] No userId provided for token regeneration');
+        logger.warn('No userId provided for token regeneration', null, 'FCMService');
         return null;
       }
 
@@ -299,13 +299,13 @@ class FCMService {
       
       const messagingInstance = await messaging;
       if (!messagingInstance) {
-        console.warn(`🔔 [FCM] Messaging not available for user ${userId}`);
+        logger.warn('Messaging not available for user', { userId }, 'FCMService');
         return null;
       }
 
       const vapidKey = import.meta.env.VITE_FIREBASE_VAPID_KEY;
       if (!vapidKey || vapidKey === 'YOUR_VAPID_KEY_HERE') {
-        console.warn(`🔔 [FCM] VAPID key not configured for user ${userId}`);
+        logger.warn('VAPID key not configured for user', { userId }, 'FCMService');
         return null;
       }
 
@@ -316,9 +316,10 @@ class FCMService {
       });
 
       if (newToken) {
-        console.log(`🔔 [FCM] Generated new FCM token for user ${userId}:`, {
-          length: newToken.length,
-          startsWith: newToken.substring(0, 10),
+        logger.debug('Generated new FCM token for user', {
+          userId,
+          tokenLength: newToken.length,
+          tokenStart: newToken.substring(0, 10),
           endsWith: newToken.substring(newToken.length - 10)
         });
 
@@ -326,11 +327,11 @@ class FCMService {
         await this.saveFCMTokenToUser(userId, newToken);
         return newToken;
       } else {
-        console.warn(`🔔 [FCM] Failed to generate FCM token for user ${userId}`);
+        logger.warn('Failed to generate FCM token for user', { userId }, 'FCMService');
         return null;
       }
     } catch (error) {
-      console.error(`🔔 [FCM] Error regenerating FCM token for user ${userId}:`, error);
+      logger.error('Error regenerating FCM token for user', error, 'FCMService');
       return null;
     }
   }
@@ -347,9 +348,9 @@ class FCMService {
         fcmToken: fcmToken,
         fcmTokenUpdatedAt: new Date().toISOString()
       });
-      console.log(`🔔 [FCM] Saved new FCM token for user ${userId}`);
+      logger.debug('Saved new FCM token for user', { userId }, 'FCMService');
     } catch (error) {
-      console.error(`🔔 [FCM] Error saving FCM token for user ${userId}:`, error);
+      logger.error('Error saving FCM token for user', error, 'FCMService');
     }
   }
 
@@ -365,9 +366,9 @@ class FCMService {
         fcmToken: null,
         fcmTokenClearedAt: new Date().toISOString()
       });
-      console.log(`🔔 [FCM] Cleared expired FCM token for user ${userId}`);
+      logger.debug('Cleared expired FCM token for user', { userId }, 'FCMService');
     } catch (error) {
-      console.error(`🔔 [FCM] Error clearing FCM token for user ${userId}:`, error);
+      logger.error('Error clearing FCM token for user', error, 'FCMService');
     }
   }
 
@@ -378,9 +379,9 @@ class FCMService {
     try {
       // Temporarily disabled delivery logging to avoid Firestore permissions error
       // await addDoc(collection(db, 'fcmDeliveryLogs'), deliveryLog);
-      console.log('🔔 [FCM] Delivery log (not saved to Firestore):', deliveryLog);
+      logger.debug('FCM delivery log (not saved to Firestore)', { deliveryLog }, 'FCMService');
     } catch (error) {
-      console.error('🔔 [FCM] Error logging delivery:', error);
+      logger.error('Error logging FCM delivery', error, 'FCMService');
     }
   }
 
@@ -399,7 +400,7 @@ class FCMService {
       return logsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as FCMDeliveryLog));
 
     } catch (error) {
-      console.error('🔔 [FCM] Error getting delivery logs:', error);
+      logger.error('Error getting FCM delivery logs', error, 'FCMService');
       return [];
     }
   }
@@ -419,7 +420,7 @@ class FCMService {
       return logsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as FCMDeliveryLog));
 
     } catch (error) {
-      console.error('🔔 [FCM] Error getting recent delivery logs:', error);
+      logger.error('Error getting recent FCM delivery logs', error, 'FCMService');
       return [];
     }
   }

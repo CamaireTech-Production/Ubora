@@ -5,6 +5,7 @@ import { universService } from '@ubora/shared/services/universService';
 import { Univers } from '../../types';
 import { Globe } from 'lucide-react';
 import { ActiveUniversSkeleton } from '../skeletons/ActiveUniversSkeleton';
+import { logger } from '@ubora/shared/utils/logger';
 
 interface ActiveUniversDisplayProps {
   className?: string;
@@ -28,7 +29,7 @@ export const ActiveUniversDisplay: React.FC<ActiveUniversDisplayProps> = ({ clas
         const univers = await universService.getById(activeUniversId);
         setActiveUnivers(univers);
       } catch (error) {
-        console.error('Erreur lors du chargement du Univers actif:', error);
+        logger.error('Erreur lors du chargement du Univers actif', error, 'ActiveUniversDisplay');
         setActiveUnivers(null);
       } finally {
         setIsLoading(false);

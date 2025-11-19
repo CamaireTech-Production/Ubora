@@ -10,6 +10,7 @@ import { tableDataService } from '../../services/core/tableDataService';
 import { BarChart3, TrendingUp, TrendingDown, Minus, Hash, Type, Mail, Calendar, CheckSquare, Upload, Eye, Edit, Trash2, Crown, User as UserIcon, FileBarChart, Table } from 'lucide-react';
 import { UniversBadge } from '../univers/UniversBadge';
 import type { Dashboard as SharedDashboard, DashboardMetric as SharedDashboardMetric } from '@ubora/shared/types';
+import { logger } from '@ubora/shared/utils/logger';
 
 interface DashboardDisplayProps {
   dashboard: Dashboard;
@@ -58,7 +59,7 @@ export const DashboardDisplay: React.FC<DashboardDisplayProps> = ({
           const rows = await tableDataService.getRowsForTableMetric(metric, formEntries, undefined);
           newTableRows[metricId] = rows;
         } catch (error) {
-          console.error(`Error calculating table rows for metric ${metricId}:`, error);
+          logger.error('Error calculating table rows for metric', { metricId, error }, 'DashboardDisplay');
           newTableRows[metricId] = [];
         } finally {
           newLoadingState[metricId] = false;

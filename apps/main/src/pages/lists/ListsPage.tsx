@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
 import { useApp } from '@ubora/shared/contexts/AppContext';
+import { logger } from '@ubora/shared/utils/logger';
 import { Layout } from '../../components/layout/Layout';
 import { ListCard } from '../../components/lists/ListCard';
 import { ListViewModal } from '../../components/lists/ListViewModal';
@@ -48,7 +49,7 @@ export const ListsPage: React.FC = () => {
       const userLists = await listsService.getByUser(user.id, user.agencyId, user.role, activeUniversId || null, activeInstanceId || null);
       setLists(userLists);
     } catch (error) {
-      console.error('Erreur lors du chargement des Lists:', error);
+      logger.error('Erreur lors du chargement des Lists', error, 'ListsPage');
       const errorMessage = error instanceof Error 
         ? `Erreur lors du chargement: ${error.message}`
         : 'Erreur lors du chargement des Lists. Veuillez réessayer.';
@@ -96,7 +97,7 @@ export const ListsPage: React.FC = () => {
       });
       setShowDeleteModal(true);
     } catch (error) {
-      console.error('Error checking list usage:', error);
+      logger.error('Error checking list usage', error, 'ListsPage');
       showError('Erreur lors de la vérification de l\'utilisation de la liste');
     } finally {
       setIsCheckingUsage(false);
@@ -121,7 +122,7 @@ export const ListsPage: React.FC = () => {
       setDeleteCheckResult(null);
       await loadLists();
     } catch (error) {
-      console.error('Erreur lors de la suppression de la Liste:', error);
+      logger.error('Erreur lors de la suppression de la Liste', error, 'ListsPage');
       showError('Erreur lors de la suppression de la Liste');
     } finally {
       setIsDeleting(false);

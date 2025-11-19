@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Save, X } from 'lucide-react';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
+import { logger } from '@ubora/shared/utils/logger';
 import { useApp } from '@ubora/shared/contexts/AppContext';
 import { Button } from '../../components/ui/Button';
 import { ChatComposer } from '../../components/chat/ChatComposer';
@@ -74,7 +75,7 @@ export const ScheduledQuestionFormPage: React.FC = () => {
         navigate('/directeur/scheduled-questions');
       }
     } catch (error) {
-      console.error('Erreur lors du chargement de la question:', error);
+      logger.error('Erreur lors du chargement de la question', error, 'ScheduledInstructionFormPage');
       showError('Erreur lors du chargement de la question');
       navigate('/directeur/scheduled-questions');
     } finally {
@@ -130,7 +131,7 @@ export const ScheduledQuestionFormPage: React.FC = () => {
 
       navigate('/directeur/scheduled-questions');
     } catch (error) {
-      console.error('Erreur lors de la sauvegarde:', error);
+      logger.error('Erreur lors de la sauvegarde', error, 'ScheduledInstructionFormPage');
       showError('Erreur lors de la sauvegarde de la question programmée');
     } finally {
       setIsSaving(false);

@@ -8,6 +8,7 @@
  */
 
 import { PaymentRecoveryService } from '../services/paymentRecoveryService';
+import { logger } from '@ubora/shared/utils/logger';
 
 /**
  * Récupère un paiement orphelin spécifique
@@ -15,13 +16,13 @@ import { PaymentRecoveryService } from '../services/paymentRecoveryService';
  * @returns Promise<boolean> - true si la récupération a réussi
  */
 export async function recoverOrphanPayment(paymentId: string): Promise<boolean> {
-  console.log(`[Recovery] Tentative de récupération du paiement ${paymentId}...`);
+  logger.info('Tentative de récupération du paiement', { paymentId }, 'recoverOrphanPayment');
   const success = await PaymentRecoveryService.recoverPayment(paymentId);
   
   if (success) {
-    console.log(`✅ Paiement ${paymentId} récupéré avec succès !`);
+    logger.info('Paiement récupéré avec succès', { paymentId }, 'recoverOrphanPayment');
   } else {
-    console.error(`❌ Échec de la récupération du paiement ${paymentId}`);
+    logger.error('Échec de la récupération du paiement', { paymentId }, 'recoverOrphanPayment');
   }
   
   return success;
@@ -32,9 +33,9 @@ export async function recoverOrphanPayment(paymentId: string): Promise<boolean> 
  * @returns Promise<{recovered: number, failed: number}>
  */
 export async function recoverAllOrphanPayments(): Promise<{ recovered: number; failed: number }> {
-  console.log('[Recovery] Recherche de tous les paiements orphelins...');
+  logger.info('Recherche de tous les paiements orphelins', null, 'recoverOrphanPayment');
   const result = await PaymentRecoveryService.recoverAllOrphanPayments();
-  console.log(`✅ Récupération terminée: ${result.recovered} récupérés, ${result.failed} échoués`);
+  logger.info('Récupération terminée', { recovered: result.recovered, failed: result.failed }, 'recoverOrphanPayment');
   return result;
 }
 
@@ -44,7 +45,7 @@ export async function recoverAllOrphanPayments(): Promise<{ recovered: number; f
  */
 export async function listOrphanPayments() {
   const payments = await PaymentRecoveryService.findOrphanPayments();
-  console.log(`Trouvé ${payments.length} paiements orphelins:`, payments);
+  logger.debug('Paiements orphelins trouvés', { count: payments.length, payments }, 'recoverOrphanPayment');
   return payments;
 }
 

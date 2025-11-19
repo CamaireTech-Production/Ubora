@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
+import { logger } from '@ubora/shared/utils/logger';
 // import { usePermissions } from '../../hooks/usePermissions'; // Unused for now
 import { Layout } from '../../components/layout/Layout';
 import { Card } from '../../components/ui/Card';
@@ -34,7 +35,7 @@ export const DirectorSettingsPage: React.FC = () => {
         const history = await UserSessionService.getSubscriptionHistory(user);
         setSubscriptionHistory(history);
       } catch (error) {
-        console.error('Error loading session data:', error);
+        logger.error('Error loading session data', error, 'DirectorSettingsPage');
         // Fallback to legacy
         if (user.subscriptionSessions) {
           const legacySession = user.subscriptionSessions.find(s => s.isActive);
