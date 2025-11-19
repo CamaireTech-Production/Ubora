@@ -254,7 +254,9 @@ class UniversService {
           (univers.ownership.isMarketplaceTemplate ? 'pending' : 'approved'),
         approvedBy: univers.ownership.approvedBy || undefined,
         approvedAt: univers.ownership.approvedAt || undefined,
-        rejectionReason: univers.ownership.rejectionReason || undefined
+        rejectionReason: univers.ownership.rejectionReason || undefined,
+        allowedDirectorIds: univers.ownership.allowedDirectorIds || [],
+        allowedAgencyIds: univers.ownership.allowedAgencyIds || []
       };
 
       // Préparer l'usage avec valeurs par défaut
@@ -1516,6 +1518,8 @@ class UniversService {
       
       // Mettre à jour le compteur d'utilisation du Univers
       await this.incrementUsage(instance.universId);
+      // S'assurer que le directeur a un accès explicite au template marketplace
+      await this.ensureUniversAccessBridge(instance.universId, instance.userId, instance.agencyId);
       
       return docRef.id;
     } catch (error) {
@@ -1555,6 +1559,34 @@ class UniversService {
       }
       // Pour les autres erreurs, logger en mode debug seulement
       // Ne pas utiliser console.error pour éviter de polluer les logs
+    }
+  }
+
+  /**
+   * Garantir qu'un directeur dispose d'une entrée "universAccess" pour un template acheté.
+   * Cette entrée est utilisée par les règles Firestore pour autoriser la lecture du template marketplace.
+   */
+  private async ensureUniversAccessBridge(universId: string, directorId: string, agencyId?: string): Promise<void> {
+    if (!universId || !directorId) {
+      return;
+    }
+
+    try {
+      const accessRef = doc(db, 'universAccess', universId, 'directors', directorId);
+      await setDoc(accessRef, {
+        directorId,
+        agencyId: agencyId || null,
+        grantedAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+    } catch (error) {
+      console.warn('⚠️ Impossible de créer la passerelle universAccess:', {
+        universId,
+        directorId,
+        agencyId,
+        error
+      });
+      // Ne pas throw : l'instanciation doit continuer, mais l'accès pourra être régénéré via un script d'audit.
     }
   }
 

@@ -1,5 +1,14 @@
-import pdfParse from 'pdf-parse/lib/pdf-parse.js';
+import { createRequire } from 'module';
 import crypto from 'crypto';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Use createRequire to import CommonJS module pdf-parse
+const require = createRequire(import.meta.url);
+const pdfParse = require('pdf-parse');
 
 // Simple PDF text extraction endpoint - only extraction, no background processing
 
