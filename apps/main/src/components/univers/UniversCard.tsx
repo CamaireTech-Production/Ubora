@@ -4,6 +4,7 @@ import { Button } from '../ui/Button';
 import { ConfirmationModal } from '../modals/ConfirmationModal';
 import { useApp } from '@ubora/shared/contexts/AppContext';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
+import { useUnivers } from '@ubora/shared/contexts/UniversContext';
 import { useToast } from '@ubora/shared/hooks/useToast';
 import { universService } from '@ubora/shared/services/universService';
 import { UniversInstance } from '@ubora/shared/types';
@@ -20,7 +21,7 @@ interface UniversCardProps {
   onPurchase?: (univers: Univers) => void; // Callback pour l'achat (marketplace)
 }
 
-export const UniversCard: React.FC<UniversCardProps> = ({
+const UniversCardComponent: React.FC<UniversCardProps> = ({
   univers,
   onEdit,
   onDelete,
@@ -31,7 +32,8 @@ export const UniversCard: React.FC<UniversCardProps> = ({
   onPurchase
 }) => {
   const { user } = useAuth();
-  const { activeUniversId, refreshData } = useApp();
+  const { activeUniversId } = useUnivers();
+  const { refreshData } = useApp();
   const { showSuccess, showError } = useToast();
   const [isActivating, setIsActivating] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
@@ -125,7 +127,7 @@ export const UniversCard: React.FC<UniversCardProps> = ({
       // (le contexte sera mis à jour automatiquement via useEffect)
       window.location.reload();
     } catch (error) {
-      console.error('Erreur lors de l\'activation du Univers:', error);
+      // Error logged via showError toast
       const errorMessage = error instanceof Error 
         ? error.message 
         : 'Une erreur est survenue lors de l\'activation du Univers. Veuillez réessayer.';
@@ -173,17 +175,17 @@ export const UniversCard: React.FC<UniversCardProps> = ({
       // Recharger la page pour mettre à jour les données
       window.location.reload();
     } catch (error) {
-      console.error('Erreur lors de la mise à jour du Univers:', error);
-      console.error('Détails de l\'erreur:', {
+      // Error logged via showError toast
+      // Error details: {
         error,
         errorType: typeof error,
         errorMessage: error instanceof Error ? error.message : String(error),
-        errorStack: error instanceof Error ? error.stack : undefined,
-        userInstance: userInstance?.id,
-        universId: univers?.id,
-        currentVersion,
-        latestAvailableVersion
-      });
+        // errorStack: error instanceof Error ? error.stack : undefined,
+        // userInstance: userInstance?.id,
+        // universId: univers?.id,
+        // currentVersion,
+        // latestAvailableVersion
+      // };
       
       let errorMessage = 'Une erreur est survenue lors de la mise à jour du Univers.';
       if (error instanceof Error) {
@@ -229,7 +231,7 @@ export const UniversCard: React.FC<UniversCardProps> = ({
           setUserInstance(instance);
         }
       } catch (error) {
-        console.error('Erreur lors du chargement de l\'instance:', error);
+        // Error loading instance - silently fail
       } finally {
         setIsLoadingInstance(false);
       }
@@ -714,4 +716,18 @@ export const UniversCard: React.FC<UniversCardProps> = ({
     </>
   );
 };
+
+// Mémoriser le composant pour éviter les re-renders inutiles
+export const UniversCard = React.memo(UniversCardComponent, (prevProps, nextProps) => {
+  // Comparer les propriétés critiques pour déterminer si un re-render est nécessaire
+  return (
+    prevProps.univers.id === nextProps.univers.id &&
+    prevProps.univers.metadata.name === nextProps.univers.metadata.name &&
+    prevProps.univers.metadata.description === nextProps.univers.metadata.description &&
+    prevProps.univers.metadata.version === nextProps.univers.metadata.version &&
+    prevProps.disabled === nextProps.disabled &&
+    prevProps.context === nextProps.context &&
+    prevProps.hideApprovalStatus === nextProps.hideApprovalStatus
+  );
+});
 

@@ -6,6 +6,7 @@
 import { qdrantRequest, COLLECTION_NAME } from './vectorDb.js';
 import { generateEmbedding, chunkAndEmbed } from './embeddings.js';
 import crypto from 'crypto';
+import { logger } from './logger.js';
 
 /**
  * Generate unique UUID point ID for Qdrant
@@ -51,7 +52,7 @@ export async function saveFormEntryToVector(
   const { fullText, metadata } = formEntryTextData;
 
   if (!fullText || fullText.trim().length === 0) {
-    console.warn('⚠️ No text to save for form entry:', metadata.entryId);
+    logger.warn('No text to save for form entry', { entryId: metadata.entryId }, 'vectorStorage.js');
     return { saved: false, chunks: 0 };
   }
 
@@ -60,7 +61,7 @@ export async function saveFormEntryToVector(
     const chunkedData = await chunkAndEmbed(fullText);
 
     if (chunkedData.length === 0) {
-      console.warn('⚠️ No chunks generated for form entry:', metadata.entryId);
+      logger.warn('No chunks generated for form entry', { entryId: metadata.entryId }, 'vectorStorage.js');
       return { saved: false, chunks: 0 };
     }
 
@@ -111,7 +112,7 @@ export async function saveFormEntryToVector(
       savedPointIds.push(pointId);
     }
 
-    console.log(`✅ Saved ${savedPointIds.length} chunks for form entry: ${metadata.entryId}`);
+    logger.info('Saved chunks for form entry', { count: savedPointIds.length, entryId: metadata.entryId }, 'vectorStorage.js');
 
     return {
       saved: true,
@@ -120,7 +121,7 @@ export async function saveFormEntryToVector(
       entryId: metadata.entryId,
     };
   } catch (error) {
-    console.error(`❌ Failed to save form entry to vector DB:`, error);
+    logger.error('Failed to save form entry to vector DB', error, 'vectorStorage.js');
     throw error;
   }
 }
@@ -137,7 +138,7 @@ export async function saveFileAttachmentToVector(
   const { fileName, fileType, fileTypeLabel, text, submissionId } = fileTextData;
 
   if (!text || text.trim().length === 0) {
-    console.warn('⚠️ No text to save for file:', fileName);
+    logger.warn('No text to save for file', { fileName }, 'vectorStorage.js');
     return { saved: false, chunks: 0 };
   }
 
@@ -146,7 +147,7 @@ export async function saveFileAttachmentToVector(
     const chunkedData = await chunkAndEmbed(text);
 
     if (chunkedData.length === 0) {
-      console.warn('⚠️ No chunks generated for file:', fileName);
+      logger.warn('No chunks generated for file', { fileName }, 'vectorStorage.js');
       return { saved: false, chunks: 0 };
     }
 
@@ -201,7 +202,7 @@ export async function saveFileAttachmentToVector(
       savedPointIds.push(pointId);
     }
 
-    console.log(`✅ Saved ${savedPointIds.length} chunks for file: ${fileName}`);
+    logger.info('Saved chunks for file', { count: savedPointIds.length, fileName }, 'vectorStorage.js');
 
     return {
       saved: true,
@@ -211,7 +212,7 @@ export async function saveFileAttachmentToVector(
       entryId: formEntryId,
     };
   } catch (error) {
-    console.error(`❌ Failed to save file attachment to vector DB:`, error);
+    logger.error('Failed to save file attachment to vector DB', error, 'vectorStorage.js');
     throw error;
   }
 }
@@ -251,7 +252,7 @@ export async function deleteFormEntryFromVector(
     const pointIds = searchResult.result?.points?.map(p => p.id) || [];
 
     if (pointIds.length === 0) {
-      console.log(`ℹ️ No chunks found to delete for form entry: ${formEntryId}`);
+      logger.debug('No chunks found to delete for form entry', { formEntryId }, 'vectorStorage.js');
       return { deleted: false, chunks: 0 };
     }
 
@@ -263,7 +264,7 @@ export async function deleteFormEntryFromVector(
       }),
     });
 
-    console.log(`✅ Deleted ${pointIds.length} chunks for form entry: ${formEntryId}`);
+    logger.info('Deleted chunks for form entry', { count: pointIds.length, formEntryId }, 'vectorStorage.js');
 
     return {
       deleted: true,
@@ -271,7 +272,7 @@ export async function deleteFormEntryFromVector(
       pointIds,
     };
   } catch (error) {
-    console.error(`❌ Failed to delete form entry from vector DB:`, error);
+    logger.error('Failed to delete form entry from vector DB', error, 'vectorStorage.js');
     throw error;
   }
 }
@@ -292,7 +293,7 @@ export async function updateFormEntryInVector(
     // Save new chunks
     return await saveFormEntryToVector(formEntryTextData, collectionName);
   } catch (error) {
-    console.error(`❌ Failed to update form entry in vector DB:`, error);
+    logger.error('Failed to update form entry in vector DB', error, 'vectorStorage.js');
     throw error;
   }
 }

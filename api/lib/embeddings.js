@@ -14,6 +14,7 @@ if (!loadedLocalEnv || !loadedLocalEnv.parsed) {
 
 import OpenAI from 'openai';
 import { TokenCounter } from './tokenCounter.js';
+import { logger } from './logger.js';
 
 // Initialize OpenAI
 const openai = new OpenAI({
@@ -113,7 +114,7 @@ export async function generateEmbedding(text) {
 
     return embedding;
   } catch (error) {
-    console.error('❌ Failed to generate embedding:', error);
+    logger.error('Failed to generate embedding', error, 'embeddings.js');
     throw new Error(`Embedding generation failed: ${error.message}`);
   }
 }
@@ -152,7 +153,7 @@ export async function generateEmbeddings(texts) {
 
     return embeddings;
   } catch (error) {
-    console.error('❌ Failed to generate batch embeddings:', error);
+    logger.error('Failed to generate batch embeddings', error, 'embeddings.js');
     throw new Error(`Batch embedding generation failed: ${error.message}`);
   }
 }

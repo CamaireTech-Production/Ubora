@@ -1,4 +1,5 @@
 import { collection, query, where, getDocs, getDoc, updateDoc, doc, serverTimestamp } from 'firebase/firestore';
+import { logger } from '@ubora/shared/utils/logger';
 import { db } from '@ubora/shared/firebaseConfig';
 import { Payment } from '../../types';
 import { PackageTransitionService } from './packageTransitionService';
@@ -42,10 +43,10 @@ export class PaymentRecoveryService {
         }
       }
 
-      console.log(`[PaymentRecovery] Trouvé ${orphanPayments.length} paiements orphelins`);
+      logger.info(`Trouvé ${orphanPayments.length} paiements orphelins`, { count: orphanPayments.length }, 'PaymentRecoveryService');
       return orphanPayments;
     } catch (error) {
-      console.error('[PaymentRecovery] Erreur lors de la recherche de paiements orphelins:', error);
+      logger.error('Erreur lors de la recherche de paiements orphelins', error, 'PaymentRecoveryService');
       return [];
     }
   }
@@ -55,13 +56,13 @@ export class PaymentRecoveryService {
    */
   static async recoverPayment(paymentId: string): Promise<boolean> {
     try {
-      console.log(`[PaymentRecovery] Tentative de récupération du paiement ${paymentId}`);
+      logger.debug(`Tentative de récupération du paiement ${paymentId}`, { paymentId }, 'PaymentRecoveryService');
 
       const paymentDocRef = doc(db, 'payments', paymentId);
       const paymentDoc = await getDoc(paymentDocRef);
       
       if (!paymentDoc.exists()) {
-        console.error(`[PaymentRecovery] Paiement ${paymentId} non trouvé`);
+        logger.error(`Paiement ${paymentId} non trouvé`, { paymentId }, 'PaymentRecoveryService');
         return false;
       }
 
@@ -69,7 +70,7 @@ export class PaymentRecoveryService {
 
       // Verify payment is completed
       if (payment.status !== 'completed') {
-        console.warn(`[PaymentRecovery] Paiement ${paymentId} n'est pas completed (status: ${payment.status})`);
+        logger.warn(`Paiement ${paymentId} n'est pas completed`, { paymentId, status: payment.status }, 'PaymentRecoveryService');
         return false;
       }
 
@@ -82,7 +83,7 @@ export class PaymentRecoveryService {
         );
 
         if (existingSession) {
-          console.log(`[PaymentRecovery] Session déjà existante pour le paiement ${paymentId}, marquage comme récupéré`);
+          logger.info(`Session déjà existante pour le paiement ${paymentId}, marquage comme récupéré`, { paymentId }, 'PaymentRecoveryService');
           await this.markPaymentAsRecovered(paymentId);
           return true;
         }
@@ -91,13 +92,13 @@ export class PaymentRecoveryService {
       // Extract package type from payment metadata
       const packageType = this.extractPackageTypeFromPayment(payment);
       if (!packageType) {
-        console.error(`[PaymentRecovery] Impossible d'extraire le type de package du paiement ${paymentId}`);
+        logger.error(`Impossible d'extraire le type de package du paiement ${paymentId}`, { paymentId }, 'PaymentRecoveryService');
         return false;
       }
 
       // Execute transition to create session
       if (!payment.userId) {
-        console.error(`[PaymentRecovery] Paiement ${paymentId} n'a pas de userId`);
+        logger.error(`Paiement ${paymentId} n'a pas de userId`, { paymentId }, 'PaymentRecoveryService');
         return false;
       }
 
@@ -113,14 +114,14 @@ export class PaymentRecoveryService {
 
       if (success) {
         await this.markPaymentAsRecovered(paymentId);
-        console.log(`[PaymentRecovery] Paiement ${paymentId} récupéré avec succès`);
+        logger.info(`Paiement ${paymentId} récupéré avec succès`, { paymentId }, 'PaymentRecoveryService');
         return true;
       } else {
-        console.error(`[PaymentRecovery] Échec de la récupération du paiement ${paymentId}`);
+        logger.error(`Échec de la récupération du paiement ${paymentId}`, { paymentId }, 'PaymentRecoveryService');
         return false;
       }
     } catch (error) {
-      console.error(`[PaymentRecovery] Erreur lors de la récupération du paiement ${paymentId}:`, error);
+      logger.error(`Erreur lors de la récupération du paiement ${paymentId}`, error, 'PaymentRecoveryService');
       return false;
     }
   }
@@ -142,7 +143,7 @@ export class PaymentRecoveryService {
       }
     }
 
-    console.log(`[PaymentRecovery] Récupération terminée: ${recovered} récupérés, ${failed} échoués`);
+    logger.info(`Récupération terminée`, { recovered, failed }, 'PaymentRecoveryService');
     return { recovered, failed };
   }
 
@@ -189,7 +190,7 @@ export class PaymentRecoveryService {
         updatedAt: serverTimestamp()
       });
     } catch (error) {
-      console.error(`[PaymentRecovery] Erreur lors du marquage du paiement ${paymentId} comme récupéré:`, error);
+      logger.error(`Erreur lors du marquage du paiement ${paymentId} comme récupéré`, error, 'PaymentRecoveryService');
     }
   }
 }

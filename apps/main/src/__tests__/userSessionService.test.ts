@@ -1,5 +1,5 @@
 import { describe, test, expect, vi, beforeEach } from 'vitest'
-import { UserSessionService } from '../services/userSessionService'
+import { UserSessionService } from '../services/core/userSessionService'
 import { User } from '../types'
 
 const mockGetActiveSession = vi.fn()

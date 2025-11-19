@@ -1,5 +1,6 @@
 // src/services/firebaseErrorHandler.ts
-import { FirebaseError } from 'firebase/app';
+import { logger } from '@ubora/shared/utils/logger';
+import { FirebaseErrorType, getErrorCode, getErrorMessage } from '@ubora/shared/types/errors';
 
 export interface FirebaseErrorInfo {
   code: string;
@@ -19,14 +20,14 @@ export class FirebaseErrorHandler {
   /**
    * Handle Firebase errors with graceful degradation
    */
-  static handleError(error: any): FirebaseErrorInfo {
+  static handleError(error: FirebaseErrorType): FirebaseErrorInfo {
     this.errorCount++;
     this.lastErrorTime = Date.now();
 
     // Activate circuit breaker if too many errors
     if (this.errorCount >= this.maxErrors) {
       this.circuitBreakerActive = true;
-      console.warn('🔥 [FirebaseErrorHandler] Circuit breaker activated due to too many errors');
+      logger.warn('Circuit breaker activated due to too many errors', undefined, 'FirebaseErrorHandler');
     }
 
     // Check if it's a Firebase internal assertion error
@@ -57,7 +58,7 @@ export class FirebaseErrorHandler {
       if (timeSinceLastError > this.retryDelay) {
         this.circuitBreakerActive = false;
         this.errorCount = 0;
-        console.info('🔥 [FirebaseErrorHandler] Circuit breaker reset');
+        logger.info('Circuit breaker reset', undefined, 'FirebaseErrorHandler');
         return false;
       }
       return true;
@@ -76,39 +77,45 @@ export class FirebaseErrorHandler {
   /**
    * Check if error is Firebase internal assertion error
    */
-  private static isInternalAssertionError(error: any): boolean {
-    return error?.message?.includes('INTERNAL ASSERTION FAILED') ||
-           error?.message?.includes('Unexpected state') ||
-           error?.code === 'internal';
+  private static isInternalAssertionError(error: FirebaseErrorType): boolean {
+    const message = getErrorMessage(error);
+    const code = getErrorCode(error);
+    return message.includes('INTERNAL ASSERTION FAILED') ||
+           message.includes('Unexpected state') ||
+           code === 'internal';
   }
 
   /**
    * Check if error is network related
    */
-  private static isNetworkError(error: any): boolean {
-    return error?.code === 'unavailable' ||
-           error?.code === 'deadline-exceeded' ||
-           error?.message?.includes('network') ||
-           error?.message?.includes('connection');
+  private static isNetworkError(error: FirebaseErrorType): boolean {
+    const code = getErrorCode(error);
+    const message = getErrorMessage(error);
+    return code === 'unavailable' ||
+           code === 'deadline-exceeded' ||
+           message.includes('network') ||
+           message.includes('connection');
   }
 
   /**
    * Check if error is permission related
    */
-  private static isPermissionError(error: any): boolean {
-    return error?.code === 'permission-denied' ||
-           error?.code === 'unauthenticated';
+  private static isPermissionError(error: FirebaseErrorType): boolean {
+    const code = getErrorCode(error);
+    return code === 'permission-denied' ||
+           code === 'unauthenticated';
   }
 
   /**
    * Handle Firebase internal assertion errors
    */
-  private static handleInternalAssertionError(error: any): FirebaseErrorInfo {
-    console.warn('🔥 [FirebaseErrorHandler] Internal assertion error detected:', error.message);
+  private static handleInternalAssertionError(error: FirebaseErrorType): FirebaseErrorInfo {
+    const message = getErrorMessage(error);
+    logger.warn('Internal assertion error detected', { message }, 'FirebaseErrorHandler');
     
     return {
       code: 'internal-assertion',
-      message: error.message,
+      message,
       userFriendlyMessage: 'Service temporairement indisponible. Veuillez réessayer dans quelques instants.',
       canRetry: true,
       severity: 'medium'
@@ -118,10 +125,12 @@ export class FirebaseErrorHandler {
   /**
    * Handle network errors
    */
-  private static handleNetworkError(error: any): FirebaseErrorInfo {
+  private static handleNetworkError(error: FirebaseErrorType): FirebaseErrorInfo {
+    const code = getErrorCode(error) || 'network-error';
+    const message = getErrorMessage(error);
     return {
-      code: error.code || 'network-error',
-      message: error.message,
+      code,
+      message,
       userFriendlyMessage: 'Problème de connexion. Vérifiez votre internet et réessayez.',
       canRetry: true,
       severity: 'medium'
@@ -131,10 +140,12 @@ export class FirebaseErrorHandler {
   /**
    * Handle permission errors
    */
-  private static handlePermissionError(error: any): FirebaseErrorInfo {
+  private static handlePermissionError(error: FirebaseErrorType): FirebaseErrorInfo {
+    const code = getErrorCode(error) || 'permission-denied';
+    const message = getErrorMessage(error);
     return {
-      code: error.code,
-      message: error.message,
+      code,
+      message,
       userFriendlyMessage: 'Accès non autorisé. Veuillez vous reconnecter.',
       canRetry: false,
       severity: 'high'
@@ -144,12 +155,13 @@ export class FirebaseErrorHandler {
   /**
    * Handle generic Firebase errors
    */
-  private static handleGenericFirebaseError(error: any): FirebaseErrorInfo {
-    const firebaseError = error as FirebaseError;
+  private static handleGenericFirebaseError(error: FirebaseErrorType): FirebaseErrorInfo {
+    const code = getErrorCode(error) || 'unknown';
+    const message = getErrorMessage(error);
     
     return {
-      code: firebaseError.code || 'unknown',
-      message: firebaseError.message,
+      code,
+      message,
       userFriendlyMessage: 'Une erreur s\'est produite. Veuillez réessayer.',
       canRetry: true,
       severity: 'low'
@@ -159,7 +171,7 @@ export class FirebaseErrorHandler {
   /**
    * Get user-friendly error message for display
    */
-  static getUserFriendlyMessage(error: any): string {
+  static getUserFriendlyMessage(error: FirebaseErrorType): string {
     const errorInfo = this.handleError(error);
     return errorInfo.userFriendlyMessage;
   }
@@ -167,7 +179,7 @@ export class FirebaseErrorHandler {
   /**
    * Check if operation should be retried
    */
-  static shouldRetry(error: any): boolean {
+  static shouldRetry(error: FirebaseErrorType): boolean {
     if (this.isCircuitBreakerActive()) {
       return false;
     }
@@ -191,7 +203,7 @@ export async function withFirebaseErrorHandling<T>(
   operation: () => Promise<T>,
   maxRetries: number = 3
 ): Promise<T> {
-  let lastError: any;
+  let lastError: FirebaseErrorType | undefined;
   
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
@@ -206,7 +218,7 @@ export async function withFirebaseErrorHandling<T>(
       }
       
       const delay = FirebaseErrorHandler.getRetryDelay();
-      console.warn(`🔥 [FirebaseErrorHandler] Retry ${attempt + 1}/${maxRetries} in ${delay}ms`);
+      logger.warn(`Retry ${attempt + 1}/${maxRetries}`, { attempt: attempt + 1, maxRetries, delay }, 'FirebaseErrorHandler');
       await new Promise(resolve => setTimeout(resolve, delay));
     }
   }

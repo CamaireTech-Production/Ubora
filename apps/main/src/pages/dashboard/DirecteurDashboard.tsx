@@ -3,6 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import { Form, FormField } from '../../types';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
 import { useApp } from '@ubora/shared/contexts/AppContext';
+import { useForms } from '@ubora/shared/contexts/FormsContext';
+import { useEntries } from '@ubora/shared/contexts/EntriesContext';
+import { useEmployees } from '@ubora/shared/contexts/EmployeesContext';
+import { useDashboards } from '@ubora/shared/contexts/DashboardsContext';
 import { usePermissions } from '@ubora/shared/hooks/usePermissions';
 import { Layout } from '../../components/layout/Layout';
 import { Card } from '../../components/ui/Card';
@@ -26,34 +30,36 @@ import { ImpersonationHeader } from '../../components/layout/ImpersonationHeader
 import { AccessDeniedModal } from '../../components/modals/AccessDeniedModal';
 import { universService } from '@ubora/shared/services/universService';
 import { UniversBadge } from '../../components/univers/UniversBadge';
+import { logger } from '@ubora/shared/utils/logger';
 
 export const DirecteurDashboard: React.FC = () => {
   const navigate = useNavigate();
-  const { user, firebaseUser, isLoading } = useAuth();
+  const { user, firebaseUser, isLoading: authLoading } = useAuth();
   const { hasDirectorDashboardAccess } = usePermissions();
   
+  // Forms context
+  const { forms, createForm, updateForm, deleteForm, isLoading: formsLoading } = useForms();
+  
+  // Entries context
+  const { formEntries, submitMultipleFormEntries, getEntriesForForm, isLoading: entriesLoading } = useEntries();
+  
+  // Employees context
+  const { employees, getPendingEmployees, isLoading: employeesLoading } = useEmployees();
+  
+  // Dashboards context
+  const { dashboards, createDashboard, deleteDashboard, isLoading: dashboardsLoading } = useDashboards();
+  
+  // Draft management (still in AppContext)
   const { 
-    forms,
-    formEntries,
-    employees,
-    dashboards,
-    createForm, 
-    updateForm,
-    deleteForm,
-    // Draft workflow and submissions
     getDraftsForForm,
     saveDraft,
     deleteDraft,
     deleteDraftsForForm,
     createDraft,
-    submitMultipleFormEntries,
-    submitFormEntry,
-    getEntriesForForm,
-    getPendingEmployees,
-    createDashboard,
-    deleteDashboard,
     isLoading: appLoading
   } = useApp();
+  
+  const isLoading = authLoading || formsLoading || entriesLoading || employeesLoading || dashboardsLoading || appLoading;
   const { toast, showSuccess, showError } = useToast();
   const { 
     canCreateForm, 
@@ -117,7 +123,7 @@ export const DirecteurDashboard: React.FC = () => {
                setUniversMap(map);
                setUniversCount(myUnivers.length);
              } catch (error) {
-               console.error('Erreur lors du chargement des Univers:', error);
+               logger.error('Erreur lors du chargement des Univers', error, 'DirecteurDashboard');
              }
            };
            loadUniversData();
@@ -167,14 +173,12 @@ export const DirecteurDashboard: React.FC = () => {
       allowedDays?: number[];
     };
   }) => {
-    console.log('🟢 [FORM CREATION] ========================================');
-    console.log('🟢 [FORM CREATION] Form submission started');
-    console.log('🟢 [FORM CREATION] Form data:', {
+    logger.debug('Form submission started', {
       title: formData.title,
       fieldsCount: formData.fields.length,
-      assignedToCount: formData.assignedTo.length
-    });
-    console.log('🟢 [FORM CREATION] Current forms count before creation:', forms.length);
+      assignedToCount: formData.assignedTo.length,
+      currentFormsCount: forms.length
+    }, 'DirecteurDashboard');
     
     setIsCreatingForm(true);
     try {
@@ -188,42 +192,38 @@ export const DirecteurDashboard: React.FC = () => {
         createdByRole: user.role as 'directeur' | 'employe',
         agencyId: user.agencyId,
       });
-      console.log('🟢 [FORM CREATION] ✅ Form created successfully');
+      logger.info('Form created successfully', { title: formData.title }, 'DirecteurDashboard');
       setShowFormBuilder(false);
       setEditingForm(null);
       showSuccess('Formulaire créé avec succès !');
     } catch (error) {
-      console.error('🟢 [FORM CREATION] ❌ Error creating form:', error);
+      logger.error('Error creating form', error, 'DirecteurDashboard');
       showError('Erreur lors de la création du formulaire. Veuillez réessayer.');
     } finally {
       setIsCreatingForm(false);
-      console.log('🟢 [FORM CREATION] ========================================');
     }
   };
 
   const handleFormButtonClick = () => {
-    console.log('🔵 [QUOTA CHECK] ========================================');
-    console.log('🔵 [QUOTA CHECK] Button clicked: "Créer un nouveau formulaire"');
-    console.log('🔵 [QUOTA CHECK] Current form count:', forms.length);
-    console.log('🔵 [QUOTA CHECK] User:', {
-      id: user?.id,
+    logger.debug('Button clicked: "Créer un nouveau formulaire"', {
+      currentFormCount: forms.length,
+      userId: user?.id,
       role: user?.role,
       agencyId: user?.agencyId,
       hasDirectorDashboardAccess: user?.hasDirectorDashboardAccess
-    });
+    }, 'DirecteurDashboard');
     
     const canCreate = canCreateForm(forms.length);
-    console.log('🔵 [QUOTA CHECK] canCreateForm result:', canCreate);
+    logger.debug('canCreateForm result', { canCreate }, 'DirecteurDashboard');
     
     if (!canCreate) {
-      console.log('🔵 [QUOTA CHECK] ❌ Quota check FAILED - Showing limit modal');
+      logger.warn('Quota check FAILED - Showing limit modal', undefined, 'DirecteurDashboard');
       setLimitModalType('forms');
       setShowLimitModal(true);
     } else {
-      console.log('🔵 [QUOTA CHECK] ✅ Quota check PASSED - Opening form builder');
+      logger.debug('Quota check PASSED - Opening form builder', undefined, 'DirecteurDashboard');
       setShowFormBuilder(true);
     }
-    console.log('🔵 [QUOTA CHECK] ========================================');
   };
 
   const handleDashboardButtonClick = () => {
@@ -253,7 +253,7 @@ export const DirecteurDashboard: React.FC = () => {
       setEditingForm(null);
       showSuccess('Formulaire mis à jour avec succès !');
     } catch (error) {
-      console.error('Erreur lors de la mise à jour du formulaire:', error);
+      logger.error('Erreur lors de la mise à jour du formulaire', error, 'DirecteurDashboard');
       showError('Erreur lors de la mise à jour du formulaire. Veuillez réessayer.');
     }
   };
@@ -286,7 +286,7 @@ export const DirecteurDashboard: React.FC = () => {
       showSuccess('Réponse ajoutée aux brouillons');
       setEditingDraftId(null);
     } catch (error) {
-      console.error('Error adding response:', error);
+      logger.error('Error adding response', error, 'DirecteurDashboard');
       showError('Erreur lors de l\'ajout de la réponse');
     } finally {
       setIsSavingDraft(false);
@@ -306,7 +306,7 @@ export const DirecteurDashboard: React.FC = () => {
         setEditingDraftId(null);
       }
     } catch (error) {
-      console.error('Error saving draft:', error);
+      logger.error('Error saving draft', error, 'DirecteurDashboard');
       showError('Erreur lors de la sauvegarde du brouillon');
     } finally {
       setIsSavingDraft(false);
@@ -332,7 +332,7 @@ export const DirecteurDashboard: React.FC = () => {
       showSuccess(`${drafts.length} réponse(s) soumise(s) avec succès`);
       setSelectedFormForFilling(null);
     } catch (error) {
-      console.error('Error submitting drafts:', error);
+      logger.error('Error submitting drafts', error, 'DirecteurDashboard');
       showError('Erreur lors de la soumission des brouillons');
     } finally {
       setIsSubmittingDrafts(false);
@@ -374,7 +374,7 @@ export const DirecteurDashboard: React.FC = () => {
       setShowDashboardBuilder(false);
       showSuccess('Tableau de bord créé avec succès !');
     } catch (error) {
-      console.error('Erreur lors de la création du tableau de bord:', error);
+      logger.error('Erreur lors de la création du tableau de bord', error, 'DirecteurDashboard');
       showError('Erreur lors de la création du tableau de bord. Veuillez réessayer.');
     } finally {
       setIsCreatingDashboard(false);
@@ -399,7 +399,7 @@ export const DirecteurDashboard: React.FC = () => {
       setShowDeleteFormModal(false);
       setFormToDelete(null);
     } catch (error) {
-      console.error('Erreur lors de la suppression:', error);
+      logger.error('Erreur lors de la suppression', error, 'DirecteurDashboard');
       showError('Erreur lors de la suppression du formulaire.');
     } finally {
       setIsDeletingForm(false);
@@ -440,7 +440,7 @@ export const DirecteurDashboard: React.FC = () => {
       setShowDeleteDashboardModal(false);
       setDashboardToDelete(null);
     } catch (error) {
-      console.error('Erreur lors de la suppression du tableau de bord:', error);
+      logger.error('Erreur lors de la suppression du tableau de bord', error, 'DirecteurDashboard');
       showError('Erreur lors de la suppression du tableau de bord.');
     } finally {
       setIsDeletingDashboard(false);
@@ -599,7 +599,7 @@ export const DirecteurDashboard: React.FC = () => {
   }
 
   // Show wireframe immediately if any loading state
-  if (isLoading || !user || !firebaseUser || appLoading) {
+  if (isLoading || !user || !firebaseUser) {
     return (
       <>
         <ImpersonationHeader />

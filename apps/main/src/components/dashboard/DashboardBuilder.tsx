@@ -14,6 +14,7 @@ import { MetricFormulaParser } from '../../utils/forms/MetricFormulaParser';
 import { listsService } from '@ubora/shared/services';
 import { useApp } from '@ubora/shared/contexts/AppContext';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
+import { useUnivers } from '@ubora/shared/contexts/UniversContext';
 
 interface DashboardBuilderProps {
   onSave: (dashboard: {
@@ -47,7 +48,7 @@ export const DashboardBuilder: React.FC<DashboardBuilderProps> = ({
   universLists
 }) => {
   const { user } = useAuth();
-  const { activeUniversId, activeInstanceId } = useApp();
+  const { activeUniversId, activeInstanceId } = useUnivers();
   const [name, setName] = useState(initialDashboard?.name || '');
   const [description, setDescription] = useState(initialDashboard?.description || '');
   const [metrics, setMetrics] = useState<Omit<DashboardMetric, 'id' | 'createdAt' | 'createdBy' | 'agencyId'>[]>(initialDashboard?.metrics || []);

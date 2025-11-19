@@ -1,5 +1,6 @@
 import { collection, addDoc, doc, getDocs, query, where, orderBy, updateDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 import { db } from '@ubora/shared/firebaseConfig';
+import { logger } from '@ubora/shared/utils/logger';
 import { Dashboard, DashboardMetric, FormEntry, MetricReminder } from '../../types';
 import { unifiedNotificationService } from './unifiedNotificationService';
 import { MetricCalculator } from '../utils/forms/MetricCalculator';
@@ -23,7 +24,7 @@ class MetricReminderService {
       }
       return null;
     } catch (error) {
-      console.error(`📊 [MetricReminder] Error getting FCM token for ${userId}:`, error);
+      logger.error(`Error getting FCM token for ${userId}`, error, 'MetricReminderService');
       return null;
     }
   }
@@ -69,7 +70,7 @@ class MetricReminderService {
 
   async cancel(reminderId: string): Promise<void> {
     try {
-      console.log('Attempting to cancel reminder:', reminderId);
+      logger.debug('Attempting to cancel reminder', { reminderId }, 'MetricReminderService');
       
       // Validate reminderId
       if (!reminderId || typeof reminderId !== 'string' || reminderId.trim() === '') {
@@ -81,13 +82,12 @@ class MetricReminderService {
         throw new Error('Invalid reminder ID: contains invalid characters');
       }
       
-      console.log('Using collection:', this.collectionName, 'and document ID:', reminderId);
+      logger.debug('Using collection and document ID', { collectionName: this.collectionName, reminderId }, 'MetricReminderService');
       await updateDoc(doc(db, this.collectionName, reminderId), { status: 'cancelled' });
-      console.log('Reminder cancelled successfully:', reminderId);
+      logger.info('Reminder cancelled successfully', { reminderId }, 'MetricReminderService');
     } catch (error) {
-      console.error('Error cancelling reminder:', error);
-      console.error('ReminderId that caused error:', reminderId);
-      console.error('Collection name:', this.collectionName);
+      logger.error('Error cancelling reminder', error, 'MetricReminderService');
+      logger.error('ReminderId that caused error', { reminderId, collectionName: this.collectionName }, 'MetricReminderService');
       throw error;
     }
   }

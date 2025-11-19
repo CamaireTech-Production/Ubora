@@ -1,3 +1,5 @@
+import { logger } from '@ubora/shared/utils/logger';
+
 /**
  * Token counting service using OpenAI's tiktoken library
  * Provides accurate token counting aligned with OpenAI's methodology
@@ -92,10 +94,10 @@ export class TokenCounter {
    * Estimate tokens for PDF/image extraction based on file size
    */
   static estimateExtractionTokens(fileSize: number, fileType: 'pdf' | 'image'): number {
-    console.log('🔍 DEBUG: TokenCounter.estimateExtractionTokens called with:', {
+    logger.debug('TokenCounter.estimateExtractionTokens called', {
       fileSize,
       fileType
-    });
+    }, 'TokenCounter');
     
     const sizeInMB = fileSize / (1024 * 1024);
     
@@ -113,13 +115,13 @@ export class TokenCounter {
     
     const estimatedTokens = Math.ceil((baseTokens + contentEstimate) * sizeMultiplier);
     
-    console.log('🔍 DEBUG: TokenCounter.estimateExtractionTokens result:', {
+    logger.debug('TokenCounter.estimateExtractionTokens result', {
       sizeInMB,
       baseTokens,
       sizeMultiplier,
       contentEstimate,
       estimatedTokens
-    });
+    }, 'TokenCounter');
     
     return estimatedTokens;
   }
@@ -128,10 +130,10 @@ export class TokenCounter {
    * Calculate actual tokens from OpenAI response for extraction
    */
   static calculateActualTokens(openaiResponse: any): number {
-    console.log('🔍 DEBUG: TokenCounter.calculateActualTokens called with:', openaiResponse);
+    logger.debug('TokenCounter.calculateActualTokens called', { openaiResponse }, 'TokenCounter');
     
     if (!openaiResponse || !openaiResponse.usage) {
-      console.log('🔍 DEBUG: TokenCounter.calculateActualTokens - No usage data found, returning 0');
+      logger.debug('TokenCounter.calculateActualTokens - No usage data found, returning 0', undefined, 'TokenCounter');
       return 0;
     }
     
@@ -139,11 +141,11 @@ export class TokenCounter {
     // Use same formula as chat system: (actualTokens * 2.5) / 100
     const userTokensToCharge = Math.ceil((actualTokens * 2.5) / 100);
     
-    console.log('🔍 DEBUG: TokenCounter.calculateActualTokens result:', {
+    logger.debug('TokenCounter.calculateActualTokens result', {
       actualTokens,
       userTokensToCharge,
       formula: '(actualTokens * 2.5) / 100'
-    });
+    }, 'TokenCounter');
     
     return userTokensToCharge;
   }

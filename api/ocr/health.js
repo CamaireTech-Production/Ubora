@@ -1,3 +1,5 @@
+import { logger } from '../lib/logger.js';
+
 export default async function handler(req, res) {
   try {
     // Headers CORS complets
@@ -50,7 +52,7 @@ export default async function handler(req, res) {
     });
 
   } catch (error) {
-    console.error('❌ OCR health check error:', error);
+    logger.error('OCR health check error', error, 'ocr/health.js');
     
     return res.status(500).json({
       ok: false,

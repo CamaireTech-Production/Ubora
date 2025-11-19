@@ -1,7 +1,7 @@
 import { scheduledQuestionService } from './scheduledQuestionService';
 import { unifiedNotificationService } from '@ubora/shared/services/unifiedNotificationService';
+import { logger } from '@ubora/shared/utils/logger';
 import { ScheduledQuestion, ScheduledQuestionResponse } from '../../types';
-import { getCameroonTime } from '../../utils/core/timezoneUtils';
 import { getAIEndpoint } from '@ubora/shared/config/api';
 import { auth } from '@ubora/shared/firebaseConfig';
 import { ScheduledQuestionTokenChecker } from './scheduledQuestionTokenChecker';
@@ -20,7 +20,7 @@ class ScheduledQuestionExecutor {
    */
   start(userId: string, agencyId: string): void {
     if (this.isRunning && this.currentUserId === userId) {
-      console.log('🔄 [ScheduledQuestionExecutor] Service déjà en cours d\'exécution pour cet utilisateur');
+      logger.debug('Service déjà en cours d\'exécution pour cet utilisateur', { userId }, 'ScheduledQuestionExecutor');
       return;
     }
 
@@ -29,7 +29,7 @@ class ScheduledQuestionExecutor {
       this.stop();
     }
 
-    console.log('🚀 [ScheduledQuestionExecutor] Démarrage du service d\'exécution automatique');
+    logger.info('Démarrage du service d\'exécution automatique', { userId, agencyId }, 'ScheduledQuestionExecutor');
     this.isRunning = true;
     this.currentUserId = userId;
     this.currentAgencyId = agencyId;
@@ -64,7 +64,7 @@ class ScheduledQuestionExecutor {
     this.executingQuestions.clear();
     this.executionLock.clear();
     
-    console.log('⏹️ [ScheduledQuestionExecutor] Service d\'exécution automatique arrêté');
+    logger.info('Service d\'exécution automatique arrêté', undefined, 'ScheduledQuestionExecutor');
   }
 
   /**
@@ -74,7 +74,7 @@ class ScheduledQuestionExecutor {
     if (!this.currentUserId || !this.currentAgencyId) return;
 
     try {
-      console.log('🔍 [ScheduledQuestionExecutor] Vérification des exécutions bloquées');
+      logger.debug('Vérification des exécutions bloquées', undefined, 'ScheduledQuestionExecutor');
       
       // Get questions that have been running for more than 10 minutes
       const stuckThreshold = new Date(Date.now() - 10 * 60 * 1000); // 10 minutes ago
@@ -86,24 +86,24 @@ class ScheduledQuestionExecutor {
       );
 
       if (stuckQuestions.length > 0) {
-        console.log(`⚠️ [ScheduledQuestionExecutor] ${stuckQuestions.length} question(s) bloquée(s) détectée(s)`);
+        logger.warn(`${stuckQuestions.length} question(s) bloquée(s) détectée(s)`, { count: stuckQuestions.length }, 'ScheduledQuestionExecutor');
         
         // Reset stuck questions to pending status
         const resetPromises = stuckQuestions.map(question => {
-          console.log(`🔄 [ScheduledQuestionExecutor] Réinitialisation de la question bloquée: ${question.title}`);
+          logger.debug(`Réinitialisation de la question bloquée: ${question.title}`, { questionId: question.id }, 'ScheduledQuestionExecutor');
           return scheduledQuestionService.update(question.id, {
             status: 'pending',
-            lastExecutedAt: null
+            lastExecutedAt: undefined
           });
         });
         
         await Promise.all(resetPromises);
-        console.log(`✅ [ScheduledQuestionExecutor] ${stuckQuestions.length} question(s) bloquée(s) réinitialisée(s)`);
+        logger.info(`${stuckQuestions.length} question(s) bloquée(s) réinitialisée(s)`, { count: stuckQuestions.length }, 'ScheduledQuestionExecutor');
       } else {
-        console.log('✅ [ScheduledQuestionExecutor] Aucune question bloquée détectée');
+        logger.debug('Aucune question bloquée détectée', undefined, 'ScheduledQuestionExecutor');
       }
     } catch (error) {
-      console.error('❌ [ScheduledQuestionExecutor] Erreur lors de la gestion des exécutions bloquées:', error);
+      logger.error('Erreur lors de la gestion des exécutions bloquées', error, 'ScheduledQuestionExecutor');
     }
   }
 
@@ -112,12 +112,15 @@ class ScheduledQuestionExecutor {
    */
   private async executeDueQuestions(): Promise<void> {
     if (!this.currentUserId || !this.currentAgencyId) {
-      console.log('⚠️ [ScheduledQuestionExecutor] Aucun utilisateur connecté, arrêt de l\'exécution');
+      logger.warn('Aucun utilisateur connecté, arrêt de l\'exécution', undefined, 'ScheduledQuestionExecutor');
       return;
     }
 
     try {
-      console.log(`🔍 [ScheduledQuestionExecutor] Vérification des questions à exécuter pour l'utilisateur ${this.currentUserId} à ${new Date().toISOString()}`);
+      logger.debug(`Vérification des questions à exécuter pour l'utilisateur ${this.currentUserId}`, { 
+        userId: this.currentUserId,
+        timestamp: new Date().toISOString()
+      }, 'ScheduledQuestionExecutor');
       
       const dueQuestions = await scheduledQuestionService.getDueQuestionsForUser(
         this.currentUserId, 
@@ -125,14 +128,17 @@ class ScheduledQuestionExecutor {
       );
       
       if (dueQuestions.length === 0) {
-        console.log('✅ [ScheduledQuestionExecutor] Aucune question à exécuter pour le moment');
+        logger.debug('Aucune question à exécuter pour le moment', undefined, 'ScheduledQuestionExecutor');
         return;
       }
 
-      console.log(`🔄 [ScheduledQuestionExecutor] ${dueQuestions.length} question(s) à exécuter pour l'utilisateur ${this.currentUserId}`);
+      logger.info(`${dueQuestions.length} question(s) à exécuter pour l'utilisateur ${this.currentUserId}`, {
+        count: dueQuestions.length,
+        userId: this.currentUserId
+      }, 'ScheduledQuestionExecutor');
 
       // Pre-check tokens for all questions before execution
-      console.log(`🔍 [ScheduledQuestionExecutor] Vérification des tokens pour ${dueQuestions.length} question(s)`);
+      logger.debug(`Vérification des tokens pour ${dueQuestions.length} question(s)`, { count: dueQuestions.length }, 'ScheduledQuestionExecutor');
       const questionsWithData = dueQuestions.map(q => ({ question: q.question, hasData: true }));
       const batchTokenCheck = await ScheduledQuestionTokenChecker.checkTokensForBatchExecution(
         this.currentUserId, 
@@ -140,7 +146,10 @@ class ScheduledQuestionExecutor {
       );
 
       if (!batchTokenCheck.canExecute) {
-        console.log(`❌ [ScheduledQuestionExecutor] Tokens insuffisants pour l'exécution batch: ${batchTokenCheck.reason}`);
+        logger.warn(`Tokens insuffisants pour l'exécution batch: ${batchTokenCheck.reason}`, {
+          reason: batchTokenCheck.reason,
+          questionCount: dueQuestions.length
+        }, 'ScheduledQuestionExecutor');
         
         // Mark all questions as failed due to insufficient tokens
         const updatePromises = dueQuestions.map(question => 
@@ -152,19 +161,21 @@ class ScheduledQuestionExecutor {
         );
         
         await Promise.all(updatePromises);
-        console.log(`✅ [ScheduledQuestionExecutor] ${dueQuestions.length} question(s) marquée(s) comme échouée(s) - tokens insuffisants`);
+        logger.info(`${dueQuestions.length} question(s) marquée(s) comme échouée(s) - tokens insuffisants`, {
+          count: dueQuestions.length
+        }, 'ScheduledQuestionExecutor');
         return;
       }
 
-      console.log(`✅ [ScheduledQuestionExecutor] Tokens suffisants pour l'exécution batch (${batchTokenCheck.totalTokens} tokens requis)`);
+      logger.debug(`Tokens suffisants pour l'exécution batch`, { totalTokens: batchTokenCheck.totalTokens }, 'ScheduledQuestionExecutor');
 
       for (const question of dueQuestions) {
-        console.log(`🚀 [ScheduledQuestionExecutor] Début de l'exécution de: ${question.title}`);
+        logger.debug(`Début de l'exécution de: ${question.title}`, { questionId: question.id }, 'ScheduledQuestionExecutor');
         await this.executeQuestion(question);
-        console.log(`✅ [ScheduledQuestionExecutor] Exécution terminée pour: ${question.title}`);
+        logger.info(`Exécution terminée pour: ${question.title}`, { questionId: question.id }, 'ScheduledQuestionExecutor');
       }
     } catch (error) {
-      console.error('❌ [ScheduledQuestionExecutor] Erreur lors de l\'exécution des questions:', error);
+      logger.error('Erreur lors de l\'exécution des questions', error, 'ScheduledQuestionExecutor');
     }
   }
 
@@ -176,19 +187,19 @@ class ScheduledQuestionExecutor {
     
     // Check if question is already being executed
     if (this.executingQuestions.has(question.id)) {
-      console.log(`⚠️ [ScheduledQuestionExecutor] Question ${question.title} est déjà en cours d'exécution, ignorée`);
+      logger.warn(`Question ${question.title} est déjà en cours d'exécution, ignorée`, { questionId: question.id }, 'ScheduledQuestionExecutor');
       return;
     }
 
     // Check if there's already a lock for this question
     if (this.executionLock.has(question.id)) {
-      console.log(`⚠️ [ScheduledQuestionExecutor] Question ${question.title} est verrouillée, attente de l'exécution en cours`);
+      logger.debug(`Question ${question.title} est verrouillée, attente de l'exécution en cours`, { questionId: question.id }, 'ScheduledQuestionExecutor');
       try {
         await this.executionLock.get(question.id);
-        console.log(`✅ [ScheduledQuestionExecutor] Exécution précédente de ${question.title} terminée`);
+        logger.debug(`Exécution précédente de ${question.title} terminée`, { questionId: question.id }, 'ScheduledQuestionExecutor');
         return;
       } catch (error) {
-        console.log(`❌ [ScheduledQuestionExecutor] Exécution précédente de ${question.title} a échoué, nouvelle tentative`);
+        logger.warn(`Exécution précédente de ${question.title} a échoué, nouvelle tentative`, { questionId: question.id, error }, 'ScheduledQuestionExecutor');
       }
     }
 
@@ -213,23 +224,25 @@ class ScheduledQuestionExecutor {
       // Mark question as executing
       this.executingQuestions.add(question.id);
       
-      console.log(`🔄 [ScheduledQuestionExecutor] Exécution de la question: ${question.title}`);
-      console.log(`📊 [ScheduledQuestionExecutor] Détails de la question:`, {
+      logger.debug(`Exécution de la question: ${question.title}`, {
         id: question.id,
         scheduledAt: question.scheduledAt.toISOString(),
         nextExecution: question.nextExecution?.toISOString() || 'null',
         frequency: question.frequency,
         status: question.status,
         executionCount: question.executionCount
-      });
+      }, 'ScheduledQuestionExecutor');
       
       // Pre-check tokens before execution
-      console.log(`🔍 [ScheduledQuestionExecutor] Vérification des tokens pour: ${question.title}`);
+      logger.debug(`Vérification des tokens pour: ${question.title}`, { questionId: question.id }, 'ScheduledQuestionExecutor');
       const estimatedTokens = ScheduledQuestionTokenChecker.estimateTokensForQuestion(question.question, true);
       const tokenCheck = await ScheduledQuestionTokenChecker.checkTokensForExecution(question.userId, estimatedTokens);
       
       if (!tokenCheck.canExecute) {
-        console.log(`❌ [ScheduledQuestionExecutor] Tokens insuffisants pour: ${question.title} - ${tokenCheck.reason}`);
+        logger.warn(`Tokens insuffisants pour: ${question.title} - ${tokenCheck.reason}`, {
+          questionId: question.id,
+          reason: tokenCheck.reason
+        }, 'ScheduledQuestionExecutor');
         
         // Mark question as failed due to insufficient tokens
         await scheduledQuestionService.update(question.id, {
@@ -257,14 +270,17 @@ class ScheduledQuestionExecutor {
         };
         
         await scheduledQuestionService.createResponse(errorResponse);
-        console.log(`✅ [ScheduledQuestionExecutor] Réponse d'erreur créée pour: ${question.title}`);
+        logger.info(`Réponse d'erreur créée pour: ${question.title}`, { questionId: question.id }, 'ScheduledQuestionExecutor');
         return;
       }
       
-      console.log(`✅ [ScheduledQuestionExecutor] Tokens suffisants pour: ${question.title} (${tokenCheck.availableTokens} disponibles)`);
+      logger.debug(`Tokens suffisants pour: ${question.title}`, { 
+        questionId: question.id,
+        availableTokens: tokenCheck.availableTokens 
+      }, 'ScheduledQuestionExecutor');
       
       // Marquer la question comme en cours d'exécution
-      console.log(`🔄 [ScheduledQuestionExecutor] Mise à jour du statut vers 'running' pour: ${question.title}`);
+      logger.debug(`Mise à jour du statut vers 'running' pour: ${question.title}`, { questionId: question.id }, 'ScheduledQuestionExecutor');
       await scheduledQuestionService.update(question.id, {
         status: 'running',
         lastExecutedAt: new Date()
@@ -280,7 +296,7 @@ class ScheduledQuestionExecutor {
         conversationId: null // Pas de conversation pour les questions programmées
       };
 
-      console.log(`📤 [ScheduledQuestionExecutor] Données à envoyer à l'API:`, requestData);
+      logger.debug(`Données à envoyer à l'API`, requestData, 'ScheduledQuestionExecutor');
 
       // Appeler l'API Archa
       const response = await this.callArchaAPI(requestData, question.userId);
@@ -299,7 +315,7 @@ class ScheduledQuestionExecutor {
           forms: response.meta?.forms || 0,
           users: response.meta?.users || 0,
           model: response.meta?.model || 'gpt-4.1',
-          selectedFormat: question.selectedFormat,
+          selectedFormat: question.selectedFormat ?? undefined,
           selectedFormats: question.selectedFormats,
           selectedFormIds: question.selectedFormIds,
           selectedFormTitles: response.meta?.selectedFormTitles || []
@@ -312,10 +328,10 @@ class ScheduledQuestionExecutor {
       try {
         responseId = await scheduledQuestionService.createResponse(responseData);
         responseCreated = true;
-        console.log(`✅ [ScheduledQuestionExecutor] Réponse créée avec succès pour: ${question.title}, ID: ${responseId}`);
+        logger.info(`Réponse créée avec succès pour: ${question.title}`, { questionId: question.id, responseId }, 'ScheduledQuestionExecutor');
       } catch (responseError) {
-        console.error(`❌ [ScheduledQuestionExecutor] Erreur lors de la création de la réponse:`, responseError);
-        console.log(`⚠️ [ScheduledQuestionExecutor] Continuation sans réponse pour: ${question.title}`);
+        logger.error(`Erreur lors de la création de la réponse`, responseError, 'ScheduledQuestionExecutor');
+        logger.warn(`Continuation sans réponse pour: ${question.title}`, { questionId: question.id }, 'ScheduledQuestionExecutor');
       }
 
       // Calculate next execution
@@ -334,14 +350,17 @@ class ScheduledQuestionExecutor {
         nextExecution: question.frequency === 'once' ? undefined : nextExecution
       };
 
-      console.log(`🔄 [ScheduledQuestionExecutor] Mise à jour du statut vers '${updateData.status}' pour: ${question.title}`);
-      console.log(`📊 [ScheduledQuestionExecutor] Execution count: ${question.executionCount} → ${updateData.executionCount}`);
+      logger.debug(`Mise à jour du statut vers '${updateData.status}' pour: ${question.title}`, {
+        questionId: question.id,
+        status: updateData.status,
+        executionCount: `${question.executionCount} → ${updateData.executionCount}`
+      }, 'ScheduledQuestionExecutor');
       
       try {
         await scheduledQuestionService.update(question.id, updateData);
-        console.log(`✅ [ScheduledQuestionExecutor] Statut mis à jour avec succès pour: ${question.title}`);
+        logger.debug(`Statut mis à jour avec succès pour: ${question.title}`, { questionId: question.id }, 'ScheduledQuestionExecutor');
       } catch (updateError) {
-        console.error(`❌ [ScheduledQuestionExecutor] ERREUR CRITIQUE - Impossible de mettre à jour le statut:`, updateError);
+        logger.error(`ERREUR CRITIQUE - Impossible de mettre à jour le statut`, updateError, 'ScheduledQuestionExecutor');
         throw updateError; // This is critical, we must fail if status update fails
       }
 
@@ -354,20 +373,19 @@ class ScheduledQuestionExecutor {
             id: responseId
           };
           await this.sendNotification(question, responseWithId);
-          console.log(`🔔 [ScheduledQuestionExecutor] Notification envoyée pour: ${question.title}`);
+          logger.info(`Notification envoyée pour: ${question.title}`, { questionId: question.id }, 'ScheduledQuestionExecutor');
         } catch (notificationError) {
-          console.error(`❌ [ScheduledQuestionExecutor] Erreur lors de l'envoi de la notification:`, notificationError);
+          logger.error(`Erreur lors de l'envoi de la notification`, notificationError, 'ScheduledQuestionExecutor');
           // Don't fail for notification errors
         }
       }
 
-      console.log(`✅ [ScheduledQuestionExecutor] Question exécutée avec succès: ${question.title}`);
+      logger.info(`Question exécutée avec succès: ${question.title}`, { questionId: question.id }, 'ScheduledQuestionExecutor');
       
     } catch (error) {
-      console.error(`❌ [ScheduledQuestionExecutor] Erreur lors de l'exécution de la question ${question.title}:`, error);
+      logger.error(`Erreur lors de l'exécution de la question ${question.title}`, error, 'ScheduledQuestionExecutor');
       
       // Try to create error response, but don't fail if it doesn't work
-      let errorResponseCreated = false;
       try {
         const errorResponse: Omit<ScheduledQuestionResponse, 'id'> = {
           scheduledQuestionId: question.id,
@@ -387,11 +405,10 @@ class ScheduledQuestionExecutor {
         };
 
         await scheduledQuestionService.createResponse(errorResponse);
-        errorResponseCreated = true;
-        console.log(`✅ [ScheduledQuestionExecutor] Réponse d'erreur créée pour: ${question.title}`);
+        logger.info(`Réponse d'erreur créée pour: ${question.title}`, { questionId: question.id }, 'ScheduledQuestionExecutor');
       } catch (responseError) {
-        console.error(`❌ [ScheduledQuestionExecutor] Erreur lors de la création de la réponse d'erreur:`, responseError);
-        console.log(`⚠️ [ScheduledQuestionExecutor] Continuation sans réponse d'erreur pour: ${question.title}`);
+        logger.error(`Erreur lors de la création de la réponse d'erreur`, responseError, 'ScheduledQuestionExecutor');
+        logger.warn(`Continuation sans réponse d'erreur pour: ${question.title}`, { questionId: question.id }, 'ScheduledQuestionExecutor');
       }
 
       // CRITICAL: Always update status to failed and increment execution count
@@ -402,13 +419,15 @@ class ScheduledQuestionExecutor {
           lastExecutedAt: new Date()
         };
         
-        console.log(`🔄 [ScheduledQuestionExecutor] Mise à jour du statut vers 'failed' pour: ${question.title}`);
-        console.log(`📊 [ScheduledQuestionExecutor] Execution count: ${question.executionCount} → ${updateData.executionCount}`);
+        logger.debug(`Mise à jour du statut vers 'failed' pour: ${question.title}`, { 
+          questionId: question.id,
+          executionCount: `${question.executionCount} → ${updateData.executionCount}`
+        }, 'ScheduledQuestionExecutor');
         
         await scheduledQuestionService.update(question.id, updateData);
-        console.log(`✅ [ScheduledQuestionExecutor] Statut mis à jour vers 'failed' pour: ${question.title}`);
+        logger.debug(`Statut mis à jour vers 'failed' pour: ${question.title}`, { questionId: question.id }, 'ScheduledQuestionExecutor');
       } catch (updateError) {
-        console.error(`❌ [ScheduledQuestionExecutor] ERREUR CRITIQUE - Impossible de mettre à jour le statut vers 'failed':`, updateError);
+        logger.error(`ERREUR CRITIQUE - Impossible de mettre à jour le statut vers 'failed'`, updateError, 'ScheduledQuestionExecutor');
         // This is critical, we must fail if status update fails
         throw updateError;
       }
@@ -420,13 +439,15 @@ class ScheduledQuestionExecutor {
    */
   private async callArchaAPI(requestData: any, userId: string): Promise<any> {
     if (!this.AI_ENDPOINT) {
-      console.error('❌ [ScheduledQuestionExecutor] Endpoint ARCHA non configuré');
+      logger.error('Endpoint ARCHA non configuré', undefined, 'ScheduledQuestionExecutor');
       throw new Error('Endpoint ARCHA non configuré');
     }
 
     try {
-      console.log('🔄 [ScheduledQuestionExecutor] Appel de l\'API ARCHA:', requestData.question);
-      console.log('🌐 [ScheduledQuestionExecutor] Endpoint:', this.AI_ENDPOINT);
+      logger.debug('Appel de l\'API ARCHA', {
+        question: requestData.question,
+        endpoint: this.AI_ENDPOINT
+      }, 'ScheduledQuestionExecutor');
       
       // Obtenir le token d'authentification Firebase
       const user = auth.currentUser;
@@ -435,7 +456,7 @@ class ScheduledQuestionExecutor {
       }
       
       const token = await user.getIdToken();
-      console.log('🔑 [ScheduledQuestionExecutor] Token d\'authentification obtenu');
+      logger.debug('Token d\'authentification obtenu', undefined, 'ScheduledQuestionExecutor');
       
       const requestBody = {
         question: requestData.question,
@@ -448,7 +469,7 @@ class ScheduledQuestionExecutor {
         isScheduled: true // Flag pour indiquer que c'est une exécution programmée
       };
       
-      console.log('📤 [ScheduledQuestionExecutor] Corps de la requête:', JSON.stringify(requestBody, null, 2));
+      logger.debug('Corps de la requête', { requestBody }, 'ScheduledQuestionExecutor');
       
       const response = await fetch(this.AI_ENDPOINT, {
         method: 'POST',
@@ -459,19 +480,22 @@ class ScheduledQuestionExecutor {
         body: JSON.stringify(requestBody)
       });
 
-      console.log('📡 [ScheduledQuestionExecutor] Statut de la réponse:', response.status, response.statusText);
+      logger.debug('Statut de la réponse', {
+        status: response.status,
+        statusText: response.statusText
+      }, 'ScheduledQuestionExecutor');
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('❌ [ScheduledQuestionExecutor] Erreur API détaillée:', errorText);
+        logger.error('Erreur API détaillée', { errorText, status: response.status, statusText: response.statusText }, 'ScheduledQuestionExecutor');
         throw new Error(`Erreur API: ${response.status} ${response.statusText} - ${errorText}`);
       }
 
       const result = await response.json();
-      console.log('✅ [ScheduledQuestionExecutor] Réponse API reçue:', result);
+      logger.debug('Réponse API reçue', { result }, 'ScheduledQuestionExecutor');
       return result;
     } catch (error) {
-      console.error('❌ [ScheduledQuestionExecutor] Erreur lors de l\'appel API:', error);
+      logger.error('Erreur lors de l\'appel API', error, 'ScheduledQuestionExecutor');
       throw error;
     }
   }
@@ -479,15 +503,9 @@ class ScheduledQuestionExecutor {
   /**
    * Envoyer une notification à l'utilisateur
    */
-  private async sendNotification(question: ScheduledQuestion, response: ScheduledQuestionResponse): Promise<void> {
+  private async sendNotification(question: ScheduledQuestion, _response: ScheduledQuestionResponse): Promise<void> {
     try {
-      const title = `Réponse disponible pour "${question.title}"`;
-      const body = response.status === 'success' 
-        ? 'ARCHA a généré une nouvelle réponse à votre instruction programmée'
-        : 'Une erreur s\'est produite lors de l\'exécution de votre instruction programmée';
-
-      // Get FCM token and email address for the director
-      const fcmToken = await this.getUserFCMToken(question.userId);
+      // Get email address for the director
       const emailAddress = await this.getUserEmailAddress(question.userId);
 
       await unifiedNotificationService.createProgrammedInstructionNotification(
@@ -495,7 +513,6 @@ class ScheduledQuestionExecutor {
         question.title,
         question.userId,
         question.agencyId,
-        fcmToken || undefined,
         emailAddress || undefined
       );
       
@@ -503,26 +520,6 @@ class ScheduledQuestionExecutor {
     } catch (error) {
       console.error('❌ [ScheduledQuestionExecutor] Erreur lors de l\'envoi de la notification:', error);
       // Ne pas faire échouer l'exécution pour une erreur de notification
-    }
-  }
-
-  /**
-   * Get FCM token from user profile
-   */
-  private async getUserFCMToken(userId: string): Promise<string | null> {
-    try {
-      const { getDoc, doc } = await import('firebase/firestore');
-      const { db } = await import('@ubora/shared/firebaseConfig');
-      
-      const userDoc = await getDoc(doc(db, 'users', userId));
-      if (userDoc.exists()) {
-        const userData = userDoc.data();
-        return userData.fcmToken || null;
-      }
-      return null;
-    } catch (error) {
-      console.error(`🔔 [ScheduledQuestionExecutor] Error getting FCM token for ${userId}:`, error);
-      return null;
     }
   }
 

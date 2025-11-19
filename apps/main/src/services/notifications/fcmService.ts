@@ -1,5 +1,6 @@
 import { doc, getDoc, collection, query, where, getDocs, orderBy, limit } from 'firebase/firestore';
 import { db } from '@ubora/shared/firebaseConfig';
+import { logger } from '@ubora/shared/utils/logger';
 import { buildApiUrl } from '@ubora/shared/config/api';
 
 export interface FCMNotification {
@@ -48,14 +49,14 @@ class FCMService {
    */
   async sendToToken(notification: FCMNotification, fcmToken: string, userId?: string): Promise<FCMDeliveryLog> {
     try {
-      console.log('🔔 [FCM] ===== STARTING FCM SEND PROCESS =====');
-      console.log('🔔 [FCM] Notification details:', {
+      logger.debug('===== STARTING FCM SEND PROCESS =====', undefined, 'FCMService');
+      logger.debug('Notification details', {
         id: notification.id,
         title: notification.title,
         body: notification.body,
         type: notification.data?.type
       });
-      console.log('🔔 [FCM] Token details:', { 
+      logger.debug('Token details', { 
         fcmToken: fcmToken.substring(0, 20) + '...', 
         userId,
         tokenLength: fcmToken.length,
@@ -71,7 +72,7 @@ class FCMService {
         fcmToken,
         userId
       };
-      console.log('🔔 [FCM] Request body:', JSON.stringify(requestBody, null, 2));
+      logger.debug('Request body', { requestBody }, 'FCMService');
       
       const response = await fetch(buildApiUrl('/api/fcm/send'), {
         method: 'POST',
@@ -81,7 +82,7 @@ class FCMService {
         body: JSON.stringify(requestBody)
       });
       
-      console.log('🔔 [FCM] API response received:', {
+      logger.debug('API response received', {
         status: response.status,
         statusText: response.statusText,
         ok: response.ok,
@@ -90,7 +91,7 @@ class FCMService {
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('🔔 [FCM] API Error Response:', errorText);
+        logger.error('API Error Response', { errorText }, 'FCMService');
         
         // Handle specific FCM errors
         if (response.status === 400 || response.status === 500) {
@@ -99,7 +100,7 @@ class FCMService {
             if (errorData.error && (errorData.error.includes('FCM token appears to be invalid') || 
                                    errorData.error.includes('FCM token is not registered') ||
                                    errorData.code === 'token-not-registered')) {
-              console.warn('🔔 [FCM] FCM token is invalid/expired, attempting to regenerate...');
+              logger.warn('FCM token is invalid/expired, attempting to regenerate', { token: fcmToken.substring(0, 20) + '...' }, 'FCMService');
               
               // Clear the expired token first
               if (userId) {
@@ -109,11 +110,11 @@ class FCMService {
               // Try to regenerate the token
               const newToken = await this.regenerateFCMToken(userId);
               if (newToken) {
-                console.log('🔔 [FCM] Regenerated FCM token, retrying notification...');
+                logger.info('Regenerated FCM token, retrying notification', undefined, 'FCMService');
                 // Retry with new token
                 return await this.sendToToken(notification, newToken, userId);
               } else {
-                console.warn('🔔 [FCM] Failed to regenerate FCM token, notification will be skipped');
+                logger.warn('Failed to regenerate FCM token, notification will be skipped', undefined, 'FCMService');
                 return {
                   id: `delivery_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
                   notificationId: notification.id || 'unknown',
@@ -136,7 +137,7 @@ class FCMService {
       }
 
       const result = await response.json();
-      console.log('🔔 [FCM] API response body:', JSON.stringify(result, null, 2));
+      logger.debug('API response body', { result }, 'FCMService');
       
       // Log the delivery
       const deliveryLog: FCMDeliveryLog = {
@@ -151,18 +152,18 @@ class FCMService {
         response: result || {}
       };
 
-      console.log('🔔 [FCM] Delivery log created:', deliveryLog);
-      console.log('🔔 [FCM] FCM send status:', result.success ? 'SUCCESS' : 'FAILED');
+      logger.debug('Delivery log created', { deliveryLog }, 'FCMService');
+      logger.info('FCM send status', { success: result.success, status: result.success ? 'SUCCESS' : 'FAILED' }, 'FCMService');
       if (result.error) {
-        console.error('🔔 [FCM] FCM error details:', result.error);
+        logger.error('FCM error details', { error: result.error }, 'FCMService');
       }
 
       await this.logDelivery(deliveryLog);
-      console.log('🔔 [FCM] ===== FCM SEND PROCESS COMPLETED =====');
+      logger.debug('===== FCM SEND PROCESS COMPLETED =====', undefined, 'FCMService');
       return deliveryLog;
 
     } catch (error) {
-      console.error('🔔 [FCM] Error sending to token:', error);
+      logger.error('Error sending to token', error, 'FCMService');
       
       const deliveryLog: FCMDeliveryLog = {
         id: `delivery_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
@@ -195,14 +196,14 @@ class FCMService {
       const fcmToken = userData.fcmToken;
 
       if (!fcmToken) {
-        console.warn('🔔 [FCM] No FCM token found for user:', userId);
+        logger.warn('No FCM token found for user', { userId }, 'FCMService');
         return null;
       }
 
       return await this.sendToToken(notification, fcmToken, userId);
 
     } catch (error) {
-      console.error('🔔 [FCM] Error sending to user:', error);
+      logger.error('Error sending to user', error, 'FCMService');
       return null;
     }
   }

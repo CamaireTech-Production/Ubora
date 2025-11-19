@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useApp } from '@ubora/shared/contexts/AppContext';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
+import { useUnivers } from '@ubora/shared/contexts/UniversContext';
 import { useToast } from '@ubora/shared/hooks/useToast';
 import { universService } from '@ubora/shared/services/universService';
 import { Univers } from '../../types';
@@ -10,7 +10,7 @@ import { CheckCircle, ChevronDown, Loader2 } from 'lucide-react';
 
 export const UniversSwitcher: React.FC = () => {
   const { user } = useAuth();
-  const { activeUniversId } = useApp();
+  const { activeUniversId } = useUnivers();
   const { showSuccess, showError } = useToast();
   
   const [isOpen, setIsOpen] = useState(false);

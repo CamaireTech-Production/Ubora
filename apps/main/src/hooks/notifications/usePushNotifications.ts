@@ -321,7 +321,7 @@ export const usePushNotifications = () => {
     }
   }, [user]);
 
-  // Initialize on mount
+  // Initialize on mount - run only once
   useEffect(() => {
     const initialize = async () => {
       detectPlatform(); // Detect platform first
@@ -331,7 +331,8 @@ export const usePushNotifications = () => {
     };
 
     initialize();
-  }, [detectPlatform, checkSupport, checkPermission, checkUserNotificationState]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Run only once on mount
 
   return {
     ...state,

@@ -3,7 +3,7 @@ import { ArrowRight, UserPlus, Copy, Check } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
 import { usePackageAccess } from '@ubora/shared/hooks/usePackageAccess';
-import { useApp } from '@ubora/shared/contexts/AppContext';
+import { useEmployees } from '@ubora/shared/contexts/EmployeesContext';
 import { LimitReachedModal } from '../modals/LimitReachedModal';
 import { PaymentModal } from '../payments/PaymentModal';
 import { PackageType } from '@ubora/shared/config/packageFeatures';
@@ -22,7 +22,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
   show = false
 }) => {
   const { user } = useAuth();
-  const { employees } = useApp();
+  const { employees } = useEmployees();
   const { canAddUser, getLimit, getPayAsYouGoCapacity, packageType } = usePackageAccess();
   const [isVisible, setIsVisible] = useState(false);
   const [shouldShow, setShouldShow] = useState(false);

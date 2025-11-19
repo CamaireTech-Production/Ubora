@@ -10,6 +10,7 @@ import { Timestamp } from 'firebase-admin/firestore';
 import nodemailer from 'nodemailer';
 import { buildAbsoluteUrl, renderEmailTemplate } from '../lib/urlEmail.js';
 import { executeAIQuestion } from '../lib/executeAIQuestion.js';
+import { logger } from '../lib/logger.js';
 
 // Use the shared Firebase Admin instance (loads from .env.local via firebaseAdmin.js)
 // Ensure db is always a proper Firestore instance
@@ -19,7 +20,7 @@ const db = adminDb || admin.firestore();
 function ensureDbInitialized() {
   if (!db || typeof db.collectionGroup !== 'function' || typeof db.collection !== 'function') {
     const error = new Error('Firebase Admin Firestore not properly initialized. Check FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, and FIREBASE_PRIVATE_KEY environment variables.');
-    console.error('❌ [Cron] Firestore initialization check failed:', error.message);
+    logger.error('Firestore initialization check failed', error, 'notifications.js');
     throw error;
   }
 }
@@ -117,7 +118,7 @@ async function processNotificationsConcurrently(notifications, processorFunction
   // Processing notifications - detailed logs removed for verbosity
   // Only log if there are notifications to process
   if (notifications.length > 0) {
-    console.log(`🔄 [Cron] Processing ${notifications.length} notifications`);
+    logger.info('Processing notifications', { count: notifications.length }, 'notifications.js');
   }
 
   for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
@@ -138,7 +139,7 @@ async function processNotificationsConcurrently(notifications, processorFunction
           batch: batchIndex + 1,
           item: itemIndex + 1
         });
-        console.error(`❌ [Cron] Error processing notification:`, error.message);
+        logger.error('Error processing notification', error, 'notifications.js');
         return { sent: 0, error: error.message };
       }
     });
@@ -154,7 +155,7 @@ async function processNotificationsConcurrently(notifications, processorFunction
 
   // Only log if there were errors or notifications sent
   if (results.errors > 0 || results.sent > 0) {
-    console.log(`📊 [Cron] Batch processing: ${results.processed} processed, ${results.sent} sent, ${results.errors} errors`);
+    logger.info('Batch processing completed', { processed: results.processed, sent: results.sent, errors: results.errors }, 'notifications.js');
   }
   return results;
 }
@@ -215,7 +216,7 @@ export default async (req, res) => {
 
     // Only log if there's activity or errors
     if (sentCount > 0 || errorCount > 0) {
-      console.log(`✅ [Cron] Completed: ${processedCount} processed, ${sentCount} sent, ${errorCount} errors`);
+      logger.info('Cron job completed', { processed: processedCount, sent: sentCount, errors: errorCount }, 'notifications.js');
     }
 
     return res.status(200).json({
@@ -227,7 +228,7 @@ export default async (req, res) => {
     });
 
   } catch (error) {
-    console.error('❌ [Cron] Error in unified notification cron job:', error);
+    logger.error('Error in unified notification cron job', error, 'notifications.js');
     return res.status(500).json({
       success: false,
       error: 'Internal server error',
@@ -332,7 +333,7 @@ async function processFormReminders(now, oneMinuteFromNow) {
 
     // Only log if there are reminders to process
     if (remindersToProcess.length > 0) {
-      console.log(`📅 [Cron] Processing ${remindersToProcess.length} form reminders`);
+      logger.info('Processing form reminders', { count: remindersToProcess.length }, 'notifications.js');
     }
 
     // Step 2: Process reminders concurrently
@@ -347,7 +348,7 @@ async function processFormReminders(now, oneMinuteFromNow) {
               const userDoc = await db.collection('users').doc(userId).get();
           userData = userDoc.exists ? userDoc.data() : null;
         } catch (e) {
-          console.warn(`⚠️ [Cron] Failed to fetch user ${userId}, proceeding with defaults`);
+          logger.warn('Failed to fetch user, proceeding with defaults', { userId }, 'notifications.js');
         }
 
         // Store notification in Firestore with idempotent key - frontend will handle browser display
@@ -395,12 +396,12 @@ async function processFormReminders(now, oneMinuteFromNow) {
             // Skip email (no recipient) - log removed for verbosity
           }
         } catch (emailErr) {
-          console.warn('📧 [Cron] Email send failed (non-fatal):', emailErr?.message || emailErr);
+          logger.warn('Email send failed (non-fatal)', emailErr, 'notifications.js');
         }
         
         return { sent: 1 };
             } catch (error) {
-        console.error(`❌ [Cron] Error processing form reminder:`, error);
+        logger.error('Error processing form reminder', error, 'notifications.js');
         throw error;
       }
     };
@@ -409,7 +410,7 @@ async function processFormReminders(now, oneMinuteFromNow) {
     return results;
 
             } catch (error) {
-    console.error('❌ [Cron] Error processing form reminders:', error);
+    logger.error('Error processing form reminders', error, 'notifications.js');
     return { processed: 0, sent: 0, errors: 1 };
   }
 }
@@ -450,7 +451,7 @@ async function executeDueProgrammedInstructions(now, oneMinuteFromNow) {
 
     // Found pending instructions - detailed log removed for verbosity
     if (toExecute.length > 0) {
-      console.log(`🤖 [Cron] Executing ${toExecute.length} pending instructions`);
+      logger.info('Executing pending instructions', { count: toExecute.length }, 'notifications.js');
     }
     for (const docRef of toExecute) {
       try {
@@ -459,12 +460,12 @@ async function executeDueProgrammedInstructions(now, oneMinuteFromNow) {
         // Get user data to get agencyId
         const userDoc = await db.collection('users').doc(q.userId).get();
         if (!userDoc.exists) {
-          console.warn(`🤖 [Cron] User ${q.userId} not found, skipping instruction ${docRef.id}`);
+          logger.warn('User not found, skipping instruction', { userId: q.userId, instructionId: docRef.id }, 'notifications.js');
           continue;
         }
         const userData = userDoc.data();
         if (!userData.agencyId) {
-          console.warn(`🤖 [Cron] User ${q.userId} has no agencyId, skipping instruction ${docRef.id}`);
+          logger.warn('User has no agencyId, skipping instruction', { userId: q.userId, instructionId: docRef.id }, 'notifications.js');
           continue;
         }
 
@@ -511,7 +512,7 @@ async function executeDueProgrammedInstructions(now, oneMinuteFromNow) {
         try {
           if (tokensUsed > 0 && q.userId) {
             const userTokensCharged = Math.ceil((tokensUsed * 2.5) / 100);
-            console.log('💰 [Cron] Deducting tokens:', { 
+            logger.debug('Deducting tokens', { 
               rawTokens: tokensUsed, 
               userTokensCharged,
               userId: q.userId 
@@ -521,10 +522,10 @@ async function executeDueProgrammedInstructions(now, oneMinuteFromNow) {
               tokensUsedMonthly: admin.firestore.FieldValue.increment(userTokensCharged), 
               updatedAt: admin.firestore.FieldValue.serverTimestamp() 
             });
-            console.log('✅ [Cron] Tokens deducted successfully');
+            logger.debug('Tokens deducted successfully', null, 'notifications.js');
           }
         } catch (dedErr) {
-          console.warn('🤖 [Cron] Token deduction failed (non-fatal):', dedErr?.message || dedErr);
+          logger.warn('Token deduction failed (non-fatal)', dedErr, 'notifications.js');
         }
 
         // Compute nextExecution for recurring
@@ -545,10 +546,10 @@ async function executeDueProgrammedInstructions(now, oneMinuteFromNow) {
           nextExecution: nextExecution ? Timestamp.fromDate(nextExecution) : admin.firestore.FieldValue.delete()
         };
         await docRef.ref.update(updateData);
-        console.log('🤖 [Cron] Executed instruction and stored response:', { id: docRef.id, responseId: respRef.id, tokensUsed });
+        logger.info('Executed instruction and stored response', { id: docRef.id, responseId: respRef.id, tokensUsed }, 'notifications.js');
       } catch (e) {
-        console.warn('🤖 [Cron] Failed to execute instruction (will skip notify this round):', docRef.id, e?.message || e);
-        console.warn('🤖 [Cron] Failed instruction context:', {
+        logger.warn('Failed to execute instruction (will skip notify this round)', { instructionId: docRef.id, error: e?.message || e }, 'notifications.js');
+        logger.warn('Failed instruction context', {
           id: docRef.id,
           userId: (docRef.data && docRef.data().userId) || '(unknown)',
           scheduledAt: (docRef.data && docRef.data().scheduledAt?.toDate && docRef.data().scheduledAt.toDate().toISOString()) || undefined,
@@ -570,7 +571,7 @@ async function executeDueProgrammedInstructions(now, oneMinuteFromNow) {
       }
     }
   } catch (err) {
-    console.warn('🤖 [Cron] executeDueProgrammedInstructions encountered an error (non-fatal):', err?.message || err);
+    logger.warn('executeDueProgrammedInstructions encountered an error (non-fatal)', err, 'notifications.js');
   }
 }
 
@@ -588,7 +589,7 @@ async function processMetricReminders(now, oneMinuteFromNow) {
         .limit(100)
         .get();
       if (!overdueSnap.empty) {
-        console.log(`⏱️ [Cron] Found ${overdueSnap.size} overdue metric reminders to bump forward`);
+        logger.info('Found overdue metric reminders to bump forward', { count: overdueSnap.size }, 'notifications.js');
         const batch = db.batch();
         overdueSnap.docs.forEach((docRef) => {
           const r = docRef.data();
@@ -596,10 +597,10 @@ async function processMetricReminders(now, oneMinuteFromNow) {
           batch.update(docRef.ref, { scheduledAt: Timestamp.fromDate(nextAt), lastEvaluatedAt: Timestamp.fromDate(now) });
         });
         await batch.commit();
-        console.log('⏱️ [Cron] Overdue metric reminders bumped to next schedule');
+        logger.info('Overdue metric reminders bumped to next schedule', null, 'notifications.js');
       }
     } catch (guardErr) {
-      console.warn('⏱️ [Cron] Past-due guard failed (non-fatal):', guardErr?.message || guardErr);
+      logger.warn('Past-due guard failed (non-fatal)', guardErr, 'notifications.js');
     }
     // Step 1: Collect all metric reminders that are due
     const remindersSnapshot = await db.collection('metricReminders')
@@ -618,7 +619,7 @@ async function processMetricReminders(now, oneMinuteFromNow) {
       return { processed: 0, sent: 0, errors: 0 };
     }
 
-    console.log(`📊 [Cron] Found ${remindersToProcess.length} metric reminders to process`);
+    logger.info('Found metric reminders to process', { count: remindersToProcess.length }, 'notifications.js');
 
     // Step 2: Process reminders concurrently
     const transporter = makeEmailTransporter();
@@ -626,13 +627,13 @@ async function processMetricReminders(now, oneMinuteFromNow) {
       try {
         // Validate reminder.id exists
         if (!reminder.id || typeof reminder.id !== 'string' || reminder.id.trim() === '') {
-          console.warn(`⏭️ [Cron] Skip metric reminder (invalid or missing id):`, { reminderId: reminder.id, directorId: reminder.directorId });
+          logger.warn('Skip metric reminder (invalid or missing id)', { reminderId: reminder.id, directorId: reminder.directorId }, 'notifications.js');
           return { sent: 0 };
         }
 
         // Validate directorId exists
         if (!reminder.directorId || typeof reminder.directorId !== 'string' || reminder.directorId.trim() === '') {
-          console.warn(`⏭️ [Cron] Skip metric reminder (invalid or missing directorId):`, { reminderId: reminder.id, directorId: reminder.directorId });
+          logger.warn('Skip metric reminder (invalid or missing directorId)', { reminderId: reminder.id, directorId: reminder.directorId }, 'notifications.js');
           return { sent: 0 };
         }
 
@@ -641,7 +642,7 @@ async function processMetricReminders(now, oneMinuteFromNow) {
         const userData = userDoc.data();
 
         if (!userData) {
-          console.warn(`⏭️ [Cron] Skip metric reminder (user not found):`, { reminderId: reminder.id, directorId: reminder.directorId });
+          logger.warn('Skip metric reminder (user not found)', { reminderId: reminder.id, directorId: reminder.directorId }, 'notifications.js');
           return { sent: 0 };
         }
 
@@ -686,7 +687,7 @@ async function processMetricReminders(now, oneMinuteFromNow) {
           lastEvaluatedAt: Timestamp.fromDate(now)
         });
         
-        console.log(`📊 [Cron] Metric reminder stored: ${metricLabel} to director ${reminder.directorId}`);
+        logger.info('Metric reminder stored', { metricLabel, directorId: reminder.directorId }, 'notifications.js');
 
         // Attempt email delivery (non-fatal)
         try {
@@ -706,17 +707,17 @@ async function processMetricReminders(now, oneMinuteFromNow) {
               html,
               text: html.replace(/<[^>]*>/g, '')
             });
-            console.log('📧 [Cron] Metric reminder email sent to', userData.email);
+            logger.info('Metric reminder email sent', { email: userData.email }, 'notifications.js');
           } else {
-            console.log('📧 [Cron] Skip metric email (no recipient) for user', reminder.directorId);
+            logger.debug('Skip metric email (no recipient)', { userId: reminder.directorId }, 'notifications.js');
           }
         } catch (emailErr) {
-          console.warn('📧 [Cron] Metric email send failed (non-fatal):', emailErr?.message || emailErr);
+          logger.warn('Metric email send failed (non-fatal)', emailErr, 'notifications.js');
         }
         
         return { sent: 1 };
       } catch (error) {
-        console.error(`❌ [Cron] Error processing metric reminder:`, error);
+        logger.error('Error processing metric reminder', error, 'notifications.js');
         throw error;
       }
     };
@@ -725,7 +726,7 @@ async function processMetricReminders(now, oneMinuteFromNow) {
     return results;
 
   } catch (error) {
-    console.error('❌ [Cron] Error processing metric reminders:', error);
+    logger.error('Error processing metric reminders', error, 'notifications.js');
     return { processed: 0, sent: 0, errors: 1 };
   }
 }
@@ -753,7 +754,7 @@ async function processProgrammedInstructions(now, oneMinuteFromNow) {
       return { processed: 0, sent: 0, errors: 0 };
     }
 
-    console.log(`🤖 [Cron] Found ${questionsToProcess.length} programmed instructions to process`);
+    logger.info('Found programmed instructions to process', { count: questionsToProcess.length }, 'notifications.js');
 
     // Step 2: Process questions concurrently
     const processorFunction = async (question) => {
@@ -797,7 +798,7 @@ async function processProgrammedInstructions(now, oneMinuteFromNow) {
         const docId = `programmed_instruction:${question.id}:${scheduledIso}`;
         await db.collection('notifications').doc(docId).set(notificationDoc, { merge: true });
         
-        console.log(`🤖 [Cron] Programmed instruction notification stored: ${question.title} to director ${question.userId}`);
+        logger.info('Programmed instruction notification stored', { title: question.title, userId: question.userId }, 'notifications.js');
 
         // Send email using unified template
         try {
@@ -817,17 +818,17 @@ async function processProgrammedInstructions(now, oneMinuteFromNow) {
               html,
               text: html.replace(/<[^>]*>/g, '')
             });
-            console.log('📧 [Cron] Programmed instruction email sent to', userData.email);
+            logger.info('Programmed instruction email sent', { email: userData.email }, 'notifications.js');
           } else {
-            console.log('📧 [Cron] Skip programmed instruction email (no recipient) for user', question.userId);
+            logger.debug('Skip programmed instruction email (no recipient)', { userId: question.userId }, 'notifications.js');
           }
         } catch (emailErr) {
-          console.warn('📧 [Cron] Programmed instruction email failed (non-fatal):', emailErr?.message || emailErr);
+          logger.warn('Programmed instruction email failed (non-fatal)', emailErr, 'notifications.js');
         }
         
         return { sent: 1 };
       } catch (error) {
-        console.error(`❌ [Cron] Error processing programmed instruction:`, error);
+        logger.error('Error processing programmed instruction', error, 'notifications.js');
         throw error;
       }
     };
@@ -836,7 +837,7 @@ async function processProgrammedInstructions(now, oneMinuteFromNow) {
     return results;
 
   } catch (error) {
-    console.error('❌ [Cron] Error processing programmed instructions:', error);
+    logger.error('Error processing programmed instructions', error, 'notifications.js');
     return { processed: 0, sent: 0, errors: 1 };
   }
 }
@@ -911,13 +912,13 @@ async function processSubscriptionRenewals(now) {
 
         // Check if max renewals reached
         if (renewalCount >= maxRenewals) {
-          console.log(`⏭️ [Cron] Session ${sessionId} has reached max renewals (${renewalCount}/${maxRenewals})`);
+          logger.info('Session has reached max renewals', { sessionId, renewalCount, maxRenewals }, 'notifications.js');
           continue;
         }
 
         // Check if total period has ended
         if (endDate <= now) {
-          console.log(`⏭️ [Cron] Session ${sessionId} has reached end date`);
+          logger.info('Session has reached end date', { sessionId }, 'notifications.js');
           continue;
         }
 
@@ -933,11 +934,11 @@ async function processSubscriptionRenewals(now) {
         });
 
         stats.renewed++;
-        console.log(`✅ [Cron] Session ${sessionId} renewed successfully (${newRenewalCount}/${maxRenewals})`);
+        logger.info('Session renewed successfully', { sessionId, newRenewalCount, maxRenewals }, 'notifications.js');
 
       } catch (error) {
         stats.errors++;
-        console.error(`❌ [Cron] Error processing session ${docSnapshot.id}:`, error);
+        logger.error('Error processing session', { sessionId: docSnapshot.id, error }, 'notifications.js');
       }
     }
 
@@ -946,7 +947,7 @@ async function processSubscriptionRenewals(now) {
     return stats;
 
   } catch (error) {
-    console.error('❌ [Cron] Error processing subscription renewals:', error);
+    logger.error('Error processing subscription renewals', error, 'notifications.js');
     return { processed: 0, renewed: 0, errors: 1 };
   }
 }
@@ -1103,15 +1104,15 @@ async function handleExpiredSubscriptions(now) {
 
           const notificationId = `subscription_expired:${sessionId}:${now.toISOString()}`;
           await db.collection('notifications').doc(notificationId).set(notificationDoc, { merge: true });
-          console.log(`📧 [Cron] Expiration notification created for user ${userId}`);
+          logger.info('Expiration notification created', { userId }, 'notifications.js');
         }
 
         stats.expired++;
-        console.log(`✅ [Cron] Session ${sessionId} expired, free session created: ${newSessionId}`);
+        logger.info('Session expired, free session created', { sessionId, newSessionId }, 'notifications.js');
 
       } catch (error) {
         stats.errors++;
-        console.error(`❌ [Cron] Error processing session ${docSnapshot.id}:`, error);
+        logger.error('Error processing session', { sessionId: docSnapshot.id, error }, 'notifications.js');
       }
     }
 
@@ -1120,7 +1121,7 @@ async function handleExpiredSubscriptions(now) {
     return stats;
 
   } catch (error) {
-    console.error('❌ [Cron] Error handling expired subscriptions:', error);
+    logger.error('Error handling expired subscriptions', error, 'notifications.js');
     return { processed: 0, expired: 0, errors: 1 };
   }
 }
@@ -1195,7 +1196,7 @@ export async function getNextNotificationTime() {
     const nextTime = new Date(Math.min(...upcomingTimes.map(t => t.getTime())));
     return nextTime;
   } catch (error) {
-    console.error('❌ [Cron] Error getting next notification time:', error);
+    logger.error('Error getting next notification time', error, 'notifications.js');
     return null;
   }
 }

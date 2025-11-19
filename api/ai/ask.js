@@ -10,6 +10,12 @@ import admin from 'firebase-admin';
 import OpenAI from 'openai';
 import { TokenCounter } from '../lib/tokenCounter.js';
 import { searchAndFormatForAI } from '../lib/vectorSearch.js';
+import { logger } from '../lib/logger.js';
+import { detectPeriodFromQuestion, getPeriodDates } from './periodDetector.js';
+import { loadAndAggregateData } from './dataLoader.js';
+import { getConversationContext, generateConversationSummary, updateConversationSummary, updateConversationMetadata, updateConversationContext } from './conversationManager.js';
+import { getContentTypeForResponse, generateMultiFormatFallbackResponse } from './responseFormatter.js';
+import { calculateUserTokens, getPackageLimit, checkSubscriptionAndResetTokens, getActiveSession, updateTokenUsage } from './tokenManager.js';
 
 // Configuration OpenAI
 const openai = new OpenAI({
@@ -17,118 +23,6 @@ const openai = new OpenAI({
 });
 
 // Note: Removed TypeScript types for JavaScript compatibility
-
-/**
- * Detect period from question text if not provided in filters
- */
-function detectPeriodFromQuestion(question) {
-  if (!question || typeof question !== 'string') return null;
-  
-  const q = question.toLowerCase();
-  
-  // Patterns pour détecter la période
-  if (q.includes('cette semaine') || q.includes('semaine en cours')) {
-    return 'this_week';
-  }
-  if (q.includes('semaine dernière') || q.includes('semaine passée')) {
-    return 'last_week';
-  }
-  if (q.includes('aujourd\'hui') || q.includes('aujourd hui') || q.includes('ce jour')) {
-    return 'today';
-  }
-  if (q.includes('hier')) {
-    return 'yesterday';
-  }
-  if (q.includes('ce mois') || q.includes('mois en cours')) {
-    return 'this_month';
-  }
-  if (q.includes('mois dernier') || q.includes('mois passé')) {
-    return 'last_month';
-  }
-  if (q.includes('7 derniers jours') || q.includes('7 jours')) {
-    return 'last_7d';
-  }
-  if (q.includes('30 derniers jours') || q.includes('30 jours')) {
-    return 'last_30d';
-  }
-  if (q.includes('90 derniers jours') || q.includes('90 jours')) {
-    return 'last_90d';
-  }
-  
-  return null;
-}
-
-// Fonction pour calculer les dates de période
-function getPeriodDates(period) {
-  const now = new Date();
-  let start;
-  let end = now;
-  let label;
-
-  if (!period || period === 'all') {
-    // Par défaut : toutes les données (pas de filtre de date)
-    start = new Date(0); // 1970-01-01
-    end = now;
-    label = 'toutes les données';
-  } else if (period === 'today') {
-    start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    label = "aujourd'hui";
-  } else if (period === 'yesterday') {
-    start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
-    end = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    label = 'hier';
-  } else if (period === 'this_week') {
-    // Cette semaine (lundi à aujourd'hui)
-    const dayOfWeek = now.getDay();
-    const daysFromMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-    start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - daysFromMonday);
-    label = 'cette semaine';
-  } else if (period === 'last_week') {
-    // Semaine dernière (lundi à dimanche)
-    const dayOfWeek = now.getDay();
-    const daysFromMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-    const lastMonday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - daysFromMonday - 7);
-    const lastSunday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - daysFromMonday - 1, 23, 59, 59);
-    start = lastMonday;
-    end = lastSunday;
-    label = 'semaine dernière';
-  } else if (period === 'this_month') {
-    start = new Date(now.getFullYear(), now.getMonth(), 1);
-    label = 'ce mois';
-  } else if (period === 'last_month') {
-    // Mois dernier
-    const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
-    start = lastMonth;
-    end = lastMonthEnd;
-    label = 'mois dernier';
-  } else if (period === 'last_7d') {
-    start = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-    label = 'les 7 derniers jours';
-  } else if (period === 'last_30d') {
-    start = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-    label = 'les 30 derniers jours';
-  } else if (period === 'last_90d') {
-    start = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
-    label = 'les 90 derniers jours';
-  } else if (period.includes(' - ')) {
-    // Format personnalisé "dd/mm/yyyy - dd/mm/yyyy"
-    const [startStr, endStr] = period.split(' - ');
-    const [startDay, startMonth, startYear] = startStr.split('/').map(Number);
-    const [endDay, endMonth, endYear] = endStr.split('/').map(Number);
-    start = new Date(startYear, startMonth - 1, startDay);
-    end = new Date(endYear, endMonth - 1, endDay, 23, 59, 59);
-    label = `du ${startStr} au ${endStr}`;
-  } else {
-    // Par défaut : toutes les données
-    start = new Date(0);
-    end = now;
-    label = 'toutes les données';
-  }
-
-  return { start, end, label };
-}
-
 
 // Helper function to safely convert dates
 const safeToDate = (dateValue) => {
@@ -144,472 +38,19 @@ const safeToDate = (dateValue) => {
   return null;
 };
 
-// Function to generate conversation summary using OpenAI
-async function generateConversationSummary(conversationId, messages) {
-  try {
-    console.log('🔄 Generating conversation summary for:', conversationId);
-    
-    // Get last 15-20 messages for summary generation
-    const recentMessages = messages.slice(-20);
-    
-    const summaryPrompt = `Analyse cette conversation entre un directeur et son assistant IA pour l'analyse de données d'entreprise.
 
-MESSAGES RÉCENTS:
-${recentMessages.map(msg => `${msg.type === 'user' ? 'Directeur' : 'ARCHA'}: ${msg.content}`).join('\n')}
-
-Génère un résumé concis qui capture:
-1. Les sujets principaux discutés (analyses de données, rapports, tendances)
-2. Les préférences du directeur (formats de réponse préférés, périodes d'analyse fréquentes, formulaires souvent utilisés)
-3. Les analyses récurrentes demandées
-4. Le contexte métier spécifique et les besoins du directeur
-
-Format de réponse attendu:
-RÉSUMÉ: [Résumé concis de 200-300 mots]
-PRÉFÉRENCES: [Formats préférés, périodes fréquentes, formulaires utilisés]
-SUJETS CLÉS: [Liste des sujets principaux abordés]
-
-Résumé:`;
-
-    const summaryResponse = await openai.chat.completions.create({
-      model: 'gpt-4.1',
-      messages: [{ role: 'user', content: summaryPrompt }],
-      max_tokens: 500,
-      temperature: 0.3
-    });
-
-    const summaryContent = summaryResponse.choices[0].message.content;
-    console.log('✅ Generated conversation summary:', summaryContent.substring(0, 100) + '...');
-    
-    return summaryContent;
-  } catch (error) {
-    console.error('❌ Failed to generate conversation summary:', error);
-    throw error;
-  }
-}
-
-// Function to retrieve conversation context (summary + recent messages)
-async function getConversationContext(conversationId) {
-  try {
-    if (!conversationId) return null;
-    
-    console.log('📥 Retrieving conversation context for:', conversationId);
-    
-    // Get conversation document
-    const conversationDoc = await adminDb.collection('conversations').doc(conversationId).get();
-    if (!conversationDoc.exists) {
-      console.log('⚠️ Conversation not found:', conversationId);
-      return null;
-    }
-    
-    const conversation = conversationDoc.data();
-    
-    // Get last 10 messages
-    const messagesSnapshot = await adminDb
-      .collection('conversations')
-      .doc(conversationId)
-      .collection('messages')
-      .orderBy('timestamp', 'desc')
-      .limit(10)
-      .get();
-    
-    const recentMessages = messagesSnapshot.docs.map(doc => {
-      const data = doc.data();
-      return {
-        type: data.type,
-        content: data.content,
-        timestamp: safeToDate(data.timestamp)
-      };
-    }).reverse(); // Reverse to get chronological order
-    
-    const context = {
-      summary: conversation.summary,
-      recentMessages: recentMessages,
-      messageCount: conversation.messageCount || 0
-    };
-    
-    console.log('✅ Retrieved conversation context:', {
-      hasSummary: !!context.summary,
-      recentMessagesCount: context.recentMessages.length,
-      messageCount: context.messageCount
-    });
-    
-    return context;
-  } catch (error) {
-    console.error('❌ Failed to retrieve conversation context:', error);
-    return null;
-  }
-}
-
-// Function to format raw text with OpenAI (missing implementation)
-async function formatRawWithOpenAI(rawText) {
-  try {
-    console.log('🔄 Formatting raw text with OpenAI...');
-    
-    const formatResponse = await openai.chat.completions.create({
-      model: 'gpt-4o',
-      messages: [
-        {
-          role: "user",
-          content: `Please format the following extracted PDF text into well-structured markdown format. Pay special attention to:
-
-1. **Tables**: Convert any tabular data to proper markdown table format with headers and rows
-2. **Lists**: Convert numbered and bulleted lists to markdown format
-3. **Headers**: Identify and format section headers with appropriate markdown headers (# ## ###)
-4. **Structure**: Preserve the document structure and hierarchy
-5. **Complex layouts**: Handle multi-column layouts, sidebars, and complex formatting
-6. **Text formatting**: Preserve bold, italic, and other text formatting as markdown
-
-Return only the formatted text in markdown, without any additional commentary or explanations.
-
-Extracted text:
-${rawText}`
-        }
-      ],
-      max_tokens: 6000,
-      temperature: 0.1
-    });
-    
-    const formattedText = formatResponse.choices[0]?.message?.content || '';
-    console.log('✅ Raw text formatted successfully');
-    
-    return formattedText;
-  } catch (error) {
-    console.error('❌ Error formatting raw text with OpenAI:', error);
-    throw error;
-  }
-}
-
-// Fonction pour charger et agréger les données
-async function loadAndAggregateData(
-  agencyId,
-  period,
-  formId,
-  userId,
-  selectedFormats,
-  directorId = null,
-  userRole = null
-) {
-  const { start, end, label } = getPeriodDates(period);
-
-  // Récupérer l'Univers actif si c'est un directeur
-  let activeUniversId = null;
-  if (userRole === 'directeur' && directorId) {
-    try {
-      const activeUniversDoc = await adminDb.collection('activeUnivers').doc(directorId).get();
-      if (activeUniversDoc.exists) {
-        const activeUniversData = activeUniversDoc.data();
-        activeUniversId = activeUniversData.activeUniversId;
-        console.log('✅ Univers actif trouvé pour Chat Archa:', activeUniversId);
-      } else {
-        console.log('⚠️ Aucun Univers actif trouvé pour le directeur:', directorId);
-      }
-    } catch (error) {
-      console.error('❌ Erreur lors de la récupération de l\'Univers actif:', error);
-      // Continue sans filtrage par Univers si erreur
-    }
-  }
-
-  // Récupérer les Forms du Univers actif si disponible
-  let activeFormIds = new Set();
-  if (activeUniversId) {
-    try {
-      const formsSnapshot = await adminDb
-        .collection('forms')
-        .where('agencyId', '==', agencyId)
-        .where('universId', '==', activeUniversId)
-        .get();
-      
-      formsSnapshot.docs.forEach(doc => {
-        activeFormIds.add(doc.id);
-      });
-      
-      console.log(`✅ ${activeFormIds.size} Forms du Univers actif trouvés pour Chat Archa`);
-    } catch (error) {
-      console.error('❌ Erreur lors de la récupération des Forms du Univers actif:', error);
-      // Continue sans filtrage par Univers si erreur
-    }
-  }
-
-  // Requête de base pour récupérer TOUTES les données de l'agence
-  // On récupère par agence puis on filtre/tri en mémoire
-  const baseSnapshot = await adminDb
-    .collection('formEntries')
-    .where('agencyId', '==', agencyId)
-    .limit(2000) // Increased limit for complete analysis
-    .get();
-
-  // Ensure attachments are formatted when needed (on-demand formatting)
-  const ensureFormattedAttachmentsForDoc = async (doc) => {
-    const data = doc.data() || {};
-    const attachments = Array.isArray(data.fileAttachments) ? data.fileAttachments : [];
-    if (attachments.length === 0) return data;
-
-    const updated = [];
-    let changed = false;
-    for (const att of attachments) {
-      if (
-        att &&
-        (att.fileType === 'application/pdf' || (att.fileType && att.fileType.startsWith('image/')))
-      ) {
-        const hasFormatted = typeof att.extractedText === 'string' && att.extractedText.trim().length > 0;
-        const hasRaw = typeof att.rawExtractedText === 'string' && att.rawExtractedText.trim().length > 0;
-        if (!hasFormatted && hasRaw) {
-          // Format raw text synchronously before analysis
-          try {
-            console.log('🔄 Formatting raw text for AI analysis:', att.fileName);
-            const formattedText = await formatRawWithOpenAI(att.rawExtractedText);
-            console.log('✅ Successfully formatted text for AI analysis:', att.fileName);
-            updated.push({
-              ...att,
-              extractedText: formattedText,
-              rawExtractedText: att.rawExtractedText,
-            });
-            changed = true;
-          } catch (e) {
-            console.error('❌ Failed to format raw text for AI analysis:', att.fileName, e.message);
-            // Continue with raw text - better than no text at all
-            updated.push({
-              ...att,
-              rawExtractedText: att.rawExtractedText,
-              extractedText: att.rawExtractedText // Use raw text as fallback
-            });
-            changed = true;
-          }
-          continue;
-        }
-      }
-      updated.push(att);
-    }
-
-    if (changed) {
-      try {
-        await adminDb.collection('formEntries').doc(doc.id).update({ fileAttachments: updated });
-        data.fileAttachments = updated;
-      } catch (e) {
-        // Non-blocking if update fails; continue with in-memory update
-        data.fileAttachments = updated;
-      }
-    }
-
-    return data;
-  };
-
-  // Transformer, filtrer par période et filtres optionnels
-  let entries = await Promise.all(baseSnapshot.docs.map(async (doc) => {
-    const ensured = await ensureFormattedAttachmentsForDoc(doc);
-    const data = doc.data();
-    const entry = {
-      id: doc.id,
-      formId: ensured.formId || data.formId || '',
-      userId: ensured.userId || data.userId || '',
-      agencyId: ensured.agencyId || data.agencyId || '',
-      submittedAt: ensured.submittedAt || data.submittedAt || new Date(),
-      answers: ensured.answers || data.answers || {},
-      fileAttachments: ensured.fileAttachments || data.fileAttachments || [] // Include fileAttachments, ensuring formatted when possible
-    };
-    
-    
-    return entry;
-  }));
-
-  entries = entries.filter(e => {
-    const submittedDate = safeToDate(e.submittedAt);
-    const inDateRange = submittedDate ? submittedDate >= start && submittedDate <= end : false;
-    const matchForm = !formId || e.formId === formId;
-    const matchSelectedForms = !selectedFormats || selectedFormats.length === 0 || selectedFormats.includes(e.formId);
-    const matchUser = !userId || e.userId === userId;
-    // Filtrer par Univers actif si disponible (seulement pour directeurs)
-    const matchActiveUnivers = activeUniversId === null || activeFormIds.size === 0 || activeFormIds.has(e.formId);
-    return inDateRange && matchForm && matchSelectedForms && matchUser && matchActiveUnivers;
-  });
-
-  // Trier par date desc (TOUTES les données sélectionnées)
-  entries.sort((a, b) => {
-    const dateA = safeToDate(a.submittedAt);
-    const dateB = safeToDate(b.submittedAt);
-    if (!dateA && !dateB) return 0;
-    if (!dateA) return 1;
-    if (!dateB) return -1;
-    return dateB.getTime() - dateA.getTime();
-  });
-  // No artificial limits - send ALL selected data to AI
-
-  // Charger les métadonnées (formulaires et utilisateurs)
-  // Filtrer les Forms par Univers actif si disponible
-  let formsQuery = adminDb.collection('forms').where('agencyId', '==', agencyId);
-  if (activeUniversId) {
-    formsQuery = formsQuery.where('universId', '==', activeUniversId);
-  }
-  
-  const [formsSnapshot, usersSnapshot] = await Promise.all([
-    formsQuery.get(),
-    adminDb.collection('users').where('agencyId', '==', agencyId).where('role', '==', 'employe').get()
-  ]);
-
-  // Construire des maps pour les données
-  const formsById = new Map();
-  formsSnapshot.docs.forEach((doc) => {
-    const data = doc.data();
-    formsById.set(doc.id, {
-      id: doc.id,
-      title: data.title,
-      description: data.description,
-      createdBy: data.createdBy,
-      agencyId: data.agencyId,
-      assignedTo: data.assignedTo,
-      fields: data.fields,
-      createdAt: data.createdAt
-    });
-  });
-
-  const usersById = new Map();
-  usersSnapshot.docs.forEach((doc) => {
-    const data = doc.data();
-    usersById.set(doc.id, {
-      id: doc.id,
-      name: data.name,
-      email: data.email,
-      role: data.role,
-      agencyId: data.agencyId,
-      createdAt: data.createdAt,
-      updatedAt: data.updatedAt
-    });
-  });
-
-  // Agrégations avec fallbacks sûrs
-  const totalEntries = entries.length;
-  const uniqueUsers = [...new Set(entries.map(e => e.userId))].length;
-  const uniqueForms = [...new Set(entries.map(e => e.formId))].length;
-
-  // Répartition par employé avec fallbacks
-  const userStats = {};
-  entries.forEach(entry => {
-    if (!userStats[entry.userId]) {
-      const user = usersById.get(entry.userId);
-      const displayUser = user && user.name ? user.name : `Utilisateur ${entry.userId}`;
-      userStats[entry.userId] = {
-        name: displayUser,
-        count: 0
-      };
-    }
-    userStats[entry.userId].count++;
-  });
-
-  // Répartition par formulaire avec fallbacks
-  const formStats = {};
-  entries.forEach(entry => {
-    if (!formStats[entry.formId]) {
-      const form = formsById.get(entry.formId);
-      const displayForm = form && form.title ? form.title : `Formulaire ${entry.formId}`;
-      formStats[entry.formId] = {
-        title: displayForm,
-        count: 0
-      };
-    }
-    formStats[entry.formId].count++;
-  });
-
-  // Timeline par jour
-  const timeline = {};
-  entries.forEach(entry => {
-    const submittedDate = safeToDate(entry.submittedAt);
-    if (submittedDate) {
-      const date = submittedDate.toISOString().split('T')[0];
-    timeline[date] = (timeline[date] || 0) + 1;
-    }
-  });
-
-  // Préparer les données détaillées des soumissions pour l'IA (TOUTES les données sélectionnées)
-  const limitedEntries = entries; // Send ALL data - no artificial limits
-  
-  
-  const detailedSubmissions = limitedEntries.map(entry => {
-    const user = usersById.get(entry.userId);
-    const form = formsById.get(entry.formId);
-    
-    // Créer un mapping des réponses avec les labels des champs ET garder les fieldId pour référence
-    const answersWithLabels = {};
-    const fieldMapping = {}; // Pour garder la correspondance fieldId -> fieldLabel
-    
-    if (form && form.fields) {
-      Object.entries(entry.answers || {}).forEach(([fieldId, value]) => {
-        const field = form.fields.find(f => f.id === fieldId);
-        const fieldLabel = field ? field.label : fieldId;
-        answersWithLabels[fieldLabel] = value;
-        fieldMapping[fieldLabel] = fieldId; // Garder la correspondance
-      });
-    } else {
-      // Fallback si pas de formulaire trouvé
-      Object.entries(entry.answers || {}).forEach(([fieldId, value]) => {
-        answersWithLabels[fieldId] = value;
-        fieldMapping[fieldId] = fieldId;
-      });
-    }
-    
-    const submittedDate = safeToDate(entry.submittedAt);
-    const result = {
-      id: entry.id,
-      formTitle: form ? form.title : `Formulaire ${entry.formId}`,
-      employeeName: user ? user.name : `Utilisateur ${entry.userId}`,
-      employeeEmail: user ? user.email : 'Email non disponible',
-      submittedAt: submittedDate ? submittedDate.toISOString() : 'Inconnu',
-      submittedDate: submittedDate ? submittedDate.toLocaleDateString('fr-FR') : 'Inconnu',
-      submittedTime: submittedDate ? submittedDate.toLocaleTimeString('fr-FR') : 'Inconnu',
-      answers: answersWithLabels,
-      fieldMapping: fieldMapping, // Include field mapping for proper file reference
-      fileAttachments: entry.fileAttachments || [], // Include file attachments
-      isToday: submittedDate ? submittedDate.toDateString() === new Date().toDateString() : false,
-      isThisWeek: submittedDate ? submittedDate >= start && submittedDate <= end : false
-    };
-    
-    // Log detailed submission creation
-    
-    return result;
-  });
-
-  return {
-    period: { start, end, label },
-    totals: {
-      entries: totalEntries,
-      uniqueUsers,
-      uniqueForms,
-      totalUsers: usersById.size,
-      totalForms: formsById.size
-    },
-    userStats: Object.entries(userStats)
-      .map(([id, stats]) => ({ userId: id, ...stats }))
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 5), // Top 5
-    formStats: Object.entries(formStats)
-      .map(([id, stats]) => ({ formId: id, ...stats }))
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 5), // Top 5
-    timeline: Object.entries(timeline)
-      .sort()
-      .map(([date, count]) => ({ date, count })),
-    // Nouvelles données détaillées pour l'IA
-    submissions: detailedSubmissions,
-    todaySubmissions: detailedSubmissions.filter(s => s.isToday),
-    thisWeekSubmissions: detailedSubmissions.filter(s => s.isThisWeek),
-    // Include forms and users data for metadata
-    formsById: formsById,
-    usersById: usersById
-  };
-  
-}
 
 export default async function handler(req, res) {
-  console.log('🔵 [/api/ai/ask] Request received');
-  console.log('🔵 [/api/ai/ask] Method:', req.method);
-  console.log('🔵 [/api/ai/ask] Headers:', { 
+  logger.info('Request received', { method: req.method }, '/api/ai/ask');
+  logger.debug('Request headers', { 
     authorization: req.headers.authorization ? 'Bearer ***' : 'missing',
     origin: req.headers.origin,
     'content-type': req.headers['content-type']
-  });
+  }, '/api/ai/ask');
   
   try {
     const startTime = Date.now(); // Track response time
-    console.log('🔵 [/api/ai/ask] Starting request processing...');
+    logger.debug('Starting request processing', null, '/api/ai/ask');
     
     // Headers CORS complets
     const corsOrigins = process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',') : ['*'];
@@ -639,21 +80,21 @@ export default async function handler(req, res) {
     }
     
     // 1. Authentification - support internal server-to-server and Firebase token
-    console.log('🔵 [/api/ai/ask] Starting authentication...');
+    logger.debug('Starting authentication', null, '/api/ai/ask');
     let uid;
     const internalToken = req.headers['x-internal-token'];
     if (internalToken && process.env.INTERNAL_API_KEY && internalToken === process.env.INTERNAL_API_KEY) {
-      console.log('🔵 [/api/ai/ask] Using internal token authentication');
+      logger.debug('Using internal token authentication', null, '/api/ai/ask');
       // Server-to-server call: trust provided userId for execution context
       uid = req.body.userId;
       if (!uid) {
         return res.status(400).json({ error: 'userId requis pour une exécution interne', code: 'MISSING_USER_ID' });
       }
     } else {
-      console.log('🔵 [/api/ai/ask] Using Firebase token authentication');
+      logger.debug('Using Firebase token authentication', null, '/api/ai/ask');
       const authHeader = req.headers.authorization;
       if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        console.error('❌ [/api/ai/ask] Missing authorization header');
+        logger.error('Missing authorization header', null, '/api/ai/ask');
         return res.status(401).json({ 
           error: 'Token d\'authentification manquant',
           code: 'MISSING_TOKEN'
@@ -661,12 +102,12 @@ export default async function handler(req, res) {
       }
       const idToken = authHeader.split('Bearer ')[1];
       try {
-        console.log('🔵 [/api/ai/ask] Verifying Firebase token...');
+        logger.debug('Verifying Firebase token', null, '/api/ai/ask');
         const decodedToken = await adminAuth.verifyIdToken(idToken);
         uid = decodedToken.uid;
-        console.log('🔵 [/api/ai/ask] Token verified, uid:', uid);
+        logger.debug('Token verified', { uid }, '/api/ai/ask');
       } catch (authError) {
-        console.error('❌ [/api/ai/ask] Token verification failed:', authError.message);
+        logger.error('Token verification failed', authError, '/api/ai/ask');
         return res.status(401).json({ 
           error: 'Token invalide ou expiré',
           code: 'INVALID_TOKEN',
@@ -676,16 +117,15 @@ export default async function handler(req, res) {
     }
 
     // 2. Vérification du profil utilisateur
-    console.log('🔵 [/api/ai/ask] Fetching user profile for uid:', uid);
+    logger.debug('Fetching user profile', { uid }, '/api/ai/ask');
     let userDoc;
     let userData;
     
     try {
       userDoc = await adminDb.collection('users').doc(uid).get();
-      console.log('🔵 [/api/ai/ask] User doc fetched, exists:', userDoc.exists);
+      logger.debug('User doc fetched', { exists: userDoc.exists }, '/api/ai/ask');
     } catch (firestoreError) {
-      console.error('❌ [/api/ai/ask] Firestore error:', firestoreError.message);
-      console.error('❌ [/api/ai/ask] Firestore error stack:', firestoreError.stack);
+      logger.error('Firestore error', firestoreError, '/api/ai/ask');
       return res.status(500).json({ 
         error: 'Erreur de connexion à la base de données',
         code: 'FIRESTORE_ERROR',
@@ -710,7 +150,7 @@ export default async function handler(req, res) {
     
     // Check if this is a scheduled question execution
     const isScheduled = req.body.isScheduled === true;
-    console.log('🕐 [SCHEDULED CHECK] Is scheduled question:', isScheduled);
+    logger.debug('Scheduled question check', { isScheduled }, '/api/ai/ask');
     
     // Initialize conversationId and retrieve conversation context early
     let conversationId = req.body.conversationId;
@@ -720,13 +160,13 @@ export default async function handler(req, res) {
     if (!isScheduled && conversationId) {
       try {
         conversationContext = await getConversationContext(conversationId);
-        console.log('📋 Conversation context retrieved:', {
+        logger.debug('Conversation context retrieved', {
           hasSummary: !!conversationContext?.summary,
           recentMessagesCount: conversationContext?.recentMessages?.length || 0,
           messageCount: conversationContext?.messageCount || 0
         });
       } catch (contextError) {
-        console.error('❌ Failed to retrieve conversation context:', contextError);
+        logger.error('Failed to retrieve conversation context', contextError, '/api/ai/ask');
         // Continue without context rather than failing the entire request
         conversationContext = null;
       }
@@ -755,12 +195,12 @@ export default async function handler(req, res) {
 
 
     // 3. Validation du corps de la requête
-    console.log('🔵 [/api/ai/ask] Parsing request body...');
-    console.log('🔵 [/api/ai/ask] Request body keys:', req.body ? Object.keys(req.body) : 'no body');
+    logger.debug('Parsing request body', null, '/api/ai/ask');
+    logger.debug('Request body keys', { keys: req.body ? Object.keys(req.body) : 'no body' }, '/api/ai/ask');
     const { question, filters, selectedFormats, responseFormat, selectedResponseFormats, selectedFormIds } = req.body;
-    console.log('🔵 [/api/ai/ask] Parsed question:', question ? question.substring(0, 100) : 'missing');
+    logger.debug('Parsed question', { preview: question ? question.substring(0, 100) : 'missing' }, '/api/ai/ask');
     if (!question || typeof question !== 'string' || question.trim().length === 0) {
-      console.error('❌ [/api/ai/ask] Invalid question');
+      logger.error('Invalid question', null, '/api/ai/ask');
       return res.status(400).json({ 
         error: 'Question manquante ou invalide',
         code: 'INVALID_QUESTION'
@@ -783,7 +223,7 @@ export default async function handler(req, res) {
       if (detectedPeriod) {
         finalPeriod = detectedPeriod;
         if (enableDebug) {
-          console.log(`🔍 [DEBUG] Period detected from question: "${detectedPeriod}"`);
+          logger.debug('Period detected from question', { period: detectedPeriod }, '/api/ai/ask');
         }
       }
     }
@@ -806,11 +246,11 @@ export default async function handler(req, res) {
     // 4. Recherche vectorielle pour données pertinentes (REMPLACEMENT DE loadAndAggregateData)
     const { start, end, label } = getPeriodDates(finalPeriod);
     
-    console.log('🔍 [ask.js] Searching vectors for relevant chunks...');
+    logger.debug('Searching vectors for relevant chunks', null, '/api/ai/ask');
     
     // DEBUG MODE: Log input parameters
     if (enableDebug) {
-      console.log('🔍 [DEBUG] ask.js Input Parameters:', {
+      logger.debug('ask.js Input Parameters', {
         userId: uid,
         agencyId: userData.agencyId,
         directorId: uid,
@@ -829,11 +269,11 @@ export default async function handler(req, res) {
     
     let vectorSearchResults;
     try {
-      console.log('🔵 [/api/ai/ask] About to call searchAndFormatForAI...');
+      logger.debug('About to call searchAndFormatForAI', null, '/api/ai/ask');
       // Si selectedFormIds est fourni et qu'un seul formulaire est sélectionné, l'utiliser comme filtre
       const formIdFilter = filters?.formId || (finalSelectedFormIds?.length === 1 ? finalSelectedFormIds[0] : null);
       
-      console.log('🔵 [/api/ai/ask] Calling searchAndFormatForAI with params:', {
+      logger.debug('Calling searchAndFormatForAI with params', {
         agencyId: userData.agencyId,
         directorId: uid,
         formId: formIdFilter,
@@ -853,16 +293,14 @@ export default async function handler(req, res) {
         debug: enableDebug, // Pass debug flag to vector search
       });
       
-      console.log('🔵 [/api/ai/ask] searchAndFormatForAI completed successfully');
-      console.log('🔵 [/api/ai/ask] Results:', {
+      logger.debug('searchAndFormatForAI completed successfully', null, '/api/ai/ask');
+      logger.debug('searchAndFormatForAI Results', {
         hasResults: vectorSearchResults.hasResults,
         chunksCount: vectorSearchResults.chunks?.length || 0,
         uniqueEntriesCount: vectorSearchResults.uniqueEntriesCount || 0
       });
     } catch (vectorError) {
-      console.error('❌ [/api/ai/ask] Vector search failed:', vectorError);
-      console.error('❌ [/api/ai/ask] Vector search error message:', vectorError.message);
-      console.error('❌ [/api/ai/ask] Vector search error stack:', vectorError.stack);
+      logger.error('Vector search failed', vectorError, '/api/ai/ask');
       return res.status(500).json({ 
         error: 'Erreur lors de la recherche vectorielle',
         code: 'VECTOR_SEARCH_ERROR',
@@ -1458,213 +896,6 @@ INSTRUCTIONS POUR FORMAT MULTI-FORMAT :
 - OBLIGATOIRE : Inclus des données concrètes et des insights basés sur les données réelles`;
     };
 
-    // Determine content type for response based on formats
-    const getContentTypeForResponse = (responseFormat, selectedResponseFormats) => {
-      // Handle multi-format combinations
-      if (selectedResponseFormats && selectedResponseFormats.length > 1) {
-        const hasPDF = selectedResponseFormats.includes('pdf');
-        const hasStats = selectedResponseFormats.includes('stats');
-        const hasTable = selectedResponseFormats.includes('table');
-
-        if (hasPDF) {
-          return 'text-pdf'; // PDF format with embedded content
-        } else if (hasStats && hasTable) {
-          return 'multi-format'; // Stats + Table combination
-        } else {
-          return 'multi-format'; // Other multi-format combinations
-        }
-      }
-
-      // Handle single format
-      if (responseFormat === 'pdf') {
-        return 'text-pdf';
-      } else if (responseFormat === 'stats') {
-        return 'graph';
-      } else if (responseFormat === 'table') {
-        return 'table';
-      } else {
-        return 'text';
-      }
-    };
-
-    // Generate fallback response for multi-format combinations
-    const generateMultiFormatFallbackResponse = (selectedFormats, data) => {
-      const hasPDF = selectedFormats.includes('pdf');
-      const hasStats = selectedFormats.includes('stats');
-      const hasTable = selectedFormats.includes('table');
-
-      if (hasPDF && hasStats && hasTable) {
-        return `# Rapport d'analyse - ${data.period.label}
-
-## Introduction
-
-Ce rapport présente une analyse complète des données de votre agence pour la période ${data.period.label}.
-
-## Analyse des données
-
-### Graphique statistique
-
-\`\`\`json
-{
-  "type": "bar",
-  "title": "Top 5 des employés par nombre de soumissions",
-  "subtitle": "Période: ${data.period.label}",
-  "data": [
-    ${data.userStats.slice(0, 5).map(u => `{"x": "${u.name}", "y": ${u.count}}`).join(',\n    ')}
-  ],
-  "xAxisKey": "x",
-  "yAxisKey": "y",
-  "dataKey": "y",
-  "colors": ["#3B82F6", "#10B981", "#F59E0B", "#EF4444", "#8B5CF6"],
-  "options": {
-    "showLegend": true,
-    "showGrid": true,
-    "showTooltip": true
-  },
-  "insights": [
-    "Top employé: ${data.userStats[0]?.name || 'N/A'} avec ${data.userStats[0]?.count || 0} soumissions",
-    "Total de ${data.totals.entries} soumissions analysées"
-  ],
-  "recommendations": [
-    "Analyser les bonnes pratiques du top employé",
-    "Identifier les opportunités d'amélioration"
-  ]
-}
-\`\`\`
-
-### Données tabulaires
-
-| Employé | Nombre de soumissions | Pourcentage | Formulaire principal |
-|---------|----------------------|-------------|---------------------|
-${data.userStats.slice(0, 5).map(u => `| ${u.name} | ${u.count} | ${((u.count/data.totals.entries)*100).toFixed(1)}% | ${data.formStats[0]?.title || 'N/A'} |`).join('\n')}
-
-## Conclusions et recommandations
-
-- **Période analysée :** ${data.period.label}
-- **Total soumissions :** ${data.totals.entries}
-- **Employés actifs :** ${data.totals.uniqueUsers}/${data.totals.totalUsers}
-- **Formulaires utilisés :** ${data.totals.uniqueForms}/${data.totals.totalForms}`;
-      }
-
-      if (hasPDF && hasStats) {
-        return `# Rapport d'analyse - ${data.period.label}
-
-## Introduction
-
-Ce rapport présente une analyse des données de votre agence pour la période ${data.period.label}.
-
-## Analyse des données
-
-### Graphique statistique
-
-\`\`\`json
-{
-  "type": "bar",
-  "title": "Top 5 des employés par nombre de soumissions",
-  "subtitle": "Période: ${data.period.label}",
-  "data": [
-    ${data.userStats.slice(0, 5).map(u => `{"x": "${u.name}", "y": ${u.count}}`).join(',\n    ')}
-  ],
-  "xAxisKey": "x",
-  "yAxisKey": "y",
-  "dataKey": "y",
-  "colors": ["#3B82F6", "#10B981", "#F59E0B", "#EF4444", "#8B5CF6"],
-  "options": {
-    "showLegend": true,
-    "showGrid": true,
-    "showTooltip": true
-  },
-  "insights": [
-    "Top employé: ${data.userStats[0]?.name || 'N/A'} avec ${data.userStats[0]?.count || 0} soumissions",
-    "Total de ${data.totals.entries} soumissions analysées"
-  ],
-  "recommendations": [
-    "Analyser les bonnes pratiques du top employé",
-    "Identifier les opportunités d'amélioration"
-  ]
-}
-\`\`\`
-
-## Conclusions et recommandations
-
-- **Période analysée :** ${data.period.label}
-- **Total soumissions :** ${data.totals.entries}
-- **Employés actifs :** ${data.totals.uniqueUsers}/${data.totals.totalUsers}`;
-      }
-
-      if (hasPDF && hasTable) {
-        return `# Rapport d'analyse - ${data.period.label}
-
-## Introduction
-
-Ce rapport présente une analyse des données de votre agence pour la période ${data.period.label}.
-
-## Analyse des données
-
-### Données tabulaires
-
-| Employé | Nombre de soumissions | Pourcentage | Formulaire principal |
-|---------|----------------------|-------------|---------------------|
-${data.userStats.slice(0, 5).map(u => `| ${u.name} | ${u.count} | ${((u.count/data.totals.entries)*100).toFixed(1)}% | ${data.formStats[0]?.title || 'N/A'} |`).join('\n')}
-
-## Conclusions et recommandations
-
-- **Période analysée :** ${data.period.label}
-- **Total soumissions :** ${data.totals.entries}
-- **Employés actifs :** ${data.totals.uniqueUsers}/${data.totals.totalUsers}
-- **Formulaires utilisés :** ${data.totals.uniqueForms}/${data.totals.totalForms}`;
-      }
-
-      if (hasStats && hasTable) {
-        return `Analyse des données pour la période ${data.period.label}
-
-### Graphique statistique
-
-\`\`\`json
-{
-  "type": "bar",
-  "title": "Top 5 des employés par nombre de soumissions",
-  "subtitle": "Période: ${data.period.label}",
-  "data": [
-    ${data.userStats.slice(0, 5).map(u => `{"x": "${u.name}", "y": ${u.count}}`).join(',\n    ')}
-  ],
-  "xAxisKey": "x",
-  "yAxisKey": "y",
-  "dataKey": "y",
-  "colors": ["#3B82F6", "#10B981", "#F59E0B", "#EF4444", "#8B5CF6"],
-  "options": {
-    "showLegend": true,
-    "showGrid": true,
-    "showTooltip": true
-  },
-  "insights": [
-    "Top employé: ${data.userStats[0]?.name || 'N/A'} avec ${data.userStats[0]?.count || 0} soumissions",
-    "Total de ${data.totals.entries} soumissions analysées"
-  ],
-  "recommendations": [
-    "Analyser les bonnes pratiques du top employé",
-    "Identifier les opportunités d'amélioration"
-  ]
-}
-\`\`\`
-
-### Données tabulaires
-
-| Employé | Nombre de soumissions | Pourcentage | Formulaire principal |
-|---------|----------------------|-------------|---------------------|
-${data.userStats.slice(0, 5).map(u => `| ${u.name} | ${u.count} | ${((u.count/data.totals.entries)*100).toFixed(1)}% | ${data.formStats[0]?.title || 'N/A'} |`).join('\n')}
-
-**Période analysée :** ${data.period.label}  
-**Total soumissions :** ${data.totals.entries}  
-**Employés actifs :** ${data.totals.uniqueUsers}/${data.totals.totalUsers}`;
-      }
-
-      return `Analyse des données pour la période ${data.period.label}
-
-**Période analysée :** ${data.period.label}  
-**Total soumissions :** ${data.totals.entries}  
-**Employés actifs :** ${data.totals.uniqueUsers}/${data.totals.totalUsers}`;
-    };
 
     // Build the actual user message for estimation
     const buildUserMessageForEstimation = () => {
@@ -1691,48 +922,9 @@ TOP FORMULAIRES : ${data.formStats.slice(0, 3).map(f => `${f.title} (${f.count} 
     const userTokensToCharge = TokenCounter.getUserTokensToCharge(estimatedTokens, 2.5);
     
     
-    // Calculate package limit based on user's package type
-    const getPackageLimit = (packageType) => {
-      const limits = {
-        starter: 300000,    // Updated to match PACKAGES.md
-        standard: 600000,   // Updated to match PACKAGES.md
-        premium: 1500000    // Updated to match PACKAGES.md
-      };
-      return limits[packageType] || 300000;
-    };
-
-    // Check subscription status - tokens are managed in subscriptionSessions collection only
-    // This function is kept for compatibility but doesn't modify user document
-    const checkSubscriptionAndResetTokens = async (userData, uid) => {
-      // Tokens are now managed in subscriptionSessions collection
-      // This function returns default values for compatibility
-      return { 
-        tokensUsed: 0, 
-        payAsYouGoTokens: 0, 
-        subscriptionExpired: false 
-      };
-    };
     
     // Get session-based package limits and token usage (using new collection)
-    let currentSession = null;
-    
-    // Try to get active session from new collection first
-    if (userData.currentSubscriptionSessionId) {
-      try {
-        const sessionDoc = await adminDb.collection('subscriptionSessions')
-          .doc(userData.currentSubscriptionSessionId)
-          .get();
-        
-        if (sessionDoc.exists) {
-          const sessionData = sessionDoc.data();
-          if (sessionData.isActive) {
-            currentSession = { id: sessionDoc.id, ...sessionData };
-          }
-        }
-      } catch (error) {
-        console.error('Error fetching session from collection:', error);
-      }
-    }
+    const currentSession = await getActiveSession(uid, userData);
     
     // Only use subscriptionSessions collection - no fallback to legacy system
     if (!currentSession) {
@@ -1748,7 +940,7 @@ TOP FORMULAIRES : ${data.formStats.slice(0, 3).map(f => `${f.title} (${f.count} 
     const payAsYouGoTokens = currentSession.payAsYouGoResources?.tokens || 0;
     const subscriptionExpired = new Date() > new Date(currentSession.endDate);
     
-    console.log('📊 SESSION-BASED TOKEN CHECK:', {
+    logger.debug('SESSION-BASED TOKEN CHECK', {
       sessionId: currentSession.id,
       packageType: currentSession.packageType,
       packageLimit,
@@ -1991,11 +1183,6 @@ INSTRUCTIONS :
     let tokensUsed = 0;
     let finalUserTokens = 0;
     
-    // Initialize token calculation function
-    const calculateUserTokens = (actualTokens) => {
-      // Formula: (actualTokens * 2.5) / 100
-      return Math.ceil((actualTokens * 2.5) / 100);
-    };
     
     if (!process.env.OPENAI_API_KEY) {
       // Fallback si OpenAI n'est pas configuré
@@ -2067,7 +1254,7 @@ Il serait pertinent de surveiller l'engagement des employés moins actifs et d'a
       tokensUsed = estimatedTokens;
       finalUserTokens = calculateUserTokens(estimatedTokens);
       
-      console.log('📊 FALLBACK TOKEN CALCULATION:', {
+      logger.debug('FALLBACK TOKEN CALCULATION', {
         estimatedTokens,
         finalUserTokens,
         systemPromptLength: systemPrompt.length,
@@ -2100,10 +1287,9 @@ Il serait pertinent de surveiller l'engagement des employés moins actifs et d'a
         tokensUsed = completion.usage && completion.usage.total_tokens ? completion.usage.total_tokens : 0;
         
         // Calculate final user tokens to charge based on actual usage
-        // Formula: (actualTokens * 2.5) / 100
-        finalUserTokens = Math.ceil((tokensUsed * 2.5) / 100);
+        finalUserTokens = calculateUserTokens(tokensUsed);
         
-        console.log('📊 OPENAI TOKEN CALCULATION:', {
+        logger.debug('OPENAI TOKEN CALCULATION', {
           actualTokens: tokensUsed,
           finalUserTokens,
           systemPromptLength: systemPrompt.length,
@@ -2113,7 +1299,7 @@ Il serait pertinent de surveiller l'engagement des employés moins actifs et d'a
         });
         
       } catch (openaiError) {
-        console.error('OpenAI error:', openaiError);
+        logger.error('OpenAI error', openaiError, '/api/ai/ask');
         // Fallback en cas d'erreur OpenAI
         if (selectedResponseFormats && selectedResponseFormats.length > 1) {
           answer = generateMultiFormatFallbackResponse(selectedResponseFormats, data);
@@ -2184,7 +1370,7 @@ Il serait pertinent de surveiller l'engagement des employés moins actifs et d'a
         tokensUsed = estimatedTokens;
         finalUserTokens = calculateUserTokens(estimatedTokens);
         
-        console.log('📊 ERROR FALLBACK TOKEN CALCULATION:', {
+        logger.debug('ERROR FALLBACK TOKEN CALCULATION', {
           estimatedTokens,
           finalUserTokens,
           systemPromptLength: systemPrompt.length,
@@ -2206,7 +1392,7 @@ Il serait pertinent de surveiller l'engagement des employés moins actifs et d'a
     try {
       // Handle scheduled questions differently from regular conversations
       if (isScheduled) {
-        console.log('🕐 [SCHEDULED] Processing scheduled question - skipping conversation creation');
+        logger.info('Processing scheduled question - skipping conversation creation', null, '/api/ai/ask');
         // For scheduled questions, we don't create conversations, just process and return response
         // The response will be saved to scheduledQuestionResponses by the frontend
       } else {
@@ -2260,8 +1446,7 @@ Il serait pertinent de surveiller l'engagement des employés moins actifs et d'a
               hasPDFContent: hasPDFContent || false
             };
 
-            await adminDb.collection('conversations').doc(conversationId).update({
-              updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            await updateConversationContext(conversationId, {
               lastMessageAt: admin.firestore.FieldValue.serverTimestamp(),
               messageCount: admin.firestore.FieldValue.increment(1),
               context: {
@@ -2281,7 +1466,7 @@ Il serait pertinent de surveiller l'engagement des employés moins actifs et d'a
 
             if (shouldGenerateSummary && conversationId) {
               try {
-                console.log('🔄 Triggering summary generation for conversation:', conversationId);
+                logger.info('Triggering summary generation for conversation', { conversationId }, '/api/ai/ask');
                 
                 // Get recent messages for summary
                 const messagesSnapshot = await adminDb
@@ -2305,21 +1490,17 @@ Il serait pertinent de surveiller l'engagement des employés moins actifs et d'a
                 const summaryContent = await generateConversationSummary(conversationId, messages);
                 
                 // Update conversation with summary
-                await adminDb.collection('conversations').doc(conversationId).update({
-                  'summary.content': summaryContent,
-                  'summary.lastUpdated': admin.firestore.FieldValue.serverTimestamp(),
-                  'summary.messageCountAtSummary': currentMessageCount
-                });
+                await updateConversationSummary(conversationId, summaryContent, currentMessageCount);
                 
-                console.log('✅ Generated conversation summary for:', conversationId);
+                logger.info('Generated conversation summary', { conversationId }, '/api/ai/ask');
               } catch (summaryError) {
-                console.error('❌ Failed to generate summary:', summaryError);
+                logger.error('Failed to generate summary', summaryError, '/api/ai/ask');
                 // Don't fail the main request if summary generation fails
               }
             }
           } catch (updateError) {
-            console.error('❌ FIREBASE SAVE ERROR - Failed to update conversation context:', updateError);
-            console.error('❌ FIREBASE SAVE ERROR - Data being saved:', {
+            logger.error('FIREBASE SAVE ERROR - Failed to update conversation context', updateError, '/api/ai/ask');
+            logger.error('FIREBASE SAVE ERROR - Data being saved', {
               conversationId,
               context: {
                 lastAnalysisType: responseFormat || 'text',
@@ -2391,12 +1572,12 @@ Il serait pertinent de surveiller l'engagement des employés moins actifs et d'a
             meta: savedUserMessageDoc.data().meta
           };
         } catch (saveError) {
-          console.error('❌ FIREBASE SAVE ERROR - Failed to save user message:', saveError);
+          logger.error('FIREBASE SAVE ERROR - Failed to save user message', saveError, '/api/ai/ask');
           // Don't throw error, just log it and continue without savedUserMessage
           savedUserMessage = null;
         }
       } else {
-        console.log('🕐 [SCHEDULED] Skipping user message save - will be saved to scheduledQuestionResponses by frontend');
+        logger.info('Skipping user message save - will be saved to scheduledQuestionResponses by frontend', null, '/api/ai/ask');
         savedUserMessage = null; // No user message for scheduled questions
       }
 
@@ -2538,13 +1719,19 @@ Il serait pertinent de surveiller l'engagement des employés moins actifs et d'a
       referencedImageFiles = finalReferencedFiles.filter(f => f.fileType && f.fileType.startsWith('image/'));
       
       // Log file detection for debugging
-      console.log(`📄 FILE DETECTION: Found ${allAnalyzedFiles.length} analyzed files (${allAnalyzedFiles.filter(f => f.fileType === 'application/pdf').length} PDFs, ${allAnalyzedFiles.filter(f => f.fileType && f.fileType.startsWith('image/')).length} images), ${referencedFiles.length} explicitly referenced, ${finalReferencedFiles.length} total displayed`);
+      logger.debug('FILE DETECTION', { 
+        totalAnalyzed: allAnalyzedFiles.length,
+        pdfs: allAnalyzedFiles.filter(f => f.fileType === 'application/pdf').length,
+        images: allAnalyzedFiles.filter(f => f.fileType && f.fileType.startsWith('image/')).length,
+        explicitlyReferenced: referencedFiles.length,
+        totalDisplayed: finalReferencedFiles.length
+      }, '/api/ai/ask');
       if (allAnalyzedFiles.length > 0) {
-        console.log('📄 All analyzed files:', allAnalyzedFiles.map(f => f.fileName));
-        console.log('📄 Explicitly referenced files:', referencedFiles.map(f => f.fileName));
-        console.log('📄 Final displayed files:', finalReferencedFiles.map(f => f.fileName));
+        logger.debug('All analyzed files', { files: allAnalyzedFiles.map(f => f.fileName) }, '/api/ai/ask');
+        logger.debug('Explicitly referenced files', { files: referencedFiles.map(f => f.fileName) }, '/api/ai/ask');
+        logger.debug('Final displayed files', { files: finalReferencedFiles.map(f => f.fileName) }, '/api/ai/ask');
         if (referencedFiles.length === 0 && allAnalyzedFiles.length > 0) {
-          console.log('📄 No files detected in response - checking for explicit citations...');
+          logger.debug('No files detected in response - checking for explicit citations', null, '/api/ai/ask');
           const responseText = answer.toLowerCase();
           allAnalyzedFiles.forEach(file => {
             const fileName = file.fileName.toLowerCase();
@@ -2553,7 +1740,7 @@ Il serait pertinent de surveiller l'engagement des employés moins actifs et d'a
                                       responseText.includes(`dans le fichier ${fileName}`) ||
                                       responseText.includes(`dans l'image ${fileName}`) ||
                                       responseText.includes(`d'après ${fileName}`);
-            console.log(`📄 ${file.fileName}: explicit citation = ${hasExplicitCitation}`);
+            logger.debug('File citation check', { fileName: file.fileName, hasExplicitCitation }, '/api/ai/ask');
           });
         }
       }
@@ -2610,15 +1797,15 @@ Il serait pertinent de surveiller l'engagement des employés moins actifs et d'a
         try {
           await adminDb.collection('conversations').doc(conversationId).collection('messages').add(assistantMessage);
         } catch (saveError) {
-          console.error('❌ FIREBASE SAVE ERROR - Failed to save assistant message:', saveError);
+          logger.error('FIREBASE SAVE ERROR - Failed to save assistant message', saveError, '/api/ai/ask');
           throw saveError;
         }
       } else {
-        console.log('🕐 [SCHEDULED] Skipping conversation message save - will be saved to scheduledQuestionResponses by frontend');
+        logger.info('Skipping conversation message save - will be saved to scheduledQuestionResponses by frontend', null, '/api/ai/ask');
       }
 
       // Debug: Log package information
-      console.log('🔍 PACKAGE DEBUG:', {
+      logger.debug('PACKAGE DEBUG', {
         packageLimit,
         finalUserTokens,
         uid,
@@ -2628,99 +1815,30 @@ Il serait pertinent de surveiller l'engagement des employés moins actifs et d'a
       
       // Track token consumption in active session (only for limited packages)
       if (packageLimit !== -1 && finalUserTokens > 0) {
-        console.log('💰 SESSION TOKEN TRACKING START:', {
-          packageLimit,
-          finalUserTokens,
-          uid
-        });
-        
         try {
-          // Get fresh user data to ensure we have the latest session data
-          const freshUserDoc = await adminDb.collection('users').doc(uid).get();
-          const freshUserData = freshUserDoc.data();
-          
-          // Get current active session (using new collection)
-          let currentSession = null;
-          let sessionDocRef = null;
-          
-          // Try to get active session from new collection first
-          if (freshUserData.currentSubscriptionSessionId) {
-            try {
-              sessionDocRef = adminDb.collection('subscriptionSessions')
-                .doc(freshUserData.currentSubscriptionSessionId);
-              const sessionDoc = await sessionDocRef.get();
-              
-              if (sessionDoc.exists) {
-                const sessionData = sessionDoc.data();
-                if (sessionData.isActive) {
-                  currentSession = { id: sessionDoc.id, ...sessionData };
-                }
-              }
-            } catch (error) {
-              console.error('Error fetching session from collection:', error);
-            }
-          }
-          
-          if (!currentSession) {
-            console.error('❌ No active session found for user:', uid);
+          const tokenUpdateResult = await updateTokenUsage(uid, finalUserTokens, currentSession);
+          updatedTokensUsed = tokenUpdateResult.updatedTokensUsed;
+          updatedPayAsYouGoTokens = tokenUpdateResult.updatedPayAsYouGoTokens;
+          // Update payAsYouGoTokens from result
+          payAsYouGoTokens = tokenUpdateResult.updatedPayAsYouGoTokens;
+        } catch (tokenError) {
+          logger.error('SESSION TOKEN TRACKING ERROR', tokenError, '/api/ai/ask');
+          // Don't fail the request if token tracking fails, but return error if it's a critical error
+          if (tokenError.message.includes('Aucune session active')) {
             return res.status(400).json({
-              error: 'Aucune session active trouvée. Veuillez sélectionner un package.',
+              error: tokenError.message,
               code: 'NO_ACTIVE_SESSION'
             });
           }
-          
-          console.log('💰 SESSION TOKEN TRACKING - ACTIVE SESSION FOUND:', {
-            sessionId: currentSession.id,
-            packageType: currentSession.packageType,
-            currentTokensUsed: currentSession.usage?.tokensUsed || 0,
-            isFromCollection: !!sessionDocRef
-          });
-          
-          // Update the current session's token usage
-          const currentUsage = currentSession.usage || {
-            tokensUsed: 0,
-            formsCreated: 0,
-            dashboardsCreated: 0,
-            usersAdded: 0
-          };
-          
-          const newTokensUsed = currentUsage.tokensUsed + finalUserTokens;
-          
-          // Update session in collection (only subscriptionSessions collection is used)
-          if (!sessionDocRef) {
-            console.error('❌ Session found but no sessionDocRef - session should be in subscriptionSessions collection');
+          if (tokenError.message.includes('Erreur de session')) {
             return res.status(500).json({
-              error: 'Erreur de session. Veuillez réessayer.',
+              error: tokenError.message,
               code: 'SESSION_ERROR'
             });
           }
-          
-          await sessionDocRef.update({
-            'usage.tokensUsed': newTokensUsed,
-            'usage.lastTokenUsed': admin.firestore.FieldValue.serverTimestamp(),
-            updatedAt: admin.firestore.FieldValue.serverTimestamp()
-          });
-          
-          // Calculate remaining tokens for response
-          const sessionPackageLimit = currentSession.packageResources?.tokensIncluded || 0;
-          const sessionPayAsYouGoTokens = currentSession.payAsYouGoResources?.tokens || 0;
-          
-          updatedTokensUsed = newTokensUsed;
-          updatedPayAsYouGoTokens = sessionPayAsYouGoTokens;
-          
-          console.log('✅ SESSION TOKEN TRACKING SUCCESS:', {
-            finalUserTokens,
-            sessionTokensUsed: newTokensUsed,
-            sessionPackageLimit,
-            sessionPayAsYouGoTokens,
-            remainingTokens: sessionPackageLimit === -1 ? -1 : Math.max(0, (sessionPackageLimit + sessionPayAsYouGoTokens) - newTokensUsed)
-          });
-        } catch (tokenError) {
-          console.error('❌ SESSION TOKEN TRACKING ERROR:', tokenError);
-          // Don't fail the request if token tracking fails
         }
       } else {
-        console.log('💰 SESSION TOKEN TRACKING SKIPPED:', {
+        logger.debug('SESSION TOKEN TRACKING SKIPPED', {
           packageLimit,
           finalUserTokens,
           reason: packageLimit === -1 ? 'unlimited_package' : 'no_tokens_to_deduct'
@@ -2730,21 +1848,19 @@ Il serait pertinent de surveiller l'engagement des employés moins actifs et d'a
       // Only update conversation metadata for regular chat, not scheduled questions
       if (!isScheduled) {
         try {
-          await adminDb.collection('conversations').doc(conversationId).update({
-            lastMessageAt: admin.firestore.FieldValue.serverTimestamp(),
-            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          await updateConversationMetadata(conversationId, {
             messageCount: admin.firestore.FieldValue.increment(2)
           });
         } catch (updateError) {
-          console.error('❌ FIREBASE SAVE ERROR - Failed to update conversation metadata:', updateError);
+          logger.error('FIREBASE SAVE ERROR - Failed to update conversation metadata', updateError, '/api/ai/ask');
           throw updateError;
         }
       } else {
-        console.log('🕐 [SCHEDULED] Skipping conversation metadata update');
+        logger.info('Skipping conversation metadata update', null, '/api/ai/ask');
       }
 
     } catch (storeError) {
-      console.error('Error storing conversation:', storeError);
+      logger.error('Error storing conversation', storeError, '/api/ai/ask');
       // Don't fail the request if conversation storage fails
       // Ensure conversationId is set even if there was an error
       if (!conversationId) {
@@ -2824,11 +1940,10 @@ Il serait pertinent de surveiller l'engagement des employés moins actifs et d'a
                    typeof err === 'string' ? err : 
                    JSON.stringify(err);
     
-    console.error('❌ [/api/ai/ask] ERROR:', err);
-    console.error('❌ [/api/ai/ask] Error message:', message);
+    logger.error('ERROR', err, '/api/ai/ask');
+    logger.error('Error message', { message }, '/api/ai/ask');
     if (err instanceof Error) {
-      console.error('❌ [/api/ai/ask] Error stack:', err.stack);
-      console.error('❌ [/api/ai/ask] Error name:', err.name);
+      logger.error('Error details', { stack: err.stack, name: err.name }, '/api/ai/ask');
     }
     
     if (err instanceof Error) {

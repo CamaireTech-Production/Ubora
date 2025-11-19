@@ -1,3 +1,4 @@
+import { logger } from '@ubora/shared/utils/logger';
 import { 
   collection, 
   doc, 
@@ -46,7 +47,7 @@ export class AdminService {
         };
       });
     } catch (error) {
-      console.error('❌ Error fetching users:', error);
+      logger.error('Error fetching users', error, 'AdminService');
       return [];
     }
   }
@@ -89,7 +90,7 @@ export class AdminService {
 
       return stats;
     } catch (error) {
-      console.error('❌ Error fetching dashboard stats:', error);
+      logger.error('Error fetching dashboard stats', error, 'AdminService');
       return {
         totalUsers: 0,
         totalAgencies: 0,
@@ -142,7 +143,7 @@ export class AdminService {
       
       return true;
     } catch (error) {
-      console.error('❌ Error creating admin user:', error);
+      logger.error('Error creating admin user', error, 'AdminService');
       return false;
     }
   }
@@ -180,7 +181,7 @@ export class AdminService {
       
       return true;
     } catch (error) {
-      console.error('❌ Error updating user status:', error);
+      logger.error('Error updating user status', error, 'AdminService');
       return false;
     }
   }
@@ -208,7 +209,7 @@ export class AdminService {
 
       return Object.values(summary).sort((a, b) => b.count - a.count);
     } catch (error) {
-      console.error('❌ Error fetching activity summary:', error);
+      logger.error('Error fetching activity summary', error, 'AdminService');
       return [];
     }
   }
@@ -253,7 +254,7 @@ export class AdminService {
 
       return { status, issues, metrics };
     } catch (error) {
-      console.error('❌ Error checking system health:', error);
+      logger.error('Error checking system health', error, 'AdminService');
       return {
         status: 'critical',
         issues: ['Unable to check system health'],

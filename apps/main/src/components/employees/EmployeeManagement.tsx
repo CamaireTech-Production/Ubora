@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
-import { useApp } from '@ubora/shared/contexts/AppContext';
+import { useEmployees } from '@ubora/shared/contexts/EmployeesContext';
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
 import { useToast } from '@ubora/shared/hooks/useToast';
@@ -19,7 +19,7 @@ interface EmployeeManagementProps {
 
 export const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ className = '' }) => {
   const { user: currentUser } = useAuth();
-  const { employees, isLoading } = useApp();
+  const { employees, isLoading } = useEmployees();
   const { showSuccess, showError } = useToast();
   const [selectedEmployee, setSelectedEmployee] = useState<User | null>(null);
   const [showAccessModal, setShowAccessModal] = useState(false);

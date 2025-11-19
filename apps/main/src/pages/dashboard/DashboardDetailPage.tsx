@@ -18,6 +18,7 @@ import { ComingSoonModal } from '../../components/modals/ComingSoonModal';
 import { DashboardBuilder } from '../../components/dashboard/DashboardBuilder';
 import { MetricEditModal } from '../../components/forms/MetricEditModal';
 import { GraphPreview } from '../../components/charts/GraphPreview';
+import { logger } from '@ubora/shared/utils/logger';
 import { GraphModal } from '../../components/charts/GraphModal';
 import { TableMetricDisplay } from '../../components/dashboard/TableMetricDisplay';
 import { TableMetricModal } from '../../components/dashboard/TableMetricModal';
@@ -175,7 +176,7 @@ export const DashboardDetailPage: React.FC = () => {
           const dashboardReminders = reminders.filter(r => r.dashboardId === dashboardId && r.status === 'pending');
           setActiveReminders(dashboardReminders);
         } catch (error) {
-          console.error('Error loading reminders:', error);
+          logger.error('Error loading reminders', error, 'DashboardDetailPage');
         }
       }
     };
@@ -278,7 +279,7 @@ export const DashboardDetailPage: React.FC = () => {
           const rows = await tableDataService.getRowsForTableMetric(metric, formEntries, period);
           newTableRows[metricId] = rows;
         } catch (error) {
-          console.error(`Error calculating table rows for metric ${metricId}:`, error);
+          logger.error(`Error calculating table rows for metric ${metricId}`, error, 'DashboardDetailPage');
           newTableRows[metricId] = [];
         } finally {
           newLoadingState[metricId] = false;
@@ -384,7 +385,7 @@ export const DashboardDetailPage: React.FC = () => {
       setShowDeleteDashboardModal(false);
       navigate('/directeur/dashboard');
     } catch (error) {
-      console.error('Erreur lors de la suppression du tableau de bord:', error);
+      logger.error('Erreur lors de la suppression du tableau de bord', error, 'DashboardDetailPage');
       showError('Erreur lors de la suppression du tableau de bord. Veuillez réessayer.');
     } finally {
       setIsDeletingDashboard(false);
@@ -412,7 +413,7 @@ export const DashboardDetailPage: React.FC = () => {
       setShowDeleteMetricModal(false);
       setMetricToDelete(null);
     } catch (error) {
-      console.error('Erreur lors de la suppression de la métrique:', error);
+      logger.error('Erreur lors de la suppression de la métrique', error, 'DashboardDetailPage');
       showError('Erreur lors de la suppression de la métrique. Veuillez réessayer.');
     } finally {
       setIsDeletingMetric(false);
@@ -476,7 +477,7 @@ export const DashboardDetailPage: React.FC = () => {
       showSuccess('Tableau de bord modifié avec succès !');
       setShowDashboardBuilder(false);
     } catch (error) {
-      console.error('Erreur lors de la modification du tableau de bord:', error);
+      logger.error('Erreur lors de la modification du tableau de bord', error, 'DashboardDetailPage');
       showError('Erreur lors de la modification du tableau de bord. Veuillez réessayer.');
       throw error;
     }
@@ -502,7 +503,7 @@ export const DashboardDetailPage: React.FC = () => {
       
       showSuccess('Métrique modifiée avec succès !');
     } catch (error) {
-      console.error('Erreur lors de la modification de la métrique:', error);
+      logger.error('Erreur lors de la modification de la métrique', error, 'DashboardDetailPage');
       showError('Erreur lors de la modification de la métrique. Veuillez réessayer.');
       throw error;
     }
@@ -548,7 +549,7 @@ export const DashboardDetailPage: React.FC = () => {
       setShowMetricModal(false);
       showSuccess('Métrique ajoutée avec succès !');
     } catch (error) {
-      console.error('Erreur lors de l\'ajout de la métrique:', error);
+      logger.error('Erreur lors de l\'ajout de la métrique', error, 'DashboardDetailPage');
       showError('Erreur lors de l\'ajout de la métrique. Veuillez réessayer.');
     } finally {
       setIsAddingMetric(false);
@@ -1774,7 +1775,7 @@ export const DashboardDetailPage: React.FC = () => {
                      const dashboardReminders = reminders.filter(r => r.dashboardId === dashId && r.status === 'pending');
                      setActiveReminders(dashboardReminders);
                    } catch (error) {
-                     console.error('Error creating reminder:', error);
+                     logger.error('Error creating reminder', error, 'DashboardDetailPage');
                      showError('Erreur lors de la création du rappel');
                    } finally {
                      setIsCreatingReminder(false);
@@ -1797,26 +1798,28 @@ export const DashboardDetailPage: React.FC = () => {
         onClose={() => setCancelReminderModal({ isOpen: false, reminder: null })}
         onConfirm={async () => {
           if (!cancelReminderModal.reminder) {
-            console.error('No reminder selected for cancellation');
+            logger.error('No reminder selected for cancellation', undefined, 'DashboardDetailPage');
             showError('Aucun rappel sélectionné pour l\'annulation.');
             return;
           }
-          
+
           if (!cancelReminderModal.reminder.id) {
-            console.error('Reminder has no ID:', cancelReminderModal.reminder);
+            logger.error('Reminder has no ID', { reminder: cancelReminderModal.reminder }, 'DashboardDetailPage');
             showError('Le rappel n\'a pas d\'identifiant valide.');
             return;
           }
-          
+
           try {
-            console.log('Cancelling reminder:', cancelReminderModal.reminder.id);
-            console.log('Full reminder object:', cancelReminderModal.reminder);
+            logger.debug('Cancelling reminder', {
+              reminderId: cancelReminderModal.reminder.id,
+              reminder: cancelReminderModal.reminder
+            }, 'DashboardDetailPage');
             await metricReminderService.cancel(cancelReminderModal.reminder.id);
             setActiveReminders(prev => prev.filter(r => r.id !== cancelReminderModal.reminder!.id));
             showSuccess('Rappel annulé avec succès');
             setCancelReminderModal({ isOpen: false, reminder: null });
           } catch (error) {
-            console.error('Error cancelling reminder:', error);
+            logger.error('Error cancelling reminder', error, 'DashboardDetailPage');
             showError('Erreur lors de l\'annulation du rappel. Veuillez réessayer.');
           }
         }}

@@ -9,6 +9,7 @@ import { Card } from '../ui/Card';
 import { FileInput } from '../core/FileInput';
 import { FileUploadService, UploadProgress } from '@ubora/shared/services/fileUploadService';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
+import { useUnivers } from '@ubora/shared/contexts/UniversContext';
 import { useFormDraft } from '@ubora/shared/hooks/useFormDraft';
 import { db, auth } from '@ubora/shared/firebaseConfig';
 import { doc, getDoc } from 'firebase/firestore';
@@ -21,7 +22,6 @@ import { TextExtractionReviewModal } from '../core/TextExtractionReviewModal';
 import { UserSessionService } from '@ubora/shared/services/userSessionService';
 import { listsService } from '@ubora/shared/services/listsService';
 import { List, ListRow } from '../../types';
-import { useApp } from '@ubora/shared/contexts/AppContext';
 
 // Helper function to convert field IDs back to user-friendly field names in formulas
 const convertFormulaToUserFriendly = (formula: string, fields: FormField[]): string => {
@@ -67,7 +67,7 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
 }: DynamicFormProps) => {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { activeUniversId } = useApp();
+  const { activeUniversId } = useUnivers();
   const { showError, showSuccess } = useToast();
   const [answers, setAnswers] = useState<Record<string, unknown>>(initialAnswers);
   const [errors, setErrors] = useState<Record<string, string>>({});

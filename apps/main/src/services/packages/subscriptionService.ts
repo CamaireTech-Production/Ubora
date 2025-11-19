@@ -1,3 +1,4 @@
+import { logger } from '@ubora/shared/utils/logger';
 // import { doc, updateDoc, getDoc, serverTimestamp } from 'firebase/firestore';
 // import { db } from '@ubora/shared/firebaseConfig'; // Unused for now
 import { SubscriptionSessionService } from './subscriptionSessionService';

@@ -1,3 +1,4 @@
+import { logger } from '@ubora/shared/utils/logger';
 import { scheduledQuestionService } from './scheduledQuestionService';
 import { notificationService } from './notificationService';
 import { ScheduledQuestion, ScheduledQuestionResponse } from '../../types';
@@ -15,7 +16,7 @@ class ScheduledQuestionExecutor {
    */
   start(userId: string, agencyId: string): void {
     if (this.isRunning && this.currentUserId === userId) {
-      console.log('🔄 [ScheduledQuestionExecutor] Service déjà en cours d\'exécution pour cet utilisateur');
+      logger.debug('Service déjà en cours d\'exécution pour cet utilisateur', { userId }, 'ScheduledInstructionExecutor');
       return;
     }
 
@@ -24,7 +25,7 @@ class ScheduledQuestionExecutor {
       this.stop();
     }
 
-    console.log('🚀 [ScheduledQuestionExecutor] Démarrage du service d\'exécution automatique');
+    logger.info('Démarrage du service d\'exécution automatique', undefined, 'ScheduledInstructionExecutor');
     this.isRunning = true;
     this.currentUserId = userId;
     this.currentAgencyId = agencyId;
@@ -49,7 +50,7 @@ class ScheduledQuestionExecutor {
     this.isRunning = false;
     this.currentUserId = null;
     this.currentAgencyId = null;
-    console.log('⏹️ [ScheduledQuestionExecutor] Service d\'exécution automatique arrêté');
+    logger.info('Service d\'exécution automatique arrêté', undefined, 'ScheduledInstructionExecutor');
   }
 
   /**
@@ -57,7 +58,7 @@ class ScheduledQuestionExecutor {
    */
   private async executeDueQuestions(): Promise<void> {
     if (!this.currentUserId || !this.currentAgencyId) {
-      console.log('⚠️ [ScheduledQuestionExecutor] Aucun utilisateur connecté, arrêt de l\'exécution');
+      logger.warn('Aucun utilisateur connecté, arrêt de l\'exécution', undefined, 'ScheduledInstructionExecutor');
       return;
     }
 
@@ -71,13 +72,13 @@ class ScheduledQuestionExecutor {
         return;
       }
 
-      console.log(`🔄 [ScheduledQuestionExecutor] ${dueQuestions.length} question(s) à exécuter pour l'utilisateur ${this.currentUserId}`);
+      logger.debug(`${dueQuestions.length} question(s) à exécuter pour l'utilisateur`, { count: dueQuestions.length, userId: this.currentUserId }, 'ScheduledInstructionExecutor');
 
       for (const question of dueQuestions) {
         await this.executeQuestion(question);
       }
     } catch (error) {
-      console.error('❌ [ScheduledQuestionExecutor] Erreur lors de l\'exécution des questions:', error);
+      logger.error('Erreur lors de l\'exécution des questions', error, 'ScheduledInstructionExecutor');
     }
   }
 
@@ -88,7 +89,7 @@ class ScheduledQuestionExecutor {
     const startTime = Date.now();
     
     try {
-      console.log(`🔄 [ScheduledQuestionExecutor] Exécution de la question: ${question.title}`);
+      logger.debug(`Exécution de la question`, { questionTitle: question.title, questionId: question.id }, 'ScheduledInstructionExecutor');
       
       // Marquer la question comme en cours d'exécution
       await scheduledQuestionService.update(question.id, {
@@ -150,10 +151,10 @@ class ScheduledQuestionExecutor {
       // Envoyer une notification
       await this.sendNotification(question, responseData);
 
-      console.log(`✅ [ScheduledQuestionExecutor] Question exécutée avec succès: ${question.title}`);
+      logger.info(`Question exécutée avec succès`, { questionTitle: question.title, questionId: question.id }, 'ScheduledInstructionExecutor');
       
     } catch (error) {
-      console.error(`❌ [ScheduledQuestionExecutor] Erreur lors de l'exécution de la question ${question.title}:`, error);
+      logger.error(`Erreur lors de l'exécution de la question`, error, 'ScheduledInstructionExecutor');
       
       // Créer une réponse d'erreur
       const errorResponse: Omit<ScheduledQuestionResponse, 'id'> = {
@@ -220,7 +221,7 @@ class ScheduledQuestionExecutor {
         }
       });
     } catch (error) {
-      console.error('Erreur lors de l\'envoi de la notification:', error);
+      logger.error('Erreur lors de l\'envoi de la notification', error, 'ScheduledInstructionExecutor');
       // Ne pas faire échouer l'exécution pour une erreur de notification
     }
   }

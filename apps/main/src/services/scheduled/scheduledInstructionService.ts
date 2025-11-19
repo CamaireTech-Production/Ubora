@@ -1,3 +1,4 @@
+import { logger } from '@ubora/shared/utils/logger';
 import { 
   collection, 
   doc, 
@@ -37,7 +38,7 @@ class ScheduledQuestionService {
       });
       return docRef.id;
     } catch (error) {
-      console.error('Erreur lors de la création de la question programmée:', error);
+      logger.error('Erreur lors de la création de la question programmée', error, 'ScheduledInstructionService');
       throw error;
     }
   }
@@ -63,7 +64,7 @@ class ScheduledQuestionService {
       
       await updateDoc(docRef, updateData);
     } catch (error) {
-      console.error('Erreur lors de la mise à jour de la question programmée:', error);
+      logger.error('Erreur lors de la mise à jour de la question programmée', error, 'ScheduledInstructionService');
       throw error;
     }
   }
@@ -75,7 +76,7 @@ class ScheduledQuestionService {
     try {
       await deleteDoc(doc(db, this.collectionName, id));
     } catch (error) {
-      console.error('Erreur lors de la suppression de la question programmée:', error);
+      logger.error('Erreur lors de la suppression de la question programmée', error, 'ScheduledInstructionService');
       throw error;
     }
   }
@@ -93,7 +94,7 @@ class ScheduledQuestionService {
       }
       return null;
     } catch (error) {
-      console.error('Erreur lors de la récupération de la question programmée:', error);
+      logger.error('Erreur lors de la récupération de la question programmée', error, 'ScheduledInstructionService');
       throw error;
     }
   }
@@ -115,7 +116,7 @@ class ScheduledQuestionService {
         this.convertFirestoreToScheduledQuestion(doc.id, doc.data())
       );
     } catch (error) {
-      console.error('Erreur lors de la récupération des questions programmées:', error);
+      logger.error('Erreur lors de la récupération des questions programmées', error, 'ScheduledInstructionService');
       throw error;
     }
   }
@@ -141,7 +142,7 @@ class ScheduledQuestionService {
         this.convertFirestoreToScheduledQuestion(doc.id, doc.data())
       );
     } catch (error) {
-      console.error('Erreur lors de la récupération des questions à exécuter:', error);
+      logger.error('Erreur lors de la récupération des questions à exécuter', error, 'ScheduledInstructionService');
       throw error;
     }
   }
@@ -167,7 +168,7 @@ class ScheduledQuestionService {
       );
       callback(questions);
     }, (error) => {
-      console.error('Erreur lors de l\'écoute des questions programmées:', error);
+      logger.error('Erreur lors de l\'écoute des questions programmées', error, 'ScheduledInstructionService');
     });
   }
 
@@ -218,7 +219,7 @@ class ScheduledQuestionService {
       });
       return docRef.id;
     } catch (error) {
-      console.error('Erreur lors de la création de la réponse:', error);
+      logger.error('Erreur lors de la création de la réponse', error, 'ScheduledInstructionService');
       throw error;
     }
   }
@@ -244,7 +245,7 @@ class ScheduledQuestionService {
         } as ScheduledQuestionResponse;
       });
     } catch (error) {
-      console.error('Erreur lors de la récupération des réponses:', error);
+      logger.error('Erreur lors de la récupération des réponses', error, 'ScheduledInstructionService');
       throw error;
     }
   }
@@ -273,7 +274,7 @@ class ScheduledQuestionService {
       });
       callback(responses);
     }, (error) => {
-      console.error('Erreur lors de l\'écoute des réponses:', error);
+      logger.error('Erreur lors de l\'écoute des réponses', error, 'ScheduledInstructionService');
     });
   }
 

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { TokenUsageLogService } from '../tokenUsageLogService';
+import { TokenUsageLogService } from '../core/tokenUsageLogService';
 
 vi.mock('../../firebaseConfig', () => ({
   db: {} as any

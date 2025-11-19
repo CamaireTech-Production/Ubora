@@ -1,3 +1,4 @@
+import { logger } from '@ubora/shared/utils/logger';
 import { DraftResponse } from '../../types';
 
 const DRAFT_STORAGE_KEY = 'form_drafts';
@@ -18,7 +19,7 @@ export class DraftService {
         updatedAt: new Date(draft.updatedAt)
       }));
     } catch (error) {
-      console.error('Error loading drafts:', error);
+      logger.error('Error loading drafts', error, 'DraftService');
       return [];
     }
   }
@@ -41,7 +42,7 @@ export class DraftService {
       
       localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(allDrafts));
     } catch (error) {
-      console.error('Error saving draft:', error);
+      logger.error('Error saving draft', error, 'DraftService');
     }
   }
 
@@ -51,7 +52,7 @@ export class DraftService {
       const filteredDrafts = allDrafts.filter(draft => draft.id !== draftId);
       localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(filteredDrafts));
     } catch (error) {
-      console.error('Error deleting draft:', error);
+      logger.error('Error deleting draft', error, 'DraftService');
     }
   }
 
@@ -63,7 +64,7 @@ export class DraftService {
       );
       localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(filteredDrafts));
     } catch (error) {
-      console.error('Error deleting drafts for form:', error);
+      logger.error('Error deleting drafts for form', error, 'DraftService');
     }
   }
 
@@ -73,7 +74,7 @@ export class DraftService {
       const filteredDrafts = allDrafts.filter(draft => draft.userId !== userId);
       localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(filteredDrafts));
     } catch (error) {
-      console.error('Error clearing all drafts:', error);
+      logger.error('Error clearing all drafts', error, 'DraftService');
     }
   }
 
@@ -82,7 +83,7 @@ export class DraftService {
       const stored = localStorage.getItem(DRAFT_STORAGE_KEY);
       return stored ? JSON.parse(stored) : [];
     } catch (error) {
-      console.error('Error loading all drafts:', error);
+      logger.error('Error loading all drafts', error, 'DraftService');
       return [];
     }
   }

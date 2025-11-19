@@ -1,3 +1,4 @@
+import { logger } from '@ubora/shared/utils/logger';
 import { 
   DashboardMetric, 
   TableConfig, 
@@ -40,7 +41,7 @@ class TableDataService {
   ): Promise<TableRowData[]> {
     // Validate table configuration
     if (metric.metricType !== 'table' || !metric.tableConfig) {
-      console.warn('TableDataService: Metric is not a table metric or missing tableConfig');
+      logger.warn('Metric is not a table metric or missing tableConfig', undefined, 'TableDataService');
       return [];
     }
 
@@ -48,7 +49,7 @@ class TableDataService {
     
     // Validate rowSource exists
     if (!tableConfig.rowSource) {
-      console.warn('TableDataService: tableConfig.rowSource is missing');
+      logger.warn('tableConfig.rowSource is missing', undefined, 'TableDataService');
       return [];
     }
     
@@ -139,15 +140,15 @@ class TableDataService {
     } catch (error: any) {
       // Gérer les erreurs de permissions ou de liste inexistante
       if (error?.code === 'permission-denied' || error?.code === 'missing-or-insufficient-permissions') {
-        console.warn(`TableDataService: Permission denied or list not found for listId: ${rowSource.listId}`);
+        logger.warn(`Permission denied or list not found for listId`, { listId: rowSource.listId }, 'TableDataService');
       } else {
-        console.error('TableDataService: Error loading list:', error);
+        logger.error('Error loading list', error, 'TableDataService');
       }
       return [];
     }
 
     if (!list || !list.rows || list.rows.length === 0) {
-      console.warn('TableDataService: List not found or empty');
+      logger.warn('List not found or empty', undefined, 'TableDataService');
       return [];
     }
 
@@ -396,7 +397,7 @@ class TableDataService {
           row[column.id] = column.display?.blankAsZero ? '0' : '—';
         }
       } catch (error) {
-        console.error(`TableDataService: Error calculating derived column ${column.id}:`, error);
+        logger.error(`Error calculating derived column ${column.id}`, error, 'TableDataService');
         row[column.id] = '—';
       }
     }
@@ -415,7 +416,7 @@ class TableDataService {
       
       return typeof result === 'number' && !isNaN(result) ? result : 0;
     } catch (error) {
-      console.error('TableDataService: Error evaluating formula:', error);
+      logger.error('Error evaluating formula', error, 'TableDataService');
       return 0;
     }
   }
@@ -453,7 +454,7 @@ class TableDataService {
   ): TableRowData[] {
     // This is the legacy behavior - one row per entry
     // For now, return empty array (we can implement later if needed)
-    console.warn('TableDataService: entries-based rows not yet implemented');
+    logger.warn('entries-based rows not yet implemented', undefined, 'TableDataService');
     return [];
   }
 }

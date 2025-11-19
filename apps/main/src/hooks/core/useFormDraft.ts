@@ -1,11 +1,12 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, useMemo } from 'react';
 
 function getDraftStorageKey(formId: string, userId?: string | null) {
   return `formDraft:${formId}:${userId || 'anon'}`;
 }
 
 export function useFormDraft<T extends Record<string, unknown>>(formId: string, userId?: string | null) {
-  const storageKey = getDraftStorageKey(formId, userId);
+  // Mémoriser storageKey pour éviter recréation à chaque render
+  const storageKey = useMemo(() => getDraftStorageKey(formId, userId), [formId, userId]);
   const [initialized, setInitialized] = useState(false);
   const saveTimer = useRef<number | null>(null);
 

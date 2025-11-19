@@ -1,5 +1,7 @@
+import React from 'react'
 import { describe, test, expect, vi, beforeEach } from 'vitest'
-import { AuthProvider } from '@ubora/shared/contexts/AuthContext'
+import { renderHook, act } from '@testing-library/react'
+import { AuthProvider, useAuth } from '@ubora/shared/contexts/AuthContext'
 import { User } from '../types'
 
 // Mock Firebase Auth

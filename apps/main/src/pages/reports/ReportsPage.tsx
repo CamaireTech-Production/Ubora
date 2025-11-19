@@ -2,6 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
 import { useApp } from '@ubora/shared/contexts/AppContext';
+import { useEntries } from '@ubora/shared/contexts/EntriesContext';
+import { useUnivers } from '@ubora/shared/contexts/UniversContext';
+import { useDashboards } from '@ubora/shared/contexts/DashboardsContext';
 import { Layout } from '../../components/layout/Layout';
 import { Report, ReportDefinition, DashboardDefinition } from '../../types';
 import { reportsService } from '@ubora/shared/services';
@@ -18,7 +21,9 @@ import { ConfirmationModal } from '../../components/modals/ConfirmationModal';
 export const ReportsPage: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { formEntries, activeUniversId, dashboards } = useApp();
+  const { formEntries } = useEntries();
+  const { activeUniversId } = useUnivers();
+  const { dashboards } = useDashboards();
   const { toast, showSuccess, showError } = useToast();
   
   const [reports, setReports] = useState<Report[]>([]);

@@ -1,5 +1,6 @@
 import { collection, addDoc, updateDoc, doc, serverTimestamp, query, where, orderBy, limit, getDocs } from 'firebase/firestore';
 import { db } from '@ubora/shared/firebaseConfig';
+import { logger } from '@ubora/shared/utils/logger';
 import { browserNotificationService } from './browserNotificationService';
 import { emailNotificationService } from './emailNotificationService';
 
@@ -41,7 +42,7 @@ class UnifiedNotificationService {
    */
   async sendNotification(notification: Omit<UnifiedNotification, 'id' | 'read' | 'createdAt' | 'status' | 'sentAt'>): Promise<string> {
     try {
-      console.log('🔔 [UnifiedNotification] Starting dual delivery for:', notification.title);
+      logger.info('Starting dual delivery', { title: notification.title }, 'UnifiedNotification');
 
       // Initialize delivery tracking
       const deliveryResult: NotificationDeliveryResult = {
@@ -72,11 +73,11 @@ class UnifiedNotificationService {
         const existingSnap = await getDocs(existingQ);
         if (!existingSnap.empty) {
           const existing = existingSnap.docs[0];
-          console.log('🔔 [UnifiedNotification] Idempotent hit, skipping duplicate creation:', existing.id);
+          logger.debug('Idempotent hit, skipping duplicate creation', { existingId: existing.id }, 'UnifiedNotification');
           return existing.id;
         }
       } catch (idErr) {
-        console.warn('🔔 [UnifiedNotification] Idempotency check failed, proceeding:', idErr);
+        logger.warn('Idempotency check failed, proceeding', idErr, 'UnifiedNotification');
       }
 
       // Store notification in Firestore first
@@ -97,19 +98,18 @@ class UnifiedNotificationService {
       };
 
       const docRef = await addDoc(collection(db, this.collectionName), notificationData);
-      console.log('🔔 [UnifiedNotification] Notification stored in Firestore:', docRef.id);
-      console.log('🔔 [UnifiedNotification] Stored notification details:', {
+      logger.info('Notification stored in Firestore', {
         id: docRef.id,
         recipientId: notification.recipientId,
         recipientRole: notification.recipientRole,
         agencyId: notification.agencyId,
         type: notification.type,
         title: notification.title
-      });
+      }, 'UnifiedNotification');
 
       // Method 1: Browser Notification (Primary - Immediate)
       try {
-        console.log('🔔 [UnifiedNotification] Method 1: Attempting browser notification...');
+        logger.debug('Method 1: Attempting browser notification', undefined, 'UnifiedNotification');
         await this.sendBrowserNotification({
           ...notification,
           read: false,
@@ -118,16 +118,16 @@ class UnifiedNotificationService {
           sentAt: new Date(),
         });
         deliveryResult.browser.success = true;
-        console.log('🔔 [UnifiedNotification] ✅ Method 1: Browser notification sent successfully');
+        logger.info('Method 1: Browser notification sent successfully', undefined, 'UnifiedNotification');
       } catch (browserError) {
         deliveryResult.browser.error = browserError instanceof Error ? browserError.message : String(browserError);
-        console.error('🔔 [UnifiedNotification] ❌ Method 1: Browser notification failed:', browserError);
+        logger.error('Method 1: Browser notification failed', browserError, 'UnifiedNotification');
       }
 
       // Method 2: Email Notification (Secondary - Universal Delivery)
       if (notification.emailAddress) {
         try {
-          console.log('🔔 [UnifiedNotification] Method 2: Attempting email notification...');
+          logger.debug('Method 2: Attempting email notification', undefined, 'UnifiedNotification');
           await this.sendEmailNotification({
             ...notification,
             read: false,
@@ -136,36 +136,36 @@ class UnifiedNotificationService {
             sentAt: new Date(),
           });
           deliveryResult.email.success = true;
-          console.log('🔔 [UnifiedNotification] ✅ Method 2: Email notification sent successfully');
+          logger.info('Method 2: Email notification sent successfully', undefined, 'UnifiedNotification');
         } catch (emailError) {
           deliveryResult.email.error = emailError instanceof Error ? emailError.message : String(emailError);
-          console.error('🔔 [UnifiedNotification] ❌ Method 2: Email notification failed:', emailError);
+          logger.error('Method 2: Email notification failed', emailError, 'UnifiedNotification');
         }
       } else {
-        console.log('🔔 [UnifiedNotification] Method 2: Skipping email (no email address provided)');
+        logger.debug('Method 2: Skipping email (no email address provided)', undefined, 'UnifiedNotification');
       }
 
       // Determine overall success
       deliveryResult.overallSuccess = deliveryResult.browser.success || deliveryResult.email.success;
 
       // Log final delivery summary
-      console.log('🔔 [UnifiedNotification] Delivery Summary:', {
+      logger.info('Delivery Summary', {
         notificationId: docRef.id,
         title: notification.title,
         methods: {
-          browser: deliveryResult.browser.success ? '✅' : '❌',
-          email: deliveryResult.email.success ? '✅' : '❌'
+          browser: deliveryResult.browser.success,
+          email: deliveryResult.email.success
         },
-        overallSuccess: deliveryResult.overallSuccess ? '✅' : '❌'
-      });
+        overallSuccess: deliveryResult.overallSuccess
+      }, 'UnifiedNotification');
 
       if (!deliveryResult.overallSuccess) {
-        console.warn('🔔 [UnifiedNotification] ⚠️ All delivery methods failed!');
+        logger.warn('All delivery methods failed', { notificationId: docRef.id }, 'UnifiedNotification');
       }
 
       return docRef.id;
     } catch (error) {
-      console.error('🔔 [UnifiedNotification] Critical error in sendNotification:', error);
+      logger.error('Critical error in sendNotification', error, 'UnifiedNotification');
       
       // Store as failed notification
       try {
@@ -184,7 +184,7 @@ class UnifiedNotificationService {
         };
         await addDoc(collection(db, this.collectionName), failedNotification);
       } catch (storeError) {
-        console.error('🔔 [UnifiedNotification] Error storing failed notification:', storeError);
+        logger.error('Error storing failed notification', storeError, 'UnifiedNotification');
       }
       
       throw error;
@@ -199,7 +199,7 @@ class UnifiedNotificationService {
     scheduledFor: Date
   ): Promise<string> {
     try {
-      console.log('🔔 [UnifiedNotification] Scheduling notification:', notification.title, 'for:', scheduledFor);
+      logger.info('Scheduling notification', { title: notification.title, scheduledFor }, 'UnifiedNotification');
 
       const notificationData = {
         title: notification.title,
@@ -218,10 +218,10 @@ class UnifiedNotificationService {
 
       const docRef = await addDoc(collection(db, this.collectionName), notificationData);
       
-      console.log('🔔 [UnifiedNotification] Notification scheduled successfully:', docRef.id);
+      logger.info('Notification scheduled successfully', { notificationId: docRef.id }, 'UnifiedNotification');
       return docRef.id;
     } catch (error) {
-      console.error('🔔 [UnifiedNotification] Error scheduling notification:', error);
+      logger.error('Error scheduling notification', error, 'UnifiedNotification');
       throw error;
     }
   }
@@ -250,7 +250,7 @@ class UnifiedNotificationService {
         sentAt: doc.data().sentAt?.toDate(),
       })) as UnifiedNotification[];
     } catch (error) {
-      console.error('🔔 [UnifiedNotification] Error getting due notifications:', error);
+      logger.error('Error getting due notifications', error, 'UnifiedNotification');
       return [];
     }
   }
@@ -281,7 +281,7 @@ class UnifiedNotificationService {
         sentAt: doc.data().sentAt?.toDate(),
       })) as UnifiedNotification[];
     } catch (error) {
-      console.error('🔔 [UnifiedNotification] Error getting missed notifications:', error);
+      logger.error('Error getting missed notifications', error, 'UnifiedNotification');
       return [];
     }
   }
@@ -295,7 +295,7 @@ class UnifiedNotificationService {
     }
 
     try {
-      console.log('🔔 [UnifiedNotification] Sending scheduled notification:', notification.title);
+      logger.info('Sending scheduled notification', { title: notification.title, notificationId: notification.id }, 'UnifiedNotification');
 
       // Update status to sent
       await updateDoc(doc(db, this.collectionName, notification.id), {
@@ -306,9 +306,9 @@ class UnifiedNotificationService {
       // Display notification
       await this.displayNotification(notification);
       
-      console.log('🔔 [UnifiedNotification] Scheduled notification sent successfully');
+      logger.info('Scheduled notification sent successfully', { notificationId: notification.id }, 'UnifiedNotification');
     } catch (error) {
-      console.error('🔔 [UnifiedNotification] Error sending scheduled notification:', error);
+      logger.error('Error sending scheduled notification', error, 'UnifiedNotification');
       
       // Mark as failed
       try {
@@ -316,7 +316,7 @@ class UnifiedNotificationService {
           status: 'failed',
         });
       } catch (updateError) {
-        console.error('🔔 [UnifiedNotification] Error marking notification as failed:', updateError);
+        logger.error('Error marking notification as failed', updateError, 'UnifiedNotification');
       }
       
       throw error;
@@ -332,7 +332,7 @@ class UnifiedNotificationService {
     }
 
     try {
-      console.log('🔔 [UnifiedNotification] Sending missed notification:', notification.title);
+      logger.info('Sending missed notification', { title: notification.title, notificationId: notification.id }, 'UnifiedNotification');
 
       // Update status to delayed
       await updateDoc(doc(db, this.collectionName, notification.id), {
@@ -343,9 +343,9 @@ class UnifiedNotificationService {
       // Display notification
       await this.displayNotification(notification);
       
-      console.log('🔔 [UnifiedNotification] Missed notification sent successfully');
+      logger.info('Missed notification sent successfully', { notificationId: notification.id }, 'UnifiedNotification');
     } catch (error) {
-      console.error('🔔 [UnifiedNotification] Error sending missed notification:', error);
+      logger.error('Error sending missed notification', error, 'UnifiedNotification');
       
       // Mark as failed
       try {
@@ -353,7 +353,7 @@ class UnifiedNotificationService {
           status: 'failed',
         });
       } catch (updateError) {
-        console.error('🔔 [UnifiedNotification] Error marking missed notification as failed:', updateError);
+        logger.error('Error marking missed notification as failed', updateError, 'UnifiedNotification');
       }
       
       throw error;
@@ -369,7 +369,7 @@ class UnifiedNotificationService {
     try {
       await this.sendBrowserNotification(notification);
     } catch (error) {
-      console.error('🔔 [UnifiedNotification] Error displaying notification:', error);
+      logger.error('Error displaying notification', error, 'UnifiedNotification');
     }
   }
 
@@ -378,7 +378,7 @@ class UnifiedNotificationService {
    */
   async getUserNotifications(userId: string, limitCount: number = 50): Promise<UnifiedNotification[]> {
     try {
-      console.log('🔍 [UnifiedNotification] Getting notifications for userId:', userId);
+      logger.debug('Getting notifications for userId', { userId }, 'UnifiedNotification');
       const q = query(
         collection(db, this.collectionName),
         where('recipientId', '==', userId),
@@ -387,7 +387,7 @@ class UnifiedNotificationService {
       );
 
       const snapshot = await getDocs(q);
-      console.log('🔍 [UnifiedNotification] Query result:', {
+      logger.debug('Query result', {
         userId: userId,
         notificationCount: snapshot.docs.length,
         notifications: snapshot.docs.map(doc => ({
@@ -398,7 +398,7 @@ class UnifiedNotificationService {
           title: doc.data().title,
           status: doc.data().status
         }))
-      });
+      }, 'UnifiedNotification');
       
       return snapshot.docs.map(doc => ({
         id: doc.id,
@@ -408,7 +408,7 @@ class UnifiedNotificationService {
         sentAt: doc.data().sentAt?.toDate(),
       })) as UnifiedNotification[];
     } catch (error) {
-      console.error('🔔 [UnifiedNotification] Error getting user notifications:', error);
+      logger.error('Error getting user notifications', error, 'UnifiedNotification');
       return [];
     }
   }
@@ -422,7 +422,7 @@ class UnifiedNotificationService {
         read: true,
       });
     } catch (error) {
-      console.error('🔔 [UnifiedNotification] Error marking notification as read:', error);
+      logger.error('Error marking notification as read', error, 'UnifiedNotification');
       throw error;
     }
   }
@@ -441,7 +441,7 @@ class UnifiedNotificationService {
       const snapshot = await getDocs(q);
       return snapshot.size;
     } catch (error) {
-      console.error('🔔 [UnifiedNotification] Error getting unread count:', error);
+      logger.error('Error getting unread count', error, 'UnifiedNotification');
       return 0;
     }
   }
@@ -459,7 +459,7 @@ class UnifiedNotificationService {
     assignedByName: string,
     emailAddress?: string
   ): Promise<string> {
-    console.log('🔔 [UnifiedNotification] createFormAssignmentNotification called:', {
+    logger.debug('createFormAssignmentNotification called', {
       formId,
       formTitle,
       recipientId,
@@ -468,7 +468,7 @@ class UnifiedNotificationService {
       action,
       assignedByName,
       emailAddress: emailAddress || 'none'
-    });
+    }, 'UnifiedNotification');
     
     const isAssigned = action === 'assigned';
     const title = isAssigned ? 'Nouveau formulaire assigné' : 'Formulaire désassigné';
@@ -476,7 +476,7 @@ class UnifiedNotificationService {
       ? `${assignedByName} vous a assigné le formulaire "${formTitle}"`
       : `Vous n'êtes plus assigné au formulaire "${formTitle}"`;
 
-    console.log('🔔 [UnifiedNotification] Creating notification with:', {
+    logger.debug('Creating notification with', {
       title,
       body,
       type: 'form_assignment',
@@ -484,7 +484,7 @@ class UnifiedNotificationService {
       recipientRole,
       agencyId,
       emailAddress: emailAddress || 'none'
-    });
+    }, 'UnifiedNotification');
 
     return await this.sendNotification({
       title,
@@ -607,18 +607,18 @@ class UnifiedNotificationService {
    */
   private async sendBrowserNotification(notification: Omit<UnifiedNotification, 'id'>): Promise<void> {
     try {
-      console.log('🔔 [UnifiedNotification] Sending browser notification:', notification.title);
+      logger.debug('Sending browser notification', { title: notification.title }, 'UnifiedNotification');
 
       // Check if browser notifications are supported
       if (!browserNotificationService.isBrowserNotificationSupported()) {
-        console.warn('🔔 [UnifiedNotification] Browser notifications not supported');
+        logger.warn('Browser notifications not supported', undefined, 'UnifiedNotification');
         return;
       }
 
       // Check permission
       const permission = browserNotificationService.getPermissionStatus();
       if (permission !== 'granted') {
-        console.warn('🔔 [UnifiedNotification] Browser notification permission not granted:', permission);
+        logger.warn('Browser notification permission not granted', { permission }, 'UnifiedNotification');
         return;
       }
 
@@ -674,13 +674,13 @@ class UnifiedNotificationService {
       }
 
       if (success) {
-        console.log('🔔 [UnifiedNotification] ✅ Browser notification sent successfully');
+        logger.info('Browser notification sent successfully', { title: notification.title }, 'UnifiedNotification');
       } else {
-        console.error('🔔 [UnifiedNotification] ❌ Browser notification failed');
+        logger.error('Browser notification failed', undefined, 'UnifiedNotification');
       }
 
     } catch (error) {
-      console.error('🔔 [UnifiedNotification] Error sending browser notification:', error);
+      logger.error('Error sending browser notification', error, 'UnifiedNotification');
       throw error;
     }
   }
@@ -694,7 +694,10 @@ class UnifiedNotificationService {
     }
 
     try {
-      console.log('🔔 [UnifiedNotification] Sending email notification:', notification.title, 'to:', notification.emailAddress);
+      logger.debug('Sending email notification', { 
+        title: notification.title, 
+        emailAddress: notification.emailAddress 
+      }, 'UnifiedNotification');
 
       // Create email content based on notification type
       const emailContent = this.createEmailContent(notification);
@@ -710,9 +713,12 @@ class UnifiedNotificationService {
         throw new Error('Failed to send email notification');
       }
 
-      console.log('🔔 [UnifiedNotification] ✅ Email notification sent successfully');
+      logger.info('Email notification sent successfully', { 
+        title: notification.title,
+        emailAddress: notification.emailAddress 
+      }, 'UnifiedNotification');
     } catch (error) {
-      console.error('🔔 [UnifiedNotification] Error sending email notification:', error);
+      logger.error('Error sending email notification', error, 'UnifiedNotification');
       throw error;
     }
   }

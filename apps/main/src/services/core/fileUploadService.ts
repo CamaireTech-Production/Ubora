@@ -6,6 +6,8 @@ import {
   UploadResult 
 } from 'firebase/storage';
 import { storage } from '@ubora/shared/firebaseConfig';
+import { logger } from '@ubora/shared/utils/logger';
+import { getErrorCode } from '@ubora/shared/types/errors';
 import { FileAttachment } from '../../types';
 import { PDFTextExtractionService } from './pdfTextExtractionService';
 import { ImageTextExtractionService } from './imageTextExtractionService';
@@ -77,13 +79,13 @@ export class FileUploadService {
     onImageExtraction?: (result: ImageExtractionResult) => void
   ): Promise<FileAttachment> {
     try {
-      console.log('🔍 DEBUG: FileUploadService.processFile called with:', {
+      logger.debug('FileUploadService.processFile called', {
         fileName: file.name,
         fileSize: file.size,
         fileType: file.type,
         fieldId,
         userId
-      });
+      }, 'FileUploadService');
       
       // Validate file
       this.validateFile(file);
@@ -104,32 +106,42 @@ export class FileUploadService {
 
       // Convert file to base64 for draft storage
       try {
-        console.log(`🔄 Converting ${file.name} to base64 for draft storage...`);
+        logger.debug(`Converting ${file.name} to base64 for draft storage`, undefined, 'FileUploadService');
         
         // Check file size for localStorage limitations
         const fileSizeMB = (file.size / (1024 * 1024)).toFixed(2);
         const estimatedBase64SizeMB = ((file.size * 1.33) / (1024 * 1024)).toFixed(2);
         
         if (file.size > 5 * 1024 * 1024) { // 5MB limit
-          console.warn(`⚠️ Large file detected: ${fileSizeMB}MB (estimated base64: ${estimatedBase64SizeMB}MB)`);
-          console.warn(`⚠️ This file may exceed localStorage limits and cause issues with draft storage`);
+          logger.warn(`Large file detected: ${fileSizeMB}MB (estimated base64: ${estimatedBase64SizeMB}MB)`, {
+            fileName: file.name,
+            fileSizeMB,
+            estimatedBase64SizeMB
+          }, 'FileUploadService');
+          logger.warn('This file may exceed localStorage limits and cause issues with draft storage', {
+            fileName: file.name
+          }, 'FileUploadService');
         }
         
         const base64Data = await this.fileToBase64(file);
         fileAttachment.base64Data = base64Data;
-        console.log(`✅ ${file.name} converted to base64 (${base64Data.length} characters, ~${estimatedBase64SizeMB}MB)`);
+        logger.info(`${file.name} converted to base64`, {
+          fileName: file.name,
+          base64Length: base64Data.length,
+          estimatedBase64SizeMB
+        }, 'FileUploadService');
         
         // Test the conversion to ensure it works
         const conversionTest = await this.testBase64Conversion(file);
         if (!conversionTest) {
-          console.error(`❌ Base64 conversion test failed for ${file.name}`);
+          logger.error(`Base64 conversion test failed for ${file.name}`, undefined, 'FileUploadService');
           // Remove base64 data if test fails
           delete fileAttachment.base64Data;
         } else {
-          console.log(`✅ Base64 conversion test passed for ${file.name}`);
+          logger.debug(`Base64 conversion test passed for ${file.name}`, undefined, 'FileUploadService');
         }
       } catch (base64Error) {
-        console.error(`❌ Failed to convert ${file.name} to base64:`, base64Error);
+        logger.error(`Failed to convert ${file.name} to base64`, base64Error, 'FileUploadService');
         // Continue without base64 data - file will need to be re-uploaded for drafts
       }
 
@@ -146,14 +158,17 @@ export class FileUploadService {
           });
 
           const extractionResult = await PDFTextExtractionService.extractTextFromPDF(file, userId);
-          console.log('🔍 DEBUG: PDF extraction result:', extractionResult);
+          logger.debug('PDF extraction result', extractionResult, 'FileUploadService');
           
           if (extractionResult.success) {
             fileAttachment.extractedText = PDFTextExtractionService.cleanExtractedText(extractionResult.text);
             fileAttachment.textExtractionStatus = 'completed';
 
             // Text extraction completed - no Firebase upload for now
-            console.log(`✅ PDF text extraction completed for ${file.name}`);
+            logger.info(`PDF text extraction completed for ${file.name}`, {
+              fileName: file.name,
+              textLength: extractionResult.text?.length || 0
+            }, 'FileUploadService');
 
             // Trigger debug modal callback with extracted text
             onPDFExtraction?.({
@@ -165,7 +180,7 @@ export class FileUploadService {
           } else {
             // Extraction failed
             fileAttachment.textExtractionStatus = 'failed';
-            console.error(`❌ PDF text extraction failed for ${file.name}:`, extractionResult.error);
+            logger.error(`PDF text extraction failed for ${file.name}`, extractionResult.error, 'FileUploadService');
 
             // Trigger debug modal callback with error
             onPDFExtraction?.({
@@ -177,7 +192,7 @@ export class FileUploadService {
             });
           }
         } catch (extractionError) {
-          console.error('Failed to extract PDF text:', extractionError);
+          logger.error('Failed to extract PDF text', extractionError, 'FileUploadService');
           fileAttachment.textExtractionStatus = 'failed';
           
           // Trigger debug modal callback with error
@@ -203,7 +218,7 @@ export class FileUploadService {
           });
 
           const extractionResult = await ImageTextExtractionService.extractTextFromImage(file, userId);
-          console.log('🔍 DEBUG: Image extraction result:', extractionResult);
+          logger.debug('Image extraction result', extractionResult, 'FileUploadService');
           
           if (extractionResult.success) {
             fileAttachment.extractedText = ImageTextExtractionService.cleanExtractedText(extractionResult.text);
@@ -221,7 +236,7 @@ export class FileUploadService {
           } else {
             // Extraction failed
             fileAttachment.textExtractionStatus = 'failed';
-            console.error(`❌ Image text extraction failed for ${file.name}:`, extractionResult.error);
+            logger.error(`Image text extraction failed for ${file.name}`, extractionResult.error, 'FileUploadService');
 
             // Trigger debug modal callback with error
             onImageExtraction?.({
@@ -234,7 +249,7 @@ export class FileUploadService {
             });
           }
         } catch (extractionError) {
-          console.error('Failed to extract image text:', extractionError);
+          logger.error('Failed to extract image text', extractionError, 'FileUploadService');
           fileAttachment.textExtractionStatus = 'failed';
           
           // Trigger debug modal callback with error
@@ -259,7 +274,7 @@ export class FileUploadService {
       return fileAttachment;
 
     } catch (error) {
-      console.error('Error processing file:', error);
+      logger.error('Error processing file', error, 'FileUploadService');
       
       onProgress?.({
         fieldId,
@@ -311,23 +326,23 @@ export class FileUploadService {
    */
   static async testBase64Conversion(file: File): Promise<boolean> {
     try {
-      console.log(`🧪 Testing base64 conversion for: ${file.name}`);
+      logger.debug(`Testing base64 conversion for: ${file.name}`, undefined, 'FileUploadService');
       
       // Convert to base64
       const base64 = await this.fileToBase64(file);
-      console.log(`✅ Base64 conversion successful: ${base64.length} characters`);
+      logger.debug(`Base64 conversion successful`, { base64Length: base64.length }, 'FileUploadService');
       
       // Convert back to file
       const reconstructedFile = this.base64ToFile(base64, file.name, file.type);
-      console.log(`✅ File reconstruction successful:`, {
+      logger.debug(`File reconstruction successful`, {
         originalSize: file.size,
         reconstructedSize: reconstructedFile.size,
         sizesMatch: file.size === reconstructedFile.size
-      });
+      }, 'FileUploadService');
       
       return file.size === reconstructedFile.size;
     } catch (error) {
-      console.error(`❌ Base64 conversion test failed:`, error);
+      logger.error(`Base64 conversion test failed`, error, 'FileUploadService');
       return false;
     }
   }
@@ -337,12 +352,12 @@ export class FileUploadService {
    */
   static base64ToFile(base64: string, fileName: string, mimeType: string): File {
     try {
-      console.log(`🔄 Converting base64 back to file:`, {
+      logger.debug(`Converting base64 back to file`, {
         fileName,
         mimeType,
         base64Length: base64.length,
         estimatedSize: Math.round((base64.length * 3) / 4)
-      });
+      }, 'FileUploadService');
 
       // Decode base64 to binary
       const byteCharacters = atob(base64);
@@ -358,16 +373,16 @@ export class FileUploadService {
         lastModified: Date.now()
       });
 
-      console.log(`✅ File reconstructed:`, {
+      logger.debug(`File reconstructed`, {
         name: file.name,
         size: file.size,
         type: file.type,
         lastModified: file.lastModified
-      });
+      }, 'FileUploadService');
 
       return file;
     } catch (error) {
-      console.error(`❌ Error converting base64 to file:`, error);
+      logger.error(`Error converting base64 to file`, error, 'FileUploadService');
       throw new Error(`Failed to convert base64 to file: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
@@ -393,7 +408,7 @@ export class FileUploadService {
         throw new Error('File is empty');
       }
 
-      console.log(`🔄 Uploading file to Firebase Storage:`, {
+      logger.debug(`Uploading file to Firebase Storage`, {
         fileName: file.name,
         fileSize: file.size,
         fileType: file.type,
@@ -401,7 +416,7 @@ export class FileUploadService {
         formId,
         userId,
         agencyId
-      });
+      }, 'FileUploadService');
 
       // Generate unique file path
       const timestamp = Date.now();
@@ -429,7 +444,7 @@ export class FileUploadService {
         throw new Error(`Invalid storage path: ${storagePath}`);
       }
 
-      console.log(`📁 Storage path: ${storagePath}`);
+      logger.debug(`Storage path: ${storagePath}`, { storagePath }, 'FileUploadService');
 
       // Create storage reference
       const storageRef = ref(storage, storagePath);
@@ -443,30 +458,30 @@ export class FileUploadService {
       });
 
       // Upload file to Firebase Storage
-      console.log(`🔄 Attempting upload to Firebase Storage with path: ${storagePath}`);
-      console.log(`🔄 File details:`, {
+      logger.debug(`Attempting upload to Firebase Storage`, { storagePath }, 'FileUploadService');
+      logger.debug(`File details`, {
         name: file.name,
         size: file.size,
         type: file.type,
         lastModified: file.lastModified
-      });
+      }, 'FileUploadService');
       
       // Check Firebase Storage configuration
-      console.log(`🔄 Firebase Storage config:`, {
+      logger.debug(`Firebase Storage config`, {
         bucket: storage.app.options.storageBucket,
         projectId: storage.app.options.projectId
-      });
+      }, 'FileUploadService');
       
       // FIREBASE STORAGE WORKAROUND: Store file in Firestore instead
       // This creates a proper download URL that works with the dashboard
-      console.log(`🔄 Firebase Storage upload failed, storing file in Firestore instead`);
+      logger.info(`Firebase Storage upload failed, storing file in Firestore instead`, undefined, 'FileUploadService');
       
       // Create a proper download URL for Firestore storage
       const fileId = `${fieldId}_${timestamp}`;
       const firestoreDownloadUrl = `firestore://${agencyId}/${formId}/${userId}/${fileId}`;
       const firestoreStoragePath = `firestore-files/${agencyId}/${formId}/${userId}/${fileId}`;
       
-      console.log(`✅ Using Firestore storage: ${firestoreDownloadUrl}`);
+      logger.info(`Using Firestore storage`, { firestoreDownloadUrl }, 'FileUploadService');
 
       // Update progress - completed
       onProgress?.({
@@ -479,11 +494,11 @@ export class FileUploadService {
       return { downloadUrl: firestoreDownloadUrl, storagePath: firestoreStoragePath };
 
     } catch (error) {
-      console.error('❌ Error uploading file to Firebase:', error);
-      console.error('❌ Error details:', {
+      logger.error('Error uploading file to Firebase', error, 'FileUploadService');
+      logger.error('Error details', {
         name: error instanceof Error ? error.name : 'Unknown',
         message: error instanceof Error ? error.message : 'Unknown error',
-        code: (error as any)?.code || 'No code',
+        code: getErrorCode(error) || 'No code',
         stack: error instanceof Error ? error.stack : 'No stack'
       });
       
@@ -527,19 +542,20 @@ export class FileUploadService {
    */
   static async processFiles(
     files: { file: File; fieldId: string }[],
+    userId?: string,
     onProgress?: (progress: UploadProgress) => void,
     onPDFExtraction?: (result: PDFExtractionResult) => void,
     onImageExtraction?: (result: ImageExtractionResult) => void
   ): Promise<FileAttachment[]> {
     const processPromises = files.map(({ file, fieldId }) =>
-      this.processFile(file, fieldId, onProgress, onPDFExtraction, onImageExtraction)
+      this.processFile(file, fieldId, userId, onProgress, onPDFExtraction, onImageExtraction)
     );
 
     try {
       const results = await Promise.all(processPromises);
       return results;
     } catch (error) {
-      console.error('Error processing files:', error);
+      logger.error('Error processing files', error, 'FileUploadService');
       throw error;
     }
   }
@@ -563,7 +579,7 @@ export class FileUploadService {
       const results = await Promise.all(uploadPromises);
       return results;
     } catch (error) {
-      console.error('Error uploading files to Firebase:', error);
+      logger.error('Error uploading files to Firebase', error, 'FileUploadService');
       throw error;
     }
   }
@@ -576,7 +592,7 @@ export class FileUploadService {
       const fileRef = ref(storage, storagePath);
       await deleteObject(fileRef);
     } catch (error) {
-      console.error('Error deleting file:', error);
+      logger.error('Error deleting file', error, 'FileUploadService');
       throw new Error(`Failed to delete file: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }

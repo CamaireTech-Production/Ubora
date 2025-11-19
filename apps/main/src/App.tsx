@@ -1,46 +1,64 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, lazy, Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from '@ubora/shared/contexts/AuthContext';
 import { AIResponseProvider } from '@ubora/shared/contexts/AIResponseContext';
 import { AppProvider } from '@ubora/shared/contexts/AppContext';
 import { ConversationProvider } from '@ubora/shared/contexts/ConversationContext';
+import { UniversProvider } from '@ubora/shared/contexts/UniversContext';
+import { FormsProvider } from '@ubora/shared/contexts/FormsContext';
+import { EntriesProvider } from '@ubora/shared/contexts/EntriesContext';
+import { EmployeesProvider } from '@ubora/shared/contexts/EmployeesContext';
+import { DashboardsProvider } from '@ubora/shared/contexts/DashboardsContext';
 import { ProtectedRoute } from './components/core/ProtectedRoute';
 import { ErrorBoundary } from './components/core/ErrorBoundary';
+import { WireframeLoader } from './components/loading/WireframeLoader';
 import { LoginPage } from './pages/auth/LoginPage';
 import { PasswordResetPage } from './pages/auth/PasswordResetPage';
 import { ProfileCompletionPage } from './pages/auth/ProfileCompletionPage';
-import { DirecteurDashboard } from './pages/dashboard/DirecteurDashboard';
-import { DirecteurChat } from './pages/chat/DirecteurChat';
-import { EmployeDashboard } from './pages/dashboard/EmployeDashboard';
 import { UnauthorizedPage } from './pages/shared/UnauthorizedPage';
 import { PendingApprovalPage } from './pages/employees/PendingApprovalPage';
-import { DashboardDetailPage } from './pages/dashboard/DashboardDetailPage';
-import { ResponseDetailPage } from './pages/forms/ResponseDetailPage';
-import { PackageManagementPage } from './pages/packages/PackageManagementPage';
-import { PackageSelectionPage } from './pages/packages/PackageSelectionPage';
-import { DirectorSettingsPage } from './pages/settings/DirectorSettingsPage';
-import { NotificationsPage } from './pages/notifications/NotificationsPage';
-import { ScheduledQuestionsPage } from './pages/scheduled/ScheduledQuestionsPage';
-import { ScheduledQuestionFormPage } from './pages/scheduled/ScheduledQuestionFormPage';
-import { ScheduledQuestionChatPage } from './pages/chat/ScheduledQuestionChatPage';
 import { ProgrammedInstructionsRoute } from './components/scheduled/ProgrammedInstructionsRoute';
-import { UniversPage } from './pages/univers/UniversPage';
-import { UniversCreatePage } from './pages/univers/UniversCreatePage';
-import { UniversInstructionsPage } from './pages/univers/UniversInstructionsPage';
-import { UniversCreateFromTemplatePage } from './pages/univers/UniversCreateFromTemplatePage';
-import { UniversEditPage } from './pages/univers/UniversEditPage';
-import { UniversViewPage } from './pages/univers/UniversViewPage';
-import { UniversMarketplacePage } from './pages/univers/UniversMarketplacePage';
-import { ListsPage } from './pages/lists/ListsPage';
-import { ListEditorPage } from './pages/lists/ListEditorPage';
-import { ReportsPage } from './pages/reports/ReportsPage';
-import PushTestPage from './pages/shared/PushTestPage';
-import { CampayTestPage } from './pages/shared/CampayTestPage';
 import { HybridPWAManager } from './components/pwa/HybridPWAManager';
 import { EmployeeManagement } from './components/employees/EmployeeManagement';
 import { Layout } from './components/layout/Layout';
 import { PWAUpdateNotification } from './components/pwa/PWAUpdateNotification';
 import { usePageTracking } from '@ubora/shared/hooks/usePageTracking';
+
+// Lazy load all routes except auth pages
+const DirecteurDashboard = lazy(() => import('./pages/dashboard/DirecteurDashboard').then(module => ({ default: module.DirecteurDashboard })));
+const DirecteurChat = lazy(() => import('./pages/chat/DirecteurChat').then(module => ({ default: module.DirecteurChat })));
+const EmployeDashboard = lazy(() => import('./pages/dashboard/EmployeDashboard').then(module => ({ default: module.EmployeDashboard })));
+const DashboardDetailPage = lazy(() => import('./pages/dashboard/DashboardDetailPage').then(module => ({ default: module.DashboardDetailPage })));
+const ResponseDetailPage = lazy(() => import('./pages/forms/ResponseDetailPage').then(module => ({ default: module.ResponseDetailPage })));
+const PackageManagementPage = lazy(() => import('./pages/packages/PackageManagementPage').then(module => ({ default: module.PackageManagementPage })));
+const PackageSelectionPage = lazy(() => import('./pages/packages/PackageSelectionPage').then(module => ({ default: module.PackageSelectionPage })));
+const DirectorSettingsPage = lazy(() => import('./pages/settings/DirectorSettingsPage').then(module => ({ default: module.DirectorSettingsPage })));
+const NotificationsPage = lazy(() => import('./pages/notifications/NotificationsPage').then(module => ({ default: module.NotificationsPage })));
+const ScheduledQuestionsPage = lazy(() => import('./pages/scheduled/ScheduledQuestionsPage').then(module => ({ default: module.ScheduledQuestionsPage })));
+const ScheduledQuestionFormPage = lazy(() => import('./pages/scheduled/ScheduledQuestionFormPage').then(module => ({ default: module.ScheduledQuestionFormPage })));
+const ScheduledQuestionChatPage = lazy(() => import('./pages/chat/ScheduledQuestionChatPage').then(module => ({ default: module.ScheduledQuestionChatPage })));
+const UniversPage = lazy(() => import('./pages/univers/UniversPage').then(module => ({ default: module.UniversPage })));
+const UniversCreatePage = lazy(() => import('./pages/univers/UniversCreatePage').then(module => ({ default: module.UniversCreatePage })));
+const UniversCreateFromTemplatePage = lazy(() => import('./pages/univers/UniversCreateFromTemplatePage').then(module => ({ default: module.UniversCreateFromTemplatePage })));
+const UniversEditPage = lazy(() => import('./pages/univers/UniversEditPage').then(module => ({ default: module.UniversEditPage })));
+const UniversViewPage = lazy(() => import('./pages/univers/UniversViewPage').then(module => ({ default: module.UniversViewPage })));
+const UniversMarketplacePage = lazy(() => import('./pages/univers/UniversMarketplacePage').then(module => ({ default: module.UniversMarketplacePage })));
+const UniversInstructionsPage = lazy(() => import('./pages/univers/UniversInstructionsPage').then(module => ({ default: module.UniversInstructionsPage })));
+const ListsPage = lazy(() => import('./pages/lists/ListsPage').then(module => ({ default: module.ListsPage })));
+const ListEditorPage = lazy(() => import('./pages/lists/ListEditorPage').then(module => ({ default: module.ListEditorPage })));
+const ReportsPage = lazy(() => import('./pages/reports/ReportsPage').then(module => ({ default: module.ReportsPage })));
+const PushTestPage = lazy(() => import('./pages/shared/PushTestPage').then(module => ({ default: module.default })));
+const CampayTestPage = lazy(() => import('./pages/shared/CampayTestPage').then(module => ({ default: module.CampayTestPage })));
+
+// Helper component to wrap lazy loaded routes with Suspense
+const LazyRoute: React.FC<{ children: React.ReactNode; loaderType: 'dashboard' | 'chat' | 'form' | 'list' | 'card' | 'chart' | 'metric' | 'notification' | 'univers' | 'univers-card' | 'univers-detail' }> = ({ 
+  children, 
+  loaderType 
+}) => (
+  <Suspense fallback={<WireframeLoader type={loaderType} />}>
+    {children}
+  </Suspense>
+);
 
 // Component to handle service worker messages
 const ServiceWorkerMessageHandler: React.FC = () => {
@@ -85,7 +103,7 @@ const ServiceWorkerMessageHandler: React.FC = () => {
  * Handle highlighting for different notification types
  */
 const handleHighlighting = (notificationType: string, highlightData: any) => {
-  console.log('🔔 [App] Handling highlighting:', { notificationType, highlightData });
+  logger.debug('Handling highlighting', { notificationType, highlightData }, 'App');
 
   switch (notificationType) {
     case 'form_assignment':
@@ -101,28 +119,28 @@ const handleHighlighting = (notificationType: string, highlightData: any) => {
       handleProgrammedInstructionHighlighting(highlightData);
       break;
     default:
-      console.log('🔔 [App] Unknown notification type:', notificationType);
+      logger.warn('Unknown notification type', { notificationType }, 'App');
   }
 };
 
 const handleFormAssignmentHighlighting = (highlightData: any) => {
   // Implementation for form assignment highlighting
-  console.log('🔔 [App] Form assignment highlighting:', highlightData);
+  logger.debug('Form assignment highlighting', { highlightData }, 'App');
 };
 
 const handleFormReminderHighlighting = (highlightData: any) => {
   // Implementation for form reminder highlighting
-  console.log('🔔 [App] Form reminder highlighting:', highlightData);
+  logger.debug('Form reminder highlighting', { highlightData }, 'App');
 };
 
 const handleMetricReminderHighlighting = (highlightData: any) => {
   // Implementation for metric reminder highlighting
-  console.log('🔔 [App] Metric reminder highlighting:', highlightData);
+  logger.debug('Metric reminder highlighting', { highlightData }, 'App');
 };
 
 const handleProgrammedInstructionHighlighting = (highlightData: any) => {
   // Implementation for programmed instruction highlighting
-  console.log('🔔 [App] Programmed instruction highlighting:', highlightData);
+  logger.debug('Programmed instruction highlighting', { highlightData }, 'App');
 };
 
 // Component for authenticated services
@@ -178,13 +196,58 @@ const SafeConversationProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   }
 };
 
+const SafeUniversProvider: React.FC<{ children: React.ReactNode }> = ({ children }: { children: React.ReactNode }) => {
+  try {
+    return <UniversProvider>{children}</UniversProvider>;
+  } catch (error) {
+    return <>{children}</>;
+  }
+};
+
+const SafeFormsProvider: React.FC<{ children: React.ReactNode }> = ({ children }: { children: React.ReactNode }) => {
+  try {
+    return <FormsProvider>{children}</FormsProvider>;
+  } catch (error) {
+    return <>{children}</>;
+  }
+};
+
+const SafeEntriesProvider: React.FC<{ children: React.ReactNode }> = ({ children }: { children: React.ReactNode }) => {
+  try {
+    return <EntriesProvider>{children}</EntriesProvider>;
+  } catch (error) {
+    return <>{children}</>;
+  }
+};
+
+const SafeEmployeesProvider: React.FC<{ children: React.ReactNode }> = ({ children }: { children: React.ReactNode }) => {
+  try {
+    return <EmployeesProvider>{children}</EmployeesProvider>;
+  } catch (error) {
+    return <>{children}</>;
+  }
+};
+
+const SafeDashboardsProvider: React.FC<{ children: React.ReactNode }> = ({ children }: { children: React.ReactNode }) => {
+  try {
+    return <DashboardsProvider>{children}</DashboardsProvider>;
+  } catch (error) {
+    return <>{children}</>;
+  }
+};
+
 function App() {
   return (
     <ErrorBoundary>
       <SafeAuthProvider>
         <SafeAIResponseProvider>
-          <SafeAppProvider>
-            <SafeConversationProvider>
+          <SafeUniversProvider>
+            <SafeFormsProvider>
+              <SafeEntriesProvider>
+                <SafeEmployeesProvider>
+                  <SafeDashboardsProvider>
+                    <SafeAppProvider>
+                      <SafeConversationProvider>
               <Router>
               <ServiceWorkerMessageHandler />
               <AuthenticatedServices />
@@ -213,7 +276,9 @@ function App() {
                       allowedRoles={['directeur', 'employe']} 
                       requireDirectorDashboardAccess={true}
                     >
-                      <DirecteurDashboard />
+                      <LazyRoute loaderType="dashboard">
+                        <DirecteurDashboard />
+                      </LazyRoute>
                     </ProtectedRoute>
                   } 
                 />
@@ -226,7 +291,9 @@ function App() {
                       allowedRoles={['directeur', 'employe']} 
                       requireDirectorDashboardAccess={true}
                     >
-                      <DirecteurChat />
+                      <LazyRoute loaderType="chat">
+                        <DirecteurChat />
+                      </LazyRoute>
                     </ProtectedRoute>
                   } 
                 />
@@ -239,7 +306,9 @@ function App() {
                       allowedRoles={['directeur', 'employe']} 
                       requireDirectorDashboardAccess={true}
                     >
-                      <DashboardDetailPage />
+                      <LazyRoute loaderType="dashboard">
+                        <DashboardDetailPage />
+                      </LazyRoute>
                     </ProtectedRoute>
                   } 
                 />
@@ -249,7 +318,9 @@ function App() {
                   path="/employe/dashboard" 
                   element={
                     <ProtectedRoute allowedRoles={['employe']}>
-                      <EmployeDashboard />
+                      <LazyRoute loaderType="dashboard">
+                        <EmployeDashboard />
+                      </LazyRoute>
                     </ProtectedRoute>
                   } 
                 />
@@ -259,7 +330,9 @@ function App() {
                   path="/responses/:formId" 
                   element={
                     <ProtectedRoute allowedRoles={['employe', 'directeur']}>
-                      <ResponseDetailPage />
+                      <LazyRoute loaderType="form">
+                        <ResponseDetailPage />
+                      </LazyRoute>
                     </ProtectedRoute>
                   } 
                 />
@@ -269,7 +342,9 @@ function App() {
                   path="/packages" 
                   element={
                     <ProtectedRoute allowedRoles={['directeur']}>
-                      <PackageSelectionPage />
+                      <LazyRoute loaderType="card">
+                        <PackageSelectionPage />
+                      </LazyRoute>
                     </ProtectedRoute>
                   } 
                 />
@@ -279,7 +354,9 @@ function App() {
                   path="/packages/manage" 
                   element={
                     <ProtectedRoute allowedRoles={['directeur']}>
-                      <PackageManagementPage />
+                      <LazyRoute loaderType="card">
+                        <PackageManagementPage />
+                      </LazyRoute>
                     </ProtectedRoute>
                   } 
                 />
@@ -289,7 +366,9 @@ function App() {
                   path="/directeur/settings" 
                   element={
                     <ProtectedRoute allowedRoles={['directeur']}>
-                      <DirectorSettingsPage />
+                      <LazyRoute loaderType="card">
+                        <DirectorSettingsPage />
+                      </LazyRoute>
                     </ProtectedRoute>
                   } 
                 />
@@ -299,7 +378,9 @@ function App() {
                   path="/notifications" 
                   element={
                     <ProtectedRoute allowedRoles={['directeur', 'employe']}>
-                      <NotificationsPage />
+                      <LazyRoute loaderType="notification">
+                        <NotificationsPage />
+                      </LazyRoute>
                     </ProtectedRoute>
                   } 
                 />
@@ -313,7 +394,9 @@ function App() {
                       requireDirectorDashboardAccess={true}
                     >
                       <ProgrammedInstructionsRoute>
-                        <ScheduledQuestionsPage />
+                        <LazyRoute loaderType="list">
+                          <ScheduledQuestionsPage />
+                        </LazyRoute>
                       </ProgrammedInstructionsRoute>
                     </ProtectedRoute>
                   } 
@@ -328,7 +411,9 @@ function App() {
                       requireDirectorDashboardAccess={true}
                     >
                       <ProgrammedInstructionsRoute>
-                        <ScheduledQuestionFormPage />
+                        <LazyRoute loaderType="form">
+                          <ScheduledQuestionFormPage />
+                        </LazyRoute>
                       </ProgrammedInstructionsRoute>
                     </ProtectedRoute>
                   } 
@@ -343,7 +428,9 @@ function App() {
                       requireDirectorDashboardAccess={true}
                     >
                       <ProgrammedInstructionsRoute>
-                        <ScheduledQuestionFormPage />
+                        <LazyRoute loaderType="form">
+                          <ScheduledQuestionFormPage />
+                        </LazyRoute>
                       </ProgrammedInstructionsRoute>
                     </ProtectedRoute>
                   } 
@@ -358,7 +445,9 @@ function App() {
                       requireDirectorDashboardAccess={true}
                     >
                       <ProgrammedInstructionsRoute>
-                        <ScheduledQuestionChatPage />
+                        <LazyRoute loaderType="chat">
+                          <ScheduledQuestionChatPage />
+                        </LazyRoute>
                       </ProgrammedInstructionsRoute>
                     </ProtectedRoute>
                   } 
@@ -372,7 +461,9 @@ function App() {
                       allowedRoles={['directeur', 'employe']} 
                       requireDirectorDashboardAccess={true}
                     >
-                      <UniversPage />
+                      <LazyRoute loaderType="univers">
+                        <UniversPage />
+                      </LazyRoute>
                     </ProtectedRoute>
                   } 
                 />
@@ -385,7 +476,9 @@ function App() {
                       allowedRoles={['directeur', 'employe']} 
                       requireDirectorDashboardAccess={true}
                     >
-                      <UniversMarketplacePage />
+                      <LazyRoute loaderType="univers">
+                        <UniversMarketplacePage />
+                      </LazyRoute>
                     </ProtectedRoute>
                   } 
                 />
@@ -398,7 +491,9 @@ function App() {
                       allowedRoles={['directeur', 'employe']} 
                       requireDirectorDashboardAccess={true}
                     >
-                      <UniversCreatePage />
+                      <LazyRoute loaderType="univers">
+                        <UniversCreatePage />
+                      </LazyRoute>
                     </ProtectedRoute>
                   } 
                 />
@@ -411,7 +506,9 @@ function App() {
                       allowedRoles={['directeur']} 
                       requireDirectorDashboardAccess={true}
                     >
-                      <UniversCreateFromTemplatePage />
+                      <LazyRoute loaderType="univers">
+                        <UniversCreateFromTemplatePage />
+                      </LazyRoute>
                     </ProtectedRoute>
                   } 
                 />
@@ -424,7 +521,9 @@ function App() {
                       allowedRoles={['directeur', 'employe']}
                       requireDirectorDashboardAccess={true}
                     >
-                      <UniversEditPage />
+                      <LazyRoute loaderType="univers">
+                        <UniversEditPage />
+                      </LazyRoute>
                     </ProtectedRoute>
                   }
                 />
@@ -437,7 +536,9 @@ function App() {
                       allowedRoles={['directeur', 'employe']} 
                       requireDirectorDashboardAccess={true}
                     >
-                      <UniversViewPage />
+                      <LazyRoute loaderType="univers-detail">
+                        <UniversViewPage />
+                      </LazyRoute>
                     </ProtectedRoute>
                   } 
                 />
@@ -450,7 +551,9 @@ function App() {
                       allowedRoles={['directeur', 'employe']} 
                       requireDirectorDashboardAccess={true}
                     >
-                      <ListsPage />
+                      <LazyRoute loaderType="list">
+                        <ListsPage />
+                      </LazyRoute>
                     </ProtectedRoute>
                   } 
                 />
@@ -463,7 +566,9 @@ function App() {
                       allowedRoles={['directeur', 'employe']} 
                       requireDirectorDashboardAccess={true}
                     >
-                      <ListEditorPage />
+                      <LazyRoute loaderType="form">
+                        <ListEditorPage />
+                      </LazyRoute>
                     </ProtectedRoute>
                   } 
                 />
@@ -476,7 +581,9 @@ function App() {
                       allowedRoles={['directeur', 'employe']}
                       requireDirectorDashboardAccess={true}
                     >
-                      <ListEditorPage />
+                      <LazyRoute loaderType="form">
+                        <ListEditorPage />
+                      </LazyRoute>
                     </ProtectedRoute>
                   }
                 />
@@ -489,7 +596,9 @@ function App() {
                       allowedRoles={['directeur', 'employe']} 
                       requireDirectorDashboardAccess={true}
                     >
-                      <ReportsPage />
+                      <LazyRoute loaderType="chart">
+                        <ReportsPage />
+                      </LazyRoute>
                     </ProtectedRoute>
                   } 
                 />
@@ -501,7 +610,9 @@ function App() {
                     <ProtectedRoute 
                       allowedRoles={['directeur']}
                     >
-                      <UniversInstructionsPage />
+                      <LazyRoute loaderType="list">
+                        <UniversInstructionsPage />
+                      </LazyRoute>
                     </ProtectedRoute>
                   } 
                 />
@@ -511,7 +622,9 @@ function App() {
                   path="/dev/push-test" 
                   element={
                     <ProtectedRoute allowedRoles={['directeur', 'employe']}>
-                      <PushTestPage />
+                      <LazyRoute loaderType="card">
+                        <PushTestPage />
+                      </LazyRoute>
                     </ProtectedRoute>
                   } 
                 />
@@ -521,7 +634,9 @@ function App() {
                   path="/dev/campay-test" 
                   element={
                     <ProtectedRoute allowedRoles={['directeur', 'employe']}>
-                      <CampayTestPage />
+                      <LazyRoute loaderType="card">
+                        <CampayTestPage />
+                      </LazyRoute>
                     </ProtectedRoute>
                   } 
                 />
@@ -552,8 +667,13 @@ function App() {
               {/* PWA Components - Inside Router context */}
               <HybridPWAManager />
             </Router>
-            </SafeConversationProvider>
-          </SafeAppProvider>
+                      </SafeConversationProvider>
+                    </SafeAppProvider>
+                  </SafeDashboardsProvider>
+                </SafeEmployeesProvider>
+              </SafeEntriesProvider>
+            </SafeFormsProvider>
+          </SafeUniversProvider>
         </SafeAIResponseProvider>
       </SafeAuthProvider>
     </ErrorBoundary>
@@ -630,7 +750,7 @@ const RoleBasedRedirect: React.FC = () => {
     // Fallback vers login si rôle inconnu
     return <Navigate to="/login" replace />;
   } catch (error) {
-    console.error('Error in RoleBasedRedirect:', error);
+    logger.error('Error in RoleBasedRedirect', error, 'App');
     // If useAuth fails, redirect to login
     return <Navigate to="/login" replace />;
   }
