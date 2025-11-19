@@ -542,11 +542,10 @@ export const UniversCard: React.FC<UniversCardProps> = ({
       {isDirecteur && (
         <div className="mt-2 sm:mt-3 lg:mt-4 pt-2 sm:pt-3 lg:pt-4 border-t border-gray-200/50 space-y-1.5 sm:space-y-2">
           {/* Bouton Activer - Afficher si instance existe et n'est pas active, même s'il y a une mise à jour */}
+          {/* Si l'utilisateur a une instance, il peut toujours activer (même si l'univers est en attente ou rejeté) */}
+          {/* Le statut d'approbation ne bloque que les utilisateurs sans instance */}
           {isPurchased && 
-           !isActive && 
-           // Pour les univers achetés (non-propriétaires), bloquer si en attente ou rejeté
-           // Pour le propriétaire, permettre l'activation même en attente
-           (isOwner || (univers.ownership.approvalStatus !== 'pending' && univers.ownership.approvalStatus !== 'rejected')) && (
+           !isActive && (
             <Button
               variant="primary"
               size="sm"
