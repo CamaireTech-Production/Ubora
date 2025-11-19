@@ -185,6 +185,8 @@ export const DirecteurChat: React.FC = () => {
       user={user} 
       firebaseUser={firebaseUser}
       message="ARCHA loading..."
+      useWireframe={true}
+      wireframeType="chat"
     >
       <ImpersonationHeader />
       
