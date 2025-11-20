@@ -146,13 +146,15 @@ jobs:
           
     - name: Deploy admin app to Hostinger via FTP
       uses: SamKirkland/FTP-Deploy-Action@v4.3.4
+      continue-on-error: false
+      timeout-minutes: 30
       with:
         server: ${{ secrets.ADMIN_PROD_FTP_HOST }}
         username: ${{ secrets.ADMIN_PROD_FTP_USERNAME }}
         password: ${{ secrets.ADMIN_PROD_FTP_PASSWORD }}
         local-dir: ./deploy-admin-package/
         server-dir: /
-        timeout: 600
+        timeout: 1800
         dangerous-clean-slate: false
         dry-run: false
         log-level: verbose

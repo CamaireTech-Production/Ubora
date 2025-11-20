@@ -31,6 +31,7 @@ import { AccessDeniedModal } from '../../components/modals/AccessDeniedModal';
 import { universService } from '@ubora/shared/services/universService';
 import { UniversBadge } from '../../components/univers/UniversBadge';
 import { logger } from '@ubora/shared/utils/logger';
+import { WireframeLoader } from '@/components/loading/WireframeLoader';
 
 export const DirecteurDashboard: React.FC = () => {
   const navigate = useNavigate();
@@ -59,7 +60,6 @@ export const DirecteurDashboard: React.FC = () => {
     isLoading: appLoading
   } = useApp();
   
-  const isLoading = authLoading || formsLoading || entriesLoading || employeesLoading || dashboardsLoading || appLoading;
   const { toast, showSuccess, showError } = useToast();
   const { 
     canCreateForm, 

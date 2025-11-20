@@ -331,8 +331,9 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({ message }) => {
 
     const formIds: string[] | undefined = message.meta?.selectedFormIds;
     if (Array.isArray(formIds) && formIds.length > 0) {
+      // Always format IDs properly, even when forms aren't loaded yet
       if (!forms || forms.length === 0) {
-        return formIds;
+        return formIds.map((id) => `Formulaire ${id}`);
       }
 
       const formMap = new Map(forms.map((form) => [form.id, resolveFormDisplayName(form)]));
