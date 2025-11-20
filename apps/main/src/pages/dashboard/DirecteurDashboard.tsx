@@ -103,8 +103,9 @@ export const DirecteurDashboard: React.FC = () => {
            const loadUniversData = async () => {
              if (!user?.id || !user?.agencyId) return;
              try {
+               // getUserUnivers inclut les univers créés ET les instances achetées
                const [myUnivers, marketplaceUnivers] = await Promise.all([
-                 universService.getByUser(user.id, user.agencyId),
+                 universService.getUserUnivers(user.id, user.agencyId),
                  universService.getMarketplaceTemplates()
                ]);
 
@@ -115,6 +116,7 @@ export const DirecteurDashboard: React.FC = () => {
                });
 
                setUniversMap(map);
+               // Compter tous les univers (créés + instances achetées)
                setUniversCount(myUnivers.length);
              } catch (error) {
                console.error('Erreur lors du chargement des Univers:', error);
@@ -817,7 +819,7 @@ export const DirecteurDashboard: React.FC = () => {
                   <div className="flex items-center space-x-3">
                     {universCount > 0 && (
                       <div className="bg-white/20 backdrop-blur-sm rounded-full px-4 py-2 border border-white/30">
-                        <span className="text-sm font-semibold">{universCount} Univers{universCount > 1 ? 's' : ''}</span>
+                        <span className="text-sm font-semibold">{universCount} Univers</span>
                       </div>
                     )}
                     <div className="bg-white/20 backdrop-blur-sm rounded-full p-2 group-hover:bg-white/30 transition-colors">
