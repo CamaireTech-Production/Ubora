@@ -314,9 +314,10 @@ jobs:
           sleep 3
           if pm2 describe ubora-backend-dev > /dev/null 2>&1; then
             echo "✅ PM2 process started successfully"
-            # Check if there are immediate errors
-            ERROR_COUNT=$(pm2 logs ubora-backend-dev --err --lines 5 --nostream 2>&1 | grep -c "calculateUserTokens" || echo "0")
-            if [ "$ERROR_COUNT" -gt 0 ]; then
+            # Check if there are immediate errors (trim whitespace and newlines)
+            ERROR_COUNT=$(pm2 logs ubora-backend-dev --err --lines 5 --nostream 2>&1 | grep -c "calculateUserTokens" 2>/dev/null | tr -d '\n\r ' || echo "0")
+            ERROR_COUNT=${ERROR_COUNT:-0}
+            if [ "$ERROR_COUNT" -gt 0 ] 2>/dev/null; then
               echo "⚠️ Warning: Found calculateUserTokens errors in logs immediately after start"
               pm2 logs ubora-backend-dev --err --lines 10 --nostream || true
             fi
@@ -354,10 +355,18 @@ jobs:
             exit 1
           fi
           
-          # Check backend process status
-          BACKEND_STATUS=$(pm2 describe ubora-backend-dev 2>/dev/null | grep -i "status" | head -1 | awk '{print $NF}' || echo "unknown")
-          if [ "$BACKEND_STATUS" != "online" ] && [ "$BACKEND_STATUS" != "errored" ]; then
-            echo "❌ Backend process status: $BACKEND_STATUS (expected: online)"
+          # Check backend process status (use JSON output for reliable parsing)
+          BACKEND_STATUS=$(pm2 jlist 2>/dev/null | grep -A 50 '"name":"ubora-backend-dev"' | grep '"status"' | head -1 | sed -n 's/.*"status":"\([^"]*\)".*/\1/p' || echo "")
+          # Fallback to pm2 show if jlist fails or returns empty
+          if [ -z "$BACKEND_STATUS" ]; then
+            BACKEND_STATUS=$(pm2 show ubora-backend-dev 2>/dev/null | grep -i "status" | grep -v "│" | head -1 | awk '{print $NF}' | tr -d '\n\r │' || echo "unknown")
+          fi
+          
+          # Clean up status value (remove any whitespace, newlines, or special characters)
+          BACKEND_STATUS=$(echo "$BACKEND_STATUS" | tr -d '\n\r │' | xargs)
+          
+          if [ "$BACKEND_STATUS" != "online" ] && [ "$BACKEND_STATUS" != "errored" ] && [ "$BACKEND_STATUS" != "launching" ]; then
+            echo "❌ Backend process status: '$BACKEND_STATUS' (expected: online)"
             echo "📋 Checking backend error logs"
             pm2 logs ubora-backend-dev --err --lines 50 --nostream || true
             echo "📋 Checking backend output logs"
@@ -368,6 +377,8 @@ jobs:
             else
               exit 1
             fi
+          else
+            echo "✅ Backend process status: $BACKEND_STATUS"
           fi
           
           # Check backend error logs for startup issues
