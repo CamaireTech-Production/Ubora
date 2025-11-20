@@ -171,41 +171,98 @@ jobs:
             echo "⚠️ .env.local file not found, will use explicit PORT=3001"
           fi
           
-          # Update symlink
+          # Update symlink (force update to ensure it's correct)
           echo "🔁 Updating current symlink"
+          rm -f $CURRENT_LINK
           ln -sfn $NEW_RELEASE $CURRENT_LINK
           
+          # Verify symlink immediately
+          SYMLINK_CHECK=$(readlink -f $CURRENT_LINK 2>/dev/null || readlink $CURRENT_LINK 2>/dev/null || echo "")
+          if [ "$SYMLINK_CHECK" != "$NEW_RELEASE" ]; then
+            echo "❌ CRITICAL: Symlink verification failed!"
+            echo "   Expected: $NEW_RELEASE"
+            echo "   Got: $SYMLINK_CHECK"
+            exit 1
+          fi
+          echo "✅ Symlink verified: $CURRENT_LINK -> $NEW_RELEASE"
+          
           # Enhanced PM2 management with cron worker
-          echo "🛑 Managing PM2 processes"
+          echo "🛑 Managing PM2 processes (dev only)"
           pm2 stop ubora-backend-dev || true
           pm2 stop ubora-cron-worker-dev || true
           pm2 delete ubora-backend-dev || true
           pm2 delete ubora-cron-worker-dev || true
           
-          # Clear PM2 logs and cache to ensure clean start
-          echo "🧹 Clearing PM2 logs and cache"
-          pm2 flush || true
-          pm2 kill || true
-          sleep 2
+          # Verify symlink points to correct release
+          echo "🔍 Verifying symlink"
+          SYMLINK_TARGET=$(readlink -f $CURRENT_LINK)
+          if [ "$SYMLINK_TARGET" != "$NEW_RELEASE" ]; then
+            echo "⚠️ Symlink mismatch! Expected: $NEW_RELEASE, Got: $SYMLINK_TARGET"
+            echo "🔧 Fixing symlink..."
+            ln -sfn $NEW_RELEASE $CURRENT_LINK
+            SYMLINK_TARGET=$(readlink -f $CURRENT_LINK)
+            echo "✅ Symlink now points to: $SYMLINK_TARGET"
+          else
+            echo "✅ Symlink correctly points to: $SYMLINK_TARGET"
+          fi
           
-          # Start backend server with explicit PORT=3001
+          # Verify the file exists and has the export before starting
+          echo "🔍 Verifying export in current release"
+          if [ ! -f "$CURRENT_LINK/api/ai/tokenManager.js" ]; then
+            echo "❌ CRITICAL: tokenManager.js not found in $CURRENT_LINK"
+            exit 1
+          fi
+          if ! grep -q "export function calculateUserTokens" "$CURRENT_LINK/api/ai/tokenManager.js"; then
+            echo "❌ CRITICAL: calculateUserTokens export missing in current release"
+            echo "📋 File content (lines 20-30):"
+            sed -n '20,30p' "$CURRENT_LINK/api/ai/tokenManager.js" || true
+            exit 1
+          fi
+          echo "✅ Export verified in current release"
+          
+          # Start backend server with explicit PORT=3001 and absolute path
           echo "🚀 Starting backend server with PORT=3001"
           export PORT=3001
           export NODE_ENV=development
-          cd $CURRENT_LINK
           
-          # Verify the file exists and has the export before starting
-          if ! grep -q "export function calculateUserTokens" "$CURRENT_LINK/api/ai/tokenManager.js"; then
-            echo "❌ CRITICAL: calculateUserTokens export missing in current release"
+          # Use absolute path to ensure correct working directory
+          ABSOLUTE_SERVER_PATH="$CURRENT_LINK/server/dev-server.js"
+          if [ ! -f "$ABSOLUTE_SERVER_PATH" ]; then
+            echo "❌ CRITICAL: dev-server.js not found at $ABSOLUTE_SERVER_PATH"
             exit 1
           fi
           
-          pm2 start server/dev-server.js \
+          # Change to the release directory to ensure correct module resolution
+          cd "$CURRENT_LINK"
+          echo "📁 Working directory: $(pwd)"
+          echo "📁 Server path: $ABSOLUTE_SERVER_PATH"
+          
+          # Clear any Node.js module cache by touching the file
+          touch "$CURRENT_LINK/api/ai/tokenManager.js"
+          touch "$CURRENT_LINK/api/ai/openAIClient.js"
+          
+          pm2 start "$ABSOLUTE_SERVER_PATH" \
             --name ubora-backend-dev \
             --update-env \
             --max-memory-restart 1G \
-            --env development
+            --env development \
+            --cwd "$CURRENT_LINK"
           cd -
+          
+          # Wait a moment and verify the process started correctly
+          sleep 3
+          if pm2 describe ubora-backend-dev > /dev/null 2>&1; then
+            echo "✅ PM2 process started successfully"
+            # Check if there are immediate errors
+            ERROR_COUNT=$(pm2 logs ubora-backend-dev --err --lines 5 --nostream 2>&1 | grep -c "calculateUserTokens" || echo "0")
+            if [ "$ERROR_COUNT" -gt 0 ]; then
+              echo "⚠️ Warning: Found calculateUserTokens errors in logs immediately after start"
+              pm2 logs ubora-backend-dev --err --lines 10 --nostream || true
+            fi
+          else
+            echo "❌ PM2 process failed to start"
+            exit 1
+          fi
             
           # Start cron worker (if file exists)
           if [ -f "$CURRENT_LINK/scripts/cron-worker.js" ]; then
