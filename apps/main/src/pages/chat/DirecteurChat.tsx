@@ -167,7 +167,7 @@ export const DirecteurChat: React.FC = () => {
         isLoading={isLoading || (appLoading && !isAIActiveRef.current && !isTyping)} 
         user={user} 
         firebaseUser={firebaseUser}
-        message="Chargement d'Ubora..."
+        wireframeType="chat"
       >
         <WelcomeScreen
           userName={user?.name}
@@ -180,14 +180,12 @@ export const DirecteurChat: React.FC = () => {
   }
 
   return (
-    <LoadingGuard 
-      isLoading={isLoading || (appLoading && !isAIActiveRef.current && !isTyping)} 
-      user={user} 
-      firebaseUser={firebaseUser}
-      message="ARCHA loading..."
-      useWireframe={true}
-      wireframeType="chat"
-    >
+      <LoadingGuard 
+        isLoading={isLoading || (appLoading && !isAIActiveRef.current && !isTyping)} 
+        user={user} 
+        firebaseUser={firebaseUser}
+        wireframeType="chat"
+      >
       <ImpersonationHeader />
       
       <ChatContainer

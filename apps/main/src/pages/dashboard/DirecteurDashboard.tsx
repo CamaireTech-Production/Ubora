@@ -14,7 +14,7 @@ import { Button } from '../../components/ui/Button';
 import { FormEditor } from '../../components/forms/FormEditor';
 import { FormBuilder } from '../../components/forms/FormBuilder';
 import { DynamicForm } from '../../components/forms/DynamicForm';
-import { WireframeLoader } from '../../components/loading/WireframeLoader';
+import { LoadingGuard } from '../../components/loading/LoadingGuard';
 import { Plus, FileText, Users, Eye, Trash2, Edit, UserCheck, BarChart3, Calendar, ChevronDown, Crown, User as UserIcon, ClipboardList, FileEdit, FileBarChart, ArrowLeft, Send, Sparkles } from 'lucide-react';
 import { PendingApprovals } from '../../components/employees/PendingApprovals';
 import { VideoSection } from '../../components/core/VideoSection';
@@ -598,15 +598,17 @@ export const DirecteurDashboard: React.FC = () => {
     throw new Error('Function not implemented.');
   }
 
-  // Show wireframe immediately if any loading state
-  if (isLoading || !user || !firebaseUser) {
+  // Show loading guard with wireframe if any loading state
+  if (authLoading || !user || !firebaseUser) {
     return (
-      <>
-        <ImpersonationHeader />
-        <Layout title="Dashboard Directeur">
-          <WireframeLoader type="dashboard" />
-        </Layout>
-      </>
+      <LoadingGuard 
+        isLoading={authLoading || !user || !firebaseUser} 
+        user={user} 
+        firebaseUser={firebaseUser}
+        wireframeType="dashboard"
+      >
+        <></>
+      </LoadingGuard>
     );
   }
 
@@ -724,9 +726,13 @@ export const DirecteurDashboard: React.FC = () => {
                                   <h3 className="text-lg font-semibold text-gray-900 mb-2">Mes réponses en brouillon</h3>
                                   <p className="text-sm text-gray-600">{drafts.length} réponse(s) sauvegardée(s)</p>
                                 </div>
-                                <Button onClick={() => handleSubmitAllDrafts(selectedFormForFilling.id)} disabled={isSubmittingDrafts} className="flex items-center space-x-2">
+                                <Button 
+                                  onClick={() => handleSubmitAllDrafts(selectedFormForFilling.id)} 
+                                  isLoading={isSubmittingDrafts}
+                                  className="flex items-center space-x-2"
+                                >
                                   <Send className="h-4 w-4" />
-                                  <span>{isSubmittingDrafts ? 'Soumission en cours...' : `Soumettre mes réponses (${drafts.length})`}</span>
+                                  <span>{`Soumettre mes réponses (${drafts.length})`}</span>
                                 </Button>
                               </div>
                               <div className="space-y-3">
@@ -1017,6 +1023,7 @@ export const DirecteurDashboard: React.FC = () => {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
               <Button
                 onClick={handleFormButtonClick}
+                isLoading={isCreatingForm}
                 className="flex items-center justify-center space-x-2 w-full text-sm sm:text-base"
               >
                 <Plus className="h-4 w-4 sm:h-5 sm:w-5" />
@@ -1026,6 +1033,7 @@ export const DirecteurDashboard: React.FC = () => {
               <Button
                 onClick={handleDashboardButtonClick}
                 variant="secondary"
+                isLoading={isCreatingDashboard}
                 className="flex items-center justify-center space-x-2 w-full text-sm sm:text-base"
               >
                 <BarChart3 className="h-4 w-4 sm:h-5 sm:w-5" />
@@ -1061,6 +1069,7 @@ export const DirecteurDashboard: React.FC = () => {
                     {timeFilter === 'all' && (
                       <Button 
                         onClick={handleFormButtonClick}
+                        isLoading={isCreatingForm}
                       >
                         Créer votre premier formulaire
                       </Button>
@@ -1083,6 +1092,7 @@ export const DirecteurDashboard: React.FC = () => {
                             variant="danger"
                             size="sm"
                             onClick={() => handleDeleteForm(form.id)}
+                            isLoading={isDeletingForm && formToDelete?.id === form.id}
                             className="p-1.5 h-8 w-8 shadow-lg"
                             title="Supprimer le formulaire"
                           >
@@ -1250,6 +1260,7 @@ export const DirecteurDashboard: React.FC = () => {
                     {timeFilter === 'all' && (
                       <Button 
                         onClick={handleDashboardButtonClick}
+                        isLoading={isCreatingDashboard}
                       >
                         Créer votre premier tableau de bord
                       </Button>
@@ -1353,17 +1364,9 @@ export const DirecteurDashboard: React.FC = () => {
                 <Button
                   variant="danger"
                   onClick={confirmDeleteForm}
-                  disabled={isDeletingForm}
-                  className={isDeletingForm ? 'opacity-75 cursor-not-allowed' : ''}
+                  isLoading={isDeletingForm}
                 >
-                  {isDeletingForm ? (
-                    <>
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                      Suppression...
-                    </>
-                  ) : (
-                    'Supprimer'
-                  )}
+                  Supprimer
                 </Button>
               </div>
             </div>
@@ -1402,17 +1405,9 @@ export const DirecteurDashboard: React.FC = () => {
                 <Button
                   variant="danger"
                   onClick={confirmDeleteDashboard}
-                  disabled={isDeletingDashboard}
-                  className={isDeletingDashboard ? 'opacity-75 cursor-not-allowed' : ''}
+                  isLoading={isDeletingDashboard}
                 >
-                  {isDeletingDashboard ? (
-                    <>
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                      Suppression...
-                    </>
-                  ) : (
-                    'Supprimer'
-                  )}
+                  Supprimer
                 </Button>
               </div>
             </div>
