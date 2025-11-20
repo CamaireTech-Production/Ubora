@@ -189,7 +189,7 @@ async function updateTokenUsage(uid, tokensToCharge, currentSession) {
   }
 }
 
-module.exports = {
+export {
   calculateUserTokens,
   getPackageLimit,
   checkSubscriptionAndResetTokens,

@@ -467,7 +467,7 @@ async function loadAndAggregateData(
   
 }
 
-module.exports = {
+export {
   loadAndAggregateData,
   formatRawWithOpenAI
 };

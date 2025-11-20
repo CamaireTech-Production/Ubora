@@ -226,7 +226,7 @@ async function updateConversationMetadata(conversationId, metadata = {}) {
   }
 }
 
-module.exports = {
+export {
   getConversationContext,
   generateConversationSummary,
   updateConversationContext,

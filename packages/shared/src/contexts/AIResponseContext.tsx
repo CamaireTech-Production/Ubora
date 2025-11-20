@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useRef } from 'react';
+import { logger } from '../utils/logger';
 
 interface AIResponseContextType {
   isAIResponseActive: boolean;
@@ -15,10 +16,10 @@ export const AIResponseProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const setAIResponseActive = (active: boolean) => {
     setIsAIResponseActive(active);
     aiResponseActiveRef.current = active;
-    console.log('🤖 AIResponseContext: Setting AI response active', { 
+    logger.debug('Setting AI response active', { 
       timestamp: Date.now(),
       active
-    });
+    }, 'AIResponseContext');
   };
 
   return (
