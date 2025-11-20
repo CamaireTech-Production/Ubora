@@ -1,4 +1,4 @@
-import pdfParse from 'pdf-parse/lib/pdf-parse.js';
+import { createRequire } from 'module';
 import crypto from 'crypto';
 import { logger } from '../lib/logger.js';
 

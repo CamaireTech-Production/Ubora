@@ -531,10 +531,11 @@ export const UniversViewPage: React.FC = () => {
             {/* Actions simplifiées pour la vue détail */}
             <div className="flex flex-wrap gap-2">
               {/* Activer (si non actif et permissions) */}
+              {/* Si l'utilisateur a une instance, il peut toujours activer (même si l'univers est en attente ou rejeté) */}
               {isDirecteur && 
                !isActive && 
                !hasUpdateAvailable &&
-               (isOwner || (univers.ownership.approvalStatus !== 'pending' && univers.ownership.approvalStatus !== 'rejected')) && (
+               (isOwner || userInstance || (univers.ownership.approvalStatus !== 'pending' && univers.ownership.approvalStatus !== 'rejected')) && (
                 <Button
                   variant="primary"
                   onClick={handleActivateClick}
