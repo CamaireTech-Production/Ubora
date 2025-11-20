@@ -130,6 +130,31 @@ jobs:
           # Create directories
           mkdir -p $RELEASES_DIR $UPLOADS_DIR /var/log/pm2
           
+          # Clean up old releases FIRST to prevent module resolution issues
+          # Keep only the current symlink target (if exists) and the new release
+          echo "🧹 Cleaning old releases before deployment to prevent module resolution conflicts"
+          if [ -d "$RELEASES_DIR" ]; then
+            CURRENT_TARGET=$(readlink -f "$CURRENT_LINK" 2>/dev/null || echo "")
+            echo "   Current symlink points to: ${CURRENT_TARGET:-none}"
+            echo "   New release will be: $NEW_RELEASE"
+            
+            # Find all releases
+            ALL_RELEASES=$(ls -1dt $RELEASES_DIR/* 2>/dev/null || true)
+            if [ -n "$ALL_RELEASES" ]; then
+              echo "$ALL_RELEASES" | while read release; do
+                if [ -n "$release" ] && [ -d "$release" ]; then
+                  # Keep current target (for rollback) and new release, remove everything else
+                  if [ "$release" != "$NEW_RELEASE" ] && [ "$release" != "$CURRENT_TARGET" ]; then
+                    echo "   🗑️  Removing old release: $(basename $release)"
+                    rm -rf "$release" 2>/dev/null || true
+                  else
+                    echo "   ✅ Keeping release: $(basename $release)"
+                  fi
+                fi
+              done
+            fi
+          fi
+          
           # Extract and setup new release
           echo "📦 Extracting artifact to release $NEW_RELEASE"
           mkdir -p $NEW_RELEASE
@@ -193,6 +218,16 @@ jobs:
           pm2 delete ubora-backend-dev || true
           pm2 delete ubora-cron-worker-dev || true
           
+          # Clear PM2 error logs completely to remove old error traces
+          echo "🧹 Clearing PM2 error logs completely"
+          pm2 flush ubora-backend-dev 2>/dev/null || true
+          if [ -f "$HOME/.pm2/logs/ubora-backend-dev-error.log" ]; then
+            > "$HOME/.pm2/logs/ubora-backend-dev-error.log"  # Truncate error log
+          fi
+          if [ -f "$HOME/.pm2/logs/ubora-backend-dev-out.log" ]; then
+            > "$HOME/.pm2/logs/ubora-backend-dev-out.log"  # Truncate output log
+          fi
+          
           # Verify symlink points to correct release
           echo "🔍 Verifying symlink"
           SYMLINK_TARGET=$(readlink -f $CURRENT_LINK)
@@ -236,6 +271,30 @@ jobs:
           cd "$CURRENT_LINK"
           echo "📁 Working directory: $(pwd)"
           echo "📁 Server path: $ABSOLUTE_SERVER_PATH"
+          
+          # Verify we're in the correct release directory
+          ACTUAL_RELEASE=$(basename $(readlink -f "$CURRENT_LINK"))
+          if [ "$ACTUAL_RELEASE" != "$(basename $NEW_RELEASE)" ]; then
+            echo "❌ CRITICAL: Working directory mismatch!"
+            echo "   Expected release: $(basename $NEW_RELEASE)"
+            echo "   Actual release: $ACTUAL_RELEASE"
+            exit 1
+          fi
+          echo "✅ Confirmed working in correct release: $ACTUAL_RELEASE"
+          
+          # Verify the actual file that will be loaded
+          echo "🔍 Verifying actual file paths:"
+          echo "   tokenManager.js: $(readlink -f api/ai/tokenManager.js)"
+          echo "   openAIClient.js: $(readlink -f api/ai/openAIClient.js)"
+          
+          # Ensure files are in the current release, not old releases
+          TOKEN_MGR_PATH=$(readlink -f api/ai/tokenManager.js)
+          if [[ "$TOKEN_MGR_PATH" != "$CURRENT_LINK"* ]]; then
+            echo "❌ CRITICAL: tokenManager.js resolves outside current release!"
+            echo "   Path: $TOKEN_MGR_PATH"
+            echo "   Expected to be in: $CURRENT_LINK"
+            exit 1
+          fi
           
           # Clear any Node.js module cache by touching the file
           touch "$CURRENT_LINK/api/ai/tokenManager.js"
@@ -404,9 +463,11 @@ jobs:
             exit 1
           fi
           
-          # Cleanup old releases
-          echo "🧹 Cleaning old releases (keep 5)"
-          ls -1dt $RELEASES_DIR/* | tail -n +6 | xargs -r rm -rf
+          # Cleanup old releases (keep only last 2 after successful deployment)
+          echo "🧹 Cleaning old releases (keep last 2)"
+          if [ -d "$RELEASES_DIR" ]; then
+            ls -1dt $RELEASES_DIR/* 2>/dev/null | tail -n +3 | xargs -r rm -rf || true
+          fi
 
           # Enhanced SSL and Nginx setup
           echo "🔧 Setting up enhanced SSL and Nginx configuration"
