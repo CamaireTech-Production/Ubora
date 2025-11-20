@@ -192,9 +192,10 @@ jobs:
         password: ${{ secrets.PROD_FTP_PASSWORD }}
         local-dir: ./deploy-package/
         server-dir: /
-        timeout: 300
+        timeout: 600
         dangerous-clean-slate: false
         dry-run: false
+        log-level: verbose
         exclude: |
           **/.git*
           **/.git*/**
