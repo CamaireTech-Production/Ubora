@@ -20,23 +20,83 @@ export const UniversProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   // Charger l'Univers actif pour les directeurs
   useEffect(() => {
-    // Guard: Vérifier que l'utilisateur Firebase et le profil utilisateur sont chargés
-    if (!firebaseUser || !user || !user.agencyId) {
+    let isMounted = true;
+
+    const resetState = () => {
+      if (!isMounted) return;
       setActiveUnivers(null);
       setActiveUniversId(null);
       setActiveInstanceId(null);
-      return;
+    };
+
+    const toDate = (value: any) => {
+      if (!value) return new Date();
+      if (value instanceof Date) return value;
+      if (typeof value?.toDate === 'function') {
+        return value.toDate();
+      }
+      return new Date(value);
+    };
+
+    const applyUserFields = () => {
+      if (!user?.activeUniversId) {
+        return false;
+      }
+
+      const derivedActiveUnivers: ActiveUnivers = {
+        directorId: user.id,
+        agencyId: user.agencyId,
+        activeUniversId: user.activeUniversId,
+        activeInstanceId: user.activeInstanceId || null,
+        updatedAt: toDate(user.updatedAt)
+      };
+
+      if (!isMounted) {
+        return true;
+      }
+
+      setActiveUnivers(derivedActiveUnivers);
+      setActiveUniversId(derivedActiveUnivers.activeUniversId);
+      setActiveInstanceId(derivedActiveUnivers.activeInstanceId || null);
+
+      // Assurer qu'une instance existe si elle n'est pas définie sur le profil utilisateur
+      if (!derivedActiveUnivers.activeInstanceId) {
+        universService.ensureInstanceForActiveUnivers(user.id, user.agencyId)
+          .then(async (ensuredInstanceId) => {
+            if (!ensuredInstanceId || !isMounted) return;
+            setActiveInstanceId(ensuredInstanceId);
+            setActiveUnivers(prev => prev ? {
+              ...prev,
+              activeInstanceId: ensuredInstanceId,
+              updatedAt: new Date()
+            } : prev);
+          })
+          .catch(error => {
+            console.warn('⚠️ Impossible d\'assurer l\'instance de l\'univers actif (non bloquant):', error);
+          });
+      }
+
+      return true;
+    };
+
+    // Guard: Vérifier que l'utilisateur Firebase et le profil utilisateur sont chargés
+    if (!firebaseUser || !user || !user.agencyId) {
+      resetState();
+      return () => { isMounted = false; };
     }
 
     // Seuls les directeurs ont un Univers actif
     if (user.role !== 'directeur') {
-      setActiveUnivers(null);
-      setActiveUniversId(null);
-      setActiveInstanceId(null);
-      return;
+      resetState();
+      return () => { isMounted = false; };
     }
 
-    // Charger ActiveUnivers depuis Firestore
+    // Utiliser en priorité les champs du document utilisateur
+    if (applyUserFields()) {
+      return () => { isMounted = false; };
+    }
+
+    // Charger ActiveUnivers depuis Firestore en fallback
     const loadActiveUnivers = async () => {
       try {
         let activeUnivers = await universService.getActiveUnivers(user.id, user.agencyId);
@@ -65,7 +125,7 @@ export const UniversProvider: React.FC<{ children: React.ReactNode }> = ({ child
           }
         }
 
-        if (activeUnivers) {
+        if (activeUnivers && isMounted) {
           let ensuredActiveUnivers: ActiveUnivers | null = activeUnivers;
 
           // S'assurer qu'une instance est disponible : si absente, en créer/récupérer une immédiatement
@@ -82,23 +142,24 @@ export const UniversProvider: React.FC<{ children: React.ReactNode }> = ({ child
             console.warn('⚠️ Impossible d\'assurer l\'instance de l\'univers actif (non bloquant):', ensureError);
           }
 
+          if (!isMounted) return;
           setActiveUnivers(ensuredActiveUnivers);
           setActiveUniversId(ensuredActiveUnivers.activeUniversId);
           setActiveInstanceId(ensuredActiveUnivers.activeInstanceId || null);
-        } else {
-          setActiveUnivers(null);
-          setActiveUniversId(null);
-          setActiveInstanceId(null);
+        } else if (isMounted) {
+          resetState();
         }
       } catch (error) {
         console.error('Erreur lors du chargement de l\'Univers actif:', error);
-        setActiveUnivers(null);
-        setActiveUniversId(null);
-        setActiveInstanceId(null);
+        resetState();
       }
     };
 
     loadActiveUnivers();
+
+    return () => {
+      isMounted = false;
+    };
   }, [firebaseUser, user]);
 
   return (

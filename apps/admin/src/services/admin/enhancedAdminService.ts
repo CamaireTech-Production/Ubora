@@ -143,8 +143,7 @@ export class EnhancedAdminService {
         subscriptionEndDate: subscriptionData.endDate,
         nextPaymentDate: subscriptionData.nextPaymentDate,
         packageFeatures: subscriptionData.packageFeatures,
-        tokensUsedMonthly: subscriptionData.tokensUsed,
-        tokensResetDate: data.tokensResetDate?.toDate(),
+        tokensUsed: subscriptionData.tokensUsed,
         // Activity summary
         totalLoginCount: activityStats.totalLogins,
         lastActivityDate: activityStats.lastActivity,
@@ -879,7 +878,7 @@ export class EnhancedAdminService {
     return {
       package: packageType,
       status: this.determineSubscriptionStatus(session, userData),
-      tokensUsed: session?.usage?.tokensUsed || userData.tokensUsedMonthly || this.generateSampleTokenUsage(userId),
+      tokensUsed: session?.usage?.tokensUsed || this.generateSampleTokenUsage(userId),
       startDate: session?.startDate ? new Date(session.startDate) : userData.subscriptionStartDate?.toDate() || this.generateSampleStartDate(userId),
       endDate: session?.endDate ? new Date(session.endDate) : userData.subscriptionEndDate?.toDate() || this.generateSampleEndDate(userId),
       nextPaymentDate: nextPaymentDate,
@@ -1052,14 +1051,7 @@ export class EnhancedAdminService {
         return totalTokens;
       }
 
-      // If no session data, try to get from user document
-      const userDoc = await getDoc(doc(db, this.USERS_COLLECTION, userId));
-      if (userDoc.exists()) {
-        const userData = userDoc.data();
-        return userData.tokensUsedMonthly || 0;
-      }
-
-      // Return sample data for testing
+      // If no session data, return sample data for testing
       const seed = userId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
       const random = (seed % 100) / 100;
       return Math.floor(random * 1000) + 100; // 100-1100 tokens

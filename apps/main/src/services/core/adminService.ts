@@ -17,6 +17,7 @@ import { db } from '@ubora/shared/firebaseConfig';
 import { User, AdminDashboardStats, AdminUser, AdminActivitySummary } from '../../types';
 import { ActivityLogService, ActivityLogger } from './activityLogService';
 import { AnalyticsService } from './analyticsService';
+import { SubscriptionSessionCollectionService } from '@ubora/shared/services/subscriptionSessionCollectionService';
 
 export class AdminService {
   private static readonly USERS_COLLECTION = 'users';
@@ -28,10 +29,11 @@ export class AdminService {
   static async getAllUsers(): Promise<AdminUser[]> {
     try {
       const snapshot = await getDocs(collection(db, this.USERS_COLLECTION));
-      return snapshot.docs.map(doc => {
-        const data = doc.data();
+      const users = await Promise.all(snapshot.docs.map(async docSnapshot => {
+        const data = docSnapshot.data();
+        const tokensUsed = await this.getCurrentSessionTokens(docSnapshot.id, data.role);
         return {
-          id: doc.id,
+          id: docSnapshot.id,
           name: data.name,
           email: data.email,
           role: data.role,
@@ -42,10 +44,11 @@ export class AdminService {
           createdAt: data.createdAt?.toDate() || new Date(),
           package: data.package,
           subscriptionStatus: data.subscriptionStatus,
-          tokensUsed: data.tokensUsedMonthly || 0,
+          tokensUsed,
           totalSubmissions: data.totalSubmissions || 0
         };
-      });
+      }));
+      return users;
     } catch (error) {
       logger.error('Error fetching users', error, 'AdminService');
       return [];
@@ -260,6 +263,19 @@ export class AdminService {
         issues: ['Unable to check system health'],
         metrics: {}
       };
+    }
+  }
+
+  private static async getCurrentSessionTokens(userId: string, role?: string): Promise<number> {
+    try {
+      if (role !== 'directeur' && role !== 'employe') {
+        return 0;
+      }
+      const session = await SubscriptionSessionCollectionService.getActiveSession(userId);
+      return session?.usage?.tokensUsed || 0;
+    } catch (error) {
+      logger.warn('Unable to fetch current session tokens', { userId, error: (error as Error)?.message }, 'AdminService');
+      return 0;
     }
   }
 }

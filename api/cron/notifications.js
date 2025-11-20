@@ -25,6 +25,34 @@ function ensureDbInitialized() {
   }
 }
 
+async function incrementActiveSessionTokens(userId, tokens) {
+  try {
+    const sessionSnap = await db.collection('subscriptionSessions')
+      .where('userId', '==', userId)
+      .where('isActive', '==', true)
+      .limit(1)
+      .get();
+
+    if (sessionSnap.empty) {
+      logger.warn('No active subscription session found when deducting tokens', { userId }, 'notifications.js');
+      return false;
+    }
+
+    const sessionRef = sessionSnap.docs[0].ref;
+    await sessionRef.set({
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      usage: {
+        tokensUsed: admin.firestore.FieldValue.increment(tokens),
+        lastTokenUsed: admin.firestore.FieldValue.serverTimestamp()
+      }
+    }, { merge: true });
+    return true;
+  } catch (error) {
+    logger.warn('Failed to increment tokens on active session', { userId, error: error?.message }, 'notifications.js');
+    return false;
+  }
+}
+
 // Lightweight email sender (reuse env used elsewhere). If no creds, skip.
 function makeEmailTransporter() {
   if (!process.env.EMAIL_USER || !process.env.EMAIL_PASSWORD) return null;
@@ -517,11 +545,7 @@ async function executeDueProgrammedInstructions(now, oneMinuteFromNow) {
               userTokensCharged,
               userId: q.userId 
             });
-            const userRef = db.collection('users').doc(q.userId);
-            await userRef.update({ 
-              tokensUsedMonthly: admin.firestore.FieldValue.increment(userTokensCharged), 
-              updatedAt: admin.firestore.FieldValue.serverTimestamp() 
-            });
+            await incrementActiveSessionTokens(q.userId, userTokensCharged);
             logger.debug('Tokens deducted successfully', null, 'notifications.js');
           }
         } catch (dedErr) {
