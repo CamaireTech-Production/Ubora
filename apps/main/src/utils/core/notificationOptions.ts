@@ -3,6 +3,8 @@
  * Provides platform-specific notification options with pop-up behavior and highest priority
  */
 
+import { logger } from '@ubora/shared/utils/logger';
+
 export interface EnhancedNotificationOptions {
   body: string;
   icon: string;
@@ -54,7 +56,7 @@ export const requestEnhancedPermission = async (): Promise<boolean> => {
       const permission = await Notification.requestPermission();
       return permission === 'granted';
     } catch (error) {
-      console.error('iOS permission request failed:', error);
+      logger.error('iOS permission request failed', error, 'notificationOptions');
       return false;
     }
   }
@@ -134,13 +136,13 @@ export const showEnhancedNotification = async (
     // Check permission first
     const hasPermission = await requestEnhancedPermission();
     if (!hasPermission) {
-      console.error('Notification permission not granted');
+      logger.warn('Notification permission not granted', null, 'notificationOptions');
       return false;
     }
 
     // Check iOS support
     if (isIOS() && !checkIOSSupport()) {
-      console.error('iOS version does not support web push notifications (16.4+ required)');
+      logger.warn('iOS version does not support web push notifications (16.4+ required)', null, 'notificationOptions');
       return false;
     }
 
@@ -151,18 +153,18 @@ export const showEnhancedNotification = async (
         const notificationOptions = getEnhancedNotificationOptions(title, body, options);
         
         await registration.showNotification(title, notificationOptions);
-        console.log('Enhanced notification sent successfully:', { title, options: notificationOptions });
+        logger.debug('Enhanced notification sent successfully', { title, options: notificationOptions }, 'notificationOptions');
         return true;
       } else {
-        console.error('Service worker registration not found');
+        logger.error('Service worker registration not found', null, 'notificationOptions');
         return false;
       }
     } else {
-      console.error('Service worker not supported');
+      logger.warn('Service worker not supported', null, 'notificationOptions');
       return false;
     }
   } catch (error) {
-    console.error('Failed to show enhanced notification:', error);
+    logger.error('Failed to show enhanced notification', error, 'notificationOptions');
     return false;
   }
 };

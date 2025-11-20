@@ -6,17 +6,18 @@ if (!loadedLocalEnv || !loadedLocalEnv.parsed) {
 }
 
 import admin from 'firebase-admin';
+import { logger } from './logger.js';
 
 // Initialize Firebase Admin if not already initialized
 if (!admin.apps.length) {
-  console.log('🔧 Initializing Firebase Admin SDK...');
+  logger.info('Initializing Firebase Admin SDK', null, 'firebaseAdmin.js');
   
   // Validate environment variables - NO MOCKS, fail hard if missing
   const projectId = process.env.FIREBASE_PROJECT_ID;
   const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
   const privateKey = process.env.FIREBASE_PRIVATE_KEY;
   
-  console.log('🔍 Environment check:', {
+  logger.debug('Environment check', {
     projectId: projectId ? `✅ Set (${projectId})` : '❌ Missing',
     clientEmail: clientEmail ? `✅ Set (${clientEmail})` : '❌ Missing',
     privateKey: privateKey ? `✅ Set (${privateKey.length} chars)` : '❌ Missing'
@@ -36,8 +37,8 @@ if (!admin.apps.length) {
   }
 
   // Process the private key with detailed logging
-  console.log('🔑 Processing private key...');
-  console.log('   Original key info:', {
+  logger.debug('Processing private key', null, 'firebaseAdmin.js');
+  logger.debug('Original key info', {
     length: privateKey.length,
     hasQuotes: (privateKey.trim().startsWith('"') && privateKey.trim().endsWith('"')) ||
                (privateKey.trim().startsWith("'") && privateKey.trim().endsWith("'")),
@@ -59,7 +60,7 @@ if (!admin.apps.length) {
   const hadQuotes = (cleanPrivateKey.startsWith('"') && cleanPrivateKey.endsWith('"')) ||
                     (cleanPrivateKey.startsWith("'") && cleanPrivateKey.endsWith("'"));
   if (hadQuotes) {
-    console.log('   ✂️ Removing surrounding quotes');
+    logger.debug('Removing surrounding quotes', null, 'firebaseAdmin.js');
     cleanPrivateKey = cleanPrivateKey.slice(1, -1);
   }
   
@@ -69,7 +70,7 @@ if (!admin.apps.length) {
   const hasMalformedBegin = cleanPrivateKey.includes('BEGINPRIVATEKEY');
   const hasActualNewlines = cleanPrivateKey.includes('\n') && (hasProperBegin || hasMalformedBegin);
   
-  console.log('   After quote removal:', {
+  logger.debug('After quote removal', {
     length: cleanPrivateKey.length,
     hasActualNewlines: hasActualNewlines,
     hasEscapedNewlines: cleanPrivateKey.includes('\\n'),
@@ -81,7 +82,7 @@ if (!admin.apps.length) {
   });
   
   if (!hasActualNewlines) {
-    console.log('   🔄 Converting escaped newlines to actual newlines...');
+    logger.debug('Converting escaped newlines to actual newlines', null, 'firebaseAdmin.js');
     const beforeLength = cleanPrivateKey.length;
     const beforeHasNewlines = cleanPrivateKey.includes('\n');
     
@@ -102,22 +103,22 @@ if (!admin.apps.length) {
     // This handles the case where the file has literal backslash + n characters
     // Use split/join to convert all literal \n sequences to actual newlines
     if (!cleanPrivateKey.includes('\n')) {
-      console.log('   ⚠️ Still no newlines after escaping. Attempting aggressive conversion of literal backslash-n...');
+      logger.warn('Still no newlines after escaping. Attempting aggressive conversion', null, 'firebaseAdmin.js');
       // Count how many literal \n sequences exist
       const literalNewlineMatches = cleanPrivateKey.match(/\\n/g);
       const literalNewlineCount = literalNewlineMatches ? literalNewlineMatches.length : 0;
       
       if (literalNewlineCount > 0) {
-        console.log(`   Found ${literalNewlineCount} literal \\n sequences. Converting to actual newlines...`);
+        logger.debug('Found literal \\n sequences', { count: literalNewlineCount }, 'firebaseAdmin.js');
         // Split on literal \n and join with actual newlines
         cleanPrivateKey = cleanPrivateKey.split('\\n').join('\n');
-        console.log(`   ✅ Converted ${literalNewlineCount} literal \\n sequences to actual newlines`);
+        logger.debug('Converted literal \\n sequences to actual newlines', { count: literalNewlineCount }, 'firebaseAdmin.js');
     } else {
-        console.log('   No literal \\n sequences found. Key format may be fundamentally broken.');
+        logger.warn('No literal \\n sequences found. Key format may be fundamentally broken', null, 'firebaseAdmin.js');
       }
     }
     
-    console.log('   After conversion:', {
+    logger.debug('After conversion', {
       beforeLength,
       afterLength: cleanPrivateKey.length,
       lengthChanged: cleanPrivateKey.length !== beforeLength,
@@ -133,22 +134,20 @@ if (!admin.apps.length) {
     
     // Final check: if we still don't have newlines, log a warning
     if (!cleanPrivateKey.includes('\n')) {
-      console.error('   ❌ WARNING: Key still does not have actual newlines after all conversion attempts!');
-      console.error('   This will likely cause Firebase Admin initialization to fail.');
-      console.error('   Key sample (first 100 chars):', cleanPrivateKey.substring(0, 100).replace(/\\/g, '\\\\'));
+      logger.error('WARNING: Key still does not have actual newlines after all conversion attempts', { keySample: cleanPrivateKey.substring(0, 100).replace(/\\/g, '\\\\') }, 'firebaseAdmin.js');
     }
   }
   
   // Normalize malformed BEGIN/END markers (fix missing spaces)
   // Handle case where markers might be "BEGINPRIVATEKEY" instead of "BEGIN PRIVATE KEY"
   if (cleanPrivateKey.includes('BEGINPRIVATEKEY') && !cleanPrivateKey.includes('BEGIN PRIVATE KEY')) {
-    console.log('   🔧 Fixing malformed BEGIN marker (adding missing spaces)...');
+    logger.debug('Fixing malformed BEGIN marker', null, 'firebaseAdmin.js');
     // Fix both with and without trailing literal 'n' character
     cleanPrivateKey = cleanPrivateKey.replace(/-----BEGINPRIVATEKEY-----n/g, '-----BEGIN PRIVATE KEY-----\n');
     cleanPrivateKey = cleanPrivateKey.replace(/-----BEGINPRIVATEKEY-----/g, '-----BEGIN PRIVATE KEY-----');
   }
   if (cleanPrivateKey.includes('ENDPRIVATEKEY') && !cleanPrivateKey.includes('END PRIVATE KEY')) {
-    console.log('   🔧 Fixing malformed END marker (adding missing spaces)...');
+    logger.debug('Fixing malformed END marker', null, 'firebaseAdmin.js');
     // Fix both with and without leading literal 'n' character
     cleanPrivateKey = cleanPrivateKey.replace(/n-----ENDPRIVATEKEY-----/g, '\n-----END PRIVATE KEY-----');
     cleanPrivateKey = cleanPrivateKey.replace(/-----ENDPRIVATEKEY-----/g, '-----END PRIVATE KEY-----');
@@ -157,7 +156,7 @@ if (!admin.apps.length) {
   // CRITICAL FIX: Remove trailing backslashes from markers
   // The workflow's sed command can add literal backslashes to markers
   // This is a common issue where markers end with `\\` instead of being clean
-  console.log('   🔧 Removing trailing backslashes from markers...');
+  logger.debug('Removing trailing backslashes from markers', null, 'firebaseAdmin.js');
   
   // Match markers followed by one or more backslashes (literal backslash characters)
   // Use \\\\ to match literal backslash in regex (each \\ becomes one \)
@@ -205,15 +204,15 @@ if (!admin.apps.length) {
     }
   }
   
-  console.log('   After backslash cleanup - markers verified');
+  logger.debug('After backslash cleanup - markers verified', null, 'firebaseAdmin.js');
   
   // Also handle case where properly formatted markers have literal 'n' instead of newline
   if (cleanPrivateKey.includes('BEGIN PRIVATE KEY') && !cleanPrivateKey.includes('\n')) {
-    console.log('   🔧 Fixing literal "n" characters after BEGIN marker...');
+    logger.debug('Fixing literal "n" characters after BEGIN marker', null, 'firebaseAdmin.js');
     cleanPrivateKey = cleanPrivateKey.replace(/-----BEGIN PRIVATE KEY-----n/g, '-----BEGIN PRIVATE KEY-----\n');
   }
   if (cleanPrivateKey.includes('END PRIVATE KEY') && cleanPrivateKey.includes('-----END PRIVATE KEY-----n')) {
-    console.log('   🔧 Fixing literal "n" characters before END marker...');
+    logger.debug('Fixing literal "n" characters before END marker', null, 'firebaseAdmin.js');
     cleanPrivateKey = cleanPrivateKey.replace(/n-----END PRIVATE KEY-----/g, '\n-----END PRIVATE KEY-----');
   }
   
@@ -222,24 +221,19 @@ if (!admin.apps.length) {
   const hasEndMarker = cleanPrivateKey.includes('END PRIVATE KEY');
   
   if (!hasBeginMarker || !hasEndMarker) {
-    console.error('❌ CRITICAL: Private key format validation failed!');
-    console.error('   - Expected: -----BEGIN PRIVATE KEY----- ... -----END PRIVATE KEY-----');
-    console.error('   - Has BEGIN marker:', hasBeginMarker);
-    console.error('   - Has END marker:', hasEndMarker);
-    console.error('   - First 100 chars:', cleanPrivateKey.substring(0, 100));
-    console.error('   - Last 100 chars:', cleanPrivateKey.substring(Math.max(0, cleanPrivateKey.length - 100)));
-    console.error('');
-    console.error('   The private key format is invalid. Please check:');
-    console.error('   1. The key should start with: -----BEGIN PRIVATE KEY-----');
-    console.error('   2. The key should end with: -----END PRIVATE KEY-----');
-    console.error('   3. There should be spaces between the words in the markers');
+    logger.error('CRITICAL: Private key format validation failed', {
+      hasBeginMarker,
+      hasEndMarker,
+      first100Chars: cleanPrivateKey.substring(0, 100),
+      last100Chars: cleanPrivateKey.substring(Math.max(0, cleanPrivateKey.length - 100))
+    }, 'firebaseAdmin.js');
     throw new Error('❌ Invalid private key format: Missing BEGIN PRIVATE KEY or END PRIVATE KEY markers. Check FIREBASE_PRIVATE_KEY environment variable.');
   }
   
   // Ensure the key has actual newlines - handle literal 'n' characters that should be newlines
   // PEM keys should have newlines, so if we don't have any, convert literal 'n' to newlines
   if (!cleanPrivateKey.includes('\n')) {
-    console.log('   ⚠️ Warning: Key does not have actual newlines after conversion. Attempting additional fixes...');
+    logger.warn('Warning: Key does not have actual newlines after conversion. Attempting additional fixes', null, 'firebaseAdmin.js');
     
     // Strategy 1: Replace literal 'n' after BEGIN marker
     cleanPrivateKey = cleanPrivateKey.replace(/-----BEGIN PRIVATE KEY-----n/g, '-----BEGIN PRIVATE KEY-----\n');
@@ -251,7 +245,7 @@ if (!admin.apps.length) {
     // This handles the case where the entire key has 'n' instead of newlines
     // Base64 PEM keys have lines of ~64 chars, so we split on 'n' that appears after base64-looking content
     if (!cleanPrivateKey.includes('\n') && cleanPrivateKey.length > 200) {
-      console.log('   🔄 Converting ALL literal "n" characters to newlines (splitting on "n" between base64 content)...');
+      logger.debug('Converting ALL literal "n" characters to newlines', null, 'firebaseAdmin.js');
       
       // Split the key: BEGIN marker, then base64 content with 'n' separators, then END marker
       // Pattern: Split on 'n' that follows base64 characters and is followed by more base64 or END marker
@@ -272,21 +266,21 @@ if (!admin.apps.length) {
         
         cleanPrivateKey = beforeBegin + beginMarker + '\n' + fixedBase64 + '\n' + endMarker + afterEnd;
         
-        console.log('   ✅ Converted literal "n" characters to newlines in base64 section');
+        logger.debug('Converted literal "n" characters to newlines in base64 section', null, 'firebaseAdmin.js');
       }
     }
     
     const hasNewlines = cleanPrivateKey.includes('\n');
-    console.log('   After additional fixes - has newlines:', hasNewlines);
+    logger.debug('After additional fixes', { hasNewlines }, 'firebaseAdmin.js');
     if (!hasNewlines) {
-      console.error('   ❌ WARNING: Key still does not have newlines after all fix attempts!');
+      logger.error('WARNING: Key still does not have newlines after all fix attempts', null, 'firebaseAdmin.js');
     }
   }
   
-  console.log('✅ Private key format validated successfully');
+  logger.info('Private key format validated successfully', null, 'firebaseAdmin.js');
   
   // Final key inspection before passing to Firebase Admin
-  console.log('🔍 Final key inspection before Firebase Admin init:', {
+  logger.debug('Final key inspection before Firebase Admin init', {
     length: cleanPrivateKey.length,
     hasActualNewlines: cleanPrivateKey.includes('\n'),
     newlineCount: (cleanPrivateKey.match(/\n/g) || []).length,
@@ -312,21 +306,21 @@ if (!admin.apps.length) {
       universe_domain: "googleapis.com"
     };
 
-  console.log('🔧 Attempting Firebase Admin initialization...');
+  logger.info('Attempting Firebase Admin initialization', null, 'firebaseAdmin.js');
 
     try {
       admin.initializeApp({
         credential: admin.credential.cert(serviceAccount),
         projectId: projectId
       });
-      console.log('✅ Firebase Admin SDK initialized successfully');
+      logger.info('Firebase Admin SDK initialized successfully', null, 'firebaseAdmin.js');
     } catch (error) {
-    // Use console.error with explicit flush to ensure errors are logged
-    console.error('❌ Firebase Admin SDK initialization FAILED:');
-    console.error('   Error:', error);
-    console.error('   Error code:', error.code || 'N/A');
-    console.error('   Error message:', error.message || 'N/A');
-    console.error('   Error stack:', error.stack || 'N/A');
+    // Log error with full details
+    logger.error('Firebase Admin SDK initialization FAILED', {
+      error: error.message,
+      code: error.code || 'N/A',
+      stack: error.stack || 'N/A'
+    }, 'firebaseAdmin.js');
     
     // Force output flush in Node.js
     if (process.stdout && typeof process.stdout.write === 'function') {
@@ -341,34 +335,23 @@ if (!admin.apps.length) {
         error.message?.includes('Invalid PEM') || 
         error.message?.includes('private key') ||
         error.message?.includes('PEM')) {
-      console.error('');
-      console.error('🔑 PRIVATE KEY PARSING ERROR DETECTED:');
-      console.error('   The private key format appears to be invalid.');
-      console.error('   Expected format: -----BEGIN PRIVATE KEY-----\\n<key data>\\n-----END PRIVATE KEY-----');
-      console.error('');
-      console.error('   Diagnostic info:');
-      console.error('   - Cleaned key length:', cleanPrivateKey.length);
-      console.error('   - Has actual newlines:', cleanPrivateKey.includes('\n'));
-      console.error('   - First 100 chars:', cleanPrivateKey.substring(0, 100));
-      console.error('   - Last 100 chars:', cleanPrivateKey.substring(Math.max(0, cleanPrivateKey.length - 100)));
-      console.error('');
-      console.error('   Troubleshooting steps:');
-      console.error('   1. Verify FIREBASE_PRIVATE_KEY contains the full key from Firebase Console');
-      console.error('   2. Ensure newlines are properly escaped in your .env file');
-      console.error('   3. Check that the key includes BEGIN and END markers');
-      console.error('   4. Try removing quotes around the key if present');
-      console.error('');
+      logger.error('PRIVATE KEY PARSING ERROR DETECTED', {
+        cleanedKeyLength: cleanPrivateKey.length,
+        hasActualNewlines: cleanPrivateKey.includes('\n'),
+        first100Chars: cleanPrivateKey.substring(0, 100),
+        last100Chars: cleanPrivateKey.substring(Math.max(0, cleanPrivateKey.length - 100))
+      }, 'firebaseAdmin.js');
     }
     
     // NO MOCKS - Fail hard and stop the process
-    console.error('❌ CRITICAL: Firebase Admin initialization failed. Application cannot continue without valid Firebase credentials.');
+    logger.error('CRITICAL: Firebase Admin initialization failed. Application cannot continue without valid Firebase credentials', null, 'firebaseAdmin.js');
     throw new Error(`Firebase Admin initialization failed: ${error.message}. Check logs above for details.`);
   }
 }
 
 // Verify Firebase Admin is initialized before exporting services
 if (!admin.apps.length) {
-  console.error('❌ CRITICAL: Firebase Admin not initialized. Cannot export adminAuth or adminDb.');
+  logger.error('CRITICAL: Firebase Admin not initialized. Cannot export adminAuth or adminDb', null, 'firebaseAdmin.js');
   throw new Error('Firebase Admin not initialized. Check initialization errors above.');
 }
 
@@ -376,6 +359,6 @@ if (!admin.apps.length) {
 const adminAuth = admin.auth();
 const adminDb = admin.firestore();
 
-console.log('✅ Firebase Admin services exported successfully (auth and firestore)');
+logger.info('Firebase Admin services exported successfully (auth and firestore)', null, 'firebaseAdmin.js');
 
 export { adminAuth, adminDb, admin };

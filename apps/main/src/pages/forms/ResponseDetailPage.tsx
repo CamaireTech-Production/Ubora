@@ -2,6 +2,9 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
 import { useApp } from '@ubora/shared/contexts/AppContext';
+import { useForms } from '@ubora/shared/contexts/FormsContext';
+import { useEntries } from '@ubora/shared/contexts/EntriesContext';
+import { useEmployees } from '@ubora/shared/contexts/EmployeesContext';
 import { Layout } from '../../components/layout/Layout';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
@@ -16,20 +19,16 @@ import { DynamicForm } from '../../components/forms/DynamicForm';
 import { downloadFile } from '@ubora/shared/utils/downloadUtils';
 import { forceDownloadFromFirebase } from '@ubora/shared/utils/firebaseDownloadUtils';
 import { getFormatRetryEndpoint, getVectorSyncRetryEndpoint, getFormEntryStatusEndpoint } from '@ubora/shared/config/api';
+import { logger } from '@ubora/shared/utils/logger';
 
 export const ResponseDetailPage: React.FC = () => {
   const { formId } = useParams<{ formId: string }>();
   const navigate = useNavigate();
   const { user, firebaseUser, isLoading } = useAuth();
-  const { 
-    forms, 
-    formEntries,
-    employees, 
-    getEntriesForForm,
-    getEntriesForEmployee,
-    updateFormEntry,
-    isLoading: appLoading
-  } = useApp();
+  const { forms, isLoading: formsLoading } = useForms();
+  const { formEntries, getEntriesForForm, getEntriesForEmployee, updateFormEntry, isLoading: entriesLoading } = useEntries();
+  const { employees, isLoading: employeesLoading } = useEmployees();
+  const appLoading = formsLoading || entriesLoading || employeesLoading;
   const { toast, showSuccess, showError } = useToast();
 
   const [selectedEmployeeFilter, setSelectedEmployeeFilter] = useState<string>('all');
@@ -106,7 +105,7 @@ export const ResponseDetailPage: React.FC = () => {
             return { id: formEntry.id, status: data };
           }
         } catch (err) {
-          console.error(`Failed to load status for ${formEntry.id}:`, err);
+          logger.error(`Failed to load status for ${formEntry.id}`, err, 'ResponseDetailPage');
         }
         return null;
       });
@@ -133,9 +132,9 @@ export const ResponseDetailPage: React.FC = () => {
   // Debug: Log all response data
   React.useEffect(() => {
     if (allResponses.length > 0) {
-      console.log('🔍 All responses loaded:', allResponses.length);
+      logger.debug('All responses loaded', { count: allResponses.length }, 'ResponseDetailPage');
       allResponses.forEach((response, index) => {
-        console.log(`🔍 Response ${index + 1}:`, {
+        logger.debug(`Response ${index + 1}`, {
           id: response.id,
           formId: response.formId,
           userId: response.userId,
@@ -176,7 +175,7 @@ export const ResponseDetailPage: React.FC = () => {
 
   // Helper function to find file attachment for a field
   const findFileAttachment = (response: any, fieldId: string) => {
-    console.log('🔍 findFileAttachment called with:', {
+    logger.debug('findFileAttachment called', {
       fieldId,
       responseId: response.id,
       hasFileAttachments: !!response.fileAttachments,
@@ -187,17 +186,17 @@ export const ResponseDetailPage: React.FC = () => {
 
     // Try to find in fileAttachments array
     if (response.fileAttachments && Array.isArray(response.fileAttachments)) {
-      console.log('🔍 Searching in fileAttachments array:', response.fileAttachments);
+      logger.debug('Searching in fileAttachments array', { fileAttachments: response.fileAttachments }, 'ResponseDetailPage');
       const attachment = response.fileAttachments.find((att: any) => att.fieldId === fieldId);
       if (attachment) {
-        console.log('✅ Found attachment in fileAttachments array:', attachment);
+        logger.debug('Found attachment in fileAttachments array', { attachment }, 'ResponseDetailPage');
         return attachment;
       }
     }
 
     // Try to find in answers object (sometimes file data is stored there)
     const answerValue = response.answers?.[fieldId];
-    console.log('🔍 Checking answer value for fieldId:', {
+    logger.debug('Checking answer value for fieldId', {
       fieldId,
       answerValue,
       isObject: typeof answerValue === 'object',
@@ -216,19 +215,19 @@ export const ResponseDetailPage: React.FC = () => {
         uploadedAt: answerValue.uploadedAt || new Date(),
         base64Data: answerValue.base64Data // Include base64Data if it exists
       };
-      console.log('✅ Constructed attachment from answer data:', constructedAttachment);
+      logger.debug('Constructed attachment from answer data', { constructedAttachment }, 'ResponseDetailPage');
       return constructedAttachment;
     }
 
-    console.log('❌ No file attachment found for fieldId:', fieldId);
+    logger.warn('No file attachment found for fieldId', { fieldId }, 'ResponseDetailPage');
     return null;
   };
 
   const handleViewPDF = async (fileAttachment: FileAttachment) => {
-    console.log('🔄 handleViewPDF called with fileAttachment:', fileAttachment);
+    logger.debug('handleViewPDF called', { fileAttachment }, 'ResponseDetailPage');
     try {
       const downloadUrl = await getFileDownloadURL(fileAttachment);
-      console.log('✅ Got download URL:', downloadUrl);
+      logger.debug('Got download URL', { downloadUrl }, 'ResponseDetailPage');
       
       // Open in PDF viewer modal
       setPdfViewerModal({
@@ -237,7 +236,7 @@ export const ResponseDetailPage: React.FC = () => {
         fileName: fileAttachment.fileName
       });
     } catch (error) {
-      console.error('❌ Error viewing file:', error);
+      logger.error('Error viewing file', error, 'ResponseDetailPage');
       showError('Erreur lors de l\'ouverture du fichier');
     }
   };
@@ -264,7 +263,7 @@ export const ResponseDetailPage: React.FC = () => {
       // Fallback to regular download
       await handleDownloadFallback(fileAttachment);
     } catch (error) {
-      console.error('Error downloading file:', error);
+      logger.error('Error downloading file', error, 'ResponseDetailPage');
       showError('Erreur lors du téléchargement du fichier');
     }
   };
@@ -284,7 +283,7 @@ export const ResponseDetailPage: React.FC = () => {
         }
       });
     } catch (error) {
-      console.error('Fallback download failed:', error);
+      logger.error('Fallback download failed', error, 'ResponseDetailPage');
       showError('Erreur lors du téléchargement du fichier');
     }
   };
@@ -382,7 +381,7 @@ export const ResponseDetailPage: React.FC = () => {
       setEditingResponse(null);
       
     } catch (err) {
-      console.error('Error updating response:', err);
+      logger.error('Error updating response', err, 'ResponseDetailPage');
       showError('Erreur lors de la mise à jour de la réponse');
     } finally {
       setIsSubmittingEdit(false);
@@ -418,14 +417,14 @@ export const ResponseDetailPage: React.FC = () => {
             .then(data => {
               setResponseStatuses(prev => ({ ...prev, [formEntryId]: data }));
             })
-            .catch(console.error);
+            .catch((error) => logger.error('Error fetching response status', error, 'ResponseDetailPage'));
         }, 2000);
       } else {
         const error = await response.json();
         showError(error.error || 'Erreur lors de la relance du formatage');
       }
     } catch (error) {
-      console.error('Error retrying formatting:', error);
+      logger.error('Error retrying formatting', error, 'ResponseDetailPage');
       showError('Erreur lors de la relance du formatage');
     } finally {
       setRetryingStatuses(prev => ({ ...prev, [retryKey]: { formatting: false } }));
@@ -456,14 +455,14 @@ export const ResponseDetailPage: React.FC = () => {
             .then(data => {
               setResponseStatuses(prev => ({ ...prev, [formEntryId]: data }));
             })
-            .catch(console.error);
+            .catch((error) => logger.error('Error fetching response status', error, 'ResponseDetailPage'));
         }, 2000);
       } else {
         const error = await response.json();
         showError(error.error || 'Erreur lors de la relance de la synchronisation');
       }
     } catch (error) {
-      console.error('Error retrying vector sync:', error);
+      logger.error('Error retrying vector sync', error, 'ResponseDetailPage');
       showError('Erreur lors de la relance de la synchronisation');
     } finally {
       setRetryingStatuses(prev => ({ ...prev, [retryKey]: { vectorSync: false } }));

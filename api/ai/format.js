@@ -1,6 +1,7 @@
 import { adminDb, admin } from '../lib/firebaseAdmin.js';
 import OpenAI from 'openai';
 import { syncFormEntryToVector } from '../workers/vectorSync.js';
+import { logger } from '../lib/logger.js';
 
 // Initialize OpenAI
 const openai = new OpenAI({
@@ -35,14 +36,11 @@ async function formatHandler(req, res) {
       return res.status(204).end();
     }
 
-    console.log('🔍 Format endpoint called with method:', req.method);
-    console.log('🔍 Request body:', req.body);
-    console.log('🔍 Request headers:', req.headers);
-    console.log('🔍 Content-Type:', req.headers['content-type']);
+    logger.debug('Format endpoint called', { method: req.method, body: req.body, headers: req.headers, contentType: req.headers['content-type'] }, 'ai/format.js');
     
     const { submissionId, formEntryId, rawText, fileName } = req.body;
 
-    console.log('🔄 Format request received:', {
+    logger.info('Format request received', {
       submissionId,
       formEntryId,
       fileName,
@@ -51,7 +49,7 @@ async function formatHandler(req, res) {
 
     // Validate required fields - accept either submissionId or formEntryId
     if ((!submissionId && !formEntryId) || !rawText) {
-      console.error('❌ Missing required fields:', {
+      logger.error('Missing required fields', {
         hasSubmissionId: !!submissionId,
         hasFormEntryId: !!formEntryId,
         hasRawText: !!rawText,
@@ -79,7 +77,7 @@ async function formatHandler(req, res) {
     // Start background formatting (don't wait for it)
     formatTextInBackground(idToUse, rawText, fileName)
       .catch(error => {
-        console.error('❌ Background formatting failed:', error);
+        logger.error('Background formatting failed', error, 'ai/format.js');
       });
 
     // Return immediately - formatting happens in background
@@ -89,7 +87,7 @@ async function formatHandler(req, res) {
     });
 
   } catch (error) {
-    console.error('❌ Error in format endpoint:', error);
+    logger.error('Error in format endpoint', error, 'ai/format.js');
     res.status(500).json({
       success: false,
       error: 'Internal server error'
@@ -108,7 +106,7 @@ export async function formatTextInBackground(formEntryId, rawText, fileName) {
   let formEntryRef = null;
   
   try {
-    console.log(`🔄 Starting background formatting for ${fileName}...`);
+    logger.info('Starting background formatting', { fileName }, 'ai/format.js');
 
     // Find FormEntry first to track status
     const foundEntry = await findFormEntryBySubmissionId(formEntryId);
@@ -126,7 +124,7 @@ export async function formatTextInBackground(formEntryId, rawText, fileName) {
     // Format text with OpenAI
     const formattedText = await formatRawWithOpenAI(rawText);
     
-    console.log(`✅ Text formatted successfully for ${fileName}`);
+    logger.info('Text formatted successfully', { fileName }, 'ai/format.js');
 
     // Update FormEntry with formatted text
     if (!actualFormEntryId) {
@@ -135,22 +133,22 @@ export async function formatTextInBackground(formEntryId, rawText, fileName) {
       await updateFormEntryWithFormattedText(formEntryId, formattedText, fileName);
     }
 
-    console.log(`✅ FormEntry updated with formatted text for ${fileName}`);
+    logger.info('FormEntry updated with formatted text', { fileName }, 'ai/format.js');
 
     // Sync to vector database after formatting (text has changed, need to update chunks)
     if (actualFormEntryId) {
       try {
-        console.log(`🔄 Syncing FormEntry to vector database after formatting: ${actualFormEntryId}`);
+        logger.info('Syncing FormEntry to vector database after formatting', { formEntryId: actualFormEntryId }, 'ai/format.js');
         await syncFormEntryToVector(actualFormEntryId, 'update');
-        console.log(`✅ FormEntry synced to vector database after formatting: ${actualFormEntryId}`);
+        logger.info('FormEntry synced to vector database after formatting', { formEntryId: actualFormEntryId }, 'ai/format.js');
       } catch (syncError) {
-        console.error(`❌ Failed to sync FormEntry to vector database after formatting:`, syncError);
+        logger.error('Failed to sync FormEntry to vector database after formatting', syncError, 'ai/format.js');
         // Don't throw - formatting succeeded, vector sync can be retried later
       }
     }
 
   } catch (error) {
-    console.error(`❌ Background formatting failed for ${fileName}:`, error);
+    logger.error('Background formatting failed', { fileName, error }, 'ai/format.js');
     
     // Update FormEntry with error status and check retry count
     try {
@@ -194,16 +192,16 @@ export async function formatTextInBackground(formEntryId, rawText, fileName) {
         
         // If max retries reached, trigger fallback: sync with raw text
         if (newRetryCount >= maxRetries) {
-          console.log(`⚠️ Max retries (${maxRetries}) reached for formatting. Triggering fallback: sync with raw text`);
+          logger.warn('Max retries reached for formatting. Triggering fallback', { maxRetries, formEntryId: actualFormEntryId }, 'ai/format.js');
           try {
             await syncFormEntryToVector(actualFormEntryId, 'update', true); // true = use raw text
             await formEntryRef.update({
               vectorSyncWithRawText: true,
               vectorSyncStatus: 'completed', // Mark as completed even with raw text
             });
-            console.log(`✅ Fallback: Vector sync completed with raw text for ${actualFormEntryId}`);
+            logger.info('Fallback: Vector sync completed with raw text', { formEntryId: actualFormEntryId }, 'ai/format.js');
           } catch (fallbackError) {
-            console.error(`❌ Fallback vector sync also failed:`, fallbackError);
+            logger.error('Fallback vector sync also failed', fallbackError, 'ai/format.js');
           }
         }
       } else {
@@ -216,7 +214,7 @@ export async function formatTextInBackground(formEntryId, rawText, fileName) {
         });
       }
     } catch (updateError) {
-      console.error('❌ Failed to update FormEntry with error:', updateError);
+      logger.error('Failed to update FormEntry with error', updateError, 'ai/format.js');
     }
   }
 }
@@ -254,7 +252,7 @@ async function findFormEntryBySubmissionId(submissionId) {
 
     return null;
   } catch (error) {
-    console.error('❌ Error finding FormEntry:', error);
+    logger.error('Error finding FormEntry', error, 'ai/format.js');
     return null;
   }
 }
@@ -264,7 +262,7 @@ async function findFormEntryBySubmissionId(submissionId) {
  */
 async function formatRawWithOpenAI(rawText) {
   try {
-    console.log('🔄 Formatting raw text with OpenAI...');
+    logger.info('Formatting raw text with OpenAI', null, 'ai/format.js');
 
     const formatResponse = await openai.chat.completions.create({
       model: 'gpt-4o',
@@ -299,11 +297,11 @@ ${rawText}`
     });
 
     const formattedText = formatResponse.choices[0]?.message?.content || '';
-    console.log('✅ Raw text formatted successfully');
+    logger.info('Raw text formatted successfully', null, 'ai/format.js');
 
     return formattedText;
   } catch (error) {
-    console.error('❌ Error formatting raw text with OpenAI:', error);
+    logger.error('Error formatting raw text with OpenAI', error, 'ai/format.js');
     throw error;
   }
 }
@@ -313,7 +311,7 @@ ${rawText}`
  */
 async function updateFormEntryWithFormattedText(submissionId, formattedText, fileName) {
   try {
-    console.log('📝 Updating FormEntry with formatted text for submission:', submissionId);
+    logger.info('Updating FormEntry with formatted text for submission', { submissionId }, 'ai/format.js');
 
     // First try to find FormEntry by submissionId in fileAttachments
     let formEntryRef = null;
@@ -345,14 +343,14 @@ async function updateFormEntryWithFormattedText(submissionId, formattedText, fil
     if (foundEntry) {
       formEntryRef = foundEntry.ref;
       formEntryDoc = foundEntry;
-      console.log('✅ Found FormEntry by submissionId in fileAttachments');
+      logger.info('Found FormEntry by submissionId in fileAttachments', { submissionId }, 'ai/format.js');
     } else {
       // Fallback: try using submissionId as document ID (for backward compatibility)
       formEntryRef = adminDb.collection('formEntries').doc(submissionId);
       formEntryDoc = await formEntryRef.get();
       
       if (formEntryDoc.exists) {
-        console.log('✅ Found FormEntry using submissionId as document ID');
+        logger.info('Found FormEntry using submissionId as document ID', { submissionId }, 'ai/format.js');
       }
     }
 
@@ -366,7 +364,7 @@ async function updateFormEntryWithFormattedText(submissionId, formattedText, fil
     // Update the file attachment with the matching submissionId
     const updatedFileAttachments = fileAttachments.map((attachment) => {
       if (attachment.submissionId === submissionId) {
-        console.log('📝 Updating attachment with formatted text:', {
+        logger.info('Updating attachment with formatted text', {
           fileName: attachment.fileName,
           submissionId: attachment.submissionId
         });
@@ -389,8 +387,7 @@ async function updateFormEntryWithFormattedText(submissionId, formattedText, fil
     );
 
     if (!wasUpdated) {
-      console.warn('⚠️ No attachment was updated - submissionId might not match any attachment');
-      console.log('Available submissionIds:', fileAttachments.map(att => att.submissionId));
+      logger.warn('No attachment was updated - submissionId might not match any attachment', { submissionId, availableSubmissionIds: fileAttachments.map(att => att.submissionId) }, 'ai/format.js');
     }
 
     // Update the FormEntry document
@@ -402,12 +399,12 @@ async function updateFormEntryWithFormattedText(submissionId, formattedText, fil
       formattedAt: admin.firestore.FieldValue.serverTimestamp()
     });
 
-    console.log('✅ FormEntry updated successfully with formatted text');
+    logger.info('FormEntry updated successfully with formatted text', null, 'ai/format.js');
 
     // Return the formEntryId for vector sync
     return formEntryRef.id;
   } catch (error) {
-    console.error('❌ Error updating FormEntry with formatted text:', error);
+    logger.error('Error updating FormEntry with formatted text', error, 'ai/format.js');
     throw error;
   }
 }

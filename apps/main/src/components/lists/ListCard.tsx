@@ -11,7 +11,7 @@ interface ListCardProps {
   disabled?: boolean;
 }
 
-export const ListCard: React.FC<ListCardProps> = ({
+const ListCardComponent: React.FC<ListCardProps> = ({
   list,
   onEdit,
   onDelete,
@@ -124,4 +124,17 @@ export const ListCard: React.FC<ListCardProps> = ({
     </div>
   );
 };
+
+// Mémoriser le composant pour éviter les re-renders inutiles
+export const ListCard = React.memo(ListCardComponent, (prevProps, nextProps) => {
+  // Comparer les propriétés critiques pour déterminer si un re-render est nécessaire
+  return (
+    prevProps.list.id === nextProps.list.id &&
+    prevProps.list.name === nextProps.list.name &&
+    prevProps.list.description === nextProps.list.description &&
+    prevProps.list.columns.length === nextProps.list.columns.length &&
+    prevProps.list.rows.length === nextProps.list.rows.length &&
+    prevProps.disabled === nextProps.disabled
+  );
+});
 

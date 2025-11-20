@@ -1,3 +1,4 @@
+import { logger } from '@ubora/shared/utils/logger';
 import { logEvent, setUserId, setUserProperties, Analytics } from 'firebase/analytics';
 import { analytics } from '@ubora/shared/firebaseConfig';
 import { FirebaseAnalyticsService } from './firebaseAnalyticsService';
@@ -111,7 +112,7 @@ export class AnalyticsService {
         }
       }
     } catch (error) {
-      console.error('❌ Error initializing Firebase Analytics:', error);
+      logger.error('Error initializing Firebase Analytics', error, 'AnalyticsService');
     }
   }
 
@@ -127,7 +128,7 @@ export class AnalyticsService {
         await logEvent(this.analytics, eventName, parameters);
       }
     } catch (error) {
-      console.error('❌ Error logging analytics event:', error);
+      logger.error('Error logging analytics event', error, 'AnalyticsService');
     }
   }
 
@@ -141,7 +142,7 @@ export class AnalyticsService {
         }
       }
     } catch (error) {
-      console.error('❌ Error setting analytics user:', error);
+      logger.error('Error setting analytics user', error, 'AnalyticsService');
     }
   }
 
@@ -196,7 +197,7 @@ export class AnalyticsService {
         bounceRate: realData.bounceRate
       };
     } catch (error) {
-      console.error('❌ Error fetching real analytics overview:', error);
+      logger.error('Error fetching real analytics overview', error, 'AnalyticsService');
       return {
         totalUsers: 0,
         totalSessions: 0,
@@ -317,7 +318,7 @@ export class AnalyticsService {
         eventFunnel
       };
     } catch (error) {
-      console.error('❌ Error fetching real event analytics:', error);
+      logger.error('Error fetching real event analytics', error, 'AnalyticsService');
       return {
         events: [],
         trends: [],
@@ -400,7 +401,7 @@ export class AnalyticsService {
         geographicData: realData.geographicData
       };
     } catch (error) {
-      console.error('❌ Error fetching real user analytics:', error);
+      logger.error('Error fetching real user analytics', error, 'AnalyticsService');
       return {
         newVsReturning: { newUsers: 0, returningUsers: 0 },
         userRetention: { day1: 0, day7: 0, day30: 0 },
@@ -464,7 +465,7 @@ export class AnalyticsService {
         browserBreakdown: realData.browserBreakdown
       };
     } catch (error) {
-      console.error('❌ Error fetching real performance analytics:', error);
+      logger.error('Error fetching real performance analytics', error, 'AnalyticsService');
       return {
         pageViews: [],
         loadTimes: { average: 0, p50: 0, p95: 0 },
@@ -511,7 +512,7 @@ export class AnalyticsService {
         customerLifetimeValue: 0
       };
     } catch (error) {
-      console.error('❌ Error fetching revenue analytics:', error);
+      logger.error('Error fetching revenue analytics', error, 'AnalyticsService');
       return {
         totalRevenue: 0,
         monthlyRevenue: 0,

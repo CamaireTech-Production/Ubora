@@ -2,6 +2,8 @@ import { User } from '../types';
 import { SubscriptionSessionCollectionService } from './subscriptionSessionCollectionService';
 import { PACKAGE_FEATURES, PackageType } from '../config/packageFeatures';
 import { FeatureAccessService } from './featureAccessService';
+import { getInstantiatedUniversResourcesCount } from '../utils/resourceQuotaUtils';
+import { logger } from '../utils/logger';
 
 export interface UserPackageInfo {
   packageType: PackageType | null;
@@ -92,17 +94,77 @@ export class UserSessionService {
     const totalDashboards = packageDashboards + payAsYouGoDashboards;
     const totalUsers = packageUsers + payAsYouGoUsers;
     
-    // Usage
+    // Usage (from session - tracks only new resources created, not instantiated)
     const tokensUsed = currentSession.usage?.tokensUsed || 0;
     const formsCreated = currentSession.usage?.formsCreated || 0;
     const dashboardsCreated = currentSession.usage?.dashboardsCreated || 0;
     const usersAdded = currentSession.usage?.usersAdded || 0;
     
-    // Remaining resources
-    const tokensRemaining = Math.max(0, totalTokens - tokensUsed);
-    const formsRemaining = Math.max(0, totalForms - formsCreated);
-    const dashboardsRemaining = Math.max(0, totalDashboards - dashboardsCreated);
-    const usersRemaining = Math.max(0, totalUsers - usersAdded);
+    // Get instantiated Univers resources (only for directors, only forms and dashboards)
+    let instantiatedForms = 0;
+    let instantiatedDashboards = 0;
+    
+    if (user.role === 'directeur' && user.agencyId) {
+      try {
+        const instantiated = await getInstantiatedUniversResourcesCount(user.id, user.agencyId);
+        instantiatedForms = instantiated.instantiatedForms;
+        instantiatedDashboards = instantiated.instantiatedDashboards;
+        
+        logger.debug('Instantiated Univers resources for package info', {
+          userId: user.id,
+          instantiatedForms,
+          instantiatedDashboards
+        }, 'UserSessionService');
+      } catch (error) {
+        logger.error('Error getting instantiated Univers resources', error, 'UserSessionService');
+        // Continue with 0 if error - don't block package info retrieval
+      }
+    }
+    
+    // Calculate total used resources:
+    // - Forms: instantiated Univers forms + usage (new forms created)
+    // - Dashboards: instantiated Univers dashboards + usage (new dashboards created)
+    // - Users: only usage (users are not Univers-related)
+    // - Tokens: only usage (tokens are consumed, not created)
+    const totalFormsUsed = instantiatedForms + formsCreated;
+    const totalDashboardsUsed = instantiatedDashboards + dashboardsCreated;
+    const totalUsersUsed = usersAdded; // Users are not Univers-related
+    const totalTokensUsed = tokensUsed; // Tokens are consumed, not created
+    
+    // Calculate remaining resources
+    // Handle unlimited case (-1): if limit is -1, remaining is also -1
+    const tokensRemaining = totalTokens === -1 ? -1 : Math.max(0, totalTokens - totalTokensUsed);
+    const formsRemaining = totalForms === -1 ? -1 : Math.max(0, totalForms - totalFormsUsed);
+    const dashboardsRemaining = totalDashboards === -1 ? -1 : Math.max(0, totalDashboards - totalDashboardsUsed);
+    const usersRemaining = totalUsers === -1 ? -1 : Math.max(0, totalUsers - totalUsersUsed);
+    
+    logger.debug('Package info calculation', {
+      userId: user.id,
+      packageType: sessionPackageType,
+      // Limits
+      totalForms,
+      totalDashboards,
+      totalUsers,
+      totalTokens,
+      // Instantiated
+      instantiatedForms,
+      instantiatedDashboards,
+      // Usage
+      formsCreated,
+      dashboardsCreated,
+      usersAdded,
+      tokensUsed,
+      // Total used
+      totalFormsUsed,
+      totalDashboardsUsed,
+      totalUsersUsed,
+      totalTokensUsed,
+      // Remaining
+      formsRemaining,
+      dashboardsRemaining,
+      usersRemaining,
+      tokensRemaining
+    }, 'UserSessionService');
     const packageInfo = {
       packageType: sessionPackageType,
       packageFeatures,

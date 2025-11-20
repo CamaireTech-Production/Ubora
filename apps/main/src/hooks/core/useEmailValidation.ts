@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '@ubora/shared/firebaseConfig';
+import { logger } from '@ubora/shared/utils/logger';
 
 interface EmailValidationResult {
   isValid: boolean;
@@ -75,7 +76,7 @@ export const useEmailValidation = (email: string, debounceMs: number = 500) => {
       });
     } catch (error: any) {
       // En cas d'erreur, marquer comme "en vérification" pour éviter les faux positifs
-      console.warn('⚠️ Could not check email availability:', error);
+      logger.warn('Could not check email availability', error, 'useEmailValidation');
       
       // Si c'est une erreur de permission ou réseau, on ne peut pas vérifier
       // Dans ce cas, on ne marque PAS comme disponible pour éviter les faux positifs

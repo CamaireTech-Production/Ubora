@@ -97,20 +97,144 @@ const DashboardSkeleton: React.FC = () => (
   </div>
 );
 
-// Chat Skeleton
+// Chat Skeleton - Modern and soft design with smooth animations
 const ChatSkeleton: React.FC = () => (
-  <div className="space-y-4">
-    {Array.from({ length: 3 }, (_, i) => (
-      <div key={i} className={`flex ${i % 2 === 0 ? 'justify-end' : 'justify-start'}`}>
-        <div className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
-          i % 2 === 0 ? 'bg-blue-500' : 'bg-gray-200'
-        }`}>
-          <div className={`h-4 rounded w-full animate-pulse ${
-            i % 2 === 0 ? 'bg-blue-400' : 'bg-gray-300'
-          }`}></div>
+  <div className="min-h-screen bg-gradient-to-br from-blue-50/50 via-indigo-50/30 to-white">
+    {/* Container centré pour toute l'interface */}
+    <div className="max-w-7xl mx-auto flex flex-col px-0 sm:px-6 lg:px-8 h-screen">
+      {/* Top bar Skeleton - Soft glass effect */}
+      <div className="bg-white/80 backdrop-blur-xl border-b border-gray-200/50 px-4 sm:px-6 lg:px-8 py-4 shadow-sm">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-3">
+            <div className="h-10 w-10 bg-gradient-to-br from-blue-100 to-indigo-100 rounded-full shimmer-soft ring-2 ring-blue-50"></div>
+            <div className="space-y-2">
+              <div className="h-6 bg-gradient-to-r from-gray-100 via-gray-50 to-gray-100 rounded-xl w-32 shimmer-soft"></div>
+              <div className="h-3 bg-gray-100/80 rounded-lg w-24 shimmer-soft"></div>
+            </div>
+          </div>
+          <div className="flex items-center space-x-2">
+            <div className="h-9 w-9 bg-gray-100/60 rounded-xl shimmer-soft"></div>
+            <div className="h-9 w-9 bg-gray-100/60 rounded-xl shimmer-soft"></div>
+          </div>
         </div>
       </div>
-    ))}
+
+      {/* Messages list Skeleton */}
+      <div className="flex-1 overflow-y-auto px-4 sm:px-6 lg:px-8 py-8 space-y-5">
+        {/* Welcome Message Card - Soft card with subtle shadow */}
+        <div className="flex justify-center mb-8 animate-soft-fade-in">
+          <div className="bg-white/90 backdrop-blur-sm rounded-3xl shadow-lg shadow-blue-100/50 border border-gray-100/50 p-8 max-w-2xl w-full">
+            <div className="flex items-center space-x-4 mb-5">
+              <div className="h-14 w-14 bg-gradient-to-br from-blue-100 via-indigo-100 to-purple-100 rounded-2xl shimmer-soft ring-2 ring-blue-50/50"></div>
+              <div className="flex-1 space-y-2.5">
+                <div className="h-5 bg-gradient-to-r from-gray-100 via-gray-50 to-gray-100 rounded-xl w-44 shimmer-soft"></div>
+                <div className="h-4 bg-gray-100/70 rounded-lg w-36 shimmer-soft"></div>
+              </div>
+            </div>
+            <div className="space-y-2.5">
+              <div className="h-4 bg-gray-100/80 rounded-lg w-full shimmer-soft"></div>
+              <div className="h-4 bg-gray-100/80 rounded-lg w-5/6 shimmer-soft"></div>
+              <div className="h-4 bg-gray-100/80 rounded-lg w-4/6 shimmer-soft"></div>
+            </div>
+          </div>
+        </div>
+
+        {/* Chat Messages with smooth staggered animation */}
+        {Array.from({ length: 4 }, (_, i) => (
+          <div 
+            key={i} 
+            className={`flex ${i % 2 === 0 ? 'justify-end' : 'justify-start'} animate-soft-slide-up`} 
+            style={{ animationDelay: `${i * 200}ms`, animationFillMode: 'both' }}
+          >
+            <div className={`flex items-start space-x-3 max-w-xs lg:max-w-md ${i % 2 === 0 ? 'flex-row-reverse space-x-reverse' : ''}`}>
+              {/* Avatar - Soft gradient */}
+              <div className={`h-9 w-9 rounded-2xl flex-shrink-0 shimmer-soft ring-2 ${
+                i % 2 === 0 
+                  ? 'bg-gradient-to-br from-blue-100 to-indigo-100 ring-blue-50/50' 
+                  : 'bg-gradient-to-br from-gray-100 to-gray-50 ring-gray-50/50'
+              }`}></div>
+              
+              {/* Message Bubble - Modern rounded with soft colors */}
+              <div className={`rounded-3xl px-5 py-4 shadow-md backdrop-blur-sm ${
+                i % 2 === 0 
+                  ? 'bg-gradient-to-br from-blue-500 to-indigo-500 rounded-br-md shadow-blue-200/30' 
+                  : 'bg-white/90 border border-gray-100/80 rounded-bl-md shadow-gray-200/20'
+              }`}>
+                <div className="space-y-2.5">
+                  {i === 0 ? (
+                    // First message - longer text with soft lines
+                    <>
+                      <div className={`h-4 rounded-lg w-full shimmer-soft ${
+                        i % 2 === 0 ? 'bg-blue-400/60' : 'bg-gray-200/60'
+                      }`}></div>
+                      <div className={`h-4 rounded-lg w-5/6 shimmer-soft ${
+                        i % 2 === 0 ? 'bg-blue-400/60' : 'bg-gray-200/60'
+                      }`}></div>
+                      <div className={`h-4 rounded-lg w-4/6 shimmer-soft ${
+                        i % 2 === 0 ? 'bg-blue-400/60' : 'bg-gray-200/60'
+                      }`}></div>
+                    </>
+                  ) : i === 1 ? (
+                    // Second message - with graph/table placeholder
+                    <>
+                      <div className={`h-4 rounded-lg w-full shimmer-soft ${
+                        i % 2 === 0 ? 'bg-blue-400/60' : 'bg-gray-200/60'
+                      }`}></div>
+                      <div className="mt-3 bg-gray-50/80 rounded-2xl p-4 border border-gray-100/50 backdrop-blur-sm">
+                        <div className="h-36 bg-gradient-to-br from-gray-100/60 to-gray-50/60 rounded-xl shimmer-soft"></div>
+                      </div>
+                    </>
+                  ) : (
+                    // Other messages - shorter
+                    <>
+                      <div className={`h-4 rounded-lg w-full shimmer-soft ${
+                        i % 2 === 0 ? 'bg-blue-400/60' : 'bg-gray-200/60'
+                      }`}></div>
+                      <div className={`h-4 rounded-lg w-3/4 shimmer-soft ${
+                        i % 2 === 0 ? 'bg-blue-400/60' : 'bg-gray-200/60'
+                      }`}></div>
+                    </>
+                  )}
+                </div>
+                {/* Timestamp - Subtle */}
+                <div className={`mt-3 h-2.5 rounded-full w-20 shimmer-soft ${
+                  i % 2 === 0 ? 'bg-blue-400/40' : 'bg-gray-200/40'
+                }`}></div>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Composer Skeleton - Modern glass effect */}
+      <div className="bg-white/80 backdrop-blur-xl border-t border-gray-200/50 px-4 sm:px-6 lg:px-8 py-5 shadow-lg shadow-gray-100/50">
+        {/* Format selector skeleton - Soft pills */}
+        <div className="mb-4 flex items-center space-x-2 overflow-x-auto pb-2 scrollbar-hide">
+          <div className="h-9 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-full w-24 shimmer-soft border border-blue-100/50 flex-shrink-0"></div>
+          <div className="h-9 bg-gray-50/80 rounded-full w-28 shimmer-soft border border-gray-100/50 flex-shrink-0"></div>
+          <div className="h-9 bg-gray-50/80 rounded-full w-32 shimmer-soft border border-gray-100/50 flex-shrink-0"></div>
+        </div>
+        
+        {/* Input area - Soft rounded with glass effect */}
+        <div className="flex items-end space-x-3">
+          <div className="flex-1 bg-gray-50/60 backdrop-blur-sm rounded-3xl px-5 py-4 min-h-[56px] flex items-center border border-gray-100/50 shadow-inner">
+            <div className="h-5 bg-gray-200/50 rounded-xl w-full shimmer-soft"></div>
+          </div>
+          <div className="h-12 w-12 bg-gradient-to-br from-blue-500 to-indigo-500 rounded-2xl flex items-center justify-center shimmer-soft shadow-lg shadow-blue-200/30 ring-2 ring-blue-100/50">
+            <div className="h-5 w-5 bg-white/80 rounded-lg shimmer-soft"></div>
+          </div>
+        </div>
+        
+        {/* Footer info - Subtle */}
+        <div className="mt-3 flex items-center justify-between">
+          <div className="flex items-center space-x-2.5">
+            <div className="h-6 w-6 bg-gray-100/60 rounded-lg shimmer-soft"></div>
+            <div className="h-6 w-6 bg-gray-100/60 rounded-lg shimmer-soft"></div>
+          </div>
+          <div className="h-3.5 bg-gray-100/60 rounded-lg w-28 shimmer-soft"></div>
+        </div>
+      </div>
+    </div>
   </div>
 );
 

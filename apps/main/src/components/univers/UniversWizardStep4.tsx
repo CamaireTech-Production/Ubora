@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { DashboardBuilder } from '../dashboard/DashboardBuilder';
-import { DashboardMetric, Form } from '../../types';
+import { DashboardMetric, Form, FormDefinition, ListDefinition, DashboardDefinition as DashboardDefinitionType, FormField, List } from '../../types';
 import { UniversWizardStepProps } from './UniversWizard';
 import { Plus, Trash2, Edit, BarChart3, CheckCircle, AlertCircle, ArrowLeft, AlertTriangle } from 'lucide-react';
 import { useApp } from '@ubora/shared/contexts/AppContext';
@@ -58,7 +58,7 @@ export const UniversWizardStep4: React.FC<UniversWizardStepProps> = ({
 
   // Convert Form definitions to Form objects for DashboardBuilder
   const universForms = useMemo<Form[]>(() => {
-    const formDefinitions = (wizardData.definitions.forms || []) as any[];
+    const formDefinitions = (wizardData.definitions.forms || []) as FormDefinition[];
     return formDefinitions.map((formDef): Form => ({
       id: formDef.id,
       title: formDef.title,
@@ -74,8 +74,8 @@ export const UniversWizardStep4: React.FC<UniversWizardStepProps> = ({
 
   // Convert List definitions to List objects for DashboardBuilder
   const universLists = useMemo(() => {
-    const listDefinitions = (wizardData.definitions.lists || []) as any[];
-    return listDefinitions.map((listDef): any => ({
+    const listDefinitions = (wizardData.definitions.lists || []) as ListDefinition[];
+    return listDefinitions.map((listDef): List => ({
       id: listDef.id,
       name: listDef.name,
       description: listDef.description,
@@ -98,7 +98,7 @@ export const UniversWizardStep4: React.FC<UniversWizardStepProps> = ({
     if (!readOnly) {
       updateWizardData({
         definitions: {
-          dashboards: dashboards as any
+          dashboards: dashboards as DashboardDefinition[]
         }
       });
 
@@ -191,11 +191,11 @@ export const UniversWizardStep4: React.FC<UniversWizardStepProps> = ({
             {dashboards.map(dashboard => {
               // Créer un map des noms de formulaires et champs
               const formNamesMap = new Map<string, { title: string; fieldNames: Map<string, string> }>();
-              const formDefinitions = (wizardData.definitions.forms || []) as any[];
+              const formDefinitions = (wizardData.definitions.forms || []) as FormDefinition[];
               formDefinitions.forEach(form => {
                 const fieldNamesMap = new Map<string, string>();
                 if (form.fields && form.fields.length > 0) {
-                  form.fields.forEach((field: any) => {
+                  form.fields.forEach((field: FormField) => {
                     fieldNamesMap.set(field.id || '', field.label || '');
                   });
                 }
@@ -226,8 +226,8 @@ export const UniversWizardStep4: React.FC<UniversWizardStepProps> = ({
                       <h5 className="text-sm font-medium text-gray-700 mb-2">Métriques:</h5>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                         {dashboard.metrics.map((metric, metricIndex) => {
-                          const formId = (metric as any).formId;
-                          const fieldId = (metric as any).fieldId;
+                          const formId = 'formId' in metric ? metric.formId : undefined;
+                          const fieldId = 'fieldId' in metric ? metric.fieldId : undefined;
                           const formInfo = formId ? formNamesMap.get(formId) : null;
                           const fieldName = formInfo && fieldId ? formInfo.fieldNames.get(fieldId) : null;
                           
@@ -236,7 +236,7 @@ export const UniversWizardStep4: React.FC<UniversWizardStepProps> = ({
                               <div className="flex items-center justify-between mb-2">
                                 <span className="text-sm font-semibold text-gray-900">{metric.name || `Métrique ${metricIndex + 1}`}</span>
                                 <span className="px-2 py-0.5 bg-purple-100 text-purple-700 rounded text-xs font-medium">
-                                  {(metric as any).type || 'metric'}
+                                  {('metricType' in metric ? metric.metricType : 'type' in metric ? (metric as { type?: string }).type : undefined) || 'metric'}
                                 </span>
                               </div>
                               <div className="space-y-1.5 mt-2">
@@ -264,32 +264,32 @@ export const UniversWizardStep4: React.FC<UniversWizardStepProps> = ({
                                     <span className="text-xs font-mono text-gray-600">{fieldId}</span>
                                   </div>
                                 )}
-                                {(metric as any).aggregation && (
+                                {('calculationType' in metric ? metric.calculationType : 'aggregation' in metric ? (metric as { aggregation?: string }).aggregation : undefined) && (
                                   <div className="flex items-center space-x-2">
                                     <span className="text-xs text-gray-500">Agrégation:</span>
                                     <span className="text-xs font-medium text-blue-600 capitalize">
-                                      {(metric as any).aggregation}
+                                      {('calculationType' in metric ? metric.calculationType : 'aggregation' in metric ? (metric as { aggregation?: string }).aggregation : undefined) || ''}
                                     </span>
                                   </div>
                                 )}
-                                {(metric as any).chartType && (
+                                {('graphConfig' in metric && metric.graphConfig?.chartType ? metric.graphConfig.chartType : 'chartType' in metric ? (metric as { chartType?: string }).chartType : undefined) && (
                                   <div className="flex items-center space-x-2">
                                     <span className="text-xs text-gray-500">Type de graphique:</span>
                                     <span className="text-xs font-medium text-indigo-600 capitalize">
-                                      {(metric as any).chartType}
+                                      {('graphConfig' in metric && metric.graphConfig?.chartType ? metric.graphConfig.chartType : 'chartType' in metric ? (metric as { chartType?: string }).chartType : undefined) || ''}
                                     </span>
                                   </div>
                                 )}
-                                {(metric as any).xAxis && (
+                                {('graphConfig' in metric && metric.graphConfig?.xAxisFieldId ? metric.graphConfig.xAxisFieldId : 'xAxis' in metric ? (metric as { xAxis?: string }).xAxis : undefined) && (
                                   <div className="flex items-center space-x-2">
                                     <span className="text-xs text-gray-500">Axe X:</span>
-                                    <span className="text-xs text-gray-700">{(metric as any).xAxis}</span>
+                                    <span className="text-xs text-gray-700">{('graphConfig' in metric && metric.graphConfig?.xAxisFieldId ? metric.graphConfig.xAxisFieldId : 'xAxis' in metric ? (metric as { xAxis?: string }).xAxis : undefined) || ''}</span>
                                   </div>
                                 )}
-                                {(metric as any).yAxis && (
+                                {('graphConfig' in metric && metric.graphConfig?.yAxisFieldId ? metric.graphConfig.yAxisFieldId : 'yAxis' in metric ? (metric as { yAxis?: string }).yAxis : undefined) && (
                                   <div className="flex items-center space-x-2">
                                     <span className="text-xs text-gray-500">Axe Y:</span>
-                                    <span className="text-xs text-gray-700">{(metric as any).yAxis}</span>
+                                    <span className="text-xs text-gray-700">{('graphConfig' in metric && metric.graphConfig?.yAxisFieldId ? metric.graphConfig.yAxisFieldId : 'yAxis' in metric ? (metric as { yAxis?: string }).yAxis : undefined) || ''}</span>
                                   </div>
                                 )}
                               </div>

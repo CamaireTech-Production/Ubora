@@ -1,3 +1,4 @@
+import { logger } from '@ubora/shared/utils/logger';
 import { doc, getDoc } from 'firebase/firestore';
 import { db, auth } from '@ubora/shared/firebaseConfig';
 
@@ -25,8 +26,8 @@ export class ScheduledQuestionTokenChecker {
     estimatedTokens: number = 1000
   ): Promise<TokenCheckResult> {
     try {
-      console.log(`🔍 [ScheduledQuestionTokenChecker] Vérification des tokens pour l'utilisateur: ${userId}`);
-      console.log(`📊 [ScheduledQuestionTokenChecker] Tokens estimés nécessaires: ${estimatedTokens}`);
+      logger.debug('Vérification des tokens pour l\'utilisateur', { userId }, 'ScheduledQuestionTokenChecker');
+      logger.debug('Tokens estimés nécessaires', { estimatedTokens }, 'ScheduledQuestionTokenChecker');
 
       // Get user document
       const userDoc = await getDoc(doc(db, 'users', userId));
@@ -72,7 +73,7 @@ export class ScheduledQuestionTokenChecker {
       // Check if user has enough tokens
       const canExecute = packageLimit === -1 || (availableTokens >= estimatedTokens);
       
-      console.log(`📊 [ScheduledQuestionTokenChecker] Résultat de la vérification:`, {
+      logger.debug('Résultat de la vérification', {
         canExecute,
         estimatedTokens,
         availableTokens,
@@ -80,7 +81,7 @@ export class ScheduledQuestionTokenChecker {
         payAsYouGoTokens,
         currentTokensUsed,
         reason: canExecute ? 'Tokens suffisants' : 'Tokens insuffisants'
-      });
+      }, 'ScheduledQuestionTokenChecker');
 
       return {
         canExecute,
@@ -94,7 +95,7 @@ export class ScheduledQuestionTokenChecker {
       };
 
     } catch (error) {
-      console.error('❌ [ScheduledQuestionTokenChecker] Erreur lors de la vérification des tokens:', error);
+      logger.error('Erreur lors de la vérification des tokens', error, 'ScheduledQuestionTokenChecker');
       return {
         canExecute: false,
         reason: 'Erreur lors de la vérification des tokens',
@@ -178,7 +179,7 @@ export class ScheduledQuestionTokenChecker {
         reason: result.reason
       };
     } catch (error) {
-      console.error('❌ [ScheduledQuestionTokenChecker] Erreur lors de la vérification batch:', error);
+      logger.error('Erreur lors de la vérification batch', error, 'ScheduledQuestionTokenChecker');
       return {
         canExecute: false,
         totalTokens: 0,

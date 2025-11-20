@@ -3,6 +3,7 @@ import { DashboardMetric, FormEntry, Form } from '@ubora/shared/types';
 import { GraphPreview } from './GraphPreview';
 import { Button } from '../ui/Button';
 import { X, BarChart3, Maximize2, Minimize2, RotateCcw, RotateCw } from 'lucide-react';
+import { logger } from '@ubora/shared/utils/logger';
 
 interface GraphModalProps {
   isOpen: boolean;
@@ -65,14 +66,14 @@ export const GraphModal: React.FC<GraphModalProps> = ({
           setChartHeight(Math.min(window.innerHeight * 0.5, 500));
         }
       }).catch((err) => {
-        console.error('Error entering fullscreen:', err);
+        logger.error('Error entering fullscreen', err, 'GraphModal');
       });
     } else {
       document.exitFullscreen().then(() => {
         setIsFullscreen(false);
         setChartHeight(384); // Reset to default
       }).catch((err) => {
-        console.error('Error exiting fullscreen:', err);
+        logger.error('Error exiting fullscreen', err, 'GraphModal');
       });
     }
   };

@@ -1,10 +1,11 @@
 import React from 'react';
-import { useApp } from '@ubora/shared/contexts/AppContext';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
+import { useUnivers } from '@ubora/shared/contexts/UniversContext';
 import { universService } from '@ubora/shared/services/universService';
 import { Univers } from '../../types';
 import { Globe } from 'lucide-react';
 import { ActiveUniversSkeleton } from '../skeletons/ActiveUniversSkeleton';
+import { logger } from '@ubora/shared/utils/logger';
 
 interface ActiveUniversDisplayProps {
   className?: string;
@@ -12,7 +13,7 @@ interface ActiveUniversDisplayProps {
 
 export const ActiveUniversDisplay: React.FC<ActiveUniversDisplayProps> = ({ className = '' }) => {
   const { user } = useAuth();
-  const { activeUniversId } = useApp();
+  const { activeUniversId } = useUnivers();
   const [activeUnivers, setActiveUnivers] = React.useState<Univers | null>(null);
   const [isLoading, setIsLoading] = React.useState(false);
 
@@ -28,7 +29,7 @@ export const ActiveUniversDisplay: React.FC<ActiveUniversDisplayProps> = ({ clas
         const univers = await universService.getById(activeUniversId);
         setActiveUnivers(univers);
       } catch (error) {
-        console.error('Erreur lors du chargement du Univers actif:', error);
+        logger.error('Erreur lors du chargement du Univers actif', error, 'ActiveUniversDisplay');
         setActiveUnivers(null);
       } finally {
         setIsLoading(false);

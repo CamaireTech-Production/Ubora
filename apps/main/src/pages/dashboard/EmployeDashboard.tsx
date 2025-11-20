@@ -2,6 +2,8 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
 import { useApp } from '@ubora/shared/contexts/AppContext';
+import { Form, FormEntry, FormField, FileAttachment, FormFieldValue } from '../../types';
+import { logger } from '@ubora/shared/utils/logger';
 import { Layout } from '../../components/layout/Layout';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
@@ -17,13 +19,13 @@ import { VideoSection } from '../../components/core/VideoSection';
 import { employeeVideos } from '../../data/videoData';
 
 interface ResponsesInterfaceProps {
-  myEntries: any[];
-  assignedForms: any[];
+  myEntries: FormEntry[];
+  assignedForms: Form[];
   onClose: () => void;
   canEditResponse: (submittedAt: Date | string) => boolean;
-  onUpdateResponse?: (responseId: string, updatedAnswers: Record<string, any>, updatedFileAttachments: any[]) => Promise<void>;
-  onViewPDF: (fileAttachment: any) => void;
-  onDownloadPDF: (fileAttachment: any) => void;
+  onUpdateResponse?: (responseId: string, updatedAnswers: Record<string, FormFieldValue>, updatedFileAttachments: FileAttachment[]) => Promise<void>;
+  onViewPDF: (fileAttachment: FileAttachment) => void;
+  onDownloadPDF: (fileAttachment: FileAttachment) => void;
 }
 
 // Helper functions for file handling
@@ -119,7 +121,7 @@ const ResponsesInterface: React.FC<ResponsesInterfaceProps> = ({
     return form?.title || 'Formulaire inconnu';
   };
 
-  const handleEditSubmit = async (responseId: string, updatedAnswers: Record<string, any>, updatedFileAttachments: any[]) => {
+  const handleEditSubmit = async (responseId: string, updatedAnswers: Record<string, FormFieldValue>, updatedFileAttachments: FileAttachment[]) => {
     if (!onUpdateResponse) return;
     
     setIsSubmittingEdit(true);
@@ -127,7 +129,7 @@ const ResponsesInterface: React.FC<ResponsesInterfaceProps> = ({
       await onUpdateResponse(responseId, updatedAnswers, updatedFileAttachments);
       setEditingResponse(null);
     } catch (error) {
-      console.error('Error updating response:', error);
+      logger.error('Error updating response', error, 'EmployeDashboard');
     } finally {
       setIsSubmittingEdit(false);
     }
@@ -367,20 +369,21 @@ const ResponsesInterface: React.FC<ResponsesInterfaceProps> = ({
                     {/* Response preview */}
                     <div className="space-y-2">
                       {Object.entries(entry.answers || {}).filter(([fieldId]) => fieldId !== 'fileAttachments').slice(0, 3).map(([fieldId, value]) => {
-                        const field = form?.fields.find((f: any) => f.id === fieldId);
+                        const field = form?.fields.find((f: FormField) => f.id === fieldId);
                         const fieldLabel = field?.label || fieldId;
                         
                         // Handle file fields specially
-                        if (field?.type === 'file' && value && typeof value === 'object' && 'uploaded' in value && value.uploaded) {
-                          const fileAttachment = entry.fileAttachments?.find((att: any) => att.fieldId === fieldId);
+                        if (field?.type === 'file' && value && typeof value === 'object' && value !== null && 'uploaded' in value && (value as { uploaded: boolean }).uploaded) {
+                          const fileValue = value as { fileType?: string; fileName?: string; fileSize?: number };
+                          const fileAttachment = entry.fileAttachments?.find((att: FileAttachment) => att.fieldId === fieldId);
                           return (
                             <div key={fieldId} className="text-sm">
                               <span className="font-medium text-gray-700">{fieldLabel}:</span>
                               <div className="ml-2 text-gray-600 flex flex-col sm:flex-row sm:items-center gap-2">
                                 <div className="flex items-center space-x-2">
-                                  <span className="text-lg">{getFileIcon((value as any).fileType)}</span>
-                                  <span>{(value as any).fileName}</span>
-                                  <span className="text-xs text-gray-500">({formatFileSize((value as any).fileSize)})</span>
+                                  <span className="text-lg">{getFileIcon(fileValue.fileType || '')}</span>
+                                  <span>{fileValue.fileName || ''}</span>
+                                  <span className="text-xs text-gray-500">({fileValue.fileSize ? formatFileSize(fileValue.fileSize) : '0 Bytes'})</span>
                                 </div>
                                 {(fileAttachment?.downloadUrl || fileAttachment?.storagePath) && (
                                   <div className="flex items-center space-x-2">
@@ -457,12 +460,12 @@ export const EmployeDashboard: React.FC = () => {
   const { toast, showSuccess, showError } = useToast();
 
   // Function to get form icon based on form type or content
-  const getFormIcon = (form: any) => {
+  const getFormIcon = (form: Form) => {
     // Check if form has specific field types that suggest its purpose
-    const hasFileFields = form.fields.some((field: any) => field.type === 'file');
-    const hasDateFields = form.fields.some((field: any) => field.type === 'date');
-    const hasNumberFields = form.fields.some((field: any) => field.type === 'number');
-    const hasSelectFields = form.fields.some((field: any) => field.type === 'select');
+    const hasFileFields = form.fields.some((field: FormField) => field.type === 'file');
+    const hasDateFields = form.fields.some((field: FormField) => field.type === 'date');
+    const hasNumberFields = form.fields.some((field: FormField) => field.type === 'number');
+    const hasSelectFields = form.fields.some((field: FormField) => field.type === 'select');
     
     // Determine icon based on form characteristics
     if (hasFileFields) return <FileEdit className="h-5 w-5 text-blue-600" />;
@@ -569,9 +572,9 @@ export const EmployeDashboard: React.FC = () => {
     }
   };
 
-  const handleViewPDF = async (fileAttachment: any) => {
+  const handleViewPDF = async (fileAttachment: FileAttachment) => {
     try {
-      console.log('🔄 Opening PDF viewer for:', fileAttachment.fileName);
+      logger.debug('Opening PDF viewer', { fileName: fileAttachment.fileName }, 'EmployeDashboard');
       
       // Get blob URL for the file
       const blobUrl = await getFileBlobUrl(fileAttachment);
@@ -583,23 +586,23 @@ export const EmployeDashboard: React.FC = () => {
         fileName: fileAttachment.fileName
       });
       
-      console.log('✅ PDF viewer opened successfully');
+      logger.debug('PDF viewer opened successfully', { fileName: fileAttachment.fileName }, 'EmployeDashboard');
     } catch (error) {
-      console.error('Error viewing file:', error);
+      logger.error('Error viewing file', error, 'EmployeDashboard');
       showError('Erreur lors de l\'ouverture du fichier');
     }
   };
 
-  const handleDownloadPDF = async (fileAttachment: any) => {
+  const handleDownloadPDF = async (fileAttachment: FileAttachment) => {
     try {
-      console.log('🔄 Downloading file:', fileAttachment.fileName);
+      logger.debug('Downloading file', { fileName: fileAttachment.fileName }, 'EmployeDashboard');
       
       // Use the simple blob download approach
       await downloadFileFromBlob(fileAttachment);
       showSuccess('Téléchargement démarré');
       
     } catch (error) {
-      console.error('Error downloading file:', error);
+      logger.error('Error downloading file', error, 'EmployeDashboard');
       showError('Erreur lors du téléchargement du fichier');
     }
   };
@@ -623,7 +626,7 @@ export const EmployeDashboard: React.FC = () => {
   };
 
 
-  const handleAddResponse = async (formId: string, answers: Record<string, any>, fileAttachments: any[] = []) => {
+  const handleAddResponse = async (formId: string, answers: Record<string, FormFieldValue>, fileAttachments: FileAttachment[] = []) => {
     if (!user?.id || !user?.agencyId) return;
     
     setIsSavingDraft(true);
@@ -636,7 +639,7 @@ export const EmployeDashboard: React.FC = () => {
       // Clear the form by resetting the editing state
       setEditingDraftId(null);
     } catch (error) {
-      console.error('Error adding response:', error);
+      logger.error('Error adding response', error, 'EmployeDashboard');
       showError('Erreur lors de l\'ajout de la réponse');
     } finally {
       setIsSavingDraft(false);
@@ -668,7 +671,7 @@ export const EmployeDashboard: React.FC = () => {
     setDeleteModal({ show: false, draftId: null, draftTitle: '' });
   };
 
-  const handleSaveDraft = async (draftId: string, answers: Record<string, any>, fileAttachments: any[] = []) => {
+  const handleSaveDraft = async (draftId: string, answers: Record<string, FormFieldValue>, fileAttachments: FileAttachment[] = []) => {
     if (!user?.id || !user?.agencyId || !selectedFormId) return;
     
     setIsSavingDraft(true);
@@ -691,7 +694,7 @@ export const EmployeDashboard: React.FC = () => {
         setEditingDraftId(null);
       }
     } catch (error) {
-      console.error('Error saving draft:', error);
+      logger.error('Error saving draft', error, 'EmployeDashboard');
       showError('Erreur lors de la sauvegarde du brouillon');
     } finally {
       setIsSavingDraft(false);
@@ -724,7 +727,7 @@ export const EmployeDashboard: React.FC = () => {
       setSelectedFormId(null);
       setEditingDraftId(null);
     } catch (error) {
-      console.error('Error submitting drafts:', error);
+      logger.error('Error submitting drafts', error, 'EmployeDashboard');
       showError('Erreur lors de la soumission des réponses');
     } finally {
       setIsSubmittingDrafts(false);
@@ -745,7 +748,7 @@ export const EmployeDashboard: React.FC = () => {
   };
 
   // Helper functions for new stats
-  const getFormsToFillToday = (assignedForms: any[], myEntries: any[]) => {
+  const getFormsToFillToday = (assignedForms: Form[], myEntries: FormEntry[]) => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const tomorrow = new Date(today);
@@ -783,7 +786,7 @@ export const EmployeDashboard: React.FC = () => {
     return formsToFillToday;
   };
 
-  const getFormsToCatchUp = (assignedForms: any[], myEntries: any[]) => {
+  const getFormsToCatchUp = (assignedForms: Form[], myEntries: FormEntry[]) => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     
@@ -832,7 +835,7 @@ export const EmployeDashboard: React.FC = () => {
     return submittedTime > threeHoursAgo;
   };
 
-  const handleUpdateResponse = async (responseId: string, updatedAnswers: Record<string, any>, updatedFileAttachments: any[]) => {
+  const handleUpdateResponse = async (responseId: string, updatedAnswers: Record<string, FormFieldValue>, updatedFileAttachments: FileAttachment[]) => {
     try {
       // Update the response in Firebase
       await updateFormEntry(responseId, {
@@ -843,7 +846,7 @@ export const EmployeDashboard: React.FC = () => {
       showSuccess('Réponse mise à jour avec succès');
       
     } catch (error) {
-      console.error('Error updating response:', error);
+      logger.error('Error updating response', error, 'EmployeDashboard');
       showError('Erreur lors de la mise à jour de la réponse');
     }
   };
@@ -1045,9 +1048,18 @@ export const EmployeDashboard: React.FC = () => {
                                     <div key={fieldId} className="text-xs">
                                       <span className="font-medium text-gray-800">{fieldLabel}:</span>
                                       <div className="ml-1 text-gray-600 flex items-center space-x-1">
-                                        <span className="text-sm">{getFileIcon((value as any).fileType)}</span>
-                                        <span>{(value as any).fileName}</span>
-                                        <span className="text-xs text-gray-500">({formatFileSize((value as any).fileSize)})</span>
+                                        {(() => {
+                                          const fileValue = value && typeof value === 'object' && value !== null && 'fileType' in value 
+                                            ? value as { fileType?: string; fileName?: string; fileSize?: number }
+                                            : null;
+                                          return fileValue ? (
+                                            <>
+                                              <span className="text-sm">{getFileIcon(fileValue.fileType || '')}</span>
+                                              <span>{fileValue.fileName || ''}</span>
+                                              <span className="text-xs text-gray-500">({fileValue.fileSize ? formatFileSize(fileValue.fileSize) : '0 Bytes'})</span>
+                                            </>
+                                          ) : null;
+                                        })()}
                                       </div>
                                     </div>
                                   );

@@ -5,6 +5,7 @@
 
 import { adminDb, admin } from '../../lib/firebaseAdmin.js';
 import { formatTextInBackground } from '../format.js';
+import { logger } from '../../lib/logger.js';
 
 // CORS headers helper
 function setCorsHeaders(res, origin) {
@@ -37,7 +38,7 @@ export default async function handler(req, res) {
       return res.status(400).json({ success: false, error: 'formEntryId is required' });
     }
 
-    console.log('🔄 [FormatRetry] Retry request received:', { formEntryId, fileName, forceRetry });
+    logger.info('Retry request received', { formEntryId, fileName, forceRetry }, 'ai/format/retry.js');
 
     // Get form entry
     const formEntryDoc = await adminDb.collection('formEntries').doc(formEntryId).get();
@@ -74,7 +75,7 @@ export default async function handler(req, res) {
       // Start formatting in background
       formatTextInBackground(submissionId, rawText, fileName)
         .catch(error => {
-          console.error('❌ [FormatRetry] Background formatting failed:', error);
+          logger.error('Background formatting failed', error, 'ai/format/retry.js');
         });
 
       return res.status(200).json({
@@ -105,13 +106,13 @@ export default async function handler(req, res) {
       const submissionId = attachment.submissionId || formEntryId;
       return formatTextInBackground(submissionId, rawText, attachment.fileName)
         .catch(error => {
-          console.error(`❌ [FormatRetry] Background formatting failed for ${attachment.fileName}:`, error);
+          logger.error('Background formatting failed for file', { fileName: attachment.fileName, error }, 'ai/format/retry.js');
         });
     });
 
     // Don't wait for completion - return immediately
     Promise.all(retryPromises).catch(error => {
-      console.error('❌ [FormatRetry] Some formatting retries failed:', error);
+      logger.error('Some formatting retries failed', error, 'ai/format/retry.js');
     });
 
     return res.status(200).json({
@@ -123,7 +124,7 @@ export default async function handler(req, res) {
     });
 
   } catch (error) {
-    console.error('❌ [FormatRetry] Error:', error);
+    logger.error('Error in format retry endpoint', error, 'ai/format/retry.js');
     return res.status(500).json({
       success: false,
       error: 'Internal server error',

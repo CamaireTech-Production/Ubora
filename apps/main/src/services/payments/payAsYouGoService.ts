@@ -1,3 +1,4 @@
+import { logger } from '@ubora/shared/utils/logger';
 // import { doc, updateDoc, getDoc, serverTimestamp } from 'firebase/firestore';
 // import { db } from '@ubora/shared/firebaseConfig'; // Unused for now
 import { SubscriptionSessionService } from './subscriptionSessionService';
@@ -65,13 +66,18 @@ export class PayAsYouGoService {
       });
       
       if (success) {
-        console.log(`✅ ${tokenPackage.tokens.toLocaleString()} tokens achetés avec succès pour ${tokenPackage.price.toLocaleString()} FCFA`);
+        logger.info('Tokens achetés avec succès', {
+          tokens: tokenPackage.tokens,
+          price: tokenPackage.price,
+          paymentMethod,
+          paymentReference
+        }, 'PayAsYouGoService');
       }
       
       return success;
       
     } catch (error) {
-      console.error('Erreur lors de l\'achat de tokens:', error);
+      logger.error('Erreur lors de l\'achat de tokens', error, 'PayAsYouGoService');
       return false;
     }
   }

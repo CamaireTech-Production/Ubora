@@ -1,5 +1,6 @@
 import { doc, serverTimestamp, setDoc, updateDoc, increment, getDoc } from 'firebase/firestore';
 import { db } from '@ubora/shared/firebaseConfig';
+import { logger } from '@ubora/shared/utils/logger';
 
 function getCurrentMonthKey(): string {
   const now = new Date();
@@ -34,7 +35,7 @@ export class TokenStatsService {
 
       return true;
     } catch (error) {
-      console.error('Error incrementing token stats:', error);
+      logger.error('Error incrementing token stats', error, 'tokenStatsService');
       return false;
     }
   }

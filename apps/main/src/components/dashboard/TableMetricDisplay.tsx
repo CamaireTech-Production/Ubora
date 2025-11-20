@@ -12,7 +12,7 @@ interface TableMetricDisplayProps {
   onExpand?: () => void; // Callback when expand button is clicked
 }
 
-export const TableMetricDisplay: React.FC<TableMetricDisplayProps> = ({
+const TableMetricDisplayComponent: React.FC<TableMetricDisplayProps> = ({
   metric,
   rows,
   compact = false,
@@ -181,4 +181,15 @@ export const TableMetricDisplay: React.FC<TableMetricDisplayProps> = ({
     </div>
   );
 };
+
+// Mémoriser le composant pour éviter les re-renders inutiles
+export const TableMetricDisplay = React.memo(TableMetricDisplayComponent, (prevProps, nextProps) => {
+  // Comparer les propriétés critiques pour déterminer si un re-render est nécessaire
+  return (
+    prevProps.metric.id === nextProps.metric.id &&
+    prevProps.rows.length === nextProps.rows.length &&
+    prevProps.compact === nextProps.compact &&
+    prevProps.maxRows === nextProps.maxRows
+  );
+});
 

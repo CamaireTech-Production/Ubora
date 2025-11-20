@@ -183,6 +183,8 @@ jobs:
         echo "✅ Frontend cache cleared successfully"
          
     - name: Deploy to Hostinger via FTP
+      id: ftp-deploy
+      continue-on-error: false
       uses: SamKirkland/FTP-Deploy-Action@v4.3.4
       with:
         server: ${{ secrets.DEV_FTP_HOST }}
@@ -190,6 +192,10 @@ jobs:
         password: ${{ secrets.DEV_FTP_PASSWORD }}
         local-dir: ./deploy-package/
         server-dir: /
+        timeout: 600
+        dangerous-clean-slate: false
+        dry-run: false
+        log-level: verbose
         exclude: |
           **/.git*
           **/.git*/**
@@ -197,6 +203,14 @@ jobs:
           **/.env*
           **/README.md
           **/.github/**
+          
+    - name: Verify deployment (check if files were uploaded)
+      if: failure() && steps.ftp-deploy.outcome == 'failure'
+      run: |
+        echo "⚠️ FTP deployment reported failure, but files may have been uploaded successfully"
+        echo "This can happen if the sync state save times out after successful file upload"
+        echo "Please verify manually at: https://dev.ubora-app.com"
+        echo "If files are present, the deployment was successful despite the timeout error"
           
     - name: Notify deployment success
       if: success()

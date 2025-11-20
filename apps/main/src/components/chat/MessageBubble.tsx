@@ -7,8 +7,9 @@ import { ChatMessage } from '../../types';
 import { MultiFormatToPDF } from '@ubora/shared/utils/MultiFormatToPDF';
 import { generatePDF } from '@ubora/shared/utils/PDFGenerator';
 import { MultiFormatPDFGenerator } from '../reports/MultiFormatPDFGenerator';
-import { useApp } from '@ubora/shared/contexts/AppContext';
+import { useForms } from '@ubora/shared/contexts/FormsContext';
 import type { Form } from '@ubora/shared/types';
+import { logger } from '@ubora/shared/utils/logger';
 
 interface MessageBubbleProps {
   message: ChatMessage;
@@ -317,8 +318,8 @@ const resolveFormDisplayName = (form: Form): string => {
   return resolved?.trim() ?? `Formulaire ${form.id}`;
 };
 
-const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
-  const { forms } = useApp();
+const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({ message }) => {
+  const { forms } = useForms();
   const isUser = message.type === 'user';
   const [showDocuments, setShowDocuments] = React.useState(false);
 
@@ -565,7 +566,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
                                         imageData: chartImage
                                       };
                                     } catch (error) {
-                                      console.error('Error converting chart to PNG:', error);
+                                      logger.error('Error converting chart to PNG', error, 'MessageBubble');
                                       return chart;
                                     }
                                   })
@@ -577,7 +578,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
                               await generatePDF(pdfData);
                             }
                           } catch (error) {
-                            console.error('Error generating PDF:', error);
+                            logger.error('Error generating PDF', error, 'MessageBubble');
                           }
                         }}
                         className="inline-flex items-center px-3 py-1.5 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors duration-200"
@@ -873,5 +874,17 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
     </div>
   );
 };
+
+// Mémoriser le composant pour éviter les re-renders inutiles
+const MessageBubble = React.memo(MessageBubbleComponent, (prevProps, nextProps) => {
+  // Comparer les propriétés critiques pour déterminer si un re-render est nécessaire
+  return (
+    prevProps.message.id === nextProps.message.id &&
+    prevProps.message.content === nextProps.message.content &&
+    prevProps.message.type === nextProps.message.type &&
+    JSON.stringify(prevProps.message.meta) === JSON.stringify(nextProps.message.meta) &&
+    prevProps.message.contentType === nextProps.message.contentType
+  );
+});
 
 export default MessageBubble;

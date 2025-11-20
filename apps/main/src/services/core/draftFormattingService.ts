@@ -1,3 +1,4 @@
+import { logger } from '@ubora/shared/utils/logger';
 import { db } from '@ubora/shared/firebaseConfig';
 import { doc, getDoc, setDoc, deleteDoc, collection, query, where, getDocs } from 'firebase/firestore';
 
@@ -14,25 +15,25 @@ export class DraftFormattingService {
    */
   static async getFormattedTextForDraft(submissionId: string): Promise<string | null> {
     try {
-      console.log('📝 Checking draftFormatting collection for submission:', submissionId);
+      logger.debug('Checking draftFormatting collection for submission', { submissionId }, 'DraftFormattingService');
       const draftDoc = await getDoc(doc(db, 'draftFormatting', submissionId));
       
       if (draftDoc.exists()) {
         const data = draftDoc.data();
-        console.log('📝 Found draft formatting document:', data);
+        logger.debug('Found draft formatting document', { submissionId, status: data.status }, 'DraftFormattingService');
         if (data.status === 'ready' && data.formattedText) {
-          console.log('✅ Found ready formatted text for submission:', submissionId);
+          logger.debug('Found ready formatted text for submission', { submissionId }, 'DraftFormattingService');
           return data.formattedText;
         } else {
-          console.log('📝 Draft formatting document exists but not ready:', data.status);
+          logger.debug('Draft formatting document exists but not ready', { submissionId, status: data.status }, 'DraftFormattingService');
         }
       } else {
-        console.log('📝 No draft formatting document found for submission:', submissionId);
+        logger.debug('No draft formatting document found for submission', { submissionId }, 'DraftFormattingService');
       }
       
       return null;
     } catch (error) {
-      console.error('❌ Error getting formatted text for draft:', error);
+      logger.error('Error getting formatted text for draft', error, 'DraftFormattingService');
       return null;
     }
   }
@@ -52,7 +53,7 @@ export class DraftFormattingService {
         createdAt: new Date()
       });
     } catch (error) {
-      console.error('Error saving formatted text for draft:', error);
+      logger.error('Error saving formatted text for draft', error, 'DraftFormattingService');
       throw error;
     }
   }
@@ -64,7 +65,7 @@ export class DraftFormattingService {
     try {
       await deleteDoc(doc(db, 'draftFormatting', submissionId));
     } catch (error) {
-      console.error('Error removing formatted text for draft:', error);
+      logger.error('Error removing formatted text for draft', error, 'DraftFormattingService');
       // Don't throw error as this is cleanup
     }
   }
@@ -78,7 +79,7 @@ export class DraftFormattingService {
       // For now, we'll return empty array as the submissionId is generated server-side
       return [];
     } catch (error) {
-      console.error('Error getting pending draft formatting:', error);
+      logger.error('Error getting pending draft formatting', error, 'DraftFormattingService');
       return [];
     }
   }
@@ -91,7 +92,7 @@ export class DraftFormattingService {
       const entryDoc = await getDoc(doc(db, 'formEntries', submissionId));
       return entryDoc.exists();
     } catch (error) {
-      console.error('Error checking FormEntry existence:', error);
+      logger.error('Error checking FormEntry existence', error, 'DraftFormattingService');
       return false;
     }
   }
@@ -111,7 +112,7 @@ export class DraftFormattingService {
         formattingStatus: 'completed'
       }, { merge: true });
     } catch (error) {
-      console.error('Error updating FormEntry with formatted text:', error);
+      logger.error('Error updating FormEntry with formatted text', error, 'DraftFormattingService');
       throw error;
     }
   }

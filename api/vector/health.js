@@ -4,6 +4,7 @@
  */
 
 import { initializeQdrant, checkQdrantHealth, getCollectionInfo, COLLECTION_NAME } from '../lib/vectorDb.js';
+import { logger } from '../lib/logger.js';
 
 // CORS headers helper
 function setCorsHeaders(res, origin) {
@@ -45,7 +46,7 @@ export default async function handler(req, res) {
       message: 'Qdrant vector database is healthy and collection exists.',
     });
   } catch (error) {
-    console.error('❌ Error in vector health endpoint:', error);
+    logger.error('Error in vector health endpoint', error, 'vector/health.js');
     return res.status(500).json({
       success: false,
       error: 'Vector database health check failed',

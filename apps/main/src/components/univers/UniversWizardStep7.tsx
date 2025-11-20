@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
 import { UniversCard } from './UniversCard';
+import { logger } from '@ubora/shared/utils/logger';
 
 interface PublishOption {
   id: 'private' | 'marketplace';
@@ -139,7 +140,7 @@ export const UniversWizardStep7: React.FC<UniversWizardStepProps> = ({
         packageAccess: packageAccess
       };
       
-      console.log('🔍 UniversWizardStep7 - Updating wizard data:', {
+      logger.debug('UniversWizardStep7 - Updating wizard data', {
         selectedPublishOption,
         price: isFree ? 0 : (price || null),
         currency,

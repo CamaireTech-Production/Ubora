@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { EnhancedAdminService } from '../../services/admin/enhancedAdminService';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
+import { logger } from '@ubora/shared/utils/logger';
 import { 
   Clock, 
   Users, 
@@ -31,7 +32,7 @@ export const AppUsageTab: React.FC<AppUsageTabProps> = () => {
       const stats = await EnhancedAdminService.getAppUsageStats();
       setUsageStats(stats);
     } catch (error) {
-      console.error('Error loading usage stats:', error);
+      logger.error('Error loading usage stats', error, 'AppUsageTab');
     } finally {
       setIsLoading(false);
     }

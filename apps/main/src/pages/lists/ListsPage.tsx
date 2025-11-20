@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
-import { useApp } from '@ubora/shared/contexts/AppContext';
+import { useUnivers } from '@ubora/shared/contexts/UniversContext';
+import { logger } from '@ubora/shared/utils/logger';
 import { Layout } from '../../components/layout/Layout';
 import { ListCard } from '../../components/lists/ListCard';
 import { ListViewModal } from '../../components/lists/ListViewModal';
@@ -14,11 +15,12 @@ import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Plus, Search, AlertTriangle } from 'lucide-react';
 import { canDeleteList } from '@ubora/shared/utils/listUsageChecker';
+import { WireframeLoader } from '../../components/loading/WireframeLoader';
 
 export const ListsPage: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { activeUniversId, activeInstanceId } = useApp();
+  const { activeUniversId, activeInstanceId } = useUnivers();
   const { toast, showSuccess, showError } = useToast();
   const [lists, setLists] = useState<List[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -48,7 +50,7 @@ export const ListsPage: React.FC = () => {
       const userLists = await listsService.getByUser(user.id, user.agencyId, user.role, activeUniversId || null, activeInstanceId || null);
       setLists(userLists);
     } catch (error) {
-      console.error('Erreur lors du chargement des Lists:', error);
+      logger.error('Erreur lors du chargement des Lists', error, 'ListsPage');
       const errorMessage = error instanceof Error 
         ? `Erreur lors du chargement: ${error.message}`
         : 'Erreur lors du chargement des Lists. Veuillez réessayer.';
@@ -96,7 +98,7 @@ export const ListsPage: React.FC = () => {
       });
       setShowDeleteModal(true);
     } catch (error) {
-      console.error('Error checking list usage:', error);
+      logger.error('Error checking list usage', error, 'ListsPage');
       showError('Erreur lors de la vérification de l\'utilisation de la liste');
     } finally {
       setIsCheckingUsage(false);
@@ -121,7 +123,7 @@ export const ListsPage: React.FC = () => {
       setDeleteCheckResult(null);
       await loadLists();
     } catch (error) {
-      console.error('Erreur lors de la suppression de la Liste:', error);
+      logger.error('Erreur lors de la suppression de la Liste', error, 'ListsPage');
       showError('Erreur lors de la suppression de la Liste');
     } finally {
       setIsDeleting(false);
@@ -206,10 +208,7 @@ export const ListsPage: React.FC = () => {
 
           {/* Lists grid */}
           {isLoading ? (
-            <div className="text-center py-12">
-              <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-              <p className="mt-4 text-sm text-gray-600">Chargement des listes...</p>
-            </div>
+            <WireframeLoader type="list" />
           ) : filteredLists.length === 0 ? (
             <div className="text-center py-12 bg-white rounded-lg border border-gray-200">
               <div className="inline-block p-3 bg-gray-100 rounded-full mb-4">

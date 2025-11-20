@@ -7,6 +7,7 @@ import { useUnreadNotifications } from '@ubora/shared/hooks/useUnreadNotificatio
 import { universService } from '@ubora/shared/services/universService';
 import { Button } from '../ui/Button';
 import { LogoutConfirmationModal } from '../modals/LogoutConfirmationModal';
+import { logger } from '@ubora/shared/utils/logger';
 import { 
   User, 
   ChevronDown, 
@@ -55,7 +56,7 @@ export const ProfileDropdown: React.FC<ProfileDropdownProps> = React.memo(({ cla
           }
         })
         .catch(error => {
-          console.error('Erreur lors du chargement de l\'Univers actif:', error);
+          logger.error('Erreur lors du chargement de l\'Univers actif', error, 'ProfileDropdown');
           setActiveUnivers(null);
         })
         .finally(() => {

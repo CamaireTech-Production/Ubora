@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
+import { logger } from '@ubora/shared/utils/logger';
 import { useToast } from '@ubora/shared/hooks/useToast';
 import { Layout } from '../../components/layout/Layout';
 import { Button } from '../../components/ui/Button';
@@ -64,7 +65,7 @@ export const UniversCreateFromTemplatePage: React.FC = () => {
         setCurrentStep('wizard');
       }
     } catch (error) {
-      console.error('Erreur lors du chargement du template:', error);
+      logger.error('Erreur lors du chargement du template', error, 'UniversCreateFromTemplatePage');
       showError('Erreur lors du chargement du template');
       navigate('/univers');
     } finally {
@@ -111,7 +112,7 @@ export const UniversCreateFromTemplatePage: React.FC = () => {
         navigate('/univers', { replace: true });
       }, 1000);
     } catch (error) {
-      console.error('Erreur lors de l\'achat du Univers:', error);
+      logger.error('Erreur lors de l\'achat du Univers', error, 'UniversCreateFromTemplatePage');
       showError(
         error instanceof Error
           ? error.message

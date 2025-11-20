@@ -1,14 +1,6 @@
 import { createRequire } from 'module';
 import crypto from 'crypto';
-import path from 'path';
-import { fileURLToPath } from 'url';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-// Use createRequire to import CommonJS module pdf-parse
-const require = createRequire(import.meta.url);
-const pdfParse = require('pdf-parse');
+import { logger } from '../lib/logger.js';
 
 // Simple PDF text extraction endpoint - only extraction, no background processing
 
@@ -54,45 +46,41 @@ export default async function handler(req, res) {
       });
     }
 
-    console.log('🔍 Processing PDF text extraction request...');
-    console.log('📄 File name:', fileName || 'Unknown');
-    console.log('📊 PDF data length:', pdfData ? pdfData.length : 0);
+    logger.info('Processing PDF text extraction request', { fileName: fileName || 'Unknown', dataLength: pdfData ? pdfData.length : 0 }, 'ocr/extractPdfText.js');
     
     // Convert base64 PDF data to buffer
     const base64Data = pdfData.replace(/^data:application\/pdf;base64,/, '');
     const pdfBuffer = Buffer.from(base64Data, 'base64');
     
-    console.log('📦 PDF buffer size:', pdfBuffer.length, 'bytes');
+    logger.debug('PDF buffer size', { bufferSize: pdfBuffer.length }, 'ocr/extractPdfText.js');
     
     // Check file size
     const fileSizeMB = (pdfBuffer.length / (1024 * 1024)).toFixed(2);
-    console.log('📏 PDF size:', fileSizeMB, 'MB');
+    logger.debug('PDF size', { fileSizeMB }, 'ocr/extractPdfText.js');
     
     if (pdfBuffer.length > 20 * 1024 * 1024) { // 20MB limit
       throw new Error(`PDF file is too large (${fileSizeMB}MB). Maximum supported size is 20MB.`);
     }
     
     if (pdfBuffer.length > 5 * 1024 * 1024) { // 5MB warning
-      console.log('⚠️ Large PDF detected - processing may take 1-2 minutes...');
+      logger.warn('Large PDF detected - processing may take 1-2 minutes', { fileSizeMB }, 'ocr/extractPdfText.js');
     }
     
     // Extract text using pdf-parse
-    console.log('📖 Extracting text using pdf-parse...');
+    logger.debug('Extracting text using pdf-parse', null, 'ocr/extractPdfText.js');
     const processingStartTime = Date.now();
     
     const pdfData_result = await pdfParse(pdfBuffer);
     const rawText = pdfData_result.text;
     
-    console.log('✅ Text extracted from PDF');
-    console.log('📝 Raw text length:', rawText.length, 'characters');
-    console.log('📄 Number of pages:', pdfData_result.numpages);
+    logger.info('Text extracted from PDF', { textLength: rawText.length, numPages: pdfData_result.numpages }, 'ocr/extractPdfText.js');
     
     if (!rawText || rawText.trim().length === 0) {
       throw new Error('No text could be extracted from the PDF');
     }
     
     const processingTime = Date.now() - processingStartTime;
-    console.log('⏱️ OCR processing time:', processingTime, 'ms');
+    logger.debug('OCR processing time', { processingTime }, 'ocr/extractPdfText.js');
     
     // Return only the extracted text - no background processing
     return res.status(200).json({
@@ -111,7 +99,7 @@ export default async function handler(req, res) {
     });
 
   } catch (error) {
-    console.error('❌ PDF text extraction error:', error);
+    logger.error('PDF text extraction error', error, 'ocr/extractPdfText.js');
     
     return res.status(500).json({
       success: false,

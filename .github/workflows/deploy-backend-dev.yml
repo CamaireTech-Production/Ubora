@@ -130,10 +130,51 @@ jobs:
           # Create directories
           mkdir -p $RELEASES_DIR $UPLOADS_DIR /var/log/pm2
           
+          # Clean up old releases FIRST to prevent module resolution issues
+          # Keep only the current symlink target (if exists) and the new release
+          echo "🧹 Cleaning old releases before deployment to prevent module resolution conflicts"
+          if [ -d "$RELEASES_DIR" ]; then
+            CURRENT_TARGET=$(readlink -f "$CURRENT_LINK" 2>/dev/null || echo "")
+            echo "   Current symlink points to: ${CURRENT_TARGET:-none}"
+            echo "   New release will be: $NEW_RELEASE"
+            
+            # Find all releases
+            ALL_RELEASES=$(ls -1dt $RELEASES_DIR/* 2>/dev/null || true)
+            if [ -n "$ALL_RELEASES" ]; then
+              echo "$ALL_RELEASES" | while read release; do
+                if [ -n "$release" ] && [ -d "$release" ]; then
+                  # Keep current target (for rollback) and new release, remove everything else
+                  if [ "$release" != "$NEW_RELEASE" ] && [ "$release" != "$CURRENT_TARGET" ]; then
+                    echo "   🗑️  Removing old release: $(basename $release)"
+                    rm -rf "$release" 2>/dev/null || true
+                  else
+                    echo "   ✅ Keeping release: $(basename $release)"
+                  fi
+                fi
+              done
+            fi
+          fi
+          
           # Extract and setup new release
           echo "📦 Extracting artifact to release $NEW_RELEASE"
           mkdir -p $NEW_RELEASE
           tar -xzf $UPLOADS_DIR/deploy.tar.gz -C $NEW_RELEASE
+          
+          # Verify critical exports exist in deployed code
+          echo "🔍 Verifying critical exports in deployed code"
+          if [ -f "$NEW_RELEASE/api/ai/tokenManager.js" ]; then
+            if grep -q "export function calculateUserTokens" "$NEW_RELEASE/api/ai/tokenManager.js"; then
+              echo "✅ calculateUserTokens export found in tokenManager.js"
+            else
+              echo "❌ ERROR: calculateUserTokens export NOT found in tokenManager.js"
+              echo "📋 File content (first 30 lines):"
+              head -n 30 "$NEW_RELEASE/api/ai/tokenManager.js" || true
+              exit 1
+            fi
+          else
+            echo "❌ ERROR: tokenManager.js file not found in deployment"
+            exit 1
+          fi
           
           cd $NEW_RELEASE
           echo "📥 Installing dependencies (root)"
@@ -141,23 +182,149 @@ jobs:
           echo "📥 Installing dependencies (api)"
           cd api && npm ci --production || npm install --production; cd ..
           
-          # Update symlink
+          # Verify .env.local exists and PORT is set
+          echo "🔍 Verifying environment configuration"
+          if [ -f "$NEW_RELEASE/.env.local" ]; then
+            echo "✅ .env.local file found"
+            if grep -q "^PORT=" "$NEW_RELEASE/.env.local"; then
+              ENV_PORT=$(grep "^PORT=" "$NEW_RELEASE/.env.local" | cut -d'=' -f2)
+              echo "✅ PORT found in .env.local: $ENV_PORT"
+            else
+              echo "⚠️ PORT not found in .env.local, will use explicit PORT=3001"
+            fi
+          else
+            echo "⚠️ .env.local file not found, will use explicit PORT=3001"
+          fi
+          
+          # Update symlink (force update to ensure it's correct)
           echo "🔁 Updating current symlink"
+          rm -f $CURRENT_LINK
           ln -sfn $NEW_RELEASE $CURRENT_LINK
           
+          # Verify symlink immediately
+          SYMLINK_CHECK=$(readlink -f $CURRENT_LINK 2>/dev/null || readlink $CURRENT_LINK 2>/dev/null || echo "")
+          if [ "$SYMLINK_CHECK" != "$NEW_RELEASE" ]; then
+            echo "❌ CRITICAL: Symlink verification failed!"
+            echo "   Expected: $NEW_RELEASE"
+            echo "   Got: $SYMLINK_CHECK"
+            exit 1
+          fi
+          echo "✅ Symlink verified: $CURRENT_LINK -> $NEW_RELEASE"
+          
           # Enhanced PM2 management with cron worker
-          echo "🛑 Managing PM2 processes"
+          echo "🛑 Managing PM2 processes (dev only)"
           pm2 stop ubora-backend-dev || true
           pm2 stop ubora-cron-worker-dev || true
           pm2 delete ubora-backend-dev || true
           pm2 delete ubora-cron-worker-dev || true
           
-          # Start backend server
-          pm2 start $CURRENT_LINK/server/dev-server.js \
+          # Clear PM2 error logs completely to remove old error traces
+          echo "🧹 Clearing PM2 error logs completely"
+          pm2 flush ubora-backend-dev 2>/dev/null || true
+          if [ -f "$HOME/.pm2/logs/ubora-backend-dev-error.log" ]; then
+            > "$HOME/.pm2/logs/ubora-backend-dev-error.log"  # Truncate error log
+          fi
+          if [ -f "$HOME/.pm2/logs/ubora-backend-dev-out.log" ]; then
+            > "$HOME/.pm2/logs/ubora-backend-dev-out.log"  # Truncate output log
+          fi
+          
+          # Verify symlink points to correct release
+          echo "🔍 Verifying symlink"
+          SYMLINK_TARGET=$(readlink -f $CURRENT_LINK)
+          if [ "$SYMLINK_TARGET" != "$NEW_RELEASE" ]; then
+            echo "⚠️ Symlink mismatch! Expected: $NEW_RELEASE, Got: $SYMLINK_TARGET"
+            echo "🔧 Fixing symlink..."
+            ln -sfn $NEW_RELEASE $CURRENT_LINK
+            SYMLINK_TARGET=$(readlink -f $CURRENT_LINK)
+            echo "✅ Symlink now points to: $SYMLINK_TARGET"
+          else
+            echo "✅ Symlink correctly points to: $SYMLINK_TARGET"
+          fi
+          
+          # Verify the file exists and has the export before starting
+          echo "🔍 Verifying export in current release"
+          if [ ! -f "$CURRENT_LINK/api/ai/tokenManager.js" ]; then
+            echo "❌ CRITICAL: tokenManager.js not found in $CURRENT_LINK"
+            exit 1
+          fi
+          if ! grep -q "export function calculateUserTokens" "$CURRENT_LINK/api/ai/tokenManager.js"; then
+            echo "❌ CRITICAL: calculateUserTokens export missing in current release"
+            echo "📋 File content (lines 20-30):"
+            sed -n '20,30p' "$CURRENT_LINK/api/ai/tokenManager.js" || true
+            exit 1
+          fi
+          echo "✅ Export verified in current release"
+          
+          # Start backend server with explicit PORT=3001 and absolute path
+          echo "🚀 Starting backend server with PORT=3001"
+          export PORT=3001
+          export NODE_ENV=development
+          
+          # Use absolute path to ensure correct working directory
+          ABSOLUTE_SERVER_PATH="$CURRENT_LINK/server/dev-server.js"
+          if [ ! -f "$ABSOLUTE_SERVER_PATH" ]; then
+            echo "❌ CRITICAL: dev-server.js not found at $ABSOLUTE_SERVER_PATH"
+            exit 1
+          fi
+          
+          # Change to the release directory to ensure correct module resolution
+          cd "$CURRENT_LINK"
+          echo "📁 Working directory: $(pwd)"
+          echo "📁 Server path: $ABSOLUTE_SERVER_PATH"
+          
+          # Verify we're in the correct release directory
+          ACTUAL_RELEASE=$(basename $(readlink -f "$CURRENT_LINK"))
+          if [ "$ACTUAL_RELEASE" != "$(basename $NEW_RELEASE)" ]; then
+            echo "❌ CRITICAL: Working directory mismatch!"
+            echo "   Expected release: $(basename $NEW_RELEASE)"
+            echo "   Actual release: $ACTUAL_RELEASE"
+            exit 1
+          fi
+          echo "✅ Confirmed working in correct release: $ACTUAL_RELEASE"
+          
+          # Verify the actual file that will be loaded
+          echo "🔍 Verifying actual file paths:"
+          echo "   tokenManager.js: $(readlink -f api/ai/tokenManager.js)"
+          echo "   openAIClient.js: $(readlink -f api/ai/openAIClient.js)"
+          
+          # Ensure files are in the current release, not old releases
+          # Note: readlink -f resolves symlinks, so we compare against the resolved symlink target
+          TOKEN_MGR_PATH=$(readlink -f api/ai/tokenManager.js)
+          RESOLVED_CURRENT=$(readlink -f "$CURRENT_LINK")
+          if [[ "$TOKEN_MGR_PATH" != "$RESOLVED_CURRENT"* ]]; then
+            echo "❌ CRITICAL: tokenManager.js resolves outside current release!"
+            echo "   Path: $TOKEN_MGR_PATH"
+            echo "   Expected to be in: $RESOLVED_CURRENT"
+            exit 1
+          fi
+          
+          # Clear any Node.js module cache by touching the file
+          touch "$CURRENT_LINK/api/ai/tokenManager.js"
+          touch "$CURRENT_LINK/api/ai/openAIClient.js"
+          
+          pm2 start "$ABSOLUTE_SERVER_PATH" \
             --name ubora-backend-dev \
             --update-env \
             --max-memory-restart 1G \
-            --env development
+            --env development \
+            --cwd "$CURRENT_LINK"
+          cd -
+          
+          # Wait a moment and verify the process started correctly
+          sleep 3
+          if pm2 describe ubora-backend-dev > /dev/null 2>&1; then
+            echo "✅ PM2 process started successfully"
+            # Check if there are immediate errors (trim whitespace and newlines)
+            ERROR_COUNT=$(pm2 logs ubora-backend-dev --err --lines 5 --nostream 2>&1 | grep -c "calculateUserTokens" 2>/dev/null | tr -d '\n\r ' || echo "0")
+            ERROR_COUNT=${ERROR_COUNT:-0}
+            if [ "$ERROR_COUNT" -gt 0 ] 2>/dev/null; then
+              echo "⚠️ Warning: Found calculateUserTokens errors in logs immediately after start"
+              pm2 logs ubora-backend-dev --err --lines 10 --nostream || true
+            fi
+          else
+            echo "❌ PM2 process failed to start"
+            exit 1
+          fi
             
           # Start cron worker (if file exists)
           if [ -f "$CURRENT_LINK/scripts/cron-worker.js" ]; then
@@ -180,6 +347,54 @@ jobs:
           echo "📊 Checking PM2 processes"
           pm2 status
           
+          # Check if backend process is still running
+          if ! pm2 describe ubora-backend-dev > /dev/null 2>&1; then
+            echo "❌ Backend process not found in PM2"
+            echo "📋 Checking backend error logs"
+            pm2 logs ubora-backend-dev --err --lines 50 --nostream || true
+            exit 1
+          fi
+          
+          # Check backend process status (use JSON output for reliable parsing)
+          BACKEND_STATUS=$(pm2 jlist 2>/dev/null | grep -A 50 '"name":"ubora-backend-dev"' | grep '"status"' | head -1 | sed -n 's/.*"status":"\([^"]*\)".*/\1/p' || echo "")
+          # Fallback to pm2 show if jlist fails or returns empty
+          if [ -z "$BACKEND_STATUS" ]; then
+            BACKEND_STATUS=$(pm2 show ubora-backend-dev 2>/dev/null | grep -i "status" | grep -v "│" | head -1 | awk '{print $NF}' | tr -d '\n\r │' || echo "unknown")
+          fi
+          
+          # Clean up status value (remove any whitespace, newlines, or special characters)
+          BACKEND_STATUS=$(echo "$BACKEND_STATUS" | tr -d '\n\r │' | xargs)
+          
+          if [ "$BACKEND_STATUS" != "online" ] && [ "$BACKEND_STATUS" != "errored" ] && [ "$BACKEND_STATUS" != "launching" ]; then
+            echo "❌ Backend process status: '$BACKEND_STATUS' (expected: online)"
+            echo "📋 Checking backend error logs"
+            pm2 logs ubora-backend-dev --err --lines 50 --nostream || true
+            echo "📋 Checking backend output logs"
+            pm2 logs ubora-backend-dev --out --lines 50 --nostream || true
+            # If status is errored, still try to continue as it might recover
+            if [ "$BACKEND_STATUS" = "errored" ]; then
+              echo "⚠️ Backend process is in errored state, but continuing health check..."
+            else
+              exit 1
+            fi
+          else
+            echo "✅ Backend process status: $BACKEND_STATUS"
+          fi
+          
+          # Check backend error logs for startup issues
+          echo "📋 Checking backend error logs for startup issues"
+          ERROR_LOG=$(pm2 logs ubora-backend-dev --err --lines 20 --nostream 2>&1 || true)
+          if echo "$ERROR_LOG" | grep -qi "error\|failed\|exit"; then
+            echo "⚠️ Errors found in backend logs:"
+            echo "$ERROR_LOG"
+          else
+            echo "✅ No critical errors in backend logs"
+          fi
+          
+          # Check what port the server is actually listening on
+          echo "🔍 Checking which ports are in use"
+          netstat -tlnp 2>/dev/null | grep -E ":(3000|3001)" || ss -tlnp 2>/dev/null | grep -E ":(3000|3001)" || echo "⚠️ Could not check listening ports"
+          
           # Enhanced health check with retries
           echo "🧪 Health check with retries"
           HEALTH_OK=false
@@ -190,6 +405,12 @@ jobs:
               break
             else
               echo "⏳ Backend health check failed (attempt $i), retrying..."
+              # Check if process is still running
+              if ! pm2 describe ubora-backend-dev > /dev/null 2>&1; then
+                echo "❌ Backend process crashed during health check"
+                pm2 logs ubora-backend-dev --err --lines 30 --nostream || true
+                break
+              fi
               sleep 5
             fi
           done
@@ -208,7 +429,22 @@ jobs:
           fi
           
           if [ "$HEALTH_OK" = false ]; then
-            echo "❌ Health check failed after 5 attempts. Rolling back..."
+            echo "❌ Health check failed after 5 attempts. Diagnosing issue..."
+            
+            # Comprehensive diagnostics
+            echo "📋 Full backend error logs:"
+            pm2 logs ubora-backend-dev --err --lines 100 --nostream || true
+            echo ""
+            echo "📋 Full backend output logs:"
+            pm2 logs ubora-backend-dev --out --lines 100 --nostream || true
+            echo ""
+            echo "📊 PM2 process details:"
+            pm2 describe ubora-backend-dev || true
+            echo ""
+            echo "🔍 Network connections:"
+            netstat -tlnp 2>/dev/null | grep -E ":(3000|3001)" || ss -tlnp 2>/dev/null | grep -E ":(3000|3001)" || true
+            
+            echo "🔄 Rolling back to previous release..."
             PREV=$(ls -1dt $RELEASES_DIR/* | sed -n '2p')
             if [ -n "$PREV" ]; then
               ln -sfn $PREV $CURRENT_LINK
@@ -216,11 +452,16 @@ jobs:
               pm2 stop ubora-cron-worker-dev || true
               pm2 delete ubora-backend-dev || true
               pm2 delete ubora-cron-worker-dev || true
-              pm2 start $CURRENT_LINK/server/dev-server.js \
+              echo "🚀 Starting previous release with PORT=3001"
+              export PORT=3001
+              export NODE_ENV=development
+              cd $CURRENT_LINK
+              pm2 start server/dev-server.js \
                 --name ubora-backend-dev \
                 --update-env \
                 --max-memory-restart 1G \
                 --env development
+              cd -
               if [ -f "$CURRENT_LINK/scripts/cron-worker.js" ]; then
                 pm2 start $CURRENT_LINK/scripts/cron-worker.js \
                   --name ubora-cron-worker-dev \
@@ -235,9 +476,11 @@ jobs:
             exit 1
           fi
           
-          # Cleanup old releases
-          echo "🧹 Cleaning old releases (keep 5)"
-          ls -1dt $RELEASES_DIR/* | tail -n +6 | xargs -r rm -rf
+          # Cleanup old releases (keep only last 2 after successful deployment)
+          echo "🧹 Cleaning old releases (keep last 2)"
+          if [ -d "$RELEASES_DIR" ]; then
+            ls -1dt $RELEASES_DIR/* 2>/dev/null | tail -n +3 | xargs -r rm -rf || true
+          fi
 
           # Enhanced SSL and Nginx setup
           echo "🔧 Setting up enhanced SSL and Nginx configuration"

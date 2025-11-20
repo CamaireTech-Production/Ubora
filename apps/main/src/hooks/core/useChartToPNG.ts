@@ -1,6 +1,7 @@
 import { useCallback, useRef } from 'react';
 import { useCurrentPng } from 'recharts-to-png';
 import { GraphData } from '../../types';
+import { logger } from '@ubora/shared/utils/logger';
 
 /**
  * Custom hook to convert Recharts components to PNG images
@@ -18,7 +19,7 @@ export const useChartToPNG = () => {
       const png = await getPng();
       return png || null;
     } catch (error) {
-      console.error('Error converting chart to PNG:', error);
+      logger.error('Error converting chart to PNG', error, 'useChartToPNG');
       return null;
     }
   }, [getPng]);
@@ -38,7 +39,7 @@ export const useChartToPNG = () => {
       const png = await RechartsToPNG.convertChartDataToPNG(chartData, width, height);
       return png;
     } catch (error) {
-      console.error('Error converting chart data to PNG:', error);
+      logger.error('Error converting chart data to PNG', error, 'useChartToPNG');
       return null;
     }
   }, []);
@@ -71,7 +72,7 @@ export const useChartForPDF = () => {
       const png = await convertChartDataToPNG(chartData, width, height);
       return png;
     } catch (error) {
-      console.error('Error getting chart PNG for PDF:', error);
+      logger.error('Error getting chart PNG for PDF', error, 'useChartToPNG');
       return null;
     }
   }, [convertChartDataToPNG]);
@@ -91,7 +92,7 @@ export const useChartForPDF = () => {
       const results = await Promise.all(promises);
       return results;
     } catch (error) {
-      console.error('Error getting multiple charts PNG for PDF:', error);
+      logger.error('Error getting multiple charts PNG for PDF', error, 'useChartToPNG');
       return chartsData.map(() => null);
     }
   }, [getChartPNGForPDF]);

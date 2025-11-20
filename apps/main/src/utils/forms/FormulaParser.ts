@@ -1,4 +1,5 @@
 import { FormField } from '../types';
+import { logger } from '@ubora/shared/utils/logger';
 
 export interface FormulaParseResult {
   isValid: boolean;
@@ -264,7 +265,7 @@ export class FormulaParser {
       
       return typeof result === 'number' && !isNaN(result) ? result : 0;
     } catch (error) {
-      console.error('Error in safe evaluation:', error);
+      logger.error('Error in safe evaluation', error, 'FormulaParser');
       return 0;
     }
   }

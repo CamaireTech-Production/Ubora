@@ -1,3 +1,4 @@
+import { logger } from '@ubora/shared/utils/logger';
 import { 
   logEvent, 
   setUserId, 
@@ -67,7 +68,7 @@ export class FirebaseAnalyticsService {
         }
       }
     } catch (error) {
-      console.error('❌ Error initializing Firebase Analytics:', error);
+      logger.error('Error initializing Firebase Analytics', error, 'FirebaseAnalyticsService');
     }
   }
 
@@ -83,7 +84,7 @@ export class FirebaseAnalyticsService {
         await logEvent(this.analytics, eventName, parameters);
       }
     } catch (error) {
-      console.error('❌ Error logging analytics event:', error);
+      logger.error('Error logging analytics event', error, 'FirebaseAnalyticsService');
     }
   }
 
@@ -97,7 +98,7 @@ export class FirebaseAnalyticsService {
         }
       }
     } catch (error) {
-      console.error('❌ Error setting analytics user:', error);
+      logger.error('Error setting analytics user', error, 'FirebaseAnalyticsService');
     }
   }
 
@@ -348,7 +349,7 @@ export class FirebaseAnalyticsService {
         conversionRates
       };
     } catch (error) {
-      console.error('❌ Error fetching real analytics data:', error);
+      logger.error('Error fetching real analytics data', error, 'FirebaseAnalyticsService');
       // Return empty data structure on error
       return {
         users: 0,
@@ -462,7 +463,7 @@ export class FirebaseAnalyticsService {
 
       return trends;
     } catch (error) {
-      console.error('❌ Error fetching analytics trends:', error);
+      logger.error('Error fetching analytics trends', error, 'FirebaseAnalyticsService');
       return [];
     }
   }

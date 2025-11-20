@@ -1,4 +1,5 @@
 import { ChatMessage, PDFData, PDFSection, GraphData } from '../types';
+import { logger } from '@ubora/shared/utils/logger';
 
 /**
  * Utility class to convert multi-format chat messages to PDFData for PDF generation
@@ -208,7 +209,7 @@ export class MultiFormatToPDF {
           return jsonData as GraphData;
         }
       } catch (error) {
-        console.error('Error parsing JSON chart data:', error);
+        logger.error('Error parsing JSON chart data', error, 'MultiFormatToPDF');
       }
     }
 
@@ -223,7 +224,7 @@ export class MultiFormatToPDF {
           return jsonData as GraphData;
         }
       } catch (error) {
-        console.error('Error parsing direct JSON chart data:', error);
+        logger.error('Error parsing direct JSON chart data', error, 'MultiFormatToPDF');
       }
     }
 

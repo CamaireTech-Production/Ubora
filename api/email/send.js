@@ -1,6 +1,7 @@
 import nodemailer from 'nodemailer';
 import dotenv from 'dotenv';
 import path from 'path';
+import { logger } from '../lib/logger.js';
 
 // Ensure environment variables are loaded (prefer project root .env.local)
 const loadedLocalEnv = dotenv.config({ path: path.join(process.cwd(), '.env.local') });
@@ -49,15 +50,11 @@ export default async (req, res) => {
       return res.status(400).json({ success: false, error: 'Missing required fields: to, subject, html/text' });
     }
 
-    console.log('📧 [Email] Sending email to:', to);
-    console.log('📧 [Email] Subject:', subject);
+    logger.info('Sending email', { to, subject }, 'email/send.js');
 
     // Check if email configuration is available
     if (!process.env.EMAIL_USER || !process.env.EMAIL_PASSWORD) {
-      console.log('📧 [Email] Email configuration not set, logging email content:');
-      console.log('📧 [Email] To:', to);
-      console.log('📧 [Email] Subject:', subject);
-      console.log('📧 [Email] Content:', html || text);
+      logger.warn('Email configuration not set, logging email content', { to, subject, content: html || text }, 'email/send.js');
       
       return res.status(200).json({ 
         success: true, 
@@ -72,7 +69,7 @@ export default async (req, res) => {
     // Verify connection configuration
     try {
       await transporter.verify();
-      console.log('📧 [Email] SMTP connection verified');
+      logger.info('SMTP connection verified', null, 'email/send.js');
     } catch (verifyErr) {
       // Provide better error messages for verification failures
       if (verifyErr.message.includes('Invalid login') || verifyErr.message.includes('BadCredentials')) {
@@ -99,8 +96,7 @@ export default async (req, res) => {
 
     // Send email
     const info = await transporter.sendMail(mailOptions);
-    console.log('📧 [Email] ✅ Email sent successfully:', info.messageId);
-    console.log('📧 [Email] Response:', info.response);
+    logger.info('Email sent successfully', { messageId: info.messageId, response: info.response }, 'email/send.js');
 
     return res.status(200).json({ 
       success: true, 
@@ -109,7 +105,7 @@ export default async (req, res) => {
     });
 
   } catch (err) {
-    console.error('📧 [Email] ❌ Error sending email:', err);
+    logger.error('Error sending email', err, 'email/send.js');
     
     // Provide helpful error messages for common issues
     let errorMessage = 'Email send failed';

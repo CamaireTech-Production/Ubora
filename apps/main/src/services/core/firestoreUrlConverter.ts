@@ -1,4 +1,5 @@
 import { FileAttachment } from '../../types';
+import { logger } from '@ubora/shared/utils/logger';
 import { db } from '@ubora/shared/firebaseConfig';
 import { collection, query, where, getDocs, limit } from 'firebase/firestore';
 
@@ -12,7 +13,7 @@ export class FirestoreUrlConverter {
    * This works entirely in the frontend without API calls
    */
   static async convertToBlobUrl(attachment: FileAttachment): Promise<string> {
-    console.log('🔄 FirestoreUrlConverter.convertToBlobUrl called with:', {
+    logger.debug('FirestoreUrlConverter.convertToBlobUrl called', {
       fileName: attachment.fileName,
       downloadUrl: attachment.downloadUrl,
       hasBase64Data: !!attachment.base64Data,
@@ -25,24 +26,24 @@ export class FirestoreUrlConverter {
 
     // If it's already a regular HTTP URL, return as-is
     if (!attachment.downloadUrl?.startsWith('firestore://')) {
-      console.log('✅ Using direct HTTP URL:', attachment.downloadUrl);
+      logger.debug('Using direct HTTP URL', { downloadUrl: attachment.downloadUrl }, 'FirestoreUrlConverter');
       return attachment.downloadUrl;
     }
 
     // If we have base64 data, create blob URL directly
     if (attachment.base64Data) {
-      console.log('✅ Using base64 data from attachment');
+      logger.debug('Using base64 data from attachment', undefined, 'FirestoreUrlConverter');
       return this.createBlobFromBase64(attachment.base64Data, attachment.fileType);
     }
 
     // If no base64 data in attachment, try to fetch it from fileData collection
-    console.log('🔄 No base64 data in attachment, trying to fetch from fileData collection...');
+    logger.debug('No base64 data in attachment, trying to fetch from fileData collection', undefined, 'FirestoreUrlConverter');
     try {
       const base64Data = await this.fetchBase64FromFileData(attachment.downloadUrl);
-      console.log('✅ Successfully fetched base64 data from fileData collection');
+      logger.debug('Successfully fetched base64 data from fileData collection', undefined, 'FirestoreUrlConverter');
       return this.createBlobFromBase64(base64Data, attachment.fileType);
     } catch (firestoreError) {
-      console.error('❌ Failed to fetch from fileData collection:', firestoreError);
+      logger.error('Failed to fetch from fileData collection', firestoreError, 'FirestoreUrlConverter');
       throw new Error('No base64 data available for firestore:// URL');
     }
   }
@@ -52,13 +53,13 @@ export class FirestoreUrlConverter {
    */
   private static async fetchBase64FromFileData(firestoreUrl: string): Promise<string> {
     try {
-      console.log('🔄 fetchBase64FromFileData called with URL:', firestoreUrl);
+      logger.debug('fetchBase64FromFileData called', { firestoreUrl }, 'FirestoreUrlConverter');
       
       // Parse the firestore:// URL: firestore://agencyId/formId/userId/fileId
       const path = firestoreUrl.replace('firestore://', '');
       const pathParts = path.split('/');
       
-      console.log('🔄 Parsed URL parts:', pathParts);
+      logger.debug('Parsed URL parts', { pathParts }, 'FirestoreUrlConverter');
       
       if (pathParts.length < 4) {
         throw new Error('Invalid firestore:// URL format');
@@ -66,7 +67,7 @@ export class FirestoreUrlConverter {
 
       const [agencyId, formId, userId, fileId] = pathParts;
       
-      console.log('🔄 Querying fileData collection with:', {
+      logger.debug('Querying fileData collection', {
         agencyId,
         formId,
         userId,
@@ -84,10 +85,10 @@ export class FirestoreUrlConverter {
         limit(1)
       );
 
-      console.log('🔄 Executing Firestore query...');
+      logger.debug('Executing Firestore query', undefined, 'FirestoreUrlConverter');
       const querySnapshot = await getDocs(fileDataQuery);
       
-      console.log('🔄 Query result:', {
+      logger.debug('Query result', {
         empty: querySnapshot.empty,
         size: querySnapshot.size,
         docs: querySnapshot.docs.length
@@ -100,7 +101,7 @@ export class FirestoreUrlConverter {
       const fileDoc = querySnapshot.docs[0];
       const fileData = fileDoc.data();
       
-      console.log('🔄 File document data:', {
+      logger.debug('File document data', {
         id: fileDoc.id,
         hasBase64Data: !!fileData.base64Data,
         fileName: fileData.fileName,
@@ -112,10 +113,10 @@ export class FirestoreUrlConverter {
         throw new Error('No base64 data found in fileData document');
       }
 
-      console.log('✅ Successfully retrieved base64 data from fileData collection');
+      logger.info('Successfully retrieved base64 data from fileData collection', undefined, 'FirestoreUrlConverter');
       return fileData.base64Data;
     } catch (error) {
-      console.error('❌ Error fetching base64 data from fileData collection:', error);
+      logger.error('Error fetching base64 data from fileData collection', error, 'FirestoreUrlConverter');
       throw error;
     }
   }
@@ -141,7 +142,7 @@ export class FirestoreUrlConverter {
       const blob = new Blob([bytes], { type: mimeType });
       return URL.createObjectURL(blob);
     } catch (error) {
-      console.error('Error creating blob from base64:', error);
+      logger.error('Error creating blob from base64', error, 'FirestoreUrlConverter');
       throw new Error('Failed to convert base64 to blob');
     }
   }
@@ -173,7 +174,7 @@ export class FirestoreUrlConverter {
       try {
         blobUrls[attachment.fieldId] = await this.convertToBlobUrl(attachment);
       } catch (error) {
-        console.error(`Failed to convert attachment ${attachment.fieldId}:`, error);
+        logger.error(`Failed to convert attachment ${attachment.fieldId}`, error, 'FirestoreUrlConverter');
       }
     }));
     

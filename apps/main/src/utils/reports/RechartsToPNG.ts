@@ -1,5 +1,6 @@
 import * as React from 'react';
 import { GraphData } from '../types';
+import { logger } from '@ubora/shared/utils/logger';
 
 /**
  * Utility class to convert Recharts components to PNG images using recharts-to-png
@@ -116,7 +117,7 @@ export class RechartsToPNG {
                   const base64 = canvas.toDataURL('image/png', 0.9);
                   resolve(base64);
                 } catch (error) {
-                  console.error('RechartsToPNG: html2canvas conversion failed:', error);
+                  logger.error('RechartsToPNG: html2canvas conversion failed', error, 'RechartsToPNG');
                   reject(error);
                 } finally {
                   // Cleanup
@@ -136,7 +137,7 @@ export class RechartsToPNG {
         root.render(React.createElement(ChartComponent));
 
       } catch (error) {
-        console.error('RechartsToPNG: Error in convertChartDataToPNG:', error);
+        logger.error('RechartsToPNG: Error in convertChartDataToPNG', error, 'RechartsToPNG');
         
         // Fallback to enhanced canvas approach
         try {
@@ -188,7 +189,7 @@ export class RechartsToPNG {
           const base64 = canvas.toDataURL('image/png', 0.8);
           resolve(base64);
         } catch (fallbackError) {
-          console.error('RechartsToPNG: Fallback also failed:', fallbackError);
+          logger.error('RechartsToPNG: Fallback also failed', fallbackError, 'RechartsToPNG');
           reject(fallbackError);
         }
       }

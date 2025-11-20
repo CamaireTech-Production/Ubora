@@ -25,6 +25,7 @@ import {
   Loader2,
   Sparkles
 } from 'lucide-react';
+import { logger } from '@ubora/shared/utils/logger';
 
 // Tab order matching creation wizard steps
 type EditTab = 'metadata' | 'lists' | 'forms' | 'dashboards' | 'reports' | 'instructions' | 'summary';
@@ -506,7 +507,7 @@ export const UniversEditor: React.FC<UniversEditorProps> = ({
       const price = (metadata as any).price ?? univers.metadata.price ?? null;
       const currency = (metadata as any).currency || univers.metadata.currency || 'XAF';
       
-      console.log('🔍 UniversEditor - Saving Univers:', {
+      logger.debug('UniversEditor - Saving Univers', {
         publishOption,
         saveAsDraft,
         publishToMarketplace,
@@ -592,7 +593,7 @@ export const UniversEditor: React.FC<UniversEditorProps> = ({
       setHasChanges(false);
       showSuccess('Univers mis à jour avec succès');
     } catch (error) {
-      console.error('Error saving Univers:', error);
+      logger.error('Error saving Univers', error, 'UniversEditor');
       // Error handling is done in parent component
     } finally {
       setIsSavingDraft(false);

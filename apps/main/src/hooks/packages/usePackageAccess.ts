@@ -6,10 +6,11 @@ import {
   PackageLimits,
   PACKAGE_LIMITS
 } from '@ubora/shared/config/packageFeatures';
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { db } from '@ubora/shared/firebaseConfig';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { useTokenStats } from '../../hooks/core/useTokenStats';
+import { logger } from '@ubora/shared/utils/logger';
 
 type NumericPackageLimit = 'maxForms' | 'maxDashboards' | 'maxUsers' | 'monthlyTokens' | 'additionalUserCost';
 
@@ -65,9 +66,21 @@ export const usePackageAccess = () => {
   const [isLoadingDirectorInfo, setIsLoadingDirectorInfo] = useState(false);
   const [packageInfo, setPackageInfo] = useState<UserPackageInfo | null>(null);
   const [isLoadingPackageInfo, setIsLoadingPackageInfo] = useState(false);
-  const NUMERIC_LIMIT_KEYS: NumericPackageLimit[] = ['maxForms', 'maxDashboards', 'maxUsers', 'monthlyTokens', 'additionalUserCost'];
-  const isNumericLimit = (limit: keyof PackageLimits): limit is NumericPackageLimit =>
-    NUMERIC_LIMIT_KEYS.includes(limit as NumericPackageLimit);
+  
+  // Mémoriser les constantes pour éviter recréation
+  const NUMERIC_LIMIT_KEYS = useMemo<NumericPackageLimit[]>(() => 
+    ['maxForms', 'maxDashboards', 'maxUsers', 'monthlyTokens', 'additionalUserCost'], 
+    []
+  );
+  const isNumericLimit = useCallback((limit: keyof PackageLimits): limit is NumericPackageLimit => {
+    return NUMERIC_LIMIT_KEYS.includes(limit as NumericPackageLimit);
+  }, [NUMERIC_LIMIT_KEYS]);
+  
+  // Use ref to avoid including directorPackageInfo in useEffect dependencies
+  const directorPackageInfoRef = useRef<UserPackageInfo | null>(null);
+  useEffect(() => {
+    directorPackageInfoRef.current = directorPackageInfo;
+  }, [directorPackageInfo]);
 
   // Fetch director's package info for employees with director access
   useEffect(() => {
@@ -99,7 +112,7 @@ export const usePackageAccess = () => {
           }
         }
       } catch (error) {
-        console.error('Error fetching director package info:', error);
+        logger.error('Error fetching director package info', error, 'usePackageAccess');
       } finally {
         if (isMounted) {
           setIsLoadingDirectorInfo(false);
@@ -127,9 +140,11 @@ export const usePackageAccess = () => {
 
       setIsLoadingPackageInfo(true);
       try {
-        if (user.role === 'employe' && user.hasDirectorDashboardAccess && directorPackageInfo) {
+        // Use ref to access latest directorPackageInfo without including it in dependencies
+        const currentDirectorInfo = directorPackageInfoRef.current;
+        if (user.role === 'employe' && user.hasDirectorDashboardAccess && currentDirectorInfo) {
           if (isMounted) {
-            setPackageInfo(directorPackageInfo);
+            setPackageInfo(currentDirectorInfo);
           }
           return;
         }
@@ -139,7 +154,7 @@ export const usePackageAccess = () => {
           setPackageInfo(info);
         }
       } catch (error) {
-        console.error('Error loading package info:', error);
+        logger.error('Error loading package info', error, 'usePackageAccess');
         if (isMounted) {
           setPackageInfo(null);
         }
@@ -155,7 +170,7 @@ export const usePackageAccess = () => {
     return () => {
       isMounted = false;
     };
-  }, [user, directorPackageInfo]);
+  }, [user]);
 
   // Merge token stats override into package info so UI reflects live usage without mutating user doc
   const enhancedPackageInfo = useMemo(() => {
@@ -173,24 +188,24 @@ export const usePackageAccess = () => {
   }, [packageInfo, tokenStats]);
   const currentPackageType = enhancedPackageInfo?.packageType || null;
 
-  const getActivePackageInfo = (): UserPackageInfo | null => {
+  const getActivePackageInfo = useCallback((): UserPackageInfo | null => {
     if (!user) return null;
     if (user.role === 'employe' && user.hasDirectorDashboardAccess) {
       return directorPackageInfo || enhancedPackageInfo;
     }
     return enhancedPackageInfo;
-  };
+  }, [user, directorPackageInfo, enhancedPackageInfo]);
 
-  const resolveLimitValueWithFallback = (limit: NumericPackageLimit): number => {
+  const resolveLimitValueWithFallback = useCallback((limit: NumericPackageLimit): number => {
     const activeInfo = getActivePackageInfo();
     if (activeInfo) {
       return resolveLimitValue(activeInfo, limit);
     }
     return 0;
-  };
+  }, [getActivePackageInfo]);
 
   // Vérifier si l'utilisateur a accès à une fonctionnalité spécifique
-  const hasFeature = (feature: keyof PackageFeatures): boolean => {
+  const hasFeature = useCallback((feature: keyof PackageFeatures): boolean => {
     if (!user) return false;
     
     // Use package info from hook instead of calling service
@@ -200,10 +215,10 @@ export const usePackageAccess = () => {
     }
     
     return false;
-  };
+  }, [user, getActivePackageInfo]);
 
   // Vérifier si l'utilisateur respecte une limite spécifique (incluant pay-as-you-go)
-  const checkLimit = (limit: keyof PackageLimits, currentValue: number): boolean => {
+  const checkLimit = useCallback((limit: keyof PackageLimits, currentValue: number): boolean => {
     if (!user) return false;
     if (!isNumericLimit(limit)) return true;
     const limitValue = resolveLimitValueWithFallback(limit);
@@ -214,94 +229,90 @@ export const usePackageAccess = () => {
       return limitValue > 0;
     }
     return currentValue < limitValue;
-  };
+  }, [user, resolveLimitValueWithFallback]);
 
   // Obtenir la valeur d'une limite
-  const getLimit = (limit: keyof PackageLimits): number => {
+  const getLimit = useCallback((limit: keyof PackageLimits): number => {
     if (!isNumericLimit(limit)) return 0;
     return resolveLimitValueWithFallback(limit);
-  };
+  }, [resolveLimitValueWithFallback]);
 
   // Vérifier si une limite est illimitée
-  const isLimitUnlimited = (limit: keyof PackageLimits): boolean => {
+  const isLimitUnlimited = useCallback((limit: keyof PackageLimits): boolean => {
     if (!isNumericLimit(limit) || limit === 'additionalUserCost') return false;
     const limitValue = resolveLimitValueWithFallback(limit);
     return limitValue === -1;
-  };
+  }, [resolveLimitValueWithFallback]);
 
   // Obtenir le type de package de l'utilisateur
-  const getPackageType = (): PackageType | null => {
+  const getPackageType = useCallback((): PackageType | null => {
     return currentPackageType;
-  };
+  }, [currentPackageType]);
 
   // Vérifier si l'utilisateur peut créer un nouveau formulaire
-  const canCreateForm = (currentFormCount: number): boolean => {
-    console.log('🟡 [CAN CREATE FORM] ========================================');
-    console.log('🟡 [CAN CREATE FORM] Checking quota for form creation');
-    console.log('🟡 [CAN CREATE FORM] Current form count:', currentFormCount);
+  const canCreateForm = useCallback((currentFormCount: number): boolean => {
+    logger.debug('Checking quota for form creation', { currentFormCount }, 'usePackageAccess');
     
     if (!user) {
-      console.log('🟡 [CAN CREATE FORM] ❌ No user found - returning false');
+      logger.debug('No user found - returning false', undefined, 'usePackageAccess');
       return false;
     }
     
-    console.log('🟡 [CAN CREATE FORM] User details:', {
+    logger.debug('User details', {
       id: user.id,
       role: user.role,
       agencyId: user.agencyId,
       hasDirectorDashboardAccess: user.hasDirectorDashboardAccess
-    });
+    }, 'usePackageAccess');
     
     // For employees with director access, use director's package limits if available
     if (user.role === 'employe' && user.hasDirectorDashboardAccess) {
-      console.log('🟡 [CAN CREATE FORM] Employee with director access detected');
-      console.log('🟡 [CAN CREATE FORM] Loading director info:', isLoadingDirectorInfo);
+      logger.debug('Employee with director access detected', { isLoadingDirectorInfo }, 'usePackageAccess');
       
       // If still loading director info, allow creation (will be validated later)
       if (isLoadingDirectorInfo) {
-        console.log('🟡 [CAN CREATE FORM] ⏳ Director info still loading - allowing (will validate later)');
+        logger.debug('Director info still loading - allowing (will validate later)', undefined, 'usePackageAccess');
         return true;
       }
       
       if (directorPackageInfo) {
-        console.log('🟡 [CAN CREATE FORM] Director package info found:', {
+        logger.debug('Director package info found', {
           packageType: directorPackageInfo.packageType,
           totalForms: directorPackageInfo.totalForms
-        });
+        }, 'usePackageAccess');
         const maxForms = directorPackageInfo.totalForms || 0;
         const canCreate = maxForms === -1 || currentFormCount < maxForms;
-        console.log('🟡 [CAN CREATE FORM] Director limits check:', {
+        logger.debug('Director limits check', {
           maxForms,
           currentFormCount,
           isUnlimited: maxForms === -1,
           canCreate
-        });
+        }, 'usePackageAccess');
         return canCreate;
       }
       
       // If we have director access but no package info yet, allow creation
       // This prevents the modal from showing while the director's info is being fetched
-      console.log('🟡 [CAN CREATE FORM] ⚠️ Director access but no package info yet - allowing (will validate later)');
+      logger.debug('Director access but no package info yet - allowing (will validate later)', undefined, 'usePackageAccess');
       return true;
     }
     
     const maxForms = getLimit('maxForms');
     const canCreate = maxForms === -1 || currentFormCount < maxForms;
-    console.log('🟡 [CAN CREATE FORM] Package limit check:', {
+    logger.debug('Package limit check', {
       maxForms,
       currentFormCount,
       canCreate,
       isLoadingPackageInfo
-    });
-    console.log('🟡 [CAN CREATE FORM] ========================================');
+    }, 'usePackageAccess');
     if (maxForms === 0 && isLoadingPackageInfo) {
       return true;
     }
     return canCreate;
-  };
+  }, [user, isLoadingDirectorInfo, directorPackageInfo, isLoadingPackageInfo, getLimit]);
 
   // Vérifier si l'utilisateur peut créer un nouveau tableau de bord
-  const canCreateDashboard = (currentDashboardCount: number): boolean => {
+  const canCreateDashboard = useCallback((currentDashboardCount: number): boolean => {
     if (!user) return false;
     
     // For employees with director access, use director's package limits if available
@@ -326,10 +337,10 @@ export const usePackageAccess = () => {
       return true;
     }
     return maxDashboards === -1 || currentDashboardCount < maxDashboards;
-  };
+  }, [user, isLoadingDirectorInfo, directorPackageInfo, isLoadingPackageInfo, getLimit]);
 
   // Vérifier si l'utilisateur peut ajouter un nouvel utilisateur
-  const canAddUser = (currentUserCount: number): boolean => {
+  const canAddUser = useCallback((currentUserCount: number): boolean => {
     if (!user) return false;
     
     // For employees with director access, use director's package limits if available
@@ -354,49 +365,55 @@ export const usePackageAccess = () => {
       return true;
     }
     return maxUsers === -1 || currentUserCount < maxUsers;
-  };
+  }, [user, isLoadingDirectorInfo, directorPackageInfo, isLoadingPackageInfo, getLimit]);
 
   // Obtenir le nombre de tokens mensuels disponibles
-  const getMonthlyTokens = (): number => resolveLimitValueWithFallback('monthlyTokens');
+  const getMonthlyTokens = useCallback((): number => {
+    return resolveLimitValueWithFallback('monthlyTokens');
+  }, [resolveLimitValueWithFallback]);
 
   // Vérifier si l'utilisateur a des tokens illimités
-  const hasUnlimitedTokens = (): boolean => resolveLimitValueWithFallback('monthlyTokens') === -1;
+  const hasUnlimitedTokens = useCallback((): boolean => {
+    return resolveLimitValueWithFallback('monthlyTokens') === -1;
+  }, [resolveLimitValueWithFallback]);
 
   // Vérifier si l'utilisateur peut utiliser une fonctionnalité IA avancée
-  const canUseAdvancedAI = (): boolean => {
+  const canUseAdvancedAI = useCallback((): boolean => {
     return hasFeature('advancedAI') || hasFeature('predictiveAI');
-  };
+  }, [hasFeature]);
 
   // Vérifier si l'utilisateur peut utiliser le branding personnalisé
-  const canUseCustomBranding = (): boolean => {
+  const canUseCustomBranding = useCallback((): boolean => {
     return hasFeature('customBranding');
-  };
+  }, [hasFeature]);
 
   // Vérifier si l'utilisateur peut utiliser les intégrations personnalisées
-  const canUseCustomIntegrations = (): boolean => {
+  const canUseCustomIntegrations = useCallback((): boolean => {
     return hasFeature('customIntegrations');
-  };
+  }, [hasFeature]);
 
   // Obtenir le coût d'un utilisateur supplémentaire
-  const getAdditionalUserCost = (): number => resolveLimitValueWithFallback('additionalUserCost');
+  const getAdditionalUserCost = useCallback((): number => {
+    return resolveLimitValueWithFallback('additionalUserCost');
+  }, [resolveLimitValueWithFallback]);
 
   // Obtenir la capacité pay-as-you-go pour un type de limite
-  const getPayAsYouGoCapacity = (limit: keyof PackageLimits): number => {
+  const getPayAsYouGoCapacity = useCallback((limit: keyof PackageLimits): number => {
     if (limit !== 'monthlyTokens') {
       return 0;
     }
     const activeInfo = getActivePackageInfo();
     return activeInfo?.payAsYouGoTokens || 0;
-  };
+  }, [getActivePackageInfo]);
 
   // Obtenir la limite totale (package + pay-as-you-go)
-  const getTotalLimit = (limit: keyof PackageLimits): number => {
+  const getTotalLimit = useCallback((limit: keyof PackageLimits): number => {
     if (!isNumericLimit(limit)) return 0;
     const packageLimit = getLimit(limit);
     if (packageLimit === -1) return -1;
     const payg = limit === 'monthlyTokens' ? getPayAsYouGoCapacity(limit) : 0;
     return packageLimit + payg;
-  };
+  }, [getLimit, getPayAsYouGoCapacity]);
 
   return {
     // Fonctions de base

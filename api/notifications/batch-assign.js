@@ -2,6 +2,7 @@ import admin from 'firebase-admin';
 import { getFirestore, Timestamp } from 'firebase-admin/firestore';
 import nodemailer from 'nodemailer';
 import { buildAbsoluteUrl, renderEmailTemplate } from '../lib/urlEmail.js';
+import { logger } from '../lib/logger.js';
 
 // Initialize Firebase Admin if not already initialized
 if (!admin.apps.length) {
@@ -209,7 +210,7 @@ export default async (req, res) => {
       unassignedCount: unassigned.length,
     });
   } catch (error) {
-    console.error('❌ [batch-assign] Error:', error);
+    logger.error('Error in batch-assign endpoint', error, 'notifications/batch-assign.js');
     return res.status(500).json({ success: false, error: 'Internal server error', details: error.message });
   }
 };

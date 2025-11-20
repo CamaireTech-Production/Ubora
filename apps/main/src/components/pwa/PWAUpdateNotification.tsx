@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Download, X, RefreshCw } from 'lucide-react';
+import { logger } from '@ubora/shared/utils/logger';
 
 export const PWAUpdateNotification: React.FC = () => {
   const [showUpdatePrompt, setShowUpdatePrompt] = useState(false);
@@ -35,7 +36,7 @@ export const PWAUpdateNotification: React.FC = () => {
             });
           });
         } catch (error) {
-          console.error('Error checking for waiting service worker:', error);
+          logger.error('Error checking for waiting service worker', error, 'PWAUpdateNotification');
         }
       };
 
@@ -56,7 +57,7 @@ export const PWAUpdateNotification: React.FC = () => {
             }
           }
         } catch (error) {
-          console.error('Periodic update check failed:', error);
+          logger.error('Periodic update check failed', error, 'PWAUpdateNotification');
         }
       }, 60000); // Check every 60 seconds
 
@@ -82,7 +83,7 @@ export const PWAUpdateNotification: React.FC = () => {
           
           // Fallback: Reload after timeout if controllerchange doesn't fire
           const reloadTimeout = setTimeout(() => {
-            console.log('Update timeout - forcing reload');
+            logger.debug('Update timeout - forcing reload', null, 'PWAUpdateNotification');
             window.location.reload();
           }, 2000); // 2 second timeout
           
@@ -103,7 +104,7 @@ export const PWAUpdateNotification: React.FC = () => {
         setIsUpdating(false);
       }
     } catch (error) {
-      console.error('Error updating app:', error);
+      logger.error('Error updating app', error, 'PWAUpdateNotification');
       setIsUpdating(false);
     }
   };

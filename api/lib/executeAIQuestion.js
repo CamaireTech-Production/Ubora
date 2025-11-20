@@ -15,6 +15,7 @@ if (!loadedLocalEnv || !loadedLocalEnv.parsed) {
 import { adminDb } from '../lib/firebaseAdmin.js';
 import OpenAI from 'openai';
 import { searchAndFormatForAI } from '../lib/vectorSearch.js';
+import { logger } from './logger.js';
 
 // Initialize OpenAI
 const openai = new OpenAI({
@@ -279,14 +280,14 @@ export async function executeAIQuestion({
   debug = false      // DEBUG MODE: Enable detailed logging and dry-run
 }) {
   try {
-    console.log('🤖 [executeAIQuestion] Starting execution:', { userId, agencyId, question: question.substring(0, 50) });
+    logger.info('Starting execution', { userId, agencyId, question: question.substring(0, 50) }, 'executeAIQuestion.js');
 
     // 1. Search for relevant data using vector search (REPLACEMENT FOR loadAndAggregateData)
     const { start, end, label } = getPeriodDates(filters?.period || 'all');
 
     // DEBUG MODE: Log input parameters
     if (debug) {
-      console.log('🔍 [DEBUG] executeAIQuestion Input Parameters:', {
+      logger.debug('Input Parameters', {
         userId,
         agencyId,
         directorId: directorId || '(not set)',
@@ -301,7 +302,7 @@ export async function executeAIQuestion({
       });
     }
 
-    console.log('🔍 [executeAIQuestion] Searching vectors for relevant chunks...');
+    logger.debug('Searching vectors for relevant chunks', null, 'executeAIQuestion.js');
     
     // Handle selectedFormats as form IDs if provided
     const formIdFilter = filters?.formId || (selectedFormats?.length === 1 ? selectedFormats[0] : null);
@@ -320,7 +321,7 @@ export async function executeAIQuestion({
     });
 
     if (!vectorSearchResults.hasResults) {
-      console.log('⚠️ [executeAIQuestion] No relevant data found in vector database');
+      logger.warn('No relevant data found in vector database', null, 'executeAIQuestion.js');
       return {
         answer: 'Désolé, je n\'ai pas trouvé de données pertinentes pour répondre à votre question. Veuillez reformuler votre question ou vérifier que les données ont été synchronisées.',
         tokensUsed: 0,
@@ -340,7 +341,7 @@ export async function executeAIQuestion({
       };
     }
 
-    console.log(`✅ [executeAIQuestion] Found ${vectorSearchResults.chunks.length} relevant chunks`);
+    logger.info('Found relevant chunks', { count: vectorSearchResults.chunks.length }, 'executeAIQuestion.js');
 
     // DEBUG MODE: Log detailed search results
     if (debug) {
@@ -348,7 +349,7 @@ export async function executeAIQuestion({
       const uniqueUniversIds = [...new Set(vectorSearchResults.chunks.map(chunk => chunk.metadata.universId).filter(Boolean))];
       const uniqueUserIds = [...new Set(vectorSearchResults.chunks.map(chunk => chunk.metadata.userId).filter(Boolean))];
       
-      console.log('🔍 [DEBUG] Vector Search Results Summary:', {
+      logger.debug('Vector Search Results Summary', {
         totalChunks: vectorSearchResults.chunks.length,
         uniqueEntries: vectorSearchResults.uniqueEntriesCount,
         uniqueFormIds: uniqueFormIds.length > 0 ? uniqueFormIds : '(none)',
@@ -361,7 +362,7 @@ export async function executeAIQuestion({
 
     // DEBUG MODE: DRY-RUN - Return debug info without calling OpenAI
     if (debug && process.env.DEBUG_DRY_RUN === 'true') {
-      console.log('🔍 [DEBUG] DRY-RUN MODE: Skipping OpenAI call');
+      logger.debug('DRY-RUN MODE: Skipping OpenAI call', null, 'executeAIQuestion.js');
       return {
         answer: '[DEBUG DRY-RUN] OpenAI call skipped. Check logs for filter and search results.',
         tokensUsed: 0,
@@ -518,7 +519,7 @@ INSTRUCTIONS :
       }
     };
   } catch (error) {
-    console.error('❌ [executeAIQuestion] Error:', error);
+    logger.error('Error in executeAIQuestion', error, 'executeAIQuestion.js');
     throw error;
   }
 }

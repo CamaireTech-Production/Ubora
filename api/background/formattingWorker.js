@@ -1,6 +1,7 @@
 const { adminDb } = require('../lib/firebaseAdmin');
 const admin = require('firebase-admin');
 const OpenAI = require('openai');
+const { logger } = require('../lib/logger.js');
 
 // Configuration OpenAI
 const openai = new OpenAI({
@@ -17,12 +18,12 @@ class FormattingWorker {
 
   start() {
     if (this.isRunning) {
-      console.log('⚠️ Formatting worker is already running');
+      logger.warn('Formatting worker is already running', null, 'background/formattingWorker.js');
       return;
     }
 
     this.isRunning = true;
-    console.log('🚀 Starting formatting worker...');
+    logger.info('Starting formatting worker', null, 'background/formattingWorker.js');
     
     // Process errors immediately
     this.processFormattingErrors();
@@ -42,12 +43,12 @@ class FormattingWorker {
     if (this.intervalId) {
       clearInterval(this.intervalId);
     }
-    console.log('🛑 Formatting worker stopped');
+    logger.info('Formatting worker stopped', null, 'background/formattingWorker.js');
   }
 
   async processFormattingErrors() {
     try {
-      console.log('🔍 Checking for formatting errors to retry...');
+      logger.debug('Checking for formatting errors to retry', null, 'background/formattingWorker.js');
       
       // Get failed formatting jobs that need retry
       const errorQuery = await adminDb
@@ -58,11 +59,11 @@ class FormattingWorker {
         .get();
 
       if (errorQuery.empty) {
-        console.log('✅ No formatting errors to retry');
+        logger.debug('No formatting errors to retry', null, 'background/formattingWorker.js');
         return;
       }
 
-      console.log(`📋 Found ${errorQuery.size} formatting errors to retry`);
+      logger.info('Found formatting errors to retry', { count: errorQuery.size }, 'background/formattingWorker.js');
 
       for (const errorDoc of errorQuery.docs) {
         const errorData = errorDoc.data();
@@ -70,13 +71,13 @@ class FormattingWorker {
       }
 
     } catch (error) {
-      console.error('❌ Error processing formatting errors:', error);
+      logger.error('Error processing formatting errors', error, 'background/formattingWorker.js');
     }
   }
 
   async retryFormatting(errorId, errorData) {
     try {
-      console.log(`🔄 Retrying formatting for submission: ${errorData.submissionId}`);
+      logger.info('Retrying formatting for submission', { submissionId: errorData.submissionId }, 'background/formattingWorker.js');
       
       // Get the original raw text from the submission
       const submissionDoc = await adminDb
@@ -85,7 +86,7 @@ class FormattingWorker {
         .get();
 
       if (!submissionDoc.exists) {
-        console.log(`⚠️ Submission ${errorData.submissionId} not found, removing error`);
+        logger.warn('Submission not found, removing error', { submissionId: errorData.submissionId }, 'background/formattingWorker.js');
         await adminDb.collection('formattingErrors').doc(errorId).delete();
         return;
       }
@@ -130,8 +131,8 @@ ${rawText}`
       const formattedText = formatResponse.choices[0]?.message?.content || '';
       const usage = formatResponse.usage;
 
-      console.log(`✅ Retry successful for submission: ${errorData.submissionId}`);
-      console.log('💰 OpenAI API Usage:', {
+      logger.info('Retry successful for submission', { submissionId: errorData.submissionId }, 'background/formattingWorker.js');
+      logger.debug('OpenAI API Usage', {
         prompt_tokens: usage?.prompt_tokens || 0,
         completion_tokens: usage?.completion_tokens || 0,
         total_tokens: usage?.total_tokens || 0,
@@ -153,7 +154,7 @@ ${rawText}`
       });
 
     } catch (error) {
-      console.error(`❌ Retry failed for submission ${errorData.submissionId}:`, error);
+      logger.error('Retry failed for submission', { submissionId: errorData.submissionId, error }, 'background/formattingWorker.js');
       
       // Update error record
       await adminDb.collection('formattingErrors').doc(errorId).update({
@@ -199,7 +200,7 @@ ${rawText}`
       }
 
       if (entryDoc.exists) {
-        console.log('📝 Updating FormEntry with formatted text for attachment:', submissionId);
+        logger.info('Updating FormEntry with formatted text for attachment', { submissionId }, 'background/formattingWorker.js');
         const data = entryDoc.data() || {};
         const attachments = Array.isArray(data.fileAttachments) ? data.fileAttachments : [];
         const updated = attachments.map((att) => {
@@ -218,7 +219,7 @@ ${rawText}`
           formattingStatus: 'completed'
         });
       } else {
-        console.log('📝 Saving formatted text for draft submission:', submissionId);
+        logger.info('Saving formatted text for draft submission', { submissionId }, 'background/formattingWorker.js');
         await adminDb.collection('draftFormatting').doc(submissionId).set({
           submissionId,
           formattedText,
@@ -227,7 +228,7 @@ ${rawText}`
         });
       }
     } catch (error) {
-      console.error('❌ Error updating formatted text:', error);
+      logger.error('Error updating formatted text', error, 'background/formattingWorker.js');
     }
   }
 }
@@ -241,13 +242,13 @@ if (require.main === module) {
   
   // Graceful shutdown
   process.on('SIGINT', () => {
-    console.log('🛑 Received SIGINT, shutting down formatting worker...');
+    logger.info('Received SIGINT, shutting down formatting worker', null, 'background/formattingWorker.js');
     formattingWorker.stop();
     process.exit(0);
   });
   
   process.on('SIGTERM', () => {
-    console.log('🛑 Received SIGTERM, shutting down formatting worker...');
+    logger.info('Received SIGTERM, shutting down formatting worker', null, 'background/formattingWorker.js');
     formattingWorker.stop();
     process.exit(0);
   });

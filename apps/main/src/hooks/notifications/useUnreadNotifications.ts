@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { db } from '@ubora/shared/firebaseConfig';
+import { logger } from '@ubora/shared/utils/logger';
 
 export const useUnreadNotifications = () => {
   const { user } = useAuth();
@@ -37,7 +38,7 @@ export const useUnreadNotifications = () => {
     const unsubscribe = onSnapshot(notificationsQuery, (snapshot) => {
       setUnreadCount(snapshot.docs.length);
     }, (error) => {
-      console.error('🔔 [useUnreadNotifications] Error listening to unread notifications:', error);
+      logger.error('Error listening to unread notifications', error, 'useUnreadNotifications');
       setUnreadCount(0);
     });
 

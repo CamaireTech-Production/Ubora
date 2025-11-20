@@ -6,6 +6,7 @@
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { logger } from './logger.js';
 
 // Get __dirname equivalent for ES modules
 const __filename = fileURLToPath(import.meta.url);
@@ -124,11 +125,11 @@ export async function ensureCollection(collectionName = COLLECTION_NAME, vectorS
     const exists = await collectionExists(collectionName);
     
     if (exists) {
-      console.log(`✅ Collection "${collectionName}" already exists`);
+      logger.info('Collection already exists', { collectionName }, 'vectorDb.js');
       return { created: false, collectionName };
     }
 
-    console.log(`📦 Creating collection "${collectionName}" with vector size ${vectorSize}...`);
+    logger.info('Creating collection', { collectionName, vectorSize }, 'vectorDb.js');
 
     const payload = {
       vectors: {
@@ -146,10 +147,10 @@ export async function ensureCollection(collectionName = COLLECTION_NAME, vectorS
       body: JSON.stringify(payload),
     });
 
-    console.log(`✅ Collection "${collectionName}" created successfully`);
+    logger.info('Collection created successfully', { collectionName }, 'vectorDb.js');
     return { created: true, collectionName };
   } catch (error) {
-    console.error(`❌ Failed to create collection "${collectionName}":`, error);
+    logger.error('Failed to create collection', { collectionName, error }, 'vectorDb.js');
     throw error;
   }
 }
@@ -176,10 +177,10 @@ export async function deleteCollection(collectionName = COLLECTION_NAME) {
     await qdrantRequest(`/collections/${collectionName}`, {
       method: 'DELETE',
     });
-    console.log(`✅ Collection "${collectionName}" deleted`);
+    logger.info('Collection deleted', { collectionName }, 'vectorDb.js');
     return true;
   } catch (error) {
-    console.error(`❌ Failed to delete collection "${collectionName}":`, error);
+    logger.error('Failed to delete collection', { collectionName, error }, 'vectorDb.js');
     throw error;
   }
 }
@@ -189,18 +190,19 @@ export async function deleteCollection(collectionName = COLLECTION_NAME) {
  */
 export async function initializeQdrant(collectionName = COLLECTION_NAME, vectorSize = VECTOR_SIZE) {
   try {
-    console.log('🔌 Connecting to Qdrant...');
-    console.log(`   URL: ${QDRANT_URL}`);
-    console.log(`   Collection: ${collectionName}`);
-    console.log(`   Environment: ${isRunningOnVPS ? 'VPS (localhost)' : 'Local Dev (VPS IP)'}`);
-    console.log(`   QDRANT_URL from env: ${process.env.QDRANT_URL || 'Not set (using default)'}`);
+    logger.info('Connecting to Qdrant', {
+      url: QDRANT_URL,
+      collection: collectionName,
+      environment: isRunningOnVPS ? 'VPS (localhost)' : 'Local Dev (VPS IP)',
+      qdrantUrlFromEnv: process.env.QDRANT_URL || 'Not set (using default)'
+    }, 'vectorDb.js');
 
     // Check health
     const health = await checkQdrantHealth();
     if (!health.healthy) {
       throw new Error(`Qdrant is not healthy: ${health.error}`);
     }
-    console.log(`✅ Qdrant is healthy (version: ${health.version})`);
+    logger.info('Qdrant is healthy', { version: health.version }, 'vectorDb.js');
 
     // Ensure collection exists
     await ensureCollection(collectionName, vectorSize);
@@ -212,7 +214,7 @@ export async function initializeQdrant(collectionName = COLLECTION_NAME, vectorS
       qdrantUrl: QDRANT_URL,
     };
   } catch (error) {
-    console.error('❌ Failed to initialize Qdrant:', error);
+    logger.error('Failed to initialize Qdrant', error, 'vectorDb.js');
     throw error;
   }
 }

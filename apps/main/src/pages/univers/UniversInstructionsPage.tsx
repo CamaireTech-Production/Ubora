@@ -4,6 +4,7 @@ import { Layout } from '../../components/layout/Layout';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
+import { logger } from '@ubora/shared/utils/logger';
 import { useApp } from '@ubora/shared/contexts/AppContext';
 import { universService } from '@ubora/shared/services/universService';
 import { Univers } from '../../types';
@@ -48,7 +49,7 @@ export const UniversInstructionsPage: React.FC = () => {
           showError('Univers actif non trouvé');
         }
       } catch (error) {
-        console.error('Erreur lors du chargement de l\'univers:', error);
+        logger.error('Erreur lors du chargement de l\'univers', error, 'UniversInstructionsPage');
         showError('Erreur lors du chargement de l\'univers');
       } finally {
         setIsLoading(false);

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Calendar, Clock, Repeat, MessageSquare, AlertCircle } from 'lucide-react';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
+import { logger } from '@ubora/shared/utils/logger';
 import { Button } from '../../components/ui/Button';
 import MessageList from '../../components/chat/MessageList';
 import { scheduledQuestionService } from '@ubora/shared/services/scheduledQuestionService';
@@ -55,7 +56,7 @@ export const ScheduledQuestionChatPage: React.FC = () => {
       setResponses(responsesData);
       setIsLoadingResponses(false);
     } catch (error) {
-      console.error('Erreur lors du chargement:', error);
+      logger.error('Erreur lors du chargement', error, 'ScheduledInstructionChatPage');
       showError('Erreur lors du chargement de la question programmée');
       navigate('/directeur/scheduled-questions');
     }

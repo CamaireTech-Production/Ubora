@@ -31,7 +31,7 @@ vi.mock('../services/imageTextExtractionService', () => ({
 }))
 
 // Import after mocking
-import { FileUploadService } from '../services/fileUploadService'
+import { FileUploadService } from '../services/core/fileUploadService'
 
 describe('🔍 FileUploadService - Bug Detection & Security Tests (Simple)', () => {
   beforeEach(() => {

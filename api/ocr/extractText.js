@@ -1,4 +1,5 @@
 import OpenAI from 'openai';
+import { logger } from '../lib/logger.js';
 
 // Configuration OpenAI
 const openai = new OpenAI({
@@ -62,7 +63,7 @@ export default async function handler(req, res) {
       });
     }
 
-    console.log('🔍 Processing image text extraction request...');
+    logger.info('Processing image text extraction request', null, 'ocr/extractText.js');
     
     // Appel à l'API OpenAI Vision
     const visionResponse = await openai.chat.completions.create({
@@ -76,12 +77,12 @@ export default async function handler(req, res) {
     
     // Log des informations de coût (pour monitoring)
     const usage = visionResponse.usage;
-    console.log('💰 OpenAI Vision API Usage:', {
+    logger.debug('OpenAI Vision API Usage', {
       prompt_tokens: usage?.prompt_tokens || 0,
       completion_tokens: usage?.completion_tokens || 0,
       total_tokens: usage?.total_tokens || 0,
       model: model || 'gpt-4o'
-    });
+    }, 'ocr/extractText.js');
     
     return res.status(200).json({
       success: true,
@@ -98,7 +99,7 @@ export default async function handler(req, res) {
     });
 
   } catch (error) {
-    console.error('❌ Image text extraction error:', error);
+    logger.error('Image text extraction error', error, 'ocr/extractText.js');
     
     return res.status(500).json({
       success: false,

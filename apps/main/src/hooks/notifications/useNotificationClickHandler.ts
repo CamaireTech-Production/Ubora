@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { logger } from '@ubora/shared/utils/logger';
 
 /**
  * Hook to handle notification clicks from service worker
@@ -14,7 +15,7 @@ export const useNotificationClickHandler = () => {
       if (event.data?.type === 'NOTIFICATION_CLICK') {
         const { url, notificationType, highlightData, data } = event.data;
         
-        console.log('🔔 [NotificationClick] Handling notification click:', {
+        logger.debug('NotificationClick: Handling notification click', {
           url,
           notificationType,
           highlightData,
@@ -46,7 +47,7 @@ export const useNotificationClickHandler = () => {
  * Handle highlighting for different notification types
  */
 const handleHighlighting = (notificationType: string, highlightData: any) => {
-  console.log('🔔 [NotificationClick] Handling highlighting:', { notificationType, highlightData });
+  logger.debug('NotificationClick: Handling highlighting', { notificationType, highlightData }, 'useNotificationClickHandler');
 
   switch (notificationType) {
     case 'form_assignment':
@@ -62,7 +63,7 @@ const handleHighlighting = (notificationType: string, highlightData: any) => {
       handleProgrammedInstructionHighlighting(highlightData);
       break;
     default:
-      console.log('🔔 [NotificationClick] Unknown notification type:', notificationType);
+      logger.warn('NotificationClick: Unknown notification type', { notificationType }, 'useNotificationClickHandler');
   }
 };
 

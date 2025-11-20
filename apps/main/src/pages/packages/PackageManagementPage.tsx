@@ -1,8 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
-import { useApp } from '@ubora/shared/contexts/AppContext';
+import { useForms } from '@ubora/shared/contexts/FormsContext';
+import { useEmployees } from '@ubora/shared/contexts/EmployeesContext';
+import { useDashboards } from '@ubora/shared/contexts/DashboardsContext';
 import { usePackageAccess } from '@ubora/shared/hooks/usePackageAccess';
+import { logger } from '@ubora/shared/utils/logger';
 import { Layout } from '../../components/layout/Layout';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
@@ -48,7 +51,9 @@ export const PackageManagementPage: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { user } = useAuth();
-  const { forms, dashboards, employees } = useApp();
+  const { forms } = useForms();
+  const { dashboards } = useDashboards();
+  const { employees } = useEmployees();
   const { packageType } = usePackageAccess();
   const { showSuccess, showError } = useToast();
   const [selectedPackage, setSelectedPackage] = useState<PackageType | null>(null);
@@ -111,7 +116,7 @@ export const PackageManagementPage: React.FC = () => {
   // Debug payment request changes
   useEffect(() => {
     if (paymentRequest) {
-      console.log('PackageManagementPage: Payment request set:', paymentRequest);
+      logger.debug('Payment request set', { paymentRequest }, 'PackageManagementPage');
     }
   }, [paymentRequest]);
 
@@ -180,7 +185,7 @@ export const PackageManagementPage: React.FC = () => {
         showError('Impossible de calculer la transition. Veuillez réessayer.');
       }
     } catch (error) {
-      console.error('Error calculating transition preview:', error);
+      logger.error('Error calculating transition preview', error, 'PackageManagementPage');
       showError('Erreur lors du calcul de la transition. Veuillez réessayer.');
     }
   };
@@ -197,8 +202,11 @@ export const PackageManagementPage: React.FC = () => {
 
     setIsCreatingPayment(true);
     try {
-      console.log('Starting package transition for:', selectedPackage, 'with period:', selectedPeriod);
-      console.log('Transition preview:', transitionPreview);
+      logger.debug('Starting package transition', {
+        selectedPackage,
+        selectedPeriod,
+        transitionPreview
+      }, 'PackageManagementPage');
       
       // If switching to free or there is nothing to pay, bypass payment flow
       const isFree = selectedPackage === 'free';
@@ -275,10 +283,10 @@ export const PackageManagementPage: React.FC = () => {
         }
       };
 
-      console.log('Payment request created:', paymentReq);
+      logger.debug('Payment request created', { paymentReq }, 'PackageManagementPage');
 
       // Create payment record in Firebase
-      console.log('Creating payment record in Firebase...');
+      logger.debug('Creating payment record in Firebase', undefined, 'PackageManagementPage');
       const paymentId = await PaymentService.createPayment(user.id, paymentReq, {
         packageType: selectedPackage,
         subscriptionPeriod: selectedPeriod,
@@ -287,14 +295,14 @@ export const PackageManagementPage: React.FC = () => {
         daysRemaining: transitionPreview.daysRemaining
       });
 
-      console.log('Payment created with ID:', paymentId);
+      logger.info('Payment created', { paymentId }, 'PackageManagementPage');
       
       // Verify payment was created
       const createdPayment = await PaymentService.getPayment(paymentId);
       if (createdPayment) {
-        console.log('Payment verification successful:', createdPayment);
+        logger.debug('Payment verification successful', { paymentId }, 'PackageManagementPage');
       } else {
-        console.error('Payment verification failed - payment not found in Firebase');
+        logger.error('Payment verification failed - payment not found in Firebase', { paymentId }, 'PackageManagementPage');
         showError('Erreur lors de la création du paiement. Veuillez réessayer.');
         return;
       }
@@ -314,7 +322,7 @@ export const PackageManagementPage: React.FC = () => {
       }
       
     } catch (error) {
-      console.error('Erreur lors de la création du paiement:', error);
+      logger.error('Erreur lors de la création du paiement', error, 'PackageManagementPage');
       showError('Erreur lors de l\'initialisation du paiement. Veuillez réessayer.');
     } finally {
       setIsCreatingPayment(false);
@@ -361,7 +369,7 @@ export const PackageManagementPage: React.FC = () => {
       }
       
     } catch (error) {
-      console.error('Erreur lors du traitement du paiement:', error);
+      logger.error('Erreur lors du traitement du paiement', error, 'PackageManagementPage');
       showError('Erreur lors du traitement du paiement. Le paiement a été enregistré. Veuillez contacter le support si le problème persiste.');
       // Close modal on error
       setIsPaymentModalOpen(false);
@@ -389,7 +397,7 @@ export const PackageManagementPage: React.FC = () => {
       await PaymentService.updatePaymentStatus(currentPaymentId, data, 'failed');
       showError('Paiement échoué. Veuillez réessayer.');
     } catch (error) {
-      console.error('Erreur lors de la mise à jour du statut de paiement:', error);
+      logger.error('Erreur lors de la mise à jour du statut de paiement', error, 'PackageManagementPage');
     } finally {
       // Reset states
       setIsProcessing(false);
@@ -409,7 +417,7 @@ export const PackageManagementPage: React.FC = () => {
       // Update payment status in Firebase
       await PaymentService.updatePaymentStatus(currentPaymentId, data, 'cancelled');
     } catch (error) {
-      console.error('Erreur lors de la mise à jour du statut de paiement:', error);
+      logger.error('Erreur lors de la mise à jour du statut de paiement', error, 'PackageManagementPage');
     } finally {
       // Reset states
       setIsProcessing(false);
@@ -423,12 +431,12 @@ export const PackageManagementPage: React.FC = () => {
   }, [currentPaymentId]);
 
   const handlePaymentModalOpen = useCallback(() => {
-    console.log('Payment modal opened');
+    logger.debug('Payment modal opened', undefined, 'PackageManagementPage');
     setIsPaymentModalOpen(true);
   }, []);
 
   const handlePaymentModalClosed = useCallback(() => {
-    console.log('Payment modal closed');
+    logger.debug('Payment modal closed', undefined, 'PackageManagementPage');
     setIsPaymentModalOpen(false);
   }, []);
 
@@ -437,11 +445,11 @@ export const PackageManagementPage: React.FC = () => {
     // The modal will create the payment and handle the success/failure
     // This callback is kept for backward compatibility but won't be used
     // since the PaymentModal now handles the payment flow directly
-    console.log('Resource purchase requested:', option);
+    logger.debug('Resource purchase requested', { option }, 'PackageManagementPage');
   };
 
   const handlePaymentCreated = useCallback((paymentRequest: PaymentRequest, paymentId: string) => {
-    console.log('Payment created in PaymentModal, setting autoOpenPayment to true');
+    logger.debug('Payment created in PaymentModal, setting autoOpenPayment to true', { paymentId }, 'PackageManagementPage');
     setPaymentRequest(paymentRequest);
     setCurrentPaymentId(paymentId);
     setAutoOpenPayment(true);
@@ -514,7 +522,7 @@ export const PackageManagementPage: React.FC = () => {
         const info = await UserSessionService.getUserPackageInfo(user);
         setPackageInfo(info);
       } catch (error) {
-        console.error('Erreur lors du chargement des informations du package:', error);
+        logger.error('Erreur lors du chargement des informations du package', error, 'PackageManagementPage');
         setPackageInfo(null);
       } finally {
         setIsLoadingPackageInfo(false);
@@ -817,7 +825,7 @@ export const PackageManagementPage: React.FC = () => {
                         <span className="text-gray-400">Chargement...</span>
                       ) : packageInfo ? (
                         (() => {
-                          const currentUsers = employees.filter(emp => emp.isApproved !== false).length;
+                          const currentUsers = employees.filter((emp: { isApproved?: boolean }) => emp.isApproved !== false).length;
                           if (packageInfo.totalUsers === -1) {
                             return 'Illimité';
                           }
@@ -832,7 +840,7 @@ export const PackageManagementPage: React.FC = () => {
                         <span className="text-gray-400">Chargement...</span>
                       ) : packageInfo ? (
                         (() => {
-                          const currentUsers = employees.filter(emp => emp.isApproved !== false).length;
+                          const currentUsers = employees.filter((emp: { isApproved?: boolean }) => emp.isApproved !== false).length;
                           if (packageInfo.totalUsers === -1) {
                             return `${currentUsers} sur Illimité`;
                           }

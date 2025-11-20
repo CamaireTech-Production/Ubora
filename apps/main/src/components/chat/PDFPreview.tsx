@@ -4,6 +4,7 @@ import { Button } from '../ui/Button';
 import { PDFData, GraphData } from '@ubora/shared/types';
 import { generatePDF, PDFGenerator } from '@ubora/shared/utils/PDFGenerator';
 import { GraphRenderer } from './GraphRenderer';
+import { logger } from '@ubora/shared/utils/logger';
 
 interface TextPDFPreviewProps {
   content: string;
@@ -532,7 +533,7 @@ export const TextPDFPreview: React.FC<TextPDFPreviewProps> = ({ content, title =
                     imageData: chartImage
                   };
                 } catch (error) {
-                  console.error(`Error converting chart ${index + 1} to PNG:`, error);
+                  logger.error('Error converting chart to PNG', { index: index + 1, error }, 'PDFPreview');
                   return chart;
                 }
               })
@@ -551,7 +552,7 @@ export const TextPDFPreview: React.FC<TextPDFPreviewProps> = ({ content, title =
         generator.generateReportFromText(content, title);
       }
     } catch (error) {
-      console.error('Error generating PDF with charts:', error);
+      logger.error('Error generating PDF with charts', error, 'PDFPreview');
       // Fallback to text-only PDF
       const generator = new PDFGenerator();
       generator.generateReportFromText(content, title);

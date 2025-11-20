@@ -3,6 +3,8 @@
  * Provides user-friendly error messages, retry logic, and connection quality detection
  */
 
+import { logger } from './logger';
+
 export interface RetryOptions {
   maxRetries?: number;
   timeout?: number;
@@ -203,7 +205,7 @@ export const enhancedFetch = {
 
       return response;
     } catch (error) {
-      console.error('AI request failed:', error);
+      logger.error('AI request failed', error, 'errorHandling');
       throw error;
     }
   },
@@ -221,7 +223,7 @@ export const enhancedFetch = {
 
       return response;
     } catch (error) {
-      console.error('OCR request failed:', error);
+      logger.error('OCR request failed', error, 'errorHandling');
       throw error;
     }
   }

@@ -5,6 +5,7 @@
 
 import { qdrantRequest, COLLECTION_NAME } from './vectorDb.js';
 import { generateEmbedding } from './embeddings.js';
+import { logger } from './logger.js';
 
 // Import adminDb - used for enriching user metadata (names/emails) in search results
 // If Firebase Admin fails to initialize, adminDb will be undefined and enrichment will be skipped
@@ -70,7 +71,7 @@ function buildFilter(agencyId, activeUniversId = null, formId = null, userId = n
   // DEBUG MODE: Log filter details with full JSON
   if (debug) {
     const filterObject = must.length > 0 ? { must } : null;
-    console.log('🔍 [DEBUG] Qdrant Filter Built:', {
+    logger.debug('Qdrant Filter Built', {
       agencyId,
       activeUniversId: activeUniversId || '(not set)',
       formId: formId || '(not set)',
@@ -104,14 +105,14 @@ async function getActiveUniversId(directorId, agencyId) {
     if (activeUniversDoc.exists) {
       const activeUniversData = activeUniversDoc.data();
       const activeUniversId = activeUniversData.activeUniversId;
-      console.log(`✅ Active Univers found for director ${directorId}: ${activeUniversId}`);
+      logger.info('Active Univers found for director', { directorId, activeUniversId }, 'vectorSearch.js');
       return activeUniversId;
     } else {
-      console.log(`⚠️ No active Univers found for director: ${directorId}`);
+      logger.warn('No active Univers found for director', { directorId }, 'vectorSearch.js');
       return null;
     }
   } catch (error) {
-    console.error('❌ Error retrieving active Univers:', error);
+    logger.error('Error retrieving active Univers', error, 'vectorSearch.js');
     return null; // Continue without Univers filter if error
   }
 }
@@ -153,7 +154,7 @@ export async function searchVectors(
       
       // DEBUG MODE: Log active Univers lookup
       if (debug) {
-        console.log('🔍 [DEBUG] Active Univers Lookup:', {
+        logger.debug('Active Univers Lookup', {
           directorId,
           agencyId,
           found: finalActiveUniversId || '(not found)'
@@ -212,7 +213,7 @@ export async function searchVectors(
       rank: index + 1,
     }));
 
-    console.log(`🔍 Found ${results.length} relevant chunks for query: "${queryText.substring(0, 50)}..."`);
+    logger.debug('Found relevant chunks', { count: results.length, queryPreview: queryText.substring(0, 50) }, 'vectorSearch.js');
 
     // DEBUG MODE: Log detailed results
     if (debug) {
@@ -220,7 +221,7 @@ export async function searchVectors(
       const uniqueUniversIds = [...new Set(results.map(r => r.metadata.universId).filter(Boolean))];
       const uniqueUserIds = [...new Set(results.map(r => r.metadata.userId).filter(Boolean))];
       
-      console.log('🔍 [DEBUG] Vector Search Results:', {
+      logger.debug('Vector Search Results', {
         query: queryText.substring(0, 100),
         totalResults: results.length,
         searchParams: {
@@ -260,7 +261,7 @@ export async function searchVectors(
 
     return results;
   } catch (error) {
-    console.error('❌ Vector search failed:', error);
+    logger.error('Vector search failed', error, 'vectorSearch.js');
     throw error;
   }
 }
@@ -269,72 +270,69 @@ export async function searchVectors(
  * Enrich metadata with user information (name, email) from Firebase
  */
 async function enrichUserMetadata(results) {
-  console.log('🔍 [DEBUG] enrichUserMetadata: Starting enrichment...');
-  console.log('🔍 [DEBUG] enrichUserMetadata: Results count:', results.length);
+  logger.debug('enrichUserMetadata: Starting enrichment', { resultsCount: results.length }, 'vectorSearch.js');
   
   // Collect unique user IDs
   const userIds = [...new Set(results.map(r => r.metadata?.userId).filter(Boolean))];
-  console.log('🔍 [DEBUG] enrichUserMetadata: Unique user IDs found:', userIds.length, userIds);
+  logger.debug('enrichUserMetadata: Unique user IDs found', { count: userIds.length, userIds }, 'vectorSearch.js');
   
   if (userIds.length === 0) {
-    console.log('🔍 [DEBUG] enrichUserMetadata: No user IDs found, returning original results');
+    logger.debug('enrichUserMetadata: No user IDs found, returning original results', null, 'vectorSearch.js');
     return results;
   }
 
   // Check adminDb availability
   if (!adminDb) {
-    console.error('❌ [DEBUG] enrichUserMetadata: adminDb is not available!');
+    logger.error('enrichUserMetadata: adminDb is not available', null, 'vectorSearch.js');
     return results;
   }
-  console.log('🔍 [DEBUG] enrichUserMetadata: adminDb is available');
+  logger.debug('enrichUserMetadata: adminDb is available', null, 'vectorSearch.js');
 
   // Fetch user data from Firebase in batch
   const usersMap = new Map();
   try {
-    console.log('🔍 [DEBUG] enrichUserMetadata: Starting Firebase queries for', userIds.length, 'users');
+    logger.debug('enrichUserMetadata: Starting Firebase queries', { userCount: userIds.length }, 'vectorSearch.js');
     const userPromises = userIds.map(async (userId) => {
       try {
-        console.log('🔍 [DEBUG] enrichUserMetadata: Fetching user:', userId);
+        logger.debug('enrichUserMetadata: Fetching user', { userId }, 'vectorSearch.js');
         const userDoc = await adminDb.collection('users').doc(userId).get();
         if (userDoc.exists) {
           const userData = userDoc.data();
-          console.log('🔍 [DEBUG] enrichUserMetadata: User found:', userId, { name: userData?.name, email: userData?.email });
+          logger.debug('enrichUserMetadata: User found', { userId, name: userData?.name, email: userData?.email }, 'vectorSearch.js');
           return {
             userId,
             name: userData?.name || null,
             email: userData?.email || null,
           };
         }
-        console.log('🔍 [DEBUG] enrichUserMetadata: User not found:', userId);
+        logger.debug('enrichUserMetadata: User not found', { userId }, 'vectorSearch.js');
         return { userId, name: null, email: null };
       } catch (error) {
-        console.error(`❌ [DEBUG] enrichUserMetadata: Error fetching user ${userId}:`, error.message);
-        console.error(`❌ [DEBUG] enrichUserMetadata: Error stack:`, error.stack);
+        logger.error(`enrichUserMetadata: Error fetching user ${userId}`, error, 'vectorSearch.js');
         return { userId, name: null, email: null };
       }
     });
 
     const users = await Promise.all(userPromises);
-    console.log('🔍 [DEBUG] enrichUserMetadata: Firebase queries completed, processing results...');
+    logger.debug('enrichUserMetadata: Firebase queries completed, processing results', null, 'vectorSearch.js');
     users.forEach(user => {
       if (user && (user.name || user.email)) {
         usersMap.set(user.userId, user);
       }
     });
-    console.log('🔍 [DEBUG] enrichUserMetadata: Users map size:', usersMap.size);
+    logger.debug('enrichUserMetadata: Users map size', { size: usersMap.size }, 'vectorSearch.js');
   } catch (error) {
-    console.error('❌ [DEBUG] enrichUserMetadata: Fatal error in enrichment process:', error.message);
-    console.error('❌ [DEBUG] enrichUserMetadata: Error stack:', error.stack);
+    logger.error('enrichUserMetadata: Fatal error in enrichment process', error, 'vectorSearch.js');
     // Return original results if enrichment fails
     return results;
   }
 
   // Enrich results with user information
-  console.log('🔍 [DEBUG] enrichUserMetadata: Enriching', results.length, 'results with user data...');
+  logger.debug('enrichUserMetadata: Enriching results with user data', { resultsCount: results.length }, 'vectorSearch.js');
   try {
     const enriched = results.map((result, index) => {
       if (!result || !result.metadata) {
-        console.warn(`⚠️ [DEBUG] enrichUserMetadata: Result ${index} has no metadata`);
+        logger.warn(`enrichUserMetadata: Result ${index} has no metadata`, null, 'vectorSearch.js');
         return result;
       }
       
@@ -348,7 +346,7 @@ async function enrichUserMetadata(results) {
         if (!employeeName || employeeName.startsWith('Utilisateur ') || employeeName === userId) {
           // Use name if available, otherwise email, otherwise keep original
           displayName = user.name || user.email || employeeName;
-          console.log(`🔍 [DEBUG] enrichUserMetadata: Replaced "${employeeName}" with "${displayName}" for user ${userId}`);
+          logger.debug('enrichUserMetadata: Replaced employeeName', { old: employeeName, new: displayName, userId }, 'vectorSearch.js');
         }
       }
 
@@ -363,11 +361,10 @@ async function enrichUserMetadata(results) {
         },
       };
     });
-    console.log('🔍 [DEBUG] enrichUserMetadata: Enrichment completed, returning', enriched.length, 'results');
+    logger.debug('enrichUserMetadata: Enrichment completed', { enrichedCount: enriched.length }, 'vectorSearch.js');
     return enriched;
   } catch (error) {
-    console.error('❌ [DEBUG] enrichUserMetadata: Error in map function:', error.message);
-    console.error('❌ [DEBUG] enrichUserMetadata: Error stack:', error.stack);
+    logger.error('enrichUserMetadata: Error in map function', error, 'vectorSearch.js');
     return results;
   }
 }
@@ -399,16 +396,14 @@ export async function searchAndFormatForAI(
   
   // Check if adminDb is available before attempting enrichment
   if (!adminDb) {
-    console.warn('⚠️ [DEBUG] searchAndFormatForAI: adminDb not available, skipping enrichment');
+    logger.warn('searchAndFormatForAI: adminDb not available, skipping enrichment', null, 'vectorSearch.js');
     enrichedResults = results;
   } else {
     try {
       enrichedResults = await enrichUserMetadata(results);
-      console.log('✅ [DEBUG] searchAndFormatForAI: Enrichment completed successfully');
+      logger.debug('searchAndFormatForAI: Enrichment completed successfully', null, 'vectorSearch.js');
     } catch (error) {
-      console.error('❌ [DEBUG] searchAndFormatForAI: Error enriching user metadata, using original results');
-      console.error('❌ [DEBUG] searchAndFormatForAI: Error message:', error.message);
-      console.error('❌ [DEBUG] searchAndFormatForAI: Error stack:', error.stack);
+      logger.error('searchAndFormatForAI: Error enriching user metadata, using original results', error, 'vectorSearch.js');
       // Continue with original results if enrichment fails
       enrichedResults = results;
     }

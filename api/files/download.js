@@ -1,4 +1,5 @@
 import { adminDb, admin } from '../lib/firebaseAdmin.js';
+import { logger } from '../lib/logger.js';
 
 /**
  * GET /api/files/download
@@ -28,8 +29,7 @@ async function downloadHandler(req, res) {
       return res.status(204).end();
     }
 
-    console.log('🔍 Download endpoint called with method:', req.method);
-    console.log('🔍 Query params:', req.query);
+    logger.debug('Download endpoint called', { method: req.method, query: req.query }, 'files/download.js');
     
     const { downloadUrl } = req.query;
 
@@ -61,7 +61,7 @@ async function downloadHandler(req, res) {
 
     const [agencyId, formId, userId, fileId] = pathParts;
 
-    console.log('🔄 Looking for file:', { agencyId, formId, userId, fileId });
+    logger.info('Looking for file', { agencyId, formId, userId, fileId }, 'files/download.js');
 
     // Find the file in the fileData collection
     const fileQuery = await adminDb
@@ -74,7 +74,7 @@ async function downloadHandler(req, res) {
       .get();
 
     if (fileQuery.empty) {
-      console.log('❌ File not found in Firestore');
+      logger.warn('File not found in Firestore', { agencyId, formId, userId, fileId }, 'files/download.js');
       return res.status(404).json({
         success: false,
         error: 'File not found'
@@ -84,7 +84,7 @@ async function downloadHandler(req, res) {
     const fileDoc = fileQuery.docs[0];
     const fileData = fileDoc.data();
 
-    console.log('✅ File found:', {
+    logger.info('File found', {
       fileName: fileData.fileName,
       fileType: fileData.fileType,
       fileSize: fileData.fileSize
@@ -100,7 +100,7 @@ async function downloadHandler(req, res) {
     res.send(fileBuffer);
 
   } catch (error) {
-    console.error('❌ Error in download endpoint:', error);
+    logger.error('Error in download endpoint', error, 'files/download.js');
     res.status(500).json({
       success: false,
       error: 'Internal server error'

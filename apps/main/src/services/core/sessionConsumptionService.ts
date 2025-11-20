@@ -1,3 +1,4 @@
+import { logger } from '@ubora/shared/utils/logger';
 import { doc, updateDoc, getDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '@ubora/shared/firebaseConfig';
 import { User, SubscriptionSession } from '../../types';
@@ -14,7 +15,7 @@ export class SessionConsumptionService {
       const currentSession = await SubscriptionSessionCollectionService.getActiveSession(userId);
       
       if (!currentSession) {
-        console.error('No active session found for user:', userId);
+        logger.error('No active session found for user', { userId }, 'SessionConsumptionService');
         return false;
       }
       
@@ -35,7 +36,7 @@ export class SessionConsumptionService {
       });
       
     } catch (error) {
-      console.error('Error tracking form creation:', error);
+      logger.error('Error tracking form creation', error, 'SessionConsumptionService');
       return false;
     }
   }
@@ -49,7 +50,7 @@ export class SessionConsumptionService {
       const currentSession = await SubscriptionSessionCollectionService.getActiveSession(userId);
       
       if (!currentSession) {
-        console.error('No active session found for user:', userId);
+        logger.error('No active session found for user', { userId }, 'SessionConsumptionService');
         return false;
       }
       
@@ -70,7 +71,7 @@ export class SessionConsumptionService {
       });
       
     } catch (error) {
-      console.error('Error tracking dashboard creation:', error);
+      logger.error('Error tracking dashboard creation', error, 'SessionConsumptionService');
       return false;
     }
   }
@@ -84,7 +85,7 @@ export class SessionConsumptionService {
       const currentSession = await SubscriptionSessionCollectionService.getActiveSession(userId);
       
       if (!currentSession) {
-        console.error('No active session found for user:', userId);
+        logger.error('No active session found for user', { userId }, 'SessionConsumptionService');
         return false;
       }
       
@@ -105,7 +106,7 @@ export class SessionConsumptionService {
       });
       
     } catch (error) {
-      console.error('Error tracking user addition:', error);
+      logger.error('Error tracking user addition', error, 'SessionConsumptionService');
       return false;
     }
   }
@@ -119,7 +120,7 @@ export class SessionConsumptionService {
       const currentSession = await SubscriptionSessionCollectionService.getActiveSession(userId);
       
       if (!currentSession) {
-        console.error('No active session found for user:', userId);
+        logger.error('No active session found for user', { userId }, 'SessionConsumptionService');
         return false;
       }
       
@@ -140,7 +141,7 @@ export class SessionConsumptionService {
       });
       
     } catch (error) {
-      console.error('Error tracking token consumption:', error);
+      logger.error('Error tracking token consumption', error, 'SessionConsumptionService');
       return false;
     }
   }
@@ -429,7 +430,7 @@ export class SessionConsumptionService {
       const currentSession = await SubscriptionSessionCollectionService.getActiveSession(userId);
       
       if (!currentSession) {
-        console.error('No active session found for user:', userId);
+        logger.error('No active session found for user', { userId }, 'SessionConsumptionService');
         return false;
       }
       
@@ -462,7 +463,7 @@ export class SessionConsumptionService {
       });
       
     } catch (error) {
-      console.error('Error tracking text extraction:', error);
+      logger.error('Error tracking text extraction', error, 'SessionConsumptionService');
       return false;
     }
   }

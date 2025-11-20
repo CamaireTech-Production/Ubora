@@ -8,6 +8,7 @@ import { listsService } from '@ubora/shared/services/listsService';
 import { useToast } from '@ubora/shared/hooks/useToast';
 import { validateValueAgainstType } from '@ubora/shared/utils/csvTypeDetector';
 import { ConfirmationModal } from '../modals/ConfirmationModal';
+import { logger } from '@ubora/shared/utils/logger';
 
 interface ListViewModalProps {
   list: List;
@@ -46,7 +47,7 @@ export const ListViewModal: React.FC<ListViewModalProps> = ({
             setCurrentList(list);
           }
         } catch (error) {
-          console.error('Erreur lors du chargement de la liste:', error);
+          logger.error('Erreur lors du chargement de la liste', error, 'ListViewModal');
           setCurrentList(list);
         }
       };
@@ -132,7 +133,7 @@ export const ListViewModal: React.FC<ListViewModalProps> = ({
         onListUpdated();
       }
     } catch (error) {
-      console.error('Erreur lors de l\'ajout de la ligne:', error);
+      logger.error('Erreur lors de l\'ajout de la ligne', error, 'ListViewModal');
       showError('Erreur lors de l\'ajout de la ligne');
     } finally {
       setIsSaving(false);
@@ -187,7 +188,7 @@ export const ListViewModal: React.FC<ListViewModalProps> = ({
         onListUpdated();
       }
     } catch (error) {
-      console.error('Erreur lors de la modification de la ligne:', error);
+      logger.error('Erreur lors de la modification de la ligne', error, 'ListViewModal');
       showError('Erreur lors de la modification de la ligne');
     } finally {
       setIsSaving(false);
@@ -231,7 +232,7 @@ export const ListViewModal: React.FC<ListViewModalProps> = ({
         onListUpdated();
       }
     } catch (error) {
-      console.error('Erreur lors de la suppression de la ligne:', error);
+      logger.error('Erreur lors de la suppression de la ligne', error, 'ListViewModal');
       showError('Erreur lors de la suppression de la ligne');
     } finally {
       setIsSaving(false);

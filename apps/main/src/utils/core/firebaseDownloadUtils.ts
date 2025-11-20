@@ -2,6 +2,8 @@
  * Firebase Storage specific download utilities
  */
 
+import { logger } from '@ubora/shared/utils/logger';
+
 /**
  * Force download a file from Firebase Storage by creating a proper download URL
  */
@@ -199,7 +201,7 @@ export const forceDownloadFromFirebase = async (
 
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown download error';
-    console.error('❌ Firebase download failed:', errorMessage);
+    logger.error('Firebase download failed', { errorMessage }, 'firebaseDownloadUtils');
     onError?.(errorMessage);
     throw error;
   }

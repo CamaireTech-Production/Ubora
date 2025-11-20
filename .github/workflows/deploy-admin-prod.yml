@@ -152,6 +152,10 @@ jobs:
         password: ${{ secrets.ADMIN_PROD_FTP_PASSWORD }}
         local-dir: ./deploy-admin-package/
         server-dir: /
+        timeout: 600
+        dangerous-clean-slate: false
+        dry-run: false
+        log-level: verbose
         exclude: |
           **/.git*
           **/.git*/**

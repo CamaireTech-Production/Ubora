@@ -1,4 +1,5 @@
-import { ChatMessage, GraphData, PDFData, PDFFileReference, ImageFileReference } from '../types';
+import { ChatMessage, GraphData, GraphDataPoint, PDFData, PDFSection, PDFFileReference, ImageFileReference } from '../types';
+import { logger } from '@ubora/shared/utils/logger';
 
 export interface ParsedResponse {
   contentType: 'text' | 'graph' | 'pdf' | 'text-pdf' | 'table' | 'mixed' | 'multi-format';
@@ -71,9 +72,14 @@ export class ResponseParser {
       content: response
     };
   }
-  
+
   private static parseMultiFormatResponse(response: string, selectedFormats: string[]): ParsedResponse {
-    const multiFormatData: any = {};
+    interface MultiFormatData {
+      graphData?: GraphData;
+      tableData?: string;
+      pdfContent?: string;
+    }
+    const multiFormatData: MultiFormatData = {};
     let hasAnyFormat = false;
 
     // Parse each selected format
@@ -167,7 +173,7 @@ export class ResponseParser {
           };
         }
       } catch (error) {
-        console.error('Error parsing stats JSON:', error);
+        logger.error('Error parsing stats JSON', error, 'ResponseParser');
         // Try to find and parse JSON more aggressively with multiple patterns
         const jsonPatterns = [
           /\{\s*"type"\s*:\s*"[^"]*"\s*,[\s\S]*?\}/g,
@@ -190,7 +196,7 @@ export class ResponseParser {
                 };
               }
             } catch (parseError) {
-              console.error('Error parsing JSON pattern:', parseError);
+              logger.error('Error parsing JSON pattern', parseError, 'ResponseParser');
             }
           }
         }
@@ -204,7 +210,7 @@ export class ResponseParser {
     };
   }
 
-  private static enhanceGraphData(data: any): GraphData {
+  private static enhanceGraphData(data: Partial<GraphData> & { data?: unknown[] }): GraphData {
     
     // Ensure data.data is always an array
     const dataArray = Array.isArray(data.data) ? data.data : [];
@@ -337,7 +343,7 @@ export class ResponseParser {
   }
 
 
-  private static isGraphData(data: any): boolean {
+  private static isGraphData(data: unknown): data is Partial<GraphData> & { data: GraphDataPoint[] } {
     // Basic validation
     if (!data || typeof data !== 'object') {
       return false;
@@ -361,7 +367,7 @@ export class ResponseParser {
     
     // Additional validation for data structure
     // At least one data point should have a value or be a valid data structure
-    const hasValidData = data.data.some((item: any) => {
+    const hasValidData = data.data.some((item: unknown) => {
       if (typeof item === 'object' && item !== null) {
         // Check for common data keys
         return item.value !== undefined || 
@@ -442,11 +448,24 @@ export class ResponseParser {
       .trim();
   }
   
+  interface ChatMessageMeta {
+    period?: string;
+    usedEntries?: number;
+    forms?: number;
+    users?: number;
+    tokensUsed?: number;
+    model?: string;
+    selectedFormat?: string | null;
+    selectedFormats?: string[];
+    selectedFormIds?: string[];
+    selectedFormTitles?: string[];
+  }
+
   static createMessageFromParsedResponse(
     parsedResponse: ParsedResponse,
     messageId: string,
     responseTime?: number,
-    meta?: any
+    meta?: ChatMessageMeta
   ): ChatMessage {
     const baseMessage: ChatMessage = {
       id: messageId,
@@ -480,12 +499,12 @@ export class ResponseParser {
    * Parse PDF content for multi-format responses, properly structuring sections and charts
    */
   private static parsePDFContentForMultiFormat(pdfContent: string, graphData?: GraphData, tableData?: string): PDFData {
-    const sections: any[] = [];
+    const sections: PDFSection[] = [];
     const charts: GraphData[] = [];
 
     // Split content into sections based on markdown headers
     const lines = pdfContent.split('\n');
-    let currentSection: any = null;
+    let currentSection: Partial<PDFSection> | null = null;
     let currentContent: string[] = [];
 
     for (const line of lines) {
