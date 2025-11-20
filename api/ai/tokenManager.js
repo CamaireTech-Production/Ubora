@@ -19,7 +19,7 @@ import { logger } from '../lib/logger.js';
  * @param {number} actualTokens - Actual tokens used
  * @returns {number} - User tokens to charge
  */
-function calculateUserTokens(actualTokens) {
+export function calculateUserTokens(actualTokens) {
   return Math.ceil((actualTokens * 2.5) / 100);
 }
 
@@ -190,7 +190,6 @@ async function updateTokenUsage(uid, tokensToCharge, currentSession) {
 }
 
 export {
-  calculateUserTokens,
   getPackageLimit,
   checkSubscriptionAndResetTokens,
   getActiveSession,
