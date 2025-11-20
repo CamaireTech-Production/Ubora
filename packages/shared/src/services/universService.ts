@@ -3641,14 +3641,21 @@ class UniversService {
         for (const formDoc of formsSnapshot.docs) {
           const formData = formDoc.data();
           
-          // Vérifier si le formulaire a des données utilisateur
+          // NEVER delete custom resources (fromUnivers: false)
+          if (formData.fromUnivers === false) {
+            console.log(`🔒 Préservation du formulaire personnalisé "${formData.name || formDoc.id}" (ID: ${formDoc.id})`);
+            preservedResources.forms++;
+            continue;
+          }
+          
+          // Vérifier si le formulaire template a des données utilisateur
           if (this.hasFormUserData(formData)) {
-            console.log(`🔒 Préservation du formulaire "${formData.name || formDoc.id}" (ID: ${formDoc.id}) car il contient des données utilisateur`);
+            console.log(`🔒 Préservation du formulaire template "${formData.name || formDoc.id}" (ID: ${formDoc.id}) car il contient des données utilisateur`);
             preservedResources.forms++;
             continue; // Ne pas supprimer ce formulaire
           }
           
-          // Supprimer seulement les formulaires sans données utilisateur
+          // Supprimer seulement les formulaires template sans données utilisateur
           batch.delete(doc(db, 'forms', formDoc.id));
           batchCount++;
           totalDeleted++;
@@ -3672,14 +3679,21 @@ class UniversService {
         for (const dashboardDoc of dashboardsSnapshot.docs) {
           const dashboardData = dashboardDoc.data();
           
-          // Vérifier si le dashboard a des données utilisateur
+          // NEVER delete custom resources (fromUnivers: false)
+          if (dashboardData.fromUnivers === false) {
+            console.log(`🔒 Préservation du dashboard personnalisé "${dashboardData.name || dashboardDoc.id}" (ID: ${dashboardDoc.id})`);
+            preservedResources.dashboards++;
+            continue;
+          }
+          
+          // Vérifier si le dashboard template a des données utilisateur
           if (this.hasDashboardUserData(dashboardData)) {
-            console.log(`🔒 Préservation du dashboard "${dashboardData.name || dashboardDoc.id}" (ID: ${dashboardDoc.id}) car il contient des données utilisateur`);
+            console.log(`🔒 Préservation du dashboard template "${dashboardData.name || dashboardDoc.id}" (ID: ${dashboardDoc.id}) car il contient des données utilisateur`);
             preservedResources.dashboards++;
             continue; // Ne pas supprimer ce dashboard
           }
           
-          // Supprimer seulement les dashboards sans données utilisateur
+          // Supprimer seulement les dashboards template sans données utilisateur
           batch.delete(doc(db, 'dashboards', dashboardDoc.id));
           batchCount++;
           totalDeleted++;
@@ -3703,14 +3717,21 @@ class UniversService {
         for (const instructionDoc of instructionsSnapshot.docs) {
           const instructionData = instructionDoc.data();
           
-          // Vérifier si l'instruction a des données utilisateur
+          // NEVER delete custom resources (fromUnivers: false)
+          if (instructionData.fromUnivers === false) {
+            console.log(`🔒 Préservation de l'instruction personnalisée "${instructionData.title || instructionDoc.id}" (ID: ${instructionDoc.id})`);
+            preservedResources.instructions++;
+            continue;
+          }
+          
+          // Vérifier si l'instruction template a des données utilisateur
           if (this.hasInstructionUserData(instructionData)) {
-            console.log(`🔒 Préservation de l'instruction "${instructionData.title || instructionDoc.id}" (ID: ${instructionDoc.id}) car elle contient des données utilisateur`);
+            console.log(`🔒 Préservation de l'instruction template "${instructionData.title || instructionDoc.id}" (ID: ${instructionDoc.id}) car elle contient des données utilisateur`);
             preservedResources.instructions++;
             continue; // Ne pas supprimer cette instruction
           }
           
-          // Supprimer seulement les instructions sans données utilisateur
+          // Supprimer seulement les instructions template sans données utilisateur
           batch.delete(doc(db, 'scheduledQuestions', instructionDoc.id));
           batchCount++;
           totalDeleted++;
@@ -3733,16 +3754,24 @@ class UniversService {
         const listsSnapshot = await getDocs(listsQuery);
         for (const listDoc of listsSnapshot.docs) {
           const listData = listDoc.data();
+          
+          // NEVER delete custom resources (fromUnivers: false)
+          if (listData.fromUnivers === false) {
+            console.log(`🔒 Préservation de la liste personnalisée "${listData.name}" (ID: ${listDoc.id})`);
+            preservedResources.lists++;
+            continue;
+          }
+          
           const listDefinition = listDefinitionsMap.get(listData.name);
           
-          // Vérifier si la liste a des données utilisateur
+          // Vérifier si la liste template a des données utilisateur
           if (this.hasUserAddedData(listData, listDefinition)) {
-            console.log(`🔒 Préservation de la liste "${listData.name}" (ID: ${listDoc.id}) car elle contient des données utilisateur`);
+            console.log(`🔒 Préservation de la liste template "${listData.name}" (ID: ${listDoc.id}) car elle contient des données utilisateur`);
             preservedResources.lists++;
             continue; // Ne pas supprimer cette liste
           }
           
-          // Supprimer seulement les listes sans données utilisateur
+          // Supprimer seulement les listes template sans données utilisateur
           batch.delete(doc(db, 'lists', listDoc.id));
           batchCount++;
           totalDeleted++;
@@ -3766,14 +3795,21 @@ class UniversService {
         for (const reportDoc of reportsSnapshot.docs) {
           const reportData = reportDoc.data();
           
-          // Vérifier si le rapport a des données utilisateur
+          // NEVER delete custom resources (fromUnivers: false)
+          if (reportData.fromUnivers === false) {
+            console.log(`🔒 Préservation du rapport personnalisé "${reportData.name || reportDoc.id}" (ID: ${reportDoc.id})`);
+            preservedResources.reports++;
+            continue;
+          }
+          
+          // Vérifier si le rapport template a des données utilisateur
           if (this.hasReportUserData(reportData)) {
-            console.log(`🔒 Préservation du rapport "${reportData.name || reportDoc.id}" (ID: ${reportDoc.id}) car il contient des données utilisateur`);
+            console.log(`🔒 Préservation du rapport template "${reportData.name || reportDoc.id}" (ID: ${reportDoc.id}) car il contient des données utilisateur`);
             preservedResources.reports++;
             continue; // Ne pas supprimer ce rapport
           }
           
-          // Supprimer seulement les rapports sans données utilisateur
+          // Supprimer seulement les rapports template sans données utilisateur
           batch.delete(doc(db, 'reports', reportDoc.id));
           batchCount++;
           totalDeleted++;
@@ -3882,6 +3918,44 @@ class UniversService {
         existingReportsMap.set(data.name || doc.id, { id: doc.id, data });
       });
 
+      // SEPARATE: Template resources vs Custom resources
+      // Custom resources (fromUnivers: false) should NEVER be touched during updates
+      const existingFormsList = Array.from(existingFormsMap.values());
+      const existingDashboardsList = Array.from(existingDashboardsMap.values());
+      const existingInstructionsList = Array.from(existingInstructionsMap.values());
+      const existingListsList = Array.from(existingListsMap.values());
+      const existingReportsList = Array.from(existingReportsMap.values());
+
+      const { template: templateForms, custom: customForms } = this.separateTemplateAndCustomResources(existingFormsList, 'forms');
+      const { template: templateDashboards, custom: customDashboards } = this.separateTemplateAndCustomResources(existingDashboardsList, 'dashboards');
+      const { template: templateInstructions, custom: customInstructions } = this.separateTemplateAndCustomResources(existingInstructionsList, 'instructions');
+      const { template: templateLists, custom: customLists } = this.separateTemplateAndCustomResources(existingListsList, 'lists');
+      const { template: templateReports, custom: customReports } = this.separateTemplateAndCustomResources(existingReportsList, 'reports');
+
+      // Log custom resources that will be preserved
+      const totalCustom = customForms.length + customDashboards.length + customInstructions.length + customLists.length + customReports.length;
+      if (totalCustom > 0) {
+        console.log(`🔒 ${totalCustom} ressource(s) personnalisée(s) détectée(s) - préservation garantie:`);
+        if (customForms.length > 0) console.log(`   - ${customForms.length} formulaire(s) personnalisé(s)`);
+        if (customDashboards.length > 0) console.log(`   - ${customDashboards.length} dashboard(s) personnalisé(s)`);
+        if (customInstructions.length > 0) console.log(`   - ${customInstructions.length} instruction(s) personnalisée(s)`);
+        if (customLists.length > 0) console.log(`   - ${customLists.length} liste(s) personnalisée(s)`);
+        if (customReports.length > 0) console.log(`   - ${customReports.length} rapport(s) personnalisé(s)`);
+      }
+
+      // Rebuild maps with only template resources for matching logic
+      const templateFormsMap = new Map<string, { id: string; data: any }>();
+      const templateDashboardsMap = new Map<string, { id: string; data: any }>();
+      const templateInstructionsMap = new Map<string, { id: string; data: any }>();
+      const templateListsMap = new Map<string, { id: string; data: any }>();
+      const templateReportsMap = new Map<string, { id: string; data: any }>();
+
+      templateForms.forEach(r => templateFormsMap.set(r.data.name || r.data.title || r.id, r));
+      templateDashboards.forEach(r => templateDashboardsMap.set(r.data.name || r.id, r));
+      templateInstructions.forEach(r => templateInstructionsMap.set(r.data.title || r.id, r));
+      templateLists.forEach(r => templateListsMap.set(r.data.name || r.id, r));
+      templateReports.forEach(r => templateReportsMap.set(r.data.name || r.id, r));
+
       // Créer des maps des définitions par nom/ID
       const listDefinitionsMap = new Map<string, any>();
       if (univers.definitions.lists) {
@@ -3907,12 +3981,12 @@ class UniversService {
         reports: [] as any[]
       };
 
-      // Filtrer les formulaires
+      // Filtrer les formulaires (TEMPLATE ONLY - custom forms are already separated)
       if (univers.definitions.forms) {
         for (const formDef of univers.definitions.forms) {
-          const existing = existingFormsMap.get(formDef.title || formDef.id);
+          const existing = templateFormsMap.get(formDef.title || formDef.id);
           if (existing && this.hasFormUserData(existing.data)) {
-            console.log(`🔒 Préservation du formulaire "${formDef.title || formDef.id}" (ID: ${existing.id}) car il contient des données utilisateur`);
+            console.log(`🔒 Préservation du formulaire template "${formDef.title || formDef.id}" (ID: ${existing.id}) car il contient des données utilisateur`);
             preservedResourceIds.forms.push(existing.id);
           } else {
             resourcesToCreate.forms.push(formDef);
@@ -3920,12 +3994,12 @@ class UniversService {
         }
       }
 
-      // Filtrer les dashboards
+      // Filtrer les dashboards (TEMPLATE ONLY)
       if (univers.definitions.dashboards) {
         for (const dashboardDef of univers.definitions.dashboards) {
-          const existing = existingDashboardsMap.get(dashboardDef.name || dashboardDef.id);
+          const existing = templateDashboardsMap.get(dashboardDef.name || dashboardDef.id);
           if (existing && this.hasDashboardUserData(existing.data)) {
-            console.log(`🔒 Préservation du dashboard "${dashboardDef.name}" (ID: ${existing.id}) car il contient des données utilisateur`);
+            console.log(`🔒 Préservation du dashboard template "${dashboardDef.name}" (ID: ${existing.id}) car il contient des données utilisateur`);
             preservedResourceIds.dashboards.push(existing.id);
           } else {
             resourcesToCreate.dashboards.push(dashboardDef);
@@ -3933,12 +4007,12 @@ class UniversService {
         }
       }
 
-      // Filtrer les instructions
+      // Filtrer les instructions (TEMPLATE ONLY)
       if (univers.definitions.instructions) {
         for (const instructionDef of univers.definitions.instructions) {
-          const existing = existingInstructionsMap.get(instructionDef.title || instructionDef.id);
+          const existing = templateInstructionsMap.get(instructionDef.title || instructionDef.id);
           if (existing && this.hasInstructionUserData(existing.data)) {
-            console.log(`🔒 Préservation de l'instruction "${instructionDef.title}" (ID: ${existing.id}) car elle contient des données utilisateur`);
+            console.log(`🔒 Préservation de l'instruction template "${instructionDef.title}" (ID: ${existing.id}) car elle contient des données utilisateur`);
             preservedResourceIds.instructions.push(existing.id);
           } else {
             resourcesToCreate.instructions.push(instructionDef);
@@ -3946,14 +4020,14 @@ class UniversService {
         }
       }
 
-      // Filtrer les listes
+      // Filtrer les listes (TEMPLATE ONLY)
       if (univers.definitions.lists) {
         for (const listDef of univers.definitions.lists) {
-          const existing = existingListsMap.get(listDef.name);
+          const existing = templateListsMap.get(listDef.name);
           if (existing) {
             const listDefinition = listDefinitionsMap.get(listDef.name);
             if (this.hasUserAddedData(existing.data, listDefinition)) {
-              console.log(`🔒 Préservation de la liste "${listDef.name}" (ID: ${existing.id}) car elle contient des données utilisateur`);
+              console.log(`🔒 Préservation de la liste template "${listDef.name}" (ID: ${existing.id}) car elle contient des données utilisateur`);
               preservedResourceIds.lists.push(existing.id);
               continue;
             }
@@ -3962,12 +4036,12 @@ class UniversService {
         }
       }
 
-      // Filtrer les rapports
+      // Filtrer les rapports (TEMPLATE ONLY)
       if (univers.definitions.reports) {
         for (const reportDef of univers.definitions.reports) {
-          const existing = existingReportsMap.get(reportDef.name || reportDef.id);
+          const existing = templateReportsMap.get(reportDef.name || reportDef.id);
           if (existing && this.hasReportUserData(existing.data)) {
-            console.log(`🔒 Préservation du rapport "${reportDef.name}" (ID: ${existing.id}) car il contient des données utilisateur`);
+            console.log(`🔒 Préservation du rapport template "${reportDef.name}" (ID: ${existing.id}) car il contient des données utilisateur`);
             preservedResourceIds.reports.push(existing.id);
           } else {
             resourcesToCreate.reports.push(reportDef);
@@ -4001,8 +4075,9 @@ class UniversService {
         universInstanceId: instanceId
       });
 
-      // Combiner les IDs des ressources créées avec ceux des ressources préservées
-      const allResourceIds = {
+      // COMBINE: Template resources (preserved + newly created) + Custom resources
+      // Template resources: preserved (with user data) + newly created
+      const templateResourceIds = {
         forms: [...preservedResourceIds.forms, ...instantiationResult.forms],
         dashboards: [...preservedResourceIds.dashboards, ...instantiationResult.dashboards],
         instructions: [...preservedResourceIds.instructions, ...instantiationResult.instructions],
@@ -4010,7 +4085,26 @@ class UniversService {
         reports: [...preservedResourceIds.reports, ...instantiationResult.reports]
       };
 
-      // Mettre à jour l'instance avec les IDs des ressources créées et préservées
+      // Custom resources: all custom resources are preserved
+      const customResourceIds = {
+        forms: customForms.map(r => r.id),
+        dashboards: customDashboards.map(r => r.id),
+        instructions: customInstructions.map(r => r.id),
+        lists: customLists.map(r => r.id),
+        reports: customReports.map(r => r.id)
+      };
+
+      // Combined: all resources (template + custom)
+      const allResourceIds = {
+        forms: [...templateResourceIds.forms, ...customResourceIds.forms],
+        dashboards: [...templateResourceIds.dashboards, ...customResourceIds.dashboards],
+        instructions: [...templateResourceIds.instructions, ...customResourceIds.instructions],
+        lists: [...templateResourceIds.lists, ...customResourceIds.lists],
+        reports: [...templateResourceIds.reports, ...customResourceIds.reports]
+      };
+
+      // Mettre à jour l'instance avec les IDs des ressources (template + custom)
+      // Also update universVersion to match template version
       const instanceRef = doc(db, this.instancesCollectionName, instanceId);
       await updateDoc(instanceRef, {
         instances: {
@@ -4020,6 +4114,8 @@ class UniversService {
           lists: allResourceIds.lists,
           reports: allResourceIds.reports
         },
+        universVersion: univers.metadata?.version || 1,
+        updateAvailable: false,
         updatedAt: serverTimestamp()
       });
 
@@ -4041,8 +4137,200 @@ class UniversService {
   }
 
   /**
+   * Reattach orphaned resources (resources with wrong or missing universInstanceId)
+   * to the correct instance for a given univers
+   */
+  private async reattachOrphanedResources(
+    universId: string,
+    instanceId: string,
+    agencyId: string,
+    directorId: string
+  ): Promise<{ reattached: number; errors: number }> {
+    let reattached = 0;
+    let errors = 0;
+    const MAX_BATCH_SIZE = 500;
+    let batch = writeBatch(db);
+    let batchCount = 0;
+
+    const commitBatch = async () => {
+      if (batchCount > 0) {
+        try {
+          await batch.commit();
+          batch = writeBatch(db);
+          batchCount = 0;
+        } catch (error) {
+          console.warn('⚠️ Erreur lors du commit du batch:', error);
+          errors += batchCount;
+        }
+      }
+    };
+
+    const resourceCollections = [
+      { name: 'forms', field: 'title' },
+      { name: 'dashboards', field: 'name' },
+      { name: 'lists', field: 'name' },
+      { name: 'reports', field: 'name' },
+      { name: 'scheduledQuestions', field: 'title' }
+    ];
+
+    for (const { name, field } of resourceCollections) {
+      try {
+        // Find resources for this univers that either:
+        // 1. Have wrong universInstanceId
+        // 2. Have missing universInstanceId
+        // 3. Have universInstanceId pointing to a non-existent instance
+        const resourcesQuery = query(
+          collection(db, name),
+          where('agencyId', '==', agencyId),
+          where('universId', '==', universId)
+        );
+        const snapshot = await getDocs(resourcesQuery);
+
+        for (const resourceDoc of snapshot.docs) {
+          const data = resourceDoc.data();
+          const currentInstanceId = data.universInstanceId;
+
+          // Skip if already correctly attached
+          if (currentInstanceId === instanceId) {
+            continue;
+          }
+
+          // Check if current instance exists (if set)
+          let shouldReattach = false;
+          if (!currentInstanceId) {
+            shouldReattach = true;
+          } else {
+            try {
+              const instanceDoc = await getDoc(doc(db, this.instancesCollectionName, currentInstanceId));
+              if (!instanceDoc.exists() || instanceDoc.data()?.userId !== directorId) {
+                shouldReattach = true;
+              }
+            } catch {
+              shouldReattach = true;
+            }
+          }
+
+          if (shouldReattach) {
+            const resourceRef = doc(db, name, resourceDoc.id);
+            batch.update(resourceRef, {
+              universInstanceId: instanceId,
+              updatedAt: serverTimestamp()
+            });
+            batchCount++;
+            reattached++;
+
+            if (batchCount >= MAX_BATCH_SIZE) {
+              await commitBatch();
+            }
+          }
+        }
+      } catch (error) {
+        console.warn(`⚠️ Erreur lors de la récupération des ${name}:`, error);
+        errors++;
+      }
+    }
+
+    await commitBatch();
+
+    if (reattached > 0) {
+      console.log(`✅ ${reattached} ressource(s) orpheline(s) réattachée(s) à l'instance ${instanceId}`);
+    }
+
+    return { reattached, errors };
+  }
+
+  /**
+   * Separate template resources from custom resources
+   * Template resources have fromUnivers: true, custom resources have fromUnivers: false or missing
+   */
+  private separateTemplateAndCustomResources(
+    resources: Array<{ id: string; data: any }>,
+    resourceType: 'forms' | 'dashboards' | 'lists' | 'reports' | 'instructions'
+  ): {
+    template: Array<{ id: string; data: any }>;
+    custom: Array<{ id: string; data: any }>;
+  } {
+    const template: Array<{ id: string; data: any }> = [];
+    const custom: Array<{ id: string; data: any }> = [];
+
+    for (const resource of resources) {
+      // Check if resource is from template (fromUnivers: true)
+      if (resource.data.fromUnivers === true) {
+        template.push(resource);
+      } else {
+        // Custom resource created by user
+        custom.push(resource);
+      }
+    }
+
+    return { template, custom };
+  }
+
+  /**
+   * Ensure only one instance exists per univers per director
+   * If multiple instances exist, consolidate them into the active one
+   */
+  private async ensureSingleInstancePerUnivers(
+    universId: string,
+    directorId: string,
+    agencyId: string,
+    preferredInstanceId?: string
+  ): Promise<string> {
+    const instances = await this.getInstancesByUser(directorId, agencyId);
+    const universInstances = instances.filter(inst => inst.universId === universId);
+
+    if (universInstances.length === 0) {
+      // No instance exists - will be created by caller
+      return '';
+    }
+
+    if (universInstances.length === 1) {
+      // Perfect - only one instance exists
+      return universInstances[0].id;
+    }
+
+    // Multiple instances exist - need to consolidate
+    console.warn(`⚠️ ${universInstances.length} instance(s) trouvée(s) pour Univers ${universId}, consolidation...`);
+
+    // Prefer the active instance, or the preferred one, or the most recent
+    let targetInstance = universInstances.find(inst => inst.isActive);
+    if (!targetInstance && preferredInstanceId) {
+      targetInstance = universInstances.find(inst => inst.id === preferredInstanceId);
+    }
+    if (!targetInstance) {
+      // Use most recently updated
+      targetInstance = universInstances.sort((a, b) => {
+        const aTime = a.updatedAt?.getTime() || 0;
+        const bTime = b.updatedAt?.getTime() || 0;
+        return bTime - aTime;
+      })[0];
+    }
+
+    const targetInstanceId = targetInstance.id;
+    const otherInstances = universInstances.filter(inst => inst.id !== targetInstanceId);
+
+    // Reattach resources from other instances to target instance
+    for (const otherInstance of otherInstances) {
+      console.log(`🔄 Migration des ressources de l'instance ${otherInstance.id} vers ${targetInstanceId}...`);
+      await this.reattachOrphanedResources(universId, targetInstanceId, agencyId, directorId);
+
+      // Mark other instance as inactive
+      const otherInstanceRef = doc(db, this.instancesCollectionName, otherInstance.id);
+      await updateDoc(otherInstanceRef, {
+        isActive: false,
+        updatedAt: serverTimestamp()
+      });
+    }
+
+    console.log(`✅ Instance consolidée: ${targetInstanceId} (${otherInstances.length} autre(s) instance(s) désactivée(s))`);
+    return targetInstanceId;
+  }
+
+  /**
    * Activer un Univers (désactive automatiquement l'ancien si nécessaire)
    * Instancie automatiquement les ressources si elles n'existent pas encore
+   * ENFORCES: One instance per univers per director
+   * PRESERVES: Custom resources (fromUnivers: false) during version updates
    */
   async activateUnivers(
     universId: string,
@@ -4106,139 +4394,93 @@ class UniversService {
         return; // Fin - pas besoin d'instance ni de vérifications
       }
       
-      // 3. Vérifier si c'est une instance achetée ou créer/trouver une instance pour le propriétaire
-      // Déterminer si on doit utiliser le draft pour l'instanciation
+      // 3. ENFORCE: One instance per univers per director
+      // Ensure only one instance exists for this univers for this director
       const shouldUseDraft = useDraft && isOwner && univers.ownership.isMarketplaceTemplate && univers.hasUnpublishedChanges;
       
       let instanceId: string | undefined;
+      
       if (univers.ownership.isMarketplaceTemplate && !isOwner) {
-        // Chercher une instance de ce Univers pour ce directeur (non-propriétaire)
-        const instances = await this.getInstancesByUser(directorId, agencyId);
-        const instance = instances.find(inst => inst.universId === universId);
-        if (instance) {
-          instanceId = instance.id;
-          console.log(`✅ Instance trouvée pour Univers acheté: ${instanceId}`);
-          
-          // Vérifier si les ressources existent déjà pour cette instance et si elles sont cohérentes
-          const resourcesCheck = await this.checkIfResourcesExistForInstance(instanceId, universId, agencyId, univers);
-          
-          if (!resourcesCheck.exists) {
-            // Vérifier si des ressources existent avec un autre universInstanceId
-            const resourcesExist = await this.checkIfResourcesExist(universId, agencyId);
-            if (resourcesExist) {
-              console.log(`🔄 Ressources existantes trouvées, mise à jour avec universInstanceId=${instanceId}...`);
-              await this.updateExistingResourcesWithInstanceId(universId, instanceId, agencyId);
-              
-              // Après la mise à jour, vérifier à nouveau si les ressources existent et sont cohérentes
-              const afterUpdateCheck = await this.checkIfResourcesExistForInstance(instanceId, universId, agencyId, univers);
-              if (!afterUpdateCheck.exists) {
-                console.log(`⚠️ Après mise à jour, aucune ressource trouvée pour cette instance, création des ressources...`);
-                // Pour les Univers achetés, on ne peut pas créer de nouvelles ressources
-                // car on n'a pas accès aux définitions du Univers (seul le propriétaire peut)
-                console.warn(`⚠️ Impossible de créer des ressources pour un Univers acheté. Veuillez contacter le propriétaire.`);
-              } else if (!afterUpdateCheck.isConsistent) {
-                console.warn(`⚠️ Ressources incohérentes après mise à jour:`, afterUpdateCheck.inconsistencies);
-                console.warn(`⚠️ Impossible de corriger les ressources pour un Univers acheté. Veuillez contacter le propriétaire.`);
-              } else {
-                console.log(`✅ Ressources mises à jour avec succès pour cette instance`);
-              }
-            }
-          } else if (!resourcesCheck.isConsistent) {
-            // Les ressources existent mais sont incohérentes
-            console.warn(`⚠️ Ressources incohérentes détectées:`, resourcesCheck.inconsistencies);
-            console.warn(`⚠️ Impossible de corriger les ressources pour un Univers acheté. Veuillez contacter le propriétaire.`);
-          } else {
-            // Les ressources existent et sont cohérentes : ne rien faire
-            console.log(`✅ Ressources déjà existantes et cohérentes pour cette instance, pas de mise à jour nécessaire`);
-          }
-        } else {
+        // For purchased univers: find or ensure single instance
+        const foundInstanceId = await this.ensureSingleInstancePerUnivers(universId, directorId, agencyId);
+        
+        if (!foundInstanceId) {
           throw new Error('Vous devez d\'abord acheter ce Univers depuis le marketplace');
+        }
+        
+        instanceId = foundInstanceId;
+        console.log(`✅ Instance trouvée/consolidée pour Univers acheté: ${instanceId}`);
+        
+        // Reattach any orphaned resources to this instance
+        const { reattached } = await this.reattachOrphanedResources(universId, instanceId, agencyId, directorId);
+        if (reattached > 0) {
+          console.log(`✅ ${reattached} ressource(s) orpheline(s) réattachée(s)`);
+        }
+        
+        // For purchased univers, we can't create new template resources (only owner can)
+        // But we ensure existing resources are properly attached
+        const resourcesCheck = await this.checkIfResourcesExistForInstance(instanceId, universId, agencyId, univers);
+        if (!resourcesCheck.exists) {
+          console.warn(`⚠️ Aucune ressource trouvée pour cette instance. Veuillez contacter le propriétaire du Univers.`);
+        } else if (!resourcesCheck.isConsistent) {
+          console.warn(`⚠️ Ressources incohérentes détectées:`, resourcesCheck.inconsistencies);
+          console.warn(`⚠️ Impossible de corriger les ressources pour un Univers acheté. Veuillez contacter le propriétaire.`);
+        } else {
+          console.log(`✅ Ressources existantes et cohérentes pour cette instance`);
         }
       } else if (!isOwner) {
         throw new Error('Vous ne pouvez pas activer ce Univers');
       } else {
-        // 4. Pour le propriétaire, créer ou trouver une instance pour tracker la version
-            const instances = await this.getInstancesByUser(directorId, agencyId);
-        let instance = instances.find(inst => inst.universId === universId);
+        // 4. For owner: ensure single instance, then sync resources
+        const foundInstanceId = await this.ensureSingleInstancePerUnivers(universId, directorId, agencyId);
         
-        if (!instance) {
-          // Aucune instance existante : créer une instance complète pour tracker la version
-          console.log(`📦 Création d'une instance pour le propriétaire du Univers ${universId}...`);
+        if (!foundInstanceId) {
+          // No instance exists: create one
+          console.log(`📦 Création d'une nouvelle instance pour Univers ${universId}...`);
           const { instanceId: newInstanceId } = await this.instantiate(
             universId,
             directorId,
             'directeur',
             agencyId,
-            shouldUseDraft // Utiliser le draft si demandé
+            shouldUseDraft
           );
           instanceId = newInstanceId;
           
-          // Incrémenter l'usage pour les Univers marketplace
           if (univers.ownership.isMarketplaceTemplate) {
-              await this.incrementUsage(universId);
-            }
+            await this.incrementUsage(universId);
+          }
           
-          console.log(`✅ Instance créée pour le propriétaire: ${instanceId}`);
+          console.log(`✅ Instance créée: ${instanceId}`);
         } else {
-          // Instance existante : l'utiliser
-          instanceId = instance.id;
-          console.log(`✅ Instance existante trouvée pour le propriétaire: ${instanceId}`);
+          // Instance exists: use it and sync resources
+          instanceId = foundInstanceId;
+          console.log(`✅ Instance existante réutilisée: ${instanceId}`);
           
-          // Vérifier si les ressources existent déjà pour cette instance et si elles sont cohérentes
+          // Reattach orphaned resources first
+          const { reattached } = await this.reattachOrphanedResources(universId, instanceId, agencyId, directorId);
+          if (reattached > 0) {
+            console.log(`✅ ${reattached} ressource(s) orpheline(s) réattachée(s)`);
+          }
+          
+          // Check if resources need syncing (version update or missing resources)
           const resourcesCheck = await this.checkIfResourcesExistForInstance(instanceId, universId, agencyId, univers);
+          const instanceDoc = await getDoc(doc(db, this.instancesCollectionName, instanceId));
+          const instanceData = instanceDoc.data();
+          const instanceVersion = instanceData?.universVersion || 1;
+          const templateVersion = univers.metadata?.version || 1;
+          const isVersionUpdate = templateVersion > instanceVersion;
           
-          if (!resourcesCheck.exists) {
-            // Vérifier si des ressources existent avec un autre universInstanceId
-            const resourcesExist = await this.checkIfResourcesExist(universId, agencyId);
-            if (!resourcesExist) {
-              // Aucune ressource n'existe : créer les ressources avec l'instanceId correct
-              console.log(`📦 Ressources non trouvées, instanciation automatique...`);
-              await this.instantiateResourcesOnly(univers, directorId, agencyId, instanceId);
-              console.log(`✅ Ressources instanciées avec succès`);
-            } else {
-              // Des ressources existent mais pas pour cette instance : mettre à jour leur universInstanceId
-              console.log(`🔄 Ressources existantes trouvées, mise à jour avec universInstanceId=${instanceId}...`);
-              await this.updateExistingResourcesWithInstanceId(universId, instanceId, agencyId);
-              
-              // Après la mise à jour, vérifier à nouveau si les ressources existent et sont cohérentes
-              const afterUpdateCheck = await this.checkIfResourcesExistForInstance(instanceId, universId, agencyId, univers);
-              if (!afterUpdateCheck.exists) {
-                console.log(`⚠️ Après mise à jour, aucune ressource trouvée pour cette instance, création des ressources...`);
-                await this.instantiateResourcesOnly(univers, directorId, agencyId, instanceId);
-                console.log(`✅ Ressources créées après mise à jour`);
-              } else if (!afterUpdateCheck.isConsistent) {
-                // Les ressources existent mais sont incohérentes : les recréer
-                console.warn(`⚠️ Ressources incohérentes après mise à jour:`, afterUpdateCheck.inconsistencies);
-                console.log(`🔄 Recréation des ressources pour corriger les incohérences...`);
-                await this.instantiateResourcesOnly(univers, directorId, agencyId, instanceId);
-                console.log(`✅ Ressources recréées avec succès`);
-              } else {
-                console.log(`✅ Ressources mises à jour avec succès pour cette instance`);
-              }
+          if (!resourcesCheck.exists || !resourcesCheck.isConsistent || isVersionUpdate) {
+            if (isVersionUpdate) {
+              console.log(`🔄 Mise à jour de version: ${instanceVersion} → ${templateVersion}`);
             }
-          } else if (!resourcesCheck.isConsistent) {
-            // Les ressources existent mais sont incohérentes
-            // Vérifier si les incohérences sont uniquement dues à des problèmes de permissions
-            const hasOnlyPermissionIssues = resourcesCheck.inconsistencies.every(inc => 
-              inc.includes('Instructions') && resourcesCheck.actualCounts.instructions === 0
-            );
             
-            if (hasOnlyPermissionIssues) {
-              // Si c'est juste un problème de permissions pour les instructions, ne pas recréer
-              // Les instructions peuvent exister mais ne pas être accessibles
-              console.warn(`⚠️ Incohérences détectées mais probablement dues à des permissions:`, resourcesCheck.inconsistencies);
-              console.log(`ℹ️ Les ressources existent. Les instructions peuvent ne pas être accessibles à cause des permissions.`);
-              console.log(`✅ Pas de recréation nécessaire - les ressources sont probablement correctes.`);
-            } else {
-              // Vraies incohérences : recréer les ressources manquantes
-              console.warn(`⚠️ Ressources incohérentes détectées:`, resourcesCheck.inconsistencies);
-              console.log(`🔄 Recréation des ressources pour corriger les incohérences...`);
-              await this.instantiateResourcesOnly(univers, directorId, agencyId, instanceId);
-              console.log(`✅ Ressources recréées avec succès`);
-            }
+            // Sync resources (will preserve custom resources and update template resources)
+            console.log(`🔄 Synchronisation des ressources...`);
+            await this.instantiateResourcesOnly(univers, directorId, agencyId, instanceId);
+            console.log(`✅ Ressources synchronisées avec succès`);
           } else {
-            // Les ressources existent et sont cohérentes : ne rien faire
-            console.log(`✅ Ressources déjà existantes et cohérentes pour cette instance, pas de création nécessaire`);
+            console.log(`✅ Ressources déjà à jour, pas de synchronisation nécessaire`);
           }
         }
       }

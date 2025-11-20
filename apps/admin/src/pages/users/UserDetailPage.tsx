@@ -315,7 +315,7 @@ export const UserDetailPage: React.FC = () => {
                     </div>
                     <div className="flex justify-between">
                       <span className="text-sm text-gray-600">Tokens utilisés:</span>
-                      <span className="font-medium">{userDetail.tokensUsedMonthly || 0}</span>
+                      <span className="font-medium">{userDetail.tokensUsed || 0}</span>
                     </div>
                   </div>
                 </div>

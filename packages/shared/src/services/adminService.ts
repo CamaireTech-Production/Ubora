@@ -1,25 +1,18 @@
 import { 
   collection, 
-  doc, 
+  doc,
   getDocs, 
-  getDoc, 
-  addDoc, 
   updateDoc, 
-  deleteDoc, 
-  query, 
-  where, 
-  orderBy, 
-  limit,
   serverTimestamp 
 } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 import { User, AdminDashboardStats, AdminUser, AdminActivitySummary } from '../types';
 import { ActivityLogService, ActivityLogger } from './activityLogService';
 import { AnalyticsService } from './analyticsService';
+import { SubscriptionSessionCollectionService } from './subscriptionSessionCollectionService';
 
 export class AdminService {
   private static readonly USERS_COLLECTION = 'users';
-  private static readonly ACTIVITY_LOGS_COLLECTION = 'activityLogs';
 
   /**
    * Get all users with admin view
@@ -27,10 +20,11 @@ export class AdminService {
   static async getAllUsers(): Promise<AdminUser[]> {
     try {
       const snapshot = await getDocs(collection(db, this.USERS_COLLECTION));
-      return snapshot.docs.map(doc => {
-        const data = doc.data();
+      const users = await Promise.all(snapshot.docs.map(async docSnapshot => {
+        const data = docSnapshot.data();
+        const tokensUsed = await this.getCurrentSessionTokens(docSnapshot.id, data.role);
         return {
-          id: doc.id,
+          id: docSnapshot.id,
           name: data.name,
           email: data.email,
           role: data.role,
@@ -41,10 +35,11 @@ export class AdminService {
           createdAt: data.createdAt?.toDate() || new Date(),
           package: data.package,
           subscriptionStatus: data.subscriptionStatus,
-          tokensUsed: data.tokensUsedMonthly || 0,
+          tokensUsed,
           totalSubmissions: data.totalSubmissions || 0
         };
-      });
+      }));
+      return users;
     } catch (error) {
       console.error('❌ Error fetching users:', error);
       return [];
@@ -57,7 +52,6 @@ export class AdminService {
   static async getDashboardStats(): Promise<AdminDashboardStats> {
     try {
       const users = await this.getAllUsers();
-      const activities = await ActivityLogService.getRecentActivities(1000);
       
       const stats: AdminDashboardStats = {
         totalUsers: users.length,
@@ -259,6 +253,19 @@ export class AdminService {
         issues: ['Unable to check system health'],
         metrics: {}
       };
+    }
+  }
+
+  private static async getCurrentSessionTokens(userId: string, role?: string): Promise<number> {
+    try {
+      if (role !== 'directeur' && role !== 'employe') {
+        return 0;
+      }
+      const session = await SubscriptionSessionCollectionService.getActiveSession(userId);
+      return session?.usage?.tokensUsed || 0;
+    } catch (error) {
+      console.warn('Unable to fetch current session tokens', { userId, error });
+      return 0;
     }
   }
 }
