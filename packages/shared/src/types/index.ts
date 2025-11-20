@@ -88,6 +88,8 @@ export interface User {
   email: string;
   role: 'admin' | 'directeur' | 'employe';
   agencyId: string;
+  activeUniversId?: string | null;
+  activeInstanceId?: string | null;
   needsPackageSelection?: boolean; // Flag to indicate if director needs to select a package
   
   // Subscription sessions system - Reference to active session in separate collection

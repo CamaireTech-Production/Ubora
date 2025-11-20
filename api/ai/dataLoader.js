@@ -11,6 +11,7 @@ import { adminDb } from '../lib/firebaseAdmin.js';
 import { logger } from '../lib/logger.js';
 import OpenAI from 'openai';
 import { getPeriodDates } from './periodDetector.js';
+import { getDirectorActiveUniversMeta } from '../lib/activeUniversHelper.js';
 
 // Configuration OpenAI
 const openai = new OpenAI({
@@ -102,11 +103,10 @@ async function loadAndAggregateData(
   let activeUniversId = null;
   if (userRole === 'directeur' && directorId) {
     try {
-      const activeUniversDoc = await adminDb.collection('activeUnivers').doc(directorId).get();
-      if (activeUniversDoc.exists) {
-        const activeUniversData = activeUniversDoc.data();
-        activeUniversId = activeUniversData.activeUniversId;
-        logger.info('Univers actif trouvé pour Chat Archa', { activeUniversId }, 'dataLoader.js');
+      const activeMeta = await getDirectorActiveUniversMeta(directorId);
+      if (activeMeta?.activeUniversId) {
+        activeUniversId = activeMeta.activeUniversId;
+        logger.info('Univers actif trouvé pour Chat Archa', { directorId, activeUniversId, source: activeMeta.source }, 'dataLoader.js');
       } else {
         logger.warn('Aucun Univers actif trouvé pour le directeur', { directorId }, 'dataLoader.js');
       }

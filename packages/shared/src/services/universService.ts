@@ -48,6 +48,7 @@ class UniversService {
   private readonly collectionName = 'univers';
   private readonly instancesCollectionName = 'universInstances';
   private readonly versionsCollectionName = 'universVersions';
+  private readonly usersCollectionName = 'users';
 
   /**
    * Normaliser une ListDefinition pour s'assurer que les rows sont bien présentes
@@ -2941,9 +2942,31 @@ class UniversService {
 
   /**
    * Récupérer l'Univers actif pour un directeur
+   * Préfère les champs stockés sur le document utilisateur pour éviter les dépendances fortes
    */
   async getActiveUnivers(directorId: string, agencyId: string): Promise<ActiveUnivers | null> {
     try {
+      // 1. Essayer d'utiliser les champs du document utilisateur
+      try {
+        const userRef = doc(db, this.usersCollectionName, directorId);
+        const userSnap = await getDoc(userRef);
+        if (userSnap.exists()) {
+          const userData = userSnap.data();
+          if (userData?.activeUniversId) {
+            return {
+              directorId,
+              agencyId: userData.agencyId || agencyId,
+              activeUniversId: userData.activeUniversId,
+              activeInstanceId: userData.activeInstanceId || undefined,
+              updatedAt: userData.updatedAt?.toDate?.() || new Date()
+            };
+          }
+        }
+      } catch (userFetchError) {
+        console.warn('⚠️ Impossible de récupérer le document utilisateur pour activeUnivers:', userFetchError);
+      }
+
+      // 2. Fallback vers la collection activeUnivers si les champs utilisateur sont absents
       const docRef = doc(db, this.activeUniversCollectionName, directorId);
       const docSnap = await getDoc(docRef);
       
@@ -2973,6 +2996,8 @@ class UniversService {
     universId: string,
     instanceId?: string
   ): Promise<void> {
+    let activeDocUpdated = false;
+
     try {
       const docRef = doc(db, this.activeUniversCollectionName, directorId);
       
@@ -2989,6 +3014,7 @@ class UniversService {
       updateData.activeInstanceId = instanceId !== undefined ? instanceId : null;
 
       await updateDoc(docRef, updateData);
+      activeDocUpdated = true;
     } catch (error: any) {
       // Si le document n'existe pas, le créer avec setDoc et merge: true
       if (error.code === 'not-found' || error.code === 'permission-denied' || error.code === 'failed-precondition') {
@@ -3008,8 +3034,40 @@ class UniversService {
         docData.activeInstanceId = instanceId !== undefined ? instanceId : null;
 
         await setDoc(docRef, docData, { merge: true });
+        activeDocUpdated = true;
       } else {
         console.error('Erreur lors de la mise à jour de l\'Univers actif:', error);
+        throw error;
+      }
+    }
+
+    if (activeDocUpdated) {
+      await this.syncUserActiveUniversFields(directorId, universId, instanceId);
+    }
+  }
+
+  /**
+   * Maintenir les champs activeUniversId/activeInstanceId sur le document utilisateur
+   */
+  private async syncUserActiveUniversFields(
+    directorId: string,
+    universId: string,
+    instanceId?: string
+  ): Promise<void> {
+    const userRef = doc(db, this.usersCollectionName, directorId);
+    const userUpdate: any = {
+      activeUniversId: universId,
+      updatedAt: serverTimestamp()
+    };
+    userUpdate.activeInstanceId = instanceId !== undefined ? instanceId : null;
+
+    try {
+      await updateDoc(userRef, userUpdate);
+    } catch (error: any) {
+      if (error.code === 'not-found' || error.code === 'permission-denied' || error.code === 'failed-precondition') {
+        await setDoc(userRef, userUpdate, { merge: true });
+      } else {
+        console.error('Erreur lors de la synchronisation des champs actifs sur le profil utilisateur:', error);
         throw error;
       }
     }

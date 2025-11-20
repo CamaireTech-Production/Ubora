@@ -10,6 +10,7 @@ import { logger } from './logger.js';
 // Import adminDb - used for enriching user metadata (names/emails) in search results
 // If Firebase Admin fails to initialize, adminDb will be undefined and enrichment will be skipped
 import { adminDb } from './firebaseAdmin.js';
+import { getDirectorActiveUniversMeta } from './activeUniversHelper.js';
 
 /**
  * Build filter for Qdrant search based on metadata
@@ -101,16 +102,22 @@ async function getActiveUniversId(directorId, agencyId) {
   }
 
   try {
-    const activeUniversDoc = await adminDb.collection('activeUnivers').doc(directorId).get();
-    if (activeUniversDoc.exists) {
-      const activeUniversData = activeUniversDoc.data();
-      const activeUniversId = activeUniversData.activeUniversId;
-      logger.info('Active Univers found for director', { directorId, activeUniversId }, 'vectorSearch.js');
-      return activeUniversId;
-    } else {
-      logger.warn('No active Univers found for director', { directorId }, 'vectorSearch.js');
-      return null;
+    const activeMeta = await getDirectorActiveUniversMeta(directorId);
+    if (activeMeta?.activeUniversId) {
+      if (agencyId && activeMeta.agencyId && activeMeta.agencyId !== agencyId) {
+        logger.warn('Active Univers agency mismatch detected', {
+          directorId,
+          requestedAgencyId: agencyId,
+          activeAgencyId: activeMeta.agencyId
+        }, 'vectorSearch.js');
+      }
+
+      logger.info('Active Univers found for director', { directorId, activeUniversId: activeMeta.activeUniversId, source: activeMeta.source }, 'vectorSearch.js');
+      return activeMeta.activeUniversId;
     }
+
+    logger.warn('No active Univers found for director', { directorId }, 'vectorSearch.js');
+    return null;
   } catch (error) {
     logger.error('Error retrieving active Univers', error, 'vectorSearch.js');
     return null; // Continue without Univers filter if error
