@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
-import { useApp } from '@ubora/shared/contexts/AppContext';
+import { useUnivers } from '@ubora/shared/contexts/UniversContext';
 import { logger } from '@ubora/shared/utils/logger';
 import { Layout } from '../../components/layout/Layout';
 import { ListCard } from '../../components/lists/ListCard';
@@ -15,11 +15,12 @@ import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Plus, Search, AlertTriangle } from 'lucide-react';
 import { canDeleteList } from '@ubora/shared/utils/listUsageChecker';
+import { WireframeLoader } from '../../components/loading/WireframeLoader';
 
 export const ListsPage: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { activeUniversId, activeInstanceId } = useApp();
+  const { activeUniversId, activeInstanceId } = useUnivers();
   const { toast, showSuccess, showError } = useToast();
   const [lists, setLists] = useState<List[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -207,10 +208,7 @@ export const ListsPage: React.FC = () => {
 
           {/* Lists grid */}
           {isLoading ? (
-            <div className="text-center py-12">
-              <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-              <p className="mt-4 text-sm text-gray-600">Chargement des listes...</p>
-            </div>
+            <WireframeLoader type="list" />
           ) : filteredLists.length === 0 ? (
             <div className="text-center py-12 bg-white rounded-lg border border-gray-200">
               <div className="inline-block p-3 bg-gray-100 rounded-full mb-4">

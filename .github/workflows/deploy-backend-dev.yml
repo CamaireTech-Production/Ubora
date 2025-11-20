@@ -141,6 +141,20 @@ jobs:
           echo "📥 Installing dependencies (api)"
           cd api && npm ci --production || npm install --production; cd ..
           
+          # Verify .env.local exists and PORT is set
+          echo "🔍 Verifying environment configuration"
+          if [ -f "$NEW_RELEASE/.env.local" ]; then
+            echo "✅ .env.local file found"
+            if grep -q "^PORT=" "$NEW_RELEASE/.env.local"; then
+              ENV_PORT=$(grep "^PORT=" "$NEW_RELEASE/.env.local" | cut -d'=' -f2)
+              echo "✅ PORT found in .env.local: $ENV_PORT"
+            else
+              echo "⚠️ PORT not found in .env.local, will use explicit PORT=3001"
+            fi
+          else
+            echo "⚠️ .env.local file not found, will use explicit PORT=3001"
+          fi
+          
           # Update symlink
           echo "🔁 Updating current symlink"
           ln -sfn $NEW_RELEASE $CURRENT_LINK
@@ -152,12 +166,17 @@ jobs:
           pm2 delete ubora-backend-dev || true
           pm2 delete ubora-cron-worker-dev || true
           
-          # Start backend server
-          pm2 start $CURRENT_LINK/server/dev-server.js \
+          # Start backend server with explicit PORT=3001
+          echo "🚀 Starting backend server with PORT=3001"
+          export PORT=3001
+          export NODE_ENV=development
+          cd $CURRENT_LINK
+          pm2 start server/dev-server.js \
             --name ubora-backend-dev \
             --update-env \
             --max-memory-restart 1G \
             --env development
+          cd -
             
           # Start cron worker (if file exists)
           if [ -f "$CURRENT_LINK/scripts/cron-worker.js" ]; then
@@ -180,6 +199,44 @@ jobs:
           echo "📊 Checking PM2 processes"
           pm2 status
           
+          # Check if backend process is still running
+          if ! pm2 describe ubora-backend-dev > /dev/null 2>&1; then
+            echo "❌ Backend process not found in PM2"
+            echo "📋 Checking backend error logs"
+            pm2 logs ubora-backend-dev --err --lines 50 --nostream || true
+            exit 1
+          fi
+          
+          # Check backend process status
+          BACKEND_STATUS=$(pm2 describe ubora-backend-dev 2>/dev/null | grep -i "status" | head -1 | awk '{print $NF}' || echo "unknown")
+          if [ "$BACKEND_STATUS" != "online" ] && [ "$BACKEND_STATUS" != "errored" ]; then
+            echo "❌ Backend process status: $BACKEND_STATUS (expected: online)"
+            echo "📋 Checking backend error logs"
+            pm2 logs ubora-backend-dev --err --lines 50 --nostream || true
+            echo "📋 Checking backend output logs"
+            pm2 logs ubora-backend-dev --out --lines 50 --nostream || true
+            # If status is errored, still try to continue as it might recover
+            if [ "$BACKEND_STATUS" = "errored" ]; then
+              echo "⚠️ Backend process is in errored state, but continuing health check..."
+            else
+              exit 1
+            fi
+          fi
+          
+          # Check backend error logs for startup issues
+          echo "📋 Checking backend error logs for startup issues"
+          ERROR_LOG=$(pm2 logs ubora-backend-dev --err --lines 20 --nostream 2>&1 || true)
+          if echo "$ERROR_LOG" | grep -qi "error\|failed\|exit"; then
+            echo "⚠️ Errors found in backend logs:"
+            echo "$ERROR_LOG"
+          else
+            echo "✅ No critical errors in backend logs"
+          fi
+          
+          # Check what port the server is actually listening on
+          echo "🔍 Checking which ports are in use"
+          netstat -tlnp 2>/dev/null | grep -E ":(3000|3001)" || ss -tlnp 2>/dev/null | grep -E ":(3000|3001)" || echo "⚠️ Could not check listening ports"
+          
           # Enhanced health check with retries
           echo "🧪 Health check with retries"
           HEALTH_OK=false
@@ -190,6 +247,12 @@ jobs:
               break
             else
               echo "⏳ Backend health check failed (attempt $i), retrying..."
+              # Check if process is still running
+              if ! pm2 describe ubora-backend-dev > /dev/null 2>&1; then
+                echo "❌ Backend process crashed during health check"
+                pm2 logs ubora-backend-dev --err --lines 30 --nostream || true
+                break
+              fi
               sleep 5
             fi
           done
@@ -208,7 +271,22 @@ jobs:
           fi
           
           if [ "$HEALTH_OK" = false ]; then
-            echo "❌ Health check failed after 5 attempts. Rolling back..."
+            echo "❌ Health check failed after 5 attempts. Diagnosing issue..."
+            
+            # Comprehensive diagnostics
+            echo "📋 Full backend error logs:"
+            pm2 logs ubora-backend-dev --err --lines 100 --nostream || true
+            echo ""
+            echo "📋 Full backend output logs:"
+            pm2 logs ubora-backend-dev --out --lines 100 --nostream || true
+            echo ""
+            echo "📊 PM2 process details:"
+            pm2 describe ubora-backend-dev || true
+            echo ""
+            echo "🔍 Network connections:"
+            netstat -tlnp 2>/dev/null | grep -E ":(3000|3001)" || ss -tlnp 2>/dev/null | grep -E ":(3000|3001)" || true
+            
+            echo "🔄 Rolling back to previous release..."
             PREV=$(ls -1dt $RELEASES_DIR/* | sed -n '2p')
             if [ -n "$PREV" ]; then
               ln -sfn $PREV $CURRENT_LINK
@@ -216,11 +294,16 @@ jobs:
               pm2 stop ubora-cron-worker-dev || true
               pm2 delete ubora-backend-dev || true
               pm2 delete ubora-cron-worker-dev || true
-              pm2 start $CURRENT_LINK/server/dev-server.js \
+              echo "🚀 Starting previous release with PORT=3001"
+              export PORT=3001
+              export NODE_ENV=development
+              cd $CURRENT_LINK
+              pm2 start server/dev-server.js \
                 --name ubora-backend-dev \
                 --update-env \
                 --max-memory-restart 1G \
                 --env development
+              cd -
               if [ -f "$CURRENT_LINK/scripts/cron-worker.js" ]; then
                 pm2 start $CURRENT_LINK/scripts/cron-worker.js \
                   --name ubora-cron-worker-dev \

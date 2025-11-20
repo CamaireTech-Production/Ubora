@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
-import { useApp } from '@ubora/shared/contexts/AppContext';
 import { logger } from '@ubora/shared/utils/logger';
 import { useEntries } from '@ubora/shared/contexts/EntriesContext';
 import { useUnivers } from '@ubora/shared/contexts/UniversContext';
@@ -18,12 +17,13 @@ import { ReportPreview } from '../../components/reports/ReportPreview';
 import { FileBarChart, Calendar, Download, Edit, Trash2, Eye, FileText } from 'lucide-react';
 import { Card } from '../../components/ui/Card';
 import { ConfirmationModal } from '../../components/modals/ConfirmationModal';
+import { WireframeLoader } from '../../components/loading/WireframeLoader';
 
 export const ReportsPage: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { formEntries } = useEntries();
-  const { activeUniversId } = useUnivers();
+  const { activeUniversId, activeInstanceId } = useUnivers();
   const { dashboards } = useDashboards();
   const { toast, showSuccess, showError } = useToast();
   
@@ -46,7 +46,7 @@ export const ReportsPage: React.FC = () => {
     if (user?.id && user?.agencyId) {
       loadReports();
     }
-  }, [user, activeUniversId]);
+  }, [user, activeUniversId, activeInstanceId]);
 
   const loadReports = async () => {
     if (!user?.id || !user?.agencyId) return;
@@ -61,7 +61,8 @@ export const ReportsPage: React.FC = () => {
           user.id,
           user.agencyId,
           user.role,
-          activeUniversId || null
+          activeUniversId || null,
+          activeInstanceId || null
         );
         allReports.push(...userReports);
       } catch (error) {
@@ -319,12 +320,7 @@ export const ReportsPage: React.FC = () => {
 
           {/* Loading State */}
           {isLoading ? (
-            <Card className="p-12">
-              <div className="text-center">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-                <p className="text-gray-600">Chargement des rapports...</p>
-              </div>
-            </Card>
+            <WireframeLoader type="list" />
           ) : reports.length === 0 ? (
             <Card className="p-12">
               <div className="text-center">
