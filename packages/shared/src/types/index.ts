@@ -832,6 +832,15 @@ export interface UniversOwnership {
   approvedBy?: string; // Admin ID qui a approuvé
   approvedAt?: Date; // Date d'approbation
   rejectionReason?: string; // Raison du rejet si rejected
+  /**
+   * Liste des directeurs autorisés à consulter/utiliser un Univers marketplace acheté.
+   * Permet de conserver la séparation agence tout en accordant un accès explicite.
+   */
+  allowedDirectorIds?: string[];
+  /**
+   * Liste des agences autorisées (utile lorsque plusieurs directeurs de la même agence doivent voir l'Univers).
+   */
+  allowedAgencyIds?: string[];
 }
 
 export interface UniversUsage {

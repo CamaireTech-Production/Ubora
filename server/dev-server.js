@@ -303,32 +303,59 @@ app.get('/cors-debug', (req, res) => {
   });
 });
 
-// Start server
-app.listen(PORT, () => {
-  console.log(`🚀 Development server running on http://localhost:${PORT}`);
-  console.log(`📡 AI endpoints available at:`);
-  console.log(`   - POST http://localhost:${PORT}/api/ai/ask`);
-  console.log(`   - GET  http://localhost:${PORT}/api/ai/health`);
-  console.log(`📡 Vector Database endpoints available at:`);
-  console.log(`   - POST http://localhost:${PORT}/api/vector/sync`);
-  console.log(`   - GET  http://localhost:${PORT}/api/vector/health`);
-  console.log(`📡 FCM endpoints available at:`);
-  console.log(`   - POST http://localhost:${PORT}/api/fcm/send`);
-  console.log(`📡 OCR endpoints available at:`);
-  console.log(`   - POST http://localhost:${PORT}/api/ocr/extract`);
-  console.log(`   - POST http://localhost:${PORT}/api/ocr/extractPdfText`);
-  console.log(`   - GET  http://localhost:${PORT}/api/ocr/health`);
-  console.log(`📡 Cron endpoints available at:`);
-  console.log(`   - POST http://localhost:${PORT}/api/cron/notifications`);
-  console.log(`\n🌐 CORS Configuration:`);
-  console.log(`   Allowed origins: ${corsOrigins.join(', ')}`);
-  console.log(`   Plus any localhost/127.0.0.1 variations`);
-  console.log(`\n💡 To start backend, main app, and admin app:`);
-  console.log(`   npm run dev:full`);
-  console.log(`\n📱 App URLs:`);
-  console.log(`   Main App:  http://localhost:5173`);
-  console.log(`   Admin App: http://localhost:5172`);
-});
+// Start server with port fallback
+function startServer(port = PORT, maxAttempts = 10) {
+  const server = app.listen(port, () => {
+    console.log(`🚀 Development server running on http://localhost:${port}`);
+    if (port !== PORT) {
+      console.log(`⚠️  Port ${PORT} was in use, using port ${port} instead`);
+    }
+    console.log(`📡 AI endpoints available at:`);
+    console.log(`   - POST http://localhost:${port}/api/ai/ask`);
+    console.log(`   - GET  http://localhost:${port}/api/ai/health`);
+    console.log(`📡 Vector Database endpoints available at:`);
+    console.log(`   - POST http://localhost:${port}/api/vector/sync`);
+    console.log(`   - GET  http://localhost:${port}/api/vector/health`);
+    console.log(`📡 FCM endpoints available at:`);
+    console.log(`   - POST http://localhost:${port}/api/fcm/send`);
+    console.log(`📡 OCR endpoints available at:`);
+    console.log(`   - POST http://localhost:${port}/api/ocr/extract`);
+    console.log(`   - POST http://localhost:${port}/api/ocr/extractPdfText`);
+    console.log(`   - GET  http://localhost:${port}/api/ocr/health`);
+    console.log(`📡 Cron endpoints available at:`);
+    console.log(`   - POST http://localhost:${port}/api/cron/notifications`);
+    console.log(`\n🌐 CORS Configuration:`);
+    console.log(`   Allowed origins: ${corsOrigins.join(', ')}`);
+    console.log(`   Plus any localhost/127.0.0.1 variations`);
+    console.log(`\n💡 To start backend, main app, and admin app:`);
+    console.log(`   npm run dev:full`);
+    console.log(`\n📱 App URLs:`);
+    console.log(`   Main App:  http://localhost:5173`);
+    console.log(`   Admin App: http://localhost:5172`);
+    
+    // Start cron scheduler after server is ready
+    startCronScheduler();
+  });
+
+  server.on('error', (err) => {
+    if (err.code === 'EADDRINUSE') {
+      const attempts = port - PORT + 1;
+      if (attempts >= maxAttempts) {
+        console.error(`❌ Could not find available port after ${maxAttempts} attempts`);
+        process.exit(1);
+      } else {
+        console.log(`Port ${port} is in use, trying port ${port + 1}...`);
+        startServer(port + 1, maxAttempts);
+      }
+    } else {
+      console.error('❌ Server error:', err);
+      process.exit(1);
+    }
+  });
+}
+
+// Start the server
+startServer();
 
 // ========================================
 // AUTOMATIC CRON JOB SCHEDULER

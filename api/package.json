@@ -7,7 +7,8 @@
   "scripts": {
     "start": "node server/production-server.js",
     "dev": "node server/dev-server.js",
-    "test": "node test.js"
+    "test": "node test.js",
+    "create-admin": "node scripts/create-admin-user.js"
   },
   "dependencies": {
     "openai": "^4.0.0",

@@ -780,6 +780,16 @@ service cloud.firestore {
         // Fallback: allow directors to read Univers they created (for queries)
         (isDirecteur() && resource.data.ownership != null && 
          resource.data.ownership.createdBy == request.auth.uid)
+        ||
+        // Directors explicitly granted access via universAccess bridge
+        exists(/databases/$(database)/documents/universAccess/$(universId)/directors/$(request.auth.uid)) ||
+        // Directors/Agencies listed in allowed arrays (set during purchase)
+        (resource.data.ownership != null &&
+         resource.data.ownership.allowedDirectorIds != null &&
+         request.auth.uid in resource.data.ownership.allowedDirectorIds) ||
+        (resource.data.ownership != null &&
+         resource.data.ownership.allowedAgencyIds != null &&
+         getCurrentUser().data.agencyId in resource.data.ownership.allowedAgencyIds)
       );
       
       // CRÉATION des Univers
@@ -867,6 +877,46 @@ service cloud.firestore {
         (canCreateForms() && 
          isSameAgency(resource.data.agencyId) &&
          resource.data.userId == request.auth.uid)
+      );
+    }
+
+    // =============================================================================
+    // COLLECTION UNIVERS ACCESS (bridge Univers -> Directors)
+    // Permet de donner explicitement accès à un Univers marketplace acheté
+    // =============================================================================
+    match /universAccess/{universId}/directors/{directorId} {
+      // Lecture: admin, directeur propriétaire du lien, ou directeur de la même agence
+      allow read: if isAuthenticated() && (
+        isAdmin() ||
+        request.auth.uid == directorId ||
+        (isDirecteur() && resource.data.agencyId != null && isSameAgency(resource.data.agencyId))
+      );
+
+      // Création: le directeur (ou admin) crée son entrée d'accès
+      allow create: if isAuthenticated() && (
+        isAdmin() ||
+        (
+          request.auth.uid == directorId &&
+          request.resource.data.directorId == directorId &&
+          request.resource.data.agencyId == getCurrentUser().data.agencyId &&
+          request.resource.data.keys().hasAll(['directorId', 'agencyId'])
+        )
+      );
+
+      // Mise à jour: restreinte au même directeur (ou admin)
+      allow update: if isAuthenticated() && (
+        isAdmin() ||
+        (
+          request.auth.uid == directorId &&
+          request.resource.data.directorId == directorId &&
+          request.resource.data.agencyId == resource.data.agencyId
+        )
+      );
+
+      // Suppression: admin ou directeur propriétaire
+      allow delete: if isAuthenticated() && (
+        isAdmin() ||
+        request.auth.uid == directorId
       );
     }
 
