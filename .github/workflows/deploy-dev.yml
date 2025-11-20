@@ -190,6 +190,9 @@ jobs:
         password: ${{ secrets.DEV_FTP_PASSWORD }}
         local-dir: ./deploy-package/
         server-dir: /
+        timeout: 300
+        dangerous-clean-slate: false
+        dry-run: false
         exclude: |
           **/.git*
           **/.git*/**

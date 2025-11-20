@@ -288,11 +288,13 @@ jobs:
           echo "   openAIClient.js: $(readlink -f api/ai/openAIClient.js)"
           
           # Ensure files are in the current release, not old releases
+          # Note: readlink -f resolves symlinks, so we compare against the resolved symlink target
           TOKEN_MGR_PATH=$(readlink -f api/ai/tokenManager.js)
-          if [[ "$TOKEN_MGR_PATH" != "$CURRENT_LINK"* ]]; then
+          RESOLVED_CURRENT=$(readlink -f "$CURRENT_LINK")
+          if [[ "$TOKEN_MGR_PATH" != "$RESOLVED_CURRENT"* ]]; then
             echo "❌ CRITICAL: tokenManager.js resolves outside current release!"
             echo "   Path: $TOKEN_MGR_PATH"
-            echo "   Expected to be in: $CURRENT_LINK"
+            echo "   Expected to be in: $RESOLVED_CURRENT"
             exit 1
           fi
           
