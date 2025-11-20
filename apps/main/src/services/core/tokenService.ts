@@ -1,9 +1,9 @@
 import { logger } from '@ubora/shared/utils/logger';
-import { doc, updateDoc, getDoc, serverTimestamp } from 'firebase/firestore';
-import { db } from '@ubora/shared/firebaseConfig';
 import { User } from '../../types';
-import { SubscriptionSessionService } from './subscriptionSessionService';
 import { UserSessionService } from './userSessionService';
+import { SessionConsumptionService } from './sessionConsumptionService';
+import { doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { db } from '../../firebaseConfig';
 
 export class TokenService {
   /**
@@ -13,35 +13,15 @@ export class TokenService {
    * @returns Promise<boolean> - true si la soustraction a réussi, false sinon
    */
   static async subtractTokens(userId: string, tokensToSubtract: number): Promise<boolean> {
+    if (!userId || tokensToSubtract <= 0) {
+      return false;
+    }
     try {
-      const userDocRef = doc(db, 'users', userId);
-      const userDoc = await getDoc(userDocRef);
-      
-      if (!userDoc.exists()) {
-        logger.error('Utilisateur non trouvé', { userId }, 'TokenService');
-        return false;
+      const tracked = await SessionConsumptionService.trackTokenConsumption(userId, tokensToSubtract);
+      if (!tracked) {
+        logger.warn('Impossible de suivre la consommation des tokens pour la session active', { userId }, 'TokenService');
       }
-      
-      const userData = userDoc.data() as User;
-      const currentTokensUsed = userData.tokensUsedMonthly || 0;
-      const newTokensUsed = currentTokensUsed + tokensToSubtract;
-      
-      // Mettre à jour le document utilisateur
-      await updateDoc(userDocRef, {
-        tokensUsedMonthly: newTokensUsed,
-        updatedAt: serverTimestamp()
-      });
-      
-      // Track token consumption in subscription session (only for directors)
-      if (userData.role === 'directeur') {
-        try {
-          await SubscriptionSessionService.updateUsage(userId, 'tokens', tokensToSubtract);
-        } catch (trackingError) {
-        }
-      }
-      
-      return true;
-      
+      return tracked;
     } catch (error) {
       logger.error('Erreur lors de la soustraction des tokens', error, 'TokenService');
       return false;
@@ -55,14 +35,19 @@ export class TokenService {
    * @param monthlyLimit - Limite mensuelle de tokens
    * @returns boolean - true si l'utilisateur peut utiliser les tokens
    */
-  static canUseTokens(user: User, tokensNeeded: number, monthlyLimit: number): boolean {
+  static async canUseTokens(user: User, tokensNeeded: number, monthlyLimit: number): Promise<boolean> {
     // Si la limite est illimitée (-1), toujours autoriser
     if (monthlyLimit === -1) {
       return true;
     }
     
-    const currentTokensUsed = user.tokensUsedMonthly || 0;
-    return (currentTokensUsed + tokensNeeded) <= monthlyLimit;
+    const sessionInfo = await UserSessionService.getUserPackageInfo(user);
+    const currentTokensUsed = sessionInfo.tokensUsed || 0;
+    const limit = monthlyLimit || sessionInfo.totalTokens || 0;
+    if (limit === -1) {
+      return true;
+    }
+    return (currentTokensUsed + tokensNeeded) <= limit;
   }
   
   /**
@@ -71,54 +56,34 @@ export class TokenService {
    * @param monthlyLimit - Limite mensuelle de tokens
    * @returns number - Nombre de tokens restants (-1 si illimité)
    */
-  static getRemainingTokens(user: User, monthlyLimit: number): number {
+  static async getRemainingTokens(user: User, monthlyLimit: number): Promise<number> {
     // Si la limite est illimitée (-1), retourner -1
     if (monthlyLimit === -1) {
       return -1;
     }
     
-    const currentTokensUsed = user.tokensUsedMonthly || 0;
-    return Math.max(0, monthlyLimit - currentTokensUsed);
-  }
-  
-  /**
-   * Reset les tokens mensuels (à appeler au début de chaque mois)
-   * @param userId - ID de l'utilisateur
-   * @returns Promise<boolean> - true si le reset a réussi
-   */
-  static async resetMonthlyTokens(userId: string): Promise<boolean> {
-    try {
-      const userDocRef = doc(db, 'users', userId);
-      const now = new Date();
-      const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-      
-      await updateDoc(userDocRef, {
-        tokensUsedMonthly: 0,
-        tokensResetDate: nextMonth,
-        updatedAt: serverTimestamp()
-      });
-      
-      return true;
-      
-    } catch (error) {
-      logger.error('Erreur lors du reset des tokens', error, 'TokenService');
-      return false;
+    const sessionInfo = await UserSessionService.getUserPackageInfo(user);
+    const limit = monthlyLimit || sessionInfo.totalTokens || 0;
+    if (limit === -1) {
+      return -1;
     }
+    const currentTokensUsed = sessionInfo.tokensUsed || 0;
+    return Math.max(0, limit - currentTokensUsed);
   }
   
   /**
    * Obtient le pourcentage d'utilisation des tokens
    * @param user - Objet utilisateur
    * @param monthlyLimit - Limite mensuelle de tokens
-   * @returns number - Pourcentage d'utilisation (0-100)
+   * @returns Promise<number> - Pourcentage d'utilisation (0-100)
    */
-  static getTokenUsagePercentage(user: User, monthlyLimit: number): number {
+  static async getTokenUsagePercentage(user: User, monthlyLimit: number): Promise<number> {
     if (monthlyLimit === -1) {
       return 0; // Illimité = 0% d'utilisation
     }
     
     // Use UserSessionService to get current session data
-    const sessionInfo = UserSessionService.getUserPackageInfo(user);
+    const sessionInfo = await UserSessionService.getUserPackageInfo(user);
     const currentTokensUsed = sessionInfo.tokensUsed;
     const totalAvailableTokens = sessionInfo.totalTokens;
     
@@ -163,15 +128,15 @@ export class TokenService {
    * Obtient le nombre total de tokens disponibles (package + pay-as-you-go)
    * @param user - Objet utilisateur
    * @param monthlyLimit - Limite mensuelle de tokens du package
-   * @returns number - Nombre total de tokens disponibles
+   * @returns Promise<number> - Nombre total de tokens disponibles
    */
-  static getTotalAvailableTokens(user: User, monthlyLimit: number): number {
+  static async getTotalAvailableTokens(user: User, monthlyLimit: number): Promise<number> {
     if (monthlyLimit === -1) {
       return -1; // Illimité
     }
     
     // Use UserSessionService to get current session data
-    const sessionInfo = UserSessionService.getUserPackageInfo(user);
+    const sessionInfo = await UserSessionService.getUserPackageInfo(user);
     return sessionInfo.totalTokens;
   }
 
@@ -180,16 +145,16 @@ export class TokenService {
    * @param user - Objet utilisateur
    * @param tokensNeeded - Nombre de tokens nécessaires
    * @param monthlyLimit - Limite mensuelle de tokens
-   * @returns boolean - true si l'utilisateur peut utiliser les tokens
+   * @returns Promise<boolean> - true si l'utilisateur peut utiliser les tokens
    */
-  static canUseTokensWithPayAsYouGo(user: User, tokensNeeded: number, monthlyLimit: number): boolean {
+  static async canUseTokensWithPayAsYouGo(user: User, tokensNeeded: number, monthlyLimit: number): Promise<boolean> {
     // Si la limite est illimitée (-1), toujours autoriser
     if (monthlyLimit === -1) {
       return true;
     }
     
     // Use UserSessionService to get current session data
-    const sessionInfo = UserSessionService.getUserPackageInfo(user);
+    const sessionInfo = await UserSessionService.getUserPackageInfo(user);
     const currentTokensUsed = sessionInfo.tokensUsed;
     const totalAvailableTokens = sessionInfo.totalTokens;
     
@@ -200,16 +165,16 @@ export class TokenService {
    * Obtient le nombre de tokens restants (incluant pay-as-you-go)
    * @param user - Objet utilisateur
    * @param monthlyLimit - Limite mensuelle de tokens
-   * @returns number - Nombre de tokens restants (-1 si illimité)
+   * @returns Promise<number> - Nombre de tokens restants (-1 si illimité)
    */
-  static getRemainingTokensWithPayAsYouGo(user: User, monthlyLimit: number): number {
+  static async getRemainingTokensWithPayAsYouGo(user: User, monthlyLimit: number): Promise<number> {
     // Si la limite est illimitée (-1), retourner -1
     if (monthlyLimit === -1) {
       return -1;
     }
     
     // Use UserSessionService to get current session data
-    const sessionInfo = UserSessionService.getUserPackageInfo(user);
+    const sessionInfo = await UserSessionService.getUserPackageInfo(user);
     return sessionInfo.tokensRemaining;
   }
 }

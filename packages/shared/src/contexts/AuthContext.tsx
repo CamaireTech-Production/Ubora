@@ -201,7 +201,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         ...baseData,
         needsPackageSelection: true,
         currentSubscriptionSessionId: undefined // Will be set after package selection
-        // Note: tokensUsedMonthly et tokensResetDate ne sont plus utilisés
         // Les tokens sont gérés dans subscriptionSessions
       };
     }
@@ -1231,7 +1230,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           ...userData
         };
         
-        // Check if user data has actually changed (excluding tokensUsedMonthly for directors)
+        // Check if user data has actually changed
         if (user && 
             user.payAsYouGoTokens === userData.payAsYouGoTokens &&
             user.role === userData.role) {
@@ -1262,17 +1261,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return;
     }
 
-    // Pour les autres rôles (si nécessaire), on peut garder la logique
-    setUser((prev: User | null) => {
-      if (!prev) {
-        return null;
-      }
-      
-      return {
-        ...prev,
-        tokensUsedMonthly: tokensUsed
-      };
-    });
+    console.warn('updateTokensLocally est obsolète - les tokens sont gérés via subscriptionSessions');
   };
 
   const formatAuthErrorMessage = (error: unknown): string => {

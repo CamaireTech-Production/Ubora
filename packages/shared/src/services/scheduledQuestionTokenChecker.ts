@@ -1,6 +1,7 @@
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
-import { auth } from '../firebaseConfig';
+import { User } from '../types';
+import { UserSessionService } from './userSessionService';
 
 export interface TokenCheckResult {
   canExecute: boolean;
@@ -45,14 +46,21 @@ export class ScheduledQuestionTokenChecker {
       }
 
       const userData = userDoc.data();
+      const user = { id: userId, ...(userData as Omit<User, 'id'>) } as User;
       
-      // Get package limits
-      const packageLimit = this.getPackageLimit(userData.package);
-      const currentTokensUsed = userData.tokensUsedMonthly || 0;
-      const payAsYouGoTokens = userData.payAsYouGoTokens || 0;
+      // Get session-based package info
+      const packageInfo = await UserSessionService.getUserPackageInfo(user);
+      let packageLimit = packageInfo.totalTokens ?? 0;
+      let usingSessionLimits = packageLimit !== undefined && packageLimit !== 0;
+      const currentTokensUsed = packageInfo.tokensUsed ?? 0;
+      const payAsYouGoTokens = packageInfo.payAsYouGoTokens ?? (userData.payAsYouGoTokens || 0);
       
-      // Check subscription status
-      const subscriptionExpired = this.isSubscriptionExpired(userData);
+      let subscriptionExpired = packageInfo.subscriptionStatus !== 'active';
+      if ((packageLimit === 0 || packageLimit === undefined) && packageLimit !== -1) {
+        packageLimit = this.getPackageLimit(userData.package);
+        usingSessionLimits = false;
+        subscriptionExpired = this.isSubscriptionExpired(userData);
+      }
       if (subscriptionExpired) {
         return {
           canExecute: false,
@@ -67,7 +75,9 @@ export class ScheduledQuestionTokenChecker {
       }
 
       // Calculate available tokens
-      const totalAvailableTokens = packageLimit === -1 ? -1 : packageLimit + payAsYouGoTokens;
+      const totalAvailableTokens = packageLimit === -1
+        ? -1
+        : packageLimit + (usingSessionLimits ? 0 : payAsYouGoTokens);
       const availableTokens = totalAvailableTokens === -1 ? -1 : totalAvailableTokens - currentTokensUsed;
       
       // Check if user has enough tokens

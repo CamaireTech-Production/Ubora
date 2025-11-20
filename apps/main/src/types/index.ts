@@ -116,8 +116,6 @@ export interface User {
   
   // Legacy package properties (for backward compatibility)
   package?: 'starter' | 'standard' | 'premium' /* | 'custom' */;
-  tokensUsedMonthly?: number;
-  tokensResetDate?: Date;
   payAsYouGoTokens?: number;
   payAsYouGoForms?: number;
   payAsYouGoDashboards?: number;
@@ -761,8 +759,7 @@ export interface UserDetail {
   subscriptionEndDate?: Date;
   nextPaymentDate?: Date;
   packageFeatures?: string[];
-  tokensUsedMonthly?: number;
-  tokensResetDate?: Date;
+  tokensUsed?: number;
   // Activity summary
   totalLoginCount: number;
   lastActivityDate?: Date;

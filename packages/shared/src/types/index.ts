@@ -88,6 +88,8 @@ export interface User {
   email: string;
   role: 'admin' | 'directeur' | 'employe';
   agencyId: string;
+  activeUniversId?: string | null;
+  activeInstanceId?: string | null;
   needsPackageSelection?: boolean; // Flag to indicate if director needs to select a package
   
   // Subscription sessions system - Reference to active session in separate collection
@@ -115,8 +117,6 @@ export interface User {
   
   // Legacy package properties (for backward compatibility)
   package?: 'starter' | 'standard' | 'premium' /* | 'custom' */;
-  tokensUsedMonthly?: number;
-  tokensResetDate?: Date;
   payAsYouGoTokens?: number;
   payAsYouGoForms?: number;
   payAsYouGoDashboards?: number;
@@ -618,8 +618,7 @@ export interface UserDetail {
   subscriptionEndDate?: Date;
   nextPaymentDate?: Date;
   packageFeatures?: string[];
-  tokensUsedMonthly?: number;
-  tokensResetDate?: Date;
+  tokensUsed?: number;
   // Activity summary
   totalLoginCount: number;
   lastActivityDate?: Date;

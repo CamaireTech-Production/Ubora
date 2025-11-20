@@ -6,6 +6,11 @@ Ce dossier contient des outils de debug pour vérifier le filtrage des soumissio
 
 - `test-archa-filters.js` - Script de test pour vérifier le filtrage
 - `check-vector-sync.js` - Script de vérification de la synchronisation Firebase ↔ Qdrant
+- `audit-univers-data-quality.js` - Audit global de la qualité des données univers
+- `report-univers-instances.js` - Rapport détaillé des instances et ressources par directeur
+- `analyze-univers-duplicates.js` - Analyse des ressources dupliquées par univers
+- `cleanup-univers-instances.js` - Nettoyage des instances dupliquées et ressources orphelines
+- `requeue-vector-sync.js` - Re-queue des entrées manquantes dans Qdrant pour synchronisation
 
 ## 🚀 Utilisation
 
@@ -75,6 +80,47 @@ Pour tester uniquement les filtres et la recherche vectorielle sans appeler Open
 export DEBUG_DRY_RUN=true
 node api/debug/test-archa-filters.js
 ```
+
+### Nettoyer les instances Univers dupliquées
+
+```bash
+# Mode dry-run (prévisualisation)
+node api/debug/cleanup-univers-instances.js --dry-run
+
+# Nettoyer pour un directeur spécifique
+node api/debug/cleanup-univers-instances.js --directorId DIRECTOR_ID
+
+# Appliquer le nettoyage (tous les directeurs)
+node api/debug/cleanup-univers-instances.js
+```
+
+Ce script va :
+- Consolider les instances multiples par univers par directeur en une seule instance active
+- Réattacher les ressources orphelines à l'instance correcte
+- Mettre à jour les `formEntries` avec le bon `universInstanceId`
+- Ré-queue les entrées pour la synchronisation vectorielle
+
+### Re-queue les entrées pour la synchronisation vectorielle
+
+```bash
+# Mode dry-run (prévisualisation)
+node api/debug/requeue-vector-sync.js --dry-run
+
+# Pour un directeur spécifique
+node api/debug/requeue-vector-sync.js --directorId DIRECTOR_ID
+
+# Pour une agence spécifique
+node api/debug/requeue-vector-sync.js --agencyId AGENCY_ID
+
+# Appliquer (toutes les entrées)
+node api/debug/requeue-vector-sync.js
+```
+
+Ce script va :
+- Identifier les entrées manquantes dans Qdrant
+- Mettre à jour leur `vectorSyncStatus` à `pending`
+- Réinitialiser `vectorChunksCount` à 0
+- Les entrées seront synchronisées par le worker de synchronisation vectorielle
 
 ## 🔧 Ce qui a été ajouté
 
