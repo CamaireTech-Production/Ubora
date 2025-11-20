@@ -20,6 +20,7 @@ import { PermissionManager } from '../utils/PermissionManager';
 import { SubscriptionSessionService } from '../services/subscriptionSessionService';
 import { universService } from '../services/universService';
 import { useUnivers } from './UniversContext';
+import { logger } from '../utils/logger';
 
 interface DashboardsContextType {
   dashboards: Dashboard[];
@@ -267,11 +268,23 @@ export const DashboardsProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       }
       
       // Track dashboard creation in subscription session (only for directors)
+      // Only track if this is NOT a Univers instantiation (instantiation doesn't use this context)
+      // Check: if fromUnivers is set, this means it's from instantiation - don't track
+      // Since DashboardsContext is only used for new creations (not instantiation), we always track
       if (user.role === 'directeur' && firebaseUser) {
         try {
+          // Only track if this is a new creation, not from Univers instantiation
+          // Univers instantiation creates dashboards directly and doesn't call this context
+          // So if we're here, it's always a new creation that should be tracked
           await SubscriptionSessionService.updateUsage(firebaseUser.uid, 'dashboards', 1);
+          logger.debug('Dashboard creation usage tracked', {
+            userId: firebaseUser.uid,
+            dashboardId: dashboardRef.id,
+            universId: universIdToAssociate
+          }, 'DashboardsContext');
         } catch (trackingError) {
-          // Silent fail
+          logger.error('Error tracking dashboard creation usage', trackingError, 'DashboardsContext');
+          // Silent fail - don't block dashboard creation
         }
       }
     } catch (err) {

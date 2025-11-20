@@ -23,6 +23,7 @@ import { SubscriptionSessionService } from '../services/subscriptionSessionServi
 import { notificationService } from '../services/notificationService';
 import { universService } from '../services/universService';
 import { useUnivers } from './UniversContext';
+import { logger } from '../utils/logger';
 
 interface FormsContextType {
   forms: Form[];
@@ -314,11 +315,23 @@ export const FormsProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       }
       
       // Track form creation in subscription session (only for directors)
+      // Only track if this is NOT a Univers instantiation (instantiation doesn't use this context)
+      // Check: if fromUnivers is set, this means it's from instantiation - don't track
+      // Since FormsContext is only used for new creations (not instantiation), we always track
       if (user.role === 'directeur' && firebaseUser) {
         try {
+          // Only track if this is a new creation, not from Univers instantiation
+          // Univers instantiation creates forms directly and doesn't call this context
+          // So if we're here, it's always a new creation that should be tracked
           await SubscriptionSessionService.updateUsage(firebaseUser.uid, 'forms', 1);
+          logger.debug('Form creation usage tracked', {
+            userId: firebaseUser.uid,
+            formId: formRef.id,
+            universId: universIdToAssociate
+          }, 'FormsContext');
         } catch (trackingError) {
-          // Silent fail
+          logger.error('Error tracking form creation usage', trackingError, 'FormsContext');
+          // Silent fail - don't block form creation
         }
       }
 
