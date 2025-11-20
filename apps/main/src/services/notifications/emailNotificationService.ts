@@ -1,3 +1,5 @@
+import { logger } from '@ubora/shared/utils/logger';
+
 type EmailPayload = {
   to: string;
   subject: string;
@@ -25,14 +27,14 @@ class EmailNotificationService {
       });
       if (!res.ok) {
         const txt = await res.text();
-        console.error('📧 [Email] Backend error:', txt);
+        logger.error('Email backend error', { response: txt }, 'EmailNotificationService');
         return false;
       }
       const data = await res.json();
-      console.log('📧 [Email] Backend response:', data);
+      logger.debug('Email backend response', { data }, 'EmailNotificationService');
       return !!data.success;
     } catch (e) {
-      console.error('📧 [Email] Request failed:', e);
+      logger.error('Email request failed', e, 'EmailNotificationService');
       return false;
     }
   }

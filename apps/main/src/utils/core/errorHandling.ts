@@ -16,6 +16,15 @@ export interface ConnectionQuality {
   estimatedSpeed: 'fast' | 'medium' | 'slow' | 'poor';
 }
 
+/**
+ * Enhanced Error with additional metadata
+ */
+export interface EnhancedError extends Error {
+  originalError?: Error;
+  errorType?: string;
+  url?: string;
+}
+
 export class EnhancedErrorHandler {
   private static readonly DEFAULT_TIMEOUT = 20000; // 20 seconds
 
@@ -66,14 +75,14 @@ export class EnhancedErrorHandler {
   /**
    * Create user-friendly error messages
    */
-  static createEnhancedError(originalError: Error, url: string): Error {
+  static createEnhancedError(originalError: Error, url: string): EnhancedError {
     const errorType = this.detectErrorType(originalError);
     const userMessage = this.getUserFriendlyMessage(errorType, url);
     
-    const enhancedError = new Error(userMessage);
-    (enhancedError as any).originalError = originalError;
-    (enhancedError as any).errorType = errorType;
-    (enhancedError as any).url = url;
+    const enhancedError = new Error(userMessage) as EnhancedError;
+    enhancedError.originalError = originalError;
+    enhancedError.errorType = errorType;
+    enhancedError.url = url;
     
     return enhancedError;
   }
@@ -196,14 +205,14 @@ export const enhancedFetch = {
    */
   async aiRequest(url: string, options: RequestInit & { timeout?: number } = {}): Promise<Response> {
     try {
-      const { timeout, ...init } = options as any;
+      const { timeout, ...init } = options;
       const response = await EnhancedErrorHandler.fetchWithRetry(url, init, {
         timeout: typeof timeout === 'number' ? timeout : 20000
       });
 
       return response;
     } catch (error) {
-      console.error('AI request failed:', error);
+      // Error is already enhanced by fetchWithRetry
       throw error;
     }
   },
@@ -213,7 +222,7 @@ export const enhancedFetch = {
    */
   async ocrRequest(url: string, options: RequestInit & { timeout?: number } = {}): Promise<Response> {
     try {
-      const { timeout, ...init } = options as any;
+      const { timeout, ...init } = options;
       const response = await EnhancedErrorHandler.fetchWithRetry(url, init, {
         // Increase default timeout to reduce false timeouts on large files
         timeout: typeof timeout === 'number' ? timeout : 60000
@@ -221,7 +230,7 @@ export const enhancedFetch = {
 
       return response;
     } catch (error) {
-      console.error('OCR request failed:', error);
+      // Error is already enhanced by fetchWithRetry
       throw error;
     }
   }

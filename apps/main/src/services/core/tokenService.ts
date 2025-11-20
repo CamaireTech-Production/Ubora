@@ -1,3 +1,4 @@
+import { logger } from '@ubora/shared/utils/logger';
 import { doc, updateDoc, getDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '@ubora/shared/firebaseConfig';
 import { User } from '../../types';
@@ -17,7 +18,7 @@ export class TokenService {
       const userDoc = await getDoc(userDocRef);
       
       if (!userDoc.exists()) {
-        console.error('Utilisateur non trouvé:', userId);
+        logger.error('Utilisateur non trouvé', { userId }, 'TokenService');
         return false;
       }
       
@@ -42,7 +43,7 @@ export class TokenService {
       return true;
       
     } catch (error) {
-      console.error('Erreur lors de la soustraction des tokens:', error);
+      logger.error('Erreur lors de la soustraction des tokens', error, 'TokenService');
       return false;
     }
   }
@@ -100,7 +101,7 @@ export class TokenService {
       return true;
       
     } catch (error) {
-      console.error('Erreur lors du reset des tokens:', error);
+      logger.error('Erreur lors du reset des tokens', error, 'TokenService');
       return false;
     }
   }
@@ -136,7 +137,7 @@ export class TokenService {
       const userDoc = await getDoc(userDocRef);
       
       if (!userDoc.exists()) {
-        console.error('Utilisateur non trouvé:', userId);
+        logger.error('Utilisateur non trouvé', { userId }, 'TokenService');
         return false;
       }
       
@@ -153,7 +154,7 @@ export class TokenService {
       return true;
       
     } catch (error) {
-      console.error('Erreur lors de l\'ajout des tokens pay-as-you-go:', error);
+      logger.error('Erreur lors de l\'ajout des tokens pay-as-you-go', error, 'TokenService');
       return false;
     }
   }

@@ -5,6 +5,7 @@ import { EnhancedAdminService } from '../../services/admin/enhancedAdminService'
 import { SubscriptionSessionCollectionService } from '@ubora/shared/services/subscriptionSessionCollectionService';
 import { Pagination } from '../ui/Pagination';
 import { Button } from '../ui/Button';
+import { logger } from '@ubora/shared/utils/logger';
 import { 
   Eye, 
   Edit, 
@@ -50,7 +51,7 @@ const UserPackageCell: React.FC<{ user: AdminUser }> = ({ user }) => {
           return;
         }
       } catch (error) {
-        console.error('Error loading session for user:', user.id, error);
+        logger.error('Error loading session for user', { userId: user.id, error }, 'UsersTable');
       }
 
       // Fallback to legacy array
@@ -78,7 +79,7 @@ const UserPackageCell: React.FC<{ user: AdminUser }> = ({ user }) => {
   );
 };
 
-export const UsersTable: React.FC<UsersTableProps> = ({ users, onRefresh }) => {
+const UsersTableComponent: React.FC<UsersTableProps> = ({ users, onRefresh }) => {
   const navigate = useNavigate();
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(25);
@@ -497,3 +498,17 @@ export const UsersTable: React.FC<UsersTableProps> = ({ users, onRefresh }) => {
     </div>
   );
 };
+
+// Mémoriser le composant pour éviter les re-renders inutiles
+export const UsersTable = React.memo(UsersTableComponent, (prevProps, nextProps) => {
+  // Comparer les propriétés critiques pour déterminer si un re-render est nécessaire
+  if (prevProps.users.length !== nextProps.users.length) {
+    return false; // Re-render si le nombre d'utilisateurs change
+  }
+  
+  // Comparer chaque utilisateur par ID pour détecter les changements
+  return prevProps.users.every((user, index) => {
+    const nextUser = nextProps.users[index];
+    return user.id === nextUser?.id;
+  });
+});

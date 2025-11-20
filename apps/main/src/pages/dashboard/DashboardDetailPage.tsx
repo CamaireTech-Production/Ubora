@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { DashboardMetric, MetricReminder, Dashboard } from '../../types';
+import { DashboardMetric, MetricReminder, Dashboard, Form, FormEntry, FormField } from '../../types';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
-import { useApp } from '@ubora/shared/contexts/AppContext';
+import { useForms } from '@ubora/shared/contexts/FormsContext';
+import { useEntries } from '@ubora/shared/contexts/EntriesContext';
+import { useDashboards } from '@ubora/shared/contexts/DashboardsContext';
 import { Layout } from '../../components/layout/Layout';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
@@ -18,6 +20,7 @@ import { ComingSoonModal } from '../../components/modals/ComingSoonModal';
 import { DashboardBuilder } from '../../components/dashboard/DashboardBuilder';
 import { MetricEditModal } from '../../components/forms/MetricEditModal';
 import { GraphPreview } from '../../components/charts/GraphPreview';
+import { logger } from '@ubora/shared/utils/logger';
 import { GraphModal } from '../../components/charts/GraphModal';
 import { TableMetricDisplay } from '../../components/dashboard/TableMetricDisplay';
 import { TableMetricModal } from '../../components/dashboard/TableMetricModal';
@@ -59,14 +62,16 @@ export const DashboardDetailPage: React.FC = () => {
   const { dashboardId } = useParams<{ dashboardId: string }>();
   const navigate = useNavigate();
   const { user, isLoading } = useAuth();
+  const { forms, isLoading: formsLoading } = useForms();
+  const { formEntries, isLoading: entriesLoading } = useEntries();
   const { 
-    forms,
-    formEntries,
     dashboards,
     updateDashboard,
     deleteDashboard,
-    isLoading: appLoading
-  } = useApp();
+    isLoading: dashboardsLoading
+  } = useDashboards();
+  
+  const appLoading = formsLoading || entriesLoading || dashboardsLoading;
   const { toast, showSuccess, showError } = useToast();
 
   const [showMetricModal, setShowMetricModal] = useState(false);
@@ -85,7 +90,7 @@ export const DashboardDetailPage: React.FC = () => {
   const [showDeleteDashboardModal, setShowDeleteDashboardModal] = useState(false);
   const [showAccessDeniedModal, setShowAccessDeniedModal] = useState(false);
   const [expandedTableMetric, setExpandedTableMetric] = useState<{ metric: DashboardMetric; rows: TableRowData[] } | null>(null);
-  const dashboard = (dashboards.find(d => d.id === dashboardId) as Dashboard | undefined) || null;
+  const dashboard = (dashboards || []).find((d: Dashboard) => d.id === dashboardId) as Dashboard | undefined || null;
   
   // Auto-scroll to errors when they appear (mobile-responsive)
   useEffect(() => {
@@ -175,7 +180,7 @@ export const DashboardDetailPage: React.FC = () => {
           const dashboardReminders = reminders.filter(r => r.dashboardId === dashboardId && r.status === 'pending');
           setActiveReminders(dashboardReminders);
         } catch (error) {
-          console.error('Error loading reminders:', error);
+          logger.error('Error loading reminders', error, 'DashboardDetailPage');
         }
       }
     };
@@ -244,7 +249,7 @@ export const DashboardDetailPage: React.FC = () => {
   // Get filtered form entries based on time filter
   const getFilteredFormEntries = () => {
     const { start, end } = getDateRange(timeFilter);
-    return formEntries.filter(entry => 
+    return formEntries.filter((entry: FormEntry) => 
       isDateInRange(new Date(entry.submittedAt), start, end)
     );
   };
@@ -278,7 +283,7 @@ export const DashboardDetailPage: React.FC = () => {
           const rows = await tableDataService.getRowsForTableMetric(metric, formEntries, period);
           newTableRows[metricId] = rows;
         } catch (error) {
-          console.error(`Error calculating table rows for metric ${metricId}:`, error);
+          logger.error(`Error calculating table rows for metric ${metricId}`, error, 'DashboardDetailPage');
           newTableRows[metricId] = [];
         } finally {
           newLoadingState[metricId] = false;
@@ -332,13 +337,13 @@ export const DashboardDetailPage: React.FC = () => {
   };
 
   const getFormTitle = (formId: string) => {
-    const form = forms.find(f => f.id === formId);
+    const form = forms.find((f: Form) => f.id === formId);
     return form?.title || 'Formulaire inconnu';
   };
 
   const getFieldLabel = (formId: string, fieldId: string) => {
-    const form = forms.find(f => f.id === formId);
-    const field = form?.fields.find(f => f.id === fieldId);
+    const form = forms.find((f: Form) => f.id === formId);
+    const field = form?.fields.find((f: FormField) => f.id === fieldId);
     return field?.label || 'Champ inconnu';
   };
 
@@ -384,7 +389,7 @@ export const DashboardDetailPage: React.FC = () => {
       setShowDeleteDashboardModal(false);
       navigate('/directeur/dashboard');
     } catch (error) {
-      console.error('Erreur lors de la suppression du tableau de bord:', error);
+      logger.error('Erreur lors de la suppression du tableau de bord', error, 'DashboardDetailPage');
       showError('Erreur lors de la suppression du tableau de bord. Veuillez réessayer.');
     } finally {
       setIsDeletingDashboard(false);
@@ -412,7 +417,7 @@ export const DashboardDetailPage: React.FC = () => {
       setShowDeleteMetricModal(false);
       setMetricToDelete(null);
     } catch (error) {
-      console.error('Erreur lors de la suppression de la métrique:', error);
+      logger.error('Erreur lors de la suppression de la métrique', error, 'DashboardDetailPage');
       showError('Erreur lors de la suppression de la métrique. Veuillez réessayer.');
     } finally {
       setIsDeletingMetric(false);
@@ -476,7 +481,7 @@ export const DashboardDetailPage: React.FC = () => {
       showSuccess('Tableau de bord modifié avec succès !');
       setShowDashboardBuilder(false);
     } catch (error) {
-      console.error('Erreur lors de la modification du tableau de bord:', error);
+      logger.error('Erreur lors de la modification du tableau de bord', error, 'DashboardDetailPage');
       showError('Erreur lors de la modification du tableau de bord. Veuillez réessayer.');
       throw error;
     }
@@ -502,7 +507,7 @@ export const DashboardDetailPage: React.FC = () => {
       
       showSuccess('Métrique modifiée avec succès !');
     } catch (error) {
-      console.error('Erreur lors de la modification de la métrique:', error);
+      logger.error('Erreur lors de la modification de la métrique', error, 'DashboardDetailPage');
       showError('Erreur lors de la modification de la métrique. Veuillez réessayer.');
       throw error;
     }
@@ -548,14 +553,14 @@ export const DashboardDetailPage: React.FC = () => {
       setShowMetricModal(false);
       showSuccess('Métrique ajoutée avec succès !');
     } catch (error) {
-      console.error('Erreur lors de l\'ajout de la métrique:', error);
+      logger.error('Erreur lors de l\'ajout de la métrique', error, 'DashboardDetailPage');
       showError('Erreur lors de l\'ajout de la métrique. Veuillez réessayer.');
     } finally {
       setIsAddingMetric(false);
     }
   };
 
-  const selectedForm = forms.find(form => form.id === newMetric.formId);
+  const selectedForm = forms.find((form: Form) => form.id === newMetric.formId);
 
   if (isLoading || appLoading) {
     return (
@@ -651,7 +656,7 @@ export const DashboardDetailPage: React.FC = () => {
             <div>
               <span className="font-medium text-gray-700">Données disponibles:</span>
               <p className="text-gray-600">
-                {getFilteredFormEntries().filter(entry => dashboard.metrics.some(m => m.formId === entry.formId)).length} entrée{getFilteredFormEntries().filter(entry => dashboard.metrics.some(m => m.formId === entry.formId)).length > 1 ? 's' : ''}
+                {getFilteredFormEntries().filter((entry: FormEntry) => dashboard.metrics.some(m => m.formId === entry.formId)).length} entrée{getFilteredFormEntries().filter((entry: FormEntry) => dashboard.metrics.some(m => m.formId === entry.formId)).length > 1 ? 's' : ''}
                 {timeFilter !== 'all' && (
                   <span className="text-xs text-gray-500 ml-1">
                     (filtrées)
@@ -1111,7 +1116,7 @@ export const DashboardDetailPage: React.FC = () => {
                   }}
                   options={[
                     { value: '', label: 'Choisir un formulaire...' },
-                    ...forms.map(form => ({
+                    ...forms.map((form: Form) => ({
                       value: form.id,
                       label: form.title
                     }))
@@ -1134,7 +1139,7 @@ export const DashboardDetailPage: React.FC = () => {
                       label="Champ du formulaire *"
                       value={newMetric.fieldId}
                       onChange={(e) => {
-                        const field = selectedForm.fields.find(f => f.id === e.target.value);
+                        const field = selectedForm.fields.find((f: FormField) => f.id === e.target.value);
                         setNewMetric(prev => ({ 
                           ...prev,
                           fieldId: e.target.value,
@@ -1143,7 +1148,7 @@ export const DashboardDetailPage: React.FC = () => {
                       }}
                       options={[
                         { value: '', label: 'Choisir un champ...' },
-                        ...selectedForm.fields.map(field => ({
+                        ...selectedForm.fields.map((field: FormField) => ({
                           value: field.id,
                           label: `${field.label} (${field.type})`
                         }))
@@ -1269,7 +1274,7 @@ export const DashboardDetailPage: React.FC = () => {
                             className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                           >
                             <option value="">Choisir un champ...</option>
-                            {selectedForm.fields.map(field => (
+                            {selectedForm.fields.map((field: FormField) => (
                               <option key={field.id} value={field.id}>
                                 {field.label} ({field.type})
                               </option>
@@ -1305,7 +1310,7 @@ export const DashboardDetailPage: React.FC = () => {
                           
                           {/* Field validation error message */}
                           {newMetric.graphConfig?.yAxisFieldId && (() => {
-                            const selectedField = selectedForm.fields.find(f => f.id === newMetric.graphConfig?.yAxisFieldId);
+                            const selectedField = selectedForm.fields.find((f: FormField) => f.id === newMetric.graphConfig?.yAxisFieldId);
                             if (selectedField) {
                               const validation = validateYAxisField(selectedField, newMetric.calculationType, 'field');
                               if (!validation.isValid) {
@@ -1396,7 +1401,7 @@ export const DashboardDetailPage: React.FC = () => {
                               createdBy: user?.id || '',
                               agencyId: user?.agencyId || ''
                             } as DashboardMetric)}
-                            formEntries={formEntries.filter(entry => entry.formId === newMetric.formId)}
+                            formEntries={formEntries.filter((entry: FormEntry) => entry.formId === newMetric.formId)}
                             forms={forms}
                             compact={true}
                           />
@@ -1413,7 +1418,7 @@ export const DashboardDetailPage: React.FC = () => {
                         <span className="text-sm font-medium text-blue-900">Aperçu du champ</span>
                       </div>
                       {(() => {
-                        const field = selectedForm.fields.find(f => f.id === newMetric.fieldId);
+                        const field = selectedForm.fields.find((f: FormField) => f.id === newMetric.fieldId);
                         return field ? (
                           <div className="text-sm text-blue-800">
                             <p><strong>Label:</strong> {field.label}</p>
@@ -1774,7 +1779,7 @@ export const DashboardDetailPage: React.FC = () => {
                      const dashboardReminders = reminders.filter(r => r.dashboardId === dashId && r.status === 'pending');
                      setActiveReminders(dashboardReminders);
                    } catch (error) {
-                     console.error('Error creating reminder:', error);
+                     logger.error('Error creating reminder', error, 'DashboardDetailPage');
                      showError('Erreur lors de la création du rappel');
                    } finally {
                      setIsCreatingReminder(false);
@@ -1797,26 +1802,28 @@ export const DashboardDetailPage: React.FC = () => {
         onClose={() => setCancelReminderModal({ isOpen: false, reminder: null })}
         onConfirm={async () => {
           if (!cancelReminderModal.reminder) {
-            console.error('No reminder selected for cancellation');
+            logger.error('No reminder selected for cancellation', undefined, 'DashboardDetailPage');
             showError('Aucun rappel sélectionné pour l\'annulation.');
             return;
           }
-          
+
           if (!cancelReminderModal.reminder.id) {
-            console.error('Reminder has no ID:', cancelReminderModal.reminder);
+            logger.error('Reminder has no ID', { reminder: cancelReminderModal.reminder }, 'DashboardDetailPage');
             showError('Le rappel n\'a pas d\'identifiant valide.');
             return;
           }
-          
+
           try {
-            console.log('Cancelling reminder:', cancelReminderModal.reminder.id);
-            console.log('Full reminder object:', cancelReminderModal.reminder);
+            logger.debug('Cancelling reminder', {
+              reminderId: cancelReminderModal.reminder.id,
+              reminder: cancelReminderModal.reminder
+            }, 'DashboardDetailPage');
             await metricReminderService.cancel(cancelReminderModal.reminder.id);
             setActiveReminders(prev => prev.filter(r => r.id !== cancelReminderModal.reminder!.id));
             showSuccess('Rappel annulé avec succès');
             setCancelReminderModal({ isOpen: false, reminder: null });
           } catch (error) {
-            console.error('Error cancelling reminder:', error);
+            logger.error('Error cancelling reminder', error, 'DashboardDetailPage');
             showError('Erreur lors de l\'annulation du rappel. Veuillez réessayer.');
           }
         }}

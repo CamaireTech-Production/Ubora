@@ -6,6 +6,7 @@ import { ArrowLeft, ArrowRight, Check, ChevronRight, Circle, Loader2 } from 'luc
 import { useUniversWizardProgress } from '@ubora/shared/hooks/useUniversWizardProgress';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
 import { UniversDefinitions, UniversMetadata, UniversOwnership, Univers } from '../../types';
+import { logger } from '@ubora/shared/utils/logger';
 
 interface UniversWizardProps {
   onComplete: (universData: {
@@ -175,19 +176,19 @@ export const UniversWizard: React.FC<UniversWizardProps> = ({
 
   const handleComplete = useCallback(async () => {
            if (!user?.id || !user?.agencyId) {
-             console.error('User data missing');
+             logger.error('User data missing', null, 'UniversWizard');
              return;
            }
 
            // Validate minimum requirements
            if (!wizardData.metadata.name || !wizardData.metadata.name.trim()) {
-             console.error('Univers name is required');
+             logger.error('Univers name is required', null, 'UniversWizard');
              return;
            }
 
            // Forms are required (step 3, but validate here)
            if (!wizardData.definitions.forms || wizardData.definitions.forms.length === 0) {
-             console.error('At least one form is required');
+             logger.error('At least one form is required', null, 'UniversWizard');
              return;
            }
 
@@ -197,7 +198,7 @@ export const UniversWizard: React.FC<UniversWizardProps> = ({
              const price = (wizardData.metadata as any).price;
              const isFree = price === 0 || price === null || price === undefined;
              if (!isFree && (price < 0 || !(wizardData.metadata as any).currency)) {
-               console.error('Prix invalide pour Univers marketplace payant');
+               logger.error('Prix invalide pour Univers marketplace payant', null, 'UniversWizard');
                return;
              }
            }
@@ -245,7 +246,7 @@ export const UniversWizard: React.FC<UniversWizardProps> = ({
              // Clear progress on successful completion
              clearProgress();
            } catch (error) {
-             console.error('Error completing Univers wizard:', error);
+             logger.error('Error completing Univers wizard', error, 'UniversWizard');
            } finally {
              setIsLoading(false);
            }

@@ -12,6 +12,7 @@ import {
   deleteFormEntryFromVector,
 } from '../lib/vectorStorage.js';
 import { initializeQdrant } from '../lib/vectorDb.js';
+import { logger } from '../lib/logger.js';
 
 /**
  * Get form data by ID
@@ -24,7 +25,7 @@ async function getFormById(formId) {
     }
     return null;
   } catch (error) {
-    console.error(`❌ Error fetching form ${formId}:`, error);
+    logger.error('Error fetching form', { formId, error }, 'vectorSync.js');
     return null;
   }
 }
@@ -34,7 +35,7 @@ async function getFormById(formId) {
  */
 export async function syncFormEntryToVector(formEntryId, operation = 'create', useRawText = false) {
   try {
-    console.log(`🔄 [VectorSync] ${operation.toUpperCase()} sync for formEntry: ${formEntryId}${useRawText ? ' (using raw text)' : ''}`);
+    logger.info('VectorSync operation', { operation: operation.toUpperCase(), formEntryId, useRawText }, 'vectorSync.js');
 
     // Update status to processing
     await adminDb.collection('formEntries').doc(formEntryId).update({
@@ -48,7 +49,7 @@ export async function syncFormEntryToVector(formEntryId, operation = 'create', u
     if (!formEntryDoc.exists) {
       if (operation === 'delete') {
         // Entry was deleted, remove from vector DB
-        console.log(`🗑️ [VectorSync] Entry deleted, removing from vector DB: ${formEntryId}`);
+        logger.info('Entry deleted, removing from vector DB', { formEntryId }, 'vectorSync.js');
         await deleteFormEntryFromVector(formEntryId);
         return { success: true, operation: 'delete' };
       } else {
@@ -66,7 +67,7 @@ export async function syncFormEntryToVector(formEntryId, operation = 'create', u
 
     // Check if there's any content to index
     if (!extractedData.fullText || extractedData.fullText.trim().length === 0) {
-      console.log(`⏭️ [VectorSync] No content to index for formEntry: ${formEntryId}`);
+      logger.debug('No content to index for formEntry', { formEntryId }, 'vectorSync.js');
       await adminDb.collection('formEntries').doc(formEntryId).update({
         vectorSyncStatus: 'skipped',
         vectorSyncCompletedAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -99,7 +100,7 @@ export async function syncFormEntryToVector(formEntryId, operation = 'create', u
       vectorSyncStartedAt: admin.firestore.FieldValue.delete(), // Clear started timestamp
     });
 
-    console.log(`✅ [VectorSync] Successfully synced formEntry: ${formEntryId}`);
+    logger.info('Successfully synced formEntry', { formEntryId }, 'vectorSync.js');
 
     return {
       success: true,
@@ -108,17 +109,12 @@ export async function syncFormEntryToVector(formEntryId, operation = 'create', u
       chunksSaved: true,
     };
   } catch (error) {
-    console.error(`❌ [VectorSync] Failed to sync formEntry ${formEntryId}:`, error);
-
-    // Enhanced error logging
-    const errorDetails = {
-      message: error.message,
-      stack: error.stack,
-      operation,
+    logger.error('Failed to sync formEntry', {
       formEntryId,
-      timestamp: new Date().toISOString(),
-    };
-    console.error(`❌ [VectorSync] Error details:`, JSON.stringify(errorDetails, null, 2));
+      operation,
+      error: error.message,
+      stack: error.stack
+    }, 'vectorSync.js');
 
     // Update sync status with error and increment retry count
     try {
@@ -133,14 +129,14 @@ export async function syncFormEntryToVector(formEntryId, operation = 'create', u
         vectorSyncRetryCount: currentRetryCount + 1,
       });
     } catch (updateError) {
-      console.error(`❌ [VectorSync] Failed to update sync status:`, updateError);
+      logger.error('Failed to update sync status', updateError, 'vectorSync.js');
     }
 
     // Don't throw for non-critical errors - allow retry later
     // Only log critical errors that need immediate attention
     if (error.message.includes('Qdrant is not healthy') || 
         error.message.includes('Cannot connect to Qdrant')) {
-      console.error(`🚨 [VectorSync] CRITICAL: Qdrant connection failed - vector DB may be down`);
+      logger.error('CRITICAL: Qdrant connection failed - vector DB may be down', null, 'vectorSync.js');
       // Still don't throw to avoid breaking the main flow
     }
 
@@ -155,9 +151,9 @@ export async function syncFormEntryToVector(formEntryId, operation = 'create', u
 export async function initializeVectorSync() {
   try {
     await initializeQdrant();
-    console.log('✅ Vector sync initialized');
+    logger.info('Vector sync initialized', null, 'vectorSync.js');
   } catch (error) {
-    console.error('❌ Failed to initialize vector sync:', error);
+    logger.error('Failed to initialize vector sync', error, 'vectorSync.js');
     throw error;
   }
 }

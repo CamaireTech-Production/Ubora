@@ -1,12 +1,12 @@
 import React, { useRef } from 'react';
-import { Loader2 } from 'lucide-react';
+import { WireframeLoader } from './WireframeLoader';
 
 interface LoadingGuardProps {
   isLoading: boolean;
   user: any;
   firebaseUser: any;
   children: React.ReactNode;
-  message?: string;
+  wireframeType: 'dashboard' | 'chat' | 'form' | 'list' | 'card' | 'chart' | 'metric' | 'notification' | 'univers' | 'univers-card' | 'univers-detail';
 }
 
 const LoadingGuardComponent: React.FC<LoadingGuardProps> = ({ 
@@ -14,7 +14,7 @@ const LoadingGuardComponent: React.FC<LoadingGuardProps> = ({
   user, 
   firebaseUser, 
   children, 
-  message = "Chargement des données..." 
+  wireframeType
 }) => {
   // Afficher le chargement si :
   // - L'authentification est en cours
@@ -26,15 +26,11 @@ const LoadingGuardComponent: React.FC<LoadingGuardProps> = ({
     if (!hasShownLoadingRef.current) {
       hasShownLoadingRef.current = true;
     }
+    
+    // Always use wireframe loader with specified type
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <Loader2 className="h-12 w-12 text-blue-600 animate-spin mx-auto mb-4" />
-          <p className="text-gray-600">{message}</p>
-          <p className="text-sm text-gray-400 mt-2">
-            Vérification du profil utilisateur...
-          </p>
-        </div>
+      <div className="min-h-screen bg-gray-50">
+        <WireframeLoader type={wireframeType} />
       </div>
     );
   }

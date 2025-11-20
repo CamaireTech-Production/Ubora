@@ -21,6 +21,7 @@ import { SubscriptionSessionCollectionService } from '../services/subscriptionSe
 import { withFirebaseErrorHandling, FirebaseErrorHandler } from '../services/firebaseErrorHandler';
 import { universService } from '../services/universService';
 import { withRetry, withFirestoreRetry, withAuthRetry } from '../utils/retryHandler';
+import { sanitizeSensitiveErrorMessage } from '../utils/errorSanitizer';
 
 interface AuthContextType {
   user: User | null;
@@ -730,7 +731,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return true;
     } catch (err: any) {
       console.error('Erreur de connexion:', err);
-      setError(getErrorMessage(err.code));
+      setError(formatAuthErrorMessage(err));
       return false;
     } finally {
       setIsLoading(false);
@@ -900,7 +901,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return true;
     } catch (err: any) {
       console.error('Erreur de connexion Google:', err);
-      setError(getErrorMessage(err.code));
+      setError(formatAuthErrorMessage(err));
       return false;
     } finally {
       setIsLoading(false);
@@ -1034,10 +1035,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 };
               }
         
-        setError(getErrorMessage(authError.code));
+        setError(formatAuthErrorMessage(authError));
         return { 
           success: false, 
-          error: getErrorMessage(authError.code)
+          error: formatAuthErrorMessage(authError)
         };
       }
       
@@ -1166,7 +1167,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.error('❌ Failed to delete Auth user during rollback:', deleteError);
       }
       
-      const errorMessage = getErrorMessage(err.code || err.message);
+      const errorMessage = formatAuthErrorMessage(err);
       setError(errorMessage);
       return { 
         success: false, 
@@ -1186,7 +1187,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return true;
     } catch (err: any) {
       console.error('Erreur de réinitialisation du mot de passe:', err);
-      setError(getErrorMessage(err.code));
+      setError(formatAuthErrorMessage(err));
       return false;
     } finally {
       setIsLoading(false);
@@ -1274,7 +1275,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
   };
 
-  const getErrorMessage = (errorCode: string): string => {
+  const formatAuthErrorMessage = (error: unknown): string => {
+    const err = error as { code?: string; message?: string } | undefined
+    return getErrorMessage(err?.code, sanitizeSensitiveErrorMessage(err?.message))
+  }
+
+  const getErrorMessage = (errorCode?: string, fallbackMessage?: string): string => {
     switch (errorCode) {
       case 'auth/invalid-credential':
       case 'auth/invalid-login-credentials':
@@ -1317,6 +1323,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // Pour les erreurs inconnues, retourner un message générique en français
         if (errorCode && errorCode.startsWith('auth/')) {
           return 'Erreur d\'authentification. Veuillez réessayer ou contacter le support';
+        }
+        if (fallbackMessage) {
+          return fallbackMessage;
         }
         return 'Une erreur est survenue. Veuillez réessayer';
     }

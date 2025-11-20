@@ -15,6 +15,7 @@ import {
   Timestamp
 } from 'firebase/firestore';
 import { db } from '@ubora/shared/firebaseConfig';
+import { logger } from '@ubora/shared/utils/logger';
 import { ScheduledQuestion, ScheduledQuestionResponse } from '../../types';
 import { getCameroonTime, calculateNextExecutionCameroon } from '../../utils/core/timezoneUtils';
 
@@ -38,7 +39,7 @@ class ScheduledQuestionService {
       });
       return docRef.id;
     } catch (error) {
-      console.error('Erreur lors de la création de la question programmée:', error);
+      logger.error('Erreur lors de la création de la question programmée', error, 'ScheduledQuestionService');
       throw error;
     }
   }
@@ -48,8 +49,7 @@ class ScheduledQuestionService {
    */
   async update(id: string, updates: Partial<ScheduledQuestion>): Promise<void> {
     try {
-      console.log('🔄 [ScheduledQuestionService] Mise à jour de la question:', id);
-      console.log('📊 [ScheduledQuestionService] Données de mise à jour:', updates);
+      logger.debug('Mise à jour de la question', { id, updates }, 'ScheduledQuestionService');
       
       const docRef = doc(db, this.collectionName, id);
       
@@ -71,15 +71,14 @@ class ScheduledQuestionService {
         updateData.lastExecutedAt = Timestamp.fromDate(filteredUpdates.lastExecutedAt);
       }
       
-      console.log('📤 [ScheduledQuestionService] Données Firestore à envoyer:', updateData);
+      logger.debug('Données Firestore à envoyer', updateData, 'ScheduledQuestionService');
       
       await updateDoc(docRef, updateData);
       
-      console.log('✅ [ScheduledQuestionService] Question mise à jour avec succès:', id);
+      logger.info('Question mise à jour avec succès', { id }, 'ScheduledQuestionService');
     } catch (error) {
-      console.error('❌ [ScheduledQuestionService] Erreur lors de la mise à jour de la question programmée:', error);
-      console.error('📊 [ScheduledQuestionService] ID de la question:', id);
-      console.error('📊 [ScheduledQuestionService] Données qui ont échoué:', updates);
+      logger.error('Erreur lors de la mise à jour de la question programmée', error, 'ScheduledQuestionService');
+      logger.error('Détails de l\'erreur', { id, updates }, 'ScheduledQuestionService');
       throw error;
     }
   }
@@ -91,7 +90,7 @@ class ScheduledQuestionService {
     try {
       await deleteDoc(doc(db, this.collectionName, id));
     } catch (error) {
-      console.error('Erreur lors de la suppression de la question programmée:', error);
+      logger.error('Erreur lors de la suppression de la question programmée', error, 'ScheduledQuestionService');
       throw error;
     }
   }
@@ -109,7 +108,7 @@ class ScheduledQuestionService {
       }
       return null;
     } catch (error) {
-      console.error('Erreur lors de la récupération de la question programmée:', error);
+      logger.error('Erreur lors de la récupération de la question programmée', error, 'ScheduledQuestionService');
       throw error;
     }
   }
@@ -131,7 +130,7 @@ class ScheduledQuestionService {
         this.convertFirestoreToScheduledQuestion(doc.id, doc.data())
       );
     } catch (error) {
-      console.error('Erreur lors de la récupération des questions programmées:', error);
+      logger.error('Erreur lors de la récupération des questions programmées', error, 'ScheduledQuestionService');
       throw error;
     }
   }
@@ -146,8 +145,12 @@ class ScheduledQuestionService {
       const toleranceMinutes = 5;
       const toleranceTime = new Date(now.getTime() + (toleranceMinutes * 60 * 1000));
       
-      console.log('🔍 [ScheduledQuestionService] Recherche des questions à exécuter pour:', userId, 'à', now.toISOString(), '(Heure Cameroun)');
-      console.log('⏰ [ScheduledQuestionService] Tolérance de', toleranceMinutes, 'minutes - recherche jusqu\'à:', toleranceTime.toISOString());
+      logger.debug('Recherche des questions à exécuter', {
+        userId,
+        now: now.toISOString(),
+        toleranceMinutes,
+        toleranceTime: toleranceTime.toISOString()
+      }, 'ScheduledQuestionService');
       
       // Requête pour les questions avec nextExecution <= maintenant + tolérance
       const q1 = query(
@@ -198,21 +201,24 @@ class ScheduledQuestionService {
       });
       
       const dueQuestions = Array.from(allQuestions.values());
-      console.log(`🔍 [ScheduledQuestionService] ${dueQuestions.length} question(s) trouvée(s) à exécuter`);
+      logger.debug(`${dueQuestions.length} question(s) trouvée(s) à exécuter`, { count: dueQuestions.length }, 'ScheduledQuestionService');
       
       // Vérifier et marquer les questions trop anciennes comme échouées
       await this.handleOverdueQuestions(userId, agencyId, now, toleranceMinutes);
       
       if (dueQuestions.length > 0) {
-        console.log('📋 [ScheduledQuestionService] Questions à exécuter:');
-        dueQuestions.forEach(q => {
-          console.log(`  - ${q.title} (scheduledAt: ${q.scheduledAt.toISOString()}, nextExecution: ${q.nextExecution?.toISOString() || 'null'})`);
-        });
+        logger.debug('Questions à exécuter', {
+          questions: dueQuestions.map(q => ({
+            title: q.title,
+            scheduledAt: q.scheduledAt.toISOString(),
+            nextExecution: q.nextExecution?.toISOString() || 'null'
+          }))
+        }, 'ScheduledQuestionService');
       }
       
       return dueQuestions;
     } catch (error) {
-      console.error('❌ [ScheduledQuestionService] Erreur lors de la récupération des questions à exécuter:', error);
+      logger.error('Erreur lors de la récupération des questions à exécuter', error, 'ScheduledQuestionService');
       throw error;
     }
   }
@@ -238,7 +244,7 @@ class ScheduledQuestionService {
       );
       callback(questions);
     }, (error) => {
-      console.error('Erreur lors de l\'écoute des questions programmées:', error);
+      logger.error('Erreur lors de l\'écoute des questions programmées', error, 'ScheduledQuestionService');
     });
   }
 
@@ -275,7 +281,10 @@ class ScheduledQuestionService {
    */
   async getStuckQuestions(userId: string, agencyId: string, stuckThreshold: Date): Promise<ScheduledQuestion[]> {
     try {
-      console.log('🔍 [ScheduledQuestionService] Recherche des questions bloquées pour:', userId, 'avant:', stuckThreshold.toISOString());
+      logger.debug('Recherche des questions bloquées', {
+        userId,
+        stuckThreshold: stuckThreshold.toISOString()
+      }, 'ScheduledQuestionService');
       
       const stuckQuery = query(
         collection(db, this.collectionName),
@@ -291,10 +300,10 @@ class ScheduledQuestionService {
         this.convertFirestoreToScheduledQuestion(doc.id, doc.data())
       );
       
-      console.log(`🔍 [ScheduledQuestionService] ${stuckQuestions.length} question(s) bloquée(s) trouvée(s)`);
+      logger.debug(`${stuckQuestions.length} question(s) bloquée(s) trouvée(s)`, { count: stuckQuestions.length }, 'ScheduledQuestionService');
       return stuckQuestions;
     } catch (error) {
-      console.error('❌ [ScheduledQuestionService] Erreur lors de la récupération des questions bloquées:', error);
+      logger.error('Erreur lors de la récupération des questions bloquées', error, 'ScheduledQuestionService');
       return [];
     }
   }
@@ -320,12 +329,16 @@ class ScheduledQuestionService {
       const overdueSnapshot = await getDocs(overdueQuery);
       
       if (overdueSnapshot.docs.length > 0) {
-        console.log(`⚠️ [ScheduledQuestionService] ${overdueSnapshot.docs.length} question(s) trop ancienne(s) détectée(s)`);
+        logger.warn(`${overdueSnapshot.docs.length} question(s) trop ancienne(s) détectée(s)`, {
+          count: overdueSnapshot.docs.length
+        }, 'ScheduledQuestionService');
         
         // Marquer les questions trop anciennes comme échouées
         const updatePromises = overdueSnapshot.docs.map(async (doc) => {
           const question = this.convertFirestoreToScheduledQuestion(doc.id, doc.data());
-          console.log(`🔄 [ScheduledQuestionService] Marquage de la question trop ancienne comme échouée: ${question.title}`);
+          logger.debug(`Marquage de la question trop ancienne comme échouée: ${question.title}`, {
+            questionId: doc.id
+          }, 'ScheduledQuestionService');
           
           await this.update(doc.id, {
             status: 'failed',
@@ -335,10 +348,12 @@ class ScheduledQuestionService {
         });
         
         await Promise.all(updatePromises);
-        console.log(`✅ [ScheduledQuestionService] ${overdueSnapshot.docs.length} question(s) trop ancienne(s) marquée(s) comme échouée(s)`);
+        logger.info(`${overdueSnapshot.docs.length} question(s) trop ancienne(s) marquée(s) comme échouée(s)`, {
+          count: overdueSnapshot.docs.length
+        }, 'ScheduledQuestionService');
       }
     } catch (error) {
-      console.error('❌ [ScheduledQuestionService] Erreur lors de la gestion des questions trop anciennes:', error);
+      logger.error('Erreur lors de la gestion des questions trop anciennes', error, 'ScheduledQuestionService');
       // Ne pas faire échouer l'exécution pour cette erreur
     }
   }
@@ -348,24 +363,23 @@ class ScheduledQuestionService {
    */
   async createResponse(response: Omit<ScheduledQuestionResponse, 'id'>): Promise<string> {
     try {
-      console.log('🔄 [ScheduledQuestionService] Création de la réponse pour la question:', response.scheduledQuestionId);
-      console.log('📊 [ScheduledQuestionService] Données de la réponse:', {
+      logger.debug('Création de la réponse pour la question', {
         scheduledQuestionId: response.scheduledQuestionId,
         status: response.status,
         responseLength: response.response?.length || 0,
         executedAt: response.executedAt.toISOString()
-      });
+      }, 'ScheduledQuestionService');
       
       const docRef = await addDoc(collection(db, this.responsesCollectionName), {
         ...response,
         executedAt: Timestamp.fromDate(response.executedAt)
       });
       
-      console.log('✅ [ScheduledQuestionService] Réponse créée avec succès, ID:', docRef.id);
+      logger.info('Réponse créée avec succès', { responseId: docRef.id }, 'ScheduledQuestionService');
       return docRef.id;
     } catch (error) {
-      console.error('❌ [ScheduledQuestionService] Erreur lors de la création de la réponse:', error);
-      console.error('📊 [ScheduledQuestionService] Données qui ont échoué:', {
+      logger.error('Erreur lors de la création de la réponse', error, 'ScheduledQuestionService');
+      logger.error('Données qui ont échoué', {
         scheduledQuestionId: response.scheduledQuestionId,
         status: response.status,
         responseLength: response.response?.length || 0
@@ -379,7 +393,7 @@ class ScheduledQuestionService {
    */
   async getResponses(scheduledQuestionId: string): Promise<ScheduledQuestionResponse[]> {
     try {
-      console.log('🔍 [ScheduledQuestionService] Récupération des réponses pour la question:', scheduledQuestionId);
+      logger.debug('Récupération des réponses pour la question', { scheduledQuestionId }, 'ScheduledQuestionService');
       
       const q = query(
         collection(db, this.responsesCollectionName),
@@ -397,14 +411,14 @@ class ScheduledQuestionService {
         } as ScheduledQuestionResponse;
       });
       
-      console.log(`🔍 [ScheduledQuestionService] ${responses.length} réponse(s) trouvée(s) pour la question ${scheduledQuestionId}`);
+      logger.debug(`${responses.length} réponse(s) trouvée(s) pour la question`, { count: responses.length, scheduledQuestionId }, 'ScheduledQuestionService');
       return responses;
     } catch (error) {
-      console.error('❌ [ScheduledQuestionService] Erreur lors de la récupération des réponses:', error);
+      logger.error('Erreur lors de la récupération des réponses', error, 'ScheduledQuestionService');
       
       // Si c'est une erreur de permissions, retourner un tableau vide au lieu de faire échouer
       if (error instanceof Error && error.message.includes('Missing or insufficient permissions')) {
-        console.warn('⚠️ [ScheduledQuestionService] Permissions insuffisantes pour lire les réponses, retour d\'un tableau vide');
+        logger.warn('Permissions insuffisantes pour lire les réponses, retour d\'un tableau vide', undefined, 'ScheduledQuestionService');
         return [];
       }
       
@@ -436,7 +450,7 @@ class ScheduledQuestionService {
       });
       callback(responses);
     }, (error) => {
-      console.error('Erreur lors de l\'écoute des réponses:', error);
+      logger.error('Erreur lors de l\'écoute des réponses', error, 'ScheduledQuestionService');
     });
   }
 

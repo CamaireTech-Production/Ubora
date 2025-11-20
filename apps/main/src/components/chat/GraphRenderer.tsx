@@ -23,6 +23,7 @@ import { useCurrentPng } from 'recharts-to-png';
 import { Maximize2, Download, Loader2 } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { GraphData } from '@ubora/shared/types';
+import { logger } from '@ubora/shared/utils/logger';
 
 interface GraphRendererProps {
   data: GraphData;
@@ -87,7 +88,7 @@ const GraphModal: React.FC<GraphModalProps> = ({ data, isOpen, onClose }) => {
         document.body.removeChild(link);
       }
     } catch (error) {
-      console.error('Error downloading chart image:', error);
+      logger.error('Error downloading chart image', error, 'GraphRenderer');
     } finally {
       setIsDownloading(false);
     }

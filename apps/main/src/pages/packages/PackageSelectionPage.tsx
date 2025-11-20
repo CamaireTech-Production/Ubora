@@ -10,6 +10,7 @@ import {
   PACKAGE_FEATURES,
   PackageType 
 } from '@ubora/shared/config/packageFeatures';
+import { logger } from '@ubora/shared/utils/logger';
 import { 
   Check, 
   X, 
@@ -126,14 +127,14 @@ export const PackageSelectionPage: React.FC = () => {
       try {
         sessionStorage.setItem('show_welcome_after_package_selection', 'true');
       } catch (e) {
-        console.warn('Could not set welcome screen flag:', e);
+        logger.warn('Could not set welcome screen flag', e, 'PackageSelectionPage');
       }
 
       showSuccess('Package gratuit activé avec succès !');
       navigate('/directeur/chat');
         return;
       } catch (error) {
-        console.error('Error activating free package:', error);
+        logger.error('Error activating free package', error, 'PackageSelectionPage');
         showError('Erreur lors de l\'activation du package gratuit');
         return;
       }
@@ -151,7 +152,7 @@ export const PackageSelectionPage: React.FC = () => {
       // Calculate price with discount
       const priceCalculation = SubscriptionPriceCalculator.calculatePrice(pkg, selectedPeriod);
       
-      console.log('Package selection:', { 
+      logger.debug('Package selection', { 
         packageType: pkg,
         period: selectedPeriod,
         priceCalculation,
@@ -177,7 +178,7 @@ export const PackageSelectionPage: React.FC = () => {
         }
       };
 
-      console.log('Creating package selection payment request:', paymentReq);
+      logger.debug('Creating package selection payment request', { paymentReq }, 'PackageSelectionPage');
 
       // Create payment record in Firebase
       const paymentId = await PaymentService.createPayment(user.id, paymentReq, {
@@ -186,12 +187,12 @@ export const PackageSelectionPage: React.FC = () => {
         subscriptionPeriod: selectedPeriod
       });
 
-      console.log('Package selection payment created with ID:', paymentId);
+      logger.info('Package selection payment created', { paymentId }, 'PackageSelectionPage');
 
       // Verify payment was created
       const createdPayment = await PaymentService.getPayment(paymentId);
       if (!createdPayment) {
-        console.error('Payment verification failed - payment not found in Firebase');
+        logger.error('Payment verification failed - payment not found in Firebase', { paymentId }, 'PackageSelectionPage');
         showError('Erreur lors de la création du paiement. Veuillez réessayer.');
         return;
       }
@@ -210,7 +211,7 @@ export const PackageSelectionPage: React.FC = () => {
       showSuccess(`Paiement initialisé pour le package ${getPackageDisplayName(pkg)}${discountText}. Ouverture du modal de paiement...`);
 
     } catch (error) {
-      console.error('Package selection payment failed:', error);
+      logger.error('Package selection payment failed', error, 'PackageSelectionPage');
       showError('Erreur lors de la création du paiement. Veuillez réessayer.');
     } finally {
       setIsCreatingPayment(false);
@@ -280,7 +281,7 @@ export const PackageSelectionPage: React.FC = () => {
     if (!currentPaymentId || !user || !selectedPackage || !selectedPeriod) return;
 
     try {
-      console.log('PackageSelectionPage: Payment successful, processing...');
+      logger.debug('Payment successful, processing', undefined, 'PackageSelectionPage');
       
       // Update payment status in Firebase
       await PaymentService.updatePaymentStatus(currentPaymentId, data, 'completed');
@@ -353,14 +354,14 @@ export const PackageSelectionPage: React.FC = () => {
       try {
         await AnalyticsService.logPackageSelection(user.id, selectedPackage, user.agencyId);
       } catch (analyticsError) {
-        console.error('Analytics error:', analyticsError);
+        logger.error('Analytics error', analyticsError, 'PackageSelectionPage');
       }
 
       // Set flag to show welcome screen after package selection
       try {
         sessionStorage.setItem('show_welcome_after_package_selection', 'true');
       } catch (e) {
-        console.warn('Could not set welcome screen flag:', e);
+        logger.warn('Could not set welcome screen flag', e, 'PackageSelectionPage');
       }
 
       showSuccess(`Package ${getPackageDisplayName(selectedPackage)} activé avec succès !`);
@@ -371,7 +372,7 @@ export const PackageSelectionPage: React.FC = () => {
       }, 1500);
       
     } catch (error) {
-      console.error('Error processing package selection payment success:', error);
+      logger.error('Error processing package selection payment success', error, 'PackageSelectionPage');
       showError('Erreur lors du traitement du paiement. Veuillez contacter le support.');
     } finally {
       // Reset states
@@ -389,7 +390,7 @@ export const PackageSelectionPage: React.FC = () => {
       await PaymentService.updatePaymentStatus(currentPaymentId, data, 'failed');
       showError('Paiement échoué. Veuillez réessayer.');
     } catch (error) {
-      console.error('Error processing payment failure:', error);
+      logger.error('Error processing payment failure', error, 'PackageSelectionPage');
     } finally {
       setCurrentPaymentId(null);
       setPaymentRequest(null);

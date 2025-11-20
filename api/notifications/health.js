@@ -1,4 +1,5 @@
 const admin = require('firebase-admin');
+const { logger } = require('../lib/logger.js');
 
 // Initialize Firebase Admin if not already initialized
 if (!admin.apps.length) {
@@ -72,7 +73,7 @@ export default async function handler(req, res) {
     });
 
   } catch (error) {
-    console.error('🔔 [HealthCheck] Error in health check:', error);
+    logger.error('Error in health check', error, 'notifications/health.js');
     return res.status(500).json({
       status: 'unhealthy',
       timestamp: new Date().toISOString(),

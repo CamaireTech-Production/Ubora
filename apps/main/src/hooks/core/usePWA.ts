@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { logger } from '@ubora/shared/utils/logger';
 
 interface PWAState {
   isInstalled: boolean;
@@ -51,7 +52,7 @@ export const usePWA = () => {
             
             // Listen for new updates
             registration.addEventListener('updatefound', () => {
-              console.log('🔄 [PWA] Update found, new service worker installing...');
+              logger.info('PWA: Update found, new service worker installing', null, 'usePWA');
               setPwaState(prev => ({
                 ...prev,
                 isUpdateAvailable: true,
@@ -62,14 +63,14 @@ export const usePWA = () => {
             setInterval(async () => {
               try {
                 await registration.update();
-                console.log('🔄 [PWA] Periodic update check completed');
+                logger.debug('PWA: Periodic update check completed', null, 'usePWA');
               } catch (error) {
-                console.error('🔄 [PWA] Periodic update check failed:', error);
+                logger.error('PWA: Periodic update check failed', error, 'usePWA');
               }
             }, 5 * 60 * 1000); // 5 minutes
           }
         } catch (error) {
-          console.error('Error checking for updates:', error);
+          logger.error('Error checking for updates', error, 'usePWA');
         }
       }
     };

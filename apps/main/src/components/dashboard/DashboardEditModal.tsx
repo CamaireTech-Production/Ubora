@@ -4,6 +4,7 @@ import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { Textarea } from '../ui/Textarea';
 import { X } from 'lucide-react';
+import { logger } from '@ubora/shared/utils/logger';
 
 interface DashboardEditModalProps {
   isOpen: boolean;
@@ -59,7 +60,7 @@ export const DashboardEditModal: React.FC<DashboardEditModalProps> = ({
       await new Promise(resolve => setTimeout(resolve, 500));
       onClose();
     } catch (error) {
-      console.error('Erreur lors de la mise à jour du tableau de bord:', error);
+      logger.error('Erreur lors de la mise à jour du tableau de bord', error, 'DashboardEditModal');
       setErrors(['Erreur lors de la mise à jour du tableau de bord. Veuillez réessayer.']);
     } finally {
       setIsLoading(false);

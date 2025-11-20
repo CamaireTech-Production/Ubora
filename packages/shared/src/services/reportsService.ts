@@ -246,29 +246,39 @@ class ReportsService {
 
   /**
    * Récupérer tous les Reports d'une agence
-   * Filtrer par Univers actif si activeUniversId est fourni
+   * Filtrer par Univers actif et instance active si fournis (même logique que FormsContext et DashboardsContext)
    */
-  async getByAgency(agencyId: string, activeUniversId?: string | null): Promise<Report[]> {
+  async getByAgency(agencyId: string, activeUniversId?: string | null, activeInstanceId?: string | null): Promise<Report[]> {
     try {
-      let q;
+      let reportsQuery;
       if (activeUniversId) {
-        // Filtrer par Univers actif
-        q = query(
-          collection(db, this.collectionName),
-          where('agencyId', '==', agencyId),
-          where('universId', '==', activeUniversId),
-          orderBy('updatedAt', 'desc')
-        );
+        // Si activeInstanceId est disponible, filtrer par universInstanceId pour éviter les doublons
+        if (activeInstanceId) {
+          reportsQuery = query(
+            collection(db, this.collectionName),
+            where('agencyId', '==', agencyId),
+            where('universInstanceId', '==', activeInstanceId),
+            orderBy('updatedAt', 'desc')
+          );
+        } else {
+          // Rétrocompatibilité : filtrer par universId si pas d'instance
+          reportsQuery = query(
+            collection(db, this.collectionName),
+            where('agencyId', '==', agencyId),
+            where('universId', '==', activeUniversId),
+            orderBy('updatedAt', 'desc')
+          );
+        }
       } else {
         // Rétrocompatibilité temporaire : si pas de Univers actif, charger tous les Reports
-        q = query(
+        reportsQuery = query(
           collection(db, this.collectionName),
           where('agencyId', '==', agencyId),
           orderBy('updatedAt', 'desc')
         );
       }
       
-      const querySnapshot = await getDocs(q);
+      const querySnapshot = await getDocs(reportsQuery);
       return querySnapshot.docs.map(doc => 
         this.convertFirestoreToReport(doc.id, doc.data())
       );
@@ -281,27 +291,38 @@ class ReportsService {
   /**
    * Récupérer tous les Reports créés par un utilisateur
    * Inclut tous les Reports de l'agence si l'utilisateur est directeur
-   * Filtrer par Univers actif si activeUniversId est fourni
+   * Filtrer par Univers actif et instance active si fournis
    */
-  async getByUser(userId: string, agencyId: string, userRole?: 'directeur' | 'employe' | 'admin', activeUniversId?: string | null): Promise<Report[]> {
+  async getByUser(userId: string, agencyId: string, userRole?: 'directeur' | 'employe' | 'admin', activeUniversId?: string | null, activeInstanceId?: string | null): Promise<Report[]> {
     try {
-      // Si c'est un directeur, retourner tous les Reports de l'agence (filtrés par Univers actif)
+      // Si c'est un directeur, retourner tous les Reports de l'agence (filtrés par Univers actif et instance active)
       if (userRole === 'directeur' || userRole === 'admin') {
-        return await this.getByAgency(agencyId, activeUniversId);
+        return await this.getByAgency(agencyId, activeUniversId, activeInstanceId);
       }
 
-      // Sinon, retourner seulement les Reports créés par l'utilisateur (filtrés par Univers actif)
-      let q;
+      // Sinon, retourner seulement les Reports créés par l'utilisateur (filtrés par Univers actif et instance active)
+      let reportsQuery;
       if (activeUniversId) {
-        q = query(
-          collection(db, this.collectionName),
-          where('createdBy', '==', userId),
-          where('agencyId', '==', agencyId),
-          where('universId', '==', activeUniversId),
-          orderBy('updatedAt', 'desc')
-        );
+        // Si activeInstanceId est disponible, filtrer par universInstanceId
+        if (activeInstanceId) {
+          reportsQuery = query(
+            collection(db, this.collectionName),
+            where('createdBy', '==', userId),
+            where('agencyId', '==', agencyId),
+            where('universInstanceId', '==', activeInstanceId),
+            orderBy('updatedAt', 'desc')
+          );
+        } else {
+          reportsQuery = query(
+            collection(db, this.collectionName),
+            where('createdBy', '==', userId),
+            where('agencyId', '==', agencyId),
+            where('universId', '==', activeUniversId),
+            orderBy('updatedAt', 'desc')
+          );
+        }
       } else {
-        q = query(
+        reportsQuery = query(
           collection(db, this.collectionName),
           where('createdBy', '==', userId),
           where('agencyId', '==', agencyId),
@@ -309,7 +330,7 @@ class ReportsService {
         );
       }
       
-      const querySnapshot = await getDocs(q);
+      const querySnapshot = await getDocs(reportsQuery);
       return querySnapshot.docs.map(doc => 
         this.convertFirestoreToReport(doc.id, doc.data())
       );

@@ -4,6 +4,7 @@ import { Button } from '../ui/Button';
 import { fcmService, FCMNotification, FCMDeliveryLog } from '@ubora/shared/services/fcmService';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
 import { Bell, Send, Users, User, AlertCircle, CheckCircle, XCircle } from 'lucide-react';
+import { logger } from '@ubora/shared/utils/logger';
 
 interface NotificationManagerProps {
   className?: string;
@@ -29,7 +30,7 @@ export const NotificationManager: React.FC<NotificationManagerProps> = ({ classN
         const logs = await fcmService.getRecentDeliveryLogs(10);
         setRecentLogs(logs);
       } catch (error) {
-        console.error('Error loading recent logs:', error);
+        logger.error('Error loading recent logs', error, 'NotificationManager');
       }
     };
 
@@ -78,7 +79,7 @@ export const NotificationManager: React.FC<NotificationManagerProps> = ({ classN
       setRecentLogs(logs);
 
     } catch (error) {
-      console.error('Error sending notification:', error);
+      logger.error('Error sending notification', error, 'NotificationManager');
       alert('Erreur lors de l\'envoi: ' + (error instanceof Error ? error.message : 'Erreur inconnue'));
     } finally {
       setIsLoading(false);

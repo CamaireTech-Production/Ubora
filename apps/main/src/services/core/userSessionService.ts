@@ -1,6 +1,7 @@
 import { User } from '../../types';
 import { SubscriptionSessionCollectionService } from '@ubora/shared/services/subscriptionSessionCollectionService';
 import { PACKAGE_LIMITS, PACKAGE_FEATURES, PackageType } from '@ubora/shared/config/packageFeatures';
+import { logger } from '@ubora/shared/utils/logger';
 
 export interface UserPackageInfo {
   packageType: PackageType | null;
@@ -222,7 +223,7 @@ export class UserSessionService {
       return this.getUserPackageInfo(directorData);
       
     } catch (error) {
-      console.error('Error getting director package info for employee:', error);
+      logger.error('Error getting director package info for employee', error, 'userSessionService');
       return this.getDefaultPackageInfo();
     }
   }

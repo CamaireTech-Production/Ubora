@@ -3,6 +3,8 @@
  * Single source of truth for all API endpoints and base URLs
  */
 
+import { logger } from '@ubora/shared/utils/logger';
+
 export const API_CONFIG = {
   // Development Environment
   DEV: {
@@ -82,7 +84,7 @@ export const testApiConnectivity = async (baseUrl: string): Promise<string> => {
       return baseUrl; // HTTPS works
     }
   } catch (error) {
-    console.warn(`HTTPS connection failed for ${baseUrl}:`, error);
+    logger.warn('HTTPS connection failed', { baseUrl, error }, 'api');
   }
   
   // Fallback to HTTP
@@ -95,11 +97,11 @@ export const testApiConnectivity = async (baseUrl: string): Promise<string> => {
     });
     
     if (response.ok) {
-      console.warn(`Using HTTP fallback for ${httpUrl}`);
+      logger.warn('Using HTTP fallback', { httpUrl }, 'api');
       return httpUrl; // HTTP works
     }
   } catch (error) {
-    console.error(`Both HTTPS and HTTP failed for ${baseUrl}:`, error);
+    logger.error('Both HTTPS and HTTP failed', { baseUrl, error }, 'api');
   }
   
   return baseUrl; // Return original URL as fallback

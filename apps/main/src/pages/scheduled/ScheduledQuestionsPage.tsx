@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Plus, Search, Calendar, Clock, MessageSquare, ArrowLeft, Wrench } from 'lucide-react';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
 import { useApp } from '@ubora/shared/contexts/AppContext';
+import { logger } from '@ubora/shared/utils/logger';
 import { Button } from '../../components/ui/Button';
 import { ScheduledQuestionCard } from '../../components/scheduled/ScheduledQuestionCard';
 import { scheduledQuestionService } from '@ubora/shared/services/scheduledQuestionService';
@@ -56,7 +57,7 @@ export const ScheduledQuestionsPage: React.FC = () => {
 
         setUniversMap(map);
       } catch (error) {
-        console.error('Erreur lors du chargement des Univers:', error);
+        logger.error('Erreur lors du chargement des Univers', error, 'ScheduledQuestionsPage');
       }
     };
 
@@ -98,7 +99,7 @@ export const ScheduledQuestionsPage: React.FC = () => {
       await scheduledQuestionService.delete(questionId);
       showSuccess('Instruction programmée supprimée avec succès');
     } catch (error) {
-      console.error('Erreur lors de la suppression:', error);
+      logger.error('Erreur lors de la suppression', error, 'ScheduledQuestionsPage');
       showError('Erreur lors de la suppression de l\'instruction programmée');
     }
   };
@@ -127,7 +128,7 @@ export const ScheduledQuestionsPage: React.FC = () => {
       }, 1500);
       
     } catch (error) {
-      console.error('Erreur lors de l\'exécution:', error);
+      logger.error('Erreur lors de l\'exécution', error, 'ScheduledQuestionsPage');
       showError('Erreur lors de l\'exécution de l\'instruction. Veuillez réessayer.');
     } finally {
       // Retirer de la liste des exécutions en cours
@@ -152,7 +153,7 @@ export const ScheduledQuestionsPage: React.FC = () => {
       showSuccess('Questions bloquées réparées avec succès !');
       
     } catch (error) {
-      console.error('Erreur lors de la réparation:', error);
+      logger.error('Erreur lors de la réparation', error, 'ScheduledQuestionsPage');
       showError('Erreur lors de la réparation des questions bloquées. Veuillez réessayer.');
     }
   };

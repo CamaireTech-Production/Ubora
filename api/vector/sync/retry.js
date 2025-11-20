@@ -6,6 +6,7 @@
 import { adminDb } from '../../lib/firebaseAdmin.js';
 import { syncFormEntryToVector } from '../../workers/vectorSync.js';
 import { initializeQdrant } from '../../lib/vectorDb.js';
+import { logger } from '../../lib/logger.js';
 
 // CORS headers helper
 function setCorsHeaders(res, origin) {
@@ -38,7 +39,7 @@ export default async function handler(req, res) {
       return res.status(400).json({ success: false, error: 'formEntryId is required' });
     }
 
-    console.log('🔄 [VectorSyncRetry] Retry request received:', { formEntryId, useRawText });
+    logger.info('Retry request received', { formEntryId, useRawText }, 'vector/sync/retry.js');
 
     // Initialize Qdrant connection
     await initializeQdrant();
@@ -79,7 +80,7 @@ export default async function handler(req, res) {
     }
 
   } catch (error) {
-    console.error('❌ [VectorSyncRetry] Error:', error);
+    logger.error('Error in vector sync retry endpoint', error, 'vector/sync/retry.js');
     return res.status(500).json({
       success: false,
       error: 'Internal server error',

@@ -12,6 +12,14 @@ import { collection, query, where, getDocs } from 'firebase/firestore';
 import { useTokenStats } from './useTokenStats';
 import { UniversResourceService } from '../services/universResourceService';
 import { universService } from '../services/universService';
+import { SubscriptionSessionCollectionService } from '../services/subscriptionSessionCollectionService';
+import { 
+  calculateTotalLimit, 
+  getInstantiatedUniversResourcesCount,
+  countActualNonUniversResources,
+  syncUsageToActualCount
+} from '../utils/resourceQuotaUtils';
+import { logger } from '../utils/logger';
 
 type NumericPackageLimit = 'maxForms' | 'maxDashboards' | 'maxUsers' | 'monthlyTokens' | 'additionalUserCost';
 
@@ -66,28 +74,101 @@ export const usePackageAccess = () => {
   const [userPackageInfo, setUserPackageInfo] = useState<any>(null);
   const [isLoadingUserPackageInfo, setIsLoadingUserPackageInfo] = useState(false);
   const [hasActiveUnivers, setHasActiveUnivers] = useState<boolean>(false);
+  
+  // Cache for session usage and instantiated resources for quota checks
+  const [sessionUsage, setSessionUsage] = useState<{
+    formsCreated: number;
+    dashboardsCreated: number;
+    usersAdded: number;
+  } | null>(null);
+  const [instantiatedResources, setInstantiatedResources] = useState<{
+    forms: number;
+    dashboards: number;
+  } | null>(null);
+  const [sessionLimits, setSessionLimits] = useState<{
+    maxForms: number;
+    maxDashboards: number;
+    maxUsers: number;
+  } | null>(null);
+  
+  // Cache for validation results (actual counts from Firebase)
+  const [validatedCounts, setValidatedCounts] = useState<{
+    forms: number | null;
+    dashboards: number | null;
+    lastValidated: Date | null;
+  } | null>(null);
+  
   const isNumericLimit = (limit: keyof PackageLimits): limit is NumericPackageLimit =>
     NUMERIC_LIMIT_KEYS.includes(limit as NumericPackageLimit);
 
-  // Check if user has an active univers
+  // Check if user has an active univers and cache session/quota data
   useEffect(() => {
-    const checkActiveUnivers = async () => {
-      if (!user || user.role !== 'directeur' || !user.agencyId) {
+    const loadQuotaData = async () => {
+      if (!user || (user.role !== 'directeur' && !(user.role === 'employe' && user.hasDirectorDashboardAccess)) || !user.agencyId) {
         setHasActiveUnivers(false);
+        setSessionUsage(null);
+        setInstantiatedResources(null);
+        setSessionLimits(null);
         return;
       }
 
       try {
+        // Check active Univers
         const activeUnivers = await universService.getActiveUnivers(user.id, user.agencyId);
         setHasActiveUnivers(activeUnivers !== null);
+
+        // Get active session for usage and limits
+        const currentSession = await SubscriptionSessionCollectionService.getActiveSession(user.id);
+        
+        if (currentSession) {
+          // Cache session usage
+          setSessionUsage({
+            formsCreated: currentSession.usage?.formsCreated || 0,
+            dashboardsCreated: currentSession.usage?.dashboardsCreated || 0,
+            usersAdded: currentSession.usage?.usersAdded || 0
+          });
+
+          // Calculate and cache limits (packageResources + payAsYouGoResources)
+          const packageForms = currentSession.packageResources?.formsIncluded || 0;
+          const packageDashboards = currentSession.packageResources?.dashboardsIncluded || 0;
+          const packageUsers = currentSession.packageResources?.usersIncluded || 0;
+          
+          const payAsYouGoForms = currentSession.payAsYouGoResources?.forms || 0;
+          const payAsYouGoDashboards = currentSession.payAsYouGoResources?.dashboards || 0;
+          const payAsYouGoUsers = currentSession.payAsYouGoResources?.users || 0;
+
+          setSessionLimits({
+            maxForms: calculateTotalLimit(packageForms, payAsYouGoForms),
+            maxDashboards: calculateTotalLimit(packageDashboards, payAsYouGoDashboards),
+            maxUsers: calculateTotalLimit(packageUsers, payAsYouGoUsers)
+          });
+
+          // Get instantiated Univers resources count (only for directors)
+          if (user.role === 'directeur') {
+            const instantiated = await getInstantiatedUniversResourcesCount(user.id, user.agencyId);
+            setInstantiatedResources({
+              forms: instantiated.instantiatedForms,
+              dashboards: instantiated.instantiatedDashboards
+            });
+          } else {
+            setInstantiatedResources({ forms: 0, dashboards: 0 });
+          }
+        } else {
+          setSessionUsage(null);
+          setInstantiatedResources(null);
+          setSessionLimits(null);
+        }
       } catch (error) {
-        console.error('Error checking active univers:', error);
+        logger.error('Error loading quota data', error, 'usePackageAccess');
         setHasActiveUnivers(false);
+        setSessionUsage(null);
+        setInstantiatedResources(null);
+        setSessionLimits(null);
       }
     };
 
-    checkActiveUnivers();
-  }, [user]);
+    loadQuotaData();
+  }, [user?.id, user?.role, user?.agencyId, user?.hasDirectorDashboardAccess]);
 
   // Get current package info from active session (async)
   // Only depend on user.id, role, and agencyId - NOT tokensUsedMonthly which changes frequently
@@ -295,130 +376,421 @@ export const usePackageAccess = () => {
     return currentPackageType;
   };
 
+  // Validation helper: Validate and sync form count when primary check fails
+  const validateAndSyncFormCount = useCallback(async (
+    userId: string,
+    agencyId: string,
+    totalFormsFromUsage: number,
+    maxForms: number
+  ) => {
+    try {
+      logger.debug('🔍 [VALIDATION] Starting form count validation', {
+        userId,
+        agencyId,
+        totalFormsFromUsage,
+        maxForms
+      }, 'usePackageAccess');
+
+      // Count actual non-Univers forms from Firebase
+      const actualNonUniversForms = await countActualNonUniversResources(userId, agencyId, 'forms');
+      
+      // Get instantiated Univers forms count
+      const instantiated = await getInstantiatedUniversResourcesCount(userId, agencyId);
+      const instantiatedForms = instantiated.instantiatedForms;
+      
+      // Calculate total actual forms (instantiated + non-Univers)
+      const totalActualForms = instantiatedForms + actualNonUniversForms;
+      
+      logger.debug('🔍 [VALIDATION] Form count validation results', {
+        userId,
+        instantiatedForms,
+        actualNonUniversForms,
+        totalActualForms,
+        totalFormsFromUsage,
+        maxForms,
+        usageDiscrepancy: totalFormsFromUsage !== totalActualForms
+      }, 'usePackageAccess');
+
+      // If actual count is less than limit, sync usage
+      if (totalActualForms < maxForms) {
+        logger.info('🔍 [VALIDATION] Actual count below limit - syncing usage', {
+          userId,
+          actualNonUniversForms,
+          currentUsage: totalFormsFromUsage - instantiatedForms,
+          newUsage: actualNonUniversForms
+        }, 'usePackageAccess');
+        
+        // Sync usage to match actual non-Univers count
+        await syncUsageToActualCount(userId, 'forms', actualNonUniversForms);
+        
+        // Refresh cached session data
+        const currentSession = await SubscriptionSessionCollectionService.getActiveSession(userId);
+        if (currentSession) {
+          setSessionUsage({
+            formsCreated: currentSession.usage?.formsCreated || 0,
+            dashboardsCreated: currentSession.usage?.dashboardsCreated || 0,
+            usersAdded: currentSession.usage?.usersAdded || 0
+          });
+        }
+      } else {
+        logger.debug('🔍 [VALIDATION] Actual count confirms limit reached', {
+          userId,
+          totalActualForms,
+          maxForms
+        }, 'usePackageAccess');
+      }
+    } catch (error) {
+      logger.error('Error during form count validation', error, 'usePackageAccess');
+    }
+  }, []);
+
+  // Validation helper: Validate and sync dashboard count when primary check fails
+  const validateAndSyncDashboardCount = useCallback(async (
+    userId: string,
+    agencyId: string,
+    totalDashboardsFromUsage: number,
+    maxDashboards: number
+  ) => {
+    try {
+      logger.debug('🔍 [VALIDATION] Starting dashboard count validation', {
+        userId,
+        agencyId,
+        totalDashboardsFromUsage,
+        maxDashboards
+      }, 'usePackageAccess');
+
+      // Count actual non-Univers dashboards from Firebase
+      const actualNonUniversDashboards = await countActualNonUniversResources(userId, agencyId, 'dashboards');
+      
+      // Get instantiated Univers dashboards count
+      const instantiated = await getInstantiatedUniversResourcesCount(userId, agencyId);
+      const instantiatedDashboards = instantiated.instantiatedDashboards;
+      
+      // Calculate total actual dashboards (instantiated + non-Univers)
+      const totalActualDashboards = instantiatedDashboards + actualNonUniversDashboards;
+      
+      logger.debug('🔍 [VALIDATION] Dashboard count validation results', {
+        userId,
+        instantiatedDashboards,
+        actualNonUniversDashboards,
+        totalActualDashboards,
+        totalDashboardsFromUsage,
+        maxDashboards,
+        usageDiscrepancy: totalDashboardsFromUsage !== totalActualDashboards
+      }, 'usePackageAccess');
+
+      // If actual count is less than limit, sync usage
+      if (totalActualDashboards < maxDashboards) {
+        logger.info('🔍 [VALIDATION] Actual count below limit - syncing usage', {
+          userId,
+          actualNonUniversDashboards,
+          currentUsage: totalDashboardsFromUsage - instantiatedDashboards,
+          newUsage: actualNonUniversDashboards
+        }, 'usePackageAccess');
+        
+        // Sync usage to match actual non-Univers count
+        await syncUsageToActualCount(userId, 'dashboards', actualNonUniversDashboards);
+        
+        // Refresh cached session data
+        const currentSession = await SubscriptionSessionCollectionService.getActiveSession(userId);
+        if (currentSession) {
+          setSessionUsage({
+            formsCreated: currentSession.usage?.formsCreated || 0,
+            dashboardsCreated: currentSession.usage?.dashboardsCreated || 0,
+            usersAdded: currentSession.usage?.usersAdded || 0
+          });
+        }
+      } else {
+        logger.debug('🔍 [VALIDATION] Actual count confirms limit reached', {
+          userId,
+          totalActualDashboards,
+          maxDashboards
+        }, 'usePackageAccess');
+      }
+    } catch (error) {
+      logger.error('Error during dashboard count validation', error, 'usePackageAccess');
+    }
+  }, []);
+
   // Vérifier si l'utilisateur peut créer un nouveau formulaire
   const canCreateForm = (currentFormCount: number): boolean => {
-    console.log('🟡 [CAN CREATE FORM - SHARED] ========================================');
-    console.log('🟡 [CAN CREATE FORM - SHARED] Checking quota for form creation');
-    console.log('🟡 [CAN CREATE FORM - SHARED] Current form count:', currentFormCount);
+    logger.debug('🟡 [CAN CREATE FORM] ========================================', undefined, 'usePackageAccess');
+    logger.debug('🟡 [CAN CREATE FORM] Checking quota for form creation', { currentFormCount }, 'usePackageAccess');
     
     if (!user) {
-      console.log('🟡 [CAN CREATE FORM - SHARED] ❌ No user found - returning false');
+      logger.debug('🟡 [CAN CREATE FORM] ❌ No user found - returning false', undefined, 'usePackageAccess');
       return false;
-    }
-    
-    console.log('🟡 [CAN CREATE FORM - SHARED] User details:', {
-      id: user.id,
-      role: user.role,
-      agencyId: user.agencyId,
-      hasDirectorDashboardAccess: user.hasDirectorDashboardAccess
-    });
-    console.log('🟡 [CAN CREATE FORM - SHARED] Has active univers:', hasActiveUnivers);
-    
-    // Si un univers actif existe, autoriser la création (la ressource sera créée dans l'univers actif)
-    // Les ressources dans un univers actif peuvent dépasser les limites du package
-    if (user.role === 'directeur' && user.agencyId && hasActiveUnivers) {
-      console.log('🟡 [CAN CREATE FORM - SHARED] ✅ Director has active univers - bypassing quota check');
-      return true;
     }
     
     // For employees with director access, use director's package limits if available
     if (user.role === 'employe' && user.hasDirectorDashboardAccess) {
-      console.log('🟡 [CAN CREATE FORM - SHARED] Employee with director access detected');
-      console.log('🟡 [CAN CREATE FORM - SHARED] Loading director info:', isLoadingDirectorInfo);
-      
       // If still loading director info, allow creation (will be validated later)
       if (isLoadingDirectorInfo) {
-        console.log('🟡 [CAN CREATE FORM - SHARED] ⏳ Director info still loading - allowing (will validate later)');
+        logger.debug('🟡 [CAN CREATE FORM] ⏳ Director info still loading - allowing (will validate later)', undefined, 'usePackageAccess');
         return true;
       }
       
       if (directorPackageInfo) {
-        console.log('🟡 [CAN CREATE FORM - SHARED] Director package info found:', {
-          packageType: directorPackageInfo.packageType,
-          packageLimits: directorPackageInfo.packageLimits
-        });
         const packageLimits = directorPackageInfo.packageLimits || {};
         const maxForms = packageLimits.maxForms || 0;
         const canCreate = maxForms === -1 || currentFormCount < maxForms;
-        console.log('🟡 [CAN CREATE FORM - SHARED] Director limits check:', {
+        logger.debug('🟡 [CAN CREATE FORM] Director limits check', {
           maxForms,
           currentFormCount,
           isUnlimited: maxForms === -1,
           canCreate
-        });
+        }, 'usePackageAccess');
         return canCreate;
       }
       
       // If we have director access but no package info yet, allow creation
-      // This prevents the modal from showing while the director's info is being fetched
-      console.log('🟡 [CAN CREATE FORM - SHARED] ⚠️ Director access but no package info yet - allowing (will validate later)');
+      logger.debug('🟡 [CAN CREATE FORM] ⚠️ Director access but no package info yet - allowing (will validate later)', undefined, 'usePackageAccess');
       return true;
     }
     
-    const maxForms = getLimit('maxForms');
-    const canCreate = maxForms === -1 || currentFormCount < maxForms;
-    console.log('🟡 [CAN CREATE FORM - SHARED] Package limit check:', {
-      maxForms,
-      currentFormCount,
-      canCreate,
-      isLoadingUserPackageInfo
-    });
-    console.log('🟡 [CAN CREATE FORM - SHARED] ========================================');
-    if (maxForms === 0 && isLoadingUserPackageInfo) {
+    // For directors: use session data with Univers instantiated resources
+    if (!sessionUsage || !sessionLimits || !instantiatedResources) {
+      // Data still loading, allow for now (will be validated later)
+      if (isLoadingUserPackageInfo) {
+        logger.debug('🟡 [CAN CREATE FORM] ⏳ Session data still loading - allowing (will validate later)', undefined, 'usePackageAccess');
+        return true;
+      }
+      logger.debug('🟡 [CAN CREATE FORM] ❌ No session data available - returning false', undefined, 'usePackageAccess');
+      return false;
+    }
+    
+    // Calculate total forms: instantiated Univers forms + usage (new forms created)
+    const instantiatedForms = instantiatedResources.forms;
+    const usageForms = sessionUsage.formsCreated;
+    const totalForms = instantiatedForms + usageForms;
+    
+    // Get limit with unlimited handling
+    const maxForms = sessionLimits.maxForms;
+    
+    // Check if unlimited
+    if (maxForms === -1) {
+      logger.debug('🟡 [CAN CREATE FORM] ✅ Unlimited forms - allowing', {
+        instantiatedForms,
+        usageForms,
+        totalForms,
+        maxForms
+      }, 'usePackageAccess');
       return true;
     }
-    return canCreate;
+    
+    // Primary check: Compare total against limit
+    const canCreatePrimary = totalForms < maxForms;
+    
+    // If primary check passes, allow creation
+    if (canCreatePrimary) {
+      logger.debug('🟡 [CAN CREATE FORM] ✅ Quota check passed - allowing', {
+        instantiatedForms,
+        usageForms,
+        totalForms,
+        maxForms,
+        canCreate: true
+      }, 'usePackageAccess');
+      logger.debug('🟡 [CAN CREATE FORM] ========================================', undefined, 'usePackageAccess');
+      return true;
+    }
+    
+    // Primary check failed - trigger validation (async, non-blocking)
+    // Validation will run in background and sync usage if discrepancy found
+    if (user.role === 'directeur' && user.agencyId) {
+      validateAndSyncFormCount(user.id, user.agencyId, totalForms, maxForms).catch(error => {
+        logger.error('Error during form count validation', error, 'usePackageAccess');
+      });
+    }
+    
+    logger.debug('🟡 [CAN CREATE FORM] ❌ Quota check failed - blocking', {
+      instantiatedForms,
+      usageForms,
+      totalForms,
+      maxForms,
+      canCreate: false,
+      note: 'Validation triggered in background'
+    }, 'usePackageAccess');
+    logger.debug('🟡 [CAN CREATE FORM] ========================================', undefined, 'usePackageAccess');
+    
+    return false;
   };
 
   // Vérifier si l'utilisateur peut créer un nouveau tableau de bord
   const canCreateDashboard = (currentDashboardCount: number): boolean => {
-    if (!user) return false;
+    logger.debug('🟡 [CAN CREATE DASHBOARD] ========================================', undefined, 'usePackageAccess');
+    logger.debug('🟡 [CAN CREATE DASHBOARD] Checking quota for dashboard creation', { currentDashboardCount }, 'usePackageAccess');
     
-    // Si un univers actif existe, autoriser la création (la ressource sera créée dans l'univers actif)
-    // Les ressources dans un univers actif peuvent dépasser les limites du package
-    if (user.role === 'directeur' && user.agencyId && hasActiveUnivers) {
-      return true;
+    if (!user) {
+      logger.debug('🟡 [CAN CREATE DASHBOARD] ❌ No user found - returning false', undefined, 'usePackageAccess');
+      return false;
     }
     
     // For employees with director access, use director's package limits if available
     if (user.role === 'employe' && user.hasDirectorDashboardAccess) {
       // If still loading director info, allow creation (will be validated later)
       if (isLoadingDirectorInfo) {
+        logger.debug('🟡 [CAN CREATE DASHBOARD] ⏳ Director info still loading - allowing (will validate later)', undefined, 'usePackageAccess');
         return true;
       }
       
       if (directorPackageInfo) {
         const packageLimits = directorPackageInfo.packageLimits || {};
         const maxDashboards = packageLimits.maxDashboards || 0;
-        return maxDashboards === -1 || currentDashboardCount < maxDashboards;
+        const canCreate = maxDashboards === -1 || currentDashboardCount < maxDashboards;
+        logger.debug('🟡 [CAN CREATE DASHBOARD] Director limits check', {
+          maxDashboards,
+          currentDashboardCount,
+          isUnlimited: maxDashboards === -1,
+          canCreate
+        }, 'usePackageAccess');
+        return canCreate;
       }
       
       // If we have director access but no package info yet, allow creation
-      // This prevents the modal from showing while the director's info is being fetched
+      logger.debug('🟡 [CAN CREATE DASHBOARD] ⚠️ Director access but no package info yet - allowing (will validate later)', undefined, 'usePackageAccess');
       return true;
     }
     
-    const maxDashboards = getLimit('maxDashboards');
-    if (maxDashboards === 0 && isLoadingUserPackageInfo) {
+    // For directors: use session data with Univers instantiated resources
+    if (!sessionUsage || !sessionLimits || !instantiatedResources) {
+      // Data still loading, allow for now (will be validated later)
+      if (isLoadingUserPackageInfo) {
+        logger.debug('🟡 [CAN CREATE DASHBOARD] ⏳ Session data still loading - allowing (will validate later)', undefined, 'usePackageAccess');
+        return true;
+      }
+      logger.debug('🟡 [CAN CREATE DASHBOARD] ❌ No session data available - returning false', undefined, 'usePackageAccess');
+      return false;
+    }
+    
+    // Calculate total dashboards: instantiated Univers dashboards + usage (new dashboards created)
+    const instantiatedDashboards = instantiatedResources.dashboards;
+    const usageDashboards = sessionUsage.dashboardsCreated;
+    const totalDashboards = instantiatedDashboards + usageDashboards;
+    
+    // Get limit with unlimited handling
+    const maxDashboards = sessionLimits.maxDashboards;
+    
+    // Check if unlimited
+    if (maxDashboards === -1) {
+      logger.debug('🟡 [CAN CREATE DASHBOARD] ✅ Unlimited dashboards - allowing', {
+        instantiatedDashboards,
+        usageDashboards,
+        totalDashboards,
+        maxDashboards
+      }, 'usePackageAccess');
       return true;
     }
-    return maxDashboards === -1 || currentDashboardCount < maxDashboards;
+    
+    // Primary check: Compare total against limit
+    const canCreatePrimary = totalDashboards < maxDashboards;
+    
+    // If primary check passes, allow creation
+    if (canCreatePrimary) {
+      logger.debug('🟡 [CAN CREATE DASHBOARD] ✅ Quota check passed - allowing', {
+        instantiatedDashboards,
+        usageDashboards,
+        totalDashboards,
+        maxDashboards,
+        canCreate: true
+      }, 'usePackageAccess');
+      logger.debug('🟡 [CAN CREATE DASHBOARD] ========================================', undefined, 'usePackageAccess');
+      return true;
+    }
+    
+    // Primary check failed - trigger validation (async, non-blocking)
+    // Validation will run in background and sync usage if discrepancy found
+    if (user.role === 'directeur' && user.agencyId) {
+      validateAndSyncDashboardCount(user.id, user.agencyId, totalDashboards, maxDashboards).catch(error => {
+        logger.error('Error during dashboard count validation', error, 'usePackageAccess');
+      });
+    }
+    
+    logger.debug('🟡 [CAN CREATE DASHBOARD] ❌ Quota check failed - blocking', {
+      instantiatedDashboards,
+      usageDashboards,
+      totalDashboards,
+      maxDashboards,
+      canCreate: false,
+      note: 'Validation triggered in background'
+    }, 'usePackageAccess');
+    logger.debug('🟡 [CAN CREATE DASHBOARD] ========================================', undefined, 'usePackageAccess');
+    
+    return false;
   };
 
   // Vérifier si l'utilisateur peut ajouter un nouvel utilisateur
   const canAddUser = (currentUserCount: number): boolean => {
-    if (!user) return false;
+    logger.debug('🟡 [CAN ADD USER] ========================================', undefined, 'usePackageAccess');
+    logger.debug('🟡 [CAN ADD USER] Checking quota for user addition', { currentUserCount }, 'usePackageAccess');
     
-    // Use getLimit which correctly handles unlimited (-1) case
-    const maxUsers = getLimit('maxUsers');
+    if (!user) {
+      logger.debug('🟡 [CAN ADD USER] ❌ No user found - returning false', undefined, 'usePackageAccess');
+      return false;
+    }
     
-    // Handle unlimited case (-1) - always allow if unlimited
-    if (maxUsers === -1) {
+    // For employees with director access, use director's package limits if available
+    if (user.role === 'employe' && user.hasDirectorDashboardAccess) {
+      // If still loading director info, allow creation (will be validated later)
+      if (isLoadingDirectorInfo) {
+        logger.debug('🟡 [CAN ADD USER] ⏳ Director info still loading - allowing (will validate later)', undefined, 'usePackageAccess');
+        return true;
+      }
+      
+      if (directorPackageInfo) {
+        const packageLimits = directorPackageInfo.packageLimits || {};
+        const maxUsers = packageLimits.maxUsers || 0;
+        const canAdd = maxUsers === -1 || currentUserCount < maxUsers;
+        logger.debug('🟡 [CAN ADD USER] Director limits check', {
+          maxUsers,
+          currentUserCount,
+          isUnlimited: maxUsers === -1,
+          canAdd
+        }, 'usePackageAccess');
+        return canAdd;
+      }
+      
+      // If we have director access but no package info yet, allow creation
+      logger.debug('🟡 [CAN ADD USER] ⚠️ Director access but no package info yet - allowing (will validate later)', undefined, 'usePackageAccess');
       return true;
     }
     
-    // Check if current count is below limit
-    return currentUserCount < maxUsers;
+    // For directors: use session usage directly (users are not Univers-related)
+    if (!sessionUsage || !sessionLimits) {
+      // Data still loading, allow for now (will be validated later)
+      if (isLoadingUserPackageInfo) {
+        logger.debug('🟡 [CAN ADD USER] ⏳ Session data still loading - allowing (will validate later)', undefined, 'usePackageAccess');
+        return true;
+      }
+      logger.debug('🟡 [CAN ADD USER] ❌ No session data available - returning false', undefined, 'usePackageAccess');
+      return false;
+    }
+    
+    // Use usage.usersAdded from session (no Univers instantiated users)
+    const usageUsers = sessionUsage.usersAdded;
+    
+    // Get limit with unlimited handling
+    const maxUsers = sessionLimits.maxUsers;
+    
+    // Check if unlimited
+    if (maxUsers === -1) {
+      logger.debug('🟡 [CAN ADD USER] ✅ Unlimited users - allowing', {
+        usageUsers,
+        maxUsers
+      }, 'usePackageAccess');
+      return true;
+    }
+    
+    // Compare usage against limit
+    const canAdd = usageUsers < maxUsers;
+    
+    logger.debug('🟡 [CAN ADD USER] Quota check result', {
+      usageUsers,
+      maxUsers,
+      canAdd
+    }, 'usePackageAccess');
+    logger.debug('🟡 [CAN ADD USER] ========================================', undefined, 'usePackageAccess');
+    
+    return canAdd;
   };
 
   // Obtenir le nombre de tokens mensuels disponibles

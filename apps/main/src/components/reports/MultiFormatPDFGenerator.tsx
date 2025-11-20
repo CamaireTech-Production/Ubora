@@ -5,6 +5,7 @@ import { PDFGenerator } from '../../utils/reports/PDFGenerator';
 import { MultiFormatToPDF } from '@ubora/shared/utils/MultiFormatToPDF';
 import { RechartsToPNG } from '../../utils/reports/RechartsToPNG';
 import { Download, FileText, Loader2 } from 'lucide-react';
+import { logger } from '@ubora/shared/utils/logger';
 
 interface MultiFormatPDFGeneratorProps {
   message: ChatMessage;
@@ -52,7 +53,7 @@ export const MultiFormatPDFGenerator: React.FC<MultiFormatPDFGeneratorProps> = (
                   imageData: chartImage
                 };
               } catch (error) {
-                console.error('Error converting chart to PNG:', error);
+                logger.error('Error converting chart to PNG', error, 'MultiFormatPDFGenerator');
                 // Return the original chart if conversion fails
                 return chart;
               }
@@ -70,7 +71,7 @@ export const MultiFormatPDFGenerator: React.FC<MultiFormatPDFGeneratorProps> = (
       }
 
     } catch (error) {
-      console.error('Error generating PDF:', error);
+      logger.error('Error generating PDF', error, 'MultiFormatPDFGenerator');
       setError('Erreur lors de la génération du PDF');
     } finally {
       setIsGenerating(false);
@@ -161,7 +162,7 @@ export const useMultiFormatPDFGeneration = () => {
                   imageData: chartImage
                 };
               } catch (error) {
-                console.error('Error converting chart to PNG:', error);
+                logger.error('Error converting chart to PNG', error, 'MultiFormatPDFGenerator');
                 // Return the original chart if conversion fails
                 return chart;
               }
@@ -180,7 +181,7 @@ export const useMultiFormatPDFGeneration = () => {
 
       return true;
     } catch (error) {
-      console.error('Error generating PDF:', error);
+      logger.error('Error generating PDF', error, 'MultiFormatPDFGenerator');
       setError('Erreur lors de la génération du PDF');
       return false;
     } finally {

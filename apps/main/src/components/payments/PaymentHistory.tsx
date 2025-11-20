@@ -11,6 +11,7 @@ import {
   Calendar,
   DollarSign
 } from 'lucide-react';
+import { logger } from '@ubora/shared/utils/logger';
 
 interface PaymentHistoryProps {
   limit?: number;
@@ -41,7 +42,7 @@ export const PaymentHistory: React.FC<PaymentHistoryProps> = ({
       setPayments(userPayments);
     } catch (err) {
       setError('Erreur lors du chargement de l\'historique des paiements');
-      console.error('Error loading payments:', err);
+      logger.error('Error loading payments', err, 'PaymentHistory');
     } finally {
       setLoading(false);
     }

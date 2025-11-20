@@ -5,6 +5,8 @@
 
 // Removed FCM service dependency for pure frontend notifications
 
+import { logger } from '@ubora/shared/utils/logger';
+
 export interface TestResult {
   test: string;
   success: boolean;
@@ -217,24 +219,24 @@ export class PushNotificationTester {
  * Quick test function for console use
  */
 export const quickTest = async (): Promise<void> => {
-  console.log('🔔 [Push Test] Starting quick push notification test...');
+  logger.info('Starting quick push notification test', null, 'pushNotificationTest');
   
   const tester = new PushNotificationTester();
   const results = await tester.runAllTests();
   const summary = tester.getSummary();
   
-  console.log('🔔 [Push Test] Test Results:');
+  logger.debug('Push Test Results', null, 'pushNotificationTest');
   results.forEach(result => {
     const status = result.success ? '✅' : '❌';
-    console.log(`${status} ${result.test}: ${result.message}`);
+    logger.debug('Push Test Result', { status, test: result.test, message: result.message }, 'pushNotificationTest');
   });
   
-  console.log(`🔔 [Push Test] Summary: ${summary.passed}/${summary.total} tests passed (${summary.successRate.toFixed(1)}%)`);
+  logger.info('Push Test Summary', { passed: summary.passed, total: summary.total, successRate: summary.successRate.toFixed(1) }, 'pushNotificationTest');
   
   if (summary.failed > 0) {
-    console.log('🔔 [Push Test] Some tests failed. Check the implementation and configuration.');
+    logger.warn('Some tests failed. Check the implementation and configuration', null, 'pushNotificationTest');
   } else {
-    console.log('🔔 [Push Test] All tests passed! Push notifications should work correctly.');
+    logger.info('All tests passed! Push notifications should work correctly', null, 'pushNotificationTest');
   }
 };
 

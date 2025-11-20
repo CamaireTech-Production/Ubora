@@ -6,6 +6,7 @@ import { Bell, ShieldCheck, AlertCircle, Settings, Smartphone, Monitor, Zap, Mai
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
 import { unifiedNotificationService } from '@ubora/shared/services/unifiedNotificationService';
 import { browserNotificationService } from '@ubora/shared/services/browserNotificationService';
+import { logger } from '@ubora/shared/utils/logger';
 
 export const PushTestPage: React.FC = () => {
   const { user } = useAuth();
@@ -19,7 +20,7 @@ export const PushTestPage: React.FC = () => {
     const timestamp = new Date().toLocaleTimeString();
     const logMessage = `[${timestamp}] ${message}`;
     setLogs(prev => [...prev.slice(-9), logMessage]);
-    console.log(logMessage);
+    logger.debug(logMessage, null, 'PushTestPage');
   };
 
   // Initialize browser notifications

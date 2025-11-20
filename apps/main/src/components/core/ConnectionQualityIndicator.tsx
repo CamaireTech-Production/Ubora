@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { ConnectionQuality } from '@ubora/shared/utils/errorHandling';
+import { logger } from '@ubora/shared/utils/logger';
 
 // Debounce utility function
 const debounce = (func: Function, wait: number) => {
@@ -28,23 +29,23 @@ const ConnectionQualityIndicator: React.FC<ConnectionQualityIndicatorProps> = ({
   const [isVisible, setIsVisible] = useState(false);
 
   useEffect(() => {
-    console.log('🔍 ConnectionQualityIndicator: Quality changed', { 
+    logger.debug('ConnectionQualityIndicator: Quality changed', { 
       isSlow: quality.isSlow, 
       isPoor: quality.isPoor,
       estimatedSpeed: quality.estimatedSpeed 
-    });
+    }, 'ConnectionQualityIndicator');
     
     if (quality.isSlow || quality.isPoor) {
-      console.log('🔍 ConnectionQualityIndicator: Showing indicator');
+      logger.debug('ConnectionQualityIndicator: Showing indicator', null, 'ConnectionQualityIndicator');
       setIsVisible(true);
       // Auto-hide after 5 seconds
       const timer = setTimeout(() => {
-        console.log('🔍 ConnectionQualityIndicator: Auto-hiding indicator');
+        logger.debug('ConnectionQualityIndicator: Auto-hiding indicator', null, 'ConnectionQualityIndicator');
         setIsVisible(false);
       }, 5000);
       return () => clearTimeout(timer);
     } else {
-      console.log('🔍 ConnectionQualityIndicator: Hiding indicator');
+      logger.debug('ConnectionQualityIndicator: Hiding indicator', null, 'ConnectionQualityIndicator');
       setIsVisible(false);
     }
   }, [quality.isSlow, quality.isPoor]);
@@ -114,7 +115,7 @@ export const useConnectionQuality = () => {
   // Debounced quality update to prevent excessive rerenders
   const updateQuality = useCallback(
     debounce((responseTime: number) => {
-      console.log('🔍 useConnectionQuality: updateQuality called', { responseTime });
+      logger.debug('useConnectionQuality: updateQuality called', { responseTime }, 'ConnectionQualityIndicator');
       
       const newQuality = {
         isSlow: responseTime > 3000,
@@ -124,9 +125,9 @@ export const useConnectionQuality = () => {
                        responseTime < 8000 ? 'slow' as const : 'poor' as const
       };
       
-      console.log('🔍 useConnectionQuality: Setting new quality', newQuality);
+      logger.debug('useConnectionQuality: Setting new quality', newQuality, 'ConnectionQualityIndicator');
       setQuality(newQuality);
-      console.log('🔍 useConnectionQuality: Quality state updated');
+      logger.debug('useConnectionQuality: Quality state updated', null, 'ConnectionQualityIndicator');
     }, 500), // 500ms debounce to prevent rapid updates
     []
   );

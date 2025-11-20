@@ -5,6 +5,7 @@
 
 import { syncFormEntryToVector } from '../workers/vectorSync.js';
 import { initializeQdrant } from '../lib/vectorDb.js';
+import { logger } from '../lib/logger.js';
 
 // CORS headers helper
 function setCorsHeaders(res, origin) {
@@ -35,20 +36,20 @@ export default async function handler(req, res) {
 
   const { formEntryId, operation = 'create' } = req.body;
 
-  console.log('🔄 [VectorSync API] Received sync request:', { formEntryId, operation });
+  logger.info('Received sync request', { formEntryId, operation }, 'vector/sync.js');
 
   if (!formEntryId) {
-    console.error('❌ [VectorSync API] Missing formEntryId in request');
+    logger.error('Missing formEntryId in request', null, 'vector/sync.js');
     return res.status(400).json({ success: false, error: 'formEntryId is required' });
   }
 
   try {
-    console.log('🔌 [VectorSync API] Initializing Qdrant connection...');
+    logger.info('Initializing Qdrant connection', null, 'vector/sync.js');
     await initializeQdrant(); // Ensure Qdrant is ready
-    console.log('✅ [VectorSync API] Qdrant initialized, starting sync...');
+    logger.info('Qdrant initialized, starting sync', null, 'vector/sync.js');
 
     const result = await syncFormEntryToVector(formEntryId, operation);
-    console.log('📊 [VectorSync API] Sync result:', result);
+    logger.info('Sync result', result, 'vector/sync.js');
 
     if (result.success) {
       return res.status(200).json({ 
@@ -64,7 +65,7 @@ export default async function handler(req, res) {
       });
     }
   } catch (error) {
-    console.error('❌ Error in vector sync endpoint:', error);
+    logger.error('Error in vector sync endpoint', error, 'vector/sync.js');
     return res.status(500).json({ 
       success: false, 
       error: 'Internal server error', 

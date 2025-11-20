@@ -13,6 +13,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 import { List, ListColumn, ListRow } from '../types';
+import { logger } from '../utils/logger';
 
 class ListsService {
   private readonly collectionName = 'lists';
@@ -27,7 +28,7 @@ class ListsService {
     
     // Log pour débogage si rows manquants
     if (!Array.isArray(data.rows) && data.rows !== undefined) {
-      console.warn(`⚠️ List "${data.name}" (${id}): rows n'est pas un tableau, normalisation en cours`);
+      logger.warn('List rows is not an array, normalizing', { listId: id, listName: data.name }, 'listsService');
     }
     
     const list: List = {
@@ -242,6 +243,7 @@ class ListsService {
 
   /**
    * Récupérer une List par ID
+   * Retourne null si la liste n'existe pas ou si l'utilisateur n'a pas les permissions
    */
   async getById(id: string): Promise<List | null> {
     try {
@@ -252,49 +254,66 @@ class ListsService {
         return this.convertFirestoreToList(docSnap.id, docSnap.data());
       }
       return null;
-    } catch (error) {
-      console.error('Erreur lors de la récupération de la List:', error);
-      throw error;
+    } catch (error: any) {
+      // Gérer les erreurs de permissions silencieusement (retourner null)
+      // Les erreurs de permissions sont normales si l'utilisateur n'a pas accès à la liste
+      if (error?.code === 'permission-denied' || error?.code === 'missing-or-insufficient-permissions') {
+        // Ne pas logger en production pour éviter le spam
+        if (import.meta.env.DEV) {
+          logger.debug('Permission denied for list', { listId: id }, 'listsService');
+        }
+        return null;
+      }
+      
+      // Logger les autres erreurs (réseau, etc.)
+      logger.error('Erreur lors de la récupération de la List', error, 'listsService');
+      // Ne pas lancer l'erreur, retourner null pour éviter de casser l'UI
+      return null;
     }
   }
 
   /**
    * Récupérer toutes les Lists d'une agence
-   * Filtrer par Univers actif et instance active si fournis
+   * Filtrer par Univers actif et instance active si fournis (même logique que FormsContext et DashboardsContext)
    */
   async getByAgency(agencyId: string, activeUniversId?: string | null, activeInstanceId?: string | null): Promise<List[]> {
     try {
-      const conditions: any[] = [where('agencyId', '==', agencyId)];
-      
+      let listsQuery;
       if (activeUniversId) {
-        conditions.push(where('universId', '==', activeUniversId));
-      }
-      
-      // Ne pas filtrer par universInstanceId dans Firestore si activeInstanceId est fourni
-      // car on veut aussi inclure les listes sans instance spécifique (universInstanceId === null)
-      // On fera le filtrage côté client
-      
-      conditions.push(orderBy('updatedAt', 'desc'));
-      const q = query(collection(db, this.collectionName), ...conditions);
-      
-      const querySnapshot = await getDocs(q);
-      const lists = querySnapshot.docs.map(doc => 
-        this.convertFirestoreToList(doc.id, doc.data())
-      );
-      
-      // Filtrage côté client si activeInstanceId est fourni
-      // Inclure les listes de l'instance active OU les listes sans instance spécifique de l'univers actif
-      if (activeInstanceId && activeUniversId) {
-        return lists.filter(list => 
-          list.universInstanceId === activeInstanceId || 
-          (list.universInstanceId === null && list.universId === activeUniversId)
+        // Si activeInstanceId est disponible, filtrer par universInstanceId pour éviter les doublons
+        if (activeInstanceId) {
+          listsQuery = query(
+            collection(db, this.collectionName),
+            where('agencyId', '==', agencyId),
+            where('universInstanceId', '==', activeInstanceId),
+            orderBy('updatedAt', 'desc')
+          );
+        } else {
+          // Rétrocompatibilité : filtrer par universId si pas d'instance
+          listsQuery = query(
+            collection(db, this.collectionName),
+            where('agencyId', '==', agencyId),
+            where('universId', '==', activeUniversId),
+            orderBy('updatedAt', 'desc')
+          );
+        }
+      } else {
+        // Rétrocompatibilité temporaire : si pas de Univers actif, charger toutes les listes
+        listsQuery = query(
+          collection(db, this.collectionName),
+          where('agencyId', '==', agencyId),
+          orderBy('updatedAt', 'desc')
         );
       }
       
-      return lists;
+      const querySnapshot = await getDocs(listsQuery);
+      return querySnapshot.docs.map(doc => 
+        this.convertFirestoreToList(doc.id, doc.data())
+      );
     } catch (error) {
-      console.error('Erreur lors de la récupération des Lists de l\'agence:', error);
-      throw error;
+      logger.error('Erreur lors de la récupération des Lists de l\'agence', error, 'listsService');
+      // Retourner un tableau vide au lieu de lancer l'erreur pour éviter de casser l'UI
+      return [];
     }
   }
 
@@ -311,40 +330,43 @@ class ListsService {
       }
 
       // Sinon, retourner seulement les Lists créées par l'utilisateur (filtrées par Univers actif et instance active)
-      const conditions: any[] = [
-        where('createdBy', '==', userId),
-        where('agencyId', '==', agencyId)
-      ];
-      
+      let listsQuery;
       if (activeUniversId) {
-        conditions.push(where('universId', '==', activeUniversId));
-      }
-      
-      // Ne pas filtrer par universInstanceId dans Firestore si activeInstanceId est fourni
-      // car on veut aussi inclure les listes sans instance spécifique (universInstanceId === null)
-      // On fera le filtrage côté client
-      
-      conditions.push(orderBy('updatedAt', 'desc'));
-      const q = query(collection(db, this.collectionName), ...conditions);
-      
-      const querySnapshot = await getDocs(q);
-      const lists = querySnapshot.docs.map(doc => 
-        this.convertFirestoreToList(doc.id, doc.data())
-      );
-      
-      // Filtrage côté client si activeInstanceId est fourni
-      // Inclure les listes de l'instance active OU les listes sans instance spécifique de l'univers actif
-      if (activeInstanceId && activeUniversId) {
-        return lists.filter(list => 
-          list.universInstanceId === activeInstanceId || 
-          (list.universInstanceId === null && list.universId === activeUniversId)
+        // Si activeInstanceId est disponible, filtrer par universInstanceId
+        if (activeInstanceId) {
+          listsQuery = query(
+            collection(db, this.collectionName),
+            where('createdBy', '==', userId),
+            where('agencyId', '==', agencyId),
+            where('universInstanceId', '==', activeInstanceId),
+            orderBy('updatedAt', 'desc')
+          );
+        } else {
+          listsQuery = query(
+            collection(db, this.collectionName),
+            where('createdBy', '==', userId),
+            where('agencyId', '==', agencyId),
+            where('universId', '==', activeUniversId),
+            orderBy('updatedAt', 'desc')
+          );
+        }
+      } else {
+        listsQuery = query(
+          collection(db, this.collectionName),
+          where('createdBy', '==', userId),
+          where('agencyId', '==', agencyId),
+          orderBy('updatedAt', 'desc')
         );
       }
       
-      return lists;
+      const querySnapshot = await getDocs(listsQuery);
+      return querySnapshot.docs.map(doc => 
+        this.convertFirestoreToList(doc.id, doc.data())
+      );
     } catch (error) {
-      console.error('Erreur lors de la récupération des Lists de l\'utilisateur:', error);
-      throw error;
+      logger.error('Erreur lors de la récupération des Lists de l\'utilisateur', error, 'listsService');
+      // Retourner un tableau vide au lieu de lancer l'erreur pour éviter de casser l'UI
+      return [];
     }
   }
 }

@@ -4,6 +4,7 @@
  */
 
 import { adminDb } from '../lib/firebaseAdmin.js';
+import { logger } from '../lib/logger.js';
 
 // CORS headers helper
 function setCorsHeaders(res, origin) {
@@ -47,7 +48,7 @@ export default async function handler(req, res) {
       return res.status(400).json({ success: false, error: 'formEntryId is required in URL path' });
     }
 
-    console.log('📊 [FormEntryStatus] Status request for:', formEntryId);
+    logger.info('Status request for formEntry', { formEntryId }, 'form-entry/status.js');
 
     // Get form entry
     const formEntryDoc = await adminDb.collection('formEntries').doc(formEntryId).get();
@@ -99,7 +100,7 @@ export default async function handler(req, res) {
     });
 
   } catch (error) {
-    console.error('❌ [FormEntryStatus] Error:', error);
+    logger.error('Error in form entry status endpoint', error, 'form-entry/status.js');
     return res.status(500).json({
       success: false,
       error: 'Internal server error',

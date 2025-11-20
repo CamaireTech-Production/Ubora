@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Card } from '../ui/Card';
 import { Download, X, Smartphone, Monitor } from 'lucide-react';
 import { getDeferredPrompt, getIsInstallable, clearDeferredPrompt } from '@ubora/shared/utils/pwaRegistration';
+import { logger } from '@ubora/shared/utils/logger';
 
 // Main app PWA Config - always blue theme, no admin mode
 const getMainPWAConfig = () => {
@@ -148,7 +149,7 @@ export const PWAInstallPrompt: React.FC = () => {
       setIsInstalling(false);
       
     } catch (error) {
-      console.error('❌ Error during installation:', error);
+      logger.error('Error during installation', error, 'PWAInstallPrompt');
       setIsInstalling(false);
     }
   };

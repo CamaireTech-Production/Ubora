@@ -1,4 +1,5 @@
 import { enhancedFetch } from '../utils/errorHandling';
+import { logger } from '@ubora/shared/utils/logger';
 import { getOCRPDFEndpoint } from '@ubora/shared/config/api';
 import { TokenUsageLogService } from './tokenUsageLogService';
 import { TokenStatsService } from './tokenStatsService';
@@ -70,25 +71,24 @@ export class PDFTextExtractionService {
       const totalWords = cleanedText.split(/\s+/).filter(word => word.length > 0).length;
       const tablesDetected = this.countTablesInMarkdown(cleanedText);
       
-      console.log('🔍 DEBUG: Starting token calculation for PDF extraction');
-      console.log('🔍 DEBUG: File info:', {
-        name: file.name,
+      logger.debug('Starting token calculation for PDF extraction', {
+        fileName: file.name,
         size: file.size,
         type: file.type
-      });
-      console.log('🔍 DEBUG: UserId provided:', userId);
-      console.log('🔍 DEBUG: API Response:', result);
+      }, 'PDFTextExtractionService');
+      logger.debug('UserId provided', { userId }, 'PDFTextExtractionService');
+      logger.debug('API Response', { result }, 'PDFTextExtractionService');
       
       // Calculate token information
       const estimatedTokens = TokenCounter.estimateExtractionTokens(file.size, 'pdf');
-      console.log('🔍 DEBUG: Estimated tokens:', estimatedTokens);
+      logger.debug('Estimated tokens', { estimatedTokens }, 'PDFTextExtractionService');
       
       const actualTokens = result.tokenInfo?.actualTokens || estimatedTokens;
-      console.log('🔍 DEBUG: Calculated actual tokens:', actualTokens);
+      logger.debug('Calculated actual tokens', { actualTokens }, 'PDFTextExtractionService');
       
       // Log token usage if userId is provided (do not mutate users doc)
       let tokensCharged = false;
-      console.log('🔍 DEBUG: Token charging conditions:', {
+      logger.debug('Token charging conditions', {
         hasUserId: !!userId,
         actualTokens,
         willCharge: !!(userId && actualTokens > 0)
@@ -96,7 +96,7 @@ export class PDFTextExtractionService {
       
       if (userId && actualTokens > 0) {
         try {
-          console.log(`💳 Logging ${actualTokens} tokens for PDF extraction: ${file.name}`);
+          logger.debug(`Logging ${actualTokens} tokens for PDF extraction`, { fileName: file.name, actualTokens }, 'PDFTextExtractionService');
           tokensCharged = await TokenUsageLogService.logTokenUsage(
             userId,
             actualTokens,
@@ -104,21 +104,21 @@ export class PDFTextExtractionService {
             { fileName: file.name, fileSize: file.size, fileType: file.type }
           );
           if (tokensCharged) {
-            console.log(`✅ Successfully logged ${actualTokens} tokens for PDF extraction`);
+            logger.info(`Successfully logged ${actualTokens} tokens for PDF extraction`, { actualTokens, fileName: file.name }, 'PDFTextExtractionService');
             try {
               await TokenStatsService.incrementUsage(userId, actualTokens);
             } catch (e) {
-              console.warn('⚠️ Failed to increment token stats (non-blocking):', e);
+              logger.warn('Failed to increment token stats (non-blocking)', e, 'PDFTextExtractionService');
             }
           } else {
-            console.error('❌ Failed to log token usage for PDF extraction');
+            logger.error('Failed to log token usage for PDF extraction', undefined, 'PDFTextExtractionService');
           }
         } catch (tokenError) {
-          console.error('❌ Error logging token usage for PDF extraction:', tokenError);
+          logger.error('Error logging token usage for PDF extraction', tokenError, 'PDFTextExtractionService');
           // Don't throw the error to prevent UI disruption
         }
       } else {
-        console.log('🔍 DEBUG: Skipping token charging - conditions not met');
+        logger.debug('Skipping token charging - conditions not met', undefined, 'PDFTextExtractionService');
       }
       
       return {
@@ -140,7 +140,7 @@ export class PDFTextExtractionService {
       };
       
     } catch (error) {
-      console.error('❌ PDF text extraction failed:', error);
+      logger.error('PDF text extraction failed', error, 'PDFTextExtractionService');
       return {
         text: '',
         pages: 0,

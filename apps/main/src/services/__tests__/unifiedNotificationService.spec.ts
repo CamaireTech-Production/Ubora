@@ -43,7 +43,7 @@ vi.mock('firebase/firestore', async () => {
   };
 });
 
-import { unifiedNotificationService } from '../unifiedNotificationService';
+import { unifiedNotificationService } from '../notifications/unifiedNotificationService';
 
 describe('unifiedNotificationService idempotency', () => {
   beforeEach(() => {

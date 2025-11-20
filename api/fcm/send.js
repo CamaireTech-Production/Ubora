@@ -1,4 +1,5 @@
 import admin from 'firebase-admin';
+import { logger } from '../lib/logger.js';
 
 // Initialize Firebase Admin if not already initialized
 if (!admin.apps.length) {
@@ -27,18 +28,16 @@ if (!admin.apps.length) {
  * POST /api/fcm/send
  */
 export default async (req, res) => {
-  console.log('🔔 [FCM API] ===== FCM API REQUEST RECEIVED =====');
-  console.log('🔔 [FCM API] Request method:', req.method);
-  console.log('🔔 [FCM API] Request headers:', req.headers);
+  logger.info('FCM API request received', { method: req.method, headers: req.headers }, 'fcm/send.js');
   
   if (req.method !== 'POST') {
-    console.log('🔔 [FCM API] Method not allowed:', req.method);
+    logger.warn('Method not allowed', { method: req.method }, 'fcm/send.js');
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
   try {
     const { notification, fcmToken, userId } = req.body;
-    console.log('🔔 [FCM API] Request body received:', {
+    logger.debug('Request body received', {
       hasNotification: !!notification,
       hasFcmToken: !!fcmToken,
       hasUserId: !!userId,
@@ -47,18 +46,18 @@ export default async (req, res) => {
     });
 
     if (!fcmToken) {
-      console.log('🔔 [FCM API] Missing FCM token');
+      logger.warn('Missing FCM token', null, 'fcm/send.js');
       return res.status(400).json({ error: 'FCM token is required' });
     }
 
     // Validate FCM token format
     if (fcmToken.length < 100) {
-      console.error('❌ [FCM API] FCM token appears to be truncated. Length:', fcmToken.length);
+      logger.error('FCM token appears to be truncated', { length: fcmToken.length }, 'fcm/send.js');
       return res.status(400).json({ error: 'FCM token appears to be invalid or truncated' });
     }
 
     if (!notification || !notification.title || !notification.body) {
-      console.log('🔔 [FCM API] Missing notification data:', {
+      logger.warn('Missing notification data', {
         hasNotification: !!notification,
         hasTitle: !!notification?.title,
         hasBody: !!notification?.body
@@ -66,15 +65,14 @@ export default async (req, res) => {
       return res.status(400).json({ error: 'Notification title and body are required' });
     }
 
-    console.log('🔔 [FCM API] Token validation passed:', {
+    logger.debug('Token validation passed', {
       tokenLength: fcmToken.length,
       tokenStart: fcmToken.substring(0, 10),
       tokenEnd: fcmToken.substring(fcmToken.length - 10)
     });
 
     // Create the FCM message
-    console.log('🔔 [FCM API] Creating FCM message...');
-    console.log('🔔 [FCM API] Notification data:', notification.data);
+    logger.debug('Creating FCM message', { notificationData: notification.data }, 'fcm/send.js');
     
     // Convert all data values to strings (FCM requirement)
     const stringifiedData = {};
@@ -84,7 +82,7 @@ export default async (req, res) => {
       });
     }
     
-    console.log('🔔 [FCM API] Stringified data:', stringifiedData);
+    logger.debug('Stringified data', { stringifiedData }, 'fcm/send.js');
 
     const message = {
       token: fcmToken,
@@ -156,13 +154,12 @@ export default async (req, res) => {
     };
 
     // Send the FCM message
-    console.log('🔔 [FCM API] FCM message created:', JSON.stringify(message, null, 2));
-    console.log('🔔 [FCM API] Sending FCM message to Firebase...');
+    logger.debug('FCM message created', { message: JSON.stringify(message, null, 2) }, 'fcm/send.js');
+    logger.info('Sending FCM message to Firebase', null, 'fcm/send.js');
     
     const response = await admin.messaging().send(message);
     
-    console.log('🔔 [FCM API] ✅ FCM push notification sent successfully:', response);
-    console.log('🔔 [FCM API] ===== FCM API REQUEST COMPLETED =====');
+    logger.info('FCM push notification sent successfully', { response }, 'fcm/send.js');
 
     return res.status(200).json({
       success: true,
@@ -171,11 +168,11 @@ export default async (req, res) => {
     });
 
   } catch (error) {
-    console.error('❌ [FCM API] Error sending notification:', error);
+    logger.error('Error sending notification', error, 'fcm/send.js');
     
     // Handle specific FCM errors
     if (error.code === 'messaging/registration-token-not-registered') {
-      console.warn('❌ [FCM API] FCM token is not registered or expired');
+      logger.warn('FCM token is not registered or expired', null, 'fcm/send.js');
       return res.status(400).json({
         success: false,
         error: 'FCM token is not registered or expired',
@@ -185,7 +182,7 @@ export default async (req, res) => {
     }
     
     if (error.code === 'messaging/invalid-registration-token') {
-      console.warn('❌ [FCM API] FCM token is invalid');
+      logger.warn('FCM token is invalid', null, 'fcm/send.js');
       return res.status(400).json({
         success: false,
         error: 'FCM token is invalid',

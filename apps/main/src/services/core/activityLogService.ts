@@ -1,3 +1,4 @@
+import { logger } from '@ubora/shared/utils/logger';
 import { collection, addDoc, query, orderBy, limit, getDocs, where, serverTimestamp } from 'firebase/firestore';
 import { db } from '@ubora/shared/firebaseConfig';
 import { ActivityLog, ActivityType } from '../../types';
@@ -19,7 +20,7 @@ export class ActivityLogService {
       
       return true;
     } catch (error) {
-      console.error('❌ Error logging activity:', error);
+      logger.error('Error logging activity', error, 'ActivityLogService');
       return false;
     }
   }
@@ -53,7 +54,7 @@ export class ActivityLogService {
         ...doc.data()
       } as ActivityLog));
     } catch (error) {
-      console.error('❌ Error fetching activities:', error);
+      logger.error('Error fetching activities', error, 'ActivityLogService');
       return [];
     }
   }
@@ -79,7 +80,7 @@ export class ActivityLogService {
         ...doc.data()
       } as ActivityLog));
     } catch (error) {
-      console.error('❌ Error fetching activities by type:', error);
+      logger.error('Error fetching activities by type', error, 'ActivityLogService');
       return [];
     }
   }
@@ -105,7 +106,7 @@ export class ActivityLogService {
         ...doc.data()
       } as ActivityLog));
     } catch (error) {
-      console.error('❌ Error fetching user activities:', error);
+      logger.error('Error fetching user activities', error, 'ActivityLogService');
       return [];
     }
   }
@@ -131,7 +132,7 @@ export class ActivityLogService {
         ...doc.data()
       } as ActivityLog));
     } catch (error) {
-      console.error('❌ Error fetching agency activities:', error);
+      logger.error('Error fetching agency activities', error, 'ActivityLogService');
       return [];
     }
   }
@@ -157,7 +158,7 @@ export class ActivityLogService {
         ...doc.data()
       } as ActivityLog));
     } catch (error) {
-      console.error('❌ Error fetching activities by severity:', error);
+      logger.error('Error fetching activities by severity', error, 'ActivityLogService');
       return [];
     }
   }
@@ -198,7 +199,7 @@ export class ActivityLogService {
 
       return stats;
     } catch (error) {
-      console.error('❌ Error fetching system stats:', error);
+      logger.error('Error fetching system stats', error, 'ActivityLogService');
       return {
         totalActivities: 0,
         activitiesByType: {} as Record<ActivityType, number>,

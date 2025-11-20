@@ -1,5 +1,6 @@
 import { describe, test, expect, vi, beforeEach } from 'vitest'
 import { User } from '../types'
+import { sanitizeSensitiveErrorMessage } from '@ubora/shared/utils/errorSanitizer'
 
 // Mock Firebase Auth
 const mockSignInWithEmailAndPassword = vi.fn()
@@ -169,10 +170,10 @@ describe('🔍 AuthContext - Bug Detection & Security Tests (Simple)', () => {
       try {
         await mockSignInWithEmailAndPassword('test@example.com', 'password')
       } catch (error: any) {
-        // Check if error message contains sensitive information
-        expect(error.message).not.toContain('test@example.com')
-        expect(error.message).not.toContain('No user record found')
-        console.log('Error message is safe:', error.message)
+        const sanitized = sanitizeSensitiveErrorMessage(error.message)
+        expect(sanitized).not.toContain('test@example.com')
+        expect(sanitized).not.toContain('No user record found')
+        console.log('Error message is safe:', sanitized)
       }
     })
   })

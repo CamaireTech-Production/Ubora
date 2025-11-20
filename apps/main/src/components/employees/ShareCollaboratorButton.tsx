@@ -8,6 +8,7 @@ import { LimitReachedModal } from '../modals/LimitReachedModal';
 import { PaymentModal } from '../payments/PaymentModal';
 import { useToast } from '@ubora/shared/hooks/useToast';
 import { PackageType } from '@ubora/shared/config/packageFeatures';
+import { logger } from '@ubora/shared/utils/logger';
 
 interface ShareCollaboratorButtonProps {
   variant?: 'primary' | 'secondary';
@@ -31,7 +32,8 @@ export const ShareCollaboratorButton: React.FC<ShareCollaboratorButtonProps> = (
   const [linkCopied, setLinkCopied] = useState(false);
 
   // Calculate current user count (only approved employees)
-  const currentUserCount = employees.filter(emp => emp.isApproved !== false).length;
+  // Safely handle undefined employees array
+  const currentUserCount = (employees || []).filter(emp => emp.isApproved !== false).length;
   const maxUsers = getLimit('maxUsers');
   const payAsYouGoUsers = getPayAsYouGoCapacity('maxUsers');
 
@@ -56,7 +58,7 @@ export const ShareCollaboratorButton: React.FC<ShareCollaboratorButtonProps> = (
       setLinkCopied(true);
       setTimeout(() => setLinkCopied(false), 2000);
     } catch (err) {
-      console.error('Erreur lors de la copie:', err);
+      logger.error('Erreur lors de la copie', err, 'ShareCollaboratorButton');
     }
   };
 
@@ -70,7 +72,7 @@ export const ShareCollaboratorButton: React.FC<ShareCollaboratorButtonProps> = (
           url: link
         });
       } catch (err) {
-        console.error('Erreur lors du partage:', err);
+        logger.error('Erreur lors du partage', err, 'ShareCollaboratorButton');
         handleCopyLink();
       }
     } else {

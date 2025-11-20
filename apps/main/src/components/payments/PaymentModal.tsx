@@ -7,6 +7,7 @@ import { PayAsYouGoPaymentService } from '@ubora/shared/services/payAsYouGoPayme
 import { PaymentService } from '@ubora/shared/services/paymentService';
 import { PaymentRequest, CampayPaymentData } from '../../types/payment';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
+import { logger } from '@ubora/shared/utils/logger';
 
 interface PaymentOption {
   id: string;
@@ -77,7 +78,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       }
       
     } catch (error) {
-      console.error('Erreur lors du traitement du paiement:', error);
+      logger.error('Erreur lors du traitement du paiement', error, 'PaymentModal');
       showError('Erreur lors du traitement du paiement. Veuillez contacter le support.');
     } finally {
       // Reset states
@@ -95,7 +96,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       await PaymentService.updatePaymentStatus(currentPaymentId, data, 'failed');
       showError('Paiement échoué. Veuillez réessayer.');
     } catch (error) {
-      console.error('Error processing payment failure:', error);
+      logger.error('Error processing payment failure', error, 'PaymentModal');
     } finally {
       // Reset states
       setCurrentPaymentId(null);
@@ -268,7 +269,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       showSuccess(`Paiement initialisé (montant: ${totalPrice.toLocaleString('fr-FR')} FCFA, démo: 10 FCFA). Ouverture du modal de paiement...`);
 
     } catch (error) {
-      console.error('Purchase failed:', error);
+      logger.error('Purchase failed', error, 'PaymentModal');
       showError('Erreur lors de la création du paiement. Veuillez réessayer.');
     } finally {
       setIsCreatingPayment(false);

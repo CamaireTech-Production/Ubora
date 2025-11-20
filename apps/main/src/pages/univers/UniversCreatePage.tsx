@@ -13,6 +13,7 @@ import { DraftSaveModal } from '../../components/modals/DraftSaveModal';
 import { UniversDefinitions, UniversMetadata, UniversOwnership } from '../../types';
 import { universService } from '@ubora/shared/services/universService';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
+import { logger } from '@ubora/shared/utils/logger';
 import { useToast } from '@ubora/shared/hooks/useToast';
 import { useUniversWizardProgress } from '@ubora/shared/hooks/useUniversWizardProgress';
 import { UniversWizardStepProps } from '../../components/univers/UniversWizard';
@@ -60,7 +61,7 @@ export const UniversCreatePage: React.FC = () => {
       setCreatedUniversId(universId);
       // The loading component will handle the navigation after animation
     } catch (error) {
-      console.error('Error creating Univers:', error);
+      logger.error('Error creating Univers', error, 'UniversCreatePage');
       setIsCreating(false);
       setCreatedUniversId(null);
       showError('Erreur lors de la création du Univers. Veuillez réessayer.');

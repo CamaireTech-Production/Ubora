@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
+import { logger } from '@ubora/shared/utils/logger';
 import { Layout } from '../../components/layout/Layout';
 import { UniversEditor } from '../../components/univers/UniversEditor';
 import { Univers } from '../../types';
@@ -53,7 +54,7 @@ export const UniversEditPage: React.FC = () => {
       }
     } catch (error) {
       if (isNavigating) return; // Component unmounted, don't update state
-      console.error('Erreur lors du chargement du Univers:', error);
+      logger.error('Erreur lors du chargement du Univers', error, 'UniversEditPage');
       showError('Erreur lors du chargement du Univers');
       navigate('/univers', { replace: true });
     } finally {
@@ -107,7 +108,7 @@ export const UniversEditPage: React.FC = () => {
         navigate('/univers', { replace: true });
       }, 500); // Small delay to show success message
     } catch (error) {
-      console.error('Erreur lors de la mise à jour du Univers:', error);
+      logger.error('Erreur lors de la mise à jour du Univers', error, 'UniversEditPage');
       const errorMessage = error instanceof Error 
         ? error.message 
         : 'Erreur lors de la mise à jour du Univers';

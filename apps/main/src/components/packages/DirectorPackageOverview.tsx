@@ -52,10 +52,10 @@ const DirectorPackageOverviewComponent: React.FC<DirectorPackageOverviewProps> =
   const displayName = getPackageDisplayName(packageType);
   const price = getPackagePrice(packageType);
   
-  // Calculate consumption levels
-  const currentForms = forms.length;
-  const currentDashboards = dashboards.length;
-  const currentUsers = employees.filter(emp => emp.isApproved !== false).length;
+  // Calculate consumption levels (safely handle undefined arrays)
+  const currentForms = (forms || []).length;
+  const currentDashboards = (dashboards || []).length;
+  const currentUsers = (employees || []).filter(emp => emp.isApproved !== false).length;
   const maxForms = getLimit('maxForms');
   const maxDashboards = getLimit('maxDashboards');
   const maxUsers = getLimit('maxUsers');

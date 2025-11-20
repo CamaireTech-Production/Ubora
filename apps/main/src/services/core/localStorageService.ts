@@ -1,3 +1,4 @@
+import { logger } from '@ubora/shared/utils/logger';
 import { FileAttachment } from '../../types';
 
 export interface LocalFormResponse {
@@ -24,7 +25,7 @@ export class LocalStorageService {
       
       localStorage.setItem(this.STORAGE_KEY, JSON.stringify(updatedResponses));
     } catch (error) {
-      console.error('❌ Error storing form response in localStorage:', error);
+      logger.error('Error storing form response in localStorage', error, 'LocalStorageService');
       throw new Error(`Failed to store form response: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
@@ -44,7 +45,7 @@ export class LocalStorageService {
         submittedAt: new Date(response.submittedAt)
       }));
     } catch (error) {
-      console.error('❌ Error reading form responses from localStorage:', error);
+      logger.error('Error reading form responses from localStorage', error, 'LocalStorageService');
       return [];
     }
   }
@@ -80,7 +81,7 @@ export class LocalStorageService {
       allResponses[responseIndex] = { ...allResponses[responseIndex], ...updates };
       localStorage.setItem(this.STORAGE_KEY, JSON.stringify(allResponses));
     } catch (error) {
-      console.error('❌ Error updating form response in localStorage:', error);
+      logger.error('Error updating form response in localStorage', error, 'LocalStorageService');
       throw error;
     }
   }
@@ -95,7 +96,7 @@ export class LocalStorageService {
       
       localStorage.setItem(this.STORAGE_KEY, JSON.stringify(filteredResponses));
     } catch (error) {
-      console.error('❌ Error removing form response from localStorage:', error);
+      logger.error('Error removing form response from localStorage', error, 'LocalStorageService');
       throw error;
     }
   }
@@ -107,7 +108,7 @@ export class LocalStorageService {
     try {
       localStorage.removeItem(this.STORAGE_KEY);
     } catch (error) {
-      console.error('❌ Error clearing form responses from localStorage:', error);
+      logger.error('Error clearing form responses from localStorage', error, 'LocalStorageService');
       throw error;
     }
   }

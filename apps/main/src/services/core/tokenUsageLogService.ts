@@ -1,5 +1,6 @@
 import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { db } from '@ubora/shared/firebaseConfig';
+import { logger } from '@ubora/shared/utils/logger';
 
 export type TokenUsageType = 'image_extraction' | 'pdf_extraction' | 'other';
 
@@ -32,7 +33,7 @@ export class TokenUsageLogService {
       await addDoc(logRef, entry as any);
       return true;
     } catch (error) {
-      console.error('Error logging token usage:', error);
+      logger.error('Error logging token usage', error, 'tokenUsageLogService');
       return false;
     }
   }

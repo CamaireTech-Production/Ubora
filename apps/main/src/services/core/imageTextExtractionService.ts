@@ -4,6 +4,7 @@
  */
 
 import { enhancedFetch } from '../utils/errorHandling';
+import { logger } from '@ubora/shared/utils/logger';
 import { getOCRExtractEndpoint } from '@ubora/shared/config/api';
 import { TokenUsageLogService } from './tokenUsageLogService';
 import { TokenStatsService } from './tokenStatsService';
@@ -64,8 +65,8 @@ export class ImageTextExtractionService {
       return fallbackResult;
       
     } catch (error) {
-      console.error('❌ Error extracting text from image:', error);
-      console.error('🖼️ File details:', {
+      logger.error('Error extracting text from image', error, 'ImageTextExtractionService');
+      logger.error('File details', {
         name: file.name,
         size: file.size,
         type: file.type,
@@ -131,33 +132,32 @@ export class ImageTextExtractionService {
       const cleanedText = this.cleanExtractedText(extractedText);
       
       if (cleanedText && cleanedText.length > 3) {
-        console.log('🔍 DEBUG: Starting token calculation for image extraction');
-        console.log('🔍 DEBUG: File info:', {
-          name: file.name,
+        logger.debug('Starting token calculation for image extraction', {
+          fileName: file.name,
           size: file.size,
           type: file.type
-        });
-        console.log('🔍 DEBUG: UserId provided:', userId);
-        console.log('🔍 DEBUG: API Response:', result);
+        }, 'ImageTextExtractionService');
+        logger.debug('UserId provided', { userId }, 'ImageTextExtractionService');
+        logger.debug('API Response', { result }, 'ImageTextExtractionService');
         
         // Calculate token information
         const estimatedTokens = TokenCounter.estimateExtractionTokens(file.size, 'image');
-        console.log('🔍 DEBUG: Estimated tokens:', estimatedTokens);
+        logger.debug('Estimated tokens', { estimatedTokens }, 'ImageTextExtractionService');
         
         const actualTokens = TokenCounter.calculateActualTokens(result);
-        console.log('🔍 DEBUG: Calculated actual tokens:', actualTokens);
+        logger.debug('Calculated actual tokens', { actualTokens }, 'ImageTextExtractionService');
         
         // Log token usage if userId is provided (do not mutate users doc)
         let tokensCharged = false;
-        console.log('🔍 DEBUG: Token charging conditions:', {
+        logger.debug('Token charging conditions', {
           hasUserId: !!userId,
           actualTokens,
           willCharge: !!(userId && actualTokens > 0)
-        });
+        }, 'ImageTextExtractionService');
         
         if (userId && actualTokens > 0) {
           try {
-            console.log(`💳 Logging ${actualTokens} tokens for image extraction: ${file.name}`);
+            logger.debug(`Logging ${actualTokens} tokens for image extraction`, { fileName: file.name, actualTokens }, 'ImageTextExtractionService');
             tokensCharged = await TokenUsageLogService.logTokenUsage(
               userId,
               actualTokens,
@@ -165,22 +165,22 @@ export class ImageTextExtractionService {
               { fileName: file.name, fileSize: file.size, fileType: file.type }
             );
             if (tokensCharged) {
-              console.log(`✅ Successfully logged ${actualTokens} tokens for image extraction`);
+              logger.info(`Successfully logged ${actualTokens} tokens for image extraction`, { actualTokens, fileName: file.name }, 'ImageTextExtractionService');
               // Update lightweight stats doc for live UI without touching user root doc
               try {
                 await TokenStatsService.incrementUsage(userId, actualTokens);
               } catch (e) {
-                console.warn('⚠️ Failed to increment token stats (non-blocking):', e);
+                logger.warn('Failed to increment token stats (non-blocking)', e, 'ImageTextExtractionService');
               }
             } else {
-              console.error('❌ Failed to log token usage for image extraction');
+              logger.error('Failed to log token usage for image extraction', undefined, 'ImageTextExtractionService');
             }
           } catch (tokenError) {
-            console.error('❌ Error logging token usage for image extraction:', tokenError);
+            logger.error('Error logging token usage for image extraction', tokenError, 'ImageTextExtractionService');
             // Don't throw the error to prevent UI disruption
           }
         } else {
-          console.log('🔍 DEBUG: Skipping token charging - conditions not met');
+          logger.debug('Skipping token charging - conditions not met', undefined, 'ImageTextExtractionService');
         }
         
         return {

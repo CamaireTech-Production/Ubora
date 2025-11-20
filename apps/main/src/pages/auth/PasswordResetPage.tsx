@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { confirmPasswordReset, verifyPasswordResetCode } from 'firebase/auth';
 import { auth } from '@ubora/shared/firebaseConfig';
+import { logger } from '@ubora/shared/utils/logger';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Card } from '../../components/ui/Card';
@@ -33,7 +34,7 @@ export const PasswordResetPage: React.FC = () => {
         await verifyPasswordResetCode(auth, oobCode);
         setIsValidCode(true);
       } catch (err: any) {
-        console.error('Erreur de validation du code:', err);
+        logger.error('Erreur de validation du code', err, 'PasswordResetPage');
         setError('Code de réinitialisation invalide ou expiré');
       } finally {
         setIsValidatingCode(false);
@@ -78,7 +79,7 @@ export const PasswordResetPage: React.FC = () => {
         navigate('/login');
       }, 3000);
     } catch (err: any) {
-      console.error('Erreur de réinitialisation:', err);
+      logger.error('Erreur de réinitialisation', err, 'PasswordResetPage');
       setError(getErrorMessage(err.code));
     } finally {
       setIsLoading(false);

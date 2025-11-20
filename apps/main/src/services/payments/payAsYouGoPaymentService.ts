@@ -2,6 +2,7 @@ import { PaymentService, PaymentRequest } from './paymentService';
 import { User } from '../../types';
 import { CampayPaymentData } from '../../types/payment';
 import { SubscriptionSessionCollectionService } from '@ubora/shared/services/subscriptionSessionCollectionService';
+import { logger } from '@ubora/shared/utils/logger';
 
 export interface PayAsYouGoPaymentRequest {
   userId: string;
@@ -78,7 +79,7 @@ export class PayAsYouGoPaymentService {
       };
 
     } catch (error) {
-      console.error('Error creating pay-as-you-go payment request:', error);
+      logger.error('Error creating pay-as-you-go payment request', error, 'PayAsYouGoPaymentService');
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error'
@@ -104,7 +105,7 @@ export class PayAsYouGoPaymentService {
       const type = payment.metadata?.itemType as string;
       const quantity = payment.metadata?.quantity as number;
       
-      console.log('PayAsYouGoPaymentService: Processing payment success', {
+      logger.debug('Processing payment success', {
         paymentId,
         type,
         quantity,
@@ -118,19 +119,19 @@ export class PayAsYouGoPaymentService {
       let sessionUpdateResult = false;
       switch (type) {
         case 'tokens':
-          console.log('PayAsYouGoPaymentService: Adding tokens to session...');
+          logger.debug('Adding tokens to session', { userId: user.id, quantity }, 'PayAsYouGoPaymentService');
           sessionUpdateResult = await this.addTokensToSession(user.id, quantity, paymentId, payment.amount);
           break;
         case 'forms':
-          console.log('PayAsYouGoPaymentService: Adding forms to session...');
+          logger.debug('Adding forms to session', { userId: user.id, quantity }, 'PayAsYouGoPaymentService');
           sessionUpdateResult = await this.addFormsToSession(user.id, quantity, paymentId, payment.amount);
           break;
         case 'dashboards':
-          console.log('PayAsYouGoPaymentService: Adding dashboards to session...');
+          logger.debug('Adding dashboards to session', { userId: user.id, quantity }, 'PayAsYouGoPaymentService');
           sessionUpdateResult = await this.addDashboardsToSession(user.id, quantity, paymentId, payment.amount);
           break;
         case 'users':
-          console.log('PayAsYouGoPaymentService: Adding users to session...');
+          logger.debug('Adding users to session', { userId: user.id, quantity }, 'PayAsYouGoPaymentService');
           sessionUpdateResult = await this.addUsersToSession(user.id, quantity, paymentId, payment.amount);
           break;
         default:
@@ -141,7 +142,7 @@ export class PayAsYouGoPaymentService {
         return { success: false, error: 'Failed to update user session' };
       }
       
-      console.log('PayAsYouGoPaymentService: Session updated successfully');
+      logger.info('Session updated successfully', undefined, 'PayAsYouGoPaymentService');
 
       // Refresh user data to update UI
       await this.refreshUserData(user.id);
@@ -149,7 +150,7 @@ export class PayAsYouGoPaymentService {
       return { success: true };
 
     } catch (error) {
-      console.error('Error processing pay-as-you-go payment success:', error);
+      logger.error('Error processing pay-as-you-go payment success', error, 'PayAsYouGoPaymentService');
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error'
@@ -168,7 +169,7 @@ export class PayAsYouGoPaymentService {
       await PaymentService.updatePaymentStatus(paymentId, campayData, 'failed');
       return { success: true };
     } catch (error) {
-      console.error('Error processing pay-as-you-go payment failure:', error);
+      logger.error('Error processing pay-as-you-go payment failure', error, 'PayAsYouGoPaymentService');
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error'
@@ -186,7 +187,7 @@ export class PayAsYouGoPaymentService {
     amount: number
   ): Promise<boolean> {
     try {
-      console.log('addTokensToSession: Starting...', { userId, quantity, paymentId, amount });
+      logger.debug('addTokensToSession: Starting', { userId, quantity, paymentId, amount }, 'PayAsYouGoPaymentService');
       
       // Get active session from new collection
       const activeSession = await SubscriptionSessionCollectionService.getActiveSession(userId);
@@ -195,7 +196,7 @@ export class PayAsYouGoPaymentService {
         throw new Error('No active session found');
       }
       
-      console.log('addTokensToSession: Found active session', { 
+      logger.debug('addTokensToSession: Found active session', { 
         sessionId: activeSession.id, 
         currentTokens: activeSession.payAsYouGoResources?.tokens || 0 
       });
@@ -209,7 +210,7 @@ export class PayAsYouGoPaymentService {
       };
 
       // Update session in collection
-      console.log('addTokensToSession: Updating session in collection...');
+      logger.debug('addTokensToSession: Updating session in collection', undefined, 'PayAsYouGoPaymentService');
       const success = await SubscriptionSessionCollectionService.updateSession(activeSession.id, {
         payAsYouGoResources: {
           ...currentPayAsYouGo,
@@ -231,12 +232,12 @@ export class PayAsYouGoPaymentService {
       });
 
       if (success) {
-        console.log('addTokensToSession: Successfully updated session with tokens');
+        logger.info('addTokensToSession: Successfully updated session with tokens', { userId, quantity }, 'PayAsYouGoPaymentService');
       }
       
       return success;
     } catch (error) {
-      console.error('Error adding tokens to session:', error);
+      logger.error('Error adding tokens to session', error, 'PayAsYouGoPaymentService');
       return false;
     }
   }
@@ -287,7 +288,7 @@ export class PayAsYouGoPaymentService {
         }
       });
     } catch (error) {
-      console.error('Error adding forms to session:', error);
+      logger.error('Error adding forms to session', error, 'PayAsYouGoPaymentService');
       return false;
     }
   }
@@ -338,7 +339,7 @@ export class PayAsYouGoPaymentService {
         }
       });
     } catch (error) {
-      console.error('Error adding dashboards to session:', error);
+      logger.error('Error adding dashboards to session', error, 'PayAsYouGoPaymentService');
       return false;
     }
   }
@@ -389,7 +390,7 @@ export class PayAsYouGoPaymentService {
         }
       });
     } catch (error) {
-      console.error('Error adding users to session:', error);
+      logger.error('Error adding users to session', error, 'PayAsYouGoPaymentService');
       return false;
     }
   }
@@ -401,7 +402,7 @@ export class PayAsYouGoPaymentService {
     try {
       // This function can be called to trigger a user data refresh
       // The actual implementation depends on how your auth context handles data refresh
-      console.log('User data refresh requested for:', userId);
+      logger.debug('User data refresh requested', { userId }, 'PayAsYouGoPaymentService');
       
       // You can emit a custom event or call a callback here
       // For now, we'll just log it
@@ -409,7 +410,7 @@ export class PayAsYouGoPaymentService {
         detail: { userId } 
       }));
     } catch (error) {
-      console.error('Error refreshing user data:', error);
+      logger.error('Error refreshing user data', error, 'PayAsYouGoPaymentService');
     }
   }
 

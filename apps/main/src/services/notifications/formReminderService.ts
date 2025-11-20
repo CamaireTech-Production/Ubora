@@ -1,4 +1,5 @@
 import { unifiedNotificationService } from './unifiedNotificationService';
+import { logger } from '@ubora/shared/utils/logger';
 import { Form } from '../../types';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@ubora/shared/firebaseConfig';
@@ -14,10 +15,10 @@ class FormReminderService {
         const userData = userDoc.data();
         return userData.role || 'employe'; // Default to employee if role not found
       }
-      console.warn(`📅 [FormReminder] User ${userId} not found, defaulting to employee role`);
+      logger.warn(`User ${userId} not found, defaulting to employee role`, { userId }, 'FormReminderService');
       return 'employe';
     } catch (error) {
-      console.error(`📅 [FormReminder] Error getting user role for ${userId}:`, error);
+      logger.error(`Error getting user role for ${userId}`, error, 'FormReminderService');
       return 'employe'; // Default to employee on error
     }
   }
@@ -34,7 +35,7 @@ class FormReminderService {
       }
       return null;
     } catch (error) {
-      console.error(`📅 [FormReminder] Error getting FCM token for ${userId}:`, error);
+      logger.error(`Error getting FCM token for ${userId}`, error, 'FormReminderService');
       return null;
     }
   }
@@ -44,12 +45,12 @@ class FormReminderService {
    */
   async scheduleFormReminders(form: Form): Promise<void> {
     if (!form.deadline) {
-      console.log('📅 [FormReminder] No deadline set for form:', form.title);
+      logger.debug('No deadline set for form', { formTitle: form.title }, 'FormReminderService');
       return;
     }
 
     try {
-      console.log('📅 [FormReminder] Scheduling reminders for form:', form.title, 'deadline:', form.deadline);
+      logger.debug('Scheduling reminders for form', { formTitle: form.title, deadline: form.deadline }, 'FormReminderService');
 
       const deadlineDate = new Date(`${form.deadline.date}T${form.deadline.time}`);
       const reminderIntervals = [60, 30, 15, 5]; // minutes before deadline
@@ -83,14 +84,14 @@ class FormReminderService {
               fcmToken: fcmToken || undefined
             }, reminderTime);
 
-            console.log(`📅 [FormReminder] Scheduled ${intervalMinutes}min reminder for ${userRole} ${userId} at ${reminderTime}`);
+            logger.debug(`Scheduled ${intervalMinutes}min reminder`, { userRole, userId, reminderTime }, 'FormReminderService');
           } else {
-            console.log(`📅 [FormReminder] Skipping ${intervalMinutes}min reminder (time in past):`, reminderTime);
+            logger.debug(`Skipping ${intervalMinutes}min reminder (time in past)`, { reminderTime }, 'FormReminderService');
           }
         }
       }
     } catch (error) {
-      console.error('❌ [FormReminder] Error scheduling form reminders:', error);
+      logger.error('Error scheduling form reminders', error, 'FormReminderService');
       throw error;
     }
   }
@@ -100,13 +101,13 @@ class FormReminderService {
    */
   async updateFormReminders(form: Form, oldDeadline?: { date: string; time: string }): Promise<void> {
     if (!form.deadline) {
-      console.log('📅 [FormReminder] No deadline set for form:', form.title);
+      logger.debug('No deadline set for form', { formTitle: form.title }, 'FormReminderService');
       return;
     }
 
     // If deadline changed, we need to cancel old reminders and create new ones
     if (oldDeadline) {
-      console.log('📅 [FormReminder] Deadline changed for form:', form.title);
+      logger.debug('Deadline changed for form', { formTitle: form.title }, 'FormReminderService');
       // Note: In a production system, you'd want to cancel old scheduled notifications
       // For now, we'll just schedule new ones (old ones will be ignored if past due)
     }
@@ -119,15 +120,15 @@ class FormReminderService {
    */
   async cancelFormReminders(formId: string): Promise<void> {
     try {
-      console.log('📅 [FormReminder] Cancelling reminders for form:', formId);
+      logger.debug('Cancelling reminders for form', { formId }, 'FormReminderService');
       
       // Note: In a production system, you'd want to cancel scheduled notifications
       // For now, we'll mark them as cancelled in Firestore
       // This would require updating the unified notification service to support cancellation
       
-      console.log('📅 [FormReminder] Reminders cancelled for form:', formId);
+      logger.info('Reminders cancelled for form', { formId }, 'FormReminderService');
     } catch (error) {
-      console.error('❌ [FormReminder] Error cancelling form reminders:', error);
+      logger.error('Error cancelling form reminders', error, 'FormReminderService');
     }
   }
 
@@ -150,7 +151,7 @@ class FormReminderService {
         failedReminders: 0,
       };
     } catch (error) {
-      console.error('❌ [FormReminder] Error getting reminder status:', error);
+      logger.error('Error getting reminder status', error, 'FormReminderService');
       return {
         totalReminders: 0,
         scheduledReminders: 0,

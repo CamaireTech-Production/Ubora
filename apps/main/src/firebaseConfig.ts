@@ -5,8 +5,11 @@ import { getFirestore, Firestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 import { getMessaging, isSupported } from "firebase/messaging";
 import { getAnalytics, isSupported as isAnalyticsSupported } from "firebase/analytics";
+import { logger } from '@ubora/shared/utils/logger';
 
 // Configuration Firebase avec vos vraies clés
+// Note: measurementId est omis pour éviter les warnings de mismatch
+// Firebase Analytics récupérera automatiquement le bon measurementId depuis le serveur
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyDjk-Y3jeoPy3nW_9MniNs8heBv17briMU",
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "studio-gpnfx.firebaseapp.com",
@@ -14,7 +17,7 @@ const firebaseConfig = {
   storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "studio-gpnfx.firebasestorage.app",
   messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "848246677738",
   appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:848246677738:web:7612dab5f030c52b227793",
-  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || "G-6TWRQHW70W",
+  // measurementId removed to avoid mismatch warning - Firebase will fetch it from server
 };
 
 // Validation complète de la configuration
@@ -22,18 +25,18 @@ const requiredFields = ['apiKey', 'authDomain', 'projectId', 'storageBucket', 'm
 const missingFields = requiredFields.filter(field => !firebaseConfig[field as keyof typeof firebaseConfig]);
 
 if (missingFields.length > 0) {
-  console.error('🔥 [Firebase] Variables d\'environnement manquantes:', missingFields);
-  console.error('🔥 [Firebase] Créez un fichier .env.local à la racine avec vos clés Firebase');
-  console.error('🔥 [Firebase] Redémarrez le serveur après création du fichier');
+  logger.error('Variables d\'environnement manquantes', { missingFields }, 'firebaseConfig');
+  logger.error('Créez un fichier .env.local à la racine avec vos clés Firebase', null, 'firebaseConfig');
+  logger.error('Redémarrez le serveur après création du fichier', null, 'firebaseConfig');
 }
 
 // Validation spécifique des formats
 if (firebaseConfig.apiKey && firebaseConfig.apiKey.length < 30) {
-  console.error('🔥 [Firebase] VITE_FIREBASE_API_KEY semble invalide (trop courte)');
+  logger.error('VITE_FIREBASE_API_KEY semble invalide (trop courte)', null, 'firebaseConfig');
 }
 
 if (firebaseConfig.appId && !firebaseConfig.appId.includes(':web:')) {
-  console.error('🔥 [Firebase] VITE_FIREBASE_APP_ID format invalide (attendu: 1:xxx:web:xxx)');
+  logger.error('VITE_FIREBASE_APP_ID format invalide (attendu: 1:xxx:web:xxx)', null, 'firebaseConfig');
 }
 
 // Initialisation de l'app Firebase (HMR-safe singleton)
@@ -47,7 +50,7 @@ try {
   app = globalForFirebase.__UBORA_FIREBASE_APP__ || (getApps().length ? getApp() : initializeApp(firebaseConfig));
   globalForFirebase.__UBORA_FIREBASE_APP__ = app;
 } catch (error) {
-  console.error('🔥 [Firebase] Erreur lors de l\'initialisation:', error);
+  logger.error('Erreur lors de l\'initialisation', error, 'firebaseConfig');
   throw new Error('Configuration Firebase invalide. Vérifiez vos clés dans .env.local');
 }
 
@@ -63,11 +66,11 @@ export const db = ((): Firestore => {
     
     // Firebase v10.13.2 has offline persistence enabled by default
     // No need to manually enable it
-    console.log('🔥 [Firebase] Firestore initialized successfully');
+    logger.info('Firestore initialized successfully', null, 'firebaseConfig');
     
     return instance;
   } catch (error) {
-    console.error('🔥 [Firebase] Firestore initialization failed:', error);
+    logger.error('Firestore initialization failed', error, 'firebaseConfig');
     throw new Error('Firestore initialization failed');
   }
 })();
@@ -83,6 +86,12 @@ export const messaging = isSupported().then((supported) => {
 });
 
 // Initialisation de Firebase Analytics (seulement si supporté)
+// Note: Le warning de mismatch du measurementId est normal et peut être ignoré.
+// Firebase récupère automatiquement le bon measurementId depuis le serveur,
+// mais compare avec celui qui pourrait être dans les variables d'environnement.
+// Ce warning n'affecte pas le fonctionnement d'Analytics.
+// Pour supprimer complètement le warning, supprimez la variable d'environnement
+// VITE_FIREBASE_MEASUREMENT_ID de votre fichier .env.local
 export const analytics = isAnalyticsSupported().then((supported) => {
   if (supported) {
     return getAnalytics(app);

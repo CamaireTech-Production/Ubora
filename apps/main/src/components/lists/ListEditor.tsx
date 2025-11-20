@@ -11,6 +11,7 @@ import { ListsCSVImport } from './ListsCSVImport';
 import { ListRowsEditor } from './ListRowsEditor';
 import { useToast } from '@ubora/shared/hooks/useToast';
 import { validateValueAgainstType as validateTypeUtil } from '@ubora/shared/utils/csvTypeDetector';
+import { logger } from '@ubora/shared/utils/logger';
 
 interface ListEditorProps {
   list?: List; // If provided, we're editing an existing list
@@ -183,7 +184,7 @@ export const ListEditor: React.FC<ListEditorProps> = ({
       
       // Warn if there are more rows that weren't validated
       if (rows.length > 10) {
-        console.warn(`Validation effectuée sur les 10 premières lignes uniquement. ${rows.length - 10} lignes supplémentaires non validées.`);
+        logger.warn('Validation effectuée sur les 10 premières lignes uniquement', { totalRows: rows.length, validatedRows: 10 }, 'ListEditor');
       }
     }
 

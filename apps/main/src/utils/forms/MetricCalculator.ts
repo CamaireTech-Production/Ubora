@@ -1,4 +1,5 @@
-import { FormEntry, DashboardMetric, Dashboard, AggregateColumn, LabelColumn, DerivedColumn, TableRowSource } from '../types';
+import { FormEntry, DashboardMetric, Dashboard, AggregateColumn, LabelColumn, DerivedColumn, TableRowSource, FormFieldValue } from '../types';
+import { logger } from '@ubora/shared/utils/logger';
 
 export interface MetricResult {
   value: number | string | TableRowData[];
@@ -7,7 +8,8 @@ export interface MetricResult {
 }
 
 export interface TableRowData {
-  [columnId: string]: any; // Key is column ID, value is the cell data
+  _rowKey?: string;
+  [columnId: string]: FormFieldValue | string | number | null | undefined; // Key is column ID, value is the cell data
 }
 
 export class MetricCalculator {
@@ -168,7 +170,7 @@ export class MetricCalculator {
         description: `Calculé à partir de ${metric.dependsOn?.length || 0} métrique(s)`
       };
     } catch (error) {
-      console.error('Error calculating computed metric:', error);
+      logger.error('Error calculating computed metric', error, 'MetricCalculator');
       return {
         value: 0,
         displayValue: '0',
@@ -180,7 +182,7 @@ export class MetricCalculator {
   /**
    * Get numeric value from any metric result value
    */
-  private static getNumericValue(value: any): number {
+  private static getNumericValue(value: unknown): number {
     if (value === null || value === undefined || value === '') {
       return 0;
     }
@@ -242,12 +244,12 @@ export class MetricCalculator {
 
       return typeof result === 'number' && !isNaN(result) ? result : 0;
     } catch (error) {
-      console.error('Error in safe evaluation:', error);
+      logger.error('Error in safe evaluation', error, 'MetricCalculator');
       return 0;
     }
   }
 
-  private static calculateCount(fieldValues: any[], totalEntries: number): MetricResult {
+  private static calculateCount(fieldValues: FormFieldValue[], totalEntries: number): MetricResult {
     const count = fieldValues.length;
     return {
       value: count,
@@ -256,7 +258,7 @@ export class MetricCalculator {
     };
   }
 
-  private static calculateSum(fieldValues: any[]): MetricResult {
+  private static calculateSum(fieldValues: FormFieldValue[]): MetricResult {
     const numericValues = fieldValues
       .map(value => {
         const num = typeof value === 'number' ? value : parseFloat(value);
@@ -280,7 +282,7 @@ export class MetricCalculator {
     };
   }
 
-  private static calculateAverage(fieldValues: any[]): MetricResult {
+  private static calculateAverage(fieldValues: FormFieldValue[]): MetricResult {
     const numericValues = fieldValues
       .map(value => {
         const num = typeof value === 'number' ? value : parseFloat(value);
@@ -306,7 +308,7 @@ export class MetricCalculator {
     };
   }
 
-  private static calculateMin(fieldValues: any[]): MetricResult {
+  private static calculateMin(fieldValues: FormFieldValue[]): MetricResult {
     const numericValues = fieldValues
       .map(value => {
         const num = typeof value === 'number' ? value : parseFloat(value);
@@ -330,7 +332,7 @@ export class MetricCalculator {
     };
   }
 
-  private static calculateMax(fieldValues: any[]): MetricResult {
+  private static calculateMax(fieldValues: FormFieldValue[]): MetricResult {
     const numericValues = fieldValues
       .map(value => {
         const num = typeof value === 'number' ? value : parseFloat(value);
@@ -354,7 +356,7 @@ export class MetricCalculator {
     };
   }
 
-  private static calculateUnique(fieldValues: any[]): MetricResult {
+  private static calculateUnique(fieldValues: FormFieldValue[]): MetricResult {
     const uniqueValues = [...new Set(fieldValues.map(value => String(value)))];
     return {
       value: uniqueValues.length,
@@ -401,7 +403,9 @@ export class MetricCalculator {
         // For list-based rows, we need to get the list data
         // Since we don't have direct access to lists here, we'll extract row keys from form entries
         // that reference the list via aggregate columns
-        const aggregateColumns = columns.filter(col => (col as any).type === 'aggregate') as AggregateColumn[];
+        const aggregateColumns = columns.filter((col): col is AggregateColumn => 
+          'type' in col && col.type === 'aggregate'
+        );
         if (aggregateColumns.length > 0) {
           const firstAggCol = aggregateColumns[0];
           if (firstAggCol.formId && firstAggCol.rowKeyFieldId) {
@@ -443,16 +447,18 @@ export class MetricCalculator {
       const metricValues: Record<string, string> = {};
       if (dashboard) {
         for (const column of columns) {
-          if ((column as any).source === 'metric' && (column as any).metricId) {
-            const depMetric = dashboard.metrics.find(m => m.id === (column as any).metricId);
+          // Check for legacy metric-based columns
+          if ('source' in column && column.source === 'metric' && 'metricId' in column && typeof column.metricId === 'string') {
+            const metricId = column.metricId;
+            const depMetric = dashboard.metrics.find(m => m.id === metricId);
             if (!depMetric) {
-              console.warn(`Table metric: Dependent metric ${(column as any).metricId} not found in dashboard`);
+              logger.warn(`Table metric: Dependent metric ${metricId} not found in dashboard`, { metricId, columnId: column.id }, 'MetricCalculator');
               metricValues[column.id] = '';
               continue;
             }
             
             if (depMetric.metricType === 'table' && depMetric.id === metric.id) {
-              console.error(`Table metric: Circular dependency detected - metric ${metric.id} depends on itself`);
+              logger.error(`Table metric: Circular dependency detected - metric ${metric.id} depends on itself`, { metricId: metric.id }, 'MetricCalculator');
               metricValues[column.id] = '[Erreur: dépendance circulaire]';
               continue;
             }
@@ -461,7 +467,7 @@ export class MetricCalculator {
               const metricResult = this.calculateMetric(depMetric, formEntries, dashboard);
               metricValues[column.id] = metricResult.displayValue || String(metricResult.value) || '';
             } catch (error) {
-              console.error(`Table metric: Error calculating dependent metric ${(column as any).metricId}:`, error);
+              logger.error(`Table metric: Error calculating dependent metric ${metricId}`, error, 'MetricCalculator');
               metricValues[column.id] = '[Erreur de calcul]';
             }
           }
@@ -469,12 +475,12 @@ export class MetricCalculator {
       }
 
       // Calculate aggregate columns for each row key
-      const aggregateValues: Record<string, Record<string, any>> = {};
+      const aggregateValues: Record<string, Record<string, FormFieldValue | string | number>> = {};
       for (const rowKey of rowKeys) {
         aggregateValues[rowKey] = {};
         
         for (const column of columns) {
-          if ((column as any).type === 'aggregate') {
+          if ('type' in column && column.type === 'aggregate') {
             const aggCol = column as AggregateColumn;
             const value = this.calculateAggregateColumn(aggCol, formEntries, rowKey);
             aggregateValues[rowKey][column.id] = value;
@@ -488,7 +494,7 @@ export class MetricCalculator {
         const row: TableRowData = { _rowKey: rowKey };
 
         for (const column of columns) {
-          const columnType = (column as any).type || (column as any).source;
+          const columnType = ('type' in column ? column.type : null) || ('source' in column ? column.source : null);
 
           if (columnType === 'label') {
             // Label column: display from list
@@ -501,10 +507,11 @@ export class MetricCalculator {
           } else if (columnType === 'derived') {
             // Derived column: calculate from formula (will be calculated after all other columns)
             row[column.id] = null; // Placeholder, will be calculated below
-          } else if ((column as any).source === 'field') {
+          } else if ('source' in column && column.source === 'field') {
             // Legacy field-based column
-            const formId = (column as any).formId;
-            const fieldId = (column as any).fieldId;
+            const legacyColumn = column as { formId?: string; fieldId?: string };
+            const formId = legacyColumn.formId;
+            const fieldId = legacyColumn.fieldId;
             if (formId && fieldId) {
               // Find entry matching this row key
               const matchingEntry = formEntries.find(entry => {
@@ -513,7 +520,9 @@ export class MetricCalculator {
                   return entry.id === rowKey;
                 } else {
                   // For list-based rows, match by rowKeyFieldId
-                  const aggregateCol = columns.find(c => (c as any).type === 'aggregate') as AggregateColumn | undefined;
+                  const aggregateCol = columns.find((c): c is AggregateColumn => 
+                    'type' in c && c.type === 'aggregate'
+                  );
                   if (aggregateCol && aggregateCol.rowKeyFieldId) {
                     return String(entry.answers[aggregateCol.rowKeyFieldId]) === rowKey;
                   }
@@ -529,7 +538,7 @@ export class MetricCalculator {
             } else {
               row[column.id] = '';
             }
-          } else if ((column as any).source === 'metric') {
+          } else if ('source' in column && column.source === 'metric') {
             // Legacy metric-based column
             row[column.id] = metricValues[column.id] || '';
           }
@@ -537,14 +546,14 @@ export class MetricCalculator {
 
         // Calculate derived columns after all other columns are set
         for (const column of columns) {
-          if ((column as any).type === 'derived') {
+          if ('type' in column && column.type === 'derived') {
             const derivedCol = column as DerivedColumn;
             if (derivedCol.formula) {
               try {
                 const value = this.calculateDerivedColumn(derivedCol, row);
                 row[column.id] = value;
               } catch (error) {
-                console.error(`Error calculating derived column ${column.id}:`, error);
+                logger.error(`Error calculating derived column ${column.id}`, error, 'MetricCalculator');
                 row[column.id] = '[Erreur de calcul]';
               }
             } else {
@@ -562,7 +571,7 @@ export class MetricCalculator {
         description: `${rows.length} ligne${rows.length > 1 ? 's' : ''} dans le tableau`
       };
     } catch (error) {
-      console.error('Error calculating table metric:', error);
+      logger.error('Error calculating table metric', error, 'MetricCalculator');
       return {
         value: [],
         displayValue: '0',
@@ -578,7 +587,7 @@ export class MetricCalculator {
     column: AggregateColumn,
     formEntries: FormEntry[],
     rowKey: string
-  ): any {
+  ): FormFieldValue | string | number {
     if (!column.formId || !column.rowKeyFieldId || !column.valueFieldId) {
       return '';
     }
@@ -679,7 +688,7 @@ export class MetricCalculator {
     // Apply aggregation function
     switch (column.agg) {
       case 'sum':
-        return values.reduce((sum: number, val: any) => {
+        return values.reduce((sum: number, val: FormFieldValue) => {
           const num = typeof val === 'number' ? val : parseFloat(String(val));
           return sum + (isNaN(num) ? 0 : num);
         }, 0);
@@ -743,7 +752,7 @@ export class MetricCalculator {
   private static calculateDerivedColumn(
     column: DerivedColumn,
     row: TableRowData
-  ): any {
+  ): string | number {
     if (!column.formula) {
       return '';
     }
@@ -772,7 +781,7 @@ export class MetricCalculator {
       const result = this.safeEvaluate(formula);
       return isNaN(result) ? '' : result;
     } catch (error) {
-      console.error(`Error calculating derived column ${column.id}:`, error);
+      logger.error(`Error calculating derived column ${column.id}`, error, 'MetricCalculator');
       return '[Erreur]';
     }
   }

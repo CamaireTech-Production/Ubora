@@ -1,4 +1,6 @@
 // Types pour l'application multi-agences avec formulaires dynamiques
+import { Timestamp } from 'firebase/firestore';
+
 // Pay-as-you-go purchase tracking
 export interface PayAsYouGoPurchase {
   id: string; // Unique purchase ID
@@ -100,12 +102,12 @@ export interface User {
   // Employee specific fields
   isApproved?: boolean; // Status d'approbation pour les employés
   approvedBy?: string; // ID du directeur qui a approuvé
-  approvedAt?: any; // Timestamp d'approbation
+  approvedAt?: Date | Timestamp | null; // Timestamp d'approbation
   // Access levels for employees
   accessLevels?: AccessLevel[]; // Niveaux d'accès accordés par le directeur
   hasDirectorDashboardAccess?: boolean; // Accès au dashboard directeur
   directorDashboardAccessGrantedBy?: string; // ID du directeur qui a accordé l'accès
-  directorDashboardAccessGrantedAt?: any; // Timestamp d'octroi d'accès
+  directorDashboardAccessGrantedAt?: Date | Timestamp | null; // Timestamp d'octroi d'accès
   
   // Admin specific fields
   isSuperAdmin?: boolean; // Super admin flag
@@ -128,8 +130,8 @@ export interface User {
   };
   
   // Timestamps
-  createdAt?: any; // Timestamp Firestore
-  updatedAt?: any; // Timestamp Firestore
+  createdAt?: Date | Timestamp; // Timestamp Firestore
+  updatedAt?: Date | Timestamp; // Timestamp Firestore
 }
 
 export interface AccessLevel {
@@ -138,7 +140,7 @@ export interface AccessLevel {
   level: number; // L1, L2, L3, etc.
   permissions: string[]; // Permissions accordées
   grantedBy: string; // ID du directeur qui a accordé le niveau
-  grantedAt: any; // Timestamp d'octroi
+  grantedAt: Date | Timestamp; // Timestamp d'octroi
   description?: string; // Description du niveau d'accès
 }
 
@@ -221,12 +223,15 @@ export interface FileAttachment {
   base64Data?: string; // Store file as base64 for draft storage
 }
 
+// Type pour les valeurs de réponses de formulaire
+export type FormFieldValue = string | number | boolean | Date | string[] | null | undefined;
+
 export interface FormEntry {
   id: string;
   formId: string; // référence vers un formulaire
   userId: string; // employé qui a soumis (auth.uid)
   agencyId: string; // hérité du user
-  answers: Record<string, any>; // map { fieldId: valeur }
+  answers: Record<string, FormFieldValue>; // map { fieldId: valeur }
   fileAttachments?: FileAttachment[]; // fichiers uploadés
   submittedAt: Date; // serverTimestamp
 }
@@ -236,12 +241,39 @@ export interface DraftResponse {
   formId: string;
   userId: string;
   agencyId: string;
-  answers: Record<string, any>;
+  answers: Record<string, FormFieldValue>;
   fileAttachments?: FileAttachment[];
   createdAt: Date;
   updatedAt: Date;
   isDraft: true;
 }
+
+// Types pour les données de notification selon le type
+export interface FormReminderNotificationData {
+  formId: string;
+  formTitle: string;
+  deadline?: string;
+  reminderType?: 'before_deadline' | 'after_deadline';
+}
+
+export interface FormAssignmentNotificationData {
+  formId: string;
+  formTitle: string;
+  action: 'assigned' | 'removed';
+  directorName?: string;
+}
+
+export interface DailyReportNotificationData {
+  reportDate: string;
+  metricsCount?: number;
+  formsSubmitted?: number;
+}
+
+export type ScheduledNotificationData = 
+  | FormReminderNotificationData 
+  | FormAssignmentNotificationData 
+  | DailyReportNotificationData
+  | Record<string, unknown>; // Fallback pour données inconnues
 
 export interface ScheduledNotification {
   id: string;
@@ -251,7 +283,7 @@ export interface ScheduledNotification {
   scheduledFor: Date;
   title: string;
   body: string;
-  data?: Record<string, any>;
+  data?: ScheduledNotificationData;
   status: 'pending' | 'sent' | 'failed' | 'cancelled';
   attempts: number;
   createdAt: Date;
@@ -333,11 +365,15 @@ export interface ChatMessage {
 }
 
 // Types pour les graphiques
+export interface GraphDataPoint {
+  [key: string]: string | number | Date | boolean | null | undefined;
+}
+
 export interface GraphData {
   type: 'line' | 'bar' | 'pie' | 'area' | 'scatter';
   title: string;
   subtitle?: string;
-  data: any[];
+  data: GraphDataPoint[];
   xAxisKey?: string;
   yAxisKey?: string;
   dataKey?: string;
@@ -385,11 +421,15 @@ export interface PDFData {
   };
 }
 
+export interface PDFSectionData {
+  [key: string]: string | number | Date | boolean | null | undefined;
+}
+
 export interface PDFSection {
   title: string;
   content: string;
   type?: 'text' | 'list' | 'table';
-  data?: any[];
+  data?: PDFSectionData[];
   isMarkdownTable?: boolean;
 }
 
@@ -501,11 +541,14 @@ export type TableAggFn = 'sum' | 'average' | 'min' | 'max' | 'count' | 'latest' 
  * Filter configuration for aggregate columns
  * Allows filtering submissions by field values (e.g., movementType = 'in')
  */
+export type TableFilterValue = string | number | boolean | Date | null | undefined;
+export type TableFilterValueArray = TableFilterValue[];
+
 export interface TableFilter {
   id: string; // Unique identifier for the filter
   fieldId: string; // Field ID to filter on
   op: 'eq' | 'neq' | 'in' | 'nin' | 'contains' | 'not_contains' | 'greater_than' | 'less_than' | 'greater_equal' | 'less_equal' | 'is_empty' | 'is_not_empty'; // Comparison operator
-  value: any | any[]; // Value(s) to compare against (not needed for is_empty/is_not_empty)
+  value: TableFilterValue | TableFilterValueArray; // Value(s) to compare against (not needed for is_empty/is_not_empty)
 }
 
 /**
@@ -763,7 +806,7 @@ export interface PushNotificationLog {
     formId?: string;
     packageType?: string;
     agencyId?: string;
-    [key: string]: any;
+    [key: string]: unknown;
   };
 }
 
@@ -774,7 +817,7 @@ export interface FormSubmissionRecord {
   formName: string;
   submittedAt: Date;
   status: 'completed' | 'pending' | 'rejected';
-  data: Record<string, any>;
+  data: Record<string, unknown>;
   isActive: boolean;
   duration: number; // in seconds
   pagesVisited: number;
@@ -796,7 +839,7 @@ export interface AppUsageSession {
     userAgent?: string;
     ipAddress?: string;
     deviceType?: string;
-    [key: string]: any;
+    [key: string]: unknown;
   };
 }
 
@@ -820,7 +863,7 @@ export interface PurchaseHistory {
     packageType?: string;
     tokenAmount?: number;
     featureName?: string;
-    [key: string]: any;
+    [key: string]: unknown;
   };
 }
 
@@ -895,9 +938,9 @@ export interface ActivityLog {
     userAgent?: string;
     sessionId?: string;
     duration?: number;
-    [key: string]: any;
+    [key: string]: unknown;
   };
-  timestamp: any; // Firestore timestamp
+  timestamp: Date | Timestamp; // Firestore timestamp
   severity: 'low' | 'medium' | 'high' | 'critical';
   category: 'authentication' | 'user_management' | 'form_management' | 'dashboard' | 'package' | 'chat' | 'file' | 'notification' | 'system' | 'admin';
 }
@@ -1088,8 +1131,10 @@ export interface ListColumn {
   type: 'text' | 'number' | 'date' | 'email' | 'boolean';
 }
 
+export type ListRowValue = string | number | boolean | Date | null | undefined;
+
 export interface ListRow {
-  [columnId: string]: any; // Map of columnId -> value
+  [columnId: string]: ListRowValue; // Map of columnId -> value
 }
 
 export interface List {

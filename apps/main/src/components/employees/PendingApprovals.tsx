@@ -6,6 +6,7 @@ import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '@ubora/shared/firebaseConfig';
 import { useToast } from '@ubora/shared/hooks/useToast';
 import { User } from '../../types';
+import { logger } from '@ubora/shared/utils/logger';
 
 interface PendingApprovalsProps {
   pendingEmployees: User[];
@@ -37,7 +38,7 @@ export const PendingApprovals: React.FC<PendingApprovalsProps> = ({
       onApprovalChange();
       showSuccess(approved ? 'Employé approuvé avec succès !' : 'Employé rejeté avec succès !');
     } catch (error) {
-      console.error('Erreur lors de l\'approbation:', error);
+      logger.error('Erreur lors de l\'approbation', error, 'PendingApprovals');
       showError('Erreur lors de l\'approbation. Veuillez réessayer.');
     } finally {
       setProcessingIds(prev => {

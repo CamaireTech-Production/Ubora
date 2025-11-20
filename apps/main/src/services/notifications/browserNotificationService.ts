@@ -1,6 +1,8 @@
 // Browser Notification Service - Reliable cross-platform notifications
 // This service provides immediate, working notifications using the browser's native Notification API
 
+import { logger } from '@ubora/shared/utils/logger';
+
 export interface BrowserNotificationOptions {
   title: string;
   body: string;
@@ -32,7 +34,8 @@ export class BrowserNotificationService {
 
   constructor() {
     this.checkSupport();
-    this.permission = Notification.permission;
+    // Safely access Notification.permission (may not exist in test environment)
+    this.permission = typeof Notification !== 'undefined' ? Notification.permission : 'default';
   }
 
   static getInstance(): BrowserNotificationService {
@@ -47,10 +50,10 @@ export class BrowserNotificationService {
    */
   private checkSupport(): void {
     this.isSupported = 'Notification' in window;
-    console.log('🔔 [BrowserNotification] Support check:', {
+    logger.debug('Support check', {
       supported: this.isSupported,
       permission: this.permission
-    });
+    }, 'BrowserNotification');
   }
 
   /**
@@ -72,27 +75,27 @@ export class BrowserNotificationService {
    */
   async requestPermission(): Promise<boolean> {
     if (!this.isSupported) {
-      console.error('🔔 [BrowserNotification] Notifications not supported');
+      logger.warn('Notifications not supported', undefined, 'BrowserNotification');
       return false;
     }
 
     try {
-      console.log('🔔 [BrowserNotification] Requesting permission...');
+      logger.debug('Requesting permission', undefined, 'BrowserNotification');
       
       const permission = await Notification.requestPermission();
       this.permission = permission;
       
-      console.log('🔔 [BrowserNotification] Permission result:', permission);
+      logger.debug('Permission result', { permission }, 'BrowserNotification');
       
       if (permission === 'granted') {
-        console.log('🔔 [BrowserNotification] ✅ Permission granted!');
+        logger.info('Permission granted', undefined, 'BrowserNotification');
         return true;
       } else {
-        console.log('🔔 [BrowserNotification] ❌ Permission denied');
+        logger.warn('Permission denied', { permission }, 'BrowserNotification');
         return false;
       }
     } catch (error) {
-      console.error('🔔 [BrowserNotification] ❌ Permission request failed:', error);
+      logger.error('Permission request failed', error, 'BrowserNotification');
       return false;
     }
   }
@@ -102,23 +105,23 @@ export class BrowserNotificationService {
    */
   async showNotification(options: BrowserNotificationOptions): Promise<boolean> {
     if (!this.isSupported) {
-      console.error('🔔 [BrowserNotification] Notifications not supported');
+      logger.warn('Notifications not supported', undefined, 'BrowserNotification');
       return false;
     }
 
     if (this.permission !== 'granted') {
-      console.error('🔔 [BrowserNotification] Permission not granted');
+      logger.warn('Permission not granted', { permission: this.permission }, 'BrowserNotification');
       return false;
     }
 
     try {
-      console.log('🔔 [BrowserNotification] Showing notification:', options.title);
-      console.log('🔔 [BrowserNotification] Browser info:', {
+      logger.debug('Showing notification', { title: options.title }, 'BrowserNotification');
+      logger.debug('Browser info', {
         userAgent: navigator.userAgent,
         isSecureContext: window.isSecureContext,
         documentVisibility: document.visibilityState,
         windowFocused: document.hasFocus()
-      });
+      }, 'BrowserNotification');
 
       // Enhanced notification options for better cross-platform support
       const notificationOptions: NotificationOptions = {
@@ -150,7 +153,7 @@ export class BrowserNotificationService {
         (notificationOptions as any).actions = options.actions;
       }
 
-      console.log('🔔 [BrowserNotification] Notification options:', notificationOptions);
+      logger.debug('Notification options', notificationOptions, 'BrowserNotification');
 
       // Create the notification
       const notification = new Notification(options.title, notificationOptions);
@@ -160,16 +163,16 @@ export class BrowserNotificationService {
         throw new Error('Failed to create notification object');
       }
 
-      console.log('🔔 [BrowserNotification] Notification object created:', {
+      logger.debug('Notification object created', {
         title: notification.title,
         body: notification.body,
         tag: notification.tag,
         data: notification.data
-      });
+      }, 'BrowserNotification');
 
       // Handle notification click
       notification.onclick = (event) => {
-        console.log('🔔 [BrowserNotification] Notification clicked');
+        logger.debug('Notification clicked', undefined, 'BrowserNotification');
         event.preventDefault();
         
         // Focus the window
@@ -180,44 +183,44 @@ export class BrowserNotificationService {
         
         // Navigate if URL provided
         if (options.data?.redirectUrl) {
-          console.log('🔔 [BrowserNotification] Navigating to:', options.data.redirectUrl);
+          logger.debug('Navigating to', { redirectUrl: options.data.redirectUrl }, 'BrowserNotification');
           window.location.href = options.data.redirectUrl;
         }
       };
 
       // Handle notification close
       notification.onclose = () => {
-        console.log('🔔 [BrowserNotification] Notification closed');
+        logger.debug('Notification closed', undefined, 'BrowserNotification');
       };
 
       // Handle notification error
       notification.onerror = (error) => {
-        console.error('🔔 [BrowserNotification] Notification error:', error);
+        logger.error('Notification error', error, 'BrowserNotification');
       };
 
       // Handle notification show (when it becomes visible)
       notification.onshow = () => {
-        console.log('🔔 [BrowserNotification] ✅ Notification is now visible');
+        logger.debug('Notification is now visible', undefined, 'BrowserNotification');
       };
 
       // Auto-close after 10 seconds if not interacted with
       setTimeout(() => {
         if (notification) {
-          console.log('🔔 [BrowserNotification] Auto-closing notification after 10 seconds');
+          logger.debug('Auto-closing notification after 10 seconds', undefined, 'BrowserNotification');
           notification.close();
         }
       }, 10000);
 
-      console.log('🔔 [BrowserNotification] ✅ Notification displayed successfully');
+      logger.info('Notification displayed successfully', { title: options.title }, 'BrowserNotification');
       return true;
 
     } catch (error) {
-      console.error('🔔 [BrowserNotification] ❌ Failed to show notification:', error);
-      console.error('🔔 [BrowserNotification] Error details:', {
-        name: error.name,
-        message: error.message,
-        stack: error.stack
-      });
+      logger.error('Failed to show notification', error, 'BrowserNotification');
+      logger.error('Error details', {
+        name: (error as Error).name,
+        message: (error as Error).message,
+        stack: (error as Error).stack
+      }, 'BrowserNotification');
       return false;
     }
   }
@@ -226,7 +229,7 @@ export class BrowserNotificationService {
    * Test browser notification (direct)
    */
   async testNotification(): Promise<boolean> {
-    console.log('🔔 [BrowserNotification] Testing browser notification...');
+    logger.debug('Testing browser notification', undefined, 'BrowserNotification');
 
     const testOptions: BrowserNotificationOptions = {
       title: 'Test Browser Notification',

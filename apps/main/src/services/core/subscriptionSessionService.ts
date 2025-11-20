@@ -1,3 +1,4 @@
+import { logger } from '@ubora/shared/utils/logger';
 import { doc, updateDoc, getDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '@ubora/shared/firebaseConfig';
 import { SubscriptionSession, User, PayAsYouGoPurchase } from '../../types';
@@ -37,7 +38,7 @@ export class SubscriptionSessionService {
       return sessionId !== null;
       
     } catch (error) {
-      console.error('Erreur lors de la création de la session:', error);
+      logger.error('Erreur lors de la création de la session', error, 'SubscriptionSessionService');
       return false;
     }
   }
@@ -53,7 +54,7 @@ export class SubscriptionSessionService {
     const actualUserId = userId || userData.id;
     
     if (!actualUserId) {
-      console.error('SubscriptionSessionService.getCurrentSession: userId is required but not provided');
+      logger.error('SubscriptionSessionService.getCurrentSession: userId is required but not provided', undefined, 'SubscriptionSessionService');
       return null;
     }
 
@@ -107,7 +108,7 @@ export class SubscriptionSessionService {
       const currentSession = await SubscriptionSessionCollectionService.getActiveSession(userId);
       
       if (!currentSession) {
-        console.error('Aucune session active trouvée pour l\'utilisateur:', userId);
+        logger.error('Aucune session active trouvée pour l\'utilisateur', { userId }, 'SubscriptionSessionService');
         return false;
       }
       
@@ -145,7 +146,7 @@ export class SubscriptionSessionService {
       });
       
     } catch (error) {
-      console.error('Erreur lors de l\'ajout des ressources pay-as-you-go:', error);
+      logger.error('Erreur lors de l\'ajout des ressources pay-as-you-go', error, 'SubscriptionSessionService');
       return false;
     }
   }
@@ -167,7 +168,7 @@ export class SubscriptionSessionService {
       const currentSession = await SubscriptionSessionCollectionService.getActiveSession(userId);
       
       if (!currentSession) {
-        console.error('Aucune session active trouvée pour l\'utilisateur:', userId);
+        logger.error('Aucune session active trouvée pour l\'utilisateur', { userId }, 'SubscriptionSessionService');
         return false;
       }
       
@@ -210,7 +211,7 @@ export class SubscriptionSessionService {
       });
       
     } catch (error) {
-      console.error('Erreur lors de la mise à jour de l\'usage:', error);
+      logger.error('Erreur lors de la mise à jour de l\'usage', error, 'SubscriptionSessionService');
       return false;
     }
   }
@@ -225,7 +226,7 @@ export class SubscriptionSessionService {
     const actualUserId = userId || userData.id;
     
     if (!actualUserId) {
-      console.error('SubscriptionSessionService.getAllSessions: userId is required but not provided');
+      logger.error('SubscriptionSessionService.getAllSessions: userId is required but not provided', undefined, 'SubscriptionSessionService');
       return userData.subscriptionSessions || [];
     }
 
@@ -260,7 +261,7 @@ export class SubscriptionSessionService {
     const actualUserId = userId || userData.id;
     
     if (!actualUserId) {
-      console.error('SubscriptionSessionService.getSessionById: userId is required but not provided');
+      logger.error('SubscriptionSessionService.getSessionById: userId is required but not provided', undefined, 'SubscriptionSessionService');
       // Fallback to legacy array-based system
       const legacySessions = userData.subscriptionSessions || [];
       return legacySessions.find(session => session.id === sessionId) || null;
@@ -309,7 +310,7 @@ export class SubscriptionSessionService {
       const currentSession = await SubscriptionSessionCollectionService.getActiveSession(userId);
       
       if (!currentSession) {
-        console.error('Aucune session active trouvée pour l\'utilisateur:', userId);
+        logger.error('Aucune session active trouvée pour l\'utilisateur', { userId }, 'SubscriptionSessionService');
         return false;
       }
       
@@ -328,7 +329,7 @@ export class SubscriptionSessionService {
       return deactivated;
       
     } catch (error) {
-      console.error('Erreur lors de la désactivation de la session:', error);
+      logger.error('Erreur lors de la désactivation de la session', error, 'SubscriptionSessionService');
       return false;
     }
   }

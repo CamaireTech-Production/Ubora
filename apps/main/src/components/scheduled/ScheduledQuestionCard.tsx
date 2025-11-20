@@ -28,7 +28,7 @@ interface ScheduledQuestionCardProps {
   universName?: string; // Optional Univers name for badge
 }
 
-export const ScheduledQuestionCard: React.FC<ScheduledQuestionCardProps> = ({
+const ScheduledQuestionCardComponent: React.FC<ScheduledQuestionCardProps> = ({
   question,
   onEdit,
   onDelete,
@@ -283,5 +283,20 @@ export const ScheduledQuestionCard: React.FC<ScheduledQuestionCardProps> = ({
     </div>
   );
 };
+
+// Mémoriser le composant pour éviter les re-renders inutiles
+export const ScheduledQuestionCard = React.memo(ScheduledQuestionCardComponent, (prevProps, nextProps) => {
+  // Comparer les propriétés critiques pour déterminer si un re-render est nécessaire
+  return (
+    prevProps.question.id === nextProps.question.id &&
+    prevProps.question.title === nextProps.question.title &&
+    prevProps.question.question === nextProps.question.question &&
+    prevProps.question.status === nextProps.question.status &&
+    prevProps.question.scheduledAt.getTime() === nextProps.question.scheduledAt.getTime() &&
+    prevProps.question.nextExecution?.getTime() === nextProps.question.nextExecution?.getTime() &&
+    prevProps.disabled === nextProps.disabled &&
+    prevProps.isExecuting === nextProps.isExecuting
+  );
+});
 
 

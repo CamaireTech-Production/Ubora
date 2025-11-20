@@ -5,6 +5,7 @@ import { Select } from '../ui/Select';
 import { Upload, FileText, AlertCircle, CheckCircle, X, Eye, Edit2, Download } from 'lucide-react';
 import { detectColumnTypes, ColumnType, validateValueAgainstType, convertValueToType } from '@ubora/shared/utils/csvTypeDetector';
 import { ListColumn, ListRow } from '../../types';
+import { logger } from '@ubora/shared/utils/logger';
 
 interface ListsCSVImportProps {
   onImportComplete: (columns: ListColumn[], rows: ListRow[]) => void;
@@ -155,7 +156,7 @@ export const ListsCSVImport: React.FC<ListsCSVImportProps> = ({
         throw new Error(`Impossible d'analyser le fichier CSV:\n${errorSummary}${remainingErrors}`);
       } else {
         // Warn about errors but continue with valid data
-        console.warn(`Avertissements lors du parsing CSV:\n${errorSummary}${remainingErrors}`);
+        logger.warn('Avertissements lors du parsing CSV', { errorSummary, remainingErrors }, 'ListsCSVImport');
       }
     }
 
@@ -237,10 +238,10 @@ export const ListsCSVImport: React.FC<ListsCSVImportProps> = ({
       const warningThreshold = 5000;
       
       if (data.length > maxRows) {
-        console.warn(`Le fichier contient ${data.length} lignes. Seules les ${maxRows} premières seront importées.`);
+        logger.warn('Fichier volumineux détecté', { totalRows: data.length, maxRows }, 'ListsCSVImport');
         data = data.slice(0, maxRows);
       } else if (data.length > warningThreshold) {
-        console.info(`Fichier volumineux détecté: ${data.length} lignes. L'importation peut prendre quelques instants.`);
+        logger.info('Fichier volumineux détecté', { rowCount: data.length }, 'ListsCSVImport');
       }
 
       setCsvHeaders(headers);
@@ -252,7 +253,7 @@ export const ListsCSVImport: React.FC<ListsCSVImportProps> = ({
       try {
         detected = detectColumnTypes(data, headers);
       } catch (detectionError) {
-        console.warn('Erreur lors de la détection automatique des types:', detectionError);
+        logger.warn('Erreur lors de la détection automatique des types', detectionError, 'ListsCSVImport');
         // Fallback: set all columns as text
         detected = {};
         headers.forEach(header => {
@@ -280,7 +281,7 @@ export const ListsCSVImport: React.FC<ListsCSVImportProps> = ({
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Erreur lors du traitement du fichier CSV';
       setError(errorMessage);
-      console.error('CSV Import Error:', error);
+      logger.error('CSV Import Error', error, 'ListsCSVImport');
     } finally {
       setIsProcessing(false);
     }

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { onSnapshot, doc } from 'firebase/firestore';
 import { db } from '@ubora/shared/firebaseConfig';
 
@@ -34,7 +34,10 @@ export function useTokenStats(userId?: string | null) {
     return () => unsub();
   }, [userId]);
 
-  return stats;
+  // Mémoriser le résultat pour éviter recréation d'objet si valeurs identiques
+  const memoizedStats = useMemo(() => stats, [stats?.tokensUsedMonthly, stats?.month]);
+
+  return memoizedStats;
 }
 
 

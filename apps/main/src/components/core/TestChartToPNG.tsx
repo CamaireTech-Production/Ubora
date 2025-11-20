@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Button } from '../ui/Button';
 import { RechartsToPNG } from '@ubora/shared/utils/RechartsToPNG';
 import { GraphData } from '../../types';
+import { logger } from '@ubora/shared/utils/logger';
 
 // Test data for chart conversion
 const testChartData: GraphData = {
@@ -60,7 +61,7 @@ export const TestChartToPNG: React.FC = () => {
         setError('Failed to convert chart to PNG');
       }
     } catch (err) {
-      console.error('Error during conversion:', err);
+      logger.error('Error during conversion', err, 'TestChartToPNG');
       setError(`Error: ${err instanceof Error ? err.message : 'Unknown error'}`);
     } finally {
       setIsConverting(false);

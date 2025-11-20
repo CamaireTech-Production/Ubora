@@ -3,6 +3,7 @@ import MessageBubble from './MessageBubble';
 import { Bot, Loader2, ChevronUp } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { ScrollButtons } from './ScrollButtons';
+import { logger } from '@ubora/shared/utils/logger';
 
 interface Message {
   id: string;
@@ -42,7 +43,7 @@ const MessageList: React.FC<MessageListProps> = ({
   const formatDateLabel = (d: Date) => {
     // Validate date before using it
     if (!d || isNaN(d.getTime())) {
-      console.warn('Invalid date passed to formatDateLabel:', d);
+      logger.warn('Invalid date passed to formatDateLabel', { date: d }, 'MessageList');
       return "Date invalide";
     }
     

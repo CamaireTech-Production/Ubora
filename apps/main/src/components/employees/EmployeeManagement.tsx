@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
-import { useApp } from '@ubora/shared/contexts/AppContext';
+import { useEmployees } from '@ubora/shared/contexts/EmployeesContext';
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
 import { useToast } from '@ubora/shared/hooks/useToast';
@@ -12,6 +12,7 @@ import {
 import { User } from '../../types';
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '@ubora/shared/firebaseConfig';
+import { logger } from '@ubora/shared/utils/logger';
 
 interface EmployeeManagementProps {
   className?: string;
@@ -19,7 +20,7 @@ interface EmployeeManagementProps {
 
 export const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ className = '' }) => {
   const { user: currentUser } = useAuth();
-  const { employees, isLoading } = useApp();
+  const { employees, isLoading } = useEmployees();
   const { showSuccess, showError } = useToast();
   const [selectedEmployee, setSelectedEmployee] = useState<User | null>(null);
   const [showAccessModal, setShowAccessModal] = useState(false);
@@ -50,7 +51,7 @@ export const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ classNam
       setSelectedEmployee(null);
       showSuccess(`Accès directeur accordé à ${employee.name} avec succès !`);
     } catch (error) {
-      console.error('Erreur lors de l\'octroi d\'accès:', error);
+      logger.error('Erreur lors de l\'octroi d\'accès', error, 'EmployeeManagement');
       showError('Erreur lors de l\'octroi de l\'accès directeur. Veuillez réessayer.');
     } finally {
       setIsUpdatingAccess(false);
@@ -74,7 +75,7 @@ export const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ classNam
       setSelectedEmployee(null);
       showSuccess(`Accès directeur révoqué pour ${employee.name} avec succès !`);
     } catch (error) {
-      console.error('Erreur lors de la révocation d\'accès:', error);
+      logger.error('Erreur lors de la révocation d\'accès', error, 'EmployeeManagement');
       showError('Erreur lors de la révocation de l\'accès directeur. Veuillez réessayer.');
     } finally {
       setIsUpdatingAccess(false);

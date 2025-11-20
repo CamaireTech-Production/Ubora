@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, Search, Calendar, Clock, MessageSquare } from 'lucide-react';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
+import { logger } from '@ubora/shared/utils/logger';
 import { Button } from '../../components/ui/Button';
 import { ScheduledQuestionCard } from '../../components/scheduled/ScheduledQuestionCard';
 import { scheduledQuestionService } from '@ubora/shared/services/scheduledQuestionService';
@@ -65,7 +66,7 @@ export const ScheduledQuestionsPage: React.FC = () => {
       await scheduledQuestionService.delete(questionId);
       showSuccess('Question programmée supprimée avec succès');
     } catch (error) {
-      console.error('Erreur lors de la suppression:', error);
+      logger.error('Erreur lors de la suppression', error, 'ScheduledInstructionsPage');
       showError('Erreur lors de la suppression de la question programmée');
     }
   };
@@ -80,7 +81,7 @@ export const ScheduledQuestionsPage: React.FC = () => {
       navigate(`/directeur/scheduled-questions/${questionId}/chat`);
       showSuccess('Redirection vers le chat pour exécution manuelle');
     } catch (error) {
-      console.error('Erreur lors de l\'exécution:', error);
+      logger.error('Erreur lors de l\'exécution', error, 'ScheduledInstructionsPage');
       showError('Erreur lors de l\'exécution de la question');
     }
   };

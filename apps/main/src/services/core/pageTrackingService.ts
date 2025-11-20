@@ -8,6 +8,7 @@ import {
   limit,
   getDocs
 } from 'firebase/firestore';
+import { logger } from '@ubora/shared/utils/logger';
 import { db } from '@ubora/shared/firebaseConfig';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
 
@@ -57,7 +58,7 @@ class PageTrackingService {
   static initializeSession(userId: string, userEmail: string, userName: string): string {
     // Validate required parameters
     if (!userId || !userEmail || !userName) {
-      console.warn('Cannot initialize session: missing required user data', { userId, userEmail, userName });
+      logger.warn('Cannot initialize session: missing required user data', { userId, userEmail, userName }, 'PageTrackingService');
       return this.generateSessionId();
     }
 
@@ -81,7 +82,7 @@ class PageTrackingService {
 
     // Store session in Firestore
     addDoc(collection(db, this.SESSIONS_COLLECTION), sessionData).catch(error => {
-      console.error('Error creating session:', error);
+      logger.error('Error creating session', error, 'PageTrackingService');
     });
 
     // Store session in localStorage for persistence
@@ -105,7 +106,7 @@ class PageTrackingService {
     try {
       // Validate required parameters
       if (!userId || !userEmail || !userName || !page || !path) {
-        console.warn('Cannot track page view: missing required data', { userId, userEmail, userName, page, path });
+        logger.warn('Cannot track page view: missing required data', { userId, userEmail, userName, page, path }, 'PageTrackingService');
         return;
       }
 
@@ -145,7 +146,7 @@ class PageTrackingService {
       await this.updateSessionPages(sessionId, page);
 
     } catch (error) {
-      console.error('Error tracking page view:', error);
+      logger.error('Error tracking page view', error, 'PageTrackingService');
     }
   }
 
@@ -170,10 +171,10 @@ class PageTrackingService {
         const doc = snapshot.docs[0];
         // Note: In a real implementation, you'd update the document with duration
         // For now, we'll just log it
-        console.log(`Page ${this.currentPage} duration: ${duration} seconds`);
+        logger.debug(`Page ${this.currentPage} duration`, { duration, page: this.currentPage }, 'PageTrackingService');
       }
     } catch (error) {
-      console.error('Error ending page view:', error);
+      logger.error('Error ending page view', error, 'PageTrackingService');
     }
   }
 
@@ -206,7 +207,7 @@ class PageTrackingService {
       if (!snapshot.empty) {
         const doc = snapshot.docs[0];
         // Note: In a real implementation, you'd update the document
-        console.log(`Session ${this.currentSessionId} ended. Total duration: ${totalDuration} seconds`);
+        logger.info(`Session ${this.currentSessionId} ended`, { totalDuration, sessionId: this.currentSessionId }, 'PageTrackingService');
       }
 
       // Clear session data
@@ -217,7 +218,7 @@ class PageTrackingService {
       localStorage.removeItem('sessionStartTime');
 
     } catch (error) {
-      console.error('Error ending session:', error);
+      logger.error('Error ending session', error, 'PageTrackingService');
     }
   }
 
@@ -239,7 +240,7 @@ class PageTrackingService {
         ...doc.data()
       } as PageViewRecord));
     } catch (error) {
-      console.error('Error fetching user page views:', error);
+      logger.error('Error fetching user page views', error, 'PageTrackingService');
       return [];
     }
   }
@@ -262,7 +263,7 @@ class PageTrackingService {
         ...doc.data()
       } as SessionRecord));
     } catch (error) {
-      console.error('Error fetching user sessions:', error);
+      logger.error('Error fetching user sessions', error, 'PageTrackingService');
       return [];
     }
   }
@@ -313,11 +314,11 @@ class PageTrackingService {
         if (!sessionData.pages.includes(page)) {
           sessionData.pages.push(page);
           // Note: In a real implementation, you'd update the document
-          console.log(`Updated session ${sessionId} with page: ${page}`);
+          logger.debug(`Updated session ${sessionId} with page`, { sessionId, page }, 'PageTrackingService');
         }
       }
     } catch (error) {
-      console.error('Error updating session pages:', error);
+      logger.error('Error updating session pages', error, 'PageTrackingService');
     }
   }
 }

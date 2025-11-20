@@ -1,4 +1,5 @@
 import { unifiedNotificationService } from './unifiedNotificationService';
+import { logger } from '@ubora/shared/utils/logger';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@ubora/shared/firebaseConfig';
 
@@ -34,10 +35,10 @@ class NotificationService {
         const userData = userDoc.data();
         return this.normalizeRole(userData.role);
       }
-      console.warn(`🔔 [NotificationService] User ${userId} not found, defaulting to employee role`);
+      logger.warn(`User ${userId} not found, defaulting to employee role`, { userId }, 'NotificationService');
       return 'employe';
     } catch (error) {
-      console.error(`🔔 [NotificationService] Error getting user role for ${userId}:`, error);
+      logger.error(`Error getting user role for ${userId}`, error, 'NotificationService');
       return 'employe'; // Default to employee on error
     }
   }
@@ -56,10 +57,10 @@ class NotificationService {
           agencyId: userData.agencyId
         };
       }
-      console.warn(`🔔 [NotificationService] User ${userId} not found`);
+      logger.warn(`User ${userId} not found`, { userId }, 'NotificationService');
       return null;
     } catch (error) {
-      console.error(`🔔 [NotificationService] Error getting user data for ${userId}:`, error);
+      logger.error(`Error getting user data for ${userId}`, error, 'NotificationService');
       return null;
     }
   }
@@ -76,7 +77,8 @@ class NotificationService {
         let fcmToken = userData.fcmToken || null;
         
         if (fcmToken) {
-          console.log(`🔔 [NotificationService] Retrieved FCM token for user ${userId}:`, {
+          logger.debug(`Retrieved FCM token for user ${userId}`, {
+            userId,
             length: fcmToken.length,
             startsWith: fcmToken.substring(0, 10),
             endsWith: fcmToken.substring(fcmToken.length - 10)
@@ -84,23 +86,23 @@ class NotificationService {
           
           // Validate token format
           if (fcmToken.length < 100) {
-            console.warn(`🔔 [NotificationService] FCM token appears invalid for user ${userId}, length: ${fcmToken.length}`);
+            logger.warn(`FCM token appears invalid for user ${userId}`, { userId, length: fcmToken.length }, 'NotificationService');
             fcmToken = null;
           }
         }
-        
+
         // If no valid token, try to regenerate one
         if (!fcmToken) {
-          console.log(`🔔 [NotificationService] No valid FCM token for user ${userId}, attempting to regenerate...`);
+          logger.debug(`No valid FCM token for user ${userId}, attempting to regenerate`, { userId }, 'NotificationService');
           fcmToken = await this.regenerateFCMToken(userId);
         }
-        
+
         return fcmToken;
       }
-      console.warn(`🔔 [NotificationService] User ${userId} not found, no FCM token available`);
+      logger.warn(`User ${userId} not found, no FCM token available`, { userId }, 'NotificationService');
       return null;
     } catch (error) {
-      console.error(`🔔 [NotificationService] Error getting FCM token for ${userId}:`, error);
+      logger.error(`Error getting FCM token for ${userId}`, error, 'NotificationService');
       return null;
     }
   }
@@ -116,13 +118,13 @@ class NotificationService {
       
       const messagingInstance = await messaging;
       if (!messagingInstance) {
-        console.warn(`🔔 [NotificationService] Messaging not available for user ${userId}`);
+        logger.warn(`Messaging not available for user ${userId}`, { userId }, 'NotificationService');
         return null;
       }
 
       const vapidKey = import.meta.env.VITE_FIREBASE_VAPID_KEY;
       if (!vapidKey || vapidKey === 'YOUR_VAPID_KEY_HERE') {
-        console.warn(`🔔 [NotificationService] VAPID key not configured for user ${userId}`);
+        logger.warn(`VAPID key not configured for user ${userId}`, { userId }, 'NotificationService');
         return null;
       }
 
@@ -133,7 +135,8 @@ class NotificationService {
       });
 
       if (newToken) {
-        console.log(`🔔 [NotificationService] Generated new FCM token for user ${userId}:`, {
+        logger.debug(`Generated new FCM token for user ${userId}`, {
+          userId,
           length: newToken.length,
           startsWith: newToken.substring(0, 10),
           endsWith: newToken.substring(newToken.length - 10)
@@ -143,11 +146,11 @@ class NotificationService {
         await this.saveFCMTokenToUser(userId, newToken);
         return newToken;
       } else {
-        console.warn(`🔔 [NotificationService] Failed to generate FCM token for user ${userId}`);
+        logger.warn(`Failed to generate FCM token for user ${userId}`, { userId }, 'NotificationService');
         return null;
       }
     } catch (error) {
-      console.error(`🔔 [NotificationService] Error regenerating FCM token for user ${userId}:`, error);
+      logger.error(`Error regenerating FCM token for user ${userId}`, error, 'NotificationService');
       return null;
     }
   }
@@ -162,9 +165,9 @@ class NotificationService {
         fcmToken: fcmToken,
         fcmTokenUpdatedAt: new Date().toISOString()
       });
-      console.log(`🔔 [NotificationService] Saved new FCM token for user ${userId}`);
+      logger.info(`Saved new FCM token for user ${userId}`, { userId }, 'NotificationService');
     } catch (error) {
-      console.error(`🔔 [NotificationService] Error saving FCM token for user ${userId}:`, error);
+      logger.error(`Error saving FCM token for user ${userId}`, error, 'NotificationService');
     }
   }
 
@@ -205,7 +208,7 @@ class NotificationService {
         data: notification.data
       });
     } catch (error) {
-      console.error('🔔 [NotificationService] Error sending to user:', error);
+      logger.error('Error sending to user', error, 'NotificationService');
       throw error;
     }
   }
@@ -217,12 +220,12 @@ class NotificationService {
     try {
       // For role-based notifications, we need to get all users with that role
       // This is a simplified approach - in practice, you might want to use the unified service's role-based methods
-      console.warn('🔔 [NotificationService] sendToRole is deprecated. Use unified notification service directly for role-based notifications.');
+      logger.warn('sendToRole is deprecated. Use unified notification service directly for role-based notifications.', { role }, 'NotificationService');
       
       // For now, just log that this method is deprecated
-      console.log('🔔 [NotificationService] Role-based notification requested:', { role, notification });
+      logger.debug('Role-based notification requested', { role, notification }, 'NotificationService');
     } catch (error) {
-      console.error('🔔 [NotificationService] Error sending to role:', error);
+      logger.error('Error sending to role', error, 'NotificationService');
       throw error;
     }
   }
@@ -247,7 +250,7 @@ class NotificationService {
         createdAt: notification.createdAt
       }));
     } catch (error) {
-      console.error('🔔 [NotificationService] Error getting user notifications:', error);
+      logger.error('Error getting user notifications', error, 'NotificationService');
       return [];
     }
   }
@@ -259,7 +262,7 @@ class NotificationService {
     try {
       await unifiedNotificationService.markAsRead(notificationId);
     } catch (error) {
-      console.error('🔔 [NotificationService] Error marking as read:', error);
+      logger.error('Error marking as read', error, 'NotificationService');
       throw error;
     }
   }
@@ -268,17 +271,17 @@ class NotificationService {
    * Helper methods for common notification types (legacy methods - use unified service directly)
    */
   async notifyFormSubmission(): Promise<void> {
-    console.warn('🔔 [NotificationService] notifyFormSubmission is deprecated. Use unified notification service directly.');
+    logger.warn('notifyFormSubmission is deprecated. Use unified notification service directly.', undefined, 'NotificationService');
     // This would be handled by the unified system in the backend cron job
   }
 
   async notifyDirectorMessage(): Promise<void> {
-    console.warn('🔔 [NotificationService] notifyDirectorMessage is deprecated. Use unified notification service directly.');
+    logger.warn('notifyDirectorMessage is deprecated. Use unified notification service directly.', undefined, 'NotificationService');
     // This would be handled by the unified system in the backend cron job
   }
 
   async notifySystemAlert(): Promise<void> {
-    console.warn('🔔 [NotificationService] notifySystemAlert is deprecated. Use unified notification service directly.');
+    logger.warn('notifySystemAlert is deprecated. Use unified notification service directly.', undefined, 'NotificationService');
     // This would be handled by the unified system in the backend cron job
   }
 
@@ -287,8 +290,8 @@ class NotificationService {
    * Now supports both employees and directors
    */
   async notifyFormAssignment(formId: string, formTitle: string, userIds: string[], directorName: string, agencyId?: string): Promise<void> {
-    console.warn('🔔 [NotificationService] notifyFormAssignment is deprecated. Use unified notification service directly.');
-    console.log('🔔 [NotificationService] notifyFormAssignment called:', {
+    logger.warn('notifyFormAssignment is deprecated. Use unified notification service directly.', { formId }, 'NotificationService');
+    logger.debug('notifyFormAssignment called', {
       formId,
       formTitle,
       userIds,
@@ -305,7 +308,7 @@ class NotificationService {
           const agency = agencyId || userData?.agencyId || '';
           const email = userData?.email;
 
-          console.log('🔔 [NotificationService] Sending form assignment notification:', {
+          logger.debug('Sending form assignment notification', {
             formId,
             formTitle,
             userId,
@@ -325,10 +328,10 @@ class NotificationService {
             email
           );
 
-          console.log('🔔 [NotificationService] Form assignment notification sent successfully for userId:', userId);
+          logger.info('Form assignment notification sent successfully', { userId }, 'NotificationService');
         } catch (error) {
           const err: any = error;
-          console.error('🔔 [NotificationService] Error sending form assignment notification:', {
+          logger.error('Error sending form assignment notification', {
             userId,
             formId,
             error: err?.message || String(error),
@@ -344,7 +347,7 @@ class NotificationService {
    * Now supports both employees and directors
    */
   async notifyFormCreated(formId: string, formTitle: string, userIds: string[], directorName: string, agencyId?: string): Promise<void> {
-    console.warn('🔔 [NotificationService] notifyFormCreated is deprecated. Use unified notification service directly.');
+    logger.warn('notifyFormCreated is deprecated. Use unified notification service directly.', { formId }, 'NotificationService');
     
     // Use unified service for form creation notifications (batch all users)
     await Promise.allSettled(
@@ -367,7 +370,7 @@ class NotificationService {
           );
         } catch (error) {
           const err: any = error;
-          console.error('🔔 [NotificationService] Error sending form creation notification:', err?.message || String(error));
+          logger.error('Error sending form creation notification', err?.message || String(error), 'NotificationService');
         }
       })
     );
@@ -378,8 +381,8 @@ class NotificationService {
    * Now supports both employees and directors
    */
   async notifyFormAssignmentUpdate(formId: string, formTitle: string, newUserIds: string[], removedUserIds: string[], directorName: string, agencyId?: string): Promise<void> {
-    console.warn('🔔 [NotificationService] notifyFormAssignmentUpdate is deprecated. Use unified notification service directly.');
-    console.log('🔔 [NotificationService] notifyFormAssignmentUpdate called:', {
+    logger.warn('notifyFormAssignmentUpdate is deprecated. Use unified notification service directly.', { formId }, 'NotificationService');
+    logger.debug('notifyFormAssignmentUpdate called', {
       formId,
       formTitle,
       newUserIds,
@@ -397,7 +400,7 @@ class NotificationService {
           const agency = agencyId || userData?.agencyId || '';
           const email = userData?.email;
 
-          console.log('🔔 [NotificationService] Sending assignment notification:', {
+          logger.debug('Sending assignment notification', {
             formId,
             formTitle,
             userId,
@@ -418,10 +421,10 @@ class NotificationService {
             email
           );
 
-          console.log('🔔 [NotificationService] Assignment notification sent successfully for userId:', userId);
+          logger.info('Assignment notification sent successfully', { userId }, 'NotificationService');
         } catch (error) {
           const err: any = error;
-          console.error('🔔 [NotificationService] Error sending form assignment notification:', {
+          logger.error('Error sending form assignment notification', {
             userId,
             formId,
             error: err?.message || String(error),
@@ -440,7 +443,7 @@ class NotificationService {
           const agency = agencyId || userData?.agencyId || '';
           const email = userData?.email;
 
-          console.log('🔔 [NotificationService] Sending unassignment notification:', {
+          logger.debug('Sending unassignment notification', {
             formId,
             formTitle,
             userId,
@@ -461,10 +464,10 @@ class NotificationService {
             email
           );
 
-          console.log('🔔 [NotificationService] Unassignment notification sent successfully for userId:', userId);
+          logger.info('Unassignment notification sent successfully', { userId }, 'NotificationService');
         } catch (error) {
           const err: any = error;
-          console.error('🔔 [NotificationService] Error sending form unassignment notification:', {
+          logger.error('Error sending form unassignment notification', {
             userId,
             formId,
             error: err?.message || String(error),

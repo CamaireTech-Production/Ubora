@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
+import { FormDefinition, DashboardDefinition, InstructionDefinition, ListDefinition, ReportDefinition } from '../types';
 
 const UNIVERS_WIZARD_PROGRESS_KEY = 'ubora_univers_wizard_progress';
 
@@ -11,11 +12,11 @@ export interface UniversWizardProgress {
     category?: string;
     tags?: string[];
   };
-  forms?: any[]; // Form definitions
-  dashboards?: any[]; // Dashboard definitions
-  instructions?: any[]; // Instruction definitions
-  lists?: any[]; // List definitions (empty for now)
-  reports?: any[]; // Report definitions (empty for now)
+  forms?: FormDefinition[]; // Form definitions
+  dashboards?: DashboardDefinition[]; // Dashboard definitions
+  instructions?: InstructionDefinition[]; // Instruction definitions
+  lists?: ListDefinition[]; // List definitions (empty for now)
+  reports?: ReportDefinition[]; // Report definitions (empty for now)
   timestamp: number; // Last save timestamp
 }
 
