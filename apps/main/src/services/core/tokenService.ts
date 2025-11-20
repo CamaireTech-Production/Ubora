@@ -2,6 +2,8 @@ import { logger } from '@ubora/shared/utils/logger';
 import { User } from '../../types';
 import { UserSessionService } from './userSessionService';
 import { SessionConsumptionService } from './sessionConsumptionService';
+import { doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { db } from '../../firebaseConfig';
 
 export class TokenService {
   /**
@@ -39,7 +41,7 @@ export class TokenService {
       return true;
     }
     
-    const sessionInfo = UserSessionService.getUserPackageInfo(user);
+    const sessionInfo = await UserSessionService.getUserPackageInfo(user);
     const currentTokensUsed = sessionInfo.tokensUsed || 0;
     const limit = monthlyLimit || sessionInfo.totalTokens || 0;
     if (limit === -1) {
@@ -60,7 +62,7 @@ export class TokenService {
       return -1;
     }
     
-    const sessionInfo = UserSessionService.getUserPackageInfo(user);
+    const sessionInfo = await UserSessionService.getUserPackageInfo(user);
     const limit = monthlyLimit || sessionInfo.totalTokens || 0;
     if (limit === -1) {
       return -1;
@@ -73,15 +75,15 @@ export class TokenService {
    * Obtient le pourcentage d'utilisation des tokens
    * @param user - Objet utilisateur
    * @param monthlyLimit - Limite mensuelle de tokens
-   * @returns number - Pourcentage d'utilisation (0-100)
+   * @returns Promise<number> - Pourcentage d'utilisation (0-100)
    */
-  static getTokenUsagePercentage(user: User, monthlyLimit: number): number {
+  static async getTokenUsagePercentage(user: User, monthlyLimit: number): Promise<number> {
     if (monthlyLimit === -1) {
       return 0; // Illimité = 0% d'utilisation
     }
     
     // Use UserSessionService to get current session data
-    const sessionInfo = UserSessionService.getUserPackageInfo(user);
+    const sessionInfo = await UserSessionService.getUserPackageInfo(user);
     const currentTokensUsed = sessionInfo.tokensUsed;
     const totalAvailableTokens = sessionInfo.totalTokens;
     
@@ -126,9 +128,9 @@ export class TokenService {
    * Obtient le nombre total de tokens disponibles (package + pay-as-you-go)
    * @param user - Objet utilisateur
    * @param monthlyLimit - Limite mensuelle de tokens du package
-   * @returns number - Nombre total de tokens disponibles
+   * @returns Promise<number> - Nombre total de tokens disponibles
    */
-  static getTotalAvailableTokens(user: User, monthlyLimit: number): number {
+  static async getTotalAvailableTokens(user: User, monthlyLimit: number): Promise<number> {
     if (monthlyLimit === -1) {
       return -1; // Illimité
     }
@@ -143,9 +145,9 @@ export class TokenService {
    * @param user - Objet utilisateur
    * @param tokensNeeded - Nombre de tokens nécessaires
    * @param monthlyLimit - Limite mensuelle de tokens
-   * @returns boolean - true si l'utilisateur peut utiliser les tokens
+   * @returns Promise<boolean> - true si l'utilisateur peut utiliser les tokens
    */
-  static canUseTokensWithPayAsYouGo(user: User, tokensNeeded: number, monthlyLimit: number): boolean {
+  static async canUseTokensWithPayAsYouGo(user: User, tokensNeeded: number, monthlyLimit: number): Promise<boolean> {
     // Si la limite est illimitée (-1), toujours autoriser
     if (monthlyLimit === -1) {
       return true;
@@ -163,16 +165,16 @@ export class TokenService {
    * Obtient le nombre de tokens restants (incluant pay-as-you-go)
    * @param user - Objet utilisateur
    * @param monthlyLimit - Limite mensuelle de tokens
-   * @returns number - Nombre de tokens restants (-1 si illimité)
+   * @returns Promise<number> - Nombre de tokens restants (-1 si illimité)
    */
-  static getRemainingTokensWithPayAsYouGo(user: User, monthlyLimit: number): number {
+  static async getRemainingTokensWithPayAsYouGo(user: User, monthlyLimit: number): Promise<number> {
     // Si la limite est illimitée (-1), retourner -1
     if (monthlyLimit === -1) {
       return -1;
     }
     
     // Use UserSessionService to get current session data
-    const sessionInfo = UserSessionService.getUserPackageInfo(user);
+    const sessionInfo = await UserSessionService.getUserPackageInfo(user);
     return sessionInfo.tokensRemaining;
   }
 }
