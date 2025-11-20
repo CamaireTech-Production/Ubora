@@ -42,7 +42,8 @@ const VENDOR_PATTERNS = {
 // Patterns pour les chunks de fonctionnalités
 const FEATURE_PATTERNS = {
   pdfUtils: /(utils\/PDFGenerator|utils\/RechartsToPNG|utils\/MultiFormatToPDF)/,
-  chatComponents: /(components\/chat\/MessageBubble|components\/chat\/PDFPreview|components\/chat\/GraphRenderer)/,
+  // Removed chatComponents chunk to avoid initialization order issues
+  // chatComponents: /(components\/chat\/MessageBubble|components\/chat\/PDFPreview|components\/chat\/GraphRenderer)/,
 };
 
 /**
@@ -105,9 +106,10 @@ function determineChunk(id: string): string | undefined {
   if (FEATURE_PATTERNS.pdfUtils.test(id)) {
     return 'pdf-utils';
   }
-  if (FEATURE_PATTERNS.chatComponents.test(id)) {
-    return 'chat-components';
-  }
+  // Removed chatComponents chunk to avoid initialization order issues
+  // if (FEATURE_PATTERNS.chatComponents.test(id)) {
+  //   return 'chat-components';
+  // }
   
   // PRIORITÉ 4: Package shared (parties non-React seulement)
   // Les parties React ont déjà été capturées par isReactDependency
