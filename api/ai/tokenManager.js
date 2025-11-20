@@ -20,6 +20,9 @@ import { logger } from '../lib/logger.js';
  * @returns {number} - User tokens to charge
  */
 export function calculateUserTokens(actualTokens) {
+  if (typeof actualTokens !== 'number' || isNaN(actualTokens)) {
+    return 0;
+  }
   return Math.ceil((actualTokens * 2.5) / 100);
 }
 

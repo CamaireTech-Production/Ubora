@@ -135,6 +135,22 @@ jobs:
           mkdir -p $NEW_RELEASE
           tar -xzf $UPLOADS_DIR/deploy.tar.gz -C $NEW_RELEASE
           
+          # Verify critical exports exist in deployed code
+          echo "🔍 Verifying critical exports in deployed code"
+          if [ -f "$NEW_RELEASE/api/ai/tokenManager.js" ]; then
+            if grep -q "export function calculateUserTokens" "$NEW_RELEASE/api/ai/tokenManager.js"; then
+              echo "✅ calculateUserTokens export found in tokenManager.js"
+            else
+              echo "❌ ERROR: calculateUserTokens export NOT found in tokenManager.js"
+              echo "📋 File content (first 30 lines):"
+              head -n 30 "$NEW_RELEASE/api/ai/tokenManager.js" || true
+              exit 1
+            fi
+          else
+            echo "❌ ERROR: tokenManager.js file not found in deployment"
+            exit 1
+          fi
+          
           cd $NEW_RELEASE
           echo "📥 Installing dependencies (root)"
           npm ci --production || npm install --production
@@ -166,11 +182,24 @@ jobs:
           pm2 delete ubora-backend-dev || true
           pm2 delete ubora-cron-worker-dev || true
           
+          # Clear PM2 logs and cache to ensure clean start
+          echo "🧹 Clearing PM2 logs and cache"
+          pm2 flush || true
+          pm2 kill || true
+          sleep 2
+          
           # Start backend server with explicit PORT=3001
           echo "🚀 Starting backend server with PORT=3001"
           export PORT=3001
           export NODE_ENV=development
           cd $CURRENT_LINK
+          
+          # Verify the file exists and has the export before starting
+          if ! grep -q "export function calculateUserTokens" "$CURRENT_LINK/api/ai/tokenManager.js"; then
+            echo "❌ CRITICAL: calculateUserTokens export missing in current release"
+            exit 1
+          fi
+          
           pm2 start server/dev-server.js \
             --name ubora-backend-dev \
             --update-env \
