@@ -102,13 +102,22 @@ export const UniversCreateFromTemplatePage: React.FC = () => {
     setIsCreating(true);
     try {
       // Créer l'instance via purchaseUnivers()
+      const instanceId = await universService.purchaseUnivers(
+        templateUnivers.id,
+        user.id,
+        user.agencyId,
+        paymentId || undefined
+      );
 
+      logger.info(`Instance créée avec succès: ${instanceId}`, null, 'UniversCreateFromTemplatePage');
+      
       showSuccess(
         `Univers acheté et instancié avec succès ! L'instance est maintenant disponible.`
       );
 
-      // Rediriger vers la liste des Univers
+      // Rediriger vers la liste des Univers après un court délai
       setTimeout(() => {
+        setIsCreating(false);
         navigate('/univers', { replace: true });
       }, 1000);
     } catch (error) {

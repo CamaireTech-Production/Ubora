@@ -245,9 +245,15 @@ export const UniversWizard: React.FC<UniversWizardProps> = ({
 
              // Clear progress on successful completion
              clearProgress();
+             
+             // En mode readOnly (template), ne pas remettre isLoading à false
+             // car la page parente gère son propre état de chargement
+             if (!readOnly) {
+               setIsLoading(false);
+             }
            } catch (error) {
              logger.error('Error completing Univers wizard', error, 'UniversWizard');
-           } finally {
+             // En cas d'erreur, toujours remettre isLoading à false
              setIsLoading(false);
            }
          }, [wizardData, user, onComplete, clearProgress]);

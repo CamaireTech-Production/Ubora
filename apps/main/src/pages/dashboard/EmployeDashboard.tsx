@@ -2,6 +2,8 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
 import { useApp } from '@ubora/shared/contexts/AppContext';
+import { useForms } from '@ubora/shared/contexts/FormsContext';
+import { useEntries } from '@ubora/shared/contexts/EntriesContext';
 import { Form, FormEntry, FormField, FileAttachment, FormFieldValue } from '../../types';
 import { logger } from '@ubora/shared/utils/logger';
 import { Layout } from '../../components/layout/Layout';
@@ -441,11 +443,16 @@ const ResponsesInterface: React.FC<ResponsesInterfaceProps> = ({
 export const EmployeDashboard: React.FC = () => {
   const navigate = useNavigate();
   const { user, firebaseUser, isLoading } = useAuth();
+  
+  // Rediriger vers pending-approval si l'employé n'est pas approuvé
+  useEffect(() => {
+    if (!isLoading && user && user.role === 'employe') {
+      if (user.isApproved === false || user.isApproved === undefined) {
+        navigate('/pending-approval', { replace: true });
+      }
+    }
+  }, [user, isLoading, navigate]);
   const { 
-    getFormsForEmployee, 
-    submitMultipleFormEntries,
-    updateFormEntry,
-    getEntriesForEmployee,
     getDraftsForForm,
     saveDraft,
     deleteDraft,
@@ -453,6 +460,14 @@ export const EmployeDashboard: React.FC = () => {
     createDraft,
     isLoading: appLoading
   } = useApp();
+  const {
+    getFormsForEmployee,
+    submitMultipleFormEntries,
+    updateFormEntry
+  } = useForms();
+  const {
+    getEntriesForEmployee
+  } = useEntries();
   const [selectedFormId, setSelectedFormId] = useState<string | null>(null);
   const [editingDraftId, setEditingDraftId] = useState<string | null>(null);
   const [isSubmittingDrafts, setIsSubmittingDrafts] = useState(false);

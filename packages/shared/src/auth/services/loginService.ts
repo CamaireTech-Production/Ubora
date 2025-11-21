@@ -34,7 +34,10 @@ import {
   LoginResult,
   UserDocumentData
 } from '../types';
-import { checkAgencyUserLimit, createUserDocumentData } from './signupService';
+import { 
+  checkAgencyUserLimit, 
+  createUserDocumentData 
+} from './signupService';
 
 /**
  * Formate les messages d'erreur d'authentification

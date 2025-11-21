@@ -37,6 +37,15 @@ service cloud.firestore {
       return isAuthenticated() && getCurrentUser().data.agencyId == agencyId;
     }
     
+    // Fonction pour vérifier si une session d'abonnement appartient à un directeur
+    // Permet aux utilisateurs authentifiés de lire les sessions des directeurs
+    // pour vérifier les limites pendant l'inscription (même si l'utilisateur n'a pas encore de document Firestore)
+    // Cette fonction ne nécessite PAS que l'utilisateur actuel ait un document Firestore
+    function isSessionFromDirector(sessionUserId) {
+      return isAuthenticated() && 
+             get(/databases/$(database)/documents/users/$(sessionUserId)).data.role == 'directeur';
+    }
+    
     // Fonction pour vérifier si l'utilisateur est propriétaire du document
     function isOwner(userId) {
       return isAuthenticated() && request.auth.uid == userId;
@@ -78,7 +87,10 @@ service cloud.firestore {
         request.auth.uid == userId ||
         (isDirecteur() && isSameAgency(resource.data.agencyId)) ||
         (hasDirectorDashboardAccess() && isSameAgency(resource.data.agencyId)) ||
-        isAdmin()
+        isAdmin() ||
+        // Allow authenticated users to read director documents to verify session ownership
+        // This is needed during employee registration to check user limits
+        resource.data.role == 'directeur'
       ) || (
         // Allow reading director info during employee registration (for limit checking)
         !isAuthenticated() && 
@@ -86,7 +98,12 @@ service cloud.firestore {
       );
       
       // Allow collection queries for directors during employee registration
-      allow list: if !isAuthenticated() && resource.data.role == 'directeur';
+      // Also allow employees to list other employees in the same agency
+      allow list: if !isAuthenticated() && resource.data.role == 'directeur' ||
+                  (isAuthenticated() && (
+                    resource.data.role == 'directeur' ||
+                    (isEmploye() && isSameAgency(resource.data.agencyId) && resource.data.role == 'employe')
+                  ));
       
       // CRÉATION d'un utilisateur
       // Permettre la création immédiate après Auth creation avec validation des champs requis
@@ -431,10 +448,21 @@ service cloud.firestore {
     
     match /subscriptionSessions/{sessionId} {
       // LECTURE des sessions d'abonnement
+      // Permet aux utilisateurs authentifiés de lire les sessions des directeurs
+      // pour vérifier les limites lors de l'inscription d'employés
+      // (même si l'utilisateur n'a pas encore de document Firestore)
+      // On permet la lecture si :
+      // 1. L'utilisateur est admin
+      // 2. L'utilisateur est le propriétaire de la session (directeur)
+      // 3. L'utilisateur a accès au dashboard directeur et est propriétaire
+      // 4. La session appartient à un directeur (pour vérification des limites pendant inscription)
       allow read: if isAuthenticated() && (
         isAdmin() ||
-        (isDirecteur() && resource.data.userId == request.auth.uid) ||
-        (hasDirectorDashboardAccess() && resource.data.userId == request.auth.uid)
+        (resource.data.userId == request.auth.uid && (
+          isDirecteur() ||
+          hasDirectorDashboardAccess()
+        )) ||
+        isSessionFromDirector(resource.data.userId)
       );
       
       // CRÉATION de sessions d'abonnement
@@ -445,10 +473,13 @@ service cloud.firestore {
       );
       
       // MODIFICATION des sessions d'abonnement
+      // Permet aux employés de mettre à jour usage.usersAdded lors de leur inscription
       allow update: if isAuthenticated() && (
         isAdmin() ||
         (isDirecteur() && resource.data.userId == request.auth.uid) ||
-        (hasDirectorDashboardAccess() && resource.data.userId == request.auth.uid)
+        (hasDirectorDashboardAccess() && resource.data.userId == request.auth.uid) ||
+        // Allow employees to update usage.usersAdded for their director's session
+        (isEmploye() && isSessionFromDirector(resource.data.userId))
       );
       
       // SUPPRESSION des sessions d'abonnement (seuls les admins)

@@ -7,8 +7,7 @@ import {
   createUserWithEmailAndPassword,
   fetchSignInMethodsForEmail,
   deleteUser,
-  UserCredential,
-  User as FirebaseUser
+  UserCredential
 } from 'firebase/auth';
 import { 
   doc, 
@@ -456,14 +455,29 @@ export function createUserDocumentData(
   }
 
   // role === 'employe'
+  // Ne pas inclure approvedBy et approvedAt car ils seront undefined
+  // Firestore ne permet pas les valeurs undefined
   return {
     ...baseData,
     isApproved: false, // Pending director approval
-    approvedBy: undefined,
-    approvedAt: undefined,
+    // approvedBy et approvedAt seront ajoutés plus tard lors de l'approbation
     accessLevels: [],
     hasDirectorDashboardAccess: false
   };
+}
+
+/**
+ * Nettoie un objet en supprimant les champs avec des valeurs undefined
+ * Firestore ne permet pas les valeurs undefined
+ */
+function removeUndefinedFields<T extends Record<string, any>>(obj: T): Partial<T> {
+  const cleaned: Partial<T> = {};
+  for (const key in obj) {
+    if (obj[key] !== undefined) {
+      cleaned[key] = obj[key];
+    }
+  }
+  return cleaned;
 }
 
 /**
@@ -475,8 +489,11 @@ export async function createUserDocument(
   options: { maxRetries?: number; retryDelay?: number } = {}
 ): Promise<void> {
   try {
+    // Nettoyer les champs undefined avant d'envoyer à Firestore
+    const cleanedData = removeUndefinedFields(userData);
+    
     await withFirestoreRetry(
-      () => setDoc(doc(db, 'users', userId), userData),
+      () => setDoc(doc(db, 'users', userId), cleanedData),
       { 
         maxRetries: options.maxRetries || 3, 
         retryDelay: options.retryDelay || 1000 
@@ -562,6 +579,7 @@ export async function rollbackOnError(options: RollbackOptions): Promise<void> {
 
 /**
  * Track l'ajout d'un employé dans la session d'abonnement du directeur
+ * Incrémente le compteur usage.usersAdded dans la session d'abonnement active du directeur
  */
 async function trackEmployeeAddition(agencyId: string): Promise<void> {
   try {
@@ -571,39 +589,37 @@ async function trackEmployeeAddition(agencyId: string): Promise<void> {
       where('role', '==', 'directeur')
     );
     
-    const directorsSnapshot = await withFirestoreRetry(
-      () => getDocs(directorsQuery),
-      { maxRetries: 1, retryDelay: 500 }
-    ) as QuerySnapshot;
+    const directorsSnapshot = await getDocs(directorsQuery);
     
-    if (!directorsSnapshot.empty) {
-      const director = directorsSnapshot.docs[0];
-      const directorData = director.data() as User;
-      
-      // Utiliser currentSubscriptionSessionId pour incrémenter l'usage
-      if (directorData.currentSubscriptionSessionId) {
-        try {
-          const sessionDocRef = doc(db, 'subscriptionSessions', directorData.currentSubscriptionSessionId);
-          const sessionDoc = await getDoc(sessionDocRef);
-          
-          if (sessionDoc.exists()) {
-            const sessionData = sessionDoc.data();
-            const currentUsage = sessionData.usage || {};
-            const newUsersAdded = (currentUsage.usersAdded || 0) + 1;
-            
-            await updateDoc(sessionDocRef, {
-              'usage.usersAdded': newUsersAdded,
-              updatedAt: serverTimestamp()
-            });
-            console.log('✅ User usage incremented in subscription session');
-          }
-        } catch (updateError: any) {
-          console.warn('⚠️ Could not track user addition in session (non-blocking):', updateError);
-        }
-      }
+    if (directorsSnapshot.empty) {
+      return;
     }
-  } catch (trackingError: any) {
-    console.warn('⚠️ Could not track user addition (non-blocking):', trackingError);
+    
+    const director = directorsSnapshot.docs[0];
+    const directorData = director.data() as User;
+    
+    if (!directorData.currentSubscriptionSessionId) {
+      return;
+    }
+    
+    const sessionDocRef = doc(db, 'subscriptionSessions', directorData.currentSubscriptionSessionId);
+    const sessionDoc = await getDoc(sessionDocRef);
+    
+    if (!sessionDoc.exists()) {
+      return;
+    }
+    
+    const sessionData = sessionDoc.data();
+    const currentUsage = sessionData.usage || {};
+    const currentUsersAdded = currentUsage.usersAdded || 0;
+    const newUsersAdded = currentUsersAdded + 1;
+    
+    await updateDoc(sessionDocRef, {
+      'usage.usersAdded': newUsersAdded,
+      updatedAt: serverTimestamp()
+    });
+  } catch (error: any) {
+    console.error('❌ [SIGNUP] Error tracking employee addition in subscription session:', error);
   }
 }
 
@@ -668,26 +684,39 @@ export async function signup(data: SignupData): Promise<SignupResult> {
         };
       }
       
-      // Vérifier les limites d'utilisateurs
+      // Vérification minimale : s'assurer qu'un directeur existe pour cette agence
+      // (la vérification complète des limites se fera après l'authentification)
       try {
-        const limitCheck = await withRetry(
-          () => checkAgencyUserLimit(data.agencyId),
-          { maxRetries: 2, retryDelay: 500 }
+        const directorsQuery = query(
+          collection(db, 'users'),
+          where('agencyId', '==', data.agencyId.trim()),
+          where('role', '==', 'directeur')
         );
         
-        if (!limitCheck.canAddUser) {
+        const directorsSnapshot = await withFirestoreRetry(
+          () => getDocs(directorsQuery),
+          { maxRetries: 2, retryDelay: 500 }
+        ) as QuerySnapshot;
+        
+        if (directorsSnapshot.empty) {
           return {
             success: false,
-            error: limitCheck.error || 'Limite d\'utilisateurs atteinte. Contactez votre directeur pour cette agence.',
-            directorInfo: limitCheck.directorInfo
+            error: 'Aucun directeur trouvé pour cette agence. Veuillez vérifier l\'ID d\'agence ou contacter le support.'
           };
         }
-      } catch (error) {
-        console.error('❌ REGISTRATION ERROR: Failed to check user limits during employee registration');
-        return {
-          success: false,
-          error: 'Erreur technique: Impossible de vérifier les limites d\'utilisateurs. Veuillez contacter le support technique.'
-        };
+        
+        console.log('✅ Director exists for agency, proceeding with Auth creation');
+      } catch (error: any) {
+        console.error('❌ Error checking director existence:', error);
+        // Si c'est une erreur de permissions, on continue quand même
+        // car la vérification complète se fera après Auth
+        if (error.code !== 'permission-denied') {
+          return {
+            success: false,
+            error: 'Erreur technique lors de la vérification de l\'agence. Veuillez réessayer.'
+          };
+        }
+        console.warn('⚠️ Permission denied for director check, will verify after Auth');
       }
     }
     
@@ -716,6 +745,52 @@ export async function signup(data: SignupData): Promise<SignupResult> {
     
     if (!userCredential || !userId) {
       throw new Error('userCredential is undefined after Auth creation');
+    }
+    
+    // ============================================
+    // 4.5. VÉRIFICATION DES LIMITES POUR EMPLOYÉS (APRÈS AUTH)
+    // ============================================
+    // Maintenant que l'utilisateur est authentifié, on peut vérifier les limites
+    // qui nécessitent l'accès aux sessions d'abonnement
+    if (data.role === 'employe') {
+      try {
+        console.log('🔍 Checking user limits after Auth creation for employee');
+        const limitCheck = await withRetry(
+          () => checkAgencyUserLimit(data.agencyId),
+          { maxRetries: 2, retryDelay: 500 }
+        );
+        
+        if (!limitCheck.canAddUser) {
+          console.error('❌ QUOTA EXCEEDED: Rolling back Auth account');
+          // Rollback: Supprimer le compte Auth créé
+          await rollbackOnError({ authUser: userCredential.user });
+          
+          return {
+            success: false,
+            error: limitCheck.error || 'Limite d\'utilisateurs atteinte. Contactez votre directeur pour cette agence.',
+            directorInfo: limitCheck.directorInfo
+          };
+        }
+        
+        console.log('✅ User limit check passed after Auth creation');
+      } catch (error: any) {
+        console.error('❌ REGISTRATION ERROR: Failed to check user limits after Auth creation:', error);
+        
+        // Rollback: Supprimer le compte Auth créé
+        await rollbackOnError({ authUser: userCredential.user });
+        
+        if (error.code === 'permission-denied' || error.message?.includes('permissions')) {
+          return {
+            success: false,
+            error: 'Erreur de permissions: Impossible de vérifier les limites d\'utilisateurs. Veuillez contacter le support technique.'
+          };
+        }
+        
+        return {
+          success: false,
+          error: 'Erreur technique: Impossible de vérifier les limites d\'utilisateurs. Veuillez contacter le support technique.'
+        };
+      }
     }
     
     // ============================================
