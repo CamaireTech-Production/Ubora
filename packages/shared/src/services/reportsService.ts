@@ -13,6 +13,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 import { Report, ReportPlaceholder, ReportMapping } from '../types';
+import { universInstanceResourceService } from './universInstanceResourceService';
 
 class ReportsService {
   private readonly collectionName = 'reports';
@@ -248,27 +249,29 @@ class ReportsService {
    * Récupérer tous les Reports d'une agence
    * Filtrer par Univers actif et instance active si fournis (même logique que FormsContext et DashboardsContext)
    */
-  async getByAgency(agencyId: string, activeUniversId?: string | null, activeInstanceId?: string | null): Promise<Report[]> {
+  async getByAgency(agencyId: string, activeUniversId?: string | null, activeInstanceId?: string | null, userRole?: 'directeur' | 'employe' | 'admin'): Promise<Report[]> {
     try {
+      // NOUVELLE LOGIQUE : Pour les directeurs avec activeInstanceId, utiliser l'instance comme source de vérité
+      if (userRole === 'directeur' && activeInstanceId) {
+        const reports = await universInstanceResourceService.getReportsFromInstance(activeInstanceId);
+        // Trier par updatedAt décroissant
+        return reports.sort((a, b) => {
+          const aTime = a.updatedAt?.getTime() || 0;
+          const bTime = b.updatedAt?.getTime() || 0;
+          return bTime - aTime;
+        });
+      }
+
+      // ANCIENNE LOGIQUE : Rétrocompatibilité
       let reportsQuery;
       if (activeUniversId) {
-        // Si activeInstanceId est disponible, filtrer par universInstanceId pour éviter les doublons
-        if (activeInstanceId) {
-          reportsQuery = query(
-            collection(db, this.collectionName),
-            where('agencyId', '==', agencyId),
-            where('universInstanceId', '==', activeInstanceId),
-            orderBy('updatedAt', 'desc')
-          );
-        } else {
-          // Rétrocompatibilité : filtrer par universId si pas d'instance
-          reportsQuery = query(
-            collection(db, this.collectionName),
-            where('agencyId', '==', agencyId),
-            where('universId', '==', activeUniversId),
-            orderBy('updatedAt', 'desc')
-          );
-        }
+        // Rétrocompatibilité : filtrer par universId si pas d'instance
+        reportsQuery = query(
+          collection(db, this.collectionName),
+          where('agencyId', '==', agencyId),
+          where('universId', '==', activeUniversId),
+          orderBy('updatedAt', 'desc')
+        );
       } else {
         // Rétrocompatibilité temporaire : si pas de Univers actif, charger tous les Reports
         reportsQuery = query(
@@ -297,7 +300,7 @@ class ReportsService {
     try {
       // Si c'est un directeur, retourner tous les Reports de l'agence (filtrés par Univers actif et instance active)
       if (userRole === 'directeur' || userRole === 'admin') {
-        return await this.getByAgency(agencyId, activeUniversId, activeInstanceId);
+        return await this.getByAgency(agencyId, activeUniversId, activeInstanceId, userRole);
       }
 
       // Sinon, retourner seulement les Reports créés par l'utilisateur (filtrés par Univers actif et instance active)

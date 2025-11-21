@@ -24,6 +24,7 @@ import { notificationService } from '../services/notificationService';
 import { universService } from '../services/universService';
 import { useUnivers } from './UniversContext';
 import { logger } from '../utils/logger';
+import { universInstanceResourceService } from '../services/universInstanceResourceService';
 
 interface FormsContextType {
   forms: Form[];
@@ -59,29 +60,42 @@ export const FormsProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setIsLoading(true);
     setError(null);
 
+    // NOUVELLE LOGIQUE : Pour les directeurs avec activeInstanceId, utiliser l'instance comme source de vérité
+    if (user.role === 'directeur' && activeInstanceId) {
+      // Utiliser le service pour récupérer les formulaires depuis l'instance
+      const unsubscribe = universInstanceResourceService.subscribeToInstanceResources(
+        activeInstanceId,
+        (resources) => {
+          // Trier par createdAt décroissant
+          const sortedForms = resources.forms.sort((a, b) => {
+            const aTime = a.createdAt?.getTime() || 0;
+            const bTime = b.createdAt?.getTime() || 0;
+            return bTime - aTime;
+          });
+          setForms(sortedForms);
+          setIsLoading(false);
+        }
+      );
+
+      return () => {
+        unsubscribe();
+      };
+    }
+
+    // ANCIENNE LOGIQUE : Pour les employés ou les directeurs sans instance (rétrocompatibilité)
     // Écouter les formulaires selon le rôle de l'utilisateur
-    // Filtrer par Univers actif et instance active si disponible (pour les directeurs)
+    // Filtrer par Univers actif et instance active si disponible
     let formsQuery;
     if (user.role === 'directeur') {
       // Les directeurs voient les formulaires du Univers actif
       if (activeUniversId) {
-        // Si activeInstanceId est disponible, filtrer par universInstanceId pour éviter les doublons
-        if (activeInstanceId) {
-          formsQuery = query(
-            collection(db, 'forms'),
-            where('agencyId', '==', user.agencyId),
-            where('universInstanceId', '==', activeInstanceId),
-            orderBy('createdAt', 'desc')
-          );
-        } else {
-          // Rétrocompatibilité : filtrer par universId si pas d'instance
-          formsQuery = query(
-            collection(db, 'forms'),
-            where('agencyId', '==', user.agencyId),
-            where('universId', '==', activeUniversId),
-            orderBy('createdAt', 'desc')
-          );
-        }
+        // Rétrocompatibilité : filtrer par universId si pas d'instance
+        formsQuery = query(
+          collection(db, 'forms'),
+          where('agencyId', '==', user.agencyId),
+          where('universId', '==', activeUniversId),
+          orderBy('createdAt', 'desc')
+        );
       } else {
         // Rétrocompatibilité temporaire : si pas de Univers actif, charger tous les forms
         formsQuery = query(

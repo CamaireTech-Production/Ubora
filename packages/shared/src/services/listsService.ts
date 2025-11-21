@@ -14,6 +14,7 @@ import {
 import { db } from '../firebaseConfig';
 import { List, ListColumn, ListRow } from '../types';
 import { logger } from '../utils/logger';
+import { universInstanceResourceService } from './universInstanceResourceService';
 
 class ListsService {
   private readonly collectionName = 'lists';
@@ -276,27 +277,29 @@ class ListsService {
    * Récupérer toutes les Lists d'une agence
    * Filtrer par Univers actif et instance active si fournis (même logique que FormsContext et DashboardsContext)
    */
-  async getByAgency(agencyId: string, activeUniversId?: string | null, activeInstanceId?: string | null): Promise<List[]> {
+  async getByAgency(agencyId: string, activeUniversId?: string | null, activeInstanceId?: string | null, userRole?: 'directeur' | 'employe' | 'admin'): Promise<List[]> {
     try {
+      // NOUVELLE LOGIQUE : Pour les directeurs avec activeInstanceId, utiliser l'instance comme source de vérité
+      if (userRole === 'directeur' && activeInstanceId) {
+        const lists = await universInstanceResourceService.getListsFromInstance(activeInstanceId);
+        // Trier par updatedAt décroissant
+        return lists.sort((a, b) => {
+          const aTime = a.updatedAt?.getTime() || 0;
+          const bTime = b.updatedAt?.getTime() || 0;
+          return bTime - aTime;
+        });
+      }
+
+      // ANCIENNE LOGIQUE : Rétrocompatibilité
       let listsQuery;
       if (activeUniversId) {
-        // Si activeInstanceId est disponible, filtrer par universInstanceId pour éviter les doublons
-        if (activeInstanceId) {
-          listsQuery = query(
-            collection(db, this.collectionName),
-            where('agencyId', '==', agencyId),
-            where('universInstanceId', '==', activeInstanceId),
-            orderBy('updatedAt', 'desc')
-          );
-        } else {
-          // Rétrocompatibilité : filtrer par universId si pas d'instance
-          listsQuery = query(
-            collection(db, this.collectionName),
-            where('agencyId', '==', agencyId),
-            where('universId', '==', activeUniversId),
-            orderBy('updatedAt', 'desc')
-          );
-        }
+        // Rétrocompatibilité : filtrer par universId si pas d'instance
+        listsQuery = query(
+          collection(db, this.collectionName),
+          where('agencyId', '==', agencyId),
+          where('universId', '==', activeUniversId),
+          orderBy('updatedAt', 'desc')
+        );
       } else {
         // Rétrocompatibilité temporaire : si pas de Univers actif, charger toutes les listes
         listsQuery = query(
@@ -326,7 +329,7 @@ class ListsService {
     try {
       // Si c'est un directeur, retourner toutes les Lists de l'agence (filtrées par Univers actif et instance active)
       if (userRole === 'directeur' || userRole === 'admin') {
-        return await this.getByAgency(agencyId, activeUniversId, activeInstanceId);
+        return await this.getByAgency(agencyId, activeUniversId, activeInstanceId, userRole);
       }
 
       // Sinon, retourner seulement les Lists créées par l'utilisateur (filtrées par Univers actif et instance active)

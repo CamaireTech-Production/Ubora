@@ -43,6 +43,7 @@ export * from './tokenUsageLogService';
 export * from './unifiedNotificationService';
 export * from './universService';
 export * from './universInstantiationService';
+export * from './universInstanceResourceService';
 export * from './listsService';
 export * from './reportsService';
 export * from './userSessionService';

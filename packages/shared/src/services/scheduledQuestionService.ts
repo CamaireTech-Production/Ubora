@@ -17,6 +17,7 @@ import {
 import { db } from '../firebaseConfig';
 import { ScheduledQuestion, ScheduledQuestionResponse } from '../types';
 import { getCameroonTime, calculateNextExecutionCameroon } from '../utils/timezoneUtils';
+import { universInstanceResourceService } from './universInstanceResourceService';
 
 class ScheduledQuestionService {
   private readonly collectionName = 'scheduledQuestions';
@@ -145,8 +146,20 @@ class ScheduledQuestionService {
   /**
    * Récupérer toutes les questions programmées d'un utilisateur
    */
-  async getByUser(userId: string, agencyId: string, activeUniversId?: string | null): Promise<ScheduledQuestion[]> {
+  async getByUser(userId: string, agencyId: string, activeUniversId?: string | null, activeInstanceId?: string | null, userRole?: 'directeur' | 'employe' | 'admin'): Promise<ScheduledQuestion[]> {
     try {
+      // NOUVELLE LOGIQUE : Pour les directeurs avec activeInstanceId, utiliser l'instance comme source de vérité
+      if (userRole === 'directeur' && activeInstanceId) {
+        const instructions = await universInstanceResourceService.getInstructionsFromInstance(activeInstanceId);
+        // Trier par createdAt décroissant
+        return instructions.sort((a, b) => {
+          const aTime = a.createdAt?.getTime() || 0;
+          const bTime = b.createdAt?.getTime() || 0;
+          return bTime - aTime;
+        });
+      }
+
+      // ANCIENNE LOGIQUE : Rétrocompatibilité
       let q;
       if (activeUniversId) {
         // Filtrer par Univers actif
