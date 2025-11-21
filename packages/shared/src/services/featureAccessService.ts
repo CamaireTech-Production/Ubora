@@ -2,6 +2,7 @@ import { User } from '../types';
 import { universService } from './universService';
 import { UniversPurchaseService } from './universPurchaseService';
 import { SubscriptionSessionService } from './subscriptionSessionService';
+import { SubscriptionSessionCollectionService } from './subscriptionSessionCollectionService';
 import { PACKAGE_FEATURES, PackageType } from '../config/packageFeatures';
 import { Univers } from '../types';
 
@@ -104,34 +105,66 @@ export class FeatureAccessService {
    */
   private static async checkPackageAccess(user: User, feature: string): Promise<FeatureAccess> {
     try {
-      const currentSession = SubscriptionSessionService.getCurrentSessionSync(user);
-      
-      if (!currentSession) {
+      // PRIORITÉ 1: Vérifier directement user.package (le plus fiable et rapide)
+      if (user.package && ['starter', 'standard', 'premium'].includes(user.package)) {
+        const packageType = user.package === 'premium' ? 'standard' : user.package as PackageType;
+        const features = PACKAGE_FEATURES[packageType];
+        const hasFeature = !!features && (features as any)[feature] === true;
+        
+        if (hasFeature) {
+          return {
+            canRead: true,
+            canWrite: true,
+            source: 'package',
+            reason: `Package ${packageType} (depuis user.package)`
+          };
+        }
+        
         return {
           canRead: false,
           canWrite: false,
           source: 'none',
-          reason: 'Aucune session active'
+          reason: `Package ${packageType} ne supporte pas ${feature}`
         };
       }
-
-      const features = PACKAGE_FEATURES[currentSession.packageType];
-      const hasFeature = !!features && (features as any)[feature] === true;
-
-      if (hasFeature) {
+      
+      // PRIORITÉ 2: Essayer la nouvelle collection
+      let currentSession = await SubscriptionSessionCollectionService.getActiveSession(user.id);
+      
+      // PRIORITÉ 3: Si pas de session dans la nouvelle collection, essayer le système legacy
+      if (!currentSession) {
+        currentSession = await SubscriptionSessionService.getCurrentSession(user);
+      }
+      
+      // Vérifier la session trouvée
+      if (currentSession) {
+        const packageType = currentSession.packageType as PackageType;
+        const features = PACKAGE_FEATURES[packageType];
+        const hasFeature = !!features && (features as any)[feature] === true;
+        
+        if (hasFeature) {
+          return {
+            canRead: true,
+            canWrite: true,
+            source: 'package',
+            reason: `Package ${packageType} (depuis session)`
+          };
+        }
+        
         return {
-          canRead: true,
-          canWrite: true, // Package = accès complet
-          source: 'package',
-          reason: `Package ${currentSession.packageType}`
+          canRead: false,
+          canWrite: false,
+          source: 'none',
+          reason: `Package ${packageType} ne supporte pas ${feature}`
         };
       }
-
+      
+      // Aucun package trouvé
       return {
         canRead: false,
         canWrite: false,
         source: 'none',
-        reason: `Package ${currentSession.packageType} ne supporte pas ${feature}`
+        reason: 'Aucune session active et aucun package trouvé'
       };
     } catch (error) {
       console.error('Erreur lors de la vérification de l\'accès package:', error);
@@ -279,6 +312,15 @@ export class FeatureAccessService {
       const features = PACKAGE_FEATURES[currentSession.packageType];
       if (features && (features as any).allowFileUploads === true) {
         return true; // Accès complet via package
+      }
+    }
+
+    // Fallback: vérifier le champ legacy user.package si la session n'est pas trouvée
+    if (user.package && ['starter', 'standard', 'premium'].includes(user.package)) {
+      const packageType = user.package === 'premium' ? 'standard' : user.package; // premium maps to standard
+      const features = PACKAGE_FEATURES[packageType as PackageType];
+      if (features && (features as any).allowFileUploads === true) {
+        return true; // Accès complet via package legacy
       }
     }
 

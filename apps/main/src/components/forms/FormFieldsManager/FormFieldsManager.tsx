@@ -13,6 +13,7 @@ interface FormFieldsManagerProps {
   onUpdateField: (fieldId: string, updates: Partial<FormField>) => void;
   onMoveField?: (fieldId: string, direction: 'up' | 'down') => void;
   canUseFileUploads: boolean;
+  isFileUploadAccessLoading?: boolean; // Pour ne pas afficher le message pendant le chargement
   availableLists: any[];
   onFileUploadsUpgrade?: () => void;
   userRole?: string;
@@ -26,6 +27,7 @@ export const FormFieldsManager: React.FC<FormFieldsManagerProps> = ({
   onUpdateField,
   onMoveField,
   canUseFileUploads,
+  isFileUploadAccessLoading = false,
   availableLists,
   onFileUploadsUpgrade,
   userRole,
@@ -53,7 +55,7 @@ export const FormFieldsManager: React.FC<FormFieldsManagerProps> = ({
         <DesktopRecommendationInfo className="mb-4" />
       )}
 
-      {!canUseFileUploads && (
+      {!isFileUploadAccessLoading && !canUseFileUploads && (
         <div className="mb-3 p-3 rounded-lg bg-yellow-50 border border-yellow-200 text-yellow-800 text-sm">
           {/* Role-specific messages */}
           {userRole === 'directeur' ? (
@@ -90,6 +92,7 @@ export const FormFieldsManager: React.FC<FormFieldsManagerProps> = ({
         onUpdateField={onUpdateField}
         onMoveField={onMoveField}
         canUseFileUploads={canUseFileUploads}
+        isFileUploadAccessLoading={isFileUploadAccessLoading}
         availableLists={availableLists}
         loadingLists={false}
       />

@@ -83,8 +83,18 @@ export const FormEditor: React.FC<FormEditorProps> = ({
         setFileUploadAccess(access);
       } catch (error) {
         logger.error('Erreur lors du chargement des permissions', error, 'FormEditor');
-        // Fallback sur la version synchrone
-        const canUpload = UserSessionService.canUseFileUploads(user);
+        // Fallback: vérifier directement user.package
+        let canUpload = false;
+        if (user.package && ['starter', 'standard', 'premium'].includes(user.package)) {
+          const { PACKAGE_FEATURES } = await import('@ubora/shared/config/packageFeatures');
+          const packageType = user.package === 'premium' ? 'standard' : user.package;
+          const features = PACKAGE_FEATURES[packageType as keyof typeof PACKAGE_FEATURES];
+          canUpload = !!features && (features as any).allowFileUploads === true;
+        }
+        // Si toujours false, essayer la version synchrone
+        if (!canUpload) {
+          canUpload = UserSessionService.canUseFileUploads(user);
+        }
         setFileUploadAccess({ 
           canRead: canUpload, 
           canWrite: canUpload, 
@@ -96,7 +106,8 @@ export const FormEditor: React.FC<FormEditorProps> = ({
     loadFileUploadAccess();
   }, [user, activeUniversId]);
 
-  const canUseFileUploads = fileUploadAccess?.canWrite ?? false;
+  // Calculer canUseFileUploads : true si on a canWrite, false seulement si on est sûr qu'on n'a pas accès (pas pendant le chargement)
+  const canUseFileUploads = fileUploadAccess !== null ? (fileUploadAccess?.canWrite ?? false) : false;
   
   // Lists state for select fields
   const [availableLists, setAvailableLists] = useState<List[]>([]);
@@ -532,7 +543,8 @@ export const FormEditor: React.FC<FormEditorProps> = ({
               }
               updateField(fieldId, updates);
             }}
-            canUseFileUploads={canUseFileUploads && (fileUploadAccess?.canWrite ?? false)}
+            canUseFileUploads={canUseFileUploads}
+            isFileUploadAccessLoading={fileUploadAccess === null}
             availableLists={availableLists}
             userRole={user?.role}
             hasDirectorDashboardAccess={user?.hasDirectorDashboardAccess}

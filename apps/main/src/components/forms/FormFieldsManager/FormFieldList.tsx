@@ -9,6 +9,7 @@ interface FormFieldListProps {
   onUpdateField: (fieldId: string, updates: Partial<FormField>) => void;
   onMoveField?: (fieldId: string, direction: 'up' | 'down') => void;
   canUseFileUploads: boolean;
+  isFileUploadAccessLoading?: boolean;
   availableLists: any[];
   loadingLists?: boolean;
 }
@@ -19,6 +20,7 @@ export const FormFieldList: React.FC<FormFieldListProps> = ({
   onUpdateField,
   onMoveField,
   canUseFileUploads,
+  isFileUploadAccessLoading = false,
   availableLists,
   loadingLists = false
 }) => {
@@ -42,6 +44,7 @@ export const FormFieldList: React.FC<FormFieldListProps> = ({
             onRemove={onRemoveField}
             onMove={onMoveField}
             canUseFileUploads={canUseFileUploads}
+            isFileUploadAccessLoading={isFileUploadAccessLoading}
             availableLists={availableLists}
             loadingLists={loadingLists}
             canMoveUp={index > 0}

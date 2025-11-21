@@ -53,7 +53,47 @@ export const FormBuilder: React.FC<FormBuilderProps> = ({
   const navigate = useNavigate();
   const { user } = useAuth();
   const { activeUniversId, activeInstanceId } = useUnivers();
-  const canUseFileUploads = user ? UserSessionService.canUseFileUploads(user) : false;
+  const [fileUploadAccess, setFileUploadAccess] = useState<{ canRead: boolean; canWrite: boolean; source: string } | null>(null);
+  
+  // Charger les permissions d'upload de fichiers
+  useEffect(() => {
+    const loadFileUploadAccess = async () => {
+      if (!user) {
+        setFileUploadAccess({ canRead: false, canWrite: false, source: 'none' });
+        return;
+      }
+
+      try {
+        const access = await UserSessionService.canUseFileUploadsAsync(user, activeUniversId);
+        setFileUploadAccess(access);
+      } catch (error) {
+        logger.error('Erreur lors du chargement des permissions', error, 'FormBuilder');
+        // Fallback: vérifier directement user.package
+        let canUpload = false;
+        if (user.package && ['starter', 'standard', 'premium'].includes(user.package)) {
+          const { PACKAGE_FEATURES } = await import('@ubora/shared/config/packageFeatures');
+          const packageType = user.package === 'premium' ? 'standard' : user.package;
+          const features = PACKAGE_FEATURES[packageType as keyof typeof PACKAGE_FEATURES];
+          canUpload = !!features && (features as any).allowFileUploads === true;
+        }
+        // Si toujours false, essayer la version synchrone
+        if (!canUpload) {
+          canUpload = UserSessionService.canUseFileUploads(user);
+        }
+        setFileUploadAccess({ 
+          canRead: canUpload, 
+          canWrite: canUpload, 
+          source: canUpload ? 'package' : 'none' 
+        });
+      }
+    };
+
+    loadFileUploadAccess();
+  }, [user, activeUniversId]);
+
+  // Calculer canUseFileUploads : true si on a canWrite, false seulement si on est sûr qu'on n'a pas accès (pas pendant le chargement)
+  const canUseFileUploads = fileUploadAccess !== null ? (fileUploadAccess?.canWrite ?? false) : false;
+  
   // Initialiser les états avec les valeurs du formulaire existant ou vides
   const [title, setTitle] = useState(initialForm?.title || '');
   const [description, setDescription] = useState(initialForm?.description || '');
@@ -576,8 +616,15 @@ export const FormBuilder: React.FC<FormBuilderProps> = ({
             fields={fields}
             onAddField={addField}
             onRemoveField={removeField}
-            onUpdateField={updateField}
+            onUpdateField={(fieldId, updates) => {
+              // Bloquer le changement vers 'file' si pas de permission write
+              if (updates.type === 'file' && !canUseFileUploads) {
+                return;
+              }
+              updateField(fieldId, updates);
+            }}
             canUseFileUploads={canUseFileUploads}
+            isFileUploadAccessLoading={fileUploadAccess === null}
             availableLists={availableLists}
             onFileUploadsUpgrade={() => navigate('/packages/manage?section=packages&highlight=starter')}
             userRole={user?.role}

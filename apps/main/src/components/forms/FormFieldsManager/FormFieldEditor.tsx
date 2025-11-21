@@ -19,6 +19,7 @@ interface FormFieldEditorProps {
   onRemove: (fieldId: string) => void;
   onMove?: (fieldId: string, direction: 'up' | 'down') => void;
   canUseFileUploads: boolean;
+  isFileUploadAccessLoading?: boolean;
   availableLists: any[];
   loadingLists?: boolean;
   canMoveUp?: boolean;
@@ -33,6 +34,7 @@ export const FormFieldEditor: React.FC<FormFieldEditorProps> = ({
   onRemove,
   onMove,
   canUseFileUploads,
+  isFileUploadAccessLoading = false,
   availableLists,
   loadingLists = false,
   canMoveUp = false,
@@ -145,7 +147,13 @@ export const FormFieldEditor: React.FC<FormFieldEditorProps> = ({
         <Select
           label="Type de champ"
           value={field.type}
-          onChange={(e) => onUpdate(field.id, { type: e.target.value as FormField['type'] })}
+          onChange={(e) => {
+            // Bloquer le changement vers 'file' si pas de permission (même si l'option est visible)
+            if (e.target.value === 'file' && !canUseFileUploads && !isFileUploadAccessLoading) {
+              return;
+            }
+            onUpdate(field.id, { type: e.target.value as FormField['type'] });
+          }}
           options={[
             { value: 'text', label: 'Texte' },
             { value: 'number', label: 'Nombre' },
@@ -154,7 +162,8 @@ export const FormFieldEditor: React.FC<FormFieldEditorProps> = ({
             { value: 'textarea', label: 'Texte long' },
             { value: 'select', label: 'Liste déroulante' },
             { value: 'checkbox', label: 'Case à cocher' },
-            ...(canUseFileUploads ? [{ value: 'file', label: 'Fichier' }] : []),
+            // Afficher l'option file seulement si on a la permission OU si on est en train de charger (pour éviter le flash)
+            ...(canUseFileUploads || isFileUploadAccessLoading ? [{ value: 'file', label: 'Fichier' }] : []),
             { value: 'calculated', label: 'Champ calculé' },
           ]}
         />
