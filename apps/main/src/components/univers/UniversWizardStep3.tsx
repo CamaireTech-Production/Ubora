@@ -5,10 +5,10 @@ import { FormBuilder } from '../forms/FormBuilder';
 import { FormField, FormDefinition as BaseFormDefinition } from '../../types';
 import { UniversWizardStepProps } from './UniversWizard';
 import { Plus, Trash2, Edit, FileText, CheckCircle, AlertCircle, ArrowLeft } from 'lucide-react';
-import { useApp } from '@ubora/shared/contexts/AppContext';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
 import { useEmployees } from '@ubora/shared/contexts/EmployeesContext';
 import { useToast } from '@ubora/shared/hooks/useToast';
+import { generateDefinitionRef } from '@ubora/shared/utils/definitionRefUtils';
 
 type WizardFormDefinition = BaseFormDefinition & {
   assignedTo: string[];
@@ -132,7 +132,7 @@ export const UniversWizardStep3: React.FC<UniversWizardStepProps> = ({
     } else {
       // Create new form
       const newForm: WizardFormDefinition = {
-        id: `form_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        id: generateDefinitionRef(),
         title: formData.title,
         description: formData.description,
         fields: formData.fields,

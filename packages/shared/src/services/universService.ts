@@ -20,6 +20,7 @@ import { db } from '../firebaseConfig';
 import { Univers, UniversInstance, UniversDefinitions, UniversMetadata, UniversOwnership, UniversUsage, ActiveUnivers, UniversVersion, UniversDraftData } from '../types';
 import { universInstantiationService, InstantiationResult } from './universInstantiationService';
 import { unifiedNotificationService } from './unifiedNotificationService';
+import { isValidDefinitionRef } from '../utils/definitionRefUtils';
 
 /**
  * Interface pour le résultat de la vérification des ressources
@@ -160,6 +161,14 @@ class UniversService {
         lists: [],
         reports: []
       },
+      // Handle definitionRefs (optional for backward compatibility)
+      definitionRefs: data.definitionRefs ? {
+        forms: data.definitionRefs.forms || {},
+        dashboards: data.definitionRefs.dashboards || {},
+        lists: data.definitionRefs.lists || {},
+        reports: data.definitionRefs.reports || {},
+        instructions: data.definitionRefs.instructions || {}
+      } : undefined,
       metadata: {
         universName: data.metadata?.universName || '',
         universVersion: data.metadata?.universVersion || data.universVersion || 1,
@@ -226,6 +235,86 @@ class UniversService {
         lists: normalizedLists,
         reports: univers.definitions?.reports || [] // Peut être vide (Coming Soon)
       };
+
+      // PHASE 6.1: Validation des refs - s'assurer qu'elles sont uniques
+      const allRefs: string[] = [];
+      const duplicateRefs: string[] = [];
+      
+      // Collecter toutes les refs
+      definitions.forms.forEach(form => {
+        if (form.id) {
+          if (allRefs.includes(form.id)) {
+            duplicateRefs.push(`form: ${form.title || form.id}`);
+          } else {
+            allRefs.push(form.id);
+          }
+        }
+      });
+      
+      definitions.dashboards.forEach(dashboard => {
+        if (dashboard.id) {
+          if (allRefs.includes(dashboard.id)) {
+            duplicateRefs.push(`dashboard: ${dashboard.name || dashboard.id}`);
+          } else {
+            allRefs.push(dashboard.id);
+          }
+        }
+      });
+      
+      definitions.instructions.forEach(instruction => {
+        if (instruction.id) {
+          if (allRefs.includes(instruction.id)) {
+            duplicateRefs.push(`instruction: ${instruction.title || instruction.id}`);
+          } else {
+            allRefs.push(instruction.id);
+          }
+        }
+      });
+      
+      definitions.lists.forEach(list => {
+        if (list.id) {
+          if (allRefs.includes(list.id)) {
+            duplicateRefs.push(`list: ${list.name || list.id}`);
+          } else {
+            allRefs.push(list.id);
+          }
+        }
+      });
+      
+      definitions.reports.forEach(report => {
+        if (report.id) {
+          if (allRefs.includes(report.id)) {
+            duplicateRefs.push(`report: ${report.name || report.id}`);
+          } else {
+            allRefs.push(report.id);
+          }
+        }
+      });
+
+      // Valider le format des refs
+      const invalidRefs: string[] = [];
+      allRefs.forEach(ref => {
+        if (!isValidDefinitionRef(ref)) {
+          invalidRefs.push(ref);
+        }
+      });
+
+      // Lancer des erreurs si des problèmes sont détectés
+      if (duplicateRefs.length > 0) {
+        throw new Error(`Refs dupliquées détectées: ${duplicateRefs.join(', ')}. Chaque ressource doit avoir une ref unique.`);
+      }
+
+      if (invalidRefs.length > 0) {
+        throw new Error(`Refs invalides détectées: ${invalidRefs.join(', ')}. Les refs doivent être au format "univers-{uuid}".`);
+      }
+
+      // Log pour debugging
+      console.log(`✅ Validation des refs réussie: ${allRefs.length} ref(s) unique(s) et valide(s)`);
+      console.log(`   - ${definitions.forms.length} formulaire(s)`);
+      console.log(`   - ${definitions.dashboards.length} dashboard(s)`);
+      console.log(`   - ${definitions.instructions.length} instruction(s)`);
+      console.log(`   - ${definitions.lists.length} liste(s)`);
+      console.log(`   - ${definitions.reports.length} rapport(s)`);
 
       // Préparer les métadonnées avec valeurs par défaut
       const isMarketplace = univers.ownership.isMarketplaceTemplate || false;
@@ -1733,6 +1822,101 @@ class UniversService {
         universInstanceId: instanceId // Utiliser le même ID que l'instance Firestore
       });
 
+      // PHASE 6.2: Validation de la cohérence de definitionRefs
+      const definitionRefs = instantiationResult.definitionRefs || {
+        forms: {},
+        dashboards: {},
+        instructions: {},
+        lists: {},
+        reports: {}
+      };
+
+      // Vérifier que chaque définition a un mapping dans definitionRefs
+      const missingMappings: string[] = [];
+      
+      if (univers.definitions.forms) {
+        for (const formDef of univers.definitions.forms) {
+          if (formDef.id && !definitionRefs.forms[formDef.id]) {
+            missingMappings.push(`form: ${formDef.title || formDef.id} (ref: ${formDef.id})`);
+          }
+        }
+      }
+      
+      if (univers.definitions.dashboards) {
+        for (const dashboardDef of univers.definitions.dashboards) {
+          if (dashboardDef.id && !definitionRefs.dashboards[dashboardDef.id]) {
+            missingMappings.push(`dashboard: ${dashboardDef.name || dashboardDef.id} (ref: ${dashboardDef.id})`);
+          }
+        }
+      }
+      
+      if (univers.definitions.instructions) {
+        for (const instructionDef of univers.definitions.instructions) {
+          if (instructionDef.id && !definitionRefs.instructions[instructionDef.id]) {
+            missingMappings.push(`instruction: ${instructionDef.title || instructionDef.id} (ref: ${instructionDef.id})`);
+          }
+        }
+      }
+      
+      if (univers.definitions.lists) {
+        for (const listDef of univers.definitions.lists) {
+          if (listDef.id && !definitionRefs.lists[listDef.id]) {
+            missingMappings.push(`list: ${listDef.name || listDef.id} (ref: ${listDef.id})`);
+          }
+        }
+      }
+      
+      if (univers.definitions.reports) {
+        for (const reportDef of univers.definitions.reports) {
+          if (reportDef.id && !definitionRefs.reports[reportDef.id]) {
+            missingMappings.push(`report: ${reportDef.name || reportDef.id} (ref: ${reportDef.id})`);
+          }
+        }
+      }
+
+      if (missingMappings.length > 0) {
+        console.warn(`⚠️ Avertissement: ${missingMappings.length} mapping(s) manquant(s) dans definitionRefs:`, missingMappings);
+        // Ne pas bloquer l'instanciation, mais logger l'avertissement
+      }
+
+      // Vérifier que les arrays instances correspondent aux IDs dans definitionRefs
+      const inconsistencies: string[] = [];
+      
+      const formsInRefs = Object.values(definitionRefs.forms);
+      const formsInInstances = instantiationResult.forms;
+      if (formsInRefs.length !== formsInInstances.length) {
+        inconsistencies.push(`forms: ${formsInRefs.length} dans definitionRefs mais ${formsInInstances.length} dans instances`);
+      }
+      
+      const dashboardsInRefs = Object.values(definitionRefs.dashboards);
+      const dashboardsInInstances = instantiationResult.dashboards;
+      if (dashboardsInRefs.length !== dashboardsInInstances.length) {
+        inconsistencies.push(`dashboards: ${dashboardsInRefs.length} dans definitionRefs mais ${dashboardsInInstances.length} dans instances`);
+      }
+      
+      const instructionsInRefs = Object.values(definitionRefs.instructions);
+      const instructionsInInstances = instantiationResult.instructions;
+      if (instructionsInRefs.length !== instructionsInInstances.length) {
+        inconsistencies.push(`instructions: ${instructionsInRefs.length} dans definitionRefs mais ${instructionsInInstances.length} dans instances`);
+      }
+      
+      const listsInRefs = Object.values(definitionRefs.lists);
+      const listsInInstances = instantiationResult.lists;
+      if (listsInRefs.length !== listsInInstances.length) {
+        inconsistencies.push(`lists: ${listsInRefs.length} dans definitionRefs mais ${listsInInstances.length} dans instances`);
+      }
+      
+      const reportsInRefs = Object.values(definitionRefs.reports);
+      const reportsInInstances = instantiationResult.reports;
+      if (reportsInRefs.length !== reportsInInstances.length) {
+        inconsistencies.push(`reports: ${reportsInRefs.length} dans definitionRefs mais ${reportsInInstances.length} dans instances`);
+      }
+
+      if (inconsistencies.length > 0) {
+        console.warn(`⚠️ Incohérences détectées dans definitionRefs:`, inconsistencies);
+        // Ne pas bloquer l'instanciation, mais logger l'avertissement
+      }
+
       // 4. Create the UniversInstance document with all instantiated resource IDs
       // Note: Firestore doesn't accept undefined values, so we omit optional fields
       const instanceData: any = {
@@ -1750,6 +1934,8 @@ class UniversService {
           lists: instantiationResult.lists,
           reports: instantiationResult.reports
         },
+        // Store definitionRefs mapping (ref → ID réel) for precise resource matching
+        definitionRefs: definitionRefs,
         metadata: {
           universName: univers.metadata.name,
           universVersion: instanceVersion, // Utiliser la version déterminée ci-dessus
@@ -1773,8 +1959,75 @@ class UniversService {
       // Mettre à jour le compteur d'utilisation du Univers
       await this.incrementUsage(universId);
 
+      // PHASE 6.3: Logs détaillés pour le debugging du système de refs
       console.log(`✅ Univers instantiated successfully: ${universId} → Instance ${instanceId}`);
       console.log(`   Created: ${instantiationResult.forms.length} forms, ${instantiationResult.dashboards.length} dashboards, ${instantiationResult.instructions.length} instructions, ${instantiationResult.lists.length} lists, ${instantiationResult.reports.length} reports`);
+      
+      // Log definitionRefs mappings for debugging
+      if (definitionRefs) {
+        const refsCount = {
+          forms: Object.keys(definitionRefs.forms || {}).length,
+          dashboards: Object.keys(definitionRefs.dashboards || {}).length,
+          instructions: Object.keys(definitionRefs.instructions || {}).length,
+          lists: Object.keys(definitionRefs.lists || {}).length,
+          reports: Object.keys(definitionRefs.reports || {}).length
+        };
+        console.log(`   DefinitionRefs mappings: ${refsCount.forms} forms, ${refsCount.dashboards} dashboards, ${refsCount.instructions} instructions, ${refsCount.lists} lists, ${refsCount.reports} reports`);
+        
+        // Log détaillé des mappings pour debugging
+        if (refsCount.forms > 0) {
+          console.log(`   📋 Forms mappings:`);
+          Object.entries(definitionRefs.forms).forEach(([ref, id]) => {
+            const formDef = univers.definitions?.forms?.find(f => f.id === ref);
+            console.log(`      - ${formDef?.title || ref} (ref: ${ref}) → ID: ${id}`);
+          });
+        }
+        
+        if (refsCount.dashboards > 0) {
+          console.log(`   📊 Dashboards mappings:`);
+          Object.entries(definitionRefs.dashboards).forEach(([ref, id]) => {
+            const dashboardDef = univers.definitions?.dashboards?.find(d => d.id === ref);
+            console.log(`      - ${dashboardDef?.name || ref} (ref: ${ref}) → ID: ${id}`);
+          });
+        }
+        
+        if (refsCount.instructions > 0) {
+          console.log(`   📝 Instructions mappings:`);
+          Object.entries(definitionRefs.instructions).forEach(([ref, id]) => {
+            const instructionDef = univers.definitions?.instructions?.find(i => i.id === ref);
+            console.log(`      - ${instructionDef?.title || ref} (ref: ${ref}) → ID: ${id}`);
+          });
+        }
+        
+        if (refsCount.lists > 0) {
+          console.log(`   📋 Lists mappings:`);
+          Object.entries(definitionRefs.lists).forEach(([ref, id]) => {
+            const listDef = univers.definitions?.lists?.find(l => l.id === ref);
+            console.log(`      - ${listDef?.name || ref} (ref: ${ref}) → ID: ${id}`);
+          });
+        }
+        
+        if (refsCount.reports > 0) {
+          console.log(`   📄 Reports mappings:`);
+          Object.entries(definitionRefs.reports).forEach(([ref, id]) => {
+            const reportDef = univers.definitions?.reports?.find(r => r.id === ref);
+            console.log(`      - ${reportDef?.name || ref} (ref: ${ref}) → ID: ${id}`);
+          });
+        }
+      }
+      
+      // Log des validations
+      if (missingMappings.length > 0) {
+        console.warn(`   ⚠️ ${missingMappings.length} mapping(s) manquant(s) dans definitionRefs`);
+      }
+      
+      if (inconsistencies.length > 0) {
+        console.warn(`   ⚠️ ${inconsistencies.length} incohérence(s) détectée(s) dans definitionRefs`);
+      }
+      
+      if (missingMappings.length === 0 && inconsistencies.length === 0) {
+        console.log(`   ✅ Validation de definitionRefs réussie: tous les mappings sont cohérents`);
+      }
 
       return {
         instanceId,
@@ -3100,6 +3353,7 @@ class UniversService {
 
   /**
    * Vérifier la cohérence des ressources existantes avec les définitions du Univers
+   * NOUVELLE LOGIQUE: Utilise definitionRefs pour compter uniquement les ressources template référencées
    */
   private async checkResourcesConsistency(
     instanceId: string,
@@ -3128,83 +3382,98 @@ class UniversService {
     };
 
     try {
-      // 1. Compter les formulaires
-      try {
-        const formsQuery = query(
-          collection(db, 'forms'),
-          where('agencyId', '==', agencyId),
-          where('universId', '==', universId),
-          where('universInstanceId', '==', instanceId)
-        );
-        const formsSnapshot = await getDocs(formsQuery);
-        result.actualCounts.forms = formsSnapshot.size;
-      } catch (error) {
-        console.warn('⚠️ Erreur lors du comptage des formulaires:', error);
+      // Récupérer l'instance pour accéder à definitionRefs
+      const instanceRef = doc(db, this.instancesCollectionName, instanceId);
+      const instanceDoc = await getDoc(instanceRef);
+      
+      if (!instanceDoc.exists()) {
+        console.warn(`⚠️ Instance ${instanceId} n'existe pas`);
+        return result;
       }
 
-      // 2. Compter les dashboards
-      try {
-        const dashboardsQuery = query(
-          collection(db, 'dashboards'),
-          where('agencyId', '==', agencyId),
-          where('universId', '==', universId),
-          where('universInstanceId', '==', instanceId)
-        );
-        const dashboardsSnapshot = await getDocs(dashboardsQuery);
-        result.actualCounts.dashboards = dashboardsSnapshot.size;
-      } catch (error) {
-        console.warn('⚠️ Erreur lors du comptage des dashboards:', error);
-      }
+      const instanceData = instanceDoc.data();
+      const definitionRefs = instanceData?.definitionRefs || {
+        forms: {},
+        dashboards: {},
+        instructions: {},
+        lists: {},
+        reports: {}
+      };
 
-      // 3. Compter les instructions
-      try {
-        const instructionsQuery = query(
-          collection(db, 'scheduledQuestions'),
-          where('agencyId', '==', agencyId),
-          where('universId', '==', universId),
-          where('universInstanceId', '==', instanceId)
-        );
-        const instructionsSnapshot = await getDocs(instructionsQuery);
-        result.actualCounts.instructions = instructionsSnapshot.size;
-      } catch (error: any) {
-        // Si erreur de permissions, ne pas considérer cela comme une incohérence critique
-        // L'utilisateur peut ne pas avoir les permissions pour lire les instructions
-        if (error?.code === 'permission-denied' || error?.message?.includes('permission')) {
-          console.warn('⚠️ Permissions insuffisantes pour compter les instructions. Considérant 0 instruction.');
-          result.actualCounts.instructions = 0;
-          // Ne pas ajouter d'incohérence si c'est juste un problème de permissions
-          // On considère que les instructions peuvent exister mais ne sont pas accessibles
-        } else {
-          console.warn('⚠️ Erreur lors du comptage des instructions:', error);
+      // Détecter si l'instance utilise l'ancien système (pas de definitionRefs ou definitionRefs vide)
+      const hasDefinitionRefs = instanceData?.definitionRefs && (
+        Object.keys(definitionRefs.forms || {}).length > 0 ||
+        Object.keys(definitionRefs.dashboards || {}).length > 0 ||
+        Object.keys(definitionRefs.instructions || {}).length > 0 ||
+        Object.keys(definitionRefs.lists || {}).length > 0 ||
+        Object.keys(definitionRefs.reports || {}).length > 0
+      );
+
+      // Collections et leurs noms Firestore
+      const resourceCollections = [
+        { type: 'forms', collection: 'forms', refs: definitionRefs.forms || {} },
+        { type: 'dashboards', collection: 'dashboards', refs: definitionRefs.dashboards || {} },
+        { type: 'instructions', collection: 'scheduledQuestions', refs: definitionRefs.instructions || {} },
+        { type: 'lists', collection: 'lists', refs: definitionRefs.lists || {} },
+        { type: 'reports', collection: 'reports', refs: definitionRefs.reports || {} }
+      ];
+
+      // NOUVELLE LOGIQUE: Compter uniquement les ressources référencées dans definitionRefs
+      for (const resourceType of resourceCollections) {
+        try {
+          if (hasDefinitionRefs) {
+            // NOUVEAU SYSTÈME: Utiliser definitionRefs
+            // Compter uniquement les ressources référencées dans definitionRefs
+            const refs = resourceType.refs;
+            let existingCount = 0;
+            let missingResources: string[] = [];
+
+            // Vérifier que chaque ref pointe vers une ressource existante
+            for (const [ref, resourceId] of Object.entries(refs)) {
+              const resourceIdStr = String(resourceId); // S'assurer que c'est une string
+              try {
+                const resourceDoc = await getDoc(doc(db, resourceType.collection, resourceIdStr));
+                if (resourceDoc.exists()) {
+                  existingCount++;
+                } else {
+                  missingResources.push(`${resourceType.type} ref: ${ref} → ID: ${resourceIdStr} (ressource supprimée)`);
+                }
+              } catch (error) {
+                console.warn(`⚠️ Erreur lors de la vérification de ${resourceType.type} ${resourceIdStr}:`, error);
+                missingResources.push(`${resourceType.type} ref: ${ref} → ID: ${resourceIdStr} (erreur de vérification)`);
+              }
+            }
+
+            // Compter uniquement les ressources template (celles avec ref)
+            result.actualCounts[resourceType.type as keyof typeof result.actualCounts] = existingCount;
+
+            // Ajouter les ressources manquantes aux incohérences
+            if (missingResources.length > 0) {
+              result.inconsistencies.push(
+                `${resourceType.type}: ${missingResources.length} ressource(s) référencée(s) mais supprimée(s)`
+              );
+            }
+          } else {
+            // ANCIEN SYSTÈME: Fallback vers le comptage par requête (rétrocompatibilité)
+            const resourceQuery = query(
+              collection(db, resourceType.collection),
+              where('agencyId', '==', agencyId),
+              where('universId', '==', universId),
+              where('universInstanceId', '==', instanceId),
+              where('fromUnivers', '==', true) // Seulement les ressources template
+            );
+            const resourceSnapshot = await getDocs(resourceQuery);
+            result.actualCounts[resourceType.type as keyof typeof result.actualCounts] = resourceSnapshot.size;
+          }
+        } catch (error: any) {
+          // Si erreur de permissions, ne pas considérer cela comme une incohérence critique
+          if (error?.code === 'permission-denied' || error?.message?.includes('permission')) {
+            console.warn(`⚠️ Permissions insuffisantes pour vérifier les ${resourceType.type}. Considérant 0.`);
+            result.actualCounts[resourceType.type as keyof typeof result.actualCounts] = 0;
+          } else {
+            console.warn(`⚠️ Erreur lors de la vérification des ${resourceType.type}:`, error);
+          }
         }
-      }
-
-      // 4. Compter les listes
-      try {
-        const listsQuery = query(
-          collection(db, 'lists'),
-          where('agencyId', '==', agencyId),
-          where('universId', '==', universId),
-          where('universInstanceId', '==', instanceId)
-        );
-        const listsSnapshot = await getDocs(listsQuery);
-        result.actualCounts.lists = listsSnapshot.size;
-      } catch (error) {
-        console.warn('⚠️ Erreur lors du comptage des listes:', error);
-      }
-
-      // 5. Compter les rapports
-      try {
-        const reportsQuery = query(
-          collection(db, 'reports'),
-          where('agencyId', '==', agencyId),
-          where('universId', '==', universId),
-          where('universInstanceId', '==', instanceId)
-        );
-        const reportsSnapshot = await getDocs(reportsQuery);
-        result.actualCounts.reports = reportsSnapshot.size;
-      } catch (error) {
-        console.warn('⚠️ Erreur lors du comptage des rapports:', error);
       }
 
       // Vérifier l'existence (au moins une ressource existe)
@@ -3215,52 +3484,47 @@ class UniversService {
                      result.actualCounts.reports > 0;
 
       // Vérifier la cohérence
-      // Tolérer des différences : considérer cohérent si on a au moins les ressources attendues
-      // (les ressources supplémentaires peuvent être des ajouts utilisateur)
+      // Compter uniquement les ressources template (celles avec ref) pour la cohérence
       if (result.actualCounts.forms < result.expectedCounts.forms) {
         result.inconsistencies.push(
-          `Formulaires: ${result.actualCounts.forms} trouvé(s) au lieu de ${result.expectedCounts.forms} (manquant)`
+          `Formulaires: ${result.actualCounts.forms} ressource(s) template trouvée(s) au lieu de ${result.expectedCounts.forms} (manquant)`
         );
-      } else if (result.actualCounts.forms > result.expectedCounts.forms) {
-        // Plus de formulaires que prévu : peut être normal (ajouts utilisateur)
-        console.log(`ℹ️ Plus de formulaires que prévu (${result.actualCounts.forms} au lieu de ${result.expectedCounts.forms}), probablement des ajouts utilisateur`);
       }
       
       if (result.actualCounts.dashboards < result.expectedCounts.dashboards) {
         result.inconsistencies.push(
-          `Dashboards: ${result.actualCounts.dashboards} trouvé(s) au lieu de ${result.expectedCounts.dashboards} (manquant)`
+          `Dashboards: ${result.actualCounts.dashboards} ressource(s) template trouvée(s) au lieu de ${result.expectedCounts.dashboards} (manquant)`
         );
-      } else if (result.actualCounts.dashboards > result.expectedCounts.dashboards) {
-        console.log(`ℹ️ Plus de dashboards que prévu (${result.actualCounts.dashboards} au lieu de ${result.expectedCounts.dashboards}), probablement des ajouts utilisateur`);
       }
       
       if (result.actualCounts.instructions < result.expectedCounts.instructions) {
         result.inconsistencies.push(
-          `Instructions: ${result.actualCounts.instructions} trouvée(s) au lieu de ${result.expectedCounts.instructions} (manquant)`
+          `Instructions: ${result.actualCounts.instructions} ressource(s) template trouvée(s) au lieu de ${result.expectedCounts.instructions} (manquant)`
         );
-      } else if (result.actualCounts.instructions > result.expectedCounts.instructions) {
-        console.log(`ℹ️ Plus d'instructions que prévu (${result.actualCounts.instructions} au lieu de ${result.expectedCounts.instructions}), probablement des ajouts utilisateur`);
       }
       
       if (result.actualCounts.lists < result.expectedCounts.lists) {
         result.inconsistencies.push(
-          `Listes: ${result.actualCounts.lists} trouvée(s) au lieu de ${result.expectedCounts.lists} (manquant)`
+          `Listes: ${result.actualCounts.lists} ressource(s) template trouvée(s) au lieu de ${result.expectedCounts.lists} (manquant)`
         );
-      } else if (result.actualCounts.lists > result.expectedCounts.lists) {
-        console.log(`ℹ️ Plus de listes que prévu (${result.actualCounts.lists} au lieu de ${result.expectedCounts.lists}), probablement des ajouts utilisateur`);
       }
       
       if (result.actualCounts.reports < result.expectedCounts.reports) {
         result.inconsistencies.push(
-          `Rapports: ${result.actualCounts.reports} trouvé(s) au lieu de ${result.expectedCounts.reports} (manquant)`
+          `Rapports: ${result.actualCounts.reports} ressource(s) template trouvée(s) au lieu de ${result.expectedCounts.reports} (manquant)`
         );
-      } else if (result.actualCounts.reports > result.expectedCounts.reports) {
-        console.log(`ℹ️ Plus de rapports que prévu (${result.actualCounts.reports} au lieu de ${result.expectedCounts.reports}), probablement des ajouts utilisateur`);
       }
 
-      // Considérer cohérent si on a au moins toutes les ressources attendues
-      // (les ressources supplémentaires ne sont pas considérées comme incohérentes)
+      // Considérer cohérent si on a toutes les ressources template attendues
+      // (les ressources custom ne sont pas comptées dans la cohérence)
       result.isConsistent = result.inconsistencies.length === 0;
+
+      // Log pour debugging
+      if (hasDefinitionRefs) {
+        console.log(`✅ Vérification de cohérence avec definitionRefs: ${result.actualCounts.forms} forms, ${result.actualCounts.dashboards} dashboards, ${result.actualCounts.instructions} instructions, ${result.actualCounts.lists} lists, ${result.actualCounts.reports} reports`);
+      } else {
+        console.log(`ℹ️ Vérification de cohérence avec ancien système (fallback): ${result.actualCounts.forms} forms, ${result.actualCounts.dashboards} dashboards, ${result.actualCounts.instructions} instructions, ${result.actualCounts.lists} lists, ${result.actualCounts.reports} reports`);
+      }
 
       return result;
     } catch (error) {
@@ -3860,6 +4124,32 @@ class UniversService {
         throw new Error('Univers sans définitions');
       }
 
+      // NOUVELLE LOGIQUE: Récupérer l'instance pour accéder à definitionRefs
+      const instanceRef = doc(db, this.instancesCollectionName, instanceId);
+      const instanceDoc = await getDoc(instanceRef);
+      
+      if (!instanceDoc.exists()) {
+        throw new Error(`Instance ${instanceId} n'existe pas`);
+      }
+
+      const instanceData = instanceDoc.data();
+      const definitionRefs = instanceData?.definitionRefs || {
+        forms: {},
+        dashboards: {},
+        instructions: {},
+        lists: {},
+        reports: {}
+      };
+
+      // Détecter si l'instance utilise l'ancien système (pas de definitionRefs ou definitionRefs vide)
+      const hasDefinitionRefs = instanceData?.definitionRefs && (
+        Object.keys(definitionRefs.forms || {}).length > 0 ||
+        Object.keys(definitionRefs.dashboards || {}).length > 0 ||
+        Object.keys(definitionRefs.instructions || {}).length > 0 ||
+        Object.keys(definitionRefs.lists || {}).length > 0 ||
+        Object.keys(definitionRefs.reports || {}).length > 0
+      );
+
       // Récupérer toutes les ressources existantes pour vérifier lesquelles ont des données utilisateur
       // Gérer les erreurs de permissions individuellement pour ne pas bloquer tout le processus
       const fetchResource = async (collectionName: string, errorMessage: string) => {
@@ -3890,41 +4180,43 @@ class UniversService {
         fetchResource('reports', 'Erreur lors de la récupération des rapports')
       ]);
 
-      // Créer des maps des ressources existantes par nom/ID
-      const existingFormsMap = new Map<string, { id: string; data: any }>();
-      const existingDashboardsMap = new Map<string, { id: string; data: any }>();
-      const existingInstructionsMap = new Map<string, { id: string; data: any }>();
-      const existingListsMap = new Map<string, { id: string; data: any }>();
-      const existingReportsMap = new Map<string, { id: string; data: any }>();
+      // Créer des maps des ressources existantes par ID (pour vérification d'existence)
+      const existingResourcesById = {
+        forms: new Map<string, { id: string; data: any }>(),
+        dashboards: new Map<string, { id: string; data: any }>(),
+        instructions: new Map<string, { id: string; data: any }>(),
+        lists: new Map<string, { id: string; data: any }>(),
+        reports: new Map<string, { id: string; data: any }>()
+      };
 
       existingForms.docs.forEach((doc: any) => {
         const data = doc.data();
-        existingFormsMap.set(data.name || data.title || doc.id, { id: doc.id, data });
+        existingResourcesById.forms.set(doc.id, { id: doc.id, data });
       });
       existingDashboards.docs.forEach((doc: any) => {
         const data = doc.data();
-        existingDashboardsMap.set(data.name || doc.id, { id: doc.id, data });
+        existingResourcesById.dashboards.set(doc.id, { id: doc.id, data });
       });
       existingInstructions.docs.forEach((doc: any) => {
         const data = doc.data();
-        existingInstructionsMap.set(data.title || doc.id, { id: doc.id, data });
+        existingResourcesById.instructions.set(doc.id, { id: doc.id, data });
       });
       existingLists.docs.forEach((doc: any) => {
         const data = doc.data();
-        existingListsMap.set(data.name || doc.id, { id: doc.id, data });
+        existingResourcesById.lists.set(doc.id, { id: doc.id, data });
       });
       existingReports.docs.forEach((doc: any) => {
         const data = doc.data();
-        existingReportsMap.set(data.name || doc.id, { id: doc.id, data });
+        existingResourcesById.reports.set(doc.id, { id: doc.id, data });
       });
 
       // SEPARATE: Template resources vs Custom resources
       // Custom resources (fromUnivers: false) should NEVER be touched during updates
-      const existingFormsList = Array.from(existingFormsMap.values());
-      const existingDashboardsList = Array.from(existingDashboardsMap.values());
-      const existingInstructionsList = Array.from(existingInstructionsMap.values());
-      const existingListsList = Array.from(existingListsMap.values());
-      const existingReportsList = Array.from(existingReportsMap.values());
+      const existingFormsList = Array.from(existingResourcesById.forms.values());
+      const existingDashboardsList = Array.from(existingResourcesById.dashboards.values());
+      const existingInstructionsList = Array.from(existingResourcesById.instructions.values());
+      const existingListsList = Array.from(existingResourcesById.lists.values());
+      const existingReportsList = Array.from(existingResourcesById.reports.values());
 
       const { template: templateForms, custom: customForms } = this.separateTemplateAndCustomResources(existingFormsList, 'forms');
       const { template: templateDashboards, custom: customDashboards } = this.separateTemplateAndCustomResources(existingDashboardsList, 'dashboards');
@@ -3943,24 +4235,26 @@ class UniversService {
         if (customReports.length > 0) console.log(`   - ${customReports.length} rapport(s) personnalisé(s)`);
       }
 
-      // Rebuild maps with only template resources for matching logic
-      const templateFormsMap = new Map<string, { id: string; data: any }>();
-      const templateDashboardsMap = new Map<string, { id: string; data: any }>();
-      const templateInstructionsMap = new Map<string, { id: string; data: any }>();
-      const templateListsMap = new Map<string, { id: string; data: any }>();
-      const templateReportsMap = new Map<string, { id: string; data: any }>();
+      // Créer des maps des ressources template par ID (pour vérification d'existence et données utilisateur)
+      const templateResourcesById = {
+        forms: new Map<string, { id: string; data: any }>(),
+        dashboards: new Map<string, { id: string; data: any }>(),
+        instructions: new Map<string, { id: string; data: any }>(),
+        lists: new Map<string, { id: string; data: any }>(),
+        reports: new Map<string, { id: string; data: any }>()
+      };
 
-      templateForms.forEach(r => templateFormsMap.set(r.data.name || r.data.title || r.id, r));
-      templateDashboards.forEach(r => templateDashboardsMap.set(r.data.name || r.id, r));
-      templateInstructions.forEach(r => templateInstructionsMap.set(r.data.title || r.id, r));
-      templateLists.forEach(r => templateListsMap.set(r.data.name || r.id, r));
-      templateReports.forEach(r => templateReportsMap.set(r.data.name || r.id, r));
+      templateForms.forEach(r => templateResourcesById.forms.set(r.id, r));
+      templateDashboards.forEach(r => templateResourcesById.dashboards.set(r.id, r));
+      templateInstructions.forEach(r => templateResourcesById.instructions.set(r.id, r));
+      templateLists.forEach(r => templateResourcesById.lists.set(r.id, r));
+      templateReports.forEach(r => templateResourcesById.reports.set(r.id, r));
 
-      // Créer des maps des définitions par nom/ID
+      // Créer des maps des définitions par ref (pour accès rapide)
       const listDefinitionsMap = new Map<string, any>();
       if (univers.definitions.lists) {
         for (const listDef of univers.definitions.lists) {
-          listDefinitionsMap.set(listDef.name, listDef);
+          listDefinitionsMap.set(listDef.id, listDef);
         }
       }
 
@@ -3981,15 +4275,52 @@ class UniversService {
         reports: [] as any[]
       };
 
+      // NOUVELLE LOGIQUE: Utiliser definitionRefs pour le matching précis
       // Filtrer les formulaires (TEMPLATE ONLY - custom forms are already separated)
       if (univers.definitions.forms) {
         for (const formDef of univers.definitions.forms) {
-          const existing = templateFormsMap.get(formDef.title || formDef.id);
-          if (existing && this.hasFormUserData(existing.data)) {
-            console.log(`🔒 Préservation du formulaire template "${formDef.title || formDef.id}" (ID: ${existing.id}) car il contient des données utilisateur`);
-            preservedResourceIds.forms.push(existing.id);
+          const ref = formDef.id; // Ref de définition (ex: "univers-abc123-def456")
+          
+          // Chercher dans definitionRefs
+          const existingResourceId = definitionRefs.forms?.[ref];
+          
+          if (existingResourceId) {
+            // Ref existe → vérifier que la ressource existe vraiment
+            const existingResource = existingResourcesById.forms.get(existingResourceId);
+            
+            if (existingResource) {
+              // Ressource existe → vérifier si elle a des données utilisateur
+              if (this.hasFormUserData(existingResource.data)) {
+                console.log(`🔒 Préservation du formulaire template "${formDef.title}" (ref: ${ref}, ID: ${existingResourceId}) car il contient des données utilisateur`);
+                preservedResourceIds.forms.push(existingResourceId);
+              } else {
+                // Ressource existe mais pas de données utilisateur → recréer pour synchroniser
+                console.log(`🔄 Formulaire template "${formDef.title}" (ref: ${ref}, ID: ${existingResourceId}) existe mais sera recréé pour synchronisation`);
+                resourcesToCreate.forms.push(formDef);
+              }
+            } else {
+              // Ressource référencée n'existe plus → créer
+              console.log(`⚠️ Formulaire référencé dans definitionRefs n'existe plus (ref: ${ref}, ID: ${existingResourceId}) → création`);
+              resourcesToCreate.forms.push(formDef);
+            }
           } else {
-            resourcesToCreate.forms.push(formDef);
+            // Ref n'existe pas → créer
+            // Fallback: si pas de definitionRefs, utiliser l'ancien système (matching par nom)
+            if (!hasDefinitionRefs) {
+              // ANCIEN SYSTÈME: Matching par nom (rétrocompatibilité)
+              const existingByName = Array.from(templateResourcesById.forms.values()).find(
+                r => r.data.title === formDef.title || r.data.name === formDef.title
+              );
+              if (existingByName && this.hasFormUserData(existingByName.data)) {
+                console.log(`🔒 Préservation du formulaire template "${formDef.title}" (ID: ${existingByName.id}) [fallback par nom] car il contient des données utilisateur`);
+                preservedResourceIds.forms.push(existingByName.id);
+              } else {
+                resourcesToCreate.forms.push(formDef);
+              }
+            } else {
+              // NOUVEAU SYSTÈME: Ref n'existe pas → créer
+              resourcesToCreate.forms.push(formDef);
+            }
           }
         }
       }
@@ -3997,12 +4328,39 @@ class UniversService {
       // Filtrer les dashboards (TEMPLATE ONLY)
       if (univers.definitions.dashboards) {
         for (const dashboardDef of univers.definitions.dashboards) {
-          const existing = templateDashboardsMap.get(dashboardDef.name || dashboardDef.id);
-          if (existing && this.hasDashboardUserData(existing.data)) {
-            console.log(`🔒 Préservation du dashboard template "${dashboardDef.name}" (ID: ${existing.id}) car il contient des données utilisateur`);
-            preservedResourceIds.dashboards.push(existing.id);
+          const ref = dashboardDef.id;
+          const existingResourceId = definitionRefs.dashboards?.[ref];
+          
+          if (existingResourceId) {
+            const existingResource = existingResourcesById.dashboards.get(existingResourceId);
+            
+            if (existingResource) {
+              if (this.hasDashboardUserData(existingResource.data)) {
+                console.log(`🔒 Préservation du dashboard template "${dashboardDef.name}" (ref: ${ref}, ID: ${existingResourceId}) car il contient des données utilisateur`);
+                preservedResourceIds.dashboards.push(existingResourceId);
+              } else {
+                console.log(`🔄 Dashboard template "${dashboardDef.name}" (ref: ${ref}, ID: ${existingResourceId}) existe mais sera recréé pour synchronisation`);
+                resourcesToCreate.dashboards.push(dashboardDef);
+              }
+            } else {
+              console.log(`⚠️ Dashboard référencé dans definitionRefs n'existe plus (ref: ${ref}, ID: ${existingResourceId}) → création`);
+              resourcesToCreate.dashboards.push(dashboardDef);
+            }
           } else {
-            resourcesToCreate.dashboards.push(dashboardDef);
+            if (!hasDefinitionRefs) {
+              // ANCIEN SYSTÈME: Matching par nom
+              const existingByName = Array.from(templateResourcesById.dashboards.values()).find(
+                r => r.data.name === dashboardDef.name
+              );
+              if (existingByName && this.hasDashboardUserData(existingByName.data)) {
+                console.log(`🔒 Préservation du dashboard template "${dashboardDef.name}" (ID: ${existingByName.id}) [fallback par nom] car il contient des données utilisateur`);
+                preservedResourceIds.dashboards.push(existingByName.id);
+              } else {
+                resourcesToCreate.dashboards.push(dashboardDef);
+              }
+            } else {
+              resourcesToCreate.dashboards.push(dashboardDef);
+            }
           }
         }
       }
@@ -4010,12 +4368,39 @@ class UniversService {
       // Filtrer les instructions (TEMPLATE ONLY)
       if (univers.definitions.instructions) {
         for (const instructionDef of univers.definitions.instructions) {
-          const existing = templateInstructionsMap.get(instructionDef.title || instructionDef.id);
-          if (existing && this.hasInstructionUserData(existing.data)) {
-            console.log(`🔒 Préservation de l'instruction template "${instructionDef.title}" (ID: ${existing.id}) car elle contient des données utilisateur`);
-            preservedResourceIds.instructions.push(existing.id);
+          const ref = instructionDef.id;
+          const existingResourceId = definitionRefs.instructions?.[ref];
+          
+          if (existingResourceId) {
+            const existingResource = existingResourcesById.instructions.get(existingResourceId);
+            
+            if (existingResource) {
+              if (this.hasInstructionUserData(existingResource.data)) {
+                console.log(`🔒 Préservation de l'instruction template "${instructionDef.title}" (ref: ${ref}, ID: ${existingResourceId}) car elle contient des données utilisateur`);
+                preservedResourceIds.instructions.push(existingResourceId);
+              } else {
+                console.log(`🔄 Instruction template "${instructionDef.title}" (ref: ${ref}, ID: ${existingResourceId}) existe mais sera recréée pour synchronisation`);
+                resourcesToCreate.instructions.push(instructionDef);
+              }
+            } else {
+              console.log(`⚠️ Instruction référencée dans definitionRefs n'existe plus (ref: ${ref}, ID: ${existingResourceId}) → création`);
+              resourcesToCreate.instructions.push(instructionDef);
+            }
           } else {
-            resourcesToCreate.instructions.push(instructionDef);
+            if (!hasDefinitionRefs) {
+              // ANCIEN SYSTÈME: Matching par nom
+              const existingByName = Array.from(templateResourcesById.instructions.values()).find(
+                r => r.data.title === instructionDef.title
+              );
+              if (existingByName && this.hasInstructionUserData(existingByName.data)) {
+                console.log(`🔒 Préservation de l'instruction template "${instructionDef.title}" (ID: ${existingByName.id}) [fallback par nom] car elle contient des données utilisateur`);
+                preservedResourceIds.instructions.push(existingByName.id);
+              } else {
+                resourcesToCreate.instructions.push(instructionDef);
+              }
+            } else {
+              resourcesToCreate.instructions.push(instructionDef);
+            }
           }
         }
       }
@@ -4023,13 +4408,38 @@ class UniversService {
       // Filtrer les listes (TEMPLATE ONLY)
       if (univers.definitions.lists) {
         for (const listDef of univers.definitions.lists) {
-          const existing = templateListsMap.get(listDef.name);
-          if (existing) {
-            const listDefinition = listDefinitionsMap.get(listDef.name);
-            if (this.hasUserAddedData(existing.data, listDefinition)) {
-              console.log(`🔒 Préservation de la liste template "${listDef.name}" (ID: ${existing.id}) car elle contient des données utilisateur`);
-              preservedResourceIds.lists.push(existing.id);
-              continue;
+          const ref = listDef.id;
+          const existingResourceId = definitionRefs.lists?.[ref];
+          
+          if (existingResourceId) {
+            const existingResource = existingResourcesById.lists.get(existingResourceId);
+            
+            if (existingResource) {
+              const listDefinition = listDefinitionsMap.get(listDef.id);
+              if (this.hasUserAddedData(existingResource.data, listDefinition)) {
+                console.log(`🔒 Préservation de la liste template "${listDef.name}" (ref: ${ref}, ID: ${existingResourceId}) car elle contient des données utilisateur`);
+                preservedResourceIds.lists.push(existingResourceId);
+                continue;
+              } else {
+                console.log(`🔄 Liste template "${listDef.name}" (ref: ${ref}, ID: ${existingResourceId}) existe mais sera recréée pour synchronisation`);
+              }
+            } else {
+              console.log(`⚠️ Liste référencée dans definitionRefs n'existe plus (ref: ${ref}, ID: ${existingResourceId}) → création`);
+            }
+          } else {
+            if (!hasDefinitionRefs) {
+              // ANCIEN SYSTÈME: Matching par nom
+              const existingByName = Array.from(templateResourcesById.lists.values()).find(
+                r => r.data.name === listDef.name
+              );
+              if (existingByName) {
+                const listDefinition = listDefinitionsMap.get(listDef.id);
+                if (this.hasUserAddedData(existingByName.data, listDefinition)) {
+                  console.log(`🔒 Préservation de la liste template "${listDef.name}" (ID: ${existingByName.id}) [fallback par nom] car elle contient des données utilisateur`);
+                  preservedResourceIds.lists.push(existingByName.id);
+                  continue;
+                }
+              }
             }
           }
           resourcesToCreate.lists.push(listDef);
@@ -4039,12 +4449,39 @@ class UniversService {
       // Filtrer les rapports (TEMPLATE ONLY)
       if (univers.definitions.reports) {
         for (const reportDef of univers.definitions.reports) {
-          const existing = templateReportsMap.get(reportDef.name || reportDef.id);
-          if (existing && this.hasReportUserData(existing.data)) {
-            console.log(`🔒 Préservation du rapport template "${reportDef.name}" (ID: ${existing.id}) car il contient des données utilisateur`);
-            preservedResourceIds.reports.push(existing.id);
+          const ref = reportDef.id;
+          const existingResourceId = definitionRefs.reports?.[ref];
+          
+          if (existingResourceId) {
+            const existingResource = existingResourcesById.reports.get(existingResourceId);
+            
+            if (existingResource) {
+              if (this.hasReportUserData(existingResource.data)) {
+                console.log(`🔒 Préservation du rapport template "${reportDef.name}" (ref: ${ref}, ID: ${existingResourceId}) car il contient des données utilisateur`);
+                preservedResourceIds.reports.push(existingResourceId);
+              } else {
+                console.log(`🔄 Rapport template "${reportDef.name}" (ref: ${ref}, ID: ${existingResourceId}) existe mais sera recréé pour synchronisation`);
+                resourcesToCreate.reports.push(reportDef);
+              }
+            } else {
+              console.log(`⚠️ Rapport référencé dans definitionRefs n'existe plus (ref: ${ref}, ID: ${existingResourceId}) → création`);
+              resourcesToCreate.reports.push(reportDef);
+            }
           } else {
-            resourcesToCreate.reports.push(reportDef);
+            if (!hasDefinitionRefs) {
+              // ANCIEN SYSTÈME: Matching par nom
+              const existingByName = Array.from(templateResourcesById.reports.values()).find(
+                r => r.data.name === reportDef.name
+              );
+              if (existingByName && this.hasReportUserData(existingByName.data)) {
+                console.log(`🔒 Préservation du rapport template "${reportDef.name}" (ID: ${existingByName.id}) [fallback par nom] car il contient des données utilisateur`);
+                preservedResourceIds.reports.push(existingByName.id);
+              } else {
+                resourcesToCreate.reports.push(reportDef);
+              }
+            } else {
+              resourcesToCreate.reports.push(reportDef);
+            }
           }
         }
       }
@@ -4105,8 +4542,108 @@ class UniversService {
 
       // Mettre à jour l'instance avec les IDs des ressources (template + custom)
       // Also update universVersion to match template version
-      const instanceRef = doc(db, this.instancesCollectionName, instanceId);
-      await updateDoc(instanceRef, {
+      // Update definitionRefs with mappings for newly created resources
+      const instanceUpdateRef = doc(db, this.instancesCollectionName, instanceId);
+      
+      // Get existing definitionRefs from instance (if any)
+      const instanceUpdateDoc = await getDoc(instanceUpdateRef);
+      const existingInstanceData = instanceUpdateDoc.exists() ? instanceUpdateDoc.data() : null;
+      const existingDefinitionRefs = existingInstanceData?.definitionRefs || {
+        forms: {},
+        dashboards: {},
+        instructions: {},
+        lists: {},
+        reports: {}
+      };
+      
+      // Merge existing definitionRefs with new ones (preserve existing mappings)
+      // Also add mappings for preserved resources if they don't exist yet
+      const mergedDefinitionRefs = {
+        forms: {
+          ...existingDefinitionRefs.forms,
+          ...(instantiationResult.definitionRefs?.forms || {})
+        },
+        dashboards: {
+          ...existingDefinitionRefs.dashboards,
+          ...(instantiationResult.definitionRefs?.dashboards || {})
+        },
+        instructions: {
+          ...existingDefinitionRefs.instructions,
+          ...(instantiationResult.definitionRefs?.instructions || {})
+        },
+        lists: {
+          ...existingDefinitionRefs.lists,
+          ...(instantiationResult.definitionRefs?.lists || {})
+        },
+        reports: {
+          ...existingDefinitionRefs.reports,
+          ...(instantiationResult.definitionRefs?.reports || {})
+        }
+      };
+      
+      // Add mappings for preserved resources if they don't exist in definitionRefs
+      // This ensures that preserved resources are also tracked in definitionRefs
+      if (univers.definitions.forms) {
+        for (const formDef of univers.definitions.forms) {
+          const preservedFormId = preservedResourceIds.forms.find(id => 
+            templateResourcesById.forms.has(id)
+          );
+          if (preservedFormId && !mergedDefinitionRefs.forms[formDef.id]) {
+            mergedDefinitionRefs.forms[formDef.id] = preservedFormId;
+            console.log(`🔗 Ajout du mapping ref pour formulaire préservé: ${formDef.id} → ${preservedFormId}`);
+          }
+        }
+      }
+      
+      if (univers.definitions.dashboards) {
+        for (const dashboardDef of univers.definitions.dashboards) {
+          const preservedDashboardId = preservedResourceIds.dashboards.find(id => 
+            templateResourcesById.dashboards.has(id)
+          );
+          if (preservedDashboardId && !mergedDefinitionRefs.dashboards[dashboardDef.id]) {
+            mergedDefinitionRefs.dashboards[dashboardDef.id] = preservedDashboardId;
+            console.log(`🔗 Ajout du mapping ref pour dashboard préservé: ${dashboardDef.id} → ${preservedDashboardId}`);
+          }
+        }
+      }
+      
+      if (univers.definitions.instructions) {
+        for (const instructionDef of univers.definitions.instructions) {
+          const preservedInstructionId = preservedResourceIds.instructions.find(id => 
+            templateResourcesById.instructions.has(id)
+          );
+          if (preservedInstructionId && !mergedDefinitionRefs.instructions[instructionDef.id]) {
+            mergedDefinitionRefs.instructions[instructionDef.id] = preservedInstructionId;
+            console.log(`🔗 Ajout du mapping ref pour instruction préservée: ${instructionDef.id} → ${preservedInstructionId}`);
+          }
+        }
+      }
+      
+      if (univers.definitions.lists) {
+        for (const listDef of univers.definitions.lists) {
+          const preservedListId = preservedResourceIds.lists.find(id => 
+            templateResourcesById.lists.has(id)
+          );
+          if (preservedListId && !mergedDefinitionRefs.lists[listDef.id]) {
+            mergedDefinitionRefs.lists[listDef.id] = preservedListId;
+            console.log(`🔗 Ajout du mapping ref pour liste préservée: ${listDef.id} → ${preservedListId}`);
+          }
+        }
+      }
+      
+      if (univers.definitions.reports) {
+        for (const reportDef of univers.definitions.reports) {
+          const preservedReportId = preservedResourceIds.reports.find(id => 
+            templateResourcesById.reports.has(id)
+          );
+          if (preservedReportId && !mergedDefinitionRefs.reports[reportDef.id]) {
+            mergedDefinitionRefs.reports[reportDef.id] = preservedReportId;
+            console.log(`🔗 Ajout du mapping ref pour rapport préservé: ${reportDef.id} → ${preservedReportId}`);
+          }
+        }
+      }
+      
+      await updateDoc(instanceUpdateRef, {
         instances: {
           forms: allResourceIds.forms,
           dashboards: allResourceIds.dashboards,
@@ -4114,6 +4651,7 @@ class UniversService {
           lists: allResourceIds.lists,
           reports: allResourceIds.reports
         },
+        definitionRefs: mergedDefinitionRefs,
         universVersion: univers.metadata?.version || 1,
         updateAvailable: false,
         updatedAt: serverTimestamp()

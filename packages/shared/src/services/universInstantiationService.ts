@@ -19,6 +19,18 @@ export interface InstantiationResult {
   instructions: string[]; // Array of created instruction IDs
   lists: string[]; // Array of created list IDs
   reports: string[]; // Array of created report IDs
+  /**
+   * Mapping of definition references (refs) to actual resource IDs
+   * Key: definition ref (e.g., "univers-abc123-def456")
+   * Value: actual resource ID in Firestore collection
+   */
+  definitionRefs?: {
+    forms: Record<string, string>;      // { "univers-abc123": "form_real_id_001" }
+    dashboards: Record<string, string>; // { "univers-def456": "dashboard_real_id_001" }
+    lists: Record<string, string>;      // { "univers-ghi789": "list_real_id_001" }
+    reports: Record<string, string>;    // { "univers-jkl012": "report_real_id_001" }
+    instructions: Record<string, string>; // { "univers-mno345": "instruction_real_id_001" }
+  };
 }
 
 export interface InstantiationParams {
@@ -512,7 +524,14 @@ class UniversInstantiationService {
       dashboards: [],
       instructions: [],
       lists: [],
-      reports: []
+      reports: [],
+      definitionRefs: {
+        forms: {},
+        dashboards: {},
+        instructions: {},
+        lists: {},
+        reports: {}
+      }
     };
 
     const { definitions } = params;
@@ -529,9 +548,14 @@ class UniversInstantiationService {
     if (definitions.lists && definitions.lists.length > 0) {
       try {
         result.lists = await this.instantiateLists(definitions.lists, params);
-        // Populate list ID mappings
+        // Populate list ID mappings and definitionRefs
         definitions.lists.forEach((listDef, index) => {
-          idMappings.lists.set(listDef.id, result.lists[index]);
+          const listId = result.lists[index];
+          idMappings.lists.set(listDef.id, listId);
+          // Store mapping ref → ID réel
+          if (result.definitionRefs) {
+            result.definitionRefs.lists[listDef.id] = listId;
+          }
         });
         console.log(`✅ Instantiated ${result.lists.length} lists (before forms for listId mapping)`);
       } catch (error) {
@@ -544,9 +568,14 @@ class UniversInstantiationService {
     if (definitions.forms && definitions.forms.length > 0) {
       try {
         result.forms = await this.instantiateForms(definitions.forms, params, idMappings.lists);
-        // Populate form ID mappings
+        // Populate form ID mappings and definitionRefs
         definitions.forms.forEach((formDef, index) => {
-          idMappings.forms.set(formDef.id, result.forms[index]);
+          const formId = result.forms[index];
+          idMappings.forms.set(formDef.id, formId);
+          // Store mapping ref → ID réel
+          if (result.definitionRefs) {
+            result.definitionRefs.forms[formDef.id] = formId;
+          }
         });
         console.log(`✅ Instantiated ${result.forms.length} forms`);
       } catch (error) {
@@ -559,9 +588,14 @@ class UniversInstantiationService {
     if (definitions.dashboards && definitions.dashboards.length > 0) {
       try {
         result.dashboards = await this.instantiateDashboards(definitions.dashboards, params);
-        // Populate dashboard ID mappings
+        // Populate dashboard ID mappings and definitionRefs
         definitions.dashboards.forEach((dashboardDef, index) => {
-          idMappings.dashboards.set(dashboardDef.id, result.dashboards[index]);
+          const dashboardId = result.dashboards[index];
+          idMappings.dashboards.set(dashboardDef.id, dashboardId);
+          // Store mapping ref → ID réel
+          if (result.definitionRefs) {
+            result.definitionRefs.dashboards[dashboardDef.id] = dashboardId;
+          }
         });
         console.log(`✅ Instantiated ${result.dashboards.length} dashboards`);
       } catch (error) {
@@ -574,6 +608,14 @@ class UniversInstantiationService {
     if (definitions.instructions && definitions.instructions.length > 0) {
       try {
         result.instructions = await this.instantiateInstructions(definitions.instructions, params, idMappings);
+        // Populate instruction ID mappings and definitionRefs
+        definitions.instructions.forEach((instructionDef, index) => {
+          const instructionId = result.instructions[index];
+          // Store mapping ref → ID réel
+          if (result.definitionRefs) {
+            result.definitionRefs.instructions[instructionDef.id] = instructionId;
+          }
+        });
         console.log(`✅ Instantiated ${result.instructions.length} instructions`);
       } catch (error) {
         console.error('❌ Error instantiating instructions:', error);
@@ -585,6 +627,14 @@ class UniversInstantiationService {
     if (definitions.reports && definitions.reports.length > 0) {
       try {
         result.reports = await this.instantiateReports(definitions.reports, params, idMappings);
+        // Populate report ID mappings and definitionRefs
+        definitions.reports.forEach((reportDef, index) => {
+          const reportId = result.reports[index];
+          // Store mapping ref → ID réel
+          if (result.definitionRefs) {
+            result.definitionRefs.reports[reportDef.id] = reportId;
+          }
+        });
         console.log(`✅ Instantiated ${result.reports.length} reports`);
       } catch (error) {
         console.error('❌ Error instantiating reports:', error);

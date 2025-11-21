@@ -3,7 +3,6 @@ import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { Textarea } from '../ui/Textarea';
-import { Select } from '../ui/Select';
 import { UniversWizardStepProps } from './UniversWizard';
 import { Form } from '../../types';
 import { SimpleInstructionInput } from '../scheduled/SimpleInstructionInput';
@@ -14,9 +13,9 @@ import { Plus, Trash2, Edit, Calendar, CheckCircle, AlertCircle, ArrowLeft } fro
 import { useApp } from '@ubora/shared/contexts/AppContext';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
 import { useToast } from '@ubora/shared/hooks/useToast';
-import { scheduledQuestionService } from '@ubora/shared/services/scheduledQuestionService';
 import { getCameroonTime } from '@ubora/shared/utils/timezoneUtils';
 import { ConfirmationModal } from '../modals/ConfirmationModal';
+import { generateDefinitionRef } from '@ubora/shared/utils/definitionRefUtils';
 
 // InstructionDefinition interface for Univers
 interface InstructionDefinition {
@@ -51,7 +50,8 @@ export const UniversWizardStep5: React.FC<UniversWizardStepProps> = ({
   readOnly = false,
   templateData
 }) => {
-  const { employees } = useApp();
+  const appContext = useApp();
+  const employees = 'employees' in appContext ? appContext.employees : [];
   const { user } = useAuth();
   const { showSuccess, showError } = useToast();
 
@@ -60,7 +60,13 @@ export const UniversWizardStep5: React.FC<UniversWizardStepProps> = ({
     ? (templateData.definitions.instructions || [])
     : ((wizardData.definitions.instructions as InstructionDefinition[]) || []);
 
-  const [instructions, setInstructions] = useState<InstructionDefinition[]>(initialInstructions);
+  // Normaliser les instructions pour s'assurer que scheduledAt est toujours une Date
+  const normalizedInitialInstructions = initialInstructions.map(inst => ({
+    ...inst,
+    scheduledAt: inst.scheduledAt instanceof Date ? inst.scheduledAt : (inst.scheduledAt ? new Date(inst.scheduledAt) : new Date())
+  }));
+
+  const [instructions, setInstructions] = useState<InstructionDefinition[]>(normalizedInitialInstructions);
   const [showInstructionBuilder, setShowInstructionBuilder] = useState(false);
   const [editingInstructionId, setEditingInstructionId] = useState<string | null>(null);
 
@@ -261,7 +267,7 @@ export const UniversWizardStep5: React.FC<UniversWizardStepProps> = ({
     }
 
     const instructionData: InstructionDefinition = {
-      id: editingInstructionId || `instruction_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      id: editingInstructionId || generateDefinitionRef(),
       title: title.trim(),
       description: description.trim() || undefined,
       question: question.trim(),
@@ -449,7 +455,7 @@ export const UniversWizardStep5: React.FC<UniversWizardStepProps> = ({
                     filters={filters}
                     onFiltersChange={setFilters}
                     forms={universForms}
-                    employees={employees}
+                    employees={Array.isArray(employees) ? employees : []}
                   />
                 )}
 

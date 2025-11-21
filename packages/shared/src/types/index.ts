@@ -994,6 +994,19 @@ export interface UniversInstance {
     lists: string[]; // Array of list IDs
     reports: string[]; // Array of report IDs
   };
+  /**
+   * Mapping of definition references (refs) to actual resource IDs
+   * Key: definition ref (e.g., "univers-abc123-def456")
+   * Value: actual resource ID in Firestore collection
+   * This allows precise matching during activation without relying on names/titles
+   */
+  definitionRefs?: {
+    forms: Record<string, string>;      // { "univers-abc123": "form_real_id_001" }
+    dashboards: Record<string, string>; // { "univers-def456": "dashboard_real_id_001" }
+    lists: Record<string, string>;      // { "univers-ghi789": "list_real_id_001" }
+    reports: Record<string, string>;    // { "univers-jkl012": "report_real_id_001" }
+    instructions: Record<string, string>; // { "univers-mno345": "instruction_real_id_001" }
+  };
   metadata: {
     universName: string;
     universVersion: number; // Version snapshot when instance was created

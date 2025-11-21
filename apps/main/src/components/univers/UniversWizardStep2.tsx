@@ -8,6 +8,7 @@ import { useAuth } from '@ubora/shared/contexts/AuthContext';
 import { useToast } from '@ubora/shared/hooks/useToast';
 import { ListEditor } from '../lists/ListEditor';
 import { ListsCSVImport } from '../lists/ListsCSVImport';
+import { generateDefinitionRef } from '@ubora/shared/utils/definitionRefUtils';
 
 export const UniversWizardStep2: React.FC<UniversWizardStepProps> = ({
   wizardData,
@@ -109,7 +110,7 @@ export const UniversWizardStep2: React.FC<UniversWizardStepProps> = ({
     } else {
       // Create new list
       const newList: ListDefinition = {
-        id: `list_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        id: generateDefinitionRef(),
         name: listData.name,
         description: listData.description,
         columns: listData.columns,
@@ -221,7 +222,7 @@ export const UniversWizardStep2: React.FC<UniversWizardStepProps> = ({
                               <tr key={rowIndex}>
                                 {list.columns.map((_, colIndex) => (
                                   <td key={colIndex} className="px-3 py-2 text-sm text-gray-900">
-                                    {row[colIndex] || '-'}
+                                    {String(row[colIndex] || '-')}
                                   </td>
                                 ))}
                               </tr>

@@ -2,12 +2,13 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { DashboardBuilder } from '../dashboard/DashboardBuilder';
-import { DashboardMetric, Form, FormDefinition, ListDefinition, DashboardDefinition as DashboardDefinitionType, FormField, List } from '../../types';
+import { DashboardMetric, Form, FormDefinition, ListDefinition, FormField, List } from '../../types';
 import { UniversWizardStepProps } from './UniversWizard';
 import { Plus, Trash2, Edit, BarChart3, CheckCircle, AlertCircle, ArrowLeft, AlertTriangle } from 'lucide-react';
 import { useApp } from '@ubora/shared/contexts/AppContext';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
 import { useToast } from '@ubora/shared/hooks/useToast';
+import { generateDefinitionRef } from '@ubora/shared/utils/definitionRefUtils';
 
 // DashboardDefinition interface for Univers
 interface DashboardDefinition {
@@ -24,7 +25,8 @@ export const UniversWizardStep4: React.FC<UniversWizardStepProps> = ({
   readOnly = false,
   templateData
 }) => {
-  const { formEntries } = useApp();
+  const appContext = useApp();
+  const formEntries = 'formEntries' in appContext ? appContext.formEntries : [];
   const { user } = useAuth();
   const { showSuccess, showError } = useToast();
 
@@ -98,7 +100,7 @@ export const UniversWizardStep4: React.FC<UniversWizardStepProps> = ({
     if (!readOnly) {
       updateWizardData({
         definitions: {
-          dashboards: dashboards as DashboardDefinition[]
+          dashboards: dashboards as any // DashboardDefinition local vs type importé - conversion nécessaire
         }
       });
 
@@ -152,7 +154,7 @@ export const UniversWizardStep4: React.FC<UniversWizardStepProps> = ({
     } else {
       // Create new dashboard
       const newDashboard: DashboardDefinition = {
-        id: `dashboard_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        id: generateDefinitionRef(),
         name: dashboardData.name,
         description: dashboardData.description,
         metrics: dashboardData.metrics
@@ -378,7 +380,7 @@ export const UniversWizardStep4: React.FC<UniversWizardStepProps> = ({
           onSave={handleDashboardSave}
           onCancel={handleDashboardCancel}
           forms={universForms}
-          formEntries={formEntries}
+          formEntries={Array.isArray(formEntries) ? formEntries : []}
           currentUserId={user?.id || ''}
           agencyId={user?.agencyId || ''}
           isLoading={false}

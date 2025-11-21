@@ -7,6 +7,7 @@ import { UniversWizardStepProps } from './UniversWizard';
 import { Plus, Trash2, Edit, FileBarChart, CheckCircle, AlertCircle, ArrowLeft, FileText } from 'lucide-react';
 import { useAuth } from '@ubora/shared/contexts/AuthContext';
 import { useToast } from '@ubora/shared/hooks/useToast';
+import { generateDefinitionRef } from '@ubora/shared/utils/definitionRefUtils';
 
 export const UniversWizardStep6: React.FC<UniversWizardStepProps> = ({
   wizardData,
@@ -139,7 +140,7 @@ export const UniversWizardStep6: React.FC<UniversWizardStepProps> = ({
     } else {
       // Create new report
       const newReport: ReportDefinition = {
-        id: `report_${Date.now()}`,
+        id: generateDefinitionRef(),
         name: reportData.name,
         description: reportData.description,
         templateType: reportData.templateType,
