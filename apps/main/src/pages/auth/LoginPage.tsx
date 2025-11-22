@@ -8,7 +8,7 @@ import { Footer } from '../../components/layout/Footer';
 import { Lock, Mail, AlertCircle, Loader2 } from 'lucide-react';
 
 export const LoginPage: React.FC = () => {
-  const { user, login, loginWithGoogle, register, resetPassword, isLoading, error } = useAuth();
+  const { user, login, register, resetPassword, isLoading, error } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [email, setEmail] = useState('');
@@ -172,49 +172,6 @@ export const LoginPage: React.FC = () => {
     }
   };
 
-  const handleGoogleLogin = async () => {
-    setLocalError('');
-    
-    // Check if this is an invitation context
-    const urlParams = new URLSearchParams(window.location.search);
-    const isInvite = urlParams.get('invite') === 'true';
-    
-    if (isInvite) {
-      // For invitations, Google Auth is allowed
-      try {
-        const success = await loginWithGoogle();
-        if (!success) {
-          // Gérer les erreurs spécifiques
-          if (error === 'POPUP_BLOCKED_PWA') {
-            setLocalError('La popup a été bloquée. En mode PWA, veuillez utiliser la connexion par email/mot de passe.');
-          } else if (error) {
-            setLocalError(error);
-          } else {
-            setLocalError('Erreur lors de la connexion Google');
-          }
-        }
-      } catch (err) {
-        setLocalError('Erreur lors de la connexion Google');
-      }
-    } else {
-      // For non-invitation contexts (directors), Google Auth is allowed
-      try {
-        const success = await loginWithGoogle();
-        if (!success) {
-          // Gérer les erreurs spécifiques
-          if (error === 'POPUP_BLOCKED_PWA') {
-            setLocalError('La popup a été bloquée. En mode PWA, veuillez utiliser la connexion par email/mot de passe.');
-          } else if (error) {
-            setLocalError(error);
-          } else {
-            setLocalError('Erreur lors de la connexion Google');
-          }
-        }
-      } catch (err) {
-        setLocalError('Erreur lors de la connexion Google');
-      }
-    }
-  };
 
   const handleForgotPassword = async () => {
     if (!forgotPasswordEmail.trim()) {
@@ -408,41 +365,6 @@ export const LoginPage: React.FC = () => {
               )}
             </Button>
           </form>
-
-          {!isRegisterMode && (
-            <div className="mt-4">
-              <div className="relative">
-                <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-gray-300" />
-                </div>
-                <div className="relative flex justify-center text-sm">
-                  <span className="px-2 bg-white text-gray-500">ou</span>
-                </div>
-              </div>
-
-              {/* Only show Google button for invitations or directors */}
-              {(isInviteLink || (!isInviteLink && role === 'directeur')) && (
-                <Button
-                  type="button"
-                  variant="secondary"
-                  onClick={handleGoogleLogin}
-                  disabled={isLoading}
-                  className="w-full mt-4"
-                >
-                  Continuer avec Google
-                </Button>
-              )}
-              
-              {/* Show message for employees without invitation */}
-              {!isInviteLink && role === 'employe' && (
-                <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                  <p className="text-sm text-yellow-800 text-center">
-                    Les employés doivent utiliser un lien d'invitation pour se connecter avec Google.
-                  </p>
-                </div>
-              )}
-            </div>
-          )}
 
           <div className="mt-4 sm:mt-6 text-center">
             <button
