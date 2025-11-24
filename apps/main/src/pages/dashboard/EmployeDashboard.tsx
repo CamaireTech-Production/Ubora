@@ -414,10 +414,7 @@ const ResponsesInterface: React.FC<ResponsesInterfaceProps> = ({
                           <div key={fieldId} className="text-sm">
                             <span className="font-medium text-gray-700">{fieldLabel}:</span>
                             <span className="ml-2 text-gray-600">
-                              {value !== null && value !== undefined ? 
-                                (typeof value === 'boolean' ? (value ? 'Oui' : 'Non') : String(value)) : 
-                                '-'
-                              }
+                              {formatFieldValueForDisplay(value, field)}
                             </span>
                           </div>
                         );
@@ -461,12 +458,12 @@ export const EmployeDashboard: React.FC = () => {
     isLoading: appLoading
   } = useApp();
   const {
-    getFormsForEmployee,
-    submitMultipleFormEntries,
-    updateFormEntry
+    getFormsForEmployee
   } = useForms();
   const {
-    getEntriesForEmployee
+    getEntriesForEmployee,
+    submitMultipleFormEntries,
+    updateFormEntry
   } = useEntries();
   const [selectedFormId, setSelectedFormId] = useState<string | null>(null);
   const [editingDraftId, setEditingDraftId] = useState<string | null>(null);
@@ -638,6 +635,47 @@ export const EmployeDashboard: React.FC = () => {
     } catch (error) {
       return 'Heure invalide';
     }
+  };
+
+  // Helper function to format field value for display (handles list-based select fields)
+  const formatFieldValueForDisplay = (val: any, field?: FormField): string => {
+    if (val === null || val === undefined) return '-';
+    
+    // Handle boolean values
+    if (typeof val === 'boolean') {
+      return val ? 'Oui' : 'Non';
+    }
+    
+    // Handle list-based select fields
+    if (field?.type === 'select' && field?.listId && field?.displayColumnId) {
+      // Check if value is a list row object
+      if (typeof val === 'object' && val !== null && '_listRow' in val) {
+        const listRowObj = val as any;
+        if (listRowObj.rowData && typeof listRowObj.rowData === 'object') {
+          const displayValue = listRowObj.rowData[field.displayColumnId];
+          if (displayValue !== null && displayValue !== undefined) {
+            return String(displayValue);
+          }
+        }
+      }
+      // Fallback: try to parse as JSON string
+      if (typeof val === 'string' && val.startsWith('{')) {
+        try {
+          const parsed = JSON.parse(val);
+          if (parsed._listRow && parsed.rowData && field?.displayColumnId) {
+            const displayValue = parsed.rowData[field.displayColumnId];
+            if (displayValue !== null && displayValue !== undefined) {
+              return String(displayValue);
+            }
+          }
+        } catch {
+          // Not valid JSON, continue to default handling
+        }
+      }
+    }
+    
+    // Default: convert to string
+    return String(val);
   };
 
 
@@ -1080,14 +1118,14 @@ export const EmployeDashboard: React.FC = () => {
                                   );
                                 }
                                 
+                                const displayValue = formatFieldValueForDisplay(value, field);
+                                const truncatedValue = displayValue.length > 50 ? displayValue.substring(0, 50) + '...' : displayValue;
+                                
                                 return (
                                   <div key={fieldId} className="text-xs">
                                     <span className="font-medium text-gray-800">{fieldLabel}:</span>
                                     <span className="ml-1 text-gray-600">
-                                      {value !== null && value !== undefined ? 
-                                        (typeof value === 'boolean' ? (value ? 'Oui' : 'Non') : String(value).substring(0, 50) + (String(value).length > 50 ? '...' : '')) : 
-                                        '-'
-                                      }
+                                      {truncatedValue}
                                     </span>
                                   </div>
                                 );

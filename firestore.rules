@@ -1084,6 +1084,41 @@ service cloud.firestore {
     }
 
     // =============================================================================
+    // COLLECTION UNIVERS PURCHASES
+    // Règles pour les achats d'univers :
+    // - Les directeurs peuvent lire leurs propres achats
+    // - Les employés peuvent lire les achats de leur directeur (même agence)
+    // - Seuls les directeurs peuvent créer des achats
+    // =============================================================================
+    
+    match /universPurchases/{purchaseId} {
+      // LECTURE des achats d'univers
+      allow read: if isAuthenticated() && (
+        isAdmin() ||
+        // Directeur peut lire ses propres achats
+        (isDirecteur() && resource.data.userId == request.auth.uid) ||
+        // Employés peuvent lire les achats de leur directeur (même agence)
+        (isEmploye() && 
+         resource.data.userId != null &&
+         isSameAgency(get(/databases/$(database)/documents/users/$(resource.data.userId)).data.agencyId))
+      );
+      
+      // CRÉATION d'achats d'univers (seuls les directeurs)
+      allow create: if isAuthenticated() && (
+        isAdmin() ||
+        (isDirecteur() && 
+         request.resource.data.userId == request.auth.uid &&
+         request.resource.data.keys().hasAll(['userId', 'universId', 'amountPaid', 'purchaseDate']))
+      );
+      
+      // MODIFICATION des achats (seuls les admins)
+      allow update: if isAdmin();
+      
+      // SUPPRESSION des achats (seuls les admins)
+      allow delete: if isAdmin();
+    }
+
+    // =============================================================================
     // RÈGLE DE SÉCURITÉ GLOBALE
     // Bloquer tout accès non authentifié par défaut
     // =============================================================================

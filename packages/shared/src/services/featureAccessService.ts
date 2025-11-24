@@ -5,6 +5,8 @@ import { SubscriptionSessionService } from './subscriptionSessionService';
 import { SubscriptionSessionCollectionService } from './subscriptionSessionCollectionService';
 import { PACKAGE_FEATURES, PackageType } from '../config/packageFeatures';
 import { Univers } from '../types';
+import { collection, query, where, getDocs } from 'firebase/firestore';
+import { db } from '../firebaseConfig';
 
 /**
  * Source de la permission
@@ -271,7 +273,30 @@ export class FeatureAccessService {
     // Si un universId est fourni, vérifier si l'utilisateur a acheté cet univers
     if (universId) {
       try {
-        const hasPurchased = await UniversPurchaseService.hasPurchasedUnivers(user.id, universId);
+        // Pour les employés, utiliser le directeur de leur agence
+        let userIdToCheck = user.id;
+        if (user.role === 'employe' && user.agencyId) {
+          // Récupérer le directeur de l'agence
+          const directorsQuery = query(
+            collection(db, 'users'),
+            where('agencyId', '==', user.agencyId),
+            where('role', '==', 'directeur')
+          );
+          const directorsSnapshot = await getDocs(directorsQuery);
+          if (!directorsSnapshot.empty) {
+            userIdToCheck = directorsSnapshot.docs[0].id;
+          } else {
+            // Pas de directeur trouvé, pas d'accès via achat
+            return {
+              canRead: false,
+              canWrite: false,
+              source: 'none',
+              reason: 'Aucun directeur trouvé pour cette agence'
+            };
+          }
+        }
+        
+        const hasPurchased = await UniversPurchaseService.hasPurchasedUnivers(userIdToCheck, universId);
         if (hasPurchased) {
           // Pour les achats, on peut donner un accès read-only ou complet selon les métadonnées
           // Pour l'instant, on donne read-only par défaut
@@ -284,6 +309,8 @@ export class FeatureAccessService {
         }
       } catch (error) {
         console.error('Erreur lors de la vérification de l\'achat:', error);
+        // En cas d'erreur (ex: permissions), ne pas bloquer - retourner aucun accès
+        // L'erreur est déjà loggée, on continue silencieusement
       }
     }
 
