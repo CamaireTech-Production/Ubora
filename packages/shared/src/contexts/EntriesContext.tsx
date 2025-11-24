@@ -7,6 +7,8 @@ import {
   orderBy,
   onSnapshot,
   updateDoc,
+  deleteDoc,
+  getDoc,
   doc,
   serverTimestamp
 } from 'firebase/firestore';
@@ -20,6 +22,7 @@ interface EntriesContextType {
   formEntries: FormEntry[];
   submitFormEntry: (entry: Omit<FormEntry, 'id' | 'submittedAt' | 'userId' | 'agencyId'>) => Promise<string>;
   updateFormEntry: (entryId: string, entry: Partial<Omit<FormEntry, 'id' | 'submittedAt' | 'userId' | 'agencyId'>>) => Promise<void>;
+  deleteFormEntry: (entryId: string) => Promise<void>;
   submitMultipleFormEntries: (entries: Omit<FormEntry, 'id' | 'submittedAt' | 'userId' | 'agencyId'>[]) => Promise<void>;
   getEntriesForForm: (formId: string) => FormEntry[];
   getEntriesForEmployee: (employeeId: string) => FormEntry[];
@@ -554,6 +557,53 @@ export const EntriesProvider: React.FC<{ children: React.ReactNode }> = ({ child
     return formEntries.filter(entry => entry.formId === formId);
   };
 
+  const deleteFormEntry = async (entryId: string) => {
+    // Guard: Vérifier que l'utilisateur est connecté et a un profil complet
+    if (!firebaseUser || !user || !user.agencyId) {
+      throw new Error('Utilisateur non connecté ou profil incomplet');
+    }
+
+    // Seuls les directeurs peuvent supprimer des réponses
+    if (user.role !== 'directeur' && !(user.role === 'employe' && user.hasDirectorDashboardAccess)) {
+      throw new Error('Seuls les directeurs peuvent supprimer des réponses');
+    }
+
+    try {
+      setError(null);
+      
+      // Vérifier que la réponse appartient à la même agence
+      const entryRef = doc(db, 'formEntries', entryId);
+      const entryDoc = await getDoc(entryRef);
+      
+      if (!entryDoc.exists()) {
+        throw new Error('Réponse non trouvée');
+      }
+
+      const entryData = entryDoc.data();
+      if (entryData.agencyId !== user.agencyId) {
+        throw new Error('Vous n\'avez pas l\'autorisation de supprimer cette réponse');
+      }
+
+      // Supprimer la réponse
+      await deleteDoc(entryRef);
+      
+      // Show success message
+      showSuccess('Réponse supprimée avec succès');
+    } catch (err) {
+      console.error('Erreur lors de la suppression de la réponse:', err);
+      if (err instanceof Error) {
+        if (err.message.includes('Missing or insufficient permissions')) {
+          setError('Permissions insuffisantes pour supprimer cette réponse.');
+        } else {
+          setError(`Erreur lors de la suppression: ${err.message}`);
+        }
+      } else {
+        setError('Erreur lors de la suppression de la réponse');
+      }
+      throw err;
+    }
+  };
+
   const getEntriesForEmployee = (employeeId: string): FormEntry[] => {
     return formEntries.filter(entry => entry.userId === employeeId);
   };
@@ -563,6 +613,7 @@ export const EntriesProvider: React.FC<{ children: React.ReactNode }> = ({ child
       formEntries,
       submitFormEntry,
       updateFormEntry,
+      deleteFormEntry,
       submitMultipleFormEntries,
       getEntriesForForm,
       getEntriesForEmployee,
@@ -582,6 +633,7 @@ export const useEntries = () => {
       formEntries: [],
       submitFormEntry: async () => '',
       updateFormEntry: async () => {},
+      deleteFormEntry: async () => {},
       submitMultipleFormEntries: async () => {},
       getEntriesForForm: () => [],
       getEntriesForEmployee: () => [],

@@ -9,7 +9,7 @@ import { Layout } from '../../components/layout/Layout';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { WireframeLoader } from '../../components/loading/WireframeLoader';
-import { ArrowLeft, FileText, User, Calendar, Filter, Download, Eye, Edit, ChevronLeft, ChevronRight, RefreshCw, CheckCircle, Clock, XCircle } from 'lucide-react';
+import { ArrowLeft, FileText, User, Calendar, Filter, Download, Eye, Edit, ChevronLeft, ChevronRight, RefreshCw, CheckCircle, Clock, XCircle, Trash2 } from 'lucide-react';
 import { FileAttachment } from '../../types';
 import { useToast } from '@ubora/shared/hooks/useToast';
 import { Toast } from '../../components/ui/Toast';
@@ -26,7 +26,7 @@ export const ResponseDetailPage: React.FC = () => {
   const navigate = useNavigate();
   const { user, firebaseUser, isLoading } = useAuth();
   const { forms, isLoading: formsLoading } = useForms();
-  const { formEntries, getEntriesForForm, getEntriesForEmployee, updateFormEntry, isLoading: entriesLoading } = useEntries();
+  const { formEntries, getEntriesForForm, getEntriesForEmployee, updateFormEntry, deleteFormEntry, isLoading: entriesLoading } = useEntries();
   const { employees, isLoading: employeesLoading } = useEmployees();
   const appLoading = formsLoading || entriesLoading || employeesLoading;
   const { toast, showSuccess, showError } = useToast();
@@ -72,6 +72,12 @@ export const ResponseDetailPage: React.FC = () => {
     formatting?: boolean;
     vectorSync?: boolean;
   }>>({});
+  const [deleteModal, setDeleteModal] = useState<{
+    show: boolean;
+    entryId: string | null;
+    employeeName: string;
+  }>({ show: false, entryId: null, employeeName: '' });
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Get the form and responses
   const form = forms.find(f => f.id === formId);
@@ -386,6 +392,33 @@ export const ResponseDetailPage: React.FC = () => {
     } finally {
       setIsSubmittingEdit(false);
     }
+  };
+
+  const handleDeleteClick = (entryId: string, employeeName: string) => {
+    setDeleteModal({
+      show: true,
+      entryId,
+      employeeName
+    });
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteModal.entryId) return;
+    
+    setIsDeleting(true);
+    try {
+      await deleteFormEntry(deleteModal.entryId);
+      setDeleteModal({ show: false, entryId: null, employeeName: '' });
+    } catch (err) {
+      logger.error('Error deleting response', err, 'ResponseDetailPage');
+      showError('Erreur lors de la suppression de la réponse');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const handleCancelDelete = () => {
+    setDeleteModal({ show: false, entryId: null, employeeName: '' });
   };
 
   const handleBack = () => {
@@ -866,6 +899,19 @@ export const ResponseDetailPage: React.FC = () => {
                                 </span>
                               )}
                               
+                              {/* Delete button - only for directors */}
+                              {isDirector && (
+                                <Button
+                                  variant="danger"
+                                  size="sm"
+                                  onClick={() => handleDeleteClick(response.id, getEmployeeName(response.userId))}
+                                  className="p-2"
+                                  title="Supprimer la réponse"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              )}
+                              
                               {/* Retry buttons */}
                               {(() => {
                                 const status = responseStatuses[response.id];
@@ -1100,6 +1146,59 @@ export const ResponseDetailPage: React.FC = () => {
             });
           }}
         />
+
+        {/* Delete Confirmation Modal */}
+        {deleteModal.show && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
+              <div className="p-6">
+                <div className="flex items-center space-x-3 mb-4">
+                  <div className="flex-shrink-0 w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
+                    <Trash2 className="h-5 w-5 text-red-600" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900">Supprimer la réponse</h3>
+                  </div>
+                </div>
+                
+                <p className="text-gray-600 mb-6">
+                  Êtes-vous sûr de vouloir supprimer la réponse de <strong>{deleteModal.employeeName}</strong> ? 
+                  Cette action est irréversible.
+                </p>
+                
+                <div className="flex items-center justify-end space-x-3">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={handleCancelDelete}
+                    disabled={isDeleting}
+                  >
+                    Annuler
+                  </Button>
+                  <Button
+                    variant="danger"
+                    size="sm"
+                    onClick={handleConfirmDelete}
+                    disabled={isDeleting}
+                    className="flex items-center space-x-1"
+                  >
+                    {isDeleting ? (
+                      <>
+                        <RefreshCw className="h-4 w-4 animate-spin" />
+                        <span>Suppression...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Trash2 className="h-4 w-4" />
+                        <span>Supprimer</span>
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </Layout>
   );
 };
